@@ -1,17 +1,28 @@
 #!/usr/bin/env python3
-"""Verify canonical review-axes were seeded faithfully from CI prompts (REQ-008-01).
+"""Forensic tool: was a canonical review-axis hand-paraphrased or verbatim-seeded?
 
-REQ-008-01 AC mandates that the body of each canonical
-``.claude/review-axes/{role}.md`` was seeded verbatim from
-``.github/prompts/pr-quality-gate-{role}.md``. The seed transform adds
-YAML frontmatter, balances any unclosed code fence, and appends an
-``## Output Schema`` section. This script proves the underlying body
-content was not paraphrased: it computes SHA-256 of the canonical body
-minus those additions and compares against SHA-256 of the CI prompt body.
+This is a FORENSIC TOOL, not a regression gate. Do NOT add it to CI.
 
-A mismatch means a canonical file diverged from the CI source it was
-seeded from (or vice versa). This is the canonical-source-mirror rule
-applied to the seed event.
+Background. REQ-008-01 mandated that each canonical
+``.claude/review-axes/{role}.md`` was seeded verbatim from the matching
+``.github/prompts/pr-quality-gate-{role}.md`` at the seeding commit on
+the main branch. The seed transform adds YAML frontmatter, balances any
+unclosed code fence, and appends an ``## Output Schema`` section. The
+underlying body must round-trip: SHA-256 of the canonical body (minus
+those additions) must equal SHA-256 of the CI prompt body on main.
+
+What this script does. Compares those two SHA-256 values per role and
+reports parity. Useful when a maintainer is investigating whether a
+specific canonical file was hand-paraphrased after the seed event
+(rather than copy-pasted character-for-character).
+
+When this script will FAIL by design. Once a maintainer intentionally
+edits the canonical body (and the canonical IS the system of record),
+the script will report a mismatch. That is expected. PR #1965 already
+amended canonical files for vendored-install survival, UNKNOWN
+handling, and severity-token alignment, so on the post-merge tree the
+script will not pass. Treat a non-zero exit as evidence of intentional
+divergence, not a regression. PR #1965 critic Finding 6 + copilot 6l8V.
 
 Usage::
 
@@ -19,24 +30,13 @@ Usage::
     python3 scripts/validation/validate_seed_parity.py analyst architect
 
 Exit codes (per ADR-035):
-    0  All canonical files match their CI prompt seed.
-    1  At least one mismatch found (seed parity broken).
-    2  Configuration error (missing canonical or CI prompt source).
+    0  Canonical body and CI prompt body match (verbatim seed intact).
+    1  Mismatch (canonical was edited after seed, or never seeded
+       verbatim). NOT a regression on a post-#1934 tree.
+    2  Configuration error (missing canonical, missing CI prompt source
+       on main, or git unavailable). Always a real problem.
 
-This is a ONE-SHOT validation, NOT a runtime invariant. Once a maintainer
-intentionally edits canonical content (the canonical IS the SoR), the seed
-parity check no longer applies. Run only when investigating whether a
-canonical file faithfully reflects its initial CI seed.
-
-POST-#1934 STATUS: this script is no longer expected to pass. The
-canonical files have been edited intentionally for vendored survival
-(softening `.agents/` references), UNKNOWN handling, and severity
-alignment. Treating a non-zero exit as a failure post-merge is incorrect
-per critic Finding 6 (PR #1965). Future use: only as forensic when a
-maintainer wonders whether a specific canonical file was hand-paraphrased
-vs verbatim-seeded. Do NOT add this script to CI as a gate.
-
-Refs #1934 (REQ-008-01).
+Refs #1934 (REQ-008-01) PR #1965.
 """
 
 from __future__ import annotations

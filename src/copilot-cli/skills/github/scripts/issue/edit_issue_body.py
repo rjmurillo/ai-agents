@@ -73,6 +73,15 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit("Must provide --body or --body-file", 1)
     if args.body is not None and args.body_file is not None:
         error_and_exit("--body and --body-file are mutually exclusive", 1)
+    # Reject empty-string for either form. Without this, `--body-file ""`
+    # passes the `is None` validation, then the truthiness branch below
+    # falls through to the `--body` else branch with `args.body=None`,
+    # which would crash subprocess.run with a TypeError. PR #1965 cursor
+    # 6mMA: align truthiness with None validation.
+    if args.body == "" or args.body_file == "":
+        error_and_exit(
+            "--body and --body-file must not be empty strings", 1
+        )
 
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
@@ -86,10 +95,13 @@ def main(argv: list[str] | None = None) -> int:
         f"{owner}/{repo}",
     ]
 
-    if args.body_file:
+    if args.body_file is not None:
         # CWE-22 path traversal hardening: assert_valid_body_file rejects
         # symlinks and paths outside the repo root. Matches other GitHub
         # skill scripts (PR #1965 copilot review cluster I).
+        # Use `is not None` (not truthiness) so a non-None empty string
+        # would still hit assert_valid_body_file. Empty string is rejected
+        # earlier in main() per PR #1965 cursor 6mMA.
         assert_valid_body_file(args.body_file)
         # PR #1965 copilot eoz/epC: pass --body-file through to gh instead
         # of reading the file ourselves and concatenating to --body. Reading

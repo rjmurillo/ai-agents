@@ -65,6 +65,19 @@ class TestEditIssueBodyArgs:
             main(["--issue", "42", "--body", "x", "--body-file", "/tmp/x.md"])
         assert exc.value.code == 1
 
+    def test_empty_body_string_exits_1(self, mock_auth):
+        # PR #1965 cursor 6mMA: --body "" must be rejected before the
+        # truthiness branch downstream falls through and crashes.
+        with pytest.raises(SystemExit) as exc:
+            main(["--issue", "42", "--body", ""])
+        assert exc.value.code == 1
+
+    def test_empty_body_file_string_exits_1(self, mock_auth):
+        # Same shape as test_empty_body_string_exits_1 for --body-file.
+        with pytest.raises(SystemExit) as exc:
+            main(["--issue", "42", "--body-file", ""])
+        assert exc.value.code == 1
+
 
 class TestEditIssueBodyFileEnforcement:
     def test_invalid_body_file_path_exits_2(self, mock_auth, tmp_path):

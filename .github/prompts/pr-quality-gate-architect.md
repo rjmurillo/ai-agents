@@ -172,7 +172,7 @@ After your human-readable analysis, emit a fenced JSON block matching the inline
 Each finding MUST be reported with these structured fields:
 
 - **severity**: one of `critical`, `high`, `medium`, `low` (matches the JSON schema field used in the body section above; treat `critical` as a CRITICAL_FAIL trigger and `high` as a WARN trigger). Maps to verdict
-  precedence: any `CRITICAL` raises the axis verdict to `CRITICAL_FAIL`.
+  precedence: any `critical` raises the axis verdict to `CRITICAL_FAIL`.
 - **category**: short keyword identifying the failure class (e.g. `coupling`,
   `error-handling`, `command-injection`, `missing-test`). Used for clustering.
 - **location**: `file:line` (or `file:line-range`). Required for every finding.
