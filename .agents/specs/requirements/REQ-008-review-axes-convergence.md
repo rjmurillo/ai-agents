@@ -63,7 +63,7 @@ SO THAT generation is idempotent (zero diff on re-run against an already-up-to-d
 
 ### Acceptance Criteria
 
-- [ ] Transform algorithm is fully declarative: (a) strip YAML frontmatter keys `name`, `role`, `version`, `description` from canonical file before output; (b) prepend a static 2-line CI header (exact string: `# This file is generated from .claude/review-axes/{role}.md — do not edit directly.\n# Edit the canonical source and run python3 build/scripts/generate_pr_quality_prompts.py\n`); (c) emit canonical body unchanged. No timestamps, no SHAs, no environment-dependent tokens in output. Any time-varying token in the header breaks idempotency and is prohibited.
+- [ ] Transform algorithm is fully declarative: (a) strip YAML frontmatter keys `name`, `role`, `version`, `description` from canonical file before output; (b) prepend a static 3-line CI header consisting of the lines `<!-- GENERATED -- DO NOT EDIT -->`, `<!-- Source: .claude/review-axes/{role}.md -->`, `<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->` followed by a blank line; (c) emit canonical body unchanged. No timestamps, no SHAs, no environment-dependent tokens in output. Any time-varying token in the header breaks idempotency and is prohibited. Header uses hyphens, not em-dashes, per `.claude/rules/universal.md` MUST NOT 5.
 - [ ] Running the generator twice in sequence produces zero git diff on `.github/prompts/`.
 - [ ] Generator writes to a `.tmp` file, calls `fsync`, then renames atomically; no partial output survives a crash mid-write.
 - [ ] Generator emits `key=value` lines to stdout for each processed role (e.g., `role=analyst status=ok`).
