@@ -143,6 +143,36 @@ def test_transform_preserves_unstripped_frontmatter_keys() -> None:
     assert "custom: keep_me" in out
 
 
+def test_transform_residual_frontmatter_block_emitted() -> None:
+    """When stripping required keys leaves residual non-required keys, the
+    transform emits a `---\\n<residual>\\n---` block. PR #1965 critic
+    Finding 14: this branch was unreachable in production canonical files.
+    """
+    text = dedent(
+        """\
+        ---
+        name: foo
+        role: foo
+        version: 1.0.0
+        description: x
+        custom: keep_me
+        another: also_keep
+        ---
+
+        body content
+        """
+    )
+    out = gen.transform(text, "foo")
+    # Residual frontmatter block survives.
+    assert "custom: keep_me" in out
+    assert "another: also_keep" in out
+    # And it's wrapped in --- delimiters.
+    assert "---\n" in out
+    # Stripped keys are gone.
+    assert "name: foo" not in out
+    assert "role: foo" not in out
+
+
 def test_transform_rejects_missing_frontmatter() -> None:
     # PR #1965 cluster X1 (loQ): canonical files MUST have frontmatter.
     # Skipping validation when frontmatter is absent let malformed files

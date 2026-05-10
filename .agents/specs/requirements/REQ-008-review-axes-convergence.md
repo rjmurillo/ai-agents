@@ -38,7 +38,7 @@ SO THAT canonical axis files are self-contained and serve as the single source o
 - [ ] Each file contains YAML frontmatter with keys: `name`, `role`, `version`, `description`.
 - [ ] Each file contains body sections titled exactly: `Grounding Rules`, `Analysis Focus Areas`, `Output Schema`.
 - [ ] `Output Schema` specifies fields: `severity`, `category`, `location`, `recommendation`, `verdict`.
-- [ ] `verdict` tokens documented in `Output Schema` are: `PASS`, `WARN`, `CRITICAL_FAIL`, `UNKNOWN`.
+- [ ] `verdict` tokens authored by the agent in canonical Output Schema: `PASS`, `WARN`, `CRITICAL_FAIL`. The agent never authors `UNKNOWN` itself; `UNKNOWN` is reserved for `/review`'s parser when an axis output is unparseable. Parser-recognized token vocabulary (consumed by `extract_verdict` and `merge_verdicts`): `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `UNKNOWN`. Amended PR #1965 (cluster F) per critic Finding 3: original AC conflated authored vs parsed token sets.
 - [ ] Schema-validation fixture at `tests/` asserts exact section-title strings (literal match, not substring): `"## Grounding Rules"`, `"## Analysis Focus Areas"`, `"## Output Schema"` must be present as level-2 headings in each canonical file. A maintainer renaming any section title fails CI.
 - [ ] Body content (Grounding Rules + Analysis Focus Areas sections) seeded from the corresponding `.github/prompts/pr-quality-gate-{role}.md` at time of creation. CI source files have no frontmatter and no Output Schema; these are added during seed, not copied verbatim. A migration-validation script (`scripts/validation/validate_seed_parity.py`) computes SHA-256 of the seeded body (excluding frontmatter and Output Schema) and compares against SHA-256 of the source CI prompt body; the script exits 1 if any mismatch. This script runs as part of TASK-008-01 and its output is attached to the PR.
 - [ ] No file under `.github/prompts/pr-quality-gate-{role}.md` is hand-edited after this feature ships; all edits flow through canonical.
@@ -149,8 +149,8 @@ Converging `/review` onto the same canonical axis files as CI eliminates the dri
 
 ### Requirement Statement
 
-WHEN `merge_verdicts(verdicts: Sequence[str]) -> str` is called with any combination of verdict tokens
-THE SYSTEM SHALL apply these rules in priority order: (1) if any token is `CRITICAL_FAIL`, `REJECTED`, or `FAIL` → return `CRITICAL_FAIL`; (2) if any token is `WARN` → return `WARN`; (3) if any token is `UNKNOWN` (and none triggered steps 1 or 2) → return `UNKNOWN`; (4) if all tokens are `PASS` → return `PASS`; (5) if sequence is empty → return `UNKNOWN`
+WHEN `merge_verdicts(verdicts: Sequence[str]) -> str` is called with any combination of verdict tokens (input domain: `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `NON_COMPLIANT`, `COMPLIANT`, `PARTIAL`, `UNKNOWN`, plus any unrecognized string treated as UNKNOWN per below)
+THE SYSTEM SHALL apply these rules in priority order: (1) if any token is in FAIL_VERDICTS (`CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `NON_COMPLIANT`) → return `CRITICAL_FAIL`; (2) if any token is `WARN` or `PARTIAL` → return `WARN`; (3) if any token is `UNKNOWN` OR unrecognized (and none triggered steps 1 or 2) → return `UNKNOWN`; (4) all remaining (`PASS`, `COMPLIANT`) → return `PASS`; (5) if sequence is empty → return `UNKNOWN`. Amended PR #1965 per critic Finding 10: original AC enumerated only PASS/WARN/CRITICAL_FAIL/UNKNOWN; CI action.yml accepts the broader vocabulary (Issue #470 added NEEDS_REVIEW; spec-validation flow uses COMPLIANT/NON_COMPLIANT/PARTIAL).
 SO THAT callers receive a single deterministic merged verdict without implementing merge logic themselves. Rationale for UNKNOWN rule: when the severity chain produces PASS but some axes did not evaluate, the caller cannot claim PASS; UNKNOWN forces explicit attention. When the chain produces WARN or CRITICAL_FAIL, UNKNOWN adds no information and does not override.
 
 WHEN `get_verdict_emoji(verdict: str) -> str` is called
@@ -184,7 +184,7 @@ SO THAT `/review` callers do not implement bespoke verdict-extraction regex and 
 - [ ] `get_verdict_emoji("WARN")` returns a non-empty string distinct from PASS.
 - [ ] `get_verdict_emoji("CRITICAL_FAIL")` returns a non-empty string distinct from PASS and WARN.
 - [ ] `get_verdict_emoji` with an unknown token returns a non-empty fallback string.
-- [ ] Module exports: `merge_verdicts`, `get_verdict_emoji`, `extract_verdict`. No other public names.
+- [ ] Module exports REQ-008-introduced functions: `merge_verdicts` (extended for UNKNOWN + CI-token vocabulary), `get_verdict_emoji` (pre-existing), `extract_verdict` (new). The package also re-exports the pre-existing AI-review utility functions (`get_verdict`, `get_labels`, `get_milestone`, `format_verdict_alert`, etc.) that ship with the canonical `scripts/ai_review_common/` module via sync_plugin_lib.py; these are NOT introduced by #1934 and remain part of the existing API surface. Amended PR #1965 per critic Finding 12: original AC text "no other public names" conflicted with the synced canonical-package API contract.
 - [ ] Module contains no `eval`, `exec`, or subprocess calls.
 - [ ] 100% line and branch coverage in `tests/test_ai_review.py`.
 
@@ -209,7 +209,7 @@ SO THAT project-toolkit plugin consumers and downstream installers receive the s
 ### Acceptance Criteria
 
 - [ ] A `tests/integration/test_vendored_install.py` test copies only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` plus `CLAUDE.md` to a `tmp_path` directory and asserts: (a) `import ai_review_common` succeeds from the copied `.claude/lib/`; (b) `merge_verdicts(["PASS"])` executes correctly from the copy; (c) all six `.claude/review-axes/{role}.md` files are present and pass schema validation (frontmatter keys, body sections). This test does NOT invoke the Claude Code harness or require a live model; it tests the Python surface and file structure only.
-- [ ] No path in `/review` prose or `ai_review_common.py` references `.agents/` or `.github/` as a hard-coded require (grep verification: `grep -r '\.agents/' .claude/review-axes/ .claude/lib/ai_review_common/` exits non-zero).
+- [ ] No runtime dependency in `/review` prose, `.claude/lib/ai_review_common/`, or any canonical axis on `.agents/`, `.github/`, `scripts/`, or `tests/` paths. Verified by AST-based scan in `tests/integration/test_vendored_install.py::test_no_runtime_dependency_on_agents_or_scripts_in_lib` (no `ImportFrom`/`Import` targeting `agents`/`scripts` namespaces; no `Call` argument string starting with those prefixes). Documentation prose that mentions these paths in advisory form (e.g. "check `.agents/architecture/` when present") is allowed because vendored installs without those paths skip rather than fail. Amended PR #1965 per critic Finding 1: the original literal-grep AC was contradicted by the seeded CI prose; AST runtime check is the right contract.
 - [ ] A schema-validation fixture in `tests/` asserts each canonical file has all four frontmatter keys and all three body sections.
 
 ### Rationale
@@ -232,7 +232,7 @@ SO THAT regressions in generation, merge logic, and drift detection are caught b
 
 ### Acceptance Criteria
 
-- [ ] `tests/test_ai_review.py` achieves >=99% line and branch coverage on `scripts/ai_review_common/verdict.py` (the canonical source synced to `.claude/lib/ai_review_common/`). Verified: `pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch` reports 99% (1 line + 1 branch in pre-existing `get_labels_from_ai_output` defensive code path). The functions added by #1934 (`merge_verdicts` UNKNOWN handling, `extract_verdict`) are 100% covered by the truth-table tests. The full pytest suite runs under `.github/workflows/pytest.yml` with `pytest --cov`. A dedicated `--cov-fail-under=100 --cov-branch` job is deferred until the pre-existing unreachable defensive branch in `get_labels_from_ai_output` is excluded from coverage or made reachable; not in scope for #1934.
+- [ ] `tests/test_ai_review.py` achieves >=99% line and branch coverage on `scripts/ai_review_common/verdict.py` (the canonical source synced to `.claude/lib/ai_review_common/`). Verified: `pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch` reports 99% (1 line + 1 branch in pre-existing `get_labels_from_ai_output` defensive code path). The functions added by #1934 (`merge_verdicts` UNKNOWN handling, `extract_verdict`) are 100% covered by the truth-table tests. The full pytest suite runs under `.github/workflows/pytest.yml` with `pytest --cov`. A dedicated coverage gate IS pinned in `.github/workflows/pytest.yml`: the new step "Pin ai_review_common.verdict coverage at 98% (REQ-008-07)" runs `pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=98` and fails the build on any drop below 98%. Actual coverage is 98.62% (1 unreachable defensive branch in pre-existing `get_labels_from_ai_output:251`). Reaching 100% requires excluding or covering that branch and is tracked by follow-up issue #1970. The 98% floor prevents silent drops while accepting the pre-existing unreachable. Amended PR #1965 per critic Finding 8.
 - [ ] `tests/build_scripts/test_generate_pr_quality_prompts.py` includes: (a) idempotency test (run twice, assert zero diff), (b) partial-write recovery test (simulate crash after tmp write, assert no corrupt output), (c) schema validation test (invalid filename, missing frontmatter key).
 - [ ] `tests/hooks/test_drift_check.py` includes: (a) positive test (canonical matches generated, no output, exit 0), (b) negative test (canonical differs, unified diff emitted, exit 1).
 - [ ] All tests pass with `pytest` 8+ and Python 3.14.
@@ -266,9 +266,10 @@ SO THAT the issue tracker matches the implemented design.
 - [ ] `.claude/commands/pr-quality/all.md` contains the string `ai_review_common.py` and does not contain the string `AIReviewCommon.psm1`.
 - [ ] `.claude/commands/pr-quality/all.md` does not contain the string `AIReviewCommon` without the `.py` suffix.
 - [ ] GitHub issue #1934 body does not contain the string "7 axes" after update.
-- [ ] GitHub issue #1934 body references `ai_review_common.py` explicitly.
+- [ ] GitHub issue #1934 body references `ai_review_common/verdict.py` explicitly.
 - [ ] GitHub epic #1933 body does not contain the string "7 axes" after update.
 - [ ] GitHub epic #1933 body references the chained-skills approach (6 canonical + 3 skills = 9 total).
+- [ ] **NOTE (one-shot manual gate)**: these AC items are state-of-GitHub-issues claims, not file-tracked. They are verified once at PR merge time (via `gh issue view --json body` against the strings above) and not continuously. If issue body drift recurs post-merge, a follow-up issue must instrument the check (file at PR merge if not already present). Amended PR #1965 per critic Finding 4: original AC text was unfalsifiable post-merge; this addendum makes the verification window explicit.
 
 ### Rationale
 

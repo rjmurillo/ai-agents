@@ -252,6 +252,39 @@ class TestMergeVerdicts:
         assert merge_verdicts(["PARTIAL"]) == "WARN"
         assert merge_verdicts(["PASS", "PARTIAL"]) == "WARN"
 
+
+# Parametrized AC verification: every literal vector enumerated in REQ-008-05
+# must match. PR #1965 critic Finding 2: spec contract had ACs without
+# 1:1 verbatim test mapping.
+_REQ_008_05_AC_VECTORS = [
+    # AC enumerations from REQ-008-05 (in spec order):
+    ([], "UNKNOWN"),
+    (["UNKNOWN"], "UNKNOWN"),
+    (["PASS"], "PASS"),
+    (["PASS", "WARN"], "WARN"),
+    (["PASS", "UNKNOWN"], "UNKNOWN"),
+    (["WARN", "UNKNOWN"], "WARN"),
+    (["PASS", "WARN", "CRITICAL_FAIL"], "CRITICAL_FAIL"),
+    (["PASS", "FAIL"], "CRITICAL_FAIL"),
+    (["PASS", "REJECTED"], "CRITICAL_FAIL"),
+    (["UNKNOWN", "WARN"], "WARN"),
+    (["CRITICAL_FAIL", "UNKNOWN"], "CRITICAL_FAIL"),
+    (["UNKNOWN", "UNKNOWN"], "UNKNOWN"),
+]
+
+
+@pytest.mark.parametrize("verdicts,expected", _REQ_008_05_AC_VECTORS)
+def test_req_008_05_literal_ac_vectors(verdicts, expected):
+    """Every merge_verdicts AC vector enumerated in REQ-008-05 verifies.
+
+    Adds 1:1 spec-text-to-test traceability per PR #1965 critic Finding 2.
+    """
+    from scripts.ai_review_common.verdict import merge_verdicts as _mv
+    assert _mv(verdicts) == expected, (
+        f"REQ-008-05 AC failed: merge_verdicts({verdicts}) "
+        f"returned {_mv(verdicts)!r}, spec says {expected!r}"
+    )
+
     def test_fail_alone_returns_critical_fail(self):
         # FAIL is in FAIL_VERDICTS; must collapse to CRITICAL_FAIL.
         assert merge_verdicts(["FAIL"]) == "CRITICAL_FAIL"

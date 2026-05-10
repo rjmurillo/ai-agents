@@ -23,10 +23,18 @@ Exit codes (per ADR-035):
     1  At least one mismatch found (seed parity broken).
     2  Configuration error (missing canonical or CI prompt source).
 
-This is a one-shot validation, NOT a runtime invariant. Once a maintainer
+This is a ONE-SHOT validation, NOT a runtime invariant. Once a maintainer
 intentionally edits canonical content (the canonical IS the SoR), the seed
 parity check no longer applies. Run only when investigating whether a
 canonical file faithfully reflects its initial CI seed.
+
+POST-#1934 STATUS: this script is no longer expected to pass. The
+canonical files have been edited intentionally for vendored survival
+(softening `.agents/` references), UNKNOWN handling, and severity
+alignment. Treating a non-zero exit as a failure post-merge is incorrect
+per critic Finding 6 (PR #1965). Future use: only as forensic when a
+maintainer wonders whether a specific canonical file was hand-paraphrased
+vs verbatim-seeded. Do NOT add this script to CI as a gate.
 
 Refs #1934 (REQ-008-01).
 """
