@@ -27,12 +27,13 @@ from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
 # Em/en-dash detection regex for Validation 5. Inlined here rather than
 # imported from scripts.validation.pr_description because:
 #
-# 1. This file is mirrored verbatim to src/copilot-cli/skills/github/
-#    scripts/pr/new_pr.py by build/scripts/build_all.py. The source and
-#    mirror live at different depths (parents[5] vs parents[6]), so any
-#    cross-package import requires path resolution that works at both
-#    depths. The complexity (walking up looking for a marker, subprocess
-#    git calls, etc.) is not worth it for a 5-line regex.
+# 1. A generated copy of this file exists at src/copilot-cli/skills/github/
+#    scripts/pr/new_pr.py, produced by build/scripts/build_all.py. The
+#    source and the generated copy live at different depths (parents[5]
+#    vs parents[6]), so any cross-package import requires path resolution
+#    that works at both depths. The complexity (walking up looking for a
+#    marker, subprocess git calls, etc.) is not worth it for a 5-line
+#    regex.
 # 2. The detection logic is small (compile, search). Drift between the
 #    two definitions (this one and scripts.validation.pr_description's
 #    _DASH_RE) is caught by the test suite (tests/test_new_pr.py and

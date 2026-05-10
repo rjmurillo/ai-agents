@@ -239,7 +239,7 @@ def validate_markdown_lint(repo_root: Path) -> bool:
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
-    Mirrors ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``
+    Implements the same contract as ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``
     (find via ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``;
     called from ``_detect_default_base_ref``'s fallback chain) per
     ``.claude/rules/canonical-source-mirror.md``. Rather than embed a
@@ -272,7 +272,7 @@ def _gh_base_ref(repo_root: Path) -> str | None:
 def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     """Resolve the branch base ref using the canonical fallback chain.
 
-    Mirrors ``_detect_default_base_ref`` in
+    Implements the same contract as ``_detect_default_base_ref`` in
     ``.claude/hooks/PreToolUse/push_guard_base.py`` (find via
     ``grep -n '^def _detect_default_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``)
     per ``.claude/rules/canonical-source-mirror.md``. Rather than embed a
