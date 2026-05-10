@@ -193,10 +193,22 @@ def _load_rework_module():
     return _mod
 
 
-_rework = _load_rework_module()
-REWORK_THRESHOLD = _rework.REWORK_THRESHOLD
-compute_rework_warning = _rework.compute_rework_warning
-emit_rework_warning_lines = _rework.emit_rework_warning_lines
+# PR #1989 coderabbit: load lazily and tolerate failure. The rework-warning
+# step is informational, not a gate; a missing or broken sibling module
+# must not crash module import (which would block session-end entirely).
+_rework = None
+REWORK_THRESHOLD = 6
+compute_rework_warning = None
+emit_rework_warning_lines = None
+try:
+    _rework = _load_rework_module()
+    REWORK_THRESHOLD = _rework.REWORK_THRESHOLD
+    compute_rework_warning = _rework.compute_rework_warning
+    emit_rework_warning_lines = _rework.emit_rework_warning_lines
+except (OSError, ImportError, AttributeError):
+    # Sibling missing, syntax error, or wrong shape. Skip silently; the
+    # rework step at runtime will detect None and emit a degraded line.
+    pass
 
 
 def _run_rework_warning_step() -> str:
@@ -206,7 +218,15 @@ def _run_rework_warning_step() -> str:
     log. Output to stdout is at least one line, never silent
     (REQ-009-08). The function is extracted so the main() driver does
     not absorb its branching into its own cyclomatic complexity.
+
+    Degrades gracefully when the sibling rework_warning module is
+    missing or broken (PR #1989 coderabbit): emits a single notice line
+    and returns the same shape as a clean no-warning run, so callers do
+    not have to special-case the import failure.
     """
+    if compute_rework_warning is None or emit_rework_warning_lines is None:
+        print("rework-warning: skipped (sibling module unavailable)")
+        return "Rework warning: skipped (sibling unavailable)"
     rework_items = compute_rework_warning()
     for line in emit_rework_warning_lines(rework_items):
         print(line)

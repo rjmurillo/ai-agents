@@ -21,6 +21,7 @@ SCRIPT_DIR = REPO_ROOT / ".claude" / "skills" / "session-end" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
 import complete_session_log as csl  # noqa: E402
+import rework_warning as rw  # noqa: E402
 
 
 def _stub_completed(stdout: str, returncode: int = 0) -> Any:
@@ -126,7 +127,13 @@ class ComputeReworkWarningTests(unittest.TestCase):
             self.assertEqual(csl.compute_rework_warning(branch_base="main"), [])
 
     def test_argv_uses_canonical_git_log_form(self) -> None:
-        """Canonical-source-mirror: git log argv matches the docstring claim."""
+        """Canonical-source-mirror: git log argv matches the docstring claim.
+
+        PR #1989 bot reviewers found the initial argv included
+        ``--diff-filter=R`` which restricts output to renames only.
+        Corrected argv keeps -M (rename detection) but drops the filter
+        so all edits (M/A/R) are reported.
+        """
         captured: dict[str, Any] = {}
 
         def _capture(*args: Any, **kwargs: Any) -> Any:
@@ -136,15 +143,91 @@ class ComputeReworkWarningTests(unittest.TestCase):
         with mock.patch.object(csl.subprocess, "run", side_effect=_capture):
             csl.compute_rework_warning(branch_base="main")
         argv = captured["argv"]
-        # Canonical: git log --name-only --diff-filter=R -M
-        # origin/main..HEAD --pretty=format:
+        # Canonical: git log --name-only -M origin/main..HEAD --pretty=format:
         self.assertEqual(argv[0], "git")
         self.assertEqual(argv[1], "log")
         self.assertIn("--name-only", argv)
-        self.assertIn("--diff-filter=R", argv)
+        self.assertNotIn(
+            "--diff-filter=R",
+            argv,
+            "PR #1989: --diff-filter=R restricts to renames only; must be absent",
+        )
         self.assertIn("-M", argv)
         self.assertIn("origin/main..HEAD", argv)
         self.assertIn("--pretty=format:", argv)
+
+    def test_collapse_rename_handles_subdir_brace_form_positive(self) -> None:
+        """POSITIVE: every git rename form normalizes to the new path."""
+        # PR #1989 gemini finding: path/{old => new} form was mishandled.
+        self.assertEqual(
+            rw._collapse_rename("path/{old_file => new_file}"),
+            "path/new_file",
+        )
+        self.assertEqual(
+            rw._collapse_rename("path/{old_subdir => new_subdir}/filename.py"),
+            "path/new_subdir/filename.py",
+        )
+        self.assertEqual(
+            rw._collapse_rename("a/b/{old => new}/c.py"),
+            "a/b/new/c.py",
+        )
+        # Top-level brace form
+        self.assertEqual(
+            rw._collapse_rename("{old_dir => new_dir}/filename.py"),
+            "new_dir/filename.py",
+        )
+        # Bare form
+        self.assertEqual(rw._collapse_rename("old.py => new.py"), "new.py")
+        # Non-rename pass-through
+        self.assertEqual(rw._collapse_rename("foo.py"), "foo.py")
+
+    def test_collapse_rename_empty_inside_brace_form(self) -> None:
+        """Edge: brace form with empty new-side produces collapsed `//`.
+
+        Covers the `while // in new_path:` slash-collapse loop body.
+        """
+        # `prefix/{old => }/suffix` -> empty new side -> would produce
+        # `prefix//suffix` -> collapse to `prefix/suffix`.
+        self.assertEqual(rw._collapse_rename("a/{b => }/c.py"), "a/c.py")
+
+    def test_collapse_rename_negative_cases(self) -> None:
+        """NEGATIVE: malformed inputs degrade gracefully (no exceptions)."""
+        # Empty string
+        self.assertEqual(rw._collapse_rename(""), "")
+        # Whitespace-only collapses to empty
+        self.assertEqual(rw._collapse_rename("   "), "")
+        # Brace without close: treat as bare form, take after =>
+        self.assertEqual(rw._collapse_rename("{old => new.py"), "new.py")
+        # `=>` inside path but no brace and no space-separated form
+        self.assertEqual(rw._collapse_rename("a=>b"), "b")
+        # Multiple `=>` arrows: takes first split's right side
+        # Then collapses inner braces
+        result = rw._collapse_rename("path/{a => b => c}")
+        self.assertTrue(
+            result.startswith("path/"),
+            f"multiple-arrow form should still produce a path-like result, got {result!r}",
+        )
+        # Trailing whitespace stripped
+        self.assertEqual(rw._collapse_rename("foo.py   \t"), "foo.py")
+        # Leading slash stripped (rare git form)
+        self.assertEqual(rw._collapse_rename("/abs.py => /abs_new.py"), "abs_new.py")
+
+    def test_excluded_paths_positive_and_negative(self) -> None:
+        """POSITIVE: known generated patterns excluded.
+        NEGATIVE: ordinary paths are NOT excluded."""
+        # POSITIVE: excluded patterns
+        self.assertTrue(rw._is_excluded_rework_path("foo.session.json"))
+        self.assertTrue(rw._is_excluded_rework_path("src/claude/agent.md"))
+        self.assertTrue(rw._is_excluded_rework_path(".agents/sessions/log.json"))
+        # NEGATIVE: ordinary paths
+        self.assertFalse(rw._is_excluded_rework_path("scripts/scan.py"))
+        self.assertFalse(rw._is_excluded_rework_path("tests/test_x.py"))
+        self.assertFalse(rw._is_excluded_rework_path("a/session.json.bak"))
+        # Edge: name CONTAINS session.json but does not END with it
+        self.assertFalse(rw._is_excluded_rework_path("foo.session.json.old"))
+        # Edge: path STARTS WITH src/claude but is the literal prefix folder
+        # (still excluded as documented)
+        self.assertTrue(rw._is_excluded_rework_path("src/claude/"))
 
 
 class EmitReworkWarningLinesTests(unittest.TestCase):
