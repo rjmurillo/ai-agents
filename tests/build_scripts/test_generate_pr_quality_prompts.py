@@ -214,6 +214,30 @@ def test_regenerate_invalid_filename_returns_two(tmp_path: Path) -> None:
     assert code == 2
 
 
+def test_regenerate_rejects_symlinks_in_canonical_dir(tmp_path: Path) -> None:
+    """CWE-22 hardening: a symlink in the canonical dir is a config error.
+
+    A malicious symlink could redirect read_text outside the repo. The
+    generator must refuse to process them rather than silently following
+    the link.
+    """
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    real_target = tmp_path / "outside.md"
+    real_target.write_text(
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
+        encoding="utf-8",
+    )
+    link = canonical / "evil.md"
+    link.symlink_to(real_target)
+    code, log = gen.regenerate(canonical, tmp_path / "out", dry_run=False)
+    assert code == 2
+    assert any("config_error" in line for line in log)
+    assert any("symlink" in line.lower() for line in log), (
+        "drift output should mention symlink rejection"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Atomic write
 # ---------------------------------------------------------------------------

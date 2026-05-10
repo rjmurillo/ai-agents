@@ -120,7 +120,7 @@ Pre-push hook gives immediate feedback (seconds) at the author's terminal. CI jo
 ### Requirement Statement
 
 WHEN `/review` runs
-THE SYSTEM SHALL load all 6 canonical axis files from `.claude/review-axes/`, evaluate the PR diff against each, chain `Skill(skill="code-qualities-assessment")`, `Skill(skill="golden-principles")`, and `Skill(skill="taste-lints")` producing 9 total verdicts, merge them via `merge_verdicts` from `.claude/lib/ai_review_common.py`, and output a findings table with per-axis verdict and a final merged verdict with emoji
+THE SYSTEM SHALL load all 6 canonical axis files from `.claude/review-axes/`, evaluate the PR diff against each, chain `Skill(skill="code-qualities-assessment")`, `Skill(skill="golden-principles")`, and `Skill(skill="taste-lints")` producing 9 total verdicts, merge them via `merge_verdicts` from `.claude/lib/ai_review_common/`, and output a findings table with per-axis verdict and a final merged verdict with emoji
 SO THAT `/review` local output matches what CI will surface, eliminating push-and-wait round-trips.
 
 ### Acceptance Criteria
@@ -129,7 +129,7 @@ SO THAT `/review` local output matches what CI will surface, eliminating push-an
 - [ ] 6 canonical axes evaluated: analyst, architect, qa, security, devops, roadmap.
 - [ ] 3 skill axes chained: `code-qualities-assessment`, `golden-principles`, `taste-lints`.
 - [ ] Total verdicts collected: 9 (6 + 3).
-- [ ] Verdicts merged via `merge_verdicts` from `.claude/lib/ai_review_common.py`.
+- [ ] Verdicts merged via `merge_verdicts` from `.claude/lib/ai_review_common/`.
 - [ ] Merge rules: any `CRITICAL_FAIL`, `REJECTED`, or `FAIL` token yields `CRITICAL_FAIL`; any `WARN` yields `WARN`; all `PASS` yields `PASS`.
 - [ ] Output includes a findings table with columns: axis, verdict (with emoji from `get_verdict_emoji`), summary.
 - [ ] Final merged verdict displayed with emoji and human-readable label.
@@ -163,7 +163,7 @@ SO THAT `/review` callers do not implement bespoke verdict-extraction regex and 
 
 ### Acceptance Criteria
 
-- [ ] Module exists at `.claude/lib/ai_review_common.py`.
+- [ ] Module exists at `.claude/lib/ai_review_common/` (Python package; synced from `scripts/ai_review_common/` via `scripts/sync_plugin_lib.py`). The package re-exports `merge_verdicts`, `get_verdict_emoji`, and `extract_verdict` from `verdict.py` and `issue_triage.py` submodules.
 - [ ] `merge_verdicts` handles tokens: `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `UNKNOWN`.
 - [ ] `merge_verdicts([])` returns `UNKNOWN`.
 - [ ] `merge_verdicts(["UNKNOWN"])` returns `UNKNOWN`.
@@ -186,7 +186,7 @@ SO THAT `/review` callers do not implement bespoke verdict-extraction regex and 
 - [ ] `get_verdict_emoji` with an unknown token returns a non-empty fallback string.
 - [ ] Module exports: `merge_verdicts`, `get_verdict_emoji`, `extract_verdict`. No other public names.
 - [ ] Module contains no `eval`, `exec`, or subprocess calls.
-- [ ] 100% line and branch coverage in `tests/lib/test_ai_review_common.py`.
+- [ ] 100% line and branch coverage in `tests/test_ai_review.py`.
 
 ### Rationale
 
@@ -209,7 +209,7 @@ SO THAT project-toolkit plugin consumers and downstream installers receive the s
 ### Acceptance Criteria
 
 - [ ] A `tests/integration/test_vendored_install.py` test copies only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` plus `CLAUDE.md` to a `tmp_path` directory and asserts: (a) `import ai_review_common` succeeds from the copied `.claude/lib/`; (b) `merge_verdicts(["PASS"])` executes correctly from the copy; (c) all six `.claude/review-axes/{role}.md` files are present and pass schema validation (frontmatter keys, body sections). This test does NOT invoke the Claude Code harness or require a live model; it tests the Python surface and file structure only.
-- [ ] No path in `/review` prose or `ai_review_common.py` references `.agents/` or `.github/` as a hard-coded require (grep verification: `grep -r '\.agents/' .claude/review-axes/ .claude/lib/ai_review_common.py` exits non-zero).
+- [ ] No path in `/review` prose or `ai_review_common.py` references `.agents/` or `.github/` as a hard-coded require (grep verification: `grep -r '\.agents/' .claude/review-axes/ .claude/lib/ai_review_common/` exits non-zero).
 - [ ] A schema-validation fixture in `tests/` asserts each canonical file has all four frontmatter keys and all three body sections.
 
 ### Rationale
@@ -226,13 +226,13 @@ US3 (vendored installer) requires `/review` to work without the full repository.
 
 ### Requirement Statement
 
-WHEN `pytest` runs on `tests/build_scripts/test_generate_pr_quality_prompts.py`, `tests/lib/test_ai_review_common.py`, and `tests/hooks/test_drift_check.py`
+WHEN `pytest` runs on `tests/build_scripts/test_generate_pr_quality_prompts.py`, `tests/test_ai_review.py`, and `tests/hooks/test_drift_check.py`
 THE SYSTEM SHALL exercise idempotency, partial-write recovery, schema validation, all verdict token combinations including `UNKNOWN`, `get_verdict_emoji`, and drift hook positive and negative paths
 SO THAT regressions in generation, merge logic, and drift detection are caught before merge.
 
 ### Acceptance Criteria
 
-- [ ] `tests/lib/test_ai_review_common.py` achieves 100% line and branch coverage on `ai_review_common.py`. Enforcement: CI invokes `pytest tests/lib/test_ai_review_common.py --cov=.claude/lib/ai_review_common.py --cov-fail-under=100 --cov-branch` and fails the build on shortfall. The relevant job in `ai-pr-quality-gate.yml` is `test-ai-review-common`.
+- [ ] `tests/test_ai_review.py` achieves 100% line and branch coverage on `ai_review_common.py`. Enforcement: CI invokes `pytest tests/test_ai_review.py --cov=.claude/lib/ai_review_common/ --cov-fail-under=100 --cov-branch` and fails the build on shortfall. The relevant job in `ai-pr-quality-gate.yml` is `test-ai-review-common`.
 - [ ] `tests/build_scripts/test_generate_pr_quality_prompts.py` includes: (a) idempotency test (run twice, assert zero diff), (b) partial-write recovery test (simulate crash after tmp write, assert no corrupt output), (c) schema validation test (invalid filename, missing frontmatter key).
 - [ ] `tests/hooks/test_drift_check.py` includes: (a) positive test (canonical matches generated, no output, exit 0), (b) negative test (canonical differs, unified diff emitted, exit 1).
 - [ ] All tests pass with `pytest` 8+ and Python 3.14.
@@ -254,7 +254,7 @@ Test coverage is the enforcement mechanism for all other requirements. Without i
 ### Requirement Statement
 
 WHEN `.claude/commands/pr-quality/all.md` cites verdict-merge logic
-THE SYSTEM SHALL cite `.claude/lib/ai_review_common.py` (Python module) and NOT `AIReviewCommon.psm1` (removed in commit `3f3326f9`)
+THE SYSTEM SHALL cite `.claude/lib/ai_review_common/` (Python module) and NOT `AIReviewCommon.psm1` (removed in commit `3f3326f9`)
 SO THAT the canonical-source-mirror rule is satisfied and no reader is directed to a non-existent file.
 
 WHEN GitHub issue #1934 or epic #1933 body contains the text "7 axes" or cites `.claude/lib/AIReviewCommon` without the `.py` extension

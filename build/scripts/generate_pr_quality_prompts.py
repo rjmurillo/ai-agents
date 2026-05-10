@@ -168,6 +168,14 @@ def _list_canonical_files(canonical_dir: Path) -> list[Path]:
         raise GeneratePromptsError(f"canonical dir missing: {canonical_dir}")
     files: list[Path] = []
     for child in sorted(canonical_dir.iterdir()):
+        if child.is_symlink():
+            # Reject symlinks: a malicious symlink named `evil.md` could redirect
+            # the generator to read content outside the canonical dir, including
+            # outside the repo. Canonical files must be plain regular files.
+            # CWE-22 path traversal hardening (issue #1934 /test gate finding F6).
+            raise GeneratePromptsError(
+                f"canonical file must not be a symlink: {child.name}"
+            )
         if not child.is_file() or child.suffix != ".md":
             continue
         _validate_filename(child.name)
