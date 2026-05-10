@@ -38,11 +38,17 @@ Invoke each agent command using Skill tool and capture results.
 
 Parse each agent's `VERDICT: TOKEN` output and merge using these rules:
 
-**Merge Logic** (from AIReviewCommon.psm1:Merge-Verdicts):
+**Merge Logic** (canonical: `.claude/lib/ai_review_common/verdict.py:merge_verdicts`):
 
 - ANY `CRITICAL_FAIL`, `REJECTED`, or `FAIL` → Final: **CRITICAL_FAIL**
 - ANY `WARN` (no critical failures) → Final: **WARN**
+- ANY `UNKNOWN` (no critical, no warn) → Final: **UNKNOWN**
 - ALL `PASS` → Final: **PASS**
+- Empty input → Final: **UNKNOWN**
+
+UNKNOWN downgrades a would-be PASS so a missing or crashed axis cannot
+silently produce a green verdict. Real WARN and CRITICAL_FAIL findings
+override UNKNOWN.
 
 ## Output Summary
 
@@ -59,7 +65,7 @@ Generate consolidated report in EXACTLY this format. Do not add preambles or exp
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL]
 
-**Emoji Mapping** (from AIReviewCommon.psm1:Get-VerdictEmoji):
+**Emoji Mapping** (canonical: `.claude/lib/ai_review_common/issue_triage.py:get_verdict_emoji`):
 
 - PASS → ✅
 - WARN → ⚠️
