@@ -1,3 +1,7 @@
+<!-- GENERATED -- DO NOT EDIT -->
+<!-- Source: .claude/review-axes/security.md -->
+<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
+
 # Security Review Task
 
 You are reviewing a pull request for security vulnerabilities and risks.
@@ -152,7 +156,7 @@ Use `PASS` if:
 
 ## Structured JSON Output
 
-After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+After your human-readable analysis, emit a fenced JSON block matching the inline schema below (a JSON Schema for this output also lives at `.agents/schemas/pr-quality-gate-output.schema.json` in projects that ship it; vendored installs do not):
 
 ```json
 {
@@ -171,3 +175,34 @@ After your human-readable analysis, emit a fenced JSON block conforming to `.age
     }
   ]
 }
+```
+
+## Output Schema
+
+Each finding MUST be reported with these structured fields:
+
+- **severity**: one of `critical`, `high`, `medium`, `low` (matches the JSON schema field used in the body section above; treat `critical` as a CRITICAL_FAIL trigger and `high` as a WARN trigger). Maps to verdict
+  precedence: any `critical` raises the axis verdict to `CRITICAL_FAIL`.
+- **category**: short keyword identifying the failure class (e.g. `coupling`,
+  `error-handling`, `command-injection`, `missing-test`). Used for clustering.
+- **location**: `file:line` (or `file:line-range`). Required for every finding.
+- **recommendation**: one-sentence imperative fix the author can act on.
+Top-level (NOT per-finding; the schema rejects `verdict` inside
+`findings` items; `additionalProperties: false` is set on the finding
+object):
+
+- **verdict**: one of `PASS`, `WARN`, `CRITICAL_FAIL`. Choose one of these
+  three explicitly; do NOT emit `UNKNOWN` yourself. `UNKNOWN` is reserved
+  for `/review`'s parser when an axis output cannot be parsed
+  (`extract_verdict` returns `UNKNOWN` on no match); it is never an authored
+  verdict. The axis-level verdict is the highest-severity outcome across the
+  findings list (any `critical` severity -> CRITICAL_FAIL; any `high` ->
+  WARN; otherwise PASS).
+
+The response MUST contain a final line matching the regex
+`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label is case-insensitive; tokens are case-sensitive uppercase).
+This line is parsed by `extract_verdict` in
+`.claude/lib/ai_review_common/verdict.py` and consumed by `merge_verdicts`
+when `/review` aggregates across all axes.
+
+Refs REQ-008-01, REQ-008-05 (issue #1934).
