@@ -182,6 +182,72 @@ jobs:
           echo "::warning::Agent reviews requiring Copilot CLI will be skipped."
 
 # ==============================================================================
+# Review-axes drift check (REQ-008-03 backstop)
+# ==============================================================================
+#
+# Pre-push hook (.githooks/pre-push Phase 5b) is bypassable via --no-verify.
+# This job is the non-bypassable backstop. It runs the canonical-to-CI
+# generator in --dry-run mode and fails the build if any committed
+# .github/prompts/pr-quality-gate-{role}.md differs from what the canonical
+# .claude/review-axes/{role}.md would produce.
+
+  review-axes-drift-check:
+    name: Review-axes drift check
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 2
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.14'
+
+      - name: Run drift check
+        id: drift
+        shell: bash
+        run: |
+          set +e
+          OUT=$(python3 build/scripts/generate_pr_quality_prompts.py --dry-run 2>&1)
+          CODE=$?
+          echo "$OUT"
+          {
+            echo "## Review-axes drift check"
+            echo ""
+            if [ "$CODE" -eq 0 ]; then
+              echo "No drift detected."
+            elif [ "$CODE" -eq 1 ]; then
+              echo "Drift detected between .claude/review-axes/ (canonical) and .github/prompts/pr-quality-gate-*.md (generated)."
+              echo ""
+              echo "Fix: python3 build/scripts/generate_pr_quality_prompts.py and commit the regenerated CI prompts."
+              echo ""
+              echo "<details><summary>Diff</summary>"
+              echo ""
+              echo '```diff'
+              echo "$OUT"
+              echo '```'
+              echo ""
+              echo "</details>"
+            else
+              echo "Generator exited with code $CODE (config error)."
+              echo ""
+              echo '```'
+              echo "$OUT"
+              echo '```'
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
+          if [ "$CODE" -ne 0 ]; then
+            echo "::error file=.github/prompts/::Review-axes drift detected. Run python3 build/scripts/generate_pr_quality_prompts.py and commit."
+            exit 1
+          fi
+
+# ==============================================================================
 # Pre-execute Tests (Issue #77: QA agent cannot run tests directly)
 # ==============================================================================
 #
