@@ -208,6 +208,10 @@
     {
       "step": 24,
       "action": "Round 11 (11 review threads). Code: (1) Truncation finding now uses kind=scan_truncated instead of parse_error (added scan_truncated to Kind Literal) so downstream consumers do not conflate memory-bound halt with file parse failure. Test updated. (2) reset_count_cache() docstring now explicitly documents the limitation that direct callers of enumerate_count/enumerate_skills must clear the cache themselves if they mutate the filesystem between calls (cursor's flag for the latent footgun). Specs: (3) DESIGN-009 component table relocates extractors to patterns.py (was scan.py from before round-6 extraction). (4) DESIGN-009 language requirement Python >=3.10 (matches pyproject.toml; was unnecessarily Python 3.14+). (5) DESIGN-009 /test Gate 5 wiring section relabeled 'deferred to PR2' to match REQ-009/TASK-009 (was inviting readers to assume PR1 ships it). (6) DESIGN-009 Failure Recovery table corrected: unreadable files no longer claim a parse_error finding (skipped silently); malformed JSON no longer claims a count_claim finding (delegated); added rows for scan_truncated, symlink-out, symlink-cycle. Doc drift: (7-10) Removed pinned '34 tests pass' / '34 pytest cases' from session log evidence + step 2 + step 5, episode events, Serena memory."
+    },
+    {
+      "step": 25,
+      "action": "Merge resolution: PR #1980 (Step 0.5 Memory-First Gate) merged to main using REQ-008/DESIGN-008/TASK-008 spec IDs first, colliding with this PR. Renumbered all spec artifacts and refs to REQ-009/DESIGN-009/TASK-009 across spec files, code docstrings, SKILL.md, build.md, mirror, session log, episode JSON, Serena memory. Marketplace.json conflict resolved by accepting main's count-less description (PR #1980 dropped pinned counts; canonical validator handles count enforcement separately). STEP-0-METRICS.md duplicate removed (kept main's .agents/sessions/ placement; my round-5 .agents/metrics/ move regressed). Filters extended with 'in-scope' and 'spec-pipeline' kebab tokens used by the new REQ-008 prose. 51 tests pass; scan PASS on default scope after merge."
     }
   ],
   "endingCommit": "8e545bd3",

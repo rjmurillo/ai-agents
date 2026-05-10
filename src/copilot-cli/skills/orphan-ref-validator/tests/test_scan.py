@@ -1,6 +1,6 @@
 """Tests for orphan-ref-validator scan.py.
 
-Covers REQ-008 acceptance criteria:
+Covers REQ-009 acceptance criteria:
 - AC2: skill_name detection (positive + negative)
 - AC4: count_claim detection (positive + negative + warn-when-undeterminable)
 - AC5: ADR-056 envelope + VERDICT line

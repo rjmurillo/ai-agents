@@ -18,7 +18,8 @@ KEBAB_DENYLIST: frozenset[str] = frozenset({
     # Prose hyphenated phrases
     "well-known", "open-source", "self-contained", "follow-up",
     "kebab-case", "snake-case", "ad-hoc", "real-time", "in-place",
-    "out-of-scope", "end-to-end", "best-practice", "copy-paste",
+    "out-of-scope", "in-scope", "end-to-end", "best-practice", "copy-paste",
+    "spec-pipeline",
     "left-hand", "right-hand", "ai-agents", "claude-code", "case-by-case",
     "long-running", "short-running", "non-empty", "non-zero", "non-null",
     "pass-through", "high-level", "low-level", "high-leverage",
