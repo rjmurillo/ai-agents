@@ -128,7 +128,14 @@ def run_validations(
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
     if agents_changed:
-        session_logs = [f for f in changed_files if re.match(r"^\.agents/sessions/.*\.md$", f)]
+        session_logs = [
+            f
+            for f in changed_files
+            if re.match(
+                r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$",
+                f,
+            )
+        ]
         if session_logs:
             session_log = session_logs[-1]
             validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
