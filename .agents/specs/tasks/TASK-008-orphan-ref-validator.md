@@ -107,11 +107,12 @@ PR2 total: ~1.25h.
 - Confirm no new BLOCKING issues.
 - Acceptance: pre_pr.py exit 0; pytest exit 0; markdownlint exit 0.
 
-## Definition of Done
+## Definition of Done (PR1)
 
-- All 9 acceptance criteria satisfied.
+- PR1-scope acceptance criteria satisfied: AC1, AC2, AC3, AC4 (regex extraction only; emission delegated to canonical), AC5, AC6, AC7, AC9.
+- AC8 (`/test` Gate 5 wiring) is deferred to PR2; PR2 also adds the opt-in `--enforce-counts` flag for single-plugin count emission.
 - Tests green with ≥80% coverage on scan.py.
-- /build and /test gates wired.
+- /build gate wired (gate 4 in `.claude/commands/build.md`); /test gate is PR2.
 - Self-scan on this PR is clean or documents exceptions.
 - pre_pr.py passes.
 - PR description lists Step 0 evidence + linkage to issue #1939, epic #1933.

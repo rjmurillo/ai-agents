@@ -200,6 +200,10 @@
     {
       "step": 22,
       "action": "Round 9 (8 review threads). Critical fix: max_findings cap was off by one (truncation finding appended after extending findings list); now reserves a slot before extending so the total never exceeds the budget. Test asserts the hard bound. Doc fixes: (1) SKILL.md Inputs CLI usage now lists --include-adrs and --include-skill-descriptions. (2) TASK-008-02 reference patterns in fenced code block (was inline backticks-in-backticks that broke markdown rendering). (3) TASK-008-03 rewritten to reflect AC4 wedge: extraction only, emission delegated to canonical, --enforce-counts reserved for PR2. (4) Session log step 16 dropped pinned numbers (9 commits / 32 files) that contradicted auto-extracted episode metrics. (5) SKILL.md Path conventions and References cleaned for mirror; mirror tracker IDs already addressed in round 7. 51 tests pass; scan PASS."
+    },
+    {
+      "step": 23,
+      "action": "Round 10 (3 review threads, all minor). (1) Removed unused VERSION import from scan.py (envelope module already uses it internally). (2) SKILL.md pre-push hook wording corrected to describe push-changeset scoping (git diff --name-only @{push}..HEAD) instead of staged-diff (which is wrong context for pre-push). (3) TASK-008 Definition of Done updated to reflect PR1-only completion criteria: AC8 and --enforce-counts are PR2; /test gate is PR2; the previous DoD claimed all 9 ACs and full /test wiring which contradicted the PR2-deferred sections of the same task file. 51 tests pass; scan PASS."
     }
   ],
   "endingCommit": "8e545bd3",

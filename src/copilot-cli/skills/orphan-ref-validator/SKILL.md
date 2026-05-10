@@ -271,7 +271,7 @@ Coverage target is 80 percent line coverage on `scan.py`. Cases cover positive a
 
 ### Pre-push hook (optional)
 
-Repos that want a tighter feedback loop can add a pre-push hook that runs the skill against the staged diff. The skill is read-only and exits `1` on critical findings, which the hook can use to block the push.
+Repos that want a tighter feedback loop can add a pre-push hook that runs the skill against the push changeset (the commits being pushed, not the index state). Use `git diff --name-only @{push}..HEAD` (or the equivalent post-receive computation) to scope `--targets` to changed files. The skill is read-only and exits `1` on critical findings, which the hook can use to block the push.
 
 ## References
 

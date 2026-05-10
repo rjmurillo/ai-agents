@@ -46,7 +46,6 @@ if __package__ in (None, ""):
         reset_count_cache,
     )
     from envelope import (
-        VERSION,
         Finding,
         ScanResult,
         Severity,
@@ -69,7 +68,6 @@ else:
         reset_count_cache,
     )
     from .envelope import (
-        VERSION,
         Finding,
         ScanResult,
         Severity,
