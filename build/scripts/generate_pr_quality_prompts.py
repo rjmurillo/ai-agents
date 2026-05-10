@@ -166,8 +166,15 @@ def transform(canonical_text: str, role: str) -> str:
         (`name`, `role`, `version`, `description`). PR #1965 cluster T.
     """
     frontmatter, body = _split_frontmatter(canonical_text)
-    if frontmatter:
-        _validate_required_frontmatter(frontmatter, role)
+    if not frontmatter:
+        # PR #1965 cluster X1 (loQ): canonical files MUST have frontmatter.
+        # Skipping validation when frontmatter is absent let malformed files
+        # produce CI prompts with no provenance metadata.
+        raise GeneratePromptsError(
+            f"canonical {role}.md has no frontmatter; "
+            f"name/role/version/description are required"
+        )
+    _validate_required_frontmatter(frontmatter, role)
     if frontmatter:
         stripped = _strip_keys_from_frontmatter(frontmatter, _STRIP_FRONTMATTER_KEYS)
         stripped = stripped.strip()

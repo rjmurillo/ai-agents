@@ -126,7 +126,7 @@ For roadmap reviews, prefer `WARN` over `CRITICAL_FAIL` unless there is a clear 
 
 ## Structured JSON Output
 
-After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+After your human-readable analysis, emit a fenced JSON block matching the inline schema below (a JSON Schema for this output also lives at `.agents/schemas/pr-quality-gate-output.schema.json` in projects that ship it; vendored installs do not):
 
 ```json
 {

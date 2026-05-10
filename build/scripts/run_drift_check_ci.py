@@ -36,14 +36,26 @@ GENERATOR = REPO_ROOT / "build" / "scripts" / "generate_pr_quality_prompts.py"
 
 
 def _write_step_summary(content: str) -> None:
-    """Append to GITHUB_STEP_SUMMARY when present; no-op locally."""
+    """Append to GITHUB_STEP_SUMMARY when present; no-op locally.
+
+    Wraps the file write in try/OSError so a missing or unwritable
+    summary file (constrained CI env, ENOSPC, EACCES) does not mask the
+    generator's actual exit code. PR #1965 cluster X1 (loT).
+    """
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
-    with open(summary_path, "a", encoding="utf-8", newline="\n") as fh:
-        fh.write(content)
-        if not content.endswith("\n"):
-            fh.write("\n")
+    try:
+        with open(summary_path, "a", encoding="utf-8", newline="\n") as fh:
+            fh.write(content)
+            if not content.endswith("\n"):
+                fh.write("\n")
+    except OSError as exc:
+        print(
+            f"::warning::failed to write GITHUB_STEP_SUMMARY at "
+            f"{summary_path}: {exc}",
+            file=sys.stderr,
+        )
 
 
 def _format_summary(exit_code: int, output: str) -> str:

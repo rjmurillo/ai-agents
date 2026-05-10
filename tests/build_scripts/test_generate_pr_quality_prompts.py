@@ -96,7 +96,11 @@ def test_transform_strips_required_frontmatter_keys() -> None:
 
 
 def test_transform_prepends_static_ci_header() -> None:
-    out = gen.transform("# body\n", "analyst")
+    text = (
+        "---\nname: analyst\nrole: analyst\nversion: 1.0.0\n"
+        "description: y\n---\n\n# body\n"
+    )
+    out = gen.transform(text, "analyst")
     assert out.startswith("<!-- GENERATED -- DO NOT EDIT -->\n")
     assert "<!-- Source: .claude/review-axes/analyst.md -->\n" in out
     assert (
@@ -106,8 +110,11 @@ def test_transform_prepends_static_ci_header() -> None:
 
 
 def test_transform_header_has_no_timestamp_or_sha() -> None:
-    out1 = gen.transform("# body\n", "qa")
-    out2 = gen.transform("# body\n", "qa")
+    text = (
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
+    )
+    out1 = gen.transform(text, "qa")
+    out2 = gen.transform(text, "qa")
     assert out1 == out2  # idempotent: same input -> same output every time
 
 
@@ -136,10 +143,19 @@ def test_transform_preserves_unstripped_frontmatter_keys() -> None:
     assert "custom: keep_me" in out
 
 
-def test_transform_handles_no_frontmatter() -> None:
-    out = gen.transform("# Just a body\n", "x")
-    assert "# Just a body" in out
-    assert out.startswith("<!-- GENERATED")
+def test_transform_rejects_missing_frontmatter() -> None:
+    # PR #1965 cluster X1 (loQ): canonical files MUST have frontmatter.
+    # Skipping validation when frontmatter is absent let malformed files
+    # produce CI prompts with no provenance metadata.
+    with pytest.raises(gen.GeneratePromptsError, match="no frontmatter"):
+        gen.transform("# Just a body\n", "x")
+
+
+def test_transform_rejects_missing_required_keys() -> None:
+    # Frontmatter present but missing one of name/role/version/description.
+    text = "---\nname: x\nrole: x\n---\n\nbody\n"
+    with pytest.raises(gen.GeneratePromptsError, match="missing required frontmatter"):
+        gen.transform(text, "x")
 
 
 # ---------------------------------------------------------------------------

@@ -15,7 +15,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates the same axes as the CI workflow `ai-pr-quality-gate.yml`, plus three local-only skill axes that CI cannot afford. The 6 canonical axis prompts live at `.claude/review-axes/{role}.md` (single source of truth) and are mirrored to `.github/prompts/pr-quality-gate-{role}.md` by `python3 build/scripts/generate_pr_quality_prompts.py`. Pre-push hook + CI drift-check job enforce parity (`REQ-008-03`).
+`/review` evaluates the same axes as the project's CI quality gate, plus three local-only skill axes that CI cannot afford. The 6 canonical axis prompts live at `.claude/review-axes/{role}.md` (single source of truth). When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks; vendored installs work from the canonical files alone (no CI dependency).
 
 `/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. The 3 chained skill extras (`code-qualities-assessment`, `golden-principles`, `taste-lints`) cannot run in CI (they require code execution + repo state) and so layer on top.
 
@@ -43,7 +43,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored install that contains only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` plus `CLAUDE.md`. Do NOT reference `.agents/`, `.github/`, `tests/`, or `scripts/` paths from this command body or any axis file. The `.claude/lib/ai_review_common/` package is synced from `scripts/ai_review_common/` by `scripts/sync_plugin_lib.py`; vendored installs use the synced copy.
+`/review` MUST work in a vendored install that contains only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` plus `CLAUDE.md`. The command body and every canonical axis file MUST NOT depend on paths outside `.claude/` at runtime; the `.claude/lib/ai_review_common/` package is the runtime dependency for verdict merging. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this command for project maintainers reading the prose, not as runtime dependencies.
 
 ## UNKNOWN handling
 

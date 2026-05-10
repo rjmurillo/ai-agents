@@ -66,7 +66,7 @@ You are reviewing a pull request for architectural design and system structure c
 - Are new patterns, frameworks, or dependencies being introduced without ADR?
 - Is there a technology choice that should be documented?
 - Are trade-offs being made that future maintainers need to understand?
-- Check `.agents/architecture/` or `docs/adr/` for existing ADRs
+- Check the project's ADR directory (commonly `.agents/architecture/` or `docs/adr/` when present) for existing ADRs; vendored installs without these paths skip this check
 
 **ADR-worthy decisions include**:
 
@@ -150,7 +150,7 @@ Automatically use `CRITICAL_FAIL` if you find:
 
 ## Structured JSON Output
 
-After your human-readable analysis, emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-output.schema.json`:
+After your human-readable analysis, emit a fenced JSON block matching the inline schema below (a JSON Schema for this output also lives at `.agents/schemas/pr-quality-gate-output.schema.json` in projects that ship it; vendored installs do not):
 
 ```json
 {
