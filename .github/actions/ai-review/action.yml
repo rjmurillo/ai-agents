@@ -845,8 +845,13 @@ runs:
         fi
 
         # Validate verdict is a known token
+        # PR #1965 cursor 6s_k: include UNKNOWN so a crashed skill or
+        # axis that emits `Verdict: UNKNOWN` (the canonical "no info"
+        # token from merge_verdicts) propagates to the workflow gate
+        # rather than being coerced to NEEDS_REVIEW. Both tokens are in
+        # $blockingVerdicts; the distinction matters for diagnostics.
         case "$verdict" in
-          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL|NEEDS_REVIEW)
+          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL|NEEDS_REVIEW|UNKNOWN)
             # Valid verdict token - use as-is
             ;;
           *)
