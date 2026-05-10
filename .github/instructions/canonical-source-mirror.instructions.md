@@ -1,5 +1,5 @@
 ---
-applyTo: scripts/validation/**,build/scripts/**
+applyTo: scripts/validation/**,build/scripts/**,.github/prompts/**
 ---
 
 # Canonical Source Mirror Rule

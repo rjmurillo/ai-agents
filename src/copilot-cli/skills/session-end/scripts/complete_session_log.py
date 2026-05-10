@@ -175,6 +175,46 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
         return None
 
 
+# Rework warning (REQ-009-07, REQ-009-08, REQ-009-09 / M4) is extracted
+# to a sibling module so this file stays under the 500-line taste-lint
+# threshold. See rework_warning.py for the implementation. The sibling
+# import is loaded via importlib so it works whether the script is run
+# directly (sys.path[0] is the script dir) or imported by tests via
+# importlib.util.spec_from_file_location (which does NOT add the dir).
+def _load_rework_module():
+    """Load the rework_warning sibling module without depending on sys.path."""
+    import importlib.util as _il
+    _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rework_warning.py")
+    _spec = _il.spec_from_file_location("rework_warning", _path)
+    if _spec is None or _spec.loader is None:
+        raise ImportError(f"cannot load rework_warning from {_path}")
+    _mod = _il.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    return _mod
+
+
+_rework = _load_rework_module()
+REWORK_THRESHOLD = _rework.REWORK_THRESHOLD
+compute_rework_warning = _rework.compute_rework_warning
+emit_rework_warning_lines = _rework.emit_rework_warning_lines
+
+
+def _run_rework_warning_step() -> str:
+    """Run the rework-warning check and emit lines to stdout.
+
+    Returns a one-line summary suitable for the session-end `changes`
+    log. Output to stdout is at least one line, never silent
+    (REQ-009-08). The function is extracted so the main() driver does
+    not absorb its branching into its own cyclomatic complexity.
+    """
+    rework_items = compute_rework_warning()
+    for line in emit_rework_warning_lines(rework_items):
+        print(line)
+    if rework_items:
+        return f"[WARN] rework warning: {len(rework_items)} file(s) at 6+ edits"
+    return "Rework warning: none"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = _get_repo_root()
@@ -279,6 +319,10 @@ def main(argv: list[str] | None = None) -> int:
         check["Complete"] = lint_success
         check["Evidence"] = lint_output
         changes.append(f"Markdown lint: {lint_output}")
+
+    # 4b. Rework warning (REQ-009-07, REQ-009-08). Emitted as informational
+    # stdout lines after lint; never blocks completion.
+    changes.append(_run_rework_warning_step())
 
     # 5. changesCommitted
     has_uncommitted = _test_uncommitted_changes()
