@@ -252,6 +252,17 @@ class TestMergeVerdicts:
         assert merge_verdicts(["PARTIAL"]) == "WARN"
         assert merge_verdicts(["PASS", "PARTIAL"]) == "WARN"
 
+    def test_fail_alone_returns_critical_fail(self):
+        # FAIL is in FAIL_VERDICTS; must collapse to CRITICAL_FAIL.
+        assert merge_verdicts(["FAIL"]) == "CRITICAL_FAIL"
+
+    def test_needs_review_alone_returns_critical_fail(self):
+        # NEEDS_REVIEW added in Issue #470: AI ambiguity treated as blocking.
+        assert merge_verdicts(["NEEDS_REVIEW"]) == "CRITICAL_FAIL"
+
+    def test_needs_review_with_pass(self):
+        assert merge_verdicts(["PASS", "NEEDS_REVIEW", "PASS"]) == "CRITICAL_FAIL"
+
 
 # Parametrized AC verification: every literal vector enumerated in REQ-008-05
 # must match. PR #1965 critic Finding 2: spec contract had ACs without
@@ -284,17 +295,6 @@ def test_req_008_05_literal_ac_vectors(verdicts, expected):
         f"REQ-008-05 AC failed: merge_verdicts({verdicts}) "
         f"returned {_mv(verdicts)!r}, spec says {expected!r}"
     )
-
-    def test_fail_alone_returns_critical_fail(self):
-        # FAIL is in FAIL_VERDICTS; must collapse to CRITICAL_FAIL.
-        assert merge_verdicts(["FAIL"]) == "CRITICAL_FAIL"
-
-    def test_needs_review_alone_returns_critical_fail(self):
-        # NEEDS_REVIEW added in Issue #470: AI ambiguity treated as blocking.
-        assert merge_verdicts(["NEEDS_REVIEW"]) == "CRITICAL_FAIL"
-
-    def test_needs_review_with_pass(self):
-        assert merge_verdicts(["PASS", "NEEDS_REVIEW", "PASS"]) == "CRITICAL_FAIL"
 
 
 class TestExtractVerdict:

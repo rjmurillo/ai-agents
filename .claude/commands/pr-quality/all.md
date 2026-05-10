@@ -40,10 +40,10 @@ Parse each agent's `VERDICT: TOKEN` output and merge using these rules:
 
 **Merge Logic** (canonical: `.claude/lib/ai_review_common/verdict.py:merge_verdicts`):
 
-- ANY `CRITICAL_FAIL`, `REJECTED`, `FAIL`, or `NEEDS_REVIEW` → Final: **CRITICAL_FAIL**
-- ANY `WARN` (no critical failures) → Final: **WARN**
+- ANY `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, or `NON_COMPLIANT` → Final: **CRITICAL_FAIL**
+- ANY `WARN` or `PARTIAL` (no critical failures) → Final: **WARN**
 - ANY `UNKNOWN` (no critical, no warn) → Final: **UNKNOWN**
-- ALL `PASS` → Final: **PASS**
+- ALL `PASS` or `COMPLIANT` → Final: **PASS**
 - Empty input → Final: **UNKNOWN**
 
 UNKNOWN downgrades a would-be PASS so a missing or crashed axis cannot
@@ -67,9 +67,9 @@ Generate consolidated report in EXACTLY this format. Do not add preambles or exp
 
 **Emoji Mapping** (canonical: `.claude/lib/ai_review_common/issue_triage.py:get_verdict_emoji`):
 
-- PASS → ✅
-- WARN → ⚠️
-- CRITICAL_FAIL/REJECTED/FAIL/NEEDS_REVIEW → ❌
+- PASS/COMPLIANT → ✅
+- WARN/PARTIAL → ⚠️
+- CRITICAL_FAIL/REJECTED/FAIL/NEEDS_REVIEW/NON_COMPLIANT → ❌
 - UNKNOWN → ❔
 
 **Next Steps**:
