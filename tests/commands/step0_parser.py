@@ -108,8 +108,10 @@ def q1_aspirational(answer: str) -> bool:
     1. Fewer than three specific named entities (person, team name, system, ticket, file).
     2. Future tense or conditional mood about demand existence.
     3. Generic category appearing WITHOUT a specific named entity (so
-       "the team would benefit" fires; "Alice on the Payments team"
-       does not, because Alice + Payments team is a specific entity).
+       "the team would benefit" fires; "Bleu team, Delos team, and
+       Calc team escalated #1700" does not, because four specific
+       entities (three teams + one ticket) satisfy the >= 3 threshold
+       in condition 1 and the named-entity check in condition 3).
 
     Restored generic-category condition #3 per Copilot PR #1931 comments
     3213975262 + 3213984488 (round-4 finding): the round-1 simplification
