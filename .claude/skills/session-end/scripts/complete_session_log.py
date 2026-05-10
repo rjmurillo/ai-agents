@@ -398,6 +398,18 @@ def main(argv: list[str] | None = None) -> int:
         check["Evidence"] = lint_output
         changes.append(f"Markdown lint: {lint_output}")
 
+    # 4b. Rework warning (REQ-009-07, REQ-009-08). Emitted as informational
+    # stdout lines after lint; never blocks completion. Output goes to
+    # stdout (not stderr) so it can be captured by tooling that pipes the
+    # script's output.
+    rework_items = compute_rework_warning()
+    for line in emit_rework_warning_lines(rework_items):
+        print(line)
+    if rework_items:
+        changes.append(f"[WARN] rework warning: {len(rework_items)} file(s) at 6+ edits")
+    else:
+        changes.append("Rework warning: none")
+
     # 5. changesCommitted
     has_uncommitted = _test_uncommitted_changes()
     if "changesCommitted" in session_end:
