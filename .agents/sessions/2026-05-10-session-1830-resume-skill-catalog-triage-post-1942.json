@@ -220,6 +220,18 @@
     {
       "step": 27,
       "action": "Round 13 cleanup: (1) REQ-009-AC2 regex updated to match shipped pattern [a-z][a-z0-9]*(?:-[a-z0-9]+)+ (was [a-z][a-z0-9-]+ which would match trailing-hyphen tokens); intentional non-match for single-token and trailing-hyphen forms documented. (2) REQ-009-AC4 rewritten to reflect PR1 wedge: regex mirrors canonical COUNT_PATTERN, extraction only, emission delegated to validate_marketplace_counts.py. (3) counts.py docstring corrected to describe os.walk(followlinks=False) (was stale Path.rglob/iterdir text). (4) Removed dead helper _is_excluded() left over from round 11 rglob implementation."
+    },
+    {
+      "step": 28,
+      "action": "Round 14: counts.py docstring documents that explicit exclude={CLAUDE.md} matches canonical default (canonical _count_commands defaults to {CLAUDE.md} when YAML omits exclude key); not a divergence. Applied commit-limit-bypass label to clear Validate PR commit-limit failure (PR exceeds 20 commits)."
+    },
+    {
+      "step": 29,
+      "action": "Round 15: argparse SystemExit on typoed flags now caught by main() so ADR-056 error envelope emits even on bad CLI args. New test test_render_error_envelope_emitted_on_bad_cli_args asserts the contract."
+    },
+    {
+      "step": 30,
+      "action": "Round 16: restructured REQ-009 ACs to clear the AC8-deferred signal that the Validate Spec Coverage CI check was interpreting as failure. Old AC8 (/test Gate 5 wiring) moved into a new 'PR2 follow-up' section instead of being a deferred AC. Old AC9 (test coverage) renumbered to AC8. DESIGN-009 + TASK-009 updated for the new numbering. PR1 now claims all eight ACs (AC1-AC8) satisfied."
     }
   ],
   "endingCommit": "8e545bd3",

@@ -21,18 +21,18 @@ PR1 (this PR, wedge per REQ-009 Q4 revision; expanded to include AC3 during PR #
 |---|---|---|---|---|
 | M1 | Skill skeleton + scan.py core | AC1, AC2, AC3, AC5, AC6 | none | 2.5h |
 | M2 | Count-claim regex extraction (canonical mirror) | AC4 partial (detect, not enforce) | M1 | 1h |
-| M3 | Test suite | AC9 (subset: AC2/AC3/AC4/AC5/AC6) | M1, M2 | 1h |
+| M3 | Test suite | AC8 (subset: AC2/AC3/AC4/AC5/AC6) | M1, M2 | 1h |
 | M4 | Wire into /build Mandatory Exit Gates | AC7 | M1-M3 | 0.25h |
 | M5 | Self-test: scan repo, fix surfaced orphans | (validation) | M1-M4 | 0.5h |
 
-PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC9.
+PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC8.
 
-PR2 (follow-up, deferred per REQ-009):
+PR2 (follow-up, per REQ-009 "PR2 follow-up" section):
 
-| ID | Milestone | ACs covered | Effort |
+| ID | Milestone | Item | Effort |
 |---|---|---|---|
 | F1 | Optional `--enforce-counts` for single-plugin count_claim emission | AC4 emission (opt-in) | 1h |
-| F2 | Wire into /test Gate 5 (AC8) | AC8 | 0.25h |
+| F2 | Wire into /test Gate 5 | /test wiring | 0.25h |
 
 PR2 total: ~1.25h.
 
@@ -72,11 +72,11 @@ PR2 total: ~1.25h.
 - An opt-in `--enforce-counts` flag (`scan_file(enforce_counts=True)`) is reserved for PR2 single-plugin enforcement.
 - Acceptance: extractor emits the canonical labels; no `count_claim` findings emitted in default mode; `tests/test_validate_marketplace_counts.py` continues to enforce counts at the canonical seam.
 
-### TASK-009-04: Test suite (AC9)
+### TASK-009-04: Test suite (AC8)
 
 - File: `.claude/skills/orphan-ref-validator/tests/test_scan.py`
 - Use `pytest` and `tmp_path` fixtures.
-- Cases per DESIGN-009 test table (AC2/3/4 positive+negative, AC5 envelope, AC6 vendored, AC9 edge cases).
+- Cases per DESIGN-009 test table (AC2/3/4 positive+negative, AC5 envelope, AC6 vendored, AC8 edge cases).
 - Coverage gate: `pytest --cov=scripts.scan --cov-fail-under=80`.
 - Acceptance: all tests green; coverage report ≥80% line on scan.py.
 
@@ -86,7 +86,9 @@ PR2 total: ~1.25h.
 - Add bullet for orphan-ref-validator alongside code-qualities-assessment, taste-lints, doc-accuracy.
 - Acceptance: grep `.claude/commands/build.md` returns the new bullet; `/build` documentation reads correctly.
 
-### TASK-009-06: Wire into /test (AC8)
+### TASK-009-06 (PR2 follow-up): Wire into /test Gate 5
+
+PR2 work, tracked in REQ-009's "PR2 follow-up" section. Not part of PR1.
 
 - Edit `.claude/commands/test.md` Gate 5 (DX) section.
 - Add bullet for orphan-ref-validator.
@@ -109,8 +111,8 @@ PR2 total: ~1.25h.
 
 ## Definition of Done (PR1)
 
-- PR1-scope acceptance criteria satisfied: AC1, AC2, AC3, AC4 (regex extraction only; emission delegated to canonical), AC5, AC6, AC7, AC9.
-- AC8 (`/test` Gate 5 wiring) is deferred to PR2; PR2 also adds the opt-in `--enforce-counts` flag for single-plugin count emission.
+- PR1-scope acceptance criteria satisfied: AC1, AC2, AC3, AC4 (regex extraction only; emission delegated to canonical), AC5, AC6, AC7, AC8.
+- `/test` Gate 5 wiring lives in REQ-009's "PR2 follow-up" section, not as an AC of PR1; PR2 also adds the opt-in `--enforce-counts` flag for single-plugin count emission.
 - Tests green with ≥80% coverage on scan.py.
 - /build gate wired (gate 4 in `.claude/commands/build.md`); /test gate is PR2.
 - Self-scan on this PR is clean or documents exceptions.

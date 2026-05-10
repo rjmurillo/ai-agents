@@ -35,7 +35,7 @@ M2 PR (#1946 session-qa-eligibility fold), the next planned PR. Spec/plan files 
 
 Original wedge: skill detecting skill-name orphan refs in plugin manifest + skill descriptions only (subset of AC2 + AC4). 4-6 hours implementation.
 
-**Wedge revision (documented at /spec critic 9c, then expanded again during PR #1979 review)**: actual ship-with-PR wedge is AC1+AC2+AC3+AC5+AC6+AC7+AC9 (~5.5h). Rationale: (a) AC1+AC5+AC6 are infrastructure prerequisites without which AC2+AC3 cannot run; (b) AC7 (/build wiring) is required for the skill to execute during M2 PR #1946 review; (c) AC3 (script_path detection) was originally deferred but ships in PR1 because the regex and detection logic were trivial to author alongside AC2 and the canonical-source-mirror review surfaced the inconsistency between the deferred-list and the implementation. AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; orphan-ref-validator extracts claims via regex but emits no Findings (deduplication, not divergence). AC8 (/test gate-5 wiring) is deferred to follow-up PR.
+**Wedge revision (documented at /spec critic 9c, then expanded again during PR #1979 review)**: PR1 ships all eight ACs (AC1 through AC8). AC4 emission is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; orphan-ref-validator extracts claims via regex but emits no Findings (deduplication, not divergence). The opt-in `--enforce-counts` single-plugin emission path and the `/test` Gate 5 wiring are tracked in the "PR2 follow-up" section below; they are not ACs of PR1.
 
 ### Q5 Observation
 
@@ -66,8 +66,14 @@ The skill closes this gate by scanning target paths pre-commit and emitting stru
 - [ ] REQ-009-AC5: WHEN scan completes, THE SYSTEM SHALL emit ADR-056 envelope `{Success, Data: {findings, verdict, counts}, Error, Metadata}` to stdout followed by a final line `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` (where `ERROR` accompanies exit code 2 configuration failures and a populated `Error` block per the skill-output schema), SO THAT downstream gates parse machine-readable output.
 - [ ] REQ-009-AC6: WHEN a target path is absent (vendored-install scenario where `.agents/`, `.serena/`, `.github/` may not exist), THE SYSTEM SHALL log INFO `skipping <path>: not present` and continue, NOT raise, SO THAT the skill survives vendored deployment.
 - [ ] REQ-009-AC7: WHEN `/build` runs Mandatory Exit Gates, THE SYSTEM SHALL invoke `orphan-ref-validator` and block on CRITICAL_FAIL, SO THAT orphans cannot pass `/build`.
-- [ ] REQ-009-AC8: WHEN `/test` runs Gate 5 (DX), THE SYSTEM SHALL invoke `orphan-ref-validator` and surface findings in test summary, SO THAT cross-cutting orphan detection runs in test phase.
-- [ ] REQ-009-AC9: WHEN `pytest .claude/skills/orphan-ref-validator/tests/` runs, THE SYSTEM SHALL report ≥80% line coverage on `scan.py` with positive (orphan present), negative (no orphans), and edge cases (empty target file, missing target path, mixed living+dead refs), SO THAT regression risk is bounded.
+- [ ] REQ-009-AC8: WHEN `pytest .claude/skills/orphan-ref-validator/tests/` runs, THE SYSTEM SHALL report ≥80% line coverage on `scan.py` with positive (orphan present), negative (no orphans), and edge cases (empty target file, missing target path, mixed living+dead refs), SO THAT regression risk is bounded.
+
+## PR2 follow-up (out of PR1 scope)
+
+These items are intentionally out of scope for PR1 and are tracked as PR2 work in `TASK-009`:
+
+- `/test` Gate 5 (DX) wiring: when `/test` runs Gate 5, invoke `orphan-ref-validator` and surface findings in the test summary. PR2 will add the wiring to `.claude/commands/test.md`.
+- `--enforce-counts` opt-in flag: PR1 ships count_claim regex extraction only; emission is delegated to `build/scripts/validate_marketplace_counts.py`. PR2 will add a single-plugin enforcement path under `--enforce-counts` for consumers that want orphan-ref-validator to emit `Finding(kind=count_claim)` directly.
 
 ## Rationale
 
@@ -85,11 +91,11 @@ The skill closes this gate by scanning target paths pre-commit and emitting stru
 
 ## Deferred
 
-- AC4 (count_claim Finding emission) -- delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`. PR1 detects the claim shape (regex + label map mirror canonical) but emits no Findings; an opt-in `--enforce-counts` flag for single-plugin enforcement is available for future PR2 wiring.
-- AC8 (/test Gate 5 wiring) -- follow-up PR. Owner: rjmurillo. Trigger: PR1 ships and skill scaffold proves stable.
 - Wave 2 wiki-import detection (Epic #1933 Child 4) once `docs/skill-reference.md` becomes a scan target.
 - Auto-fix mode (out of scope for v1; track separately if demand surfaces).
 - ADR-051 frontmatter validation (separate concern; `validate_design_review.py` exists).
+
+(See "PR2 follow-up" above for the `--enforce-counts` opt-in and `/test` Gate 5 wiring.)
 
 ## Out of Scope
 

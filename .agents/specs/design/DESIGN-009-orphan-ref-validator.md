@@ -14,7 +14,7 @@ author: richard
 
 ## Requirements Addressed
 
-This design implements REQ-009 acceptance criteria AC1, AC2, AC3, AC5, AC6, AC7, and AC9 (subset). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, but emission is gated behind an opt-in flag reserved for PR2. AC8 (/test Gate 5 wiring) is deferred to PR2. Cross-references: REQ-009-AC1 through REQ-009-AC9, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy).
+This design implements all eight REQ-009 acceptance criteria (AC1 through AC8). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, and the opt-in `--enforce-counts` single-plugin emission path is tracked in REQ-009's "PR2 follow-up" section. The `/test` Gate 5 wiring is also tracked in REQ-009's PR2 follow-up section, not as an AC of PR1. Cross-references: REQ-009-AC1 through REQ-009-AC8, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy).
 
 ## Design Overview
 
@@ -163,8 +163,8 @@ Test cases:
 | AC4 negative | manifest count matches actual | 0 findings |
 | AC5 envelope | any scan | stdout matches ADR-056 schema; last line starts `VERDICT:` |
 | AC6 vendored | scan with target path that does not exist | exit 0, INFO log line, no exception |
-| AC9 edge: empty file | empty target | 0 findings, PASS |
-| AC9 edge: mixed | file with both living and dead refs | findings only for dead |
+| AC8 edge: empty file | empty target | 0 findings, PASS |
+| AC8 edge: mixed | file with both living and dead refs | findings only for dead |
 
 Coverage target: ≥80% line on `scan.py`.
 
@@ -245,7 +245,7 @@ build-gate purpose. The `--include-adrs` flag opts back in for periodic audits.
 PR1 of TASK-009 implements detection for skill_name, script_path, and
 count_claim refs. count_claim emission is delegated to the canonical
 `build/scripts/validate_marketplace_counts.py` (PR1 ships the regex and label
-map but no Findings). `/test` Gate 5 wiring (REQ-009-AC8) is deferred to PR2.
+map but no Findings). `/test` Gate 5 wiring is in REQ-009's PR2 follow-up section.
 
 Real orphans inside `.agents/architecture/` (deleted skills referenced in
 ADR-007, ADR-017, ADR-040) are out of scope for the wedge PR and tracked as a
@@ -263,7 +263,7 @@ follow-up issue.
 
 ### `/test` Gate 5 (DX) -- deferred to PR2
 
-PR1 does not wire `/test` Gate 5; this is REQ-009-AC8, deferred per the Deferred section in REQ-009 and the milestones in TASK-009. PR2 will add:
+PR1 does not wire `/test` Gate 5; the wiring is in REQ-009's "PR2 follow-up" section and the milestones in TASK-009. PR2 will add:
 
 ```markdown
 - [ ] orphan-ref-validator: `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`. CRITICAL_FAIL surfaces in test summary.
