@@ -7,17 +7,14 @@ and the per-file size cap. Symlink-followed directories that escape the
 repository root are skipped here so the upstream ``scan_file`` path never
 sees them.
 
-Per ``.claude/rules/canonical-source-mirror.md``, the prune set mirrors
-``build/scripts/validate_marketplace_counts.py:_EXCLUDED_DIRS`` plus the
-two skill-reference subtrees that are progressive disclosure docs
-(``references/``, ``templates/``). The canonical contract is:
+Per ``.claude/rules/canonical-source-mirror.md``, the canonical
+``_EXCLUDED_DIRS`` constant in
+``build/scripts/validate_marketplace_counts.py`` is, byte-for-byte:
 
-    _EXCLUDED_DIRS = {
-        "node_modules", ".git", "worktrees", "cache", "__pycache__",
-    }
+    _EXCLUDED_DIRS = frozenset({"node_modules", ".git", "worktrees", "cache", "__pycache__"})
 
-Stricter/looser/different than canonical: same five names; this module
-adds ``references`` and ``templates`` for skill-progressive-disclosure
+Stricter/looser/different than canonical: same five names. This module
+adds ``"references"`` and ``"templates"`` for skill-progressive-disclosure
 directories that legitimately cite external entities and would produce
 high-noise findings.
 """
@@ -101,38 +98,46 @@ def walk_targets(target: Path, repo_root: Path) -> Iterable[Path]:
     subtrees (``node_modules``, ``.git``, ``worktrees``, ``cache``,
     ``__pycache__``, ``references``, ``templates``) are never entered.
 
-    Symlink directories that resolve outside the repository root are
-    skipped (CWE-22 / CWE-59 hardening).
+    Symlink targets (file or directory) are checked against ``repo_root``
+    after ``resolve()``; entries that escape the repository root are
+    skipped (CWE-22 / CWE-59 hardening). The walker also tracks visited
+    canonical paths to defend against in-repo symlink cycles.
     """
     if target.is_file():
-        if is_secret_path(target):
-            return
-        try:
-            size = target.stat().st_size
-        except OSError as exc:
-            LOGGER.warning("could not stat %s: %s", target, exc)
-            return
-        if size > MAX_FILE_BYTES:
-            LOGGER.warning("skipping %s: exceeds %d bytes", target, MAX_FILE_BYTES)
-            return
-        yield target
+        yield from _maybe_yield_file(target, repo_root)
         return
-    yield from _iter_dir_pruned(target, repo_root)
+    visited: set[Path] = set()
+    yield from _iter_dir_pruned(target, repo_root, visited)
 
 
-def _iter_dir_pruned(directory: Path, repo_root: Path) -> Iterable[Path]:
-    """Walk ``directory`` recursively, pruning excluded directory names
-    and refusing to follow symlinks that escape ``repo_root``."""
+def _iter_dir_pruned(
+    directory: Path, repo_root: Path, visited: set[Path]
+) -> Iterable[Path]:
+    """Walk ``directory`` recursively, pruning excluded directory names,
+    refusing to follow symlinks that escape ``repo_root``, and stopping
+    at any directory whose canonical path was already visited (cycle
+    guard for in-repo symlink loops)."""
+    try:
+        canonical = directory.resolve()
+    except (OSError, RuntimeError) as exc:
+        LOGGER.warning("could not resolve %s: %s", directory, exc)
+        return
+    if canonical in visited:
+        LOGGER.warning("skipping %s: symlink cycle detected", directory)
+        return
+    visited.add(canonical)
     try:
         entries = list(directory.iterdir())
     except (OSError, PermissionError) as exc:
         LOGGER.warning("could not iterate %s: %s", directory, exc)
         return
     for entry in entries:
-        yield from _iter_entry(entry, repo_root)
+        yield from _iter_entry(entry, repo_root, visited)
 
 
-def _iter_entry(entry: Path, repo_root: Path) -> Iterable[Path]:
+def _iter_entry(
+    entry: Path, repo_root: Path, visited: set[Path]
+) -> Iterable[Path]:
     """Yield walkable files from a single directory entry."""
     try:
         if entry.is_dir():
@@ -140,7 +145,7 @@ def _iter_entry(entry: Path, repo_root: Path) -> Iterable[Path]:
                 return
             if not is_safe_subdirectory(entry, repo_root):
                 return
-            yield from _iter_dir_pruned(entry, repo_root)
+            yield from _iter_dir_pruned(entry, repo_root, visited)
             return
     except OSError as exc:
         LOGGER.warning("could not stat %s: %s", entry, exc)
@@ -149,11 +154,39 @@ def _iter_entry(entry: Path, repo_root: Path) -> Iterable[Path]:
         return
     if entry.suffix not in SCAN_FILE_SUFFIXES:
         return
+    yield from _maybe_yield_file(entry, repo_root)
+
+
+def _maybe_yield_file(entry: Path, repo_root: Path) -> Iterable[Path]:
+    """Apply secret denylist, size cap, suffix filter, and post-resolution
+    repo-root containment to a candidate file."""
     if is_secret_path(entry):
+        return
+    if entry.suffix not in SCAN_FILE_SUFFIXES:
+        return
+    if not _is_safe_file(entry, repo_root):
         return
     if not _within_size_cap(entry):
         return
     yield entry
+
+
+def _is_safe_file(entry: Path, repo_root: Path) -> bool:
+    """Return True if ``entry`` resolves under ``repo_root``. A file
+    symlink whose target escapes the repo is rejected (CWE-22 / CWE-59)."""
+    if not entry.is_symlink():
+        return True
+    try:
+        resolved = entry.resolve()
+    except (OSError, RuntimeError) as exc:
+        LOGGER.warning("could not resolve symlink %s: %s", entry, exc)
+        return False
+    try:
+        resolved.relative_to(repo_root.resolve())
+    except ValueError:
+        LOGGER.warning("skipping %s: symlink resolves outside repo root", entry)
+        return False
+    return True
 
 
 def _within_size_cap(entry: Path) -> bool:

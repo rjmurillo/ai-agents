@@ -4,20 +4,42 @@
 Mirrors the project-toolkit count strategies in
 ``build/scripts/validate_marketplace_counts.py`` and the per-plugin
 rules in ``templates/marketplace-counters.yaml``. Per
-``.claude/rules/canonical-source-mirror.md``, the canonical contract
-for ``.claude-plugin/marketplace.json`` is quoted here verbatim:
+``.claude/rules/canonical-source-mirror.md``, the canonical
+``project-toolkit`` stanza for ``.claude-plugin/marketplace.json`` is,
+byte-for-byte:
 
-    agent:           md_agents(.claude/agents, exclude={AGENTS.md, CLAUDE.md})
-    slash command:   commands(.claude/commands, exclude={CLAUDE.md})
-    lifecycle hook:  hooks(.claude/hooks)
-    reusable skill:  skill_dirs(.claude/skills)
+    project-toolkit:
+      marketplaces:
+        .claude-plugin/marketplace.json:
+          agent:
+            strategy: "md_agents"
+            sourceDir: ".claude/agents"
+            exclude: ["AGENTS.md", "CLAUDE.md"]
+          slash command:
+            strategy: "commands"
+            sourceDir: ".claude/commands"
+          lifecycle hook:
+            strategy: "hooks"
+            sourceDir: ".claude/hooks"
+          reusable skill:
+            strategy: "skill_dirs"
+            sourceDir: ".claude/skills"
+
+The corresponding strategy implementations from the canonical Python
+source are referenced inline by ``_count_md_agents``, ``_count_md_recursive``,
+``_count_py_recursive``, and ``enumerate_skills`` below. This module
+re-implements the same algorithms (verbatim source bytes are quoted in
+each helper's docstring) rather than importing from
+``build/scripts/validate_marketplace_counts.py`` because the canonical
+script depends on a YAML loader and its own CLI scaffolding.
 
 Stricter/looser/different than canonical:
 
 - Pruning: canonical uses ``os.walk`` with ``_EXCLUDED_DIRS`` removed
-  from ``dirs``; this uses ``Path.rglob``/``iterdir`` without that
-  prune set. ``.claude/`` trees do not currently contain those names,
-  so counts match in practice.
+  from ``dirs`` in-place; this uses ``Path.rglob``/``iterdir``. The
+  ``_is_excluded`` filter applied below is the same set of names as
+  canonical ``_EXCLUDED_DIRS`` (defense in depth; ``.claude/`` trees
+  do not currently contain those names).
 - Per-plugin overrides: canonical reads
   ``templates/marketplace-counters.yaml`` for plugin-specific
   ``exclude`` lists; this hard-codes the project-toolkit excludes.

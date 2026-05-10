@@ -70,13 +70,20 @@ class ScanResult:
 
 
 def render_error_envelope(message: str, output: str) -> str:
-    """Render an ADR-056 envelope for configuration / runtime failures."""
+    """Render a skill-output.schema.json envelope for config / runtime failures.
+
+    Per ``.agents/schemas/skill-output.schema.json``: ``Code`` is the
+    integer exit code (ADR-035: ``2`` for configuration error); ``Type``
+    is the canonical enum (``InvalidParams`` for bad CLI args); ``Message``
+    is the human-readable description.
+    """
     envelope = {
         "Success": False,
         "Data": None,
         "Error": {
             "Message": message,
-            "Code": "ConfigurationError",
+            "Code": 2,
+            "Type": "InvalidParams",
         },
         "Metadata": {
             "Script": "scan.py",

@@ -16,7 +16,7 @@ Scans structured artifacts (specs, ADRs, eval fixtures, plugin manifests, skill 
 - **Script paths** under `build/scripts/`, `scripts/validation/`, or `scripts/` that are not present on disk. Emitted as `Finding(kind="script_path", severity="critical")`.
 - **Count claims** in plugin or marketplace manifests. The regex extracts the canonical claim shape (`COUNT_CLAIM_RE` mirrors `build/scripts/validate_marketplace_counts.py:COUNT_PATTERN`), but emission is delegated to that canonical validator. PR1 ships detection only; an opt-in `--enforce-counts` is reserved for PR2 single-plugin enforcement. Per `.claude/rules/canonical-source-mirror.md`, the canonical's YAML-driven per-plugin source-dir resolution and `--fix` path are not duplicated here.
 
-Emits findings per the ADR-056 envelope and a final `VERDICT: PASS|WARN|CRITICAL_FAIL` line. Exit code follows ADR-035: `0` for PASS or WARN, `1` for CRITICAL_FAIL, `2` for configuration error.
+Emits findings per the ADR-056 envelope and a final verdict line. Exit code follows ADR-035: `VERDICT: PASS` or `VERDICT: WARN` exits `0`; `VERDICT: CRITICAL_FAIL` exits `1`; configuration or runtime failures emit `VERDICT: ERROR` with `Success: false` and a populated `Error` block (`Code: 2`, `Type: InvalidParams`) and exit `2`.
 
 The skill ships with vendored installs. When a target path is not present (for example, `.agents/` is absent), the skill logs INFO and continues; it does not raise.
 
@@ -131,7 +131,7 @@ Use file-scope on M1-deletion specs and proposed-entity catalogs whose every ref
 
 Success criteria for the skill:
 
-- [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports all tests passed (currently 47 cases; count grows with new ACs).
+- [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports all tests passed.
 - [ ] `python3 .claude/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
 - [ ] `python3 .claude/skills/orphan-ref-validator/scripts/scan.py --targets /tmp/empty.md` exits 0 with `VERDICT: PASS`.
 - [ ] `python3 .claude/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default targets.
@@ -156,7 +156,7 @@ Invoke directly with `python3 .claude/skills/orphan-ref-validator/scripts/scan.p
 ## Extension Points
 
 - Add new entity kinds (for example, agent names) by extending `Kind`, adding a regex, and wiring `scan_file` to call a new enumerator.
-- Tighten the regex for a kind by editing the corresponding `*_REF_RE` constant in `scan.py`.
+- Tighten the regex for a kind by editing the corresponding `*_REF_RE` constant in `patterns.py`.
 - Add per-kind exit-code escalation by branching on `result.verdict` in `main` before returning.
 - Replace the markdown ignore directive with a structured config file by parsing `.orphan-ref-ignore` at the repository root.
 

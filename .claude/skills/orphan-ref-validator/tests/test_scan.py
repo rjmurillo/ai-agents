@@ -574,6 +574,46 @@ def test_glob_target_pattern_expansion(fake_repo):
     assert rc == 1
 
 
+def test_walk_skips_file_symlink_resolving_outside_repo(tmp_path, fake_repo, caplog):
+    """A FILE symlink under an allowed dir whose target is outside the
+    repo must be skipped at yield time. CWE-22 / CWE-59 hardening."""
+    docs = fake_repo / "docs"
+    write(docs / "ok.md", "Hello\n")
+    outside_file = tmp_path / "outside-target.md"
+    write(outside_file, "Use `dead-skill`.\n")
+    link = docs / "external_file.md"
+    link.symlink_to(outside_file)
+    with caplog.at_level("WARNING"):
+        result = scan([docs], fake_repo)
+    assert [f for f in result.findings if f.kind == "skill_name"] == []
+    assert any("outside repo root" in r.getMessage() for r in caplog.records)
+
+
+def test_walk_breaks_in_repo_symlink_cycle(tmp_path, fake_repo, caplog):
+    """A symlinked directory pointing back to an ancestor inside the
+    repo must not cause infinite recursion."""
+    docs = fake_repo / "docs"
+    write(docs / "ok.md", "Hello\n")
+    sub = docs / "sub"
+    sub.mkdir()
+    write(sub / "leaf.md", "Hello\n")
+    # sub/back -> docs (cycle)
+    (sub / "back").symlink_to(docs)
+    with caplog.at_level("WARNING"):
+        result = scan([docs], fake_repo)
+    assert any("symlink cycle" in r.getMessage() for r in caplog.records)
+    assert result.verdict == "PASS"
+
+
+def test_walk_filters_suffix_on_direct_file_target(fake_repo):
+    """A direct file target with a non-scanned suffix should be skipped."""
+    target = fake_repo / "notes.txt"
+    write(target, "Use `dead-skill`.\n")
+    result = scan([target], fake_repo)
+    assert result.findings == []
+    assert result.files_scanned == 0
+
+
 def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
     """When findings exceed max_findings, scan halts and appends a warn
     finding so the operator knows the result is partial."""
@@ -606,5 +646,8 @@ def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):
     assert payload["Success"] is False
     assert payload["Data"] is None
     assert payload["Error"] is not None
-    assert payload["Error"]["Code"] == "ConfigurationError"
+    # Per .agents/schemas/skill-output.schema.json: Code is the integer
+    # exit code, Type is the canonical enum.
+    assert payload["Error"]["Code"] == 2
+    assert payload["Error"]["Type"] == "InvalidParams"
     assert "does not exist" in payload["Error"]["Message"]
