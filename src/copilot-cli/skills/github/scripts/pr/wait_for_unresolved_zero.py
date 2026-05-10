@@ -101,13 +101,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=1200,
         help="Maximum total seconds to wait before exiting 1 (default: 1200).",
     )
+    # PR #1989 copilot/coderabbit: `action="store_true"` + `default=True`
+    # makes the flag impossible to disable. Use BooleanOptionalAction so
+    # `--strict-pagination` and `--no-strict-pagination` both work, default
+    # remaining True.
     parser.add_argument(
         "--strict-pagination",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=True,
         help=(
             "Require fetched_pages_complete == true on every counted "
-            "observation (default: True)."
+            "observation (default: True; disable with --no-strict-pagination)."
         ),
     )
     return parser
@@ -118,13 +122,20 @@ def _invoke_underlying(
     pull_request: int,
     owner: str,
     repo: str,
-    runner: object = subprocess.run,
+    runner: object | None = None,
 ) -> tuple[int, bool, int]:
     """Invoke the underlying script once and return (count, complete, exit_code).
 
     Subprocess call uses argv vector with shell=False per CWE-78. The
     ``runner`` parameter is a seam for tests; production callers leave
     it at the default ``subprocess.run``.
+
+    PR #1989 gemini: wrap runner invocation in try/except so subprocess
+    timeouts, missing binaries, or unexpected runtime errors degrade to
+    a single sentinel observation (-1, False, exit_code) instead of
+    crashing the polling loop. The exit_code is preserved on the
+    underlying-script path (FileNotFoundError -> 2 config, TimeoutExpired
+    -> 1 logic) so ADR-035 propagation downstream still works.
     """
     argv: list[str] = [
         sys.executable,
@@ -136,21 +147,40 @@ def _invoke_underlying(
         argv.extend(["--owner", owner])
     if repo:
         argv.extend(["--repo", repo])
-    completed = runner(  # type: ignore[operator]
-        argv,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
+    # Resolve runner at call time, not def time, so test-mocks of
+    # `wfz.subprocess.run` take effect when callers omit `runner=`.
+    if runner is None:
+        runner = subprocess.run
+    try:
+        completed = runner(  # type: ignore[operator]
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except FileNotFoundError:
+        # Underlying script missing: config error per ADR-035.
+        return (-1, False, 2)
+    except subprocess.TimeoutExpired:
+        # Underlying timed out: logic error per ADR-035 (the wrapper's
+        # own --max-wait-seconds takes over).
+        return (-1, False, 1)
+    except OSError:
+        # Other OS-level failure (permissions, fork failure): config.
+        return (-1, False, 2)
     exit_code = getattr(completed, "returncode", 1)
     stdout = getattr(completed, "stdout", "") or ""
     try:
         payload = json.loads(stdout)
     except (json.JSONDecodeError, ValueError):
         return (-1, False, exit_code)
-    count = int(payload.get("unresolved_count", -1))
-    complete = bool(payload.get("fetched_pages_complete", False))
+    try:
+        count = int(payload.get("unresolved_count", -1))
+        complete = bool(payload.get("fetched_pages_complete", False))
+    except (TypeError, ValueError):
+        # Malformed JSON shape (count not coercible to int).
+        return (-1, False, exit_code)
     return (count, complete, exit_code)
 
 
@@ -172,9 +202,9 @@ def wait_for_settled_zero(
     owner: str = "",
     repo: str = "",
     strict_pagination: bool = True,
-    runner: object = subprocess.run,
-    clock: object = _now,
-    sleeper: object = _sleep,
+    runner: object | None = None,
+    clock: object | None = None,
+    sleeper: object | None = None,
 ) -> dict:
     """Return the settlement result as a dict, regardless of outcome.
 
@@ -202,6 +232,12 @@ def wait_for_settled_zero(
     if pull_request <= 0:
         return _failure("pull_request must be positive", pull_request, [])
 
+    # Resolve seams at call time so test-mocks of `wfz.subprocess.run`,
+    # `wfz._now`, and `wfz._sleep` take effect when callers omit them.
+    if clock is None:
+        clock = _now
+    if sleeper is None:
+        sleeper = _sleep
     script_path = _resolve_underlying_script()
     if not script_path.is_file():
         return _failure(
@@ -319,8 +355,23 @@ def main(argv: list[str] | None = None) -> int:
         strict_pagination=args.strict_pagination,
     )
     print(json.dumps(result, indent=2))
-    return 0 if result["settled"] else 1
+    if result["settled"]:
+        return 0
+    # PR #1989 copilot/coderabbit: propagate underlying-script exit code so
+    # callers distinguish auth (4) and config (2) from logic-level wait
+    # failures (1). Per ADR-035 exit-code contract.
+    observations = result.get("observations") or []
+    last_exit = 1
+    for obs in reversed(observations):
+        if isinstance(obs, dict) and "underlying_exit_code" in obs:
+            last_exit = int(obs["underlying_exit_code"])
+            break
+    if last_exit == 4:
+        return 4  # Auth error from underlying
+    if last_exit == 2:
+        return 2  # Config error from underlying
+    return 1  # Default: logic/timeout
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

@@ -354,5 +354,268 @@ class RequiredConsecutiveZerosConstantTest(unittest.TestCase):
         self.assertEqual(wfz.REQUIRED_CONSECUTIVE_ZEROS, 3)
 
 
+class StrictPaginationFlagTest(unittest.TestCase):
+    """PR #1989 copilot/coderabbit: BooleanOptionalAction must allow opt-out."""
+
+    def test_default_strict_pagination_is_true(self) -> None:
+        """POSITIVE: omitting the flag yields strict_pagination=True."""
+        args = wfz._build_parser().parse_args(["--pull-request", "42"])
+        self.assertTrue(args.strict_pagination)
+
+    def test_no_strict_pagination_disables(self) -> None:
+        """NEGATIVE: --no-strict-pagination must flip the flag to False."""
+        args = wfz._build_parser().parse_args(
+            ["--pull-request", "42", "--no-strict-pagination"],
+        )
+        self.assertFalse(args.strict_pagination)
+
+    def test_explicit_strict_pagination_is_true(self) -> None:
+        """POSITIVE: explicit --strict-pagination matches the default."""
+        args = wfz._build_parser().parse_args(
+            ["--pull-request", "42", "--strict-pagination"],
+        )
+        self.assertTrue(args.strict_pagination)
+
+
+class ExitCodePropagationTest(unittest.TestCase):
+    """PR #1989 copilot/coderabbit: ADR-035 exit codes propagate via main()."""
+
+    def _run_main_with_runner(self, runner: Any) -> int:
+        """Run main() with subprocess.run replaced by `runner` and time mocked.
+
+        Patches `wfz.time.monotonic` directly so the default `clock` arg
+        captured at def time of wait_for_settled_zero sees the mocked time.
+        """
+        t = [0.0]
+
+        def fake_monotonic() -> float:
+            v = t[0]
+            t[0] += 200.0  # Advance > interval per call
+            return v
+
+        with mock.patch.object(wfz.subprocess, "run", side_effect=runner), \
+             mock.patch.object(wfz.time, "monotonic", side_effect=fake_monotonic), \
+             mock.patch.object(wfz.time, "sleep", return_value=None):
+            return wfz.main(
+                [
+                    "--pull-request", "42",
+                    "--interval-seconds", "1",
+                    "--max-wait-seconds", "3",
+                ],
+            )
+
+    def test_auth_error_propagates_as_exit_4(self) -> None:
+        """POSITIVE: underlying exit 4 -> main returns 4."""
+        runner, _ = _make_runner(
+            [{"unresolved_count": 0, "fetched_pages_complete": False}],
+            exit_codes=[4],
+        )
+        # Provide enough payloads to fail max-wait (runner runs once
+        # then runner() will be called again; provide a second item).
+        runner2, _ = _make_runner(
+            [{"unresolved_count": 0, "fetched_pages_complete": False}] * 5,
+            exit_codes=[4] * 5,
+        )
+        rc = self._run_main_with_runner(runner2)
+        self.assertEqual(rc, 4)
+
+    def test_config_error_propagates_as_exit_2(self) -> None:
+        """POSITIVE: underlying exit 2 -> main returns 2."""
+        runner, _ = _make_runner(
+            [{"unresolved_count": 0, "fetched_pages_complete": False}] * 5,
+            exit_codes=[2] * 5,
+        )
+        rc = self._run_main_with_runner(runner)
+        self.assertEqual(rc, 2)
+
+    def test_logic_failure_remains_exit_1(self) -> None:
+        """NEGATIVE: underlying exit 0 + no settle -> main returns 1."""
+        runner, _ = _make_runner(
+            [{"unresolved_count": 5, "fetched_pages_complete": True}] * 5,
+            exit_codes=[0] * 5,
+        )
+        rc = self._run_main_with_runner(runner)
+        self.assertEqual(rc, 1)
+
+
+class CoverageCompleterTests(unittest.TestCase):
+    """Cover branches that the main scenarios miss, to hit 100% block + branch.
+
+    PR #1989 user requirement: tests must catch the bugs that bot reviewers
+    caught. Branches like "underlying script missing" and "pull_request <= 0
+    in wait_for_settled_zero directly" need explicit exercise.
+    """
+
+    def test_wait_for_settled_zero_rejects_non_positive_pull_request(self) -> None:
+        """Direct call with PR <= 0 returns _failure, not main()."""
+        result = wfz.wait_for_settled_zero(
+            pull_request=0, interval_seconds=180, max_wait_seconds=1200,
+        )
+        self.assertFalse(result["settled"])
+        self.assertIn("positive", (result.get("reason") or "").lower())
+
+    def test_wait_for_settled_zero_handles_missing_underlying_script(self) -> None:
+        """When _resolve_underlying_script returns a non-file path, fail clean."""
+        from pathlib import Path as _Path
+
+        with mock.patch.object(
+            wfz,
+            "_resolve_underlying_script",
+            return_value=_Path("/definitely/not/here.py"),
+        ):
+            result = wfz.wait_for_settled_zero(
+                pull_request=42,
+                interval_seconds=180,
+                max_wait_seconds=1200,
+                runner=lambda *_a, **_kw: mock.Mock(returncode=0, stdout="{}"),
+                clock=lambda: 0.0,
+                sleeper=lambda _s: None,
+            )
+        self.assertFalse(result["settled"])
+        self.assertIn("missing", (result.get("reason") or "").lower())
+
+    def test_sleep_seam_real_no_op_path(self) -> None:
+        """Call _sleep(0) so the module-level body is covered."""
+        # _sleep(0) should return None without raising.
+        self.assertIsNone(wfz._sleep(0))
+
+    def test_now_seam_real_path(self) -> None:
+        """Call _now() so the module-level body is covered."""
+        v1 = wfz._now()
+        self.assertIsInstance(v1, float)
+
+    def test_failure_helper_shape(self) -> None:
+        """_failure returns the documented dict shape."""
+        result = wfz._failure("reason", 42, [{"ts": 1}])
+        self.assertEqual(result["pull_request"], 42)
+        self.assertEqual(result["reason"], "reason")
+        self.assertFalse(result["settled"])
+        self.assertFalse(result["success"])
+
+    def test_main_invalid_pull_request_argv_value(self) -> None:
+        """argparse rejects non-integer pull_request before main logic runs."""
+        with self.assertRaises(SystemExit):
+            wfz.main(["--pull-request", "abc"])
+
+    def test_main_returns_zero_when_settled(self) -> None:
+        """POSITIVE: main returns 0 when wait_for_settled_zero settles."""
+        t = [0.0]
+
+        def fake_monotonic() -> float:
+            v = t[0]
+            t[0] += 200.0
+            return v
+
+        # Three consecutive zeros with complete=True => settle.
+        payloads = [{"unresolved_count": 0, "fetched_pages_complete": True}] * 5
+        runner, _ = _make_runner(payloads, exit_codes=[0] * 5)
+
+        with mock.patch.object(wfz.subprocess, "run", side_effect=runner), \
+             mock.patch.object(wfz.time, "monotonic", side_effect=fake_monotonic), \
+             mock.patch.object(wfz.time, "sleep", return_value=None):
+            rc = wfz.main(
+                [
+                    "--pull-request", "42",
+                    "--interval-seconds", "1",
+                    "--max-wait-seconds", "3600",
+                ],
+            )
+        self.assertEqual(rc, 0)
+
+    def test_main_handles_empty_observations(self) -> None:
+        """NEGATIVE: when result.observations is empty, default exit 1."""
+        with mock.patch.object(
+            wfz,
+            "wait_for_settled_zero",
+            return_value={"settled": False, "observations": [], "reason": "x", "pull_request": 1},
+        ):
+            rc = wfz.main(
+                [
+                    "--pull-request", "1",
+                    "--interval-seconds", "1",
+                    "--max-wait-seconds", "1",
+                ],
+            )
+        self.assertEqual(rc, 1)
+
+    def test_main_handles_obs_missing_underlying_exit_code(self) -> None:
+        """NEGATIVE: when no obs dict has underlying_exit_code, default 1."""
+        with mock.patch.object(
+            wfz,
+            "wait_for_settled_zero",
+            return_value={
+                "settled": False,
+                "observations": [{"timestamp": 0.0}],  # no underlying_exit_code key
+                "reason": "x",
+                "pull_request": 1,
+            },
+        ):
+            rc = wfz.main(
+                [
+                    "--pull-request", "1",
+                    "--interval-seconds", "1",
+                    "--max-wait-seconds", "1",
+                ],
+            )
+        self.assertEqual(rc, 1)
+
+
+class InvokeUnderlyingErrorHandlingTest(unittest.TestCase):
+    """PR #1989 gemini: _invoke_underlying must degrade on subprocess errors."""
+
+    def test_file_not_found_returns_config_sentinel(self) -> None:
+        """POSITIVE: missing underlying script -> exit_code 2 (config)."""
+        def runner(*_args: Any, **_kw: Any) -> Any:
+            raise FileNotFoundError("script missing")
+
+        count, complete, exit_code = wfz._invoke_underlying(
+            Path("/nonexistent.py"), 42, "", "", runner=runner,
+        )
+        self.assertEqual((count, complete, exit_code), (-1, False, 2))
+
+    def test_timeout_returns_logic_sentinel(self) -> None:
+        """POSITIVE: subprocess.TimeoutExpired -> exit_code 1 (logic)."""
+        from subprocess import TimeoutExpired
+
+        def runner(*_args: Any, **_kw: Any) -> Any:
+            raise TimeoutExpired(cmd="x", timeout=60)
+
+        count, complete, exit_code = wfz._invoke_underlying(
+            Path("/p.py"), 42, "", "", runner=runner,
+        )
+        self.assertEqual((count, complete, exit_code), (-1, False, 1))
+
+    def test_os_error_returns_config_sentinel(self) -> None:
+        """POSITIVE: OSError (e.g. permission, EMFILE) -> exit_code 2."""
+        def runner(*_args: Any, **_kw: Any) -> Any:
+            raise OSError(13, "Permission denied")
+
+        count, complete, exit_code = wfz._invoke_underlying(
+            Path("/p.py"), 42, "", "", runner=runner,
+        )
+        self.assertEqual((count, complete, exit_code), (-1, False, 2))
+
+    def test_malformed_json_returns_negative_count(self) -> None:
+        """NEGATIVE: stdout that isn't JSON -> count=-1, exit_code preserved."""
+        def runner(*_args: Any, **_kw: Any) -> Any:
+            return mock.Mock(returncode=0, stdout="not json", stderr="")
+
+        count, complete, exit_code = wfz._invoke_underlying(
+            Path("/p.py"), 42, "", "", runner=runner,
+        )
+        self.assertEqual((count, complete, exit_code), (-1, False, 0))
+
+    def test_malformed_payload_shape_returns_negative(self) -> None:
+        """NEGATIVE: JSON has unresolved_count of wrong type -> count=-1."""
+        def runner(*_args: Any, **_kw: Any) -> Any:
+            payload = json.dumps({"unresolved_count": "not-an-int"})
+            return mock.Mock(returncode=0, stdout=payload, stderr="")
+
+        count, complete, exit_code = wfz._invoke_underlying(
+            Path("/p.py"), 42, "", "", runner=runner,
+        )
+        self.assertEqual((count, complete, exit_code), (-1, False, 0))
+
+
 if __name__ == "__main__":
     unittest.main()
