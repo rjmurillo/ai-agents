@@ -1,3 +1,7 @@
+<!-- orphan-ref-ignore-file -->
+<!-- MCP integration overview describes proposed memory and orchestration
+     entities by name. These are not skills; orphan-ref-validator must skip. -->
+
 # MCP Integration Overview
 
 > **Status**: Draft

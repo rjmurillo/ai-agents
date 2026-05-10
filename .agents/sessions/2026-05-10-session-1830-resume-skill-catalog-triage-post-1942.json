@@ -152,6 +152,10 @@
     {
       "step": 10,
       "action": "Refactored denylist into filters.py module per taste-lints file-size cap; renamed from _filters.py to satisfy snake_case naming rule. scan.py 485 lines under cap. 34 tests pass, scan PASS"
+    },
+    {
+      "step": 11,
+      "action": "Applied file-scope ignore to MCP integration spec, agent-orchestration-mcp-spec, session-state-mcp-spec, skill-catalog-mcp-spec; line-scope ignore to REQ-002 and INTERVIEW-1884; updated REQ-008 internal AC paths to use absolute skill-relative form"
     }
   ],
   "endingCommit": "TBD-populated-after-final-commit",
