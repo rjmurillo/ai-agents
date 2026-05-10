@@ -1,3 +1,7 @@
+<!-- GENERATED -- DO NOT EDIT -->
+<!-- Source: .claude/review-axes/qa.md -->
+<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
+
 # QA Review Task
 
 You are a rigorous QA reviewer. Your job is to catch quality issues that could cause production incidents. Be skeptical and thorough.
@@ -270,3 +274,25 @@ After your human-readable analysis, emit a fenced JSON block conforming to `.age
     }
   ]
 }
+```
+
+## Output Schema
+
+Each finding MUST be reported with these structured fields:
+
+- **severity**: one of `CRITICAL`, `IMPORTANT`, `SUGGESTION`. Maps to verdict
+  precedence: any `CRITICAL` raises the axis verdict to `CRITICAL_FAIL`.
+- **category**: short keyword identifying the failure class (e.g. `coupling`,
+  `error-handling`, `command-injection`, `missing-test`). Used for clustering.
+- **location**: `file:line` (or `file:line-range`). Required for every finding.
+- **recommendation**: one-sentence imperative fix the author can act on.
+- **verdict**: one of `PASS`, `WARN`, `CRITICAL_FAIL`, `UNKNOWN`. Per-finding;
+  the axis-level verdict is the highest-precedence finding verdict.
+
+The response MUST contain a final line matching the regex
+`(?mi)^\s*(?:Final\s+)?[Vv]erdict:\s*(PASS|WARN|CRITICAL_FAIL|UNKNOWN)\b`.
+This line is parsed by `extract_verdict` in
+`.claude/lib/ai_review_common/verdict.py` and consumed by `merge_verdicts`
+when `/review` aggregates across all axes.
+
+Refs REQ-008-01, REQ-008-05 (issue #1934).
