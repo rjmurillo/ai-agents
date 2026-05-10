@@ -16,16 +16,11 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import re
 import sys
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Literal
-
-VERSION = "1.0.0"
+from typing import Iterable
 
 DEFAULT_TARGETS = (
     ".agents/specs",
@@ -43,25 +38,6 @@ OPT_IN_ADR_TARGETS = (
 OPT_IN_SKILL_TARGETS = (
     ".claude/skills/*/SKILL.md",
 )
-
-SCAN_FILE_SUFFIXES = (".md", ".json", ".yaml", ".yml")
-
-EXCLUDE_DIR_NAMES = frozenset({
-    "__pycache__",
-    ".git",
-    "node_modules",
-    "references",
-    "templates",
-})
-
-SECRET_DENYLIST_PATTERNS = (
-    re.compile(r"^\.env"),
-    re.compile(r"^secrets\."),
-    re.compile(r"\.key$"),
-    re.compile(r"\.pem$"),
-)
-
-MAX_FILE_BYTES = 5 * 1024 * 1024
 
 SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
 SCRIPT_REF_RE = re.compile(r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py)`")
@@ -115,235 +91,33 @@ FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from counts import enumerate_count, enumerate_skills, is_manifest_file
+    from envelope import (
+        VERSION,
+        Finding,
+        ScanResult,
+        Severity,
+        render_envelope,
+        render_error_envelope,
+    )
     from filters import is_known_kebab_word
+    from walking import walk_targets
 else:
+    from .counts import enumerate_count, enumerate_skills, is_manifest_file
+    from .envelope import (
+        VERSION,
+        Finding,
+        ScanResult,
+        Severity,
+        render_envelope,
+        render_error_envelope,
+    )
     from .filters import is_known_kebab_word
+    from .walking import walk_targets
 
 LOGGER = logging.getLogger("orphan_ref_validator")
 
-Severity = Literal["critical", "warn"]
-Kind = Literal["skill_name", "script_path", "count_claim", "parse_error"]
-Verdict = Literal["PASS", "WARN", "CRITICAL_FAIL"]
 
-
-@dataclass(frozen=True)
-class Finding:
-    kind: Kind
-    severity: Severity
-    target_file: str
-    line: int
-    referenced_entity: str
-    recommendation: str
-    expected: str | None = None
-    actual: str | None = None
-
-    def to_dict(self) -> dict:
-        d = {
-            "kind": self.kind,
-            "severity": self.severity,
-            "target_file": self.target_file,
-            "line": self.line,
-            "referenced_entity": self.referenced_entity,
-            "recommendation": self.recommendation,
-        }
-        if self.expected is not None:
-            d["expected"] = self.expected
-        if self.actual is not None:
-            d["actual"] = self.actual
-        return d
-
-
-@dataclass
-class ScanResult:
-    findings: list[Finding] = field(default_factory=list)
-    files_scanned: int = 0
-    refs_checked: int = 0
-
-    @property
-    def verdict(self) -> Verdict:
-        if any(f.severity == "critical" for f in self.findings):
-            return "CRITICAL_FAIL"
-        if self.findings:
-            return "WARN"
-        return "PASS"
-
-
-def _is_secret_path(path: Path) -> bool:
-    name = path.name
-    return any(p.search(name) for p in SECRET_DENYLIST_PATTERNS)
-
-
-def _walk_targets(target: Path) -> Iterable[Path]:
-    """Yield candidate files under target (or just the target if it is a file).
-
-    Recurses with ``iterdir`` and prunes ``EXCLUDE_DIR_NAMES`` at directory
-    level rather than ``rglob('*')`` + post-filter, so excluded subtrees
-    (``node_modules``, ``.git``, ``references``, ``templates``,
-    ``__pycache__``) are never entered.
-    """
-    if target.is_file():
-        if _is_secret_path(target):
-            return
-        if target.stat().st_size > MAX_FILE_BYTES:
-            LOGGER.warning("skipping %s: exceeds %d bytes", target, MAX_FILE_BYTES)
-            return
-        yield target
-        return
-    yield from _iter_dir_pruned(target)
-
-
-def _iter_dir_pruned(directory: Path) -> Iterable[Path]:
-    """Walk ``directory`` recursively, pruning excluded directory names."""
-    try:
-        entries = list(directory.iterdir())
-    except (OSError, PermissionError) as exc:
-        LOGGER.warning("could not iterate %s: %s", directory, exc)
-        return
-    for entry in entries:
-        if entry.is_dir():
-            if entry.name in EXCLUDE_DIR_NAMES:
-                continue
-            yield from _iter_dir_pruned(entry)
-            continue
-        if not entry.is_file():
-            continue
-        if entry.suffix not in SCAN_FILE_SUFFIXES:
-            continue
-        if _is_secret_path(entry):
-            continue
-        try:
-            size = entry.stat().st_size
-        except OSError as exc:
-            LOGGER.warning("could not stat %s: %s", entry, exc)
-            continue
-        if size > MAX_FILE_BYTES:
-            LOGGER.warning("skipping %s: exceeds %d bytes", entry, MAX_FILE_BYTES)
-            continue
-        yield entry
-
-
-def enumerate_skills(repo_root: Path) -> set[str] | None:
-    """Return the set of skill names found at ``.claude/skills/<name>/SKILL.md``.
-
-    Returns ``None`` when ``.claude/skills/`` is absent so callers can
-    distinguish "no directory" (undeterminable) from "directory with zero
-    skills" (deterministic count of zero).
-    """
-    skills_dir = repo_root / ".claude" / "skills"
-    if not skills_dir.exists():
-        return None
-    return {
-        d.name
-        for d in skills_dir.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-    }
-
-
-_COUNT_CACHE: dict[tuple[str, str], int | None] = {}
-
-
-def enumerate_count(repo_root: Path, kind: str) -> int | None:
-    """Return count for the given canonical label, or ``None`` when absent.
-
-    ``kind`` is one of the ``COUNT_LABEL_MAP`` values: ``"agent"``,
-    ``"slash command"``, ``"lifecycle hook"``, ``"reusable skill"``. The
-    legacy short forms ``"skills"``, ``"agents"``, ``"commands"``,
-    ``"hooks"`` are accepted as aliases.
-
-    Mirrors the project-toolkit ``.claude-plugin/marketplace.json``
-    strategies declared in ``templates/marketplace-counters.yaml`` and
-    implemented as ``md_agents``, ``commands``, ``hooks``, ``skill_dirs``
-    in ``build/scripts/validate_marketplace_counts.py``. Per
-    ``.claude/rules/canonical-source-mirror.md``:
-
-        agent:           md_agents(.claude/agents, exclude={AGENTS.md, CLAUDE.md})
-        slash command:   commands(.claude/commands, exclude={CLAUDE.md})
-        lifecycle hook:  hooks(.claude/hooks)
-        reusable skill:  skill_dirs(.claude/skills)
-
-    Stricter/looser/different than canonical:
-
-    - Pruning: canonical uses ``os.walk`` with ``_EXCLUDED_DIRS`` removed
-      from ``dirs``; this uses ``Path.rglob``/``iterdir`` without that
-      prune set. ``.claude/`` trees do not currently contain those names,
-      so counts match in practice; if a future ``node_modules`` ever lands
-      under ``.claude/hooks/`` the canonical will exclude it and this
-      will not.
-    - Per-plugin overrides: canonical reads
-      ``templates/marketplace-counters.yaml`` for plugin-specific
-      ``exclude`` lists; this hard-codes the project-toolkit excludes.
-      Other plugins are not supported here; orphan-ref-validator scans
-      manifests for general count drift, not per-plugin enforcement.
-    - ``--fix``: canonical supports auto-fix; this is detection only.
-    """
-    canonical = {
-        "agents": "agent",
-        "commands": "slash command",
-        "hooks": "lifecycle hook",
-        "skills": "reusable skill",
-    }.get(kind, kind)
-    cache_key = (str(repo_root), canonical)
-    if cache_key in _COUNT_CACHE:
-        return _COUNT_CACHE[cache_key]
-    result: int | None
-    if canonical == "reusable skill":
-        skills = enumerate_skills(repo_root)
-        result = None if skills is None else len(skills)
-    elif canonical == "agent":
-        result = _count_md_agents(
-            repo_root / ".claude" / "agents",
-            exclude={"AGENTS.md", "CLAUDE.md"},
-        )
-    elif canonical == "slash command":
-        result = _count_md_recursive(
-            repo_root / ".claude" / "commands", exclude={"CLAUDE.md"}
-        )
-    elif canonical == "lifecycle hook":
-        result = _count_py_recursive(repo_root / ".claude" / "hooks")
-    else:
-        result = None
-    _COUNT_CACHE[cache_key] = result
-    return result
-
-
-def _reset_count_cache() -> None:
-    """Clear the per-repo count cache. Test helper; not part of the CLI."""
-    _COUNT_CACHE.clear()
-
-
-def _count_md_agents(directory: Path, exclude: set[str]) -> int | None:
-    """Count .md files; canonical _count_md_agents shape (excludes templates)."""
-    if not directory.exists():
-        return None
-    return sum(
-        1
-        for f in directory.iterdir()
-        if f.is_file()
-        and f.suffix == ".md"
-        and f.name not in exclude
-        and "template" not in f.name
-    )
-
-
-def _count_md_recursive(directory: Path, exclude: set[str]) -> int | None:
-    if not directory.exists():
-        return None
-    return sum(
-        1
-        for f in directory.rglob("*.md")
-        if f.is_file() and f.name not in exclude
-    )
-
-
-def _count_py_recursive(directory: Path) -> int | None:
-    if not directory.exists():
-        return None
-    return sum(1 for f in directory.rglob("*.py") if f.is_file())
-
-
-def is_manifest_file(path: Path) -> bool:
-    name = path.name
-    return name in {"plugin.json", "marketplace.json"}
 
 
 def extract_skill_refs(text: str) -> Iterable[tuple[int, str]]:
@@ -558,7 +332,7 @@ def scan(targets: list[Path], repo_root: Path) -> ScanResult:
             except ValueError:
                 LOGGER.warning("skipping %s: outside repo root", resolved)
                 continue
-            for path in _walk_targets(resolved):
+            for path in walk_targets(resolved, repo_root):
                 # Re-check containment after symlink resolution. A symlink
                 # inside an allowed directory can point outside the repo.
                 try:
@@ -578,45 +352,6 @@ def scan(targets: list[Path], repo_root: Path) -> ScanResult:
                 result.refs_checked += refs_checked
                 result.files_scanned += 1
     return result
-
-
-def render_envelope(result: ScanResult, output: str) -> str:
-    # Per ADR-056: Success reflects whether the scan ran successfully, not
-    # whether findings exist. CRITICAL_FAIL is a successful scan that found
-    # blocking issues; the verdict expresses that. Reserve Success=false +
-    # populated Error{Message,Code} for configuration or runtime failures
-    # (which exit code 2).
-    envelope = {
-        "Success": True,
-        "Data": {
-            "findings": [f.to_dict() for f in result.findings],
-            "verdict": result.verdict,
-            "counts": {
-                "files_scanned": result.files_scanned,
-                "refs_checked": result.refs_checked,
-                "findings_total": len(result.findings),
-            },
-        },
-        "Error": None,
-        "Metadata": {
-            "Script": "scan.py",
-            "Version": VERSION,
-            "Timestamp": datetime.now(timezone.utc).isoformat(),
-        },
-    }
-    if output == "human":
-        lines = [
-            f"orphan-ref-validator {VERSION}",
-            f"  files_scanned: {result.files_scanned}",
-            f"  refs_checked:  {result.refs_checked}",
-            f"  findings:      {len(result.findings)}",
-        ]
-        for f in result.findings:
-            lines.append(
-                f"  [{f.severity}] {f.target_file}:{f.line} {f.kind} `{f.referenced_entity}` -- {f.recommendation}"
-            )
-        return "\n".join(lines) + f"\nVERDICT: {result.verdict}"
-    return json.dumps(envelope, indent=2) + f"\nVERDICT: {result.verdict}"
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -698,6 +433,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root = _resolve_repo_root(args.repo_root)
     except RepoRootError as exc:
         LOGGER.error("%s", exc)
+        print(render_error_envelope(str(exc), args.output))
         return 2
     if args.targets:
         target_strs = list(args.targets)

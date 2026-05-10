@@ -28,11 +28,12 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 |---|---|---|
 | CLI entry | `scan.py:main`, `parse_args` | Parse argv, validate `--repo-root`, dispatch to `scan`, format envelope, return ADR-035 exit code |
 | Target expansion | `scan.py:_expand_target` | Resolve literal files, directories, and glob patterns against repo root |
-| File walk | `scan.py:_walk_targets`, `_iter_dir_pruned` | Recursive iterdir with directory-name pruning for `EXCLUDE_DIR_NAMES`; secret denylist; 5 MB cap |
+| File walk | `walking.py:walk_targets`, `_iter_dir_pruned`, `is_safe_subdirectory` | Recursive iterdir with directory-name pruning for `EXCLUDE_DIR_NAMES`; secret denylist; 5 MB cap; symlink-directory containment at recursion entry |
 | Reference detection | `scan.py:extract_skill_refs`, `extract_script_refs`, `extract_count_claims` | Line-oriented regex extraction with file-scope and line-scope ignore directive support |
 | Filters | `filters.py:is_known_kebab_word` | Curated denylist of kebab tokens that match `SKILL_REF_RE` but are not skill references (model IDs, frontmatter fields, third-party Action names, bot identifiers, eval verdict literals) |
-| Source-of-truth enumeration | `scan.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts |
-| Containment | `scan.py:scan` | Repo-root containment recheck on every walked file (post symlink resolution) |
+| Source-of-truth enumeration | `counts.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts |
+| Output rendering | `envelope.py:Finding`, `ScanResult`, `render_envelope`, `render_error_envelope` | ADR-056 envelope shape and verdict line; `render_error_envelope` covers the exit-2 path |
+| Containment | `scan.py:scan` | Repo-root containment recheck on every walked file (post symlink resolution); `skill_catalog_present` flag thread for warn-vs-critical disambiguation |
 
 ## Technology Decisions
 
@@ -44,15 +45,16 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 
 ## Security Considerations
 
-- **Path traversal (CWE-22)**: every target and every walked file resolves through `Path.resolve()` and is rechecked against `repo_root` via `relative_to`. A symlink inside an allowed directory pointing outside the repo is logged as a warning and skipped.
+- **Path traversal (CWE-22 / CWE-59)**: every target and every walked file resolves through `Path.resolve()` and is rechecked against `repo_root` via `relative_to`. Symlink directories that resolve outside the repo are skipped at recursion entry (in `walking.is_safe_subdirectory`); symlink files outside the repo are skipped after resolution. The walker never enters a foreign tree.
 - **Command injection (CWE-78)**: not applicable; no `subprocess`, no shell, no string concatenation into commands.
-- **Secrets in scanned content**: secret-denylist regex (`.env*`, `secrets.*`, `*.key`, `*.pem`) skips files whose names match. Files larger than 5 MB are skipped to avoid memory exhaustion.
+- **Secrets in scanned content**: secret-denylist regex skips files whose names match `.env*`, `secrets.*`, `*.key`, `*.pem`, `*.pfx`, `*.p12`, `id_rsa(.pub)?`, `id_ed25519(.pub)?`, `id_ecdsa(.pub)?`, `id_dsa(.pub)?`, `.netrc`, `.npmrc`, `.pypirc`, `credentials`. Files larger than 5 MB are skipped to avoid memory exhaustion.
 - **Trusted input only**: scan targets are repository paths controlled by the developer running `/build`. No untrusted external input crosses the regex boundary.
 - **No network**: skill is fully read-only and offline.
+- **Ignore-directive bypass is intentional**: `<!-- orphan-ref-ignore-file -->` and `<!-- orphan-ref-ignore -->` are documented escape hatches. A committer can mute the gate by adding the directive in the same change. The compensating control is human code review of any commit that adds an ignore directive (the directives are rare in the working tree and easy to grep). This is a deliberate trade between false-positive friction and security-of-the-gate; treat it as policy, not a bug.
 
 ## Testing Strategy
 
-- **Unit tests**: `tests/test_scan.py` (42 cases) covers each AC positively and negatively, ADR-056 envelope shape, ADR-035 exit codes, vendored-install scenarios (including the warn-vs-critical disambiguation when the skill catalog is absent vs empty), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs).
+- **Unit tests**: `tests/test_scan.py` (47 cases) covers each AC positively and negatively, ADR-056 envelope shape (including the `Success: false` exit-2 envelope), ADR-035 exit codes, vendored-install scenarios (skill catalog absent, empty, or pointing at a regular file), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment for both file and directory targets, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs, CWD-not-in-git fallback).
 - **Self-test (TASK-008-07)**: scan the source repo with default scope; iterate filters and ignore directives until VERDICT: PASS; document remaining preexisting orphans surfaced by `--include-adrs` and `--include-skill-descriptions` as out-of-scope follow-up work.
 - **Coverage gate**: `pytest --cov=scripts.scan --cov-fail-under=80`. Achieved coverage on `scan.py` exceeds the 80% floor.
 - **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap.

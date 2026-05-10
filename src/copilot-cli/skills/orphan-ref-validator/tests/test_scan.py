@@ -525,3 +525,72 @@ def test_walk_skips_symlink_resolving_outside_repo(tmp_path, fake_repo, caplog):
         result = scan([docs], fake_repo)
     assert [f for f in result.findings if f.kind == "skill_name"] == []
     assert any("outside repo root" in r.getMessage() for r in caplog.records)
+
+
+def test_walk_skips_symlink_to_directory_outside_repo(tmp_path, fake_repo, caplog):
+    """A symlink directory under an allowed target that points outside the
+    repo must not be recursed into. CWE-22 / CWE-59 hardening."""
+    docs = fake_repo / "docs"
+    write(docs / "ok.md", "Use `alpha-skill`.\n")
+    outside = tmp_path / "outside_dir"
+    write(outside / "trap.md", "Use `dead-skill`.\n")
+    link = docs / "external_dir"
+    link.symlink_to(outside)
+    with caplog.at_level("WARNING"):
+        result = scan([docs], fake_repo)
+    assert [f for f in result.findings if f.kind == "skill_name"] == []
+    assert any("outside repo root" in r.getMessage() for r in caplog.records)
+
+
+def test_enumerate_skills_returns_none_when_path_is_file(tmp_path):
+    """A vendored install with .claude/skills/ as a regular file (corrupt
+    layout, broken symlink) must return None, not raise NotADirectoryError."""
+    (tmp_path / ".claude").mkdir()
+    (tmp_path / ".claude" / "skills").write_text("oops not a directory")
+    assert enumerate_skills(tmp_path) is None
+    assert enumerate_count(tmp_path, "skills") is None
+
+
+def test_resolve_repo_root_falls_back_to_cwd_when_no_git(tmp_path, monkeypatch):
+    """When no parent has a .git directory, _resolve_repo_root returns CWD."""
+    isolated = tmp_path / "no-git-here"
+    isolated.mkdir()
+    monkeypatch.chdir(isolated)
+    rc = main(["--targets", str(isolated)])
+    assert rc == 0
+
+
+def test_glob_target_pattern_expansion(fake_repo):
+    """--targets accepts glob patterns that expand against repo_root."""
+    skills_dir = fake_repo / ".claude" / "skills"
+    (skills_dir / "alpha-skill" / "SKILL.md").write_text(
+        "# alpha\nUse `dead-skill` here.\n"
+    )
+    (skills_dir / "beta-skill" / "SKILL.md").write_text("# beta living-only\n")
+    rc = main([
+        "--targets", ".claude/skills/*/SKILL.md",
+        "--repo-root", str(fake_repo),
+    ])
+    assert rc == 1
+
+
+def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):
+    """ADR-056: exit-2 path must emit the envelope with Success=false and
+    a populated Error block. The contract is documented in render_envelope's
+    docstring; this test pins it."""
+    bogus = tmp_path / "does-not-exist"
+    rc = main([
+        "--repo-root", str(bogus),
+        "--targets", str(tmp_path / "x.md"),
+        "--output", "json",
+    ])
+    assert rc == 2
+    captured = capsys.readouterr().out.strip().splitlines()
+    assert captured[-1] == "VERDICT: ERROR"
+    body = "\n".join(captured[:-1])
+    payload = json.loads(body)
+    assert payload["Success"] is False
+    assert payload["Data"] is None
+    assert payload["Error"] is not None
+    assert payload["Error"]["Code"] == "ConfigurationError"
+    assert "does not exist" in payload["Error"]["Message"]
