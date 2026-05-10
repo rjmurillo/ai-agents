@@ -136,9 +136,9 @@ Downstream callers (orchestrators, review skills, CI gates) parse this block by 
 
 If any criterion fires, the gate is loosened or removed in a follow-up PR.
 
-**Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/metrics/STEP-0-METRICS.md`. Create the parent directory `.agents/metrics/` lazily if absent (the directory is project-only and may not exist on a fresh checkout or vendored install), then create the file lazily with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line uses UTC ISO-8601 with the literal trailing `Z` (`YYYY-MM-DDTHH:MM:SSZ`) so drift/kill-criteria tooling parses records deterministically (PR #1965 coderabbit Y10): `<UTC YYYY-MM-DDTHH:MM:SSZ> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
+**Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/metrics/STEP-0-METRICS.md`. Create the parent directory `.agents/metrics/` lazily if absent (the directory is project-only and may not exist on a fresh checkout or vendored install), then create the file lazily with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line uses UTC ISO-8601 with the literal trailing `Z` (`YYYY-MM-DDTHH:MM:SSZ`) so drift/kill-criteria tooling parses records deterministically (observability traceability): `<UTC YYYY-MM-DDTHH:MM:SSZ> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
 
-**Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.agents/metrics/STEP-0-METRICS.md` to `.agents/metrics/STEP-0-METRICS-YYYYMMDDTHHMMSSZ.md` (using the rotation timestamp in UTC) and start a fresh file with the same header. The timestamped suffix prevents same-day collisions when two rotations land in the same calendar day (PR #1965 coderabbit Y11). The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
+**Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.agents/metrics/STEP-0-METRICS.md` to `.agents/metrics/STEP-0-METRICS-YYYYMMDDTHHMMSSZ.md` (using the rotation timestamp in UTC) and start a fresh file with the same header. The timestamped suffix prevents same-day collisions when two rotations land in the same calendar day (collision safety). The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
 
 ---
 
@@ -373,7 +373,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 
    #### Co-change checklist (REQ-009-04, REQ-009-05)
 
-   When the requirement touches a shared token (a regex pattern, an enum value, an exit-code table, a status string) that appears at more than one site, the generated `REQ-NNN-{slug}.md` MUST include a `## Co-change checklist` section listing every site. PR #1965 demonstrated the failure mode: a verdict-token addition required 3 commits per token because the implementer discovered missing sites one at a time through bot review. The checklist forces discovery at spec time, not review time.
+   When the requirement touches a shared token (a regex pattern, an enum value, an exit-code table, a status string) that appears at more than one site, the generated `REQ-NNN-{slug}.md` MUST include a `## Co-change checklist` section listing every site. Verdict-token cascade is the canonical failure mode: a single-token addition can require three or more commits when the implementer discovers missing sites one at a time through bot review. The checklist forces discovery at spec time, not review time.
 
    Emit the section when EITHER condition holds:
 
@@ -393,7 +393,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - `{what changes}` is a single phrase, not a full sentence.
    - The `-- ` separator is distinct from standard markdown list conventions in this repo and is machine-parseable for future linting.
 
-   Concrete example, taken from PR #1965's verdict-token cascade. Adding a new verdict token (for example `NEEDS_REVISION`) to the quality-gate vocabulary required edits at every site that pattern-matches the existing tokens:
+   Concrete example, from a verdict-token cascade. Adding a new verdict token (for example `NEEDS_REVISION`) to the quality-gate vocabulary requires edits at every site that pattern-matches the existing tokens:
 
    ```markdown
    ## Co-change checklist

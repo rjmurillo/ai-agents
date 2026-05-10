@@ -102,17 +102,21 @@ All four fixes scale linearly with PR volume; none becomes a liability at 10x gr
 ### Requirement Statement
 
 WHEN `wait_for_unresolved_zero.py` is invoked with `--pull-request <N>`,
-THE SYSTEM SHALL poll `get_unresolved_review_threads.py` and exit 0 only after observing two consecutive readings of `unresolved_count == 0 AND fetched_pages_complete == true` separated by at least 60 seconds,
+THE SYSTEM SHALL poll `get_unresolved_review_threads.py` and exit 0 only after observing THREE consecutive readings of `unresolved_count == 0 AND fetched_pages_complete == true` separated by at least 180 seconds,
 SO THAT bots opening new threads between checks cannot produce a false-positive "done" verdict.
 
 ### Acceptance Criteria
 
 - [ ] A new wrapper script exists at `.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py`.
-- [ ] The wrapper accepts `--pull-request`, `--owner`, `--repo`, `--interval-seconds` (default 60), `--max-wait-seconds` (default 600), `--strict-pagination` (default true).
-- [ ] The wrapper exits 0 only when two consecutive observations satisfy `unresolved_count == 0 AND fetched_pages_complete == true` AND the interval between them is at least `--interval-seconds`.
-- [ ] The wrapper exits 1 when `--max-wait-seconds` elapses before two zero-readings are observed.
-- [ ] Exit codes follow ADR-035 (0 ok, 1 logic, 2 config, 4 auth).
-- [ ] Output is JSON with `{success, pull_request, observations: [{timestamp, unresolved_count, fetched_pages_complete}, ...], settled: bool}`.
+- [ ] The wrapper accepts `--pull-request`, `--owner`, `--repo`, `--interval-seconds` (default 180), `--max-wait-seconds` (default 1200), `--strict-pagination` (default True; disable with `--no-strict-pagination` per BooleanOptionalAction).
+- [ ] The wrapper exits 0 only when THREE consecutive observations satisfy `unresolved_count == 0 AND fetched_pages_complete == true` AND the interval between them is at least `--interval-seconds`.
+- [ ] The wrapper exits 1 when `--max-wait-seconds` elapses before three zero-readings are observed.
+- [ ] Exit codes follow ADR-035 (0 ok, 1 logic, 2 config, 4 auth) AND propagate from the underlying script (auth 4 from underlying maps to main returning 4; config 2 maps to 2).
+- [ ] Output is JSON with `{success, pull_request, observations: [{timestamp, unresolved_count, fetched_pages_complete, underlying_exit_code}, ...], settled: bool, reason: str|null}`.
+
+### Revision History
+
+PR #1989 critic NEEDS-REVISION raised default interval from 60s to 180s and required readings from 2 to 3. Pre-mortem found Copilot/Devin webhook latency commonly exceeds 60s; two consecutive zeros 60s apart could miss a slow bot scan and re-introduce the PR #1965 lie.
 
 ### Rationale
 
@@ -128,16 +132,19 @@ Pagination already works in the underlying script (commit `00151b78` added `fetc
 
 ### Requirement Statement
 
-WHEN `tests/skills/github/test_wait_for_unresolved_zero.py` runs against a stubbed sequence where reading 1 returns `unresolved_count=0` and reading 2 (60s later) returns `unresolved_count=3` (bots opened threads between calls),
-THE SYSTEM SHALL assert the wrapper does NOT exit 0 prematurely; it must observe two consecutive zeros before settling.
+WHEN `tests/skills/github/test_wait_for_unresolved_zero.py` runs against a stubbed sequence where reading 1 returns `unresolved_count=0` and reading 2 (180s later) returns `unresolved_count=3` (bots opened threads between calls),
+THE SYSTEM SHALL assert the wrapper does NOT exit 0 prematurely; it must observe THREE consecutive zeros before settling.
 
 ### Acceptance Criteria
 
 - [ ] A test file exists at `tests/skills/github/test_wait_for_unresolved_zero.py`.
 - [ ] The test stubs `get_unresolved_review_threads.py` invocations via `subprocess.run` patching.
-- [ ] The test stubs a sequence: reading 1 returns 0, reading 2 returns 3, reading 3 returns 0, reading 4 returns 0; the wrapper must NOT exit 0 until reading 4.
+- [ ] The test stubs a sequence `[0, 3, 0, 0, 0]`: reading 1 returns 0, reading 2 returns 3 (bots opened threads), readings 3-5 return 0; the wrapper must NOT exit 0 until reading 5.
 - [ ] A second test stubs `fetched_pages_complete=false` on the first zero reading; the wrapper must NOT count that as a valid zero observation.
 - [ ] A third test verifies max-wait-seconds timeout exits 1 with `settled=false` in JSON output.
+- [ ] Tests cover the `--strict-pagination` / `--no-strict-pagination` BooleanOptionalAction flag with default-True, explicit-True, and explicit-False positive cases.
+- [ ] Tests cover exit-code propagation: underlying exit 4 -> main returns 4; exit 2 -> main returns 2; exit 0 with no-settle -> main returns 1.
+- [ ] Tests cover `_invoke_underlying` error degradation: FileNotFoundError, TimeoutExpired, OSError, malformed JSON, malformed payload shape.
 - [ ] All HTTP interactions are stubbed (no live network).
 
 ### Rationale
@@ -328,6 +335,58 @@ Without a pinned threshold test, a future edit could silently lower the threshol
 ### Dependencies
 
 REQ-009-07 (implementation must exist before the test can be written).
+
+---
+
+## REQ-009-10: Bot-Cascade Pre-Push Warning
+
+### Requirement Statement
+
+WHEN `.githooks/pre-push` Phase 5c runs for a branch with an open PR that has unresolved bot review threads,
+THE SYSTEM SHALL emit a warning (but NOT block the push) referencing the batch-fix pattern,
+SO THAT the developer can choose to wait for threads to resolve before triggering another bot scan.
+
+### Acceptance Criteria
+
+- [ ] Phase 5c exists in `.githooks/pre-push` and runs after the existing review-axes drift check.
+- [ ] When the current branch has a PR with `unresolved_count > 0`, the hook emits `record_warn` with the count.
+- [ ] The hook NEVER calls `record_fail` for bot-cascade conditions (warn-only).
+- [ ] When `gh` is not available, the hook records skip and exits cleanly.
+- [ ] When the current branch has no PR, the hook records skip and exits cleanly.
+
+### Rationale
+
+PR #1965 retrospective names bot-cascade as the highest-leverage gap (~20 commits saved). Pushing with open bot threads triggers a new bot scan, which often opens more threads. A warn-only signal at push time gives the developer a clear choice before that cycle starts.
+
+### Dependencies
+
+`get_unresolved_review_threads.py` (already paginates correctly). `gh` CLI authenticated against the repo.
+
+---
+
+## REQ-009-11: Bot-Cascade Recent-Review Warning
+
+### Requirement Statement
+
+WHEN `.githooks/pre-push` Phase 5c runs for a branch with an open PR that has zero unresolved threads BUT the last bot review was submitted less than 120 seconds ago,
+THE SYSTEM SHALL emit a warning (but NOT block the push) indicating a bot scan is likely still in flight,
+SO THAT the developer waits for the in-flight scan to complete instead of triggering a new one on top.
+
+### Acceptance Criteria
+
+- [ ] When `unresolved_count == 0` AND last bot review timestamp is < 120s old, Phase 5c emits `record_warn`.
+- [ ] When `unresolved_count == 0` AND last bot review timestamp is >= 120s old, Phase 5c emits `record_pass` with the observed age.
+- [ ] When `unresolved_count == 0` AND no bot reviews exist for the PR, Phase 5c emits `record_pass`.
+- [ ] The 120-second threshold is documented inline in the hook with citation to PR #1989 coderabbit finding.
+- [ ] Timestamp parsing degrades to 99999 (treated as old) on malformed input.
+
+### Rationale
+
+PR #1989 coderabbit finding: a developer who pushes immediately after a bot has STARTED but not finished its review will see zero current threads, but the in-flight scan will add threads moments later. The 120s window covers Copilot/Devin webhook latency observed during PR #1965 (30-120s).
+
+### Dependencies
+
+REQ-009-10 (the Phase 5c block must already exist). `gh api` access to the `/pulls/{n}/reviews` endpoint.
 
 ---
 

@@ -110,6 +110,16 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=98
 
+      - name: Pin REQ-009 module coverage at 100% (PR #1989 user requirement)
+        if: steps.should-run.outputs.skip != 'true'
+        run: |
+          pytest \
+            tests/skills/github/test_wait_for_unresolved_zero.py \
+            tests/skills/session-end/test_rework_warning.py \
+            --cov=wait_for_unresolved_zero \
+            --cov=rework_warning \
+            --cov-branch --cov-fail-under=100
+
       - name: Upload test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && steps.should-run.outputs.skip != 'true'
