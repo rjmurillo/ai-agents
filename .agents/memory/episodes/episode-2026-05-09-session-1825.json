@@ -1,7 +1,7 @@
 {
   "id": "episode-2026-05-09-session-1825",
   "session": "2026-05-09-session-1825",
-  "timestamp": "2026-05-09T21:49:44.240491+00:00",
+  "timestamp": "2026-05-09T23:14:21.269854+00:00",
   "outcome": "failure",
   "task": "",
   "decisions": [],
@@ -21,12 +21,36 @@
       "content": "{\"step\": \"Configure workspace per CONTRIBUTING.md\", \"outcome\": \"core.hooksPath set, .venv created, dev deps installed, Pester 5.7.1 verified\"},",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "commit",
+      "content": "Commit: 9adfcdae",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"pre-commit hook ran markdownlint-cli2 on every commit (15 commits); 0 errors. Em-dashes removed from all 13 changed files in round-2 fix.\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"pytest tests/commands/ passes 59/59; security-scan 0 vulns; golden-principles 0 violations; taste-lints 0 errors.\"",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
+    "errors": 3,
     "recoveries": 0,
     "commits": 5,
     "files_changed": 0
