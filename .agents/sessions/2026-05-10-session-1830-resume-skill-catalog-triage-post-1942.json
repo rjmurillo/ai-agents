@@ -172,6 +172,10 @@
     {
       "step": 15,
       "action": "PR review feedback round 2: per-call enumerate_count cache to eliminate redundant filesystem walks per gemini perf comment; REQ-008 and DESIGN-008 related fields complete forward-trace (REQ -> DESIGN -> TASK); TASK-008 status changed from draft to in-progress and complexity: M added to satisfy spec validator; episode-2026-05-10-session-1830.json hand-rewritten with valid event-type enums (milestone/error/recovery), accurate metrics (9 commits, 32 files, 240 min, 2 errors, 2 recoveries), explicit decisions, and three lessons learned; test_scan.py uses importlib.util.spec_from_file_location with file-keyed module names to avoid sys.modules collision between .claude/skills and src/copilot-cli/skills mirrored test suites."
+    },
+    {
+      "step": 16,
+      "action": "PR review feedback round 3: 13 new comments. Critical fixes - (1) REQ-008 had two YAML 'related' keys (the second silently dropped DESIGN/TASK refs); merged into one block with REQ-007, DESIGN-008, TASK-008. (2) scan() coerced None from enumerate_skills with 'or set()' which defeated the warn-vs-critical disambiguation; now passes skill_catalog_present flag through scan_file so absent .claude/skills/ produces warn (not critical) findings while empty .claude/skills/ stays critical. Two new tests cover both cases; test count 40 -> 42. (3) --repo-root help text rewritten to describe the actual walk-up-to-.git resolution and the ADR-035 exit-2 behavior on bad paths. (4) __init__.py docstring rewritten to match the importlib.util loader pattern. (5) SKILL.md and build.md gate description rewritten to truthfully say count_claim emission is delegated to canonical validate_marketplace_counts.py (was previously claiming the gate catches count drift). (6) DESIGN-008 test-case count updated to 42."
     }
   ],
   "endingCommit": "8e545bd3",

@@ -52,7 +52,7 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 
 ## Testing Strategy
 
-- **Unit tests**: `tests/test_scan.py` (40 cases) covers each AC positively and negatively, ADR-056 envelope shape, ADR-035 exit codes, vendored-install scenarios, ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs).
+- **Unit tests**: `tests/test_scan.py` (42 cases) covers each AC positively and negatively, ADR-056 envelope shape, ADR-035 exit codes, vendored-install scenarios (including the warn-vs-critical disambiguation when the skill catalog is absent vs empty), ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs).
 - **Self-test (TASK-008-07)**: scan the source repo with default scope; iterate filters and ignore directives until VERDICT: PASS; document remaining preexisting orphans surfaced by `--include-adrs` and `--include-skill-descriptions` as out-of-scope follow-up work.
 - **Coverage gate**: `pytest --cov=scripts.scan --cov-fail-under=80`. Achieved coverage on `scan.py` exceeds the 80% floor.
 - **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap.

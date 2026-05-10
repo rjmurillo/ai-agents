@@ -5,8 +5,9 @@ Marks the ``scripts/`` directory as a Python package. The CLI entrypoint
 lives in ``scan.py``; the curated kebab denylist lives in ``filters.py``.
 
 The test suite at ``.claude/skills/orphan-ref-validator/tests/test_scan.py``
-imports the modules by adding the ``scripts/`` directory to ``sys.path``
-and using bare imports (``from scan import ...``, ``from filters import
-...``). Do not change to package-style imports without updating the tests
-and the ``__package__`` fallback in ``scan.py``.
+loads ``scan.py`` via ``importlib.util.spec_from_file_location`` with a
+file-keyed module name to keep the canonical and Copilot CLI mirrored
+suites isolated in ``sys.modules``. Do not change this contract without
+updating the loader logic in both ``test_scan.py`` files and the
+``__package__`` fallback at the top of ``scan.py``.
 """

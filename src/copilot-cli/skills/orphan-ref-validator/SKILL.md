@@ -12,9 +12,9 @@ license: MIT
 
 Scans structured artifacts (specs, ADRs, eval fixtures, plugin manifests, skill descriptions) for references to entities that do not exist in the working tree:
 
-- Skill names that no longer have a `.claude/skills/<name>/` directory.
-- Script paths under `build/scripts/`, `scripts/validation/`, or `scripts/` that are not present on disk.
-- Count claims in plugin or marketplace manifests that diverge from actual catalog enumeration.
+- **Skill names** that no longer have a `.claude/skills/<name>/` directory. Emitted as `Finding(kind="skill_name", severity="critical")`.
+- **Script paths** under `build/scripts/`, `scripts/validation/`, or `scripts/` that are not present on disk. Emitted as `Finding(kind="script_path", severity="critical")`.
+- **Count claims** in plugin or marketplace manifests. The regex extracts the canonical claim shape (`COUNT_CLAIM_RE` mirrors `build/scripts/validate_marketplace_counts.py:COUNT_PATTERN`), but emission is delegated to that canonical validator. PR1 ships detection only; an opt-in `--enforce-counts` is reserved for PR2 single-plugin enforcement. Per `.claude/rules/canonical-source-mirror.md`, the canonical's YAML-driven per-plugin source-dir resolution and `--fix` path are not duplicated here.
 
 Emits findings per the ADR-056 envelope and a final `VERDICT: PASS|WARN|CRITICAL_FAIL` line. Exit code follows ADR-035: `0` for PASS or WARN, `1` for CRITICAL_FAIL, `2` for configuration error.
 

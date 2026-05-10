@@ -1,15 +1,15 @@
 ---
 type: requirement
 id: REQ-008
-related:
-  - DESIGN-008
-  - TASK-008
 title: Orphan-Ref Validator Skill
 status: draft
 priority: P2
 category: maintainability
 epic: lifecycle-gate-convergence
-related: [REQ-007]
+related:
+  - REQ-007
+  - DESIGN-008
+  - TASK-008
 created: 2026-05-10
 updated: 2026-05-10
 author: richard

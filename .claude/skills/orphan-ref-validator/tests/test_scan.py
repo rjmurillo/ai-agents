@@ -482,6 +482,38 @@ def test_walk_prunes_excluded_directories(fake_repo):
     assert bad == []
 
 
+def test_skill_name_warn_when_catalog_absent(tmp_path):
+    """A vendored install without .claude/skills/ should not produce critical
+    findings on backticked kebab tokens; downgrade to warn."""
+    repo = tmp_path / "vendored"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    docs = repo / "docs"
+    write(docs / "x.md", "Use `dead-skill`.\n")
+    result = scan([docs], repo)
+    skill_findings = [f for f in result.findings if f.kind == "skill_name"]
+    assert len(skill_findings) == 1
+    assert skill_findings[0].severity == "warn"
+    # WARN does not block; verdict is WARN, not CRITICAL_FAIL.
+    assert result.verdict == "WARN"
+
+
+def test_skill_name_critical_when_catalog_empty(tmp_path):
+    """An empty .claude/skills/ is authoritative: emit critical for
+    backticked kebab tokens."""
+    repo = tmp_path / "empty-catalog"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    docs = repo / "docs"
+    write(docs / "x.md", "Use `dead-skill`.\n")
+    result = scan([docs], repo)
+    skill_findings = [f for f in result.findings if f.kind == "skill_name"]
+    assert len(skill_findings) == 1
+    assert skill_findings[0].severity == "critical"
+    assert result.verdict == "CRITICAL_FAIL"
+
+
 def test_walk_skips_symlink_resolving_outside_repo(tmp_path, fake_repo, caplog):
     docs = fake_repo / "docs"
     write(docs / "ok.md", "Hello\n")

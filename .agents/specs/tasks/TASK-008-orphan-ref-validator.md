@@ -25,7 +25,7 @@ PR1 (this PR, wedge per REQ-008 Q4 revision; expanded to include AC3 during PR #
 | M4 | Wire into /build Mandatory Exit Gates | AC7 | M1-M3 | 0.25h |
 | M5 | Self-test: scan repo, fix surfaced orphans | (validation) | M1-M4 | 0.5h |
 
-PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC9 (subset).
+PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC9 (42 test cases).
 
 PR2 (follow-up, deferred per REQ-008):
 
@@ -43,7 +43,7 @@ PR2 total: ~1.25h.
 - Create `.claude/skills/orphan-ref-validator/` directory.
 - Write `SKILL.md` with frontmatter (name, description, license, version) and body sections (Triggers, Inputs, Outputs, Behavior, Failure modes, References).
 - Body ≤500 lines.
-- Acceptance: skill directory exists; `python3 -m yaml safe_load` parses frontmatter; section anchors match DESIGN-008.
+- Acceptance: skill directory exists; `python3 -c "import yaml; yaml.safe_load(open('.claude/skills/orphan-ref-validator/SKILL.md').read().split('---')[1])"` parses frontmatter; section anchors match DESIGN-008.
 
 ### TASK-008-02: Implement scan.py core (AC1-AC3, AC5, AC6)
 

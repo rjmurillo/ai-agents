@@ -400,6 +400,7 @@ def scan_file(
     repo_root: Path,
     known_skills: set[str],
     enforce_counts: bool = False,
+    skill_catalog_present: bool = True,
 ) -> tuple[list[Finding], int]:
     """Scan one file. Returns findings and count of refs checked.
 
@@ -407,6 +408,12 @@ def scan_file(
     enforcement path. PR1 leaves it ``False`` and defers count enforcement
     to the canonical validator (see header comment in the count_claim
     block).
+
+    ``skill_catalog_present`` distinguishes "no skills directory exists"
+    (downgrade skill_name findings to warn; we cannot say a backticked
+    kebab token is orphaned because we do not know what's installed) from
+    "directory exists with zero skills" (treat as authoritative empty set;
+    every backticked kebab token is critical).
     """
     findings: list[Finding] = []
     refs_checked = 0
@@ -428,17 +435,24 @@ def scan_file(
             continue
         refs_checked += 1
         if ref not in known_skills:
+            severity: Severity = "critical" if skill_catalog_present else "warn"
+            recommendation = (
+                f"Skill `{ref}` not present at .claude/skills/. "
+                "Update reference, restore the skill, or remove the mention."
+                if skill_catalog_present
+                else (
+                    f"Skill `{ref}` cannot be verified: .claude/skills/ "
+                    "directory is absent (vendored install)."
+                )
+            )
             findings.append(
                 Finding(
                     kind="skill_name",
-                    severity="critical",
+                    severity=severity,
                     target_file=rel,
                     line=lineno,
                     referenced_entity=ref,
-                    recommendation=(
-                        f"Skill `{ref}` not present at .claude/skills/. "
-                        "Update reference, restore the skill, or remove the mention."
-                    ),
+                    recommendation=recommendation,
                 )
             )
 
@@ -529,7 +543,9 @@ def _expand_target(target: Path, repo_root: Path) -> list[Path]:
 def scan(targets: list[Path], repo_root: Path) -> ScanResult:
     """Scan all targets relative to repo_root."""
     repo_root = repo_root.resolve()
-    known_skills = enumerate_skills(repo_root) or set()
+    skills = enumerate_skills(repo_root)
+    skill_catalog_present = skills is not None
+    known_skills: set[str] = skills if skills is not None else set()
     result = ScanResult()
     for target in targets:
         expanded = _expand_target(target, repo_root)
@@ -552,7 +568,12 @@ def scan(targets: list[Path], repo_root: Path) -> ScanResult:
                         "skipping %s: resolves outside repo root", path
                     )
                     continue
-                findings, refs_checked = scan_file(path, repo_root, known_skills)
+                findings, refs_checked = scan_file(
+                    path,
+                    repo_root,
+                    known_skills,
+                    skill_catalog_present=skill_catalog_present,
+                )
                 result.findings.extend(findings)
                 result.refs_checked += refs_checked
                 result.files_scanned += 1
@@ -623,7 +644,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--repo-root",
         default=None,
-        help="Repository root. Defaults to git rev-parse --show-toplevel or CWD.",
+        help=(
+            "Repository root. Default: walk up from CWD looking for the nearest "
+            ".git directory; fall back to CWD. A supplied path must exist and be "
+            "a directory or the script exits with ADR-035 code 2."
+        ),
     )
     parser.add_argument(
         "--output",
