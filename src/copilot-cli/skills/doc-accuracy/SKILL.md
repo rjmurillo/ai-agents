@@ -4,9 +4,11 @@ version: 1.0.0
 model: claude-sonnet-4-6
 description: >-
   Multi-phase documentation verification treating code as source of truth.
-  Consolidates incoherence, doc-coverage, doc-sync, and comment-analyzer into
-  a single workflow. Use when auditing documentation accuracy, verifying code
-  examples compile, checking behavioral claims, or running pre-release doc audits.
+  Single canonical entrypoint for documentation auditing; replaced the former
+  doc-coverage and doc-sync skills (deleted 2026-05-09) and absorbs incoherence
+  detection and comment analysis into one workflow. Use when auditing
+  documentation accuracy, verifying code examples compile, checking behavioral
+  claims, or running pre-release doc audits.
 license: MIT
 ---
 
@@ -62,7 +64,7 @@ Code compiles and runs. Documentation describes what code does. When they disagr
 
 ### Phase Overview
 
-```
+```text
 Phase 1: Assessment        (script-only, <30s)  -> assessment.json
 Phase 2: Claim Extraction  (script-only, <15s)  -> claims.json
 Phase 3: Compilability     (script-only, <60s)  -> compilability-findings.json
@@ -139,7 +141,7 @@ Dispatch one Sonnet agent per file group. Each agent receives:
 
 Agent prompt:
 
-```
+```text
 You are verifying documentation accuracy. Code is the source of truth.
 
 SOURCE FILES (read these first):

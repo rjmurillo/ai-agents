@@ -1,6 +1,6 @@
 # Skill Reference
 
-Skills are reusable workflow components that agents and users invoke for common tasks. The AI Agents system includes 49 skills organized by category.
+Skills are reusable workflow components that agents and users invoke for common tasks. Skills are organized by category; counts in the table below reflect the categories documented in this reference.
 
 ## How to Use Skills
 
@@ -26,10 +26,10 @@ Agents invoke skills internally. You do not call skills directly.
 | [Session Management](#session-management) | 6 | Session lifecycle, validation, migration |
 | [Memory and Knowledge](#memory-and-knowledge) | 6 | Memory search, curation, exploration, enhancement |
 | [Security](#security) | 4 | Scanning, detection, threat modeling, CodeQL |
-| [Code Quality](#code-quality) | 5 | Style enforcement, linting, doc coverage, analysis |
+| [Code Quality](#code-quality) | 6 | Style enforcement, taste lints, golden principles, code-qualities assessment, incoherence detection, codebase analysis |
 | [Architecture and Design](#architecture-and-design) | 7 | ADR review, CVA, decisions, architecture analysis |
 | [Planning and Strategy](#planning-and-strategy) | 4 | Planning, pre-mortem, buy-vs-build, Cynefin |
-| [Documentation](#documentation) | 3 | Doc sync, markdown fixes, context optimization |
+| [Documentation](#documentation) | 3 | Doc accuracy verification, markdown fixes, context optimization |
 | [Development Workflows](#development-workflows) | 5 | Git workflows, merge resolution, metrics, encoding |
 | [Agent and Skill Management](#agent-and-skill-management) | 3 | Skill creation, Serena symbols, reflection |
 | [Research](#research) | 3 | Research, programming advice, prompt engineering |
@@ -134,13 +134,17 @@ Analyzes codebase architecture, security posture, or code quality. Produces stru
 
 Assesses code maintainability through 5 foundational qualities: cohesion, coupling, DRY, encapsulation, and testability.
 
-### doc-coverage
-
-Detects missing documentation in code (XML docs, docstrings, JSDoc). Reports coverage gaps by file and symbol.
-
 ### incoherence
 
 Detects contradictions between documentation and code, ambiguous definitions, and inconsistent patterns across the codebase.
+
+### taste-lints
+
+Custom lints with agent-readable remediation instructions. Enforces taste invariants (file size, naming conventions, structured logging, complexity) and surfaces errors that agents can act on directly.
+
+### golden-principles
+
+Scans the repository for golden-principle violations (GP-001 through GP-008 in `.agents/governance/golden-principles.md`) and produces agent-readable remediation guidance.
 
 ## Architecture and Design
 
@@ -192,9 +196,9 @@ Classifies problems into Cynefin Framework domains (Clear, Complicated, Complex,
 
 ## Documentation
 
-### doc-sync
+### doc-accuracy
 
-Synchronizes CLAUDE.md navigation indexes and README.md architecture diagrams with the current codebase state.
+Multi-phase documentation verification treating code as source of truth. Consolidates incoherence detection, missing-doc coverage, navigation-index sync, and comment analysis into a single workflow.
 
 ### fix-markdown-fences
 
