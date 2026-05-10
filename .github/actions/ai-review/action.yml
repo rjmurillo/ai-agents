@@ -820,6 +820,19 @@ runs:
         # Fix for Issue #575: Handle optional brackets around verdict (AI sometimes outputs VERDICT: [PASS])
         verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\[\?\([A-Z_]*\)\]\?.*/\1/p' | tail -n 1)
 
+        # PR #1965: JSON fallback. The canonical axes instruct the agent to
+        # emit a "Structured JSON Output" block with a "verdict": "<TOKEN>"
+        # field AND a final VERDICT: line. AI agents sometimes follow the
+        # JSON-only path and skip the literal VERDICT: line, causing the
+        # sed match above to return empty. Try JSON extraction before
+        # falling back to NEEDS_REVIEW.
+        if [ -z "$verdict" ]; then
+          verdict=$(printf '%s' "$output" | python3 -c 'import re, sys; m = re.search(r"\"verdict\"\s*:\s*\"([A-Z_]+)\"", sys.stdin.read()); print(m.group(1) if m else "")' 2>/dev/null || echo "")
+          if [ -n "$verdict" ]; then
+            echo "::notice::Verdict extracted from JSON 'verdict' field (no literal VERDICT: line)"
+          fi
+        fi
+
         # Validate verdict is a known token
         case "$verdict" in
           PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL)
