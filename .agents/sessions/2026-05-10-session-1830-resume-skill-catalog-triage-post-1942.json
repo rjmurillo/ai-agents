@@ -171,7 +171,7 @@
     },
     {
       "step": 15,
-      "action": "PR review feedback round 2: per-call enumerate_count cache to eliminate redundant filesystem walks per gemini perf comment; REQ-008 and DESIGN-008 related fields complete forward-trace (REQ -> DESIGN -> TASK); TASK-008 status changed from draft to in-progress and complexity: M added to satisfy spec validator; episode-2026-05-10-session-1830.json hand-rewritten with valid event-type enums (milestone/error/recovery), accurate metrics (9 commits, 32 files, 240 min, 2 errors, 2 recoveries), explicit decisions, and three lessons learned; test_scan.py uses importlib.util.spec_from_file_location with file-keyed module names to avoid sys.modules collision between .claude/skills and src/copilot-cli/skills mirrored test suites."
+      "action": "PR review feedback round 2: per-call enumerate_count cache to eliminate redundant filesystem walks per gemini perf comment; REQ-008 and DESIGN-008 related fields complete forward-trace (REQ -> DESIGN -> TASK); TASK-008 status changed from draft to in-progress and complexity: M added to satisfy spec validator; episode-2026-05-10-session-1830.json hand-rewritten with valid event-type enums (milestone/error/recovery), explicit decisions, and lessons learned; test_scan.py uses importlib.util.spec_from_file_location with file-keyed module names to avoid sys.modules collision between .claude/skills and src/copilot-cli/skills mirrored test suites."
     },
     {
       "step": 16,
@@ -195,7 +195,11 @@
     },
     {
       "step": 21,
-      "action": "Round 8 (6 review threads). Critical fixes: (1) walk_targets now rejects out-of-repo direct targets at entry (defense in depth; scan() also checks). (2) Cross-platform module key in test_scan.py uses Path.parts intersection on '.claude' instead of substring 'claude/skills' that fails on Windows. (3) skill-count divergence from canonical _count_skill_dirs documented in counts.py (intentional: orphan-ref-validator counts only valid skills with SKILL.md; canonical counts plain subdirs because it reports declared marketplace inventory). (4) SKILL.md References section drops internal tracker IDs (#1939, #1933, #1940) for downstream-mirror cleanliness. (5) New 'Path conventions' section documents that absolute paths assume canonical Claude install layout and Copilot CLI mirror users adapt to their install root; Skill() invocation form remains platform-agnostic. 51 tests pass; scan PASS."
+      "action": "Round 8 (6 review threads). Critical fixes: (1) walk_targets now rejects out-of-repo direct targets at entry (defense in depth; scan() also checks). (2) Cross-platform module key in test_scan.py uses Path.parts intersection on '.claude' instead of substring 'claude/skills' that fails on Windows. (3) skill-count divergence from canonical _count_skill_dirs documented in counts.py (intentional: orphan-ref-validator counts only valid skills with SKILL.md; canonical counts plain subdirs because it reports declared marketplace inventory). (4) SKILL.md References section drops internal tracker IDs for downstream-mirror cleanliness. (5) New 'Path conventions' section documents that absolute paths assume canonical Claude install layout and Copilot CLI mirror users adapt to their install root; Skill() invocation form remains platform-agnostic. 51 tests pass; scan PASS."
+    },
+    {
+      "step": 22,
+      "action": "Round 9 (8 review threads). Critical fix: max_findings cap was off by one (truncation finding appended after extending findings list); now reserves a slot before extending so the total never exceeds the budget. Test asserts the hard bound. Doc fixes: (1) SKILL.md Inputs CLI usage now lists --include-adrs and --include-skill-descriptions. (2) TASK-008-02 reference patterns in fenced code block (was inline backticks-in-backticks that broke markdown rendering). (3) TASK-008-03 rewritten to reflect AC4 wedge: extraction only, emission delegated to canonical, --enforce-counts reserved for PR2. (4) Session log step 16 dropped pinned numbers (9 commits / 32 files) that contradicted auto-extracted episode metrics. (5) SKILL.md Path conventions and References cleaned for mirror; mirror tracker IDs already addressed in round 7. 51 tests pass; scan PASS."
     }
   ],
   "endingCommit": "8e545bd3",

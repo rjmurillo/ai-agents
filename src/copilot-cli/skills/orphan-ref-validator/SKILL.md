@@ -39,6 +39,8 @@ Absolute paths in this document (e.g. `python3 .claude/skills/orphan-ref-validat
 ```text
 python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
     [--targets PATH ...] \
+    [--include-adrs] \
+    [--include-skill-descriptions] \
     [--repo-root PATH] \
     [--output {json,human}] \
     [--log-level {DEBUG,INFO,WARNING,ERROR}]

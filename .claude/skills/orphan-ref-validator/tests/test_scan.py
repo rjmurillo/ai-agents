@@ -619,7 +619,9 @@ def test_walk_filters_suffix_on_direct_file_target(fake_repo):
 
 def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
     """When findings exceed max_findings, scan halts and appends a warn
-    finding so the operator knows the result is partial."""
+    finding so the operator knows the result is partial. The total list
+    must never exceed max_findings (one slot is reserved for the
+    truncation finding)."""
     docs = fake_repo / "docs"
     # Each line produces one finding for `dead-skill`.
     payload = "\n".join(["Use `dead-skill`." for _ in range(10)])
@@ -629,6 +631,8 @@ def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
     assert len(truncation) == 1
     assert truncation[0].severity == "warn"
     assert "halted" in truncation[0].recommendation.lower()
+    # Hard bound: total findings must respect the budget.
+    assert len(result.findings) <= 3
 
 
 def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):

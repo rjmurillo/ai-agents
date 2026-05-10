@@ -342,10 +342,14 @@ def scan(
                     known_skills,
                     skill_catalog_present=skill_catalog_present,
                 )
-                result.findings.extend(findings)
-                result.refs_checked += refs_checked
-                result.files_scanned += 1
-                if len(result.findings) >= max_findings:
+                # Reserve one slot for the synthetic truncation finding so
+                # the returned list never exceeds ``max_findings``.
+                budget = max_findings - 1
+                if len(result.findings) + len(findings) >= budget:
+                    keep = max(0, budget - len(result.findings))
+                    result.findings.extend(findings[:keep])
+                    result.refs_checked += refs_checked
+                    result.files_scanned += 1
                     result.findings.append(
                         Finding(
                             kind="parse_error",
@@ -361,6 +365,9 @@ def scan(
                         )
                     )
                     return result
+                result.findings.extend(findings)
+                result.refs_checked += refs_checked
+                result.files_scanned += 1
     return result
 
 
