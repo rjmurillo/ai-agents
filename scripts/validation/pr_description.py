@@ -403,7 +403,7 @@ def file_matches(actual: str, mentioned: str) -> bool:
 # universal.md prohibition itself (AC8). PR descriptions live in GitHub and
 # are not covered by any AC explicitly; this guard closes that gap and is
 # tracked under the broader Issue #1923 umbrella, not a specific AC.
-_DASH_RE: re.Pattern[str] = re.compile("[\\u2013\\u2014]")
+_DASH_RE: re.Pattern[str] = re.compile("[\u2013\u2014]")
 
 
 def validate_no_dashes(title: str, body: str) -> list[Issue]:
