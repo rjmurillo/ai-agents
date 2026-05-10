@@ -22,9 +22,14 @@ _ALERT_TYPE_MAP: dict[str, str] = {
     "REJECTED": "CAUTION",
     "FAIL": "CAUTION",
     "NEEDS_REVIEW": "CAUTION",
+    "NON_COMPLIANT": "CAUTION",
 }
 
-_FAIL_EXIT_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
+# Must stay in sync with FAIL_VERDICTS in verdict.py. PR #1965 cursor (round 11):
+# NON_COMPLIANT was added to FAIL_VERDICTS but missed here.
+_FAIL_EXIT_VERDICTS = frozenset(
+    {"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"}
+)
 
 _EMOJI_MAP: dict[str, str] = {
     "PASS": "\u2705",
@@ -35,6 +40,7 @@ _EMOJI_MAP: dict[str, str] = {
     "REJECTED": "\u274c",
     "FAIL": "\u274c",
     "NEEDS_REVIEW": "\u274c",
+    "NON_COMPLIANT": "\u274c",
 }
 
 
