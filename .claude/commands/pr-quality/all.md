@@ -76,4 +76,5 @@ Generate consolidated report in EXACTLY this format. Do not add preambles or exp
 
 - **PASS**: Safe to commit and push
 - **WARN**: Review findings, address if time permits, safe to push
+- **UNKNOWN**: At least one axis failed to evaluate (skill crashed, no parseable verdict). Investigate which axis and re-run; do NOT treat as PASS.
 - **CRITICAL_FAIL**: Fix blocking issues before pushing
