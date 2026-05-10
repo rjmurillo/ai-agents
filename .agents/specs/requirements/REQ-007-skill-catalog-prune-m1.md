@@ -30,11 +30,11 @@ M1 removes all three directories, updates the one cross-reference in `codebase-d
 
 ## Acceptance Criteria
 
-- [ ] REQ-007-AC1: WHEN M1 lands, THE SYSTEM SHALL NOT contain `.claude/skills/doc-coverage/`, `.claude/skills/doc-sync/`, or `.claude/skills/workflow/` directories SO THAT the catalog is free of subsumed and deprecated skills.
-- [ ] REQ-007-AC2: WHEN `build/scripts/generate_skills.py` runs against the updated `.claude/skills/`, THE SYSTEM SHALL produce `src/copilot-cli/skills/` without `doc-coverage` or `doc-sync` entries SO THAT the published skill catalog is consistent.
-- [ ] REQ-007-AC3: WHEN a developer opens `codebase-documenter/SKILL.md`, THE SYSTEM SHALL reference `doc-accuracy` (not `doc-coverage` or `doc-sync`) in the "when NOT to use" section SO THAT callers are routed correctly.
-- [ ] REQ-007-AC4: WHEN `pytest tests/test_invoke_skill_learning.py` runs, THE SYSTEM SHALL exit 0 with zero references to `doc-sync` routing assertions SO THAT dead tests do not pollute the suite.
-- [ ] REQ-007-AC5: WHEN `python3 build/scripts/generate_skills.py` runs from a clean working tree after M1 lands, THE SYSTEM SHALL produce zero `git diff` output (round-trip idempotent) SO THAT `.claude/skills/` and `src/copilot-cli/skills/` are demonstrably in sync. (Note: `generate_skills.py` is the canonical regenerator. There is no separate `detect_skill_drift.py`; idempotent regeneration is the verification mechanism.)
+- [x] REQ-007-AC1: WHEN M1 lands, THE SYSTEM SHALL NOT contain `.claude/skills/doc-coverage/`, `.claude/skills/doc-sync/`, or `.claude/skills/workflow/` directories SO THAT the catalog is free of subsumed and deprecated skills.
+- [x] REQ-007-AC2: WHEN `build/scripts/generate_skills.py` runs against the updated `.claude/skills/`, THE SYSTEM SHALL produce `src/copilot-cli/skills/` without `doc-coverage` or `doc-sync` entries SO THAT the published skill catalog is consistent.
+- [x] REQ-007-AC3: WHEN a developer opens `codebase-documenter/SKILL.md`, THE SYSTEM SHALL reference `doc-accuracy` (not `doc-coverage` or `doc-sync`) in the "when NOT to use" section SO THAT callers are routed correctly.
+- [x] REQ-007-AC4: WHEN `pytest tests/test_invoke_skill_learning.py` runs, THE SYSTEM SHALL exit 0 with zero references to `doc-sync` routing assertions SO THAT dead tests do not pollute the suite.
+- [x] REQ-007-AC5: WHEN `python3 build/scripts/generate_skills.py` runs from a clean working tree after M1 lands, THE SYSTEM SHALL produce zero `git diff` output (round-trip idempotent) SO THAT `.claude/skills/` and `src/copilot-cli/skills/` are demonstrably in sync. (Note: `generate_skills.py` is the canonical regenerator. There is no separate `detect_skill_drift.py`; idempotent regeneration is the verification mechanism.)
 
 ## Rationale
 
