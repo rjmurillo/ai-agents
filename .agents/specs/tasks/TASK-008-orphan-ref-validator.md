@@ -2,7 +2,8 @@
 type: task
 id: TASK-008
 title: Orphan-Ref Validator Skill Implementation Tasks
-status: draft
+status: in-progress
+complexity: M
 priority: P2
 related: [REQ-008, DESIGN-008]
 created: 2026-05-10

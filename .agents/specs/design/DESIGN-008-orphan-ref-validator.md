@@ -4,7 +4,7 @@ id: DESIGN-008
 title: Orphan-Ref Validator Skill Design
 status: draft
 priority: P2
-related: [REQ-008]
+related: [REQ-008, TASK-008]
 created: 2026-05-10
 updated: 2026-05-10
 author: richard

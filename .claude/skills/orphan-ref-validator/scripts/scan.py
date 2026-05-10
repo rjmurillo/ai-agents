@@ -239,6 +239,9 @@ def enumerate_skills(repo_root: Path) -> set[str] | None:
     }
 
 
+_COUNT_CACHE: dict[tuple[str, str], int | None] = {}
+
+
 def enumerate_count(repo_root: Path, kind: str) -> int | None:
     """Return count for the given canonical label, or ``None`` when absent.
 
@@ -279,21 +282,33 @@ def enumerate_count(repo_root: Path, kind: str) -> int | None:
         "hooks": "lifecycle hook",
         "skills": "reusable skill",
     }.get(kind, kind)
+    cache_key = (str(repo_root), canonical)
+    if cache_key in _COUNT_CACHE:
+        return _COUNT_CACHE[cache_key]
+    result: int | None
     if canonical == "reusable skill":
         skills = enumerate_skills(repo_root)
-        return None if skills is None else len(skills)
-    if canonical == "agent":
-        return _count_md_agents(
+        result = None if skills is None else len(skills)
+    elif canonical == "agent":
+        result = _count_md_agents(
             repo_root / ".claude" / "agents",
             exclude={"AGENTS.md", "CLAUDE.md"},
         )
-    if canonical == "slash command":
-        return _count_md_recursive(
+    elif canonical == "slash command":
+        result = _count_md_recursive(
             repo_root / ".claude" / "commands", exclude={"CLAUDE.md"}
         )
-    if canonical == "lifecycle hook":
-        return _count_py_recursive(repo_root / ".claude" / "hooks")
-    return None
+    elif canonical == "lifecycle hook":
+        result = _count_py_recursive(repo_root / ".claude" / "hooks")
+    else:
+        result = None
+    _COUNT_CACHE[cache_key] = result
+    return result
+
+
+def _reset_count_cache() -> None:
+    """Clear the per-repo count cache. Test helper; not part of the CLI."""
+    _COUNT_CACHE.clear()
 
 
 def _count_md_agents(directory: Path, exclude: set[str]) -> int | None:

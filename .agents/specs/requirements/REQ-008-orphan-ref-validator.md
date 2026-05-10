@@ -1,6 +1,9 @@
 ---
 type: requirement
 id: REQ-008
+related:
+  - DESIGN-008
+  - TASK-008
 title: Orphan-Ref Validator Skill
 status: draft
 priority: P2

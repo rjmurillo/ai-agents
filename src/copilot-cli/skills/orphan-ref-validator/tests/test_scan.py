@@ -10,27 +10,40 @@ Covers REQ-008 acceptance criteria:
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
 
 import pytest
 
-SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
-sys.path.insert(0, str(SCRIPT_DIR))
-
-from scan import (  # noqa: E402
-    Finding,
-    ScanResult,
-    extract_count_claims,
-    extract_script_refs,
-    extract_skill_refs,
-    enumerate_count,
-    enumerate_skills,
-    main,
-    render_envelope,
-    scan,
+# Load scan.py via a spec keyed to this file's location so the test suite
+# does not collide with a sibling mirror at src/copilot-cli/skills/.../tests/
+# that imports a bare module name. The stable cache key prevents two test
+# suites from racing on sys.modules["scan"].
+_SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
+_MODULE_KEY = (
+    "_orphan_ref_validator_scan"
+    if "claude/skills" in str(_SCRIPT_DIR)
+    else "_orphan_ref_validator_scan_mirror"
 )
+sys.path.insert(0, str(_SCRIPT_DIR))
+_spec = importlib.util.spec_from_file_location(_MODULE_KEY, _SCRIPT_DIR / "scan.py")
+assert _spec is not None and _spec.loader is not None
+_scan = importlib.util.module_from_spec(_spec)
+sys.modules[_MODULE_KEY] = _scan
+_spec.loader.exec_module(_scan)
+
+Finding = _scan.Finding
+ScanResult = _scan.ScanResult
+extract_count_claims = _scan.extract_count_claims
+extract_script_refs = _scan.extract_script_refs
+extract_skill_refs = _scan.extract_skill_refs
+enumerate_count = _scan.enumerate_count
+enumerate_skills = _scan.enumerate_skills
+main = _scan.main
+render_envelope = _scan.render_envelope
+scan = _scan.scan
 
 
 @pytest.fixture
