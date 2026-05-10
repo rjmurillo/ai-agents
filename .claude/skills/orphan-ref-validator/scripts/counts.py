@@ -36,10 +36,11 @@ script depends on a YAML loader and its own CLI scaffolding.
 Stricter/looser/different than canonical:
 
 - Pruning: canonical uses ``os.walk`` with ``_EXCLUDED_DIRS`` removed
-  from ``dirs`` in-place; this uses ``Path.rglob``/``iterdir``. The
-  ``_is_excluded`` filter applied below is the same set of names as
-  canonical ``_EXCLUDED_DIRS`` (defense in depth; ``.claude/`` trees
-  do not currently contain those names).
+  from ``dirs`` in-place; this module uses ``os.walk(followlinks=False)``
+  with the same in-place pruning idiom for the recursive counters
+  (``_count_md_recursive`` / ``_count_py_recursive``) and ``Path.iterdir``
+  for the non-recursive ``md_agents`` strategy. The pruned set is
+  ``_EXCLUDED_DIR_NAMES`` (same five names as canonical ``_EXCLUDED_DIRS``).
 - Per-plugin overrides: canonical reads
   ``templates/marketplace-counters.yaml`` for plugin-specific
   ``exclude`` lists; this hard-codes the project-toolkit excludes.
@@ -72,10 +73,6 @@ _EXCLUDED_DIR_NAMES: frozenset[str] = frozenset({
 })
 
 _COUNT_CACHE: dict[tuple[str, str], int | None] = {}
-
-
-def _is_excluded(path: Path) -> bool:
-    return any(part in _EXCLUDED_DIR_NAMES for part in path.parts)
 
 
 def enumerate_skills(repo_root: Path) -> set[str] | None:

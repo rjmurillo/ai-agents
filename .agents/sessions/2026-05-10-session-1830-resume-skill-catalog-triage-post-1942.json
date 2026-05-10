@@ -212,6 +212,14 @@
     {
       "step": 25,
       "action": "Merge resolution: PR #1980 (Step 0.5 Memory-First Gate) merged to main using REQ-008/DESIGN-008/TASK-008 spec IDs first, colliding with this PR. Renumbered all spec artifacts and refs to REQ-009/DESIGN-009/TASK-009 across spec files, code docstrings, SKILL.md, build.md, mirror, session log, episode JSON, Serena memory. Marketplace.json conflict resolved by accepting main's count-less description (PR #1980 dropped pinned counts; canonical validator handles count enforcement separately). STEP-0-METRICS.md duplicate removed (kept main's .agents/sessions/ placement; my round-5 .agents/metrics/ move regressed). Filters extended with 'in-scope' and 'spec-pipeline' kebab tokens used by the new REQ-008 prose. 51 tests pass; scan PASS on default scope after merge."
+    },
+    {
+      "step": 26,
+      "action": "Round 12 cursor follow-ups: (1) scan.py truncation guard now reads `len(findings) > 0 and ... > budget` (was `>=` which spuriously triggered at zero-new-findings exact-budget edge); (2) counts.py recursive counters switched from Path.rglob (follows symlinks on 3.10-3.12) to os.walk(followlinks=False) with in-place dirnames pruning (canonical parity for symlink behavior). PR body renumbered to REQ-009/DESIGN-009/TASK-009 and dropped pinned marketplace count claims to clear Validate PR description-vs-diff failures."
+    },
+    {
+      "step": 27,
+      "action": "Round 13 cleanup: (1) REQ-009-AC2 regex updated to match shipped pattern [a-z][a-z0-9]*(?:-[a-z0-9]+)+ (was [a-z][a-z0-9-]+ which would match trailing-hyphen tokens); intentional non-match for single-token and trailing-hyphen forms documented. (2) REQ-009-AC4 rewritten to reflect PR1 wedge: regex mirrors canonical COUNT_PATTERN, extraction only, emission delegated to validate_marketplace_counts.py. (3) counts.py docstring corrected to describe os.walk(followlinks=False) (was stale Path.rglob/iterdir text). (4) Removed dead helper _is_excluded() left over from round 11 rglob implementation."
     }
   ],
   "endingCommit": "8e545bd3",
