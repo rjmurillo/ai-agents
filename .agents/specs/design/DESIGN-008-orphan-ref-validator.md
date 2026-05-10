@@ -29,7 +29,7 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 | CLI entry | `scan.py:main`, `parse_args` | Parse argv, validate `--repo-root`, dispatch to `scan`, format envelope, return ADR-035 exit code |
 | Target expansion | `scan.py:_expand_target` | Resolve literal files, directories, and glob patterns against repo root |
 | File walk | `walking.py:walk_targets`, `_iter_dir_pruned`, `is_safe_subdirectory` | Recursive iterdir with directory-name pruning for `EXCLUDE_DIR_NAMES`; secret denylist; 5 MB cap; symlink-directory containment at recursion entry |
-| Reference detection | `scan.py:extract_skill_refs`, `extract_script_refs`, `extract_count_claims` | Line-oriented regex extraction with file-scope and line-scope ignore directive support |
+| Reference detection | `patterns.py:extract_skill_refs`, `extract_script_refs`, `extract_count_claims` | Line-oriented regex extraction with file-scope and line-scope ignore directive support; consumed by `scan.py` via re-export |
 | Filters | `filters.py:is_known_kebab_word` | Curated denylist of kebab tokens that match `SKILL_REF_RE` but are not skill references (model IDs, frontmatter fields, third-party Action names, bot identifiers, eval verdict literals) |
 | Source-of-truth enumeration | `counts.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts |
 | Output rendering | `envelope.py:Finding`, `ScanResult`, `render_envelope`, `render_error_envelope` | ADR-056 envelope shape and verdict line; `render_error_envelope` covers the exit-2 path |
@@ -37,7 +37,7 @@ The skill is fail-closed: any unrecognized configuration error returns exit `2`,
 
 ## Technology Decisions
 
-- **Language**: Python 3.14+ stdlib only. No third-party imports. Rationale: ADR-042 Python-first, plus the skill must run in vendored installs where `pip install` may not have run.
+- **Language**: Python (repo declares `>=3.10` in `pyproject.toml`); stdlib only, no third-party imports. Rationale: ADR-042 Python-first, plus the skill must run in vendored installs where `pip install` may not have run.
 - **Walk strategy**: `Path.iterdir` with directory-name pruning, not `Path.rglob('*')`. Rationale: gemini-code-assist [bot] flagged `rglob('*')` as O(N) over excluded subtrees (`node_modules`, `.git`, `references`, `templates`, `__pycache__`); pruning at directory level avoids entering them.
 - **Output envelope**: ADR-056 four-field shape (`Success`, `Data`, `Error`, `Metadata`) with `VERDICT:` line appended for grep-friendly downstream parsing.
 - **Exit codes**: ADR-035 (`0` PASS/WARN, `1` CRITICAL_FAIL, `2` configuration error).
@@ -261,9 +261,9 @@ follow-up issue.
 - [ ] orphan-ref-validator: `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`. CRITICAL_FAIL blocks build phase.
 ```
 
-### `/test` Gate 5 (DX)
+### `/test` Gate 5 (DX) -- deferred to PR2
 
-`.claude/commands/test.md` Gate 5 lists cross-cutting checks. Add:
+PR1 does not wire `/test` Gate 5; this is REQ-008-AC8, deferred per the Deferred section in REQ-008 and the milestones in TASK-008. PR2 will add:
 
 ```markdown
 - [ ] orphan-ref-validator: `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`. CRITICAL_FAIL surfaces in test summary.
@@ -281,11 +281,14 @@ follow-up issue.
 
 | Failure | Recovery |
 |---|---|
-| Target path missing | INFO log + skip |
-| Target file unreadable (permissions) | WARN log + skip; Finding(kind=parse_error) |
-| Malformed JSON in manifest | Finding(kind=count_claim, severity=warn, msg="parse failed"); continue |
-| Regex catastrophic backtrack | Bounded by Python `re` (no `re2` dependency); pattern designed without nested quantifiers |
+| Target path missing | INFO log + skip; no finding |
+| Target file unreadable (permissions) | WARN log + skip; no finding emitted (the file is treated like an absent target) |
+| Malformed JSON in manifest | Manifest is read as text; `COUNT_CLAIM_RE` still matches the description string. Count enforcement is delegated to the canonical validator, so PR1 emits no finding here. Canonical-side errors are reported by `validate_marketplace_counts.py`. |
+| Regex catastrophic backtrack | Bounded by Python `re` (no `re2` dependency); patterns designed without nested quantifiers |
 | Out of memory on large file | File-size guard: skip files >5MB with WARN |
+| Findings list grows unbounded | `MAX_FINDINGS=500` cap; on hit, scan halts and emits `Finding(kind=scan_truncated, severity=warn)` so the operator knows the result is partial. |
+| Symlink target outside repo (file or directory) | Skipped at recursion entry / yield; logged as WARN (CWE-22 / CWE-59) |
+| In-repo symlink cycle | Visited-set guard; skipped on revisit; logged as WARN |
 
 ## Security
 

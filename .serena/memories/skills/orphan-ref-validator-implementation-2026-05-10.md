@@ -38,7 +38,7 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 
 ## Tests
 
-34 pytest cases in `tests/test_scan.py` cover positive and negative detection per kind, ADR-056 envelope shape, vendored-install scenarios, ignore directives, glob target expansion, edge cases (empty file, secret denylist, oversized files, mixed living and dead refs).
+`tests/test_scan.py` covers positive and negative detection per kind, ADR-056 envelope shape, vendored-install scenarios, ignore directives, glob target expansion, edge cases (empty file, secret denylist, oversized files, mixed living and dead refs).
 
 ## Deferred / Follow-Up
 

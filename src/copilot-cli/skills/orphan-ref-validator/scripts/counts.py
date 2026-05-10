@@ -133,7 +133,16 @@ def enumerate_count(repo_root: Path, kind: str) -> int | None:
 
 
 def reset_count_cache() -> None:
-    """Clear the per-repo count cache. Test helper; not part of the CLI."""
+    """Clear the per-repo count cache.
+
+    ``scan()`` calls this at entry so a CLI run never observes stale
+    counts. Programmatic callers that invoke ``enumerate_count`` /
+    ``enumerate_skills`` directly (without going through ``scan``) and
+    that mutate the filesystem between calls must call this themselves
+    to avoid stale cached values; the cache is keyed by
+    ``(str(repo_root), canonical_kind)`` and lives for the process
+    lifetime otherwise.
+    """
     _COUNT_CACHE.clear()
 
 

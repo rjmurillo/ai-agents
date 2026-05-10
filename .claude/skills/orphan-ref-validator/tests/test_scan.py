@@ -627,7 +627,7 @@ def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
     payload = "\n".join(["Use `dead-skill`." for _ in range(10)])
     write(docs / "huge.md", payload)
     result = scan([docs], fake_repo, max_findings=3)
-    truncation = [f for f in result.findings if f.kind == "parse_error"]
+    truncation = [f for f in result.findings if f.kind == "scan_truncated"]
     assert len(truncation) == 1
     assert truncation[0].severity == "warn"
     assert "halted" in truncation[0].recommendation.lower()

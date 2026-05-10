@@ -23,7 +23,13 @@ from typing import Literal
 VERSION = "1.0.0"
 
 Severity = Literal["critical", "warn"]
-Kind = Literal["skill_name", "script_path", "count_claim", "parse_error"]
+Kind = Literal[
+    "skill_name",
+    "script_path",
+    "count_claim",
+    "parse_error",
+    "scan_truncated",
+]
 Verdict = Literal["PASS", "WARN", "CRITICAL_FAIL"]
 
 

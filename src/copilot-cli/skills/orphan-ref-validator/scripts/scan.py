@@ -350,7 +350,7 @@ def scan(
                     result.files_scanned += 1
                     result.findings.append(
                         Finding(
-                            kind="parse_error",
+                            kind="scan_truncated",
                             severity="warn",
                             target_file="<scanner>",
                             line=0,

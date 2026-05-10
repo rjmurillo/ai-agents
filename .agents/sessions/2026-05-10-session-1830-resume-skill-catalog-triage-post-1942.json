@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest .claude/skills/orphan-ref-validator/tests/ reports 34 passed; python3 .claude/skills/orphan-ref-validator/scripts/scan.py exits 0 with VERDICT: PASS"
+        "Evidence": "uv run pytest .claude/skills/orphan-ref-validator/tests/ exits 0; python3 .claude/skills/orphan-ref-validator/scripts/scan.py exits 0 with VERDICT: PASS"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -119,7 +119,7 @@
     },
     {
       "step": 2,
-      "action": "Implemented .claude/skills/orphan-ref-validator/ with scripts/scan.py and tests/test_scan.py; 34 tests pass"
+      "action": "Implemented .claude/skills/orphan-ref-validator/ with scripts/scan.py and tests/test_scan.py; suite green"
     },
     {
       "step": 3,
@@ -151,7 +151,7 @@
     },
     {
       "step": 10,
-      "action": "Refactored denylist into filters.py module per taste-lints file-size cap; renamed from _filters.py to satisfy snake_case naming rule. scan.py 485 lines under cap. 34 tests pass, scan PASS"
+      "action": "Refactored denylist into filters.py module per taste-lints file-size cap; renamed from _filters.py to satisfy snake_case naming rule. scan.py under cap. Suite green, scan PASS"
     },
     {
       "step": 11,
@@ -204,6 +204,10 @@
     {
       "step": 23,
       "action": "Round 10 (3 review threads, all minor). (1) Removed unused VERSION import from scan.py (envelope module already uses it internally). (2) SKILL.md pre-push hook wording corrected to describe push-changeset scoping (git diff --name-only @{push}..HEAD) instead of staged-diff (which is wrong context for pre-push). (3) TASK-008 Definition of Done updated to reflect PR1-only completion criteria: AC8 and --enforce-counts are PR2; /test gate is PR2; the previous DoD claimed all 9 ACs and full /test wiring which contradicted the PR2-deferred sections of the same task file. 51 tests pass; scan PASS."
+    },
+    {
+      "step": 24,
+      "action": "Round 11 (11 review threads). Code: (1) Truncation finding now uses kind=scan_truncated instead of parse_error (added scan_truncated to Kind Literal) so downstream consumers do not conflate memory-bound halt with file parse failure. Test updated. (2) reset_count_cache() docstring now explicitly documents the limitation that direct callers of enumerate_count/enumerate_skills must clear the cache themselves if they mutate the filesystem between calls (cursor's flag for the latent footgun). Specs: (3) DESIGN-008 component table relocates extractors to patterns.py (was scan.py from before round-6 extraction). (4) DESIGN-008 language requirement Python >=3.10 (matches pyproject.toml; was unnecessarily Python 3.14+). (5) DESIGN-008 /test Gate 5 wiring section relabeled 'deferred to PR2' to match REQ-008/TASK-008 (was inviting readers to assume PR1 ships it). (6) DESIGN-008 Failure Recovery table corrected: unreadable files no longer claim a parse_error finding (skipped silently); malformed JSON no longer claims a count_claim finding (delegated); added rows for scan_truncated, symlink-out, symlink-cycle. Doc drift: (7-10) Removed pinned '34 tests pass' / '34 pytest cases' from session log evidence + step 2 + step 5, episode events, Serena memory."
     }
   ],
   "endingCommit": "8e545bd3",
