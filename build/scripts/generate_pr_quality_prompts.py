@@ -354,14 +354,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     code, log = regenerate(CANONICAL_DIR, GENERATED_DIR, dry_run=args.dry_run)
-    # Status lines (`role=...`, `status=...`) -> stdout for grep-friendly
-    # consumers. Anything else (unified diff blocks for drift cases) ->
-    # stderr per the --dry-run help text contract. PR #1965 cluster L:
-    # the prior `line.startswith("---")` check matched the diff `--- file`
-    # header and routed the diff to stdout, contradicting the help text
-    # and the comment in regenerate().
+    # Status lines start with `role=` (confirmed by every log.append call:
+    # `role={role} status=ok`, `role=ALL status=...`, `role={role} status=drift`).
+    # The previous `or "status=" in line` clause was redundant against
+    # role= lines AND harmful: it would route any diff content containing
+    # the literal substring "status=" to stdout. PR #1965 clusters L+W.
+    # Diffs and other multi-line content go to stderr per --dry-run contract.
     for line in log:
-        if line.startswith("role=") or "status=" in line:
+        if line.startswith("role="):
             print(line)
         else:
             print(line, file=sys.stderr)
