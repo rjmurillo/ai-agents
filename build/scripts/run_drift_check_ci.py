@@ -92,7 +92,12 @@ def run(generator: Path) -> int:
 
     _write_step_summary(_format_summary(result.returncode, output))
 
-    if result.returncode != 0:
+    # Propagate the generator's exit code distinctly: 1 = drift detected
+    # (developer must regenerate), 2 = config error (canonical dir missing,
+    # invalid filename, symlink rejected). Collapsing both to 1 makes it
+    # impossible to distinguish a fixable drift from a broken setup.
+    # PR #1965 cursor + copilot review (cluster D).
+    if result.returncode == 1:
         print(
             "::error file=.github/prompts/::"
             "Review-axes drift detected. Run "
@@ -100,6 +105,13 @@ def run(generator: Path) -> int:
             file=sys.stderr,
         )
         return 1
+    if result.returncode != 0:
+        print(
+            f"::error::generate_pr_quality_prompts.py exited {result.returncode} "
+            f"(config error). Investigate the generator output above.",
+            file=sys.stderr,
+        )
+        return result.returncode
 
     return 0
 

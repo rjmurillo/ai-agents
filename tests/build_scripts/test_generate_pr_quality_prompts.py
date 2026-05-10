@@ -425,3 +425,94 @@ def test_ci_wrapper_step_summary_noop_without_env(
     wrapper = _load_wrapper()
     # Must not raise; just no-op.
     wrapper._write_step_summary("## ignored\n")
+
+
+def test_ci_wrapper_propagates_config_error_exit_two(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Wrapper must return exit code 2 distinctly when generator returns 2.
+
+    PR #1965 cluster D: collapsing config error (2) to drift (1) makes it
+    impossible for CI to distinguish a fixable drift from a broken setup.
+    """
+    wrapper = _load_wrapper()
+    # Stub generator path: a python script that exits 2.
+    fake_gen = tmp_path / "fake_generator.py"
+    fake_gen.write_text("import sys; print('config error stub'); sys.exit(2)\n")
+    code = wrapper.run(fake_gen)
+    assert code == 2
+
+
+def test_ci_wrapper_returns_one_on_drift_exit(
+    tmp_path: Path,
+) -> None:
+    """Wrapper returns 1 (and only 1) when generator reports drift."""
+    wrapper = _load_wrapper()
+    fake_gen = tmp_path / "fake_generator.py"
+    fake_gen.write_text("import sys; print('drift stub'); sys.exit(1)\n")
+    assert wrapper.run(fake_gen) == 1
+
+
+def test_dry_run_compares_against_head_not_working_tree(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Drift check must compare against HEAD-committed content (REQ-008-03).
+
+    PR #1965 cluster C: a developer who regenerates prompts but forgets to
+    stage/commit will have a clean working tree. The hook would pass while
+    pushing stale committed content. The fix reads dest from `git show
+    HEAD:path`, not from the filesystem.
+
+    This test verifies the read-from-HEAD path by stubbing the helper and
+    asserting it is consulted before the filesystem fallback.
+    """
+    canonical = tmp_path / ".claude" / "review-axes"
+    canonical.mkdir(parents=True)
+    (canonical / "x.md").write_text(
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
+        encoding="utf-8",
+    )
+    generated = tmp_path / ".github" / "prompts"
+    generated.mkdir(parents=True)
+    # Working tree has matching content (would pass if hook used working tree).
+    expected = gen.transform(
+        (canonical / "x.md").read_text(encoding="utf-8"), "x"
+    )
+    (generated / "pr-quality-gate-x.md").write_text(expected, encoding="utf-8")
+
+    # But HEAD has stale content. Stub _read_committed_dest to return stale.
+    monkeypatch.setattr(gen, "_read_committed_dest", lambda dest: "stale\n")
+
+    code, log = gen.regenerate(canonical, generated, dry_run=True)
+    assert code == 1, (
+        "drift check must consult HEAD via _read_committed_dest, not "
+        "working tree; working tree matches but HEAD does not"
+    )
+    assert any("status=drift" in line for line in log)
+
+
+def test_dry_run_falls_back_to_working_tree_when_git_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When git/HEAD is unavailable, fall back to working tree comparison.
+
+    Keeps pytest tmp_path fixtures functional outside a git repo.
+    """
+    canonical = tmp_path / ".claude" / "review-axes"
+    canonical.mkdir(parents=True)
+    (canonical / "x.md").write_text(
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
+        encoding="utf-8",
+    )
+    generated = tmp_path / "out"
+    generated.mkdir()
+
+    monkeypatch.setattr(gen, "_read_committed_dest", lambda dest: None)
+
+    expected = gen.transform(
+        (canonical / "x.md").read_text(encoding="utf-8"), "x"
+    )
+    (generated / "pr-quality-gate-x.md").write_text(expected, encoding="utf-8")
+
+    code, log = gen.regenerate(canonical, generated, dry_run=True)
+    assert code == 0, "fallback to working tree should pass when content matches"

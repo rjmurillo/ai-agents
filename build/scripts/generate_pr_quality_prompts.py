@@ -36,6 +36,7 @@ import argparse
 import difflib
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -188,6 +189,37 @@ def _expected_dest_name(canonical_name: str) -> str:
     return f"pr-quality-gate-{canonical_name}"
 
 
+def _read_committed_dest(dest: Path) -> str | None:
+    """Read dest file from HEAD (committed state), not the working tree.
+
+    Returns the committed content as text, or None if dest is not tracked
+    or git is unavailable. The drift check compares against committed
+    content per REQ-008-03 AC: "diffs against the HEAD-committed content of
+    `.github/prompts/` (not working tree content)". A developer who
+    regenerates but forgets to stage/commit would otherwise have a clean
+    working tree (drift hook passes) while pushing stale committed prompts.
+    PR #1965 copilot review (cluster C).
+    """
+    try:
+        rel = dest.relative_to(REPO_ROOT)
+    except ValueError:
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "show", f"HEAD:{rel.as_posix()}"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            check=False,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def regenerate(
     canonical_dir: Path,
     generated_dir: Path,
@@ -223,7 +255,16 @@ def regenerate(
         expected = transform(canonical_text, role)
 
         if dry_run:
-            current = dest.read_text(encoding="utf-8") if dest.exists() else ""
+            # Compare against HEAD-committed content (REQ-008-03 AC). If git
+            # is unavailable or dest is untracked, fall back to working-tree
+            # so dry-run still functions outside a git repo (e.g. pytest
+            # tmp_path fixtures).
+            committed = _read_committed_dest(dest)
+            current = (
+                committed
+                if committed is not None
+                else (dest.read_text(encoding="utf-8") if dest.exists() else "")
+            )
             if current != expected:
                 drift_count += 1
                 # Use repo-relative paths when possible; fall back to absolute
