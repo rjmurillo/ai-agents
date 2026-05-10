@@ -20,7 +20,7 @@ updated: 2026-05-04
 > decision-critic surfaced four BLOCK findings. This file has been edited to match the final
 > scope at REQ-005, DESIGN-005, TASK-005, and PLAN-1884. Where the original interview disagreed
 > with current scope (notably: `docs/SEMANTIC_INDEX.yaml` was incorrectly identified as a count
-> manifest; `markdownLintRun.scanned` does not exist; `scripts/validation/manifest_counts.py`
+> manifest; `markdownLintRun.scanned` does not exist; `scripts/validation/manifest_counts.py` <!-- orphan-ref-ignore -->
 > was not created), the text has been corrected. The narrative shape of the interview is
 > preserved; the facts are now accurate.
 

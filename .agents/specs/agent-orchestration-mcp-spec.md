@@ -1,3 +1,7 @@
+<!-- orphan-ref-ignore-file -->
+<!-- ADR-013 spec describes proposed memory entities (agent-handoff-chain,
+     agent-parallel-state, etc) by name. These are not skills; skip. -->
+
 # Agent Orchestration MCP Technical Specification
 
 > **Status**: Draft

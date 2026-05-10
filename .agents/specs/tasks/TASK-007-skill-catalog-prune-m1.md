@@ -16,6 +16,11 @@ blocks: []
 assignee: claude-opus-4-7
 ---
 
+<!-- orphan-ref-ignore-file -->
+<!-- M1 deletion task: every skill_name reference (doc-coverage, doc-sync,
+     workflow) is intentional historical documentation of the deletion. -->
+
+
 # TASK-007: Skill Catalog Prune M1
 
 ## Design Context
