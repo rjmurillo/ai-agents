@@ -269,7 +269,7 @@ Ensures deterministic pattern-based testing (no LLM reclassification).
 
 **Test Updates**:
 - GitHub skill patterns changed to match actual SKILL.md triggers ("create a PR" not "gh pr list")
-- Documentation skill renamed to doc-sync (matches actual skill at time of writing; doc-sync deleted 2026-05-09, subsumed by doc-accuracy)
+- Documentation skill is `doc-accuracy` (current canonical; absorbed structural-audit responsibilities of the former `doc-sync`, deleted 2026-05-09 in PR #1942 M1 prune). Historical: an earlier intermediate rename targeted `doc-sync` before this design review was authored; that intermediate state is no longer present in the catalog.
 - Pattern sync tests verify loaded patterns work with detection functions
 
 ---
