@@ -68,7 +68,11 @@ SCRIPT_REF_RE = re.compile(r"`((?:build/scripts|scripts/validation|scripts)/[a-z
 COUNT_CLAIM_RE = re.compile(r"\b(\d+)\s+(skills|agents|commands|hooks)\b", re.IGNORECASE)
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
-MODEL_ID_RE = re.compile(r"^claude-(opus|sonnet|haiku)-\d")
+
+try:
+    from .filters import is_known_kebab_word
+except ImportError:
+    from filters import is_known_kebab_word  # type: ignore[no-redef]
 
 LOGGER = logging.getLogger("orphan_ref_validator")
 
@@ -219,55 +223,7 @@ def _path_under(repo_root: Path, path: Path) -> str:
         return str(path)
 
 
-def _is_known_kebab_word(token: str) -> bool:
-    """Filter tokens that look like skill names but are not skill references.
-
-    Returns True (filter out) for: prose hyphenated phrases, model IDs,
-    third-party Action/config names, frontmatter field keywords, bot
-    identifiers, and eval verdict literals seen in ADRs.
-    """
-    if "-" not in token:
-        return True
-    if MODEL_ID_RE.match(token):
-        return True
-    safe = {
-        # Prose hyphenated phrases
-        "well-known", "open-source", "self-contained", "follow-up",
-        "kebab-case", "snake-case", "ad-hoc", "real-time", "in-place",
-        "out-of-scope", "end-to-end", "best-practice", "copy-paste",
-        "left-hand", "right-hand", "ai-agents", "claude-code", "case-by-case",
-        "long-running", "short-running", "non-empty", "non-zero", "non-null",
-        "pass-through", "high-level", "low-level", "high-leverage",
-        "round-trip", "step-by-step", "fall-through", "cross-cutting",
-        "fix-loop", "read-only", "write-only", "first-principles",
-        "first-class", "second-class", "third-party", "drop-in", "in-flight",
-        "in-progress", "build-time", "run-time", "compile-time",
-        # YAML frontmatter / Claude Code skill schema field names
-        "allowed-tools", "argument-hint", "size-exception",
-        "disable-model-invocation", "user-invocable",
-        # Third-party Actions / scanners / CodeQL configs
-        "codeql-action", "security-extended", "security-and-quality",
-        "github-script", "actions-checkout", "actions-cache",
-        # Bot / role / actor identifiers
-        "rjmurillo-bot", "copilot-swe-agent", "gemini-code-assist",
-        "agent-controlled", "mention-triggered", "review-bot",
-        "code-review-bot",
-        # ADR-058 / INTERVIEW-1854 eval verdict + CVE-source literals
-        "keep-as-audit", "halt-due-to-flakiness", "keep-and-improve",
-        "public-cve", "paraphrased-from-public", "synthetic-novel",
-        "description-validation-bypass",
-        # PowerShell / npm / pip module names that appear as backticked refs
-        "powershell-yaml", "python-frontmatter",
-        # Distributed-systems vocabulary
-        "eventually-consistent", "strongly-consistent",
-        # Git hook lifecycle names
-        "pre-commit", "pre-push", "commit-msg", "post-commit",
-        "pre-receive", "post-receive", "pre-rebase",
-        # Section anchors / API category labels
-        "graphql-vs-rest", "graphql-pr-operations",
-        "github-cli-api-patterns", "github-rest-api-reference",
-    }
-    return token in safe
+_is_known_kebab_word = is_known_kebab_word
 
 
 def _line_has_ignore_directive(line: str) -> bool:

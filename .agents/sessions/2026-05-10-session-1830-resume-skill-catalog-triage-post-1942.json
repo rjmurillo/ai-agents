@@ -148,6 +148,10 @@
     {
       "step": 9,
       "action": "Final self-test: 70 files scanned, 71 refs checked, 0 findings, VERDICT: PASS, exit code 0"
+    },
+    {
+      "step": 10,
+      "action": "Refactored denylist into filters.py module per taste-lints file-size cap; renamed from _filters.py to satisfy snake_case naming rule. scan.py 485 lines under cap. 34 tests pass, scan PASS"
     }
   ],
   "endingCommit": "TBD-populated-after-final-commit",
