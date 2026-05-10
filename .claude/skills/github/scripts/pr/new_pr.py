@@ -97,6 +97,45 @@ def validate_conventional_commit(title: str) -> bool:
     return True
 
 
+_SESSION_LOG_FILENAME_RE = re.compile(
+    # Canonical filename per session-init script:
+    # .agents/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
+    # Keywords are kebab-case (lowercase letters/digits + hyphens only).
+    r"^\.agents/sessions/"
+    r"\d{4}-\d{2}-\d{2}-session-\d+"
+    r"(?:-[a-z0-9-]+)?"
+    r"\.(md|json)$"
+)
+
+
+def _extract_validatable_session_logs(
+    changed_files: list[str],
+) -> tuple[list[str], bool]:
+    """Return (JSON session logs, legacy_md_present) from changed files.
+
+    Filename pattern requires YYYY-MM-DD-session-NN prefix to exclude
+    tally files like STEP-0-METRICS.md and STEP-0.5-METRICS.md.
+    validate_session_json.py only accepts JSON. Legacy .md session logs
+    require migration (handled by the CI workflow at
+    .github/workflows/ai-session-protocol.yml). Local pre-PR validation
+    only checks JSON; warn the author so they know CI will migrate.
+
+    Returns a tuple so callers can distinguish "no session log at all"
+    (both empty) from "legacy .md staged, no JSON to validate locally"
+    (validatable empty, has_legacy_md True).
+    """
+    matched = [f for f in changed_files if _SESSION_LOG_FILENAME_RE.match(f)]
+    legacy_md = [f for f in matched if f.endswith(".md")]
+    if legacy_md:
+        print(
+            f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
+            "CI workflow will migrate to JSON before validation. Local "
+            "pre-PR validation only runs against JSON session logs.",
+            file=sys.stderr,
+        )
+    return [f for f in matched if f.endswith(".json")], bool(legacy_md)
+
+
 def run_validations(
     repo_root: str,
     base: str,
@@ -128,16 +167,23 @@ def run_validations(
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
     if agents_changed:
-        session_logs = [
-            f
-            for f in changed_files
-            if re.match(
-                r"^\.agents/sessions/\d{4}-\d{2}-\d{2}-session-\d+.*\.json$",
-                f,
-            )
-        ]
+        session_logs, has_legacy_md = _extract_validatable_session_logs(
+            changed_files
+        )
         if session_logs:
-            session_log = session_logs[-1]
+            # Sort by (date, session_number_int) so non-zero-padded
+            # session numbers compare numerically. Lexical sort would
+            # put session-10 before session-9 (CodeRabbit finding).
+            def _session_sort_key(path: str) -> tuple[str, int]:
+                m = re.match(
+                    r"^\.agents/sessions/"
+                    r"(\d{4}-\d{2}-\d{2})-session-(\d+)",
+                    path,
+                )
+                if m is None:
+                    return ("", 0)
+                return (m.group(1), int(m.group(2)))
+            session_log = sorted(session_logs, key=_session_sort_key)[-1]
             validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
             if os.path.exists(validate_script):
                 session_log_path = os.path.join(repo_root, session_log)
@@ -154,7 +200,7 @@ def run_validations(
                 if vresult.returncode != 0:
                     print("Session End validation failed", file=sys.stderr)
                     raise SystemExit(1)
-        else:
+        elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
     else:
         print("  No .agents/ changes, skipping")

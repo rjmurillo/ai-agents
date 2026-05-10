@@ -27,7 +27,6 @@ from __future__ import annotations
 import re
 
 STEP_0_5_HEADING = "### Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
-STEP_1_HEADING_RE = r"^---\s*$"
 GUARD_STRING = "<!-- step0.5:incomplete-without-2b -->"
 
 PROVISIONAL_TIER_HOURS_DEFAULT = 2
@@ -45,9 +44,14 @@ def _extract_first_hours_estimate(q4_text: str) -> float | None:
 
     Recognizes `N hours`, `N hour`, `N h`, `N hr`, `N hrs`, `N day`,
     `N days`, `N week`, `N weeks` (case-insensitive). Days multiply by
-    8. Weeks multiply by 40. Returns None if no match. Matches in source
-    order; the first match wins so "4-8 hours" yields 4 (the proposer's
-    lower-bound estimate).
+    8. Weeks multiply by 40. Returns None if no match.
+
+    The regex requires the number to be IMMEDIATELY ADJACENT to a unit
+    keyword (with optional whitespace). For range expressions like
+    "4-8 hours", only the second number ("8") qualifies because "4" is
+    followed by `-`, not whitespace or a unit. Tier-classification then
+    picks the higher (more conservative) bound, which is acceptable for
+    a provisional estimate that Step 3 may revise upward.
     """
     match = _HOURS_TOKEN_RE.search(q4_text)
     if match is None:
@@ -64,10 +68,12 @@ def _extract_first_hours_estimate(q4_text: str) -> float | None:
 
 
 def _hours_to_tier(hours: float) -> int:
-    """Map an hours estimate to a tier 1-5 with strict less-than boundaries.
+    """Map an hours estimate to a tier 1-5 with strict less-than upper bounds.
 
-    Matches REQ-008 AC-02 hours mapping. 8h falls in Tier 2 (not Tier 3)
-    because the boundary is strict: `2 to less than 8 hours = Tier 2`.
+    Matches REQ-008 AC-02 hours mapping. Upper bounds are strict: Tier 2
+    range is `2 to less than 8 hours`, so 8h falls in Tier 3 (range
+    `8 to less than 40 hours`), NOT Tier 2. The mapping table is the
+    canonical source.
     """
     if hours < 2:
         return 1
@@ -112,15 +118,18 @@ def phases_needed(tier: int) -> int:
     return 5
 
 
-def supplemental_phase_5_warranted(
+def supplemental_traversal_warranted(
     provisional_tier: int, actual_tier: int
 ) -> bool:
     """Return True when Step 3 tier upgrade requires supplemental traversal.
 
-    Per REQ-008 AC-10: supplemental Phase 5 runs when actual_tier
+    Per REQ-008 AC-10: supplemental traversal runs when actual_tier
     classified by Step 3 exceeds the ProvisionalTier set at Step 0.5
     AND the additional phases required for actual_tier exceed those
-    already run at provisional_tier.
+    already run at provisional_tier. The trigger fires for any tier
+    upgrade that crosses a phase boundary, not only Phase 5: Tier 2 ->
+    Tier 3 fires (Phases 3-4); Tier 3 -> Tier 4 fires (Phase 5 alone);
+    Tier 2 -> Tier 4 fires (Phases 3-5).
     """
     return (
         actual_tier > provisional_tier
@@ -182,16 +191,50 @@ def extract_step0_5_subsection(spec_text: str, subsection_heading: str) -> str:
             f"Step 0.5 subsection not found: {subsection_heading!r}"
         )
     after_heading = spec_text[start + len(subsection_heading):]
-    candidates = [
-        m.start()
-        for m in (
-            re.search(r"\n#### ", after_heading),
-            re.search(r"\n### ", after_heading),
-            re.search(r"\n---\n", after_heading),
-        )
-        if m is not None
-    ]
-    end = min(candidates) if candidates else len(after_heading)
+    # Walk line-by-line and track triple-backtick fences so heading-shaped
+    # lines inside fenced code blocks (e.g., `### Direct prior art from
+    # memory` inside the PriorArtBlock schema example) do not prematurely
+    # close the subsection. (?m)^ alone does not solve this: fenced lines
+    # also begin at line-start, so an anchored regex still matches them.
+    end = len(after_heading)
+    # Track the OPENING fence character count so a 4-backtick outer
+    # fence stays open across an inner 3-backtick block (CommonMark:
+    # closing fence must use the same character and at least as many
+    # of them as the opening fence). Spec.md uses ```` outer wrappers
+    # for halt-block examples that embed ``` inner blocks.
+    fence_char: str | None = None
+    fence_len = 0
+    offset = 0
+    for line in after_heading.splitlines(keepends=True):
+        stripped = line.lstrip()
+        # Detect opening or closing fence.
+        for ch in ("`", "~"):
+            run = 0
+            for c in stripped:
+                if c == ch:
+                    run += 1
+                else:
+                    break
+            if run < 3:
+                continue
+            if fence_char is None:
+                fence_char = ch
+                fence_len = run
+                break
+            if fence_char == ch and run >= fence_len:
+                fence_char = None
+                fence_len = 0
+                break
+        else:
+            # No fence on this line: check for sibling boundary.
+            if fence_char is None and (
+                line.startswith("#### ")
+                or line.startswith("### ")
+                or line.rstrip("\n").rstrip() == "---"
+            ):
+                end = offset
+                break
+        offset += len(line)
     return after_heading[:end]
 
 
@@ -229,28 +272,54 @@ _HALT_BLOCK_RE = re.compile(
     r"```step0_5-halt\n(?P<body>.*?)\n```",
     re.DOTALL,
 )
-_HALT_FIELD_RE = re.compile(r"^(\w+):\s*(.+)$", re.MULTILINE)
+_HALT_FIELD_RE = re.compile(r"^(\w+):\s*(.+)$")
 
 
 def parse_halt_block(text: str) -> dict[str, str]:
     """Parse a fenced `step0_5-halt` block into its 5 fields.
 
-    Validates that the block contains exactly the 5 fields documented
-    in REQ-008 AC-09: trigger, check, evidence, test_failed, deferral.
+    Validates strictly:
+    - Block contains EXACTLY one fenced ```step0_5-halt section.
+    - Body contains EXACTLY 5 non-empty lines.
+    - Each line matches `key: value` exactly (no continuation, no
+      duplicate keys).
+    - Field set is exactly the 5 names documented in REQ-008 AC-09:
+      trigger, check, evidence, test_failed, deferral.
+    - `trigger` is one of the canonical H6-H11 IDs.
+
     Returns a dict mapping field name to value. Raises ValueError if
-    the block is missing, malformed, or has the wrong field set.
+    any of the above conditions fails.
 
     Used by D8/D10/D11 dynamic-check promotion: tests can validate
     the format of halt blocks emitted by `/spec` runs without the LLM
     in-the-loop.
     """
-    match = _HALT_BLOCK_RE.search(text)
-    if match is None:
+    matches = list(_HALT_BLOCK_RE.finditer(text))
+    if len(matches) == 0:
         raise ValueError(
             "no fenced ```step0_5-halt code block found in input"
         )
-    body = match.group("body")
-    fields = dict(_HALT_FIELD_RE.findall(body))
+    if len(matches) > 1:
+        raise ValueError(
+            f"input contains {len(matches)} step0_5-halt blocks; "
+            "exactly 1 is required"
+        )
+    body = matches[0].group("body")
+    raw_lines = [line for line in body.splitlines() if line.strip()]
+    if len(raw_lines) != len(HALT_BLOCK_FIELDS):
+        raise ValueError(
+            f"halt block must have exactly {len(HALT_BLOCK_FIELDS)} "
+            f"non-empty lines; got {len(raw_lines)}"
+        )
+    fields: dict[str, str] = {}
+    for line in raw_lines:
+        m = _HALT_FIELD_RE.match(line)
+        if m is None:
+            raise ValueError(f"halt block line is not `key: value`: {line!r}")
+        key, value = m.group(1), m.group(2)
+        if key in fields:
+            raise ValueError(f"halt block has duplicate key: {key!r}")
+        fields[key] = value
     missing = set(HALT_BLOCK_FIELDS) - set(fields)
     extra = set(fields) - set(HALT_BLOCK_FIELDS)
     if missing or extra:
@@ -298,5 +367,10 @@ def parse_tally_line(line: str) -> dict[str, str]:
         if parts["trigger"] == "none":
             raise ValueError(
                 "fail-state tally line must have a non-none trigger"
+            )
+        if parts["trigger"] not in VALID_HALT_TRIGGERS:
+            raise ValueError(
+                f"tally trigger {parts['trigger']!r} not in valid set "
+                f"{sorted(VALID_HALT_TRIGGERS)}"
             )
     return parts

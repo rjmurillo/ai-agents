@@ -1,8 +1,17 @@
 ---
+type: interview
+id: INTERVIEW-1951
 title: "Interview: spec.md Step 0.5 Memory-First Gate"
+priority: P2
 issue: 1951
+created: 2026-05-09
+updated: 2026-05-10
 date: 2026-05-09
 status: complete
+related:
+  - REQ-008
+  - DESIGN-008
+  - TASK-008
 ---
 
 # Interview Transcript: Step 0.5 Memory-First Gate
@@ -114,7 +123,7 @@ status: complete
 - Status: `OUT_OF_SCOPE` (issue body)
 
 **Q7.3** Copilot CLI twin update?
-- Status: `DEFERRED` (separate PR, owner: rjmurillo)
+- Status: `COMPLETED` (mirrored byte-identically as part of this PR; enforced by mirror-parity test in tests/commands/)
 
 **Q7.4** Cross-linking to #1927?
 - Status: `OUT_OF_SCOPE` (issue body)

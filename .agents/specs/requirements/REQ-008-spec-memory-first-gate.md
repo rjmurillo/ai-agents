@@ -4,7 +4,7 @@ id: REQ-008
 title: Add Step 0.5 Memory-First Gate to spec pipeline
 status: draft
 priority: P1
-category: developer-experience
+category: functional
 epic: spec-pipeline-quality
 related:
   - DESIGN-008
@@ -34,11 +34,11 @@ revision_history:
 
 **Q3 Desperate Specificity**: `/spec` command at `.claude/commands/spec.md`. Blocked on enforcing backward-looking elicitation between Step 0 and Step 1. Proposers have no command-driven prompt to surface prior art before clarification begins.
 
-**Q4 Narrowest Wedge**: Add Step 0.5 section to `.claude/commands/spec.md` between Step 0 and Step 1, invoking chestertons-fence, memory, and exploring-knowledge-graph in sequence. Tier-gated depth. Includes gate infrastructure: halt criteria with machine-readable halt block (step0_5-halt), entity adjudication workflow, metrics tally (STEP-0.5-METRICS.md), and supplemental Phase 5 hook for cross-step tier upgrades. Approximately 4-8 hours.
+**Q4 Narrowest Wedge**: Add Step 0.5 section to `.claude/commands/spec.md` between Step 0 and Step 1, invoking chestertons-fence, memory, and exploring-knowledge-graph in sequence. Tier-gated depth. Includes gate infrastructure: halt criteria with machine-readable halt block (step0_5-halt), entity adjudication workflow, metrics tally (STEP-0.5-METRICS.md), and supplemental traversal hook for cross-step tier upgrades. Approximately 4-8 hours.
 
 **Q4 Revision note (Step 9 check 9c)**: Original wedge described only the three skill invocations. Step 9 critic flagged AC-08/09/10/11 as scope beyond "three skill calls." Revised to include gate infrastructure (halt, adjudication, metrics, supplemental) because these are inherent to any blocking gate. Step 0 has equivalent infrastructure (H1-H5, STEP-0-METRICS.md).
 
-**Q5 Observation**: `.claude/skills/memory/SKILL.md` line 104 declares "Memory-First Gate (BLOCKING)". `.claude/commands/spec.md` has no string "memory" skill invocation. Parent Epic #1952 body cites gap. `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` documents cost pattern.
+**Q5 Observation**: the "Memory-First Gate (BLOCKING)" section in `.claude/skills/memory/SKILL.md` declares "Memory-First Gate (BLOCKING)". `.claude/commands/spec.md` has no string "memory" skill invocation. Parent Epic #1952 body cites gap. `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` documents cost pattern.
 
 **Q6 Future-fit**: Memory grows, so traversal becomes more valuable over time. Tier-gating prevents over-exploration. No 10x liability.
 
@@ -50,7 +50,7 @@ Success metric: every spec that reaches Step 1 has a populated "## Prior Art / C
 
 ## Evidence
 
-The gap is directly observable in two artifacts. First, `.claude/skills/memory/SKILL.md` line 104 reads "Memory-First Gate (BLOCKING)" but the memory skill is never referenced anywhere in `.claude/commands/spec.md`. The invocation exists in the skill but the spec command never calls it. Second, `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6 documents 69 commits and 11+ review rounds on PR #1887 where the M4 evidence rule was designed against an imagined contract instead of the canonical `validate_session_json.py:CONTRADICTION_PATTERNS` regex. That failure is precisely the failure Step 0.5 prevents: the proposer did not search for the canonical source before writing the spec.
+The gap is directly observable in two artifacts. First, the "Memory-First Gate (BLOCKING)" section in `.claude/skills/memory/SKILL.md` reads "Memory-First Gate (BLOCKING)" but the memory skill is never referenced anywhere in `.claude/commands/spec.md`. The invocation exists in the skill but the spec command never calls it. Second, `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6 documents 69 commits and 11+ review rounds on PR #1887 where the M4 evidence rule was designed against an imagined contract instead of the canonical `validate_session_json.py:CONTRADICTION_PATTERNS` regex. That failure is precisely the failure Step 0.5 prevents: the proposer did not search for the canonical source before writing the spec.
 
 Epic #1952 cites Step 0.5 Memory-First Gate as Phase 1 child issue #1951, confirming the gap was planned for closure.
 
@@ -69,7 +69,7 @@ Per-invocation entity. State transitions: PENDING to RUNNING to PASS or HALT. In
 
 ### step0_5-halt block
 
-Value object. Five fields: `trigger` (H11), `check` (AC-09), `evidence` (proposer-supplied), `test_failed` (the criterion that triggered halt), `deferral` (instruction for the proposer). Info-string: "step0_5-halt". Emitted in the session output when H11 fires. Not persisted beyond the session.
+Value object. Five fields: `trigger` (H6-H11), `check` (AC ID), `evidence` (proposer-supplied), `test_failed` (the criterion that triggered halt), `deferral` (instruction for the proposer). Info-string: "step0_5-halt". Emitted in the session output when any of the six halt triggers fires. Not persisted beyond the session.
 
 ### PriorArtBlock
 
@@ -101,7 +101,9 @@ Invoked via `Skill(skill="chestertons-fence")` with `target` set to the Q3 syste
 
 Invoked for each topic derived from Step 0 Q3+Q4 named entities, using at minimum 3 distinct query variants per topic. Runs through the memory skill interface.
 
-**Topic definition**: one topic per distinct named entity, file, or system component mentioned in the proposer's Q3 and Q4 answers. Normalization rule (applied in order): (1) strip leading path separators (`/`, `\`); (2) lowercase the string; (3) trim leading and trailing whitespace; (4) collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`. For example, `.claude/commands/spec.md` normalizes to `claude/commands/spec.md`; this is a different topic from `spec-pipeline`. The agent lists the derived topics explicitly in the Step 0.5 preamble before running any searches. Auto-mode adjudication (AC-08) compares discovered entity names against Q answers using the same normalization.
+**Topic definition** (search scope): one topic per distinct named entity, file, or system component mentioned in the proposer's Q3 and Q4 answers.
+
+The TOPIC SOURCE for memory and chestertons-fence searches is intentionally narrower than the ADJUDICATION SOURCE for AC-08 auto-mode classification. Topics drive what to search (the thing being changed plus the blocked target); adjudication compares discovered entities against Q1+Q3+Q4 because Q1 names known-good demand sources (requesters, declared dependencies) that should auto-resolve `in-scope`. The two scopes serve different purposes; the asymmetry is by design, not a bug. Normalization rule (applied in order): (1) strip leading path separators (`/`, `\`) and leading dots (`.`); (2) lowercase the string; (3) trim leading and trailing whitespace; (4) collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`. For example, `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 1 strips the leading dot); this is a different topic from `spec-pipeline`. The agent lists the derived topics explicitly in the Step 0.5 preamble before running any searches. Auto-mode adjudication (AC-08) compares discovered entity names against Q answers using the same normalization.
 
 If Forgetful MCP is unavailable, degrade to Serena-only search and log the degradation in coverage notes. If a topic returns 0 results after 3+ distinct queries, emit a coverage note for that topic. Idempotent.
 
@@ -116,14 +118,19 @@ Invoked via `Skill(skill="exploring-knowledge-graph")` at depth matching Provisi
 | Forgetful MCP unavailable | Degrade to Serena-only memory search, skip exploring-knowledge-graph, log degradation in coverage notes, continue without halting |
 | chestertons-fence unavailable | Log skip in coverage notes, continue |
 | memory returns 0 hits for a topic | Emit coverage note per topic; not a halt trigger |
-| ProvisionalTier underestimates actual | After Step 3 classifies actual tier as higher, append Phase 5 supplemental results as "### Supplemental (Phase 5)" sub-block to PriorArtBlock; original content preserved |
+| ProvisionalTier underestimates actual | After Step 3 classifies actual tier as higher, run additional knowledge-graph phases per the AC-10 trigger formula and append results as a `### Supplemental (Phase N)` sub-block to PriorArtBlock; original content preserved |
 | Proposer marks 2+ entities as blast-radius | H11 halt; proposer revises Q4 or adds explicit out-of-scope entries, then re-runs Step 0.5; on re-run the PriorArtBlock is rebuilt from scratch; STEP-0.5-METRICS.md appends a second tally line |
+| Spec proposes a Memory-First BLOCKING change type and search returns no prior art | H6-H10 halt per AC-13 (matched against the "Investigation Protocol" change-type table in `.claude/skills/memory/SKILL.md`); proposer cites prior art or revises the proposal, then re-runs Step 0.5 |
 | Proposer ignores halt and proceeds to Step 1 | Step 9 check 9d FAIL; spec REJECTED |
 | METRICS.md reaches 100 entries | Rotate: rename to STEP-0.5-METRICS-YYYYMMDD.md, create fresh file with header; absence of rotation does not block /spec |
 
 ## Security
 
-Internal system data only. No secrets or PII expected. No redaction required. Input (Q3+Q4 entity names) is trusted. The gate makes no external network calls beyond the existing memory skill infrastructure.
+Internal system data only. Proposers MUST NOT include secrets, credentials, or PII in Q3+Q4 entity names; halt-block redaction for inadvertent inclusion is tracked as a hardening follow-on in #1975 (Sec F4).
+
+**Topic input is author-controlled, not trusted.** Q3+Q4 entity names flow into topic strings that the agent passes to `search_memory.py` (AC-04). Spec.md mandates argv-vector subprocess invocation (`subprocess.run([..., topic], shell=False)`) to defend against CWE-78 OS Command Injection because topic normalization does not strip shell metacharacters. If the agent cannot use argv-vector invocation in its environment, the spec requires rejecting any topic matching `[^\w\-\./ ]` and emitting a coverage note.
+
+The gate makes no external network calls beyond the existing memory skill infrastructure.
 
 ## Observability
 
@@ -181,23 +188,23 @@ WHEN exploring-knowledge-graph discovers an entity or project not named in Step 
 THE SYSTEM SHALL present it to the proposer for adjudication (in-scope, out-of-scope, or blast-radius),
 SO THAT the proposer explicitly acknowledges or excludes discovered connections.
 
-**Auto-mode adjudication rule**: when running in auto-mode (no human present), the agent performs case-insensitive string matching of the discovered entity name against the normalized Q0+Q3+Q4 answers. A match resolves the entity as in-scope. No match resolves it as blast-radius (conservative). This makes auto-mode deterministic and auditable. A human proposer may override blast-radius classifications that the auto-mode conservatively assigned.
+**Auto-mode adjudication rule**: when running in auto-mode (no human present), the agent performs case-insensitive string matching of the discovered entity name against the normalized Q1+Q3+Q4 answers. A match resolves the entity as in-scope. No match resolves it as blast-radius (conservative). This makes auto-mode deterministic and auditable. A human proposer may override blast-radius classifications that the auto-mode conservatively assigned.
 
 **Auto-mode blast-radius threshold**: in auto-mode, the blast-radius halt threshold is 3 entities (not 2). This reduces false halts for automated pipelines where Tier 3+ traversals commonly discover 2+ unmatched entities. Human-mode retains the 2-entity threshold from AC-09.
 
-### AC-09: Two or more blast-radius entities trigger halt
+### AC-09: Two or more blast-radius entities trigger halt (H11)
 
 WHEN the proposer marks 2 or more discovered entities as blast-radius (human mode) OR the auto-mode adjudication resolves 3 or more entities as blast-radius,
 THE SYSTEM SHALL emit a step0_5-halt block with trigger H11 and deferral "Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5.",
 SO THAT specs with underspecified blast radius cannot proceed to Step 1.
 
-### AC-10: Supplemental Phase 5 appended on tier upgrade
+### AC-10: Supplemental traversal appended on tier upgrade
 
-WHEN Step 3 classifies actual tier as 4 or higher AND ProvisionalTier was less than 4 (meaning Phase 5 was not run at Step 0.5),
-THE SYSTEM SHALL run Phase 5 of exploring-knowledge-graph and append results as "### Supplemental (Phase 5)" sub-block to PriorArtBlock without replacing the original,
+WHEN Step 3 classifies the actual tier higher than ProvisionalTier AND `phases_needed(actual_tier) > phases_needed(provisional_tier)`,
+THE SYSTEM SHALL run the additional knowledge-graph phases and append results as a `### Supplemental (Phase N)` sub-block to PriorArtBlock without replacing the original subsections,
 SO THAT deeper context is added without discarding shallower results.
 
-Note: if actual tier is 3 and ProvisionalTier was 1 or 2, Phase 4 (Tier 3 medium) also runs as supplemental. The trigger for supplemental is: `actual_tier > provisional_tier AND phases_needed(actual_tier) > phases_run(provisional_tier)`, where phases_needed(T) = 2 if T<=2, 4 if T=3, 5 if T>=4.
+The trigger formula is the canonical AC source. `phases_needed(T) = 2` if T<=2, `4` if T=3, `5` if T>=4. Examples: provisional=2, actual=3 fires Phases 3-4 as supplemental; provisional=2, actual=4 fires Phases 3-5; provisional=3, actual=4 fires Phase 5 alone; provisional=2, actual=2 does not fire.
 
 ### AC-11: Metrics tally appended on every invocation
 
@@ -211,13 +218,28 @@ WHEN Step 9 check 9d runs,
 THE SYSTEM SHALL verify that the PRD contains a "## Prior Art / Constraints" section with at least one sub-section having either evidence content or a justified coverage note,
 SO THAT backward-looking elicitation is confirmed before spec approval.
 
+**Build-time guard (implementation-only)**: spec.md Step 9 check 9d FAIL clause adds a third condition (c) detecting the partial-implementation guard token `step0.5:incomplete-without-2b` inside the Step 0.5 block. This is NOT part of the AC-12 contract; it is a transient safety check covering the M2 commit 2A/2B split. Once 2B has landed and the guard string is removed from the Step 0.5 body, condition (c) is structurally inert (the guard cannot fire). The token continues to appear in the 9d documentation prose so the runtime check has a name to match; the prose itself is OUTSIDE the Step 0.5 block boundary that condition (c) scopes to.
+
+### AC-13: Memory-First BLOCKING change types trigger halt (H6-H10)
+
+WHEN the spec proposes any of the BLOCKING change types documented in the "Investigation Protocol" change-type table in `.claude/skills/memory/SKILL.md` AND the corresponding memory search returns no relevant prior art,
+THE SYSTEM SHALL emit a step0_5-halt block with the matching trigger and a `check` field naming this AC:
+- H6: remove an ADR constraint with no memory hit for the constraint name
+- H7: bypass a documented protocol with no memory hit for the protocol name plus "why"
+- H8: delete more than 100 lines of existing code with no memory hit for the component plus "purpose"
+- H9: refactor a component flagged complex (cyclomatic > 10) with no memory hit for the component plus "edge case"
+- H10: change behavior of a validator, linter, hook, or shared infrastructure component without prior-art citation in PriorArtBlock,
+SO THAT specs that propose changes to load-bearing systems without consulting memory cannot proceed.
+
+These five triggers honor the BLOCKING contract the "Memory-First Gate (BLOCKING)" section in `.claude/skills/memory/SKILL.md` declares. Coverage notes apply only when memory search runs against a non-BLOCKING change type and finds nothing. AC-09 (H11 blast-radius) is unaffected by this AC.
+
 ## Out of Scope
 
 - Auto-classification heuristics beyond ProvisionalTier
 - Modifying the memory skill, chestertons-fence skill, or exploring-knowledge-graph skill bodies
 - Meta-router for skill invocation
 - Cross-linking to front-gate-before-pipeline (issue #1927)
-- Updating the Copilot CLI twin of `/spec` (deferred; no paired file for Step 0.5 yet)
+- (Removed; was previously listed as out-of-scope. Step 0.5 + Step 9 9d MUST mirror into `src/copilot-cli/skills/spec/SKILL.md` byte-identically per the existing `tests/commands/test_spec_step0.py::test_step0_block_identical` invariant and `test_spec_step0_5.py::test_step0_5_block_byte_identical_across_spec_and_skill`. Mirror is enforced by tests, not deferred.)
 - Enforcing Step 0.5 compliance outside the `/spec` command
 
 ## Deferred

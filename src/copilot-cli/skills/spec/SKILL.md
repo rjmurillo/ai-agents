@@ -144,7 +144,7 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
 
 ### Step 0.5: Memory-First Gate (blocking, runs after Step 0)
 
-After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The memory skill at `.claude/skills/memory/SKILL.md` line 104 declares the Memory-First Gate as BLOCKING; this section wires it into `/spec`.
+After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The memory skill at `.claude/skills/memory/SKILL.md` declares the Memory-First Gate as BLOCKING under the `### Memory-First Gate (BLOCKING)` section ("Before changing existing systems, you MUST..."); this section wires it into `/spec`.
 
 The gate composes three skills in sequence: `chestertons-fence` (frame: do not change without understanding why), `memory` (point-search prior decisions), `exploring-knowledge-graph` (multi-hop traversal of connected entities). Each answers a distinct question; the three layered together form the "Prior Art / Constraints" output that Step 6 carries into the PRD as its first section.
 
@@ -174,18 +174,18 @@ Entity count: count distinct named entities, files, or system components mention
 | 8 to 15 | 4 |
 | More than 15 | 5 |
 
-ProvisionalTier = `max(hours_tier, entity_tier)`. Step 3 may classify the actual tier higher; if the upgrade requires Phase 5 traversal, append a supplemental sub-block (defined in the metrics section below).
+ProvisionalTier = `max(hours_tier, entity_tier)`. Step 3 may classify the actual tier higher; if the upgrade crosses a phase boundary (i.e., `phases_needed(actual_tier) > phases_needed(provisional_tier)`), append a supplemental sub-block (defined in the supplemental traversal hook section below).
 
 #### Step 0.5 topic extraction
 
 Topics are derived mechanically from Q3 and Q4 named entities. One topic per distinct entity. Normalization, applied in order:
 
-1. Strip leading path separators (`/`, `\`).
+1. Strip leading path separators (`/`, `\`) AND leading dots (`.`).
 2. Lowercase the string.
 3. Trim leading and trailing whitespace.
 4. Collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`.
 
-Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md`. `spec pipeline` normalizes to `spec-pipeline`. These are distinct topics.
+Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 1 strips the leading dot and any leading slashes). `spec pipeline` normalizes to `spec-pipeline`. These are distinct topics.
 
 The agent lists the derived topics explicitly in the Step 0.5 preamble before running any searches. Auto-mode adjudication (defined under entity discovery below) compares discovered entity names against Q answers using the same normalization.
 
@@ -194,9 +194,9 @@ The agent lists the derived topics explicitly in the Step 0.5 preamble before ru
 Invoke the three skills in order. Each emits content into a named subsection of the PriorArtBlock.
 
 1. **chestertons-fence (frame)**. Invoke `Skill(skill="chestertons-fence")` with `target` set to the Q3 system path and `change` set to the Q4 wedge description. The skill runs git archaeology, PR/ADR search, and dependency analysis on the target. Output (PRESERVE | MODIFY | REPLACE | REMOVE recommendation plus rationale) feeds the `### Direct prior art from memory` subsection.
-2. **memory (point search)**. For each topic from the topic-extraction step, invoke `search_memory.py` with at minimum 3 distinct query variants per topic. Distinct queries share no significant token roots; for example, for topic `spec-pipeline`: `spec pipeline`, `spec command BLOCKING`, `clarification gate why`. Result entries with non-zero matches feed the `### Direct prior art from memory` subsection.
+2. **memory (point search)**. For each topic from the topic-extraction step, invoke the memory skill via `Skill(skill="memory")` with at minimum 3 distinct query variants per topic. The skill internally calls `search_memory.py`. Distinct queries share no significant token roots; for example, for topic `spec-pipeline`: `spec pipeline`, `spec command BLOCKING`, `clarification gate why`. Result entries with non-zero matches feed the `### Direct prior art from memory` subsection.
 
-   **Invocation contract (security)**: the agent MUST invoke the script via an argv list, not via shell string concatenation. Use `subprocess.run(["python3", ".claude/skills/memory/scripts/search_memory.py", topic], shell=False, ...)` or the equivalent argv-vector primitive. String concatenation of topics into a shell command line is forbidden because Q3+Q4 entity strings are author-controlled and the topic normalization rule does not strip shell metacharacters. CWE-78 (OS Command Injection) applies. If the agent cannot use argv-vector invocation in its environment, it MUST first reject any topic matching `[^\w\-\./ ]` and emit a coverage note explaining the rejection.
+   **Invocation contract (security)**: the canonical flow is `Skill(skill="memory")`, which already passes topics via argv-vector internally. If the agent's environment lacks the `Skill` tool and must invoke the script directly as a fallback, the agent MUST use an argv list, not shell string concatenation: `subprocess.run(["python3", ".claude/skills/memory/scripts/search_memory.py", topic], shell=False, ...)`. String concatenation of topics into a shell command line is forbidden because Q3+Q4 entity strings are author-controlled and the topic normalization rule does not strip shell metacharacters. CWE-78 (OS Command Injection) applies. If the agent cannot use either the Skill wrapper OR argv-vector invocation, it MUST first reject any topic matching `[^\w\-\./ ]` and emit a coverage note explaining the rejection.
 3. **exploring-knowledge-graph (traversal)**. Invoke `Skill(skill="exploring-knowledge-graph")` with the topic list. Depth matches ProvisionalTier:
 
 | ProvisionalTier | Phases run | Effect |
@@ -226,7 +226,7 @@ When `exploring-knowledge-graph` discovers an entity or project name that does n
 - `out-of-scope`: the entity is deliberately excluded; record name and one-line reason.
 - `blast-radius`: the entity is connected but the proposer did not previously acknowledge it; record name and one-line risk note.
 
-In auto-mode (no human present), the agent applies case-insensitive string matching of the discovered entity name (after normalization) against the normalized Q1+Q3+Q4 answers. A match resolves the entity as `in-scope` automatically. No match resolves the entity as `blast-radius` (conservative). A human proposer in a later turn may override blast-radius classifications that auto-mode conservatively assigned.
+In auto-mode (no human present), the agent applies the four-rule normalization defined under topic extraction above (strip leading dots and path separators, lowercase, trim, collapse internal separator runs to single hyphens) to BOTH the discovered entity name AND the Q1+Q3+Q4 answers, then performs case-insensitive substring match. A match resolves the entity as `in-scope` automatically. No match resolves the entity as `blast-radius` (conservative). A human proposer in a later turn may override blast-radius classifications that auto-mode conservatively assigned.
 
 The blast-radius halt threshold differs by mode:
 
@@ -235,14 +235,14 @@ The blast-radius halt threshold differs by mode:
 | Human (proposer adjudicates each entity) | 2 or more |
 | Auto (string-match only) | 3 or more |
 
-The halt itself, the metrics tally, and the supplemental Phase 5 hook are defined in the next section of this gate (closing 2B).
+The halt itself, the metrics tally, and the supplemental traversal hook are defined in the next section of this gate.
 
 #### Step 0.5 PriorArtBlock output schema
 
 The gate emits a Markdown block embedded into the PRD as its first section, named `## Prior Art / Constraints`. The block has three required subsections; each must be present even if empty (an empty subsection contains a coverage note, not blank text):
 
 ```markdown
-## Prior Art / Constraints (from Memory-First Gate)
+## Prior Art / Constraints
 
 ### Direct prior art from memory
 
@@ -284,6 +284,8 @@ H11 is the most common trigger; the H6-H10 set encodes Memory-First Gate's docum
 
 Every halt MUST emit a fenced code block with info-string `step0_5-halt` containing exactly five `key: value` lines.
 
+H11 (blast-radius) example, citing REQ-008 AC-09:
+
 ````
 ```step0_5-halt
 trigger: H11
@@ -294,17 +296,29 @@ deferral: Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-
 ```
 ````
 
+H6 (Memory-First BLOCKING change type) example, citing REQ-008 AC-13. H7-H10 use the same shape with the corresponding trigger ID and BLOCKING-type description:
+
+````
+```step0_5-halt
+trigger: H6
+check: AC-13 memory-first BLOCKING change type
+evidence: spec proposes removing ADR-040 constraint; memory search "ADR-040" returned no results across 3 query variants
+test_failed: REQ-008 AC-13 trigger H6 (remove ADR constraint with no memory hit)
+deferral: Cite the memory entry that authorizes removing this constraint, OR amend the spec to preserve the constraint, OR escalate via ADR review; then re-run Step 0.5.
+```
+````
+
 Field semantics:
 
 1. `trigger`: one of `H6`, `H7`, `H8`, `H9`, `H10`, `H11`.
-2. `check`: short name of the failed check (typically references the AC ID, e.g. `AC-09 blast-radius adjudication`).
+2. `check`: short name of the failed check, citing the AC ID (`AC-09` for H11; `AC-13` for H6-H10).
 3. `evidence`: factual record of what triggered the halt (matched entity names, search query that returned no result, etc.); single line, escape newlines as `\n`.
 4. `test_failed`: name the rule that was violated.
 5. `deferral`: a single-line instruction telling the proposer how to unblock and re-run.
 
 Free-form prose halts that omit the `step0_5-halt` info-string are non-conforming and SHALL be re-emitted in this format. Downstream callers (orchestrators, review skills, CI gates) parse this block by its info-string. The Step 0.5 halt block is structurally identical to Step 0's `step0-halt` block (same five fields) except for the info-string and the `check` field replacing `question`.
 
-#### Step 0.5 supplemental Phase 5 hook (cross-step)
+#### Step 0.5 supplemental traversal hook (cross-step)
 
 Step 3 (Tier classification) may set the actual tier higher than ProvisionalTier. When the actual tier requires more knowledge-graph phases than were already run, run the additional phases as a supplemental traversal and append the results to PriorArtBlock as a `### Supplemental (Phase N)` sub-block. Do NOT replace the original subsections.
 
@@ -315,17 +329,17 @@ phases_needed(T) = 2  if T <= 2
 phases_needed(T) = 4  if T == 3
 phases_needed(T) = 5  if T >= 4
 
-run_supplemental = (actual_tier > provisional_tier) AND (phases_needed(actual_tier) > phases_run(provisional_tier))
+run_supplemental = (actual_tier > provisional_tier) AND (phases_needed(actual_tier) > phases_needed(provisional_tier))
 ```
 
-Example: ProvisionalTier was 2 (ran Phases 1-2 shallow). Step 3 classifies actual tier as 4. `phases_needed(4) = 5` and `phases_run(2) = 2`, so run Phases 3-5 as supplemental and append `### Supplemental (Phase 5)` listing the new entity-linked memories surfaced. The original `### Connected context from exploring-knowledge-graph` subsection is preserved unchanged; the supplemental sub-block sits beneath it.
+Example: ProvisionalTier was 2 (ran Phases 1-2 shallow). Step 3 classifies actual tier as 4. `phases_needed(4) = 5` and `phases_needed(2) = 2`, so run Phases 3-5 as supplemental and append `### Supplemental (Phase 5)` listing the new entity-linked memories surfaced. The original `### Connected context from exploring-knowledge-graph` subsection is preserved unchanged; the supplemental sub-block sits beneath it.
 
 #### Step 0.5 metrics tally
 
-After every Step 0.5 evaluation (whether pass or halt), append one line to `.agents/sessions/STEP-0.5-METRICS.md`. Create the file lazily if absent, with header line `# Step 0.5 Metrics (one line per /spec invocation)`. Each tally line:
+After every Step 0.5 evaluation (whether pass or halt), append one line to `.agents/sessions/STEP-0.5-METRICS.md`. Create the file lazily if absent, with header line `# Step 0.5 Metrics (one line per /spec invocation)`. Each tally line uses the canonical `YYYY-MM-DDTHH:MM:SSZ` UTC timestamp form (no offset, no fractional seconds; the `parse_tally_line` helper at `tests/commands/step0_5_parser.py` enforces this exact shape):
 
 ```
-<ISO-8601 timestamp> | <pass|fail> | <halt-trigger-or-none> | <halt-check-or-none>
+<YYYY-MM-DDTHH:MM:SSZ> | <pass|fail> | <halt-trigger-or-none> | <halt-check-or-none>
 ```
 
 Examples:
@@ -333,11 +347,12 @@ Examples:
 ```
 2026-05-10T04:30:00Z | pass | none | none
 2026-05-10T05:15:00Z | fail | H11 | AC-09 blast-radius adjudication
+2026-05-10T05:20:00Z | fail | H6 | AC-13 memory-first BLOCKING change type
 ```
 
 Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria.
 
-**Archival policy**: same cadence as Step 0. After each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate: rename `.agents/sessions/STEP-0.5-METRICS.md` to `.agents/sessions/STEP-0.5-METRICS-YYYYMMDD.md` (review date) and start a fresh file with the same header. The active file SHALL NOT exceed 100 entries before rotation.
+**Archival policy**: rotation fires when the active file reaches 100 entries (the canonical trigger per REQ-008 line 92 and the failure-mode table at REQ-008 line 122). On rotation: rename `.agents/sessions/STEP-0.5-METRICS.md` to `.agents/sessions/STEP-0.5-METRICS-YYYYMMDD.md` (rotation date) and start a fresh file with the same header. The 30-invocation cadence governs the SEPARATE kill-criteria review schedule and does not by itself trigger rotation; if a kill criterion fires before 100 entries are reached, the gate is loosened or removed in a follow-up PR (the file may rotate at that point if the change warrants).
 
 ---
 
@@ -370,7 +385,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
      - FAIL if any acceptance criterion adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
    - **Check 9d, Prior Art / Constraints elicitation**:
      - PASS: the PRD contains a "## Prior Art / Constraints" section with at least one sub-section ("### Direct prior art from memory", "### Connected context from exploring-knowledge-graph", or "### Coverage notes") that has either evidence content or a justified coverage note.
-     - FAIL conditions (any one triggers FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) `.claude/commands/spec.md` contains the literal string `<!-- step0.5:incomplete-without-2b -->` (indicates Step 0.5 is in a partial-implementation state and the PriorArtBlock contract is not yet load-bearing).
+     - FAIL conditions (any one triggers FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) the Step 0.5 BLOCK itself in `.claude/commands/spec.md` (between the `### Step 0.5: Memory-First Gate` heading and the next `\n---\n` delimiter) contains the partial-implementation guard token (string `step0.5:incomplete-without-2b` wrapped in HTML-comment delimiters). Note: the same token appears in this 9d FAIL clause as documentation; check 9d MUST scope its match to the Step 0.5 block boundaries to avoid a tautological self-trigger from this Step 9 text.
      - On FAIL: surface as a blocking finding. The critic SHALL NOT return APPROVED while check 9d is FAIL.
 
 ## Evaluation Axes

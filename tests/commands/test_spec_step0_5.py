@@ -14,9 +14,12 @@ Verifies the static structure of Step 0.5 instructions in
 logic lives in `tests/commands/step0_5_parser.py`; this file holds only
 test cases.
 
-Six dynamic LLM-dependent cases (D6, D7, D9, D12, D13, D14 from
-TASK-008-5) are documented manual checks; eight other dynamic cases
-(D1, D2, D3, D4, D5, D8, D10, D11) are promoted to pytest in M5.
+Of 14 dynamic D-checks in TASK-008-5, 4 are promoted to pytest here
+(D2, D8, D10, D11) because they are deterministic from spec.md prose
+and parser logic without an LLM in the loop. The remaining 10 (D1,
+D3, D4, D5, D6, D7, D9, D12, D13, D14) require live `/spec` invocation
+or Forgetful MCP simulation; tracked for the LLM eval harness in
+issue #1972 (ADR-057 follow-on).
 """
 
 from __future__ import annotations
@@ -38,7 +41,7 @@ from tests.commands.step0_5_parser import (
     parse_halt_block,
     parse_tally_line,
     phases_needed,
-    supplemental_phase_5_warranted,
+    supplemental_traversal_warranted,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -248,11 +251,15 @@ def test_s9_canonical_deferral_text_present(step0_5_block: str):
 def test_s10_phases_needed_formula_present(spec_text: str):
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 supplemental Phase 5 hook (cross-step)",
+        "#### Step 0.5 supplemental traversal hook (cross-step)",
     )
     assert "phases_needed" in body
     assert "actual_tier > provisional_tier" in body
-    assert "phases_needed(actual_tier) > phases_run(provisional_tier)" in body
+    assert "phases_needed(actual_tier) > phases_needed(provisional_tier)" in body
+    # Verify the per-tier phase-count constants match REQ-008 AC-10
+    assert "phases_needed(T) = 2  if T <= 2" in body
+    assert "phases_needed(T) = 4  if T == 3" in body
+    assert "phases_needed(T) = 5  if T >= 4" in body
 
 
 def test_s10_supplemental_subblock_heading_documented(step0_5_block: str):
@@ -270,7 +277,8 @@ def test_s11_metrics_file_path_and_format(spec_text: str):
         "#### Step 0.5 metrics tally",
     )
     assert ".agents/sessions/STEP-0.5-METRICS.md" in body
-    assert "<ISO-8601 timestamp> | <pass|fail>" in body
+    assert "<YYYY-MM-DDTHH:MM:SSZ> | <pass|fail>" in body
+    assert "canonical `YYYY-MM-DDTHH:MM:SSZ`" in body
     assert "100 entries" in body
 
 
@@ -289,9 +297,23 @@ def test_s12_check_9d_pass_condition_lists_three_subsections(step9_block: str):
     assert "### Coverage notes" in step9_block
 
 
-def test_s12_check_9d_includes_guard_string_fail_clause(step9_block: str):
-    assert GUARD_STRING in step9_block, (
-        "9d FAIL clause must reference guard string for partial-M2 detection"
+def test_s12_check_9d_includes_guard_token_fail_clause(step9_block: str):
+    """9d FAIL clause must reference the guard token by name without
+    embedding the literal HTML-comment marker.
+
+    Rationale: if the literal `<!-- step0.5:incomplete-without-2b -->`
+    appeared in the Step 9 prose, a naive whole-file substring check
+    would self-trigger 9d. The clause names the token wrapped in
+    backticks and qualifies it as `wrapped in HTML-comment delimiters`,
+    which 9d's runtime check resolves by extracting the Step 0.5 block
+    first and matching the literal only inside that block.
+    """
+    assert "step0.5:incomplete-without-2b" in step9_block, (
+        "9d FAIL clause must name the guard token for runtime detection"
+    )
+    assert GUARD_STRING not in step9_block, (
+        "9d FAIL clause must not embed the literal HTML-comment marker; "
+        "it would cause a tautological self-trigger on whole-file checks"
     )
 
 
@@ -299,15 +321,32 @@ def test_s12_guard_string_absent_from_step_0_5_body(step0_5_block: str):
     """After commit 2B lands, the guard must not appear in the Step 0.5 body.
 
     The string IS allowed in Step 9 9d's FAIL-clause documentation (it
-    names the guard so the check can detect it at runtime). The check
-    `has_guard_string(spec_text)` returns True in normal post-2B state
-    because of that documentation; per-block scoping is the correct
-    invariant here.
+    names the guard so the check can detect it at runtime). Per-block
+    scoping is the correct invariant: 9d MUST match only inside the
+    Step 0.5 block, not the whole spec.md, to avoid a tautological
+    self-trigger from this Step 9 text.
     """
     assert GUARD_STRING not in step0_5_block, (
         "guard string `<!-- step0.5:incomplete-without-2b -->` must not "
         "appear in Step 0.5 body after commit 2B. It belongs ONLY in "
         "Step 9 9d FAIL clause documentation."
+    )
+
+
+def test_s12_has_guard_string_returns_false_after_2b(spec_text: str):
+    """`has_guard_string(text)` returns False after commit 2B lands.
+
+    Step 9 9d documentation references the guard TOKEN NAME (the inner
+    string `step0.5:incomplete-without-2b`) but NOT the literal HTML
+    comment marker (`<!-- step0.5:incomplete-without-2b -->`). The
+    literal HTML comment must be absent from spec.md anywhere after 2B
+    to avoid a tautological self-trigger when whole-file substring
+    detection runs. Runtime 9d performs Step 0.5 block-scoped detection.
+    """
+    assert not has_guard_string(spec_text), (
+        "literal `<!-- step0.5:incomplete-without-2b -->` must not "
+        "appear anywhere in spec.md after 2B (token name without HTML "
+        "comment marker is the documented form)"
     )
 
 
@@ -402,23 +441,25 @@ def test_phases_needed_per_tier(tier: int, expected_phases: int):
         (4, 4, False),
     ],
 )
-def test_supplemental_phase_5_warranted(
+def test_supplemental_traversal_warranted(
     provisional: int, actual: int, expected: bool
 ):
     """AC-10: supplemental fires when actual tier > provisional AND
     actual tier needs more phases than provisional already ran."""
     assert (
-        supplemental_phase_5_warranted(provisional, actual) is expected
+        supplemental_traversal_warranted(provisional, actual) is expected
     )
 
 
 # ---------------------------------------------------------------------------
 # Dynamic-check promotion (TASK-008-5 D-list)
 #
-# 8 of 14 D-checks are deterministic enough to assert without an LLM in
-# the loop. The remaining 6 (D1, D6, D7, D9, D12, D13, D14) require live
-# /spec invocation or MCP simulation; those are tracked manual checks
-# and become candidates for an LLM eval harness (ADR-057).
+# 4 of 14 D-checks (D2, D8, D10, D11) are promoted to pytest because
+# they are deterministic from spec.md prose and parser logic without an
+# LLM in the loop. The remaining 10 D-checks (D1, D3, D4, D5, D6, D7,
+# D9, D12, D13, D14) require live /spec invocation or Forgetful MCP
+# simulation; tracked manual checks become candidates for the LLM eval
+# harness in #1972 (ADR-057 follow-on).
 # ---------------------------------------------------------------------------
 
 
@@ -466,7 +507,7 @@ def test_d8_halt_block_rejects_unknown_trigger():
         parse_halt_block(sample)
 
 
-def test_d8_halt_block_rejects_missing_field():
+def test_d8_halt_block_rejects_missing_field_by_line_count():
     sample = (
         "```step0_5-halt\n"
         "trigger: H11\n"
@@ -475,11 +516,11 @@ def test_d8_halt_block_rejects_missing_field():
         "test_failed: y\n"
         "```"
     )
-    with pytest.raises(ValueError, match="missing"):
+    with pytest.raises(ValueError, match="exactly 5"):
         parse_halt_block(sample)
 
 
-def test_d8_halt_block_rejects_extra_field():
+def test_d8_halt_block_rejects_extra_field_by_line_count():
     sample = (
         "```step0_5-halt\n"
         "trigger: H11\n"
@@ -490,13 +531,56 @@ def test_d8_halt_block_rejects_extra_field():
         "extra: w\n"
         "```"
     )
-    with pytest.raises(ValueError, match="extra"):
+    with pytest.raises(ValueError, match="exactly 5"):
+        parse_halt_block(sample)
+
+
+def test_d8_halt_block_rejects_wrong_field_name():
+    """5 lines but field set has wrong name."""
+    sample = (
+        "```step0_5-halt\n"
+        "trigger: H11\n"
+        "check: AC-09\n"
+        "evidence: x\n"
+        "test_failed: y\n"
+        "wrong_name: z\n"
+        "```"
+    )
+    with pytest.raises(ValueError, match="field set wrong"):
         parse_halt_block(sample)
 
 
 def test_d8_halt_block_rejects_missing_fence():
     with pytest.raises(ValueError, match="no fenced"):
         parse_halt_block("trigger: H11\ncheck: AC-09\n")
+
+
+def test_d8_halt_block_rejects_duplicate_key():
+    sample = (
+        "```step0_5-halt\n"
+        "trigger: H11\n"
+        "trigger: H10\n"
+        "check: AC-09\n"
+        "evidence: x\n"
+        "test_failed: y\n"
+        "```"
+    )
+    with pytest.raises(ValueError, match="duplicate"):
+        parse_halt_block(sample)
+
+
+def test_d8_halt_block_rejects_non_key_value_line():
+    sample = (
+        "```step0_5-halt\n"
+        "trigger: H11\n"
+        "check: AC-09\n"
+        "evidence: x\n"
+        "this is a free-form prose line\n"
+        "deferral: z\n"
+        "```"
+    )
+    with pytest.raises(ValueError, match="`key: value`"):
+        parse_halt_block(sample)
 
 
 # D10 (AC-11 pass): tally line for pass case.

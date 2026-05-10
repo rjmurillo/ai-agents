@@ -347,6 +347,23 @@ class TestRunValidations:
         stderr = capsys.readouterr().err
         assert "WARNING" in stderr
 
+    def test_agents_changed_legacy_md_session_log_only_warns_once(
+        self, tmp_path, capsys
+    ):
+        """When only legacy .md session logs are staged, the helper warns
+        about migration; the calling code MUST NOT also print
+        'No session log found' (devin-ai-integration finding on PR #1980).
+        """
+        changed = ".agents/sessions/2026-05-10-session-1830.md\n"
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=changed, rc=0),
+        ):
+            run_validations(str(tmp_path), "main", "feat/branch")
+        stderr = capsys.readouterr().err
+        assert "legacy .md session log" in stderr
+        assert "No session log found" not in stderr
+
     def test_permission_error_on_mkdir_warns(self, tmp_path, capsys):
         with patch("os.makedirs", side_effect=PermissionError("denied")), patch(
             "subprocess.run",

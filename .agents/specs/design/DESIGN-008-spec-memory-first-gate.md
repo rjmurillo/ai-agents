@@ -6,6 +6,7 @@ status: draft
 priority: P1
 related:
   - REQ-008
+  - TASK-008
   - DESIGN-006
   - REQ-006
 tags:
@@ -29,10 +30,11 @@ updated: 2026-05-09
 - REQ-008-AC-06: Zero-result topic emits coverage note
 - REQ-008-AC-07: Forgetful MCP unavailability degrades gracefully
 - REQ-008-AC-08: Discovered entities require adjudication
-- REQ-008-AC-09: Two or more blast-radius entities trigger halt
-- REQ-008-AC-10: Supplemental Phase 5 appended on tier upgrade
+- REQ-008-AC-09: Blast-radius entity count meets per-mode threshold (human: 2; auto: 3) triggers halt
+- REQ-008-AC-10: Supplemental traversal (Phase N) appended on tier upgrade
 - REQ-008-AC-11: Metrics tally appended on every invocation
 - REQ-008-AC-12: Step 9 check 9d verifies PriorArtBlock presence
+- REQ-008-AC-13: Memory-First BLOCKING change types trigger halt (H6-H10)
 
 ## Design Overview
 
@@ -60,7 +62,7 @@ Step 0.5 (Memory-First Gate)
    |-- 3. Invoke memory search: 3+ queries per named entity from Q3+Q4
    |-- 4. Invoke exploring-knowledge-graph at ProvisionalTier depth
    |-- 5. Present discovered entities for adjudication
-   |-- 6. If blast-radius count >= 2, emit step0_5-halt block (H11), HALT
+   |-- 6. If blast-radius count meets per-mode threshold (human: 2, auto: 3), emit step0_5-halt block (H11), HALT
    |-- 7. Assemble PriorArtBlock from all results
    |-- 8. Append one line to STEP-0.5-METRICS.md
    |
@@ -90,8 +92,6 @@ Upper bounds are strict less-than. 8h falls in Tier 3 (range `8 to less than 40 
 | 40 to less than 160 hours | 4 |
 | 160 hours or more | 5 |
 
-If no numeric hours estimate is found in Q4, ProvisionalTier defaults to Tier 2 (matches REQ-008 hours extraction rule).
-
 Entity count mapping table:
 
 | Named entities in Q3+Q4 | Tier |
@@ -102,7 +102,7 @@ Entity count mapping table:
 | 8-15 | 4 |
 | More than 15 | 5 |
 
-ProvisionalTier = max(hours_tier, entity_tier). When Q4 does not contain a parseable hours estimate, default to entity_tier alone and note the omission in coverage notes.
+**Canonical fallback rule** (single source of truth, matches REQ-008 hours extraction rule): when Q4 contains no parseable numeric hours estimate, set `hours_tier = 2`, then compute `ProvisionalTier = max(hours_tier, entity_tier)`. The agent records the omission in the PriorArtBlock coverage notes so implementers see that hours parsing failed; the fallback does NOT skip the `max()` step or use `entity_tier` alone.
 
 ### Knowledge-Graph Depth by Tier
 
@@ -116,7 +116,7 @@ ProvisionalTier = max(hours_tier, entity_tier). When Q4 does not contain a parse
 
 ### Edit 1: Insert Step 0.5 block in `.claude/commands/spec.md` (after Step 0, before Step 1)
 
-**Purpose**: Define the Memory-First Gate, its three-skill sequence, ProvisionalTier computation, halt trigger H11, PriorArtBlock output format, and metrics tally directive.
+**Purpose**: Define the Memory-First Gate, its three-skill sequence, ProvisionalTier computation, halt triggers H6-H11 (H6-H10 per REQ-008 AC-13 mirror the documented BLOCKING change types in `.claude/skills/memory/SKILL.md` under the `### Investigation Protocol` BLOCKING change-types table; H11 per REQ-008 AC-09 covers blast-radius count), PriorArtBlock output format, and metrics tally directive.
 
 **Responsibilities**:
 
@@ -128,11 +128,11 @@ ProvisionalTier = max(hours_tier, entity_tier). When Q4 does not contain a parse
   3. exploring-knowledge-graph at depth matching ProvisionalTier.
 - Define degradation behavior for each skill: if chestertons-fence is unavailable, log skip and continue; if Forgetful MCP is unavailable, degrade to Serena-only and log; if exploring-knowledge-graph is unavailable, skip and log.
 - Define the entity adjudication step: present each discovered entity not in Q1+Q3+Q4 to the proposer; proposer assigns one of (in-scope, out-of-scope, blast-radius).
-- Define halt trigger H11: when 2 or more discovered entities are marked blast-radius, emit a step0_5-halt block with canonical deferral text "Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5." (capitalized R, terminating period; sole canonical form, mirrored verbatim by REQ-008 AC-09 line 191 and TASK-008 line 93).
+- Define halt trigger H11: when the blast-radius count meets or exceeds the per-mode threshold (human mode: 2; auto mode: 3, per REQ-008 AC-09), emit a step0_5-halt block with canonical deferral text "Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5." (capitalized R, terminating period; sole canonical form, mirrored verbatim by REQ-008 AC-09 line 191 and TASK-008 line 93).
 - Define the step0_5-halt block schema: five fields (trigger, check, evidence, test_failed, deferral); info-string "step0_5-halt".
 - Define zero-result coverage note: when memory returns 0 results for a topic after 3+ queries, emit a coverage note naming the topic in the "### Coverage notes" subsection.
 - Define the PriorArtBlock output format: a markdown section "## Prior Art / Constraints" with three required subsections: "### Direct prior art from memory", "### Connected context from exploring-knowledge-graph", "### Coverage notes". This block is appended to the PRD immediately after the Step 0 block.
-- Define the supplemental Phase 5 rule: when Step 3 classifies actual tier as higher than ProvisionalTier and Phase 5 traversal is warranted, run Phase 5 and append a "### Supplemental (Phase 5)" sub-block to the existing PriorArtBlock. The original content is preserved; do not replace it.
+- Define the supplemental traversal rule: when Step 3 classifies actual tier as higher than ProvisionalTier and `phases_needed(actual_tier) > phases_needed(provisional_tier)`, run the additional phases and append a `### Supplemental (Phase N)` sub-block to the existing PriorArtBlock. The original content is preserved; do not replace it. The trigger fires for tier upgrades that cross any phase boundary, not only tier 4+ (e.g., provisional=2 actual=3 runs Phases 3-4; provisional=3 actual=4 runs Phase 5 alone).
 - Define the metrics tally directive: on every Step 0.5 completion (pass or halt), append one line to `.agents/sessions/STEP-0.5-METRICS.md` with format `<ISO-8601> | <pass|fail> | <trigger-or-none> | <check-or-none>`. Absence of the file does not block `/spec`.
 
 **Interfaces**:
@@ -209,7 +209,7 @@ Full prose of Step 0.5 gate including:
 - H11 halt trigger and step0_5-halt block schema
 - Zero-result coverage note rule
 - PriorArtBlock output format (three subsections)
-- Supplemental Phase 5 rule
+- Supplemental traversal rule (`### Supplemental (Phase N)` sub-block)
 - Metrics tally directive
 
 ### Modified section: Step 9 pre-mortem list (append check 9d after check 9c)
@@ -240,26 +240,33 @@ Check 9d as defined in Edit 2 above.
 <or: "None." if no degradation occurred and all topics returned results>
 ```
 
-### step0_5-halt block (emitted on H11)
+### step0_5-halt block (emitted on H6-H11)
 
+Canonical fenced format (info-string `step0_5-halt`, exactly 5 fields in this order: `trigger`, `check`, `evidence`, `test_failed`, `deferral`; one `key: value` pair per line; the `parse_halt_block` helper at `tests/commands/step0_5_parser.py` enforces this shape):
+
+````
+```step0_5-halt
+trigger: H11
+check: AC-09
+evidence: <proposer-supplied entity adjudication list>
+test_failed: blast-radius count >= per-mode threshold (human: 2; auto: 3)
+deferral: Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5.
 ```
-step0_5-halt:
-  trigger: H11
-  check: AC-09
-  evidence: <proposer-supplied entity adjudication list>
-  test_failed: "2 or more discovered entities marked blast-radius"
-  deferral: "Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5."
-```
+````
 
 ### STEP-0.5-METRICS.md line format
 
+Canonical UTC timestamp form `YYYY-MM-DDTHH:MM:SSZ` (no offset, no fractional seconds; the `parse_tally_line` helper enforces this exact shape):
+
 ```
-<ISO-8601 datetime> | <pass|fail> | <trigger-or-none> | <check-or-none>
+<YYYY-MM-DDTHH:MM:SSZ> | <pass|fail> | <trigger-or-none> | <check-or-none>
 ```
 
 Example pass line: `2026-05-09T14:32:00Z | pass | none | none`
 
-Example halt line: `2026-05-09T14:35:12Z | fail | H11 | AC-09`
+Example halt lines:
+- `2026-05-09T14:35:12Z | fail | H11 | AC-09` (blast-radius)
+- `2026-05-09T14:42:08Z | fail | H6 | AC-13 memory-first BLOCKING change type` (memory-first)
 
 ## Technology Decisions
 
@@ -269,15 +276,19 @@ Example halt line: `2026-05-09T14:35:12Z | fail | H11 | AC-09`
 | Skill invocation protocol | `Skill(skill="...")` calls in instruction prose | Consistent with how the spec pipeline invokes other skills (requirements-interview, decision-critic). No meta-router added. |
 | ProvisionalTier computation | Inline in spec.md prose with mapping tables | Tables are small, stable, and need to be visible to the proposer. External reference adds indirection without benefit (OQ-01 resolved inline). |
 | Degradation policy | Continue on skill unavailability, log in coverage notes | Availability failure should not block demand validation. Proposer gets visibility via coverage notes. |
-| Halt trigger count | Single trigger H11 (blast-radius count) | chestertons-fence and memory returning 0 results are not halt conditions; they produce coverage notes. Only underspecified blast radius warrants a halt because it indicates the spec scope is wrong, not that the search found nothing. |
+| Halt trigger set | H6-H11 (six triggers) | H6-H10 mirror the documented BLOCKING change types in `.claude/skills/memory/SKILL.md` under the `### Investigation Protocol` BLOCKING change-types table: H6 (remove ADR constraint with no memory hit), H7 (bypass protocol with no memory hit), H8 (delete >100 lines with no memory hit), H9 (refactor complex code with no memory hit), H10 (change validator/linter/hook/shared infra with no prior-art citation). H11 (blast-radius count) handles spec scope underspecification. The five memory-first triggers honor the BLOCKING contract memory/SKILL.md declares; without them the gate becomes advisory rather than blocking. Coverage notes still apply when search runs and finds nothing for non-BLOCKING change types. |
 | Entity adjudication | Proposer assigns in-scope/out-of-scope/blast-radius | Adjudication requires judgment the model cannot supply alone. Auto-mode resolves unambiguous cases by name match and waits only on ambiguous ones. |
 | Metrics tally | Append-only flat file at .agents/sessions/ | Consistent with STEP-0-METRICS.md approach from DESIGN-006. No database or structured store needed at this volume. |
 | Step 9 check | Check 9d binary PASS/FAIL | Consistent with checks 9a/9b/9c from DESIGN-006. Binary assertions are auditable; open questions are not. |
-| Copilot CLI twin | Not updated in this issue | No paired spec SKILL.md equivalent for Step 0.5 exists yet. Deferred per out-of-scope definition. |
+| Copilot CLI twin | Updated as part of M4 implementation | Required to keep `tests/commands/test_spec_step0.py` byte-identity tests passing. Mirrored Step 0.5 + Step 9 9d into `src/copilot-cli/skills/spec/SKILL.md`. |
 
 ## Security Considerations
 
-No new attack surface. No secrets, PII, or auth boundary changes. Step 0.5 invokes existing skills that already have their own security posture. The gate reads proposer-supplied entity names and passes them to memory queries; entity names are not executable and do not cross trust boundaries.
+No new auth boundary or secret surface. No PII expected.
+
+**Topic input is author-controlled and crosses a process boundary.** The gate passes proposer-supplied entity names to `search_memory.py` via subprocess invocation. This is a CWE-78 OS Command Injection surface unless the invocation uses an argv vector (not shell string concatenation). REQ-008 AC-04 and the corresponding spec.md prose mandate argv-vector subprocess (`shell=False`) and a topic-rejection regex `[^\w\-\./ ]` as a fallback when argv is unavailable. Treat topic strings as untrusted input; do not interpolate them into shell commands.
+
+Step 0.5 invokes existing skills that already have their own security posture. Halt-block PII/secret redaction for proposer-supplied answers is deferred to #1975.
 
 ## Testing Strategy
 
@@ -319,7 +330,7 @@ No new attack surface. No secrets, PII, or auth boundary changes. Step 0.5 invok
 
 **D13 (AC-12 fail)**: Manually remove PriorArtBlock from PRD. Assert Step 9 check 9d reports FAIL as a blocking finding.
 
-**D14 (AC-10)**: Q4 estimate = "2 weeks" (40+ hours, Tier 3); entity count = 3 (Tier 2). ProvisionalTier = max(3, 2) = 3. Step 3 classifies tier as 4. Assert Phase 5 runs; "### Supplemental (Phase 5)" appended; original three subsections preserved.
+**D14 (AC-10)**: Q4 estimate = "3 days" (24 hours, Tier 3); entity count = 3 (Tier 2). ProvisionalTier = max(3, 2) = 3. Step 3 classifies tier as 4. Assert Phase 5 runs; "### Supplemental (Phase 5)" appended; original three subsections preserved. (Note: 2 weeks = 80 hours falls in Tier 4 via hours_tier alone, which would not exercise the AC-10 trigger condition; 3 days keeps the example targeting a tier upgrade across the Phase 4 → Phase 5 boundary.)
 
 ### Coverage tracker
 
@@ -337,6 +348,7 @@ No new attack surface. No secrets, PII, or auth boundary changes. Step 0.5 invok
 | AC-10 | | D14 |
 | AC-11 | Static-3 | D10, D11 |
 | AC-12 | Static-4 | D12, D13 |
+| AC-13 | | D15-D19 (one per H6-H10 trigger; tracked manual in #1972 LLM eval harness) |
 
 ## Open Questions
 

@@ -4,7 +4,7 @@ id: TASK-008
 title: Implement Step 0.5 Memory-First Gate in spec pipeline
 status: todo
 priority: P1
-complexity: S
+complexity: L
 related:
   - DESIGN-008
   - REQ-008
@@ -36,7 +36,7 @@ Edit `.claude/commands/spec.md` to insert a Step 0.5 Memory-First Gate section b
 ## Out of Scope
 
 - Modifying memory, chestertons-fence, or exploring-knowledge-graph skills
-- Updating Copilot CLI twin (`src/copilot-cli/skills/spec/SKILL.md`) for Step 0.5 (no paired section exists yet)
+- (Removed; was previously listed as out-of-scope. Copilot CLI twin update for Step 0.5 + Step 9 9d is REQUIRED by byte-identity tests `test_step0_block_identical` and `test_step0_5_block_byte_identical_across_spec_and_skill`. Treat as in-scope mirror obligation, not deferred.)
 - Meta-router for skill invocation
 - Cross-linking to issue #1927
 - Refactoring unrelated sections of `spec.md`
@@ -89,10 +89,11 @@ Edit `.claude/commands/spec.md` to insert a Step 0.5 Memory-First Gate section b
 - [ ] exploring-knowledge-graph depth table is present: Tier 1-2 = Phases 1-2; Tier 3 = Phases 1-4; Tier 4-5 = Phases 1-5 (AC-05).
 - [ ] Zero-result coverage note rule is stated: when memory returns 0 results for a topic after 3+ queries, emit a coverage note in the "### Coverage notes" subsection (AC-06).
 - [ ] Entity adjudication protocol is defined: present each discovered entity not in Q1+Q3+Q4 to the proposer; proposer assigns in-scope, out-of-scope, or blast-radius (AC-08).
-- [ ] H11 halt trigger is defined: when 2 or more discovered entities are marked blast-radius, emit step0_5-halt block (AC-09).
-- [ ] step0_5-halt block schema is defined: five fields (trigger, check, evidence, test_failed, deferral); info-string "step0_5-halt"; deferral text reads: "Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5." (AC-09).
+- [ ] H11 halt trigger is defined: when blast-radius count meets per-mode threshold (human mode: 2 or more; auto mode: 3 or more), emit step0_5-halt block (AC-09). Mode-specific threshold matches D8 dynamic check expectation (3 entities triggers in auto mode).
+- [ ] H6-H10 halt triggers are defined: spec proposes a Memory-First BLOCKING change type from `.claude/skills/memory/SKILL.md` `### Investigation Protocol` BLOCKING change-types table AND memory search returns no prior art (AC-13). Each trigger has its own deferral instruction citing the BLOCKING type. Halt-block `check` field reads `AC-13 memory-first BLOCKING change type`.
+- [ ] step0_5-halt block schema is defined: five fields (trigger, check, evidence, test_failed, deferral); info-string "step0_5-halt"; H11 deferral text reads: "Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5." (AC-09); H6-H10 deferral text instructs the proposer to cite memory, amend the spec, or escalate (AC-13).
 - [ ] PriorArtBlock output format is defined with three subsections: "### Direct prior art from memory", "### Connected context from exploring-knowledge-graph", "### Coverage notes" (all ACs).
-- [ ] Supplemental Phase 5 rule is stated: when Step 3 classifies actual tier higher than ProvisionalTier and Phase 5 traversal is warranted, run Phase 5 and append "### Supplemental (Phase 5)" sub-block to PriorArtBlock without replacing original content (AC-10).
+- [ ] Supplemental traversal rule is stated: when Step 3 classifies actual tier higher than ProvisionalTier and `phases_needed(actual_tier) > phases_needed(provisional_tier)`, run the additional phases and append a `### Supplemental (Phase N)` sub-block to PriorArtBlock without replacing original content (AC-10). Trigger fires for any tier upgrade that crosses a phase boundary, not just Phase 5.
 - [ ] Metrics tally directive is stated: append one line to `.agents/sessions/STEP-0.5-METRICS.md` on every completion; format `<ISO-8601> | <pass|fail> | <trigger-or-none> | <check-or-none>`; absence of file does not block `/spec` (AC-11).
 - [ ] "STEP-0.5-METRICS.md" string appears in Step 0.5 prose (supports Static-3 check).
 
@@ -233,7 +234,7 @@ The ProvisionalTier reference implementation in `step0_5_parser.py` is tested wi
 | TASK-008-3 (Append check 9d) | XS | 1 |
 | TASK-008-4 (Static validation tests) | S | 2-4 |
 | TASK-008-5 (14 dynamic + 3 static validation) | S | 2-3 |
-| **Total** | **S** | **9.5-14.5** |
+| **Total** | **L** | **9.5-14.5** |
 
 ## Revision History
 
