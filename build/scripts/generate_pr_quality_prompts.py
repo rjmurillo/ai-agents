@@ -379,8 +379,13 @@ def regenerate(
                 _atomic_write(dest, expected)
             except GeneratePromptsError as exc:
                 # Symlinked destination per PR #1965 coderabbit H_3.
+                # `continue` per PR #1965 cursor 6hZB / devin 6hua: without
+                # it, the no-write branch falls through to the trailing
+                # `status=written` log line, producing a contradictory
+                # double-status log entry for the same role.
                 log.append(f"role={role} status=config_error error={exc}")
                 config_error = True
+                continue
             except OSError as exc:
                 log.append(f"role={role} status=io_error error={exc}")
                 error_count += 1

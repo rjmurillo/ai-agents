@@ -284,6 +284,40 @@ def test_regenerate_rejects_symlinks_in_canonical_dir(tmp_path: Path) -> None:
     )
 
 
+def test_regenerate_symlinked_dest_no_status_written_log(
+    stub_canonical: Path, tmp_path: Path
+) -> None:
+    """Symlinked output dest -> config_error AND no status=written follow-up.
+
+    PR #1965 cursor 6hZB / devin 6hua: the GeneratePromptsError handler in
+    the write path was missing a `continue`, so a role hitting the symlink
+    rejection logged BOTH `status=config_error` and `status=written`. The
+    log lied: no file was written because _atomic_write raised before
+    os.replace. Pin the contract: never log status=written for a role that
+    failed with config_error.
+    """
+    generated = tmp_path / "out"
+    generated.mkdir()
+    # Plant a symlink at the destination of the first stubbed role.
+    role = sorted(p.stem for p in stub_canonical.iterdir())[0]
+    dest = generated / f"pr-quality-gate-{role}.md"
+    real = tmp_path / "elsewhere.md"
+    real.write_text("decoy\n", encoding="utf-8")
+    dest.symlink_to(real)
+
+    code, log = gen.regenerate(stub_canonical, generated, dry_run=False)
+
+    assert code == 2
+    role_lines = [line for line in log if line.startswith(f"role={role} ")]
+    assert any("status=config_error" in line for line in role_lines), (
+        f"expected role={role} status=config_error, got {role_lines}"
+    )
+    assert not any("status=written" in line for line in role_lines), (
+        f"role={role} must NOT log status=written after config_error; "
+        f"got {role_lines}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Atomic write
 # ---------------------------------------------------------------------------
