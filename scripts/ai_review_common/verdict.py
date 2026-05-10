@@ -131,10 +131,16 @@ def merge_verdicts(verdicts: list[str]) -> str:
 # NEEDS_REVIEW added per PR #1965 coderabbit Y7: it is in FAIL_VERDICTS so a
 # skill emitting `Verdict: NEEDS_REVIEW` must be parsed as that token, not
 # downgraded to UNKNOWN.
+# Template-form rejection per PR #1965 copilot 7k: the axis prompts contain
+# literal template lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]`. Without
+# the trailing `(?![|A-Z_])` lookahead, the alternation greedily matches the
+# first token (`PASS`) and silently coerces a template echo to a real verdict.
+# The lookahead also rejects unknown uppercase tokens that happen to share a
+# prefix with a known verdict (e.g., `PASS_THROUGH`).
 _EXTRACT_VERDICT_PATTERN = re.compile(
     r"(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*"
     r"\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|"
-    r"NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)\]?",
+    r"NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?",
 )
 
 

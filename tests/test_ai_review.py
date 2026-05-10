@@ -391,6 +391,41 @@ class TestExtractVerdict:
         text = "```text\nVerdict: PASS\n```\n\nReal output here.\n\nVerdict: WARN"
         assert extract_verdict(text) == "WARN"
 
+    def test_template_alternation_rejected(self):
+        # PR #1965 copilot 7k: axis prompts contain literal template lines
+        # such as `VERDICT: [PASS|WARN|CRITICAL_FAIL]`. Without the trailing
+        # `(?![|A-Z_])` lookahead the pattern matched `PASS` and silently
+        # coerced a template echo to a real verdict. The lookahead rejects
+        # any token followed by `|` (alternation marker).
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("VERDICT: [PASS|WARN|CRITICAL_FAIL]") == "UNKNOWN"
+        assert extract_verdict("Verdict: PASS|WARN") == "UNKNOWN"
+        assert extract_verdict(
+            "Final verdict: [PASS|WARN|CRITICAL_FAIL|REJECTED]"
+        ) == "UNKNOWN"
+
+    def test_template_then_real_verdict_finds_real(self):
+        # An axis prompt may quote the template AND emit the real verdict
+        # later. The template line is rejected; the real bare token wins.
+        from scripts.ai_review_common.verdict import extract_verdict
+        text = (
+            "Format: VERDICT: [PASS|WARN|CRITICAL_FAIL]\n"
+            "\n"
+            "Findings: ...\n"
+            "\n"
+            "VERDICT: WARN"
+        )
+        assert extract_verdict(text) == "WARN"
+
+    def test_token_prefix_collision_rejected(self):
+        # The lookahead also rejects unknown uppercase tokens that share a
+        # known token prefix (e.g., `PASS_THROUGH`, `WARN_LATER`). Without
+        # `(?![|A-Z_])` the alternation would silently match the prefix and
+        # drop the rest as `].?` trailing.
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Verdict: PASS_THROUGH") == "UNKNOWN"
+        assert extract_verdict("Verdict: WARN_LATER") == "UNKNOWN"
+
 
 # ---------------------------------------------------------------------------
 # Failure categorization
