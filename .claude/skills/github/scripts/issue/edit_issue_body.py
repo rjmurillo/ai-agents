@@ -38,6 +38,7 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import error_and_exit, resolve_repo_params  # noqa: E402
+from github_core.validation import assert_valid_body_file  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,10 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     if args.body_file:
-        body_path = Path(args.body_file)
-        if not body_path.exists():
-            error_and_exit(f"Body file not found: {args.body_file}", 2)
-        body = body_path.read_text(encoding="utf-8")
+        # CWE-22 path traversal hardening: assert_valid_body_file rejects
+        # symlinks and paths outside the repo root. Matches other GitHub
+        # skill scripts (PR #1965 copilot review cluster I).
+        assert_valid_body_file(args.body_file)
+        body = Path(args.body_file).read_text(encoding="utf-8")
     else:
         body = args.body
 

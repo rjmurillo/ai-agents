@@ -69,7 +69,7 @@ build/
 
 tests/
   lib/
-    test_ai_review_common.py
+    test_ai_review.py
   build_scripts/
     test_generate_pr_quality_prompts.py
   hooks/
@@ -100,7 +100,7 @@ tests/
 
 **Initial content:** Seeded verbatim from `.github/prompts/pr-quality-gate-{role}.md` at migration time. The migration task is TASK-008-01.
 
-### Verdict Merge Module (`.claude/lib/ai_review_common.py`)
+### Verdict Merge Module (`.claude/lib/ai_review_common/`)
 
 **Purpose:** Single authoritative implementation of verdict merge rules and emoji mapping.
 
@@ -260,7 +260,7 @@ drift-check:
 - Collect verdict token from `Output Schema` fields for each axis.
 - Chain 3 skill invocations: `Skill(skill="code-qualities-assessment")`, `Skill(skill="golden-principles")`, `Skill(skill="taste-lints")`.
 - Collect verdict token from each skill (default `UNKNOWN` if skill crashes or returns no verdict).
-- Merge all 9 verdicts via `merge_verdicts` from `.claude/lib/ai_review_common.py`.
+- Merge all 9 verdicts via `merge_verdicts` from `.claude/lib/ai_review_common/`.
 - Output findings table and merged verdict with emoji.
 
 **Findings table format:**
@@ -296,7 +296,7 @@ Final verdict: [X] CRITICAL_FAIL
 | Canonical SoR location | `.claude/review-axes/` | Ships with `.claude/` convention; vendored installs get it automatically |
 | Generator language | Python 3.14 | ADR-042 Python-first; no new bash scripts |
 | Atomic write | tmp + fsync + rename | Prevents corrupt output on crash; POSIX rename is atomic |
-| Verdict merge location | `.claude/lib/ai_review_common.py` | Replaces deleted `AIReviewCommon.psm1`; Python per ADR-042 |
+| Verdict merge location | `.claude/lib/ai_review_common/` | Replaces deleted `AIReviewCommon.psm1`; Python per ADR-042 |
 | Drift enforcement | pre-push (bypassable) + CI job (not bypassable) | Defense in depth; pre-push = fast feedback; CI = backstop |
 | `/review` axis loading | Runtime file read from `.claude/review-axes/` | No build step required at review time; works in vendored install |
 | 3 extra skill axes | Chained via `Skill()` after canonical axes | Independent lifecycle; not duplicated in CI (CI-counterpart: no) |
@@ -341,7 +341,7 @@ Final verdict: [X] CRITICAL_FAIL
 
 | Test file | What it covers |
 |-----------|----------------|
-| `tests/lib/test_ai_review_common.py` | All `merge_verdicts` combinations, all `get_verdict_emoji` tokens, 100% coverage |
+| `tests/lib/test_ai_review.py` | All `merge_verdicts` combinations, all `get_verdict_emoji` tokens, 100% coverage |
 | `tests/build_scripts/test_generate_pr_quality_prompts.py` | Idempotency, partial-write recovery, schema validation (filename regex, missing frontmatter), NO-REGEN sentinel, exit codes |
 | `tests/hooks/test_drift_check.py` | Pre-push drift step positive (no diff, exit 0) and negative (diff present, unified diff emitted, exit 1) |
 | `tests/integration/test_vendored_install.py` | Fresh-checkout with only `.claude/` subtree; `/review` completes successfully |

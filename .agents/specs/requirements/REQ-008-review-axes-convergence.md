@@ -69,8 +69,8 @@ SO THAT generation is idempotent (zero diff on re-run against an already-up-to-d
 - [ ] Generator emits `key=value` lines to stdout for each processed role (e.g., `role=analyst status=ok`).
 - [ ] Generator exits 0 on full success, 1 on content/logic error, 2 on config/missing-canonical error.
 - [ ] Generator opens all output files in LF-only mode (`open(..., "w", newline="\n")`) to prevent platform-dependent line-ending divergence. A test round-trips a CRLF-terminated canonical file through the generator and asserts the output has LF-only line endings.
-- [ ] Generator accepts `--no-regen` sentinel (or equivalent) to skip files marked with a `NO-REGEN` comment, consistent with `generate_commands.py` precedent.
-- [ ] Filename validation: canonical filenames must match regex `^[a-z][a-z0-9_-]*\.md$`; non-matching files are skipped with a logged warning, not an error.
+- [ ] Filename validation: canonical filenames must match regex `^[a-z][a-z0-9_-]*\.md$`; non-matching files cause a config-error exit (2). This catches typos at write time rather than silently skipping, matching the strictness of the canonical-source contract. Spec amended PR #1965 (cluster H): the original "skipped with a logged warning" was YAGNI carry-over from a different generator with a different threat model.
+- [ ] NO-REGEN sentinel support is NOT required for this generator: every canonical file is intended to be regenerated on every run. The `generate_commands.py` precedent the original spec cited handles a different use case (commands map to authored skills that may have manual edits). Spec amended PR #1965 (cluster H).
 - [ ] Generator contains no `eval`, `exec`, `shell=True`, or subprocess calls; pure Python string operations only.
 
 ### Rationale

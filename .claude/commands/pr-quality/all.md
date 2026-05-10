@@ -63,7 +63,7 @@ Generate consolidated report in EXACTLY this format. Do not add preambles or exp
 | ⚙️ DevOps | [verdict] | [emoji] | [summary] |
 | 🗺️ Roadmap | [verdict] | [emoji] | [summary] |
 
-**FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL]
+**FINAL VERDICT**: [PASS|WARN|UNKNOWN|CRITICAL_FAIL]
 
 **Emoji Mapping** (canonical: `.claude/lib/ai_review_common/issue_triage.py:get_verdict_emoji`):
 
