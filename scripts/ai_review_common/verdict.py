@@ -133,7 +133,8 @@ def merge_verdicts(verdicts: list[str]) -> str:
 # downgraded to UNKNOWN.
 _EXTRACT_VERDICT_PATTERN = re.compile(
     r"(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*"
-    r"\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|UNKNOWN)\]?",
+    r"\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|"
+    r"NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)\]?",
 )
 
 

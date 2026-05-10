@@ -815,7 +815,10 @@ jobs:
           # UNKNOWN added in #1934: a skill crash or unparseable verdict surfaces as UNKNOWN.
           # Per REQ-008-05 UNKNOWN must "force explicit attention"; treat it as blocking
           # so a silent skill failure cannot pass the gate.
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW', 'UNKNOWN')
+          # NON_COMPLIANT added in PR #1965 (devin BB6): NON_COMPLIANT is in FAIL_VERDICTS
+          # in scripts/ai_review_common/verdict.py; the workflow gate must match so a
+          # NON_COMPLIANT spec-validation verdict actually blocks merge.
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW', 'NON_COMPLIANT', 'UNKNOWN')
           $failedAgents = @()
           $missingVerdicts = @()
 

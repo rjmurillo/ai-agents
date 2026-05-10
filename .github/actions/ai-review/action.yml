@@ -835,7 +835,7 @@ runs:
 
         # Validate verdict is a known token
         case "$verdict" in
-          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL)
+          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL|NEEDS_REVIEW)
             # Valid verdict token - use as-is
             ;;
           *)
