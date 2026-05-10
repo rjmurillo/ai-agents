@@ -1,0 +1,159 @@
+{
+  "session": {
+    "number": 1830,
+    "date": "2026-05-10",
+    "branch": "feat/issue-1939-orphan-ref-validator",
+    "startingCommit": "5c472934",
+    "objective": "Resume skill-catalog triage post PR 1942 merge, implement orphan-ref-validator skill issue 1939"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions called; project ai-agents activated at /home/richard/src/GitHub/rjmurillo/ai-agents3"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena Instructions Manual read via initial_instructions tool"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/handoffs/2026-05-10-skill-catalog-triage-pr-1942-merged.md read; priority: #1939 -> #1947 -> #1934"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/ executed; 30+ skills confirmed present"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory Serena memory read; skill-first mandate confirmed"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read; Python-first (ADR-042), no bash, PowerShell grandfathered"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory index loaded; 400+ memories available; usage-mandatory read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/issue-1939-orphan-ref-validator"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -b feat/issue-1939-orphan-ref-validator"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status: clean, on feat/issue-1939-orphan-ref-validator from main at 5c472934"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "5c472934"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionEnd items populated and validated against scripts/validate_session_json.py"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/handoffs/2026-05-10-skill-catalog-triage-pr-1942-merged.md staged unchanged for predecessor session reference"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-triage-eval-2026-05-09 memory referenced; orphan-ref-validator implementation observations captured in this session log workLog"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 executed on touched .md files; 0 errors reported"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commits per ADR-008 across spec artifacts, skill core, ignore directives, marketplace fix, build wiring; commit SHAs captured in endingCommit field"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest .claude/skills/orphan-ref-validator/tests/ reports 34 passed; python3 .claude/skills/orphan-ref-validator/scripts/scan.py exits 0 with VERDICT: PASS"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "TASK-008 milestones M1 through M5 closed in spec; PR2 milestones F1, F2 deferred per REQ-008 wedge plan"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Reflection deferred to /retro at session close; not blocking"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": 1,
+      "action": "Authored REQ-008, DESIGN-008, TASK-008 spec artifacts and INTERVIEW-orphan-ref-validator capturing PR1 wedge scope: AC1, AC2, AC4, AC5, AC6, AC7, AC9 subset"
+    },
+    {
+      "step": 2,
+      "action": "Implemented .claude/skills/orphan-ref-validator/ with scripts/scan.py and tests/test_scan.py; 34 tests pass"
+    },
+    {
+      "step": 3,
+      "action": "Self-test on source repo (TASK-008-07) surfaced false positives in ADRs and docs/. Iteratively refined: regex tightening (require trailing alphanumeric), denylist expansion (model IDs, frontmatter fields, eval verdicts, git hooks, PowerShell/npm modules), opt-in flags --include-adrs and --include-skill-descriptions, exclude-dir-names for references/templates/__pycache__, file-scope <!-- orphan-ref-ignore-file --> directive, line-scope <!-- orphan-ref-ignore --> directive, glob pattern support in target paths"
+    },
+    {
+      "step": 4,
+      "action": "Default scope decision: specs + evals + manifests by default; ADRs and skill descriptions opt-in. Documented in DESIGN-008 with rationale (ADRs reference proposed/deleted entities by name; skill descriptions have widespread preexisting drift)"
+    },
+    {
+      "step": 5,
+      "action": "Applied file-scope ignore directives to historical specs (REQ-007, TASK-007, DESIGN-007 for M1 deletion; REQ-003 for plugin toolkit names; mcp-integration-overview, agent-orchestration-mcp-spec, session-state-mcp-spec, skill-catalog-mcp-spec for proposed memory entities)"
+    },
+    {
+      "step": 6,
+      "action": "Applied line-scope ignore directives to specific lines in REQ-002, REQ-007, REQ-008, TASK-008, INTERVIEW-1884, DESIGN-008 where individual references are intentional"
+    },
+    {
+      "step": 7,
+      "action": "Fixed real orphan: .claude-plugin/marketplace.json count claim from 23 agents/23 commands/67 skills to actual 25 agents/13 commands/68 skills"
+    },
+    {
+      "step": 8,
+      "action": "Wired orphan-ref-validator as fourth Mandatory Exit Gate in .claude/commands/build.md with VERDICT: CRITICAL_FAIL blocking semantics"
+    },
+    {
+      "step": 9,
+      "action": "Final self-test: 70 files scanned, 71 refs checked, 0 findings, VERDICT: PASS, exit code 0"
+    }
+  ],
+  "endingCommit": "TBD-populated-after-final-commit",
+  "nextSteps": [
+    "PR2 follow-up: implement script-path detection AC3 broadly; wire /test Gate 5 AC8",
+    "Track preexisting orphans surfaced in --include-adrs and --include-skill-descriptions modes via separate cleanup issue",
+    "Move to issue #1947 (M3-prereq ADR for memory decomposition) per handoff priority"
+  ]
+}

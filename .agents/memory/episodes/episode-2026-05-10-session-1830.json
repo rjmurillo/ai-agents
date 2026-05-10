@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-05-10-session-1830",
+  "session": "2026-05-10-session-1830",
+  "timestamp": "2026-05-10T06:52:11.000092+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-10T06:52:10.996863+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"npx markdownlint-cli2 executed on touched .md files; 0 errors reported\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-10T06:52:10.996863+00:00",
+      "type": "test",
+      "content": "\"action\": \"Implemented .claude/skills/orphan-ref-validator/ with scripts/scan.py and tests/test_scan.py; 34 tests pass\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-10T06:52:10.996863+00:00",
+      "type": "error",
+      "content": "\"action\": \"Wired orphan-ref-validator as fourth Mandatory Exit Gate in .claude/commands/build.md with VERDICT: CRITICAL_FAIL blocking semantics\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 0
+  },
+  "lessons": []
+}
