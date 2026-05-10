@@ -142,6 +142,11 @@
       "timestamp": "2026-05-10T04:00:00Z",
       "action": "M2 commit 2A drafted",
       "detail": "Inserted Step 0.5 scaffold into .claude/commands/spec.md between Step 0 closing rule (line 140) and Step 1 numbered list (now line 267). Covers AC-01 through AC-08: heading order, ProvisionalTier mapping tables, topic extraction with 4-step normalization, 3-skill invocation sequence, depth-table for knowledge-graph, degradation rules, entity adjudication with auto-mode and human-mode thresholds, PriorArtBlock 3-subsection schema. Includes guard string <!-- step0.5:incomplete-without-2b --> for AC-12 false-positive prevention until 2B lands."
+    },
+    {
+      "timestamp": "2026-05-10T05:00:00Z",
+      "action": "M2 commit 2B drafted",
+      "detail": "Added halt criteria section (H6-H11), step0_5-halt block format (5 fields, info-string, parser contract), supplemental Phase 5 hook with phases_needed formula, STEP-0.5-METRICS.md tally directive with examples and archival policy. Removed <!-- step0.5:incomplete-without-2b --> guard string. M2 complete; spec.md grew from 199 to ~340 lines."
     }
   ],
   "endingCommit": "",

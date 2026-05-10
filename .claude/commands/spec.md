@@ -141,8 +141,6 @@ If any criterion fires, the gate is loosened or removed in a follow-up PR.
 
 ### Step 0.5: Memory-First Gate (blocking, runs after Step 0)
 
-<!-- step0.5:incomplete-without-2b -->
-
 After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The memory skill at `.claude/skills/memory/SKILL.md` line 104 declares the Memory-First Gate as BLOCKING; this section wires it into `/spec`.
 
 The gate composes three skills in sequence: `chestertons-fence` (frame: do not change without understanding why), `memory` (point-search prior decisions), `exploring-knowledge-graph` (multi-hop traversal of connected entities). Each answers a distinct question; the three layered together form the "Prior Art / Constraints" output that Step 6 carries into the PRD as its first section.
@@ -261,6 +259,80 @@ The gate emits a Markdown block embedded into the PRD as its first section, name
 ```
 
 This block is the input to Step 9 check 9d, which verifies that at least one subsection has either evidence content or a justified coverage note.
+
+#### Step 0.5 halt criteria
+
+Halt triggers fire BEFORE the PriorArtBlock is emitted to the PRD. When any halt fires, the gate emits a machine-readable halt block (defined below) and STOPs. Do not proceed to Step 1.
+
+| ID | Trigger |
+|---|---|
+| H6 | Spec proposes removing an ADR constraint and memory search returned no result for the constraint name. |
+| H7 | Spec proposes bypassing a documented protocol and memory search returned no result for the protocol name plus "why". |
+| H8 | Spec proposes deleting more than 100 lines of existing code and memory search returned no result for the component plus "purpose". |
+| H9 | Spec proposes refactoring a component flagged complex (cyclomatic > 10) and memory search returned no result for the component plus "edge case". |
+| H10 | Spec proposes changing behavior of a validator, linter, hook, or shared infrastructure component without prior-art citation in PriorArtBlock. |
+| H11 | Adjudicated blast-radius entities meet or exceed the threshold (human mode: 2; auto mode: 3). |
+
+H11 is the most common trigger; the H6-H10 set encodes Memory-First Gate's documented BLOCKING conditions (`.claude/skills/memory/SKILL.md` lines 78-85).
+
+#### Step 0.5 halt block format
+
+Every halt MUST emit a fenced code block with info-string `step0_5-halt` containing exactly five `key: value` lines.
+
+````
+```step0_5-halt
+trigger: H11
+check: AC-09 blast-radius adjudication
+evidence: 3 unmatched entities marked blast-radius (entity-a, entity-b, entity-c)
+test_failed: blast-radius count >= auto-mode threshold (3)
+deferral: Revise Step 0 Q4 to name blast-radius entities or add explicit out-of-scope entries; then re-run Step 0.5.
+```
+````
+
+Field semantics:
+
+1. `trigger`: one of `H6`, `H7`, `H8`, `H9`, `H10`, `H11`.
+2. `check`: short name of the failed check (typically references the AC ID, e.g. `AC-09 blast-radius adjudication`).
+3. `evidence`: factual record of what triggered the halt (matched entity names, search query that returned no result, etc.); single line, escape newlines as `\n`.
+4. `test_failed`: name the rule that was violated.
+5. `deferral`: a single-line instruction telling the proposer how to unblock and re-run.
+
+Free-form prose halts that omit the `step0_5-halt` info-string are non-conforming and SHALL be re-emitted in this format. Downstream callers (orchestrators, review skills, CI gates) parse this block by its info-string. The Step 0.5 halt block is structurally identical to Step 0's `step0-halt` block (same five fields) except for the info-string and the `check` field replacing `question`.
+
+#### Step 0.5 supplemental Phase 5 hook (cross-step)
+
+Step 3 (Tier classification) may set the actual tier higher than ProvisionalTier. When the actual tier requires more knowledge-graph phases than were already run, run the additional phases as a supplemental traversal and append the results to PriorArtBlock as a `### Supplemental (Phase N)` sub-block. Do NOT replace the original subsections.
+
+Trigger formula:
+
+```
+phases_needed(T) = 2  if T <= 2
+phases_needed(T) = 4  if T == 3
+phases_needed(T) = 5  if T >= 4
+
+run_supplemental = (actual_tier > provisional_tier) AND (phases_needed(actual_tier) > phases_run(provisional_tier))
+```
+
+Example: ProvisionalTier was 2 (ran Phases 1-2 shallow). Step 3 classifies actual tier as 4. `phases_needed(4) = 5` and `phases_run(2) = 2`, so run Phases 3-5 as supplemental and append `### Supplemental (Phase 5)` listing the new entity-linked memories surfaced. The original `### Connected context from exploring-knowledge-graph` subsection is preserved unchanged; the supplemental sub-block sits beneath it.
+
+#### Step 0.5 metrics tally
+
+After every Step 0.5 evaluation (whether pass or halt), append one line to `.agents/sessions/STEP-0.5-METRICS.md`. Create the file lazily if absent, with header line `# Step 0.5 Metrics (one line per /spec invocation)`. Each tally line:
+
+```
+<ISO-8601 timestamp> | <pass|fail> | <halt-trigger-or-none> | <halt-check-or-none>
+```
+
+Examples:
+
+```
+2026-05-10T04:30:00Z | pass | none | none
+2026-05-10T05:15:00Z | fail | H11 | AC-09 blast-radius adjudication
+```
+
+Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria.
+
+**Archival policy**: same cadence as Step 0. After each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate: rename `.agents/sessions/STEP-0.5-METRICS.md` to `.agents/sessions/STEP-0.5-METRICS-YYYYMMDD.md` (review date) and start a fresh file with the same header. The active file SHALL NOT exceed 100 entries before rotation.
 
 ---
 
