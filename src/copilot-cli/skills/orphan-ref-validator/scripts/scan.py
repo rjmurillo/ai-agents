@@ -65,7 +65,51 @@ MAX_FILE_BYTES = 5 * 1024 * 1024
 
 SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
 SCRIPT_REF_RE = re.compile(r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py)`")
-COUNT_CLAIM_RE = re.compile(r"\b(\d+)\s+(skills|agents|commands|hooks)\b", re.IGNORECASE)
+
+# Mirrors COUNT_PATTERN and LABEL_MAP from
+# build/scripts/validate_marketplace_counts.py (canonical). Per
+# .claude/rules/canonical-source-mirror.md, the canonical contract is:
+#
+#     COUNT_PATTERN = re.compile(
+#         r"(\d+)\s+"
+#         r"(specialized\s+agent\s+definition"
+#         r"|agent\s+definition"
+#         r"|agent"
+#         r"|slash\s+command"
+#         r"|lifecycle\s+hook"
+#         r"|reusable\s+skill)"
+#         r"s?"
+#     )
+#     LABEL_MAP = {
+#         "specialized agent definition": "agent",
+#         "agent definition": "agent",
+#         "agent": "agent",
+#         "slash command": "slash command",
+#         "lifecycle hook": "lifecycle hook",
+#         "reusable skill": "reusable skill",
+#     }
+#
+# Stricter/looser/different than canonical: same pattern source bytes;
+# orphan-ref-validator does not implement the canonical's --fix path or
+# YAML-driven per-plugin exclude resolution. Detection only.
+COUNT_CLAIM_RE = re.compile(
+    r"(\d+)\s+"
+    r"(specialized\s+agent\s+definition"
+    r"|agent\s+definition"
+    r"|agent"
+    r"|slash\s+command"
+    r"|lifecycle\s+hook"
+    r"|reusable\s+skill)"
+    r"s?"
+)
+COUNT_LABEL_MAP = {
+    "specialized agent definition": "agent",
+    "agent definition": "agent",
+    "agent": "agent",
+    "slash command": "slash command",
+    "lifecycle hook": "lifecycle hook",
+    "reusable skill": "reusable skill",
+}
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
 
@@ -130,7 +174,13 @@ def _is_secret_path(path: Path) -> bool:
 
 
 def _walk_targets(target: Path) -> Iterable[Path]:
-    """Yield candidate files under target (or just the target if it is a file)."""
+    """Yield candidate files under target (or just the target if it is a file).
+
+    Recurses with ``iterdir`` and prunes ``EXCLUDE_DIR_NAMES`` at directory
+    level rather than ``rglob('*')`` + post-filter, so excluded subtrees
+    (``node_modules``, ``.git``, ``references``, ``templates``,
+    ``__pycache__``) are never entered.
+    """
     if target.is_file():
         if _is_secret_path(target):
             return
@@ -139,25 +189,49 @@ def _walk_targets(target: Path) -> Iterable[Path]:
             return
         yield target
         return
-    for path in target.rglob("*"):
-        if not path.is_file():
-            continue
-        if path.suffix not in SCAN_FILE_SUFFIXES:
-            continue
-        if _is_secret_path(path):
-            continue
-        if any(part in EXCLUDE_DIR_NAMES for part in path.parts):
-            continue
-        if path.stat().st_size > MAX_FILE_BYTES:
-            LOGGER.warning("skipping %s: exceeds %d bytes", path, MAX_FILE_BYTES)
-            continue
-        yield path
+    yield from _iter_dir_pruned(target)
 
 
-def enumerate_skills(repo_root: Path) -> set[str]:
+def _iter_dir_pruned(directory: Path) -> Iterable[Path]:
+    """Walk ``directory`` recursively, pruning excluded directory names."""
+    try:
+        entries = list(directory.iterdir())
+    except (OSError, PermissionError) as exc:
+        LOGGER.warning("could not iterate %s: %s", directory, exc)
+        return
+    for entry in entries:
+        if entry.is_dir():
+            if entry.name in EXCLUDE_DIR_NAMES:
+                continue
+            yield from _iter_dir_pruned(entry)
+            continue
+        if not entry.is_file():
+            continue
+        if entry.suffix not in SCAN_FILE_SUFFIXES:
+            continue
+        if _is_secret_path(entry):
+            continue
+        try:
+            size = entry.stat().st_size
+        except OSError as exc:
+            LOGGER.warning("could not stat %s: %s", entry, exc)
+            continue
+        if size > MAX_FILE_BYTES:
+            LOGGER.warning("skipping %s: exceeds %d bytes", entry, MAX_FILE_BYTES)
+            continue
+        yield entry
+
+
+def enumerate_skills(repo_root: Path) -> set[str] | None:
+    """Return the set of skill names found at ``.claude/skills/<name>/SKILL.md``.
+
+    Returns ``None`` when ``.claude/skills/`` is absent so callers can
+    distinguish "no directory" (undeterminable) from "directory with zero
+    skills" (deterministic count of zero).
+    """
     skills_dir = repo_root / ".claude" / "skills"
     if not skills_dir.exists():
-        return set()
+        return None
     return {
         d.name
         for d in skills_dir.iterdir()
@@ -166,37 +240,58 @@ def enumerate_skills(repo_root: Path) -> set[str]:
 
 
 def enumerate_count(repo_root: Path, kind: str) -> int | None:
-    """Return count for the given resource kind, or None if undeterminable.
+    """Return count for the given canonical label, or ``None`` when absent.
 
-    Mirrors the project-toolkit strategies in
-    ``build/scripts/validate_marketplace_counts.py`` and the per-plugin
-    rules in ``templates/marketplace-counters.yaml``. Per
-    ``.claude/rules/canonical-source-mirror.md``, the canonical contract
-    for ``.claude-plugin/marketplace.json`` is quoted here verbatim:
+    ``kind`` is one of the ``COUNT_LABEL_MAP`` values: ``"agent"``,
+    ``"slash command"``, ``"lifecycle hook"``, ``"reusable skill"``. The
+    legacy short forms ``"skills"``, ``"agents"``, ``"commands"``,
+    ``"hooks"`` are accepted as aliases.
 
-        agent:    md_agents on .claude/agents/, exclude AGENTS.md, CLAUDE.md
-        slash command: commands recursive walk on .claude/commands/
-        lifecycle hook: hooks recursive walk on .claude/hooks/
-        reusable skill: skill_dirs immediate children of .claude/skills/
+    Mirrors the project-toolkit ``.claude-plugin/marketplace.json``
+    strategies declared in ``templates/marketplace-counters.yaml`` and
+    implemented as ``md_agents``, ``commands``, ``hooks``, ``skill_dirs``
+    in ``build/scripts/validate_marketplace_counts.py``. Per
+    ``.claude/rules/canonical-source-mirror.md``:
 
-    Stricter/looser/different than canonical: same algorithm, same exclude
-    sets. The canonical loader applies ``EXCLUDED_DIRS`` pruning that the
-    inline implementation here does not; .claude/ trees do not contain
-    those names, so the counts match in practice.
+        agent:           md_agents(.claude/agents, exclude={AGENTS.md, CLAUDE.md})
+        slash command:   commands(.claude/commands, exclude={CLAUDE.md})
+        lifecycle hook:  hooks(.claude/hooks)
+        reusable skill:  skill_dirs(.claude/skills)
+
+    Stricter/looser/different than canonical:
+
+    - Pruning: canonical uses ``os.walk`` with ``_EXCLUDED_DIRS`` removed
+      from ``dirs``; this uses ``Path.rglob``/``iterdir`` without that
+      prune set. ``.claude/`` trees do not currently contain those names,
+      so counts match in practice; if a future ``node_modules`` ever lands
+      under ``.claude/hooks/`` the canonical will exclude it and this
+      will not.
+    - Per-plugin overrides: canonical reads
+      ``templates/marketplace-counters.yaml`` for plugin-specific
+      ``exclude`` lists; this hard-codes the project-toolkit excludes.
+      Other plugins are not supported here; orphan-ref-validator scans
+      manifests for general count drift, not per-plugin enforcement.
+    - ``--fix``: canonical supports auto-fix; this is detection only.
     """
-    kind = kind.lower()
-    if kind == "skills":
-        return len(enumerate_skills(repo_root))
-    if kind == "agents":
+    canonical = {
+        "agents": "agent",
+        "commands": "slash command",
+        "hooks": "lifecycle hook",
+        "skills": "reusable skill",
+    }.get(kind, kind)
+    if canonical == "reusable skill":
+        skills = enumerate_skills(repo_root)
+        return None if skills is None else len(skills)
+    if canonical == "agent":
         return _count_md_agents(
             repo_root / ".claude" / "agents",
             exclude={"AGENTS.md", "CLAUDE.md"},
         )
-    if kind == "commands":
+    if canonical == "slash command":
         return _count_md_recursive(
             repo_root / ".claude" / "commands", exclude={"CLAUDE.md"}
         )
-    if kind == "hooks":
+    if canonical == "lifecycle hook":
         return _count_py_recursive(repo_root / ".claude" / "hooks")
     return None
 
@@ -253,11 +348,21 @@ def extract_script_refs(text: str) -> Iterable[tuple[int, str]]:
 
 
 def extract_count_claims(text: str) -> Iterable[tuple[int, int, str]]:
+    """Yield ``(lineno, count, canonical_label)`` triples for each count claim.
+
+    ``canonical_label`` is the ``COUNT_LABEL_MAP`` value (one of "agent",
+    "slash command", "lifecycle hook", "reusable skill"); ``enumerate_count``
+    consumes the same labels.
+    """
     for lineno, line in enumerate(text.splitlines(), start=1):
         if _line_has_ignore_directive(line):
             continue
         for match in COUNT_CLAIM_RE.finditer(line):
-            yield lineno, int(match.group(1)), match.group(2).lower()
+            label_text = re.sub(r"\s+", " ", match.group(2).lower())
+            canonical = COUNT_LABEL_MAP.get(label_text)
+            if canonical is None:
+                continue
+            yield lineno, int(match.group(1)), canonical
 
 
 def _path_under(repo_root: Path, path: Path) -> str:
@@ -279,8 +384,15 @@ def scan_file(
     target_path: Path,
     repo_root: Path,
     known_skills: set[str],
+    enforce_counts: bool = False,
 ) -> tuple[list[Finding], int]:
-    """Scan one file. Returns findings and count of refs checked."""
+    """Scan one file. Returns findings and count of refs checked.
+
+    ``enforce_counts`` is reserved for an opt-in single-plugin count_claim
+    enforcement path. PR1 leaves it ``False`` and defers count enforcement
+    to the canonical validator (see header comment in the count_claim
+    block).
+    """
     findings: list[Finding] = []
     refs_checked = 0
     rel = _path_under(repo_root, target_path)
@@ -333,43 +445,52 @@ def scan_file(
                 )
             )
 
+    # Count_claim enforcement is delegated to
+    # build/scripts/validate_marketplace_counts.py per
+    # .claude/rules/canonical-source-mirror.md. The canonical validator
+    # reads templates/marketplace-counters.yaml for per-plugin source
+    # directories and exclude lists, supports auto-fix, and runs in CI.
+    # orphan-ref-validator's regex still extracts claims (refs_checked
+    # increments for visibility) but emits no Findings; ``--enforce-counts``
+    # is the planned PR2 surface for opt-in single-plugin enforcement.
     if is_manifest_file(target_path):
         for lineno, claimed, kind in extract_count_claims(text):
             refs_checked += 1
-            actual = enumerate_count(repo_root, kind)
-            if actual is None:
-                findings.append(
-                    Finding(
-                        kind="count_claim",
-                        severity="warn",
-                        target_file=rel,
-                        line=lineno,
-                        referenced_entity=f"{claimed} {kind}",
-                        recommendation=(
-                            f"Cannot enumerate {kind} (target directory absent). "
-                            "Verify count manually or restore the directory."
-                        ),
-                        expected=str(claimed),
-                        actual=None,
+            if enforce_counts:
+                actual = enumerate_count(repo_root, kind)
+                if actual is None:
+                    findings.append(
+                        Finding(
+                            kind="count_claim",
+                            severity="warn",
+                            target_file=rel,
+                            line=lineno,
+                            referenced_entity=f"{claimed} {kind}",
+                            recommendation=(
+                                f"Cannot enumerate {kind} (target directory absent). "
+                                "Verify count manually or restore the directory."
+                            ),
+                            expected=str(claimed),
+                            actual=None,
+                        )
                     )
-                )
-                continue
-            if actual != claimed:
-                findings.append(
-                    Finding(
-                        kind="count_claim",
-                        severity="critical",
-                        target_file=rel,
-                        line=lineno,
-                        referenced_entity=f"{claimed} {kind}",
-                        recommendation=(
-                            f"Manifest claims {claimed} {kind}; actual count is {actual}. "
-                            "Update manifest or use a count-validating generator."
-                        ),
-                        expected=str(claimed),
-                        actual=str(actual),
+                    continue
+                if actual != claimed:
+                    findings.append(
+                        Finding(
+                            kind="count_claim",
+                            severity="critical",
+                            target_file=rel,
+                            line=lineno,
+                            referenced_entity=f"{claimed} {kind}",
+                            recommendation=(
+                                f"Manifest claims {claimed} {kind}; actual count is {actual}. "
+                                "Update manifest or use a count-validating generator."
+                            ),
+                            expected=str(claimed),
+                            actual=str(actual),
+                        )
                     )
-                )
 
     return findings, refs_checked
 
@@ -393,7 +514,7 @@ def _expand_target(target: Path, repo_root: Path) -> list[Path]:
 def scan(targets: list[Path], repo_root: Path) -> ScanResult:
     """Scan all targets relative to repo_root."""
     repo_root = repo_root.resolve()
-    known_skills = enumerate_skills(repo_root)
+    known_skills = enumerate_skills(repo_root) or set()
     result = ScanResult()
     for target in targets:
         expanded = _expand_target(target, repo_root)
@@ -407,6 +528,15 @@ def scan(targets: list[Path], repo_root: Path) -> ScanResult:
                 LOGGER.warning("skipping %s: outside repo root", resolved)
                 continue
             for path in _walk_targets(resolved):
+                # Re-check containment after symlink resolution. A symlink
+                # inside an allowed directory can point outside the repo.
+                try:
+                    path.resolve().relative_to(repo_root)
+                except ValueError:
+                    LOGGER.warning(
+                        "skipping %s: resolves outside repo root", path
+                    )
+                    continue
                 findings, refs_checked = scan_file(path, repo_root, known_skills)
                 result.findings.extend(findings)
                 result.refs_checked += refs_checked
@@ -415,8 +545,13 @@ def scan(targets: list[Path], repo_root: Path) -> ScanResult:
 
 
 def render_envelope(result: ScanResult, output: str) -> str:
+    # Per ADR-056: Success reflects whether the scan ran successfully, not
+    # whether findings exist. CRITICAL_FAIL is a successful scan that found
+    # blocking issues; the verdict expresses that. Reserve Success=false +
+    # populated Error{Message,Code} for configuration or runtime failures
+    # (which exit code 2).
     envelope = {
-        "Success": result.verdict != "CRITICAL_FAIL",
+        "Success": True,
         "Data": {
             "findings": [f.to_dict() for f in result.findings],
             "verdict": result.verdict,
@@ -490,9 +625,24 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+class RepoRootError(ValueError):
+    """Raised when ``--repo-root`` does not point at an existing directory."""
+
+
 def _resolve_repo_root(supplied: str | None) -> Path:
+    """Return the resolved repository root.
+
+    Raises ``RepoRootError`` if a user-supplied path is missing or not a
+    directory; ``main`` translates that into the ADR-035 configuration
+    error exit code (``2``).
+    """
     if supplied is not None:
-        return Path(supplied).resolve()
+        candidate = Path(supplied).resolve()
+        if not candidate.exists():
+            raise RepoRootError(f"--repo-root path does not exist: {candidate}")
+        if not candidate.is_dir():
+            raise RepoRootError(f"--repo-root path is not a directory: {candidate}")
+        return candidate
     candidate = Path.cwd()
     while candidate != candidate.parent:
         if (candidate / ".git").exists():
@@ -506,8 +656,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=args.log_level, format="%(levelname)s %(name)s: %(message)s")
     try:
         repo_root = _resolve_repo_root(args.repo_root)
-    except Exception as exc:  # noqa: BLE001
-        LOGGER.error("could not resolve repo root: %s", exc)
+    except RepoRootError as exc:
+        LOGGER.error("%s", exc)
         return 2
     if args.targets:
         target_strs = list(args.targets)

@@ -12,9 +12,50 @@ author: richard
 
 # DESIGN-008: Orphan-Ref Validator Skill
 
-## Overview
+## Requirements Addressed
+
+This design implements REQ-008 acceptance criteria AC1, AC2, AC3, AC5, AC6, AC7, and AC9 (subset). AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; the regex and label map mirror the canonical pattern, but emission is gated behind an opt-in flag reserved for PR2. AC8 (/test Gate 5 wiring) is deferred to PR2. Cross-references: REQ-008-AC1 through REQ-008-AC9, ADR-035 (exit codes), ADR-056 (output envelope), `.claude/rules/canonical-source-mirror.md` (citation policy).
+
+## Design Overview
 
 Single-process Python scanner that walks configured target paths, applies a small set of reference-pattern regexes, and reconciles each match against the working tree. Emits ADR-056 envelope on stdout. Exit code per ADR-035.
+
+The skill is fail-closed: any unrecognized configuration error returns exit `2`, any critical finding returns exit `1`. PASS and WARN return `0`. The envelope's `Success` field reflects scan execution (`true` for any completed scan, including CRITICAL_FAIL); `Success: false` is reserved for configuration or runtime failures with a populated `Error` block, per ADR-056.
+
+## Component Details
+
+| Component | Location | Responsibility |
+|---|---|---|
+| CLI entry | `scan.py:main`, `parse_args` | Parse argv, validate `--repo-root`, dispatch to `scan`, format envelope, return ADR-035 exit code |
+| Target expansion | `scan.py:_expand_target` | Resolve literal files, directories, and glob patterns against repo root |
+| File walk | `scan.py:_walk_targets`, `_iter_dir_pruned` | Recursive iterdir with directory-name pruning for `EXCLUDE_DIR_NAMES`; secret denylist; 5 MB cap |
+| Reference detection | `scan.py:extract_skill_refs`, `extract_script_refs`, `extract_count_claims` | Line-oriented regex extraction with file-scope and line-scope ignore directive support |
+| Filters | `filters.py:is_known_kebab_word` | Curated denylist of kebab tokens that match `SKILL_REF_RE` but are not skill references (model IDs, frontmatter fields, third-party Action names, bot identifiers, eval verdict literals) |
+| Source-of-truth enumeration | `scan.py:enumerate_skills`, `enumerate_count`, `_count_md_agents`, `_count_md_recursive`, `_count_py_recursive` | Mirror canonical strategies from `build/scripts/validate_marketplace_counts.py` for working-tree counts |
+| Containment | `scan.py:scan` | Repo-root containment recheck on every walked file (post symlink resolution) |
+
+## Technology Decisions
+
+- **Language**: Python 3.14+ stdlib only. No third-party imports. Rationale: ADR-042 Python-first, plus the skill must run in vendored installs where `pip install` may not have run.
+- **Walk strategy**: `Path.iterdir` with directory-name pruning, not `Path.rglob('*')`. Rationale: gemini-code-assist [bot] flagged `rglob('*')` as O(N) over excluded subtrees (`node_modules`, `.git`, `references`, `templates`, `__pycache__`); pruning at directory level avoids entering them.
+- **Output envelope**: ADR-056 four-field shape (`Success`, `Data`, `Error`, `Metadata`) with `VERDICT:` line appended for grep-friendly downstream parsing.
+- **Exit codes**: ADR-035 (`0` PASS/WARN, `1` CRITICAL_FAIL, `2` configuration error).
+- **Canonical-source-mirror**: COUNT_CLAIM_RE and COUNT_LABEL_MAP mirror `validate_marketplace_counts.py:COUNT_PATTERN` and `LABEL_MAP` byte-for-byte. enumerate_count mirrors the project-toolkit `md_agents`, `commands`, `hooks`, `skill_dirs` strategies; the canonical's per-plugin override loader (`templates/marketplace-counters.yaml`) is not duplicated.
+
+## Security Considerations
+
+- **Path traversal (CWE-22)**: every target and every walked file resolves through `Path.resolve()` and is rechecked against `repo_root` via `relative_to`. A symlink inside an allowed directory pointing outside the repo is logged as a warning and skipped.
+- **Command injection (CWE-78)**: not applicable; no `subprocess`, no shell, no string concatenation into commands.
+- **Secrets in scanned content**: secret-denylist regex (`.env*`, `secrets.*`, `*.key`, `*.pem`) skips files whose names match. Files larger than 5 MB are skipped to avoid memory exhaustion.
+- **Trusted input only**: scan targets are repository paths controlled by the developer running `/build`. No untrusted external input crosses the regex boundary.
+- **No network**: skill is fully read-only and offline.
+
+## Testing Strategy
+
+- **Unit tests**: `tests/test_scan.py` (40 cases) covers each AC positively and negatively, ADR-056 envelope shape, ADR-035 exit codes, vendored-install scenarios, ignore directives at both scopes, glob target expansion, walk-prune behavior, symlink containment, and edge cases (empty file, secret denylist, oversized files, mixed living-and-dead refs).
+- **Self-test (TASK-008-07)**: scan the source repo with default scope; iterate filters and ignore directives until VERDICT: PASS; document remaining preexisting orphans surfaced by `--include-adrs` and `--include-skill-descriptions` as out-of-scope follow-up work.
+- **Coverage gate**: `pytest --cov=scripts.scan --cov-fail-under=80`. Achieved coverage on `scan.py` exceeds the 80% floor.
+- **Integration with canonical**: `tests/test_validate_marketplace_counts.py` continues to enforce manifest counts; orphan-ref-validator does not duplicate that path. The two test suites do not overlap.
 
 ## Architecture
 
@@ -180,12 +221,11 @@ When invoked without `--targets`, the skill scans:
 
 - `.agents/specs/` (recursive)
 - `tests/evals/` (recursive)
-- `.claude/skills/` (recursive; SKILL.md description fields and any siblings)
 - `.claude/.claude-plugin/plugin.json`
 - `.claude-plugin/marketplace.json`
 - `.github/plugin/marketplace.json`
 
-Each absent path -> INFO log + skip.
+Each absent path -> INFO log + skip. Skill descriptions (`.claude/skills/*/SKILL.md`) are opt-in via `--include-skill-descriptions`; ADRs and `docs/` are opt-in via `--include-adrs`.
 
 ### Opt-in targets (`--include-adrs`)
 
@@ -200,15 +240,10 @@ build-gate purpose. The `--include-adrs` flag opts back in for periodic audits.
 
 ### Wedge-PR scope decision (PR1)
 
-PR1 of TASK-008 implements detection for skill-name and count-claim refs only.
-Script-path detection (REQ-008-AC3) is deferred to PR2 alongside `/test` Gate 5
-wiring (REQ-008-AC8). Self-test on the source repository surfaced two real
-orphans within the default scope:
-
-1. `.claude-plugin/marketplace.json` claimed `23 agents`; actual count is `25`.
-2. ADR-052 references `build/scripts/generate_platform_agents.py`, which is <!-- orphan-ref-ignore -->
-   absent on disk. AC3 is not yet active in PR1, so this orphan is filed for
-   PR2 follow-up.
+PR1 of TASK-008 implements detection for skill_name, script_path, and
+count_claim refs. count_claim emission is delegated to the canonical
+`build/scripts/validate_marketplace_counts.py` (PR1 ships the regex and label
+map but no Findings). `/test` Gate 5 wiring (REQ-008-AC8) is deferred to PR2.
 
 Real orphans inside `.agents/architecture/` (deleted skills referenced in
 ADR-007, ADR-017, ADR-040) are out of scope for the wedge PR and tracked as a

@@ -32,7 +32,7 @@ M2 PR (#1946 session-qa-eligibility fold), the next planned PR. Spec/plan files 
 
 Original wedge: skill detecting skill-name orphan refs in plugin manifest + skill descriptions only (subset of AC2 + AC4). 4-6 hours implementation.
 
-**Wedge revision (documented at /spec critic 9c)**: actual ship-with-PR wedge expanded to AC1+AC2+AC4+AC5+AC6+AC7+AC9 (~5h). Rationale: (a) AC1+AC5+AC6 are infrastructure prerequisites without which AC2+AC4 cannot run; (b) AC7 (/build wiring) is required for the skill to actually execute during M2 PR #1946 review; without it M2 author must manually invoke, defeating the unblock. AC3 (script_path detection) and AC8 (/test gate-5 wiring) are deferred to follow-up PR; both add value but do not change the fact that M2 PR's primary risk class is skill-name + count-claim drift, which the revised wedge fully covers.
+**Wedge revision (documented at /spec critic 9c, then expanded again during PR #1979 review)**: actual ship-with-PR wedge is AC1+AC2+AC3+AC5+AC6+AC7+AC9 (~5.5h). Rationale: (a) AC1+AC5+AC6 are infrastructure prerequisites without which AC2+AC3 cannot run; (b) AC7 (/build wiring) is required for the skill to execute during M2 PR #1946 review; (c) AC3 (script_path detection) was originally deferred but ships in PR1 because the regex and detection logic were trivial to author alongside AC2 and the canonical-source-mirror review surfaced the inconsistency between the deferred-list and the implementation. AC4 (count_claim emission) is delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; orphan-ref-validator extracts claims via regex but emits no Findings (deduplication, not divergence). AC8 (/test gate-5 wiring) is deferred to follow-up PR.
 
 ### Q5 Observation
 
@@ -82,8 +82,8 @@ The skill closes this gate by scanning target paths pre-commit and emitting stru
 
 ## Deferred
 
-- AC3 (script_path detection) -- follow-up PR within this skill. Owner: rjmurillo. Trigger: this PR ships and skill scaffold proves stable.
-- AC8 (/test Gate 5 wiring) -- follow-up PR. Owner: rjmurillo. Trigger: AC3 follow-up.
+- AC4 (count_claim Finding emission) -- delegated to `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`. PR1 detects the claim shape (regex + label map mirror canonical) but emits no Findings; an opt-in `--enforce-counts` flag for single-plugin enforcement is available for future PR2 wiring.
+- AC8 (/test Gate 5 wiring) -- follow-up PR. Owner: rjmurillo. Trigger: PR1 ships and skill scaffold proves stable.
 - Wave 2 wiki-import detection (Epic #1933 Child 4) once `docs/skill-reference.md` becomes a scan target.
 - Auto-fix mode (out of scope for v1; track separately if demand surfaces).
 - ADR-051 frontmatter validation (separate concern; `validate_design_review.py` exists).

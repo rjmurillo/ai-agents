@@ -53,7 +53,7 @@ Run, in order:
 1. Skill(skill="code-qualities-assessment") with `--changed-only` against the changed files. Reject the build if any new or modified method scores below the configured thresholds in `.qualityrc.json`.
 2. Skill(skill="taste-lints") against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
 3. Skill(skill="doc-accuracy") with `--diff-base main` so it audits changed comments, docstrings, and prose. Reject the build on any critical or high finding in code or docs you authored.
-4. Skill(skill="orphan-ref-validator") via `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`. Reject the build on `VERDICT: CRITICAL_FAIL`. Catches references to deleted skills, missing scripts, and manifest count drift before they reach review.
+4. Skill(skill="orphan-ref-validator"). Reject the build on `VERDICT: CRITICAL_FAIL`. Catches references to deleted skills, missing scripts, and manifest count drift before they reach review. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`.
 
 If a gate flags an item that is genuinely out of scope for this build, document the rationale in the session log and link to the follow-up issue. "I will fix it in review" is not an acceptable rationale.
 

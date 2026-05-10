@@ -14,23 +14,23 @@ author: richard
 
 ## Milestones
 
-PR1 (this PR, wedge per REQ-008 Q4 revision):
+PR1 (this PR, wedge per REQ-008 Q4 revision; expanded to include AC3 during PR #1979 review):
 
 | ID | Milestone | ACs covered | Blocking | Effort |
 |---|---|---|---|---|
-| M1 | Skill skeleton + scan.py core | AC1, AC2, AC5, AC6 | none | 2h |
-| M2 | Count-claim detection | AC4 | M1 | 1h |
-| M3 | Test suite | AC9 (subset: AC2/AC4/AC5/AC6 only) | M1, M2 | 1h |
+| M1 | Skill skeleton + scan.py core | AC1, AC2, AC3, AC5, AC6 | none | 2.5h |
+| M2 | Count-claim regex extraction (canonical mirror) | AC4 partial (detect, not enforce) | M1 | 1h |
+| M3 | Test suite | AC9 (subset: AC2/AC3/AC4/AC5/AC6) | M1, M2 | 1h |
 | M4 | Wire into /build Mandatory Exit Gates | AC7 | M1-M3 | 0.25h |
 | M5 | Self-test: scan repo, fix surfaced orphans | (validation) | M1-M4 | 0.5h |
 
-PR1 total: ~5h. ACs delivered: AC1, AC2, AC4, AC5, AC6, AC7, AC9 (subset).
+PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC9 (subset).
 
 PR2 (follow-up, deferred per REQ-008):
 
 | ID | Milestone | ACs covered | Effort |
 |---|---|---|---|
-| F1 | Script-path detection (AC3) | AC3 + AC9 extension | 1h |
+| F1 | Optional `--enforce-counts` for single-plugin count_claim emission | AC4 emission (opt-in) | 1h |
 | F2 | Wire into /test Gate 5 (AC8) | AC8 | 0.25h |
 
 PR2 total: ~1.25h.

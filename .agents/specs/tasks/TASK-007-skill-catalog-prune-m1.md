@@ -13,13 +13,13 @@ related:
   - REQ-007
 blocked_by: []
 blocks: []
+assignee: claude-opus-4-7
 ---
+
 <!-- orphan-ref-ignore-file -->
 <!-- M1 deletion task: every skill_name reference (doc-coverage, doc-sync,
      workflow) is intentional historical documentation of the deletion. -->
----
-assignee: claude-opus-4-7
----
+
 
 # TASK-007: Skill Catalog Prune M1
 

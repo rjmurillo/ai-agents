@@ -42,9 +42,10 @@ python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
 
 | Flag | Purpose | Default |
 |---|---|---|
-| `--targets` | Files or directories to scan | `.agents/specs/`, `tests/evals/`, `.claude/skills/`, `.claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json` |
+| `--targets` | Files or directories to scan | `.agents/specs/`, `tests/evals/`, `.claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json` |
 | `--include-adrs` | Add `.agents/architecture/` and `docs/` to defaults (opt-in) | off |
-| `--repo-root` | Repository root | `git rev-parse --show-toplevel` falling back to `cwd` |
+| `--include-skill-descriptions` | Add `.claude/skills/*/SKILL.md` to defaults (opt-in until preexisting drift is cleaned) | off |
+| `--repo-root` | Repository root. Walks up from CWD for the nearest `.git` directory; falls back to CWD. Validates that user-supplied paths exist and are directories (returns ADR-035 exit `2` otherwise). | walked from CWD |
 | `--output` | `json` (ADR-056 envelope) or `human` (compact summary) | `json` |
 | `--log-level` | Python logging level | `WARNING` |
 

@@ -81,12 +81,14 @@ def test_extract_script_refs_full_path_match():
     assert refs == [(1, "build/scripts/foo.py")]
 
 
-def test_extract_count_claims_matches_known_kinds():
-    text = "We have 67 skills and 23 agents."
+def test_extract_count_claims_matches_canonical_labels():
+    text = "Toolkit: 67 reusable skills, 23 agents, 12 slash commands, 30 lifecycle hooks."
     claims = list(extract_count_claims(text))
     kinds = [(c, k) for _, c, k in claims]
-    assert (67, "skills") in kinds
-    assert (23, "agents") in kinds
+    assert (67, "reusable skill") in kinds
+    assert (23, "agent") in kinds
+    assert (12, "slash command") in kinds
+    assert (30, "lifecycle hook") in kinds
 
 
 def test_extract_count_claims_does_not_match_unknown_kinds():
@@ -102,20 +104,25 @@ def test_enumerate_skills_returns_set(fake_repo):
 
 
 def test_enumerate_skills_handles_missing_dir(tmp_path):
-    assert enumerate_skills(tmp_path) == set()
+    assert enumerate_skills(tmp_path) is None
 
 
-def test_enumerate_count_skills(fake_repo):
+def test_enumerate_count_skills_canonical_label(fake_repo):
+    assert enumerate_count(fake_repo, "reusable skill") == 2
+
+
+def test_enumerate_count_skills_legacy_alias(fake_repo):
     assert enumerate_count(fake_repo, "skills") == 2
 
 
-def test_enumerate_count_agents(fake_repo):
-    assert enumerate_count(fake_repo, "agents") == 1
+def test_enumerate_count_agents_canonical_label(fake_repo):
+    assert enumerate_count(fake_repo, "agent") == 1
 
 
 def test_enumerate_count_returns_none_when_dir_missing(tmp_path):
-    assert enumerate_count(tmp_path, "skills") == 0
-    assert enumerate_count(tmp_path, "agents") is None
+    assert enumerate_count(tmp_path, "reusable skill") is None
+    assert enumerate_count(tmp_path, "skills") is None
+    assert enumerate_count(tmp_path, "agent") is None
 
 
 def test_enumerate_count_unknown_kind_returns_none(fake_repo):
@@ -179,28 +186,28 @@ def test_ac3_existing_script_path_yields_no_finding(fake_repo):
 # ---------- AC4: count_claim detection ----------
 
 
-def test_ac4_count_mismatch_yields_critical_finding(fake_repo):
+def test_ac4_count_extraction_runs_but_findings_delegated(fake_repo):
+    """Per canonical-source-mirror.md, count_claim enforcement is delegated
+    to build/scripts/validate_marketplace_counts.py. orphan-ref-validator
+    extracts the claim (refs_checked increments) but emits no Finding."""
     plugin = fake_repo / ".claude-plugin" / "marketplace.json"
-    write(plugin, '{"description": "Catalog has 99 skills total."}')
+    write(plugin, '{"description": "Catalog has 99 reusable skills total."}')
     result = scan([plugin], fake_repo)
-    claims = [f for f in result.findings if f.kind == "count_claim"]
-    assert len(claims) == 1
-    f = claims[0]
-    assert f.severity == "critical"
-    assert f.expected == "99"
-    assert f.actual == "2"
+    assert [f for f in result.findings if f.kind == "count_claim"] == []
+    # Refs are still counted so observability of detection coverage works.
+    assert result.refs_checked >= 1
 
 
 def test_ac4_count_match_yields_no_finding(fake_repo):
     plugin = fake_repo / ".claude-plugin" / "marketplace.json"
-    write(plugin, '{"description": "Catalog has 2 skills."}')
+    write(plugin, '{"description": "Catalog has 2 reusable skills."}')
     result = scan([plugin], fake_repo)
     assert [f for f in result.findings if f.kind == "count_claim"] == []
 
 
 def test_ac4_count_only_in_manifest_files(fake_repo):
     target = fake_repo / "docs" / "prose.md"
-    write(target, "We have 99 skills.\n")
+    write(target, "We have 99 reusable skills.\n")
     result = scan([target], fake_repo)
     assert [f for f in result.findings if f.kind == "count_claim"] == []
 
@@ -347,9 +354,11 @@ def test_exit_code_critical_fail(fake_repo, capsys):
 
 
 def test_exit_code_warn_does_not_block(fake_repo, capsys):
+    """A scan with no critical findings must exit 0. With count_claim
+    enforcement delegated, this manifest produces zero findings -> PASS,
+    which still satisfies the WARN-does-not-block contract."""
     plugin = fake_repo / ".claude-plugin" / "marketplace.json"
-    write(plugin, '{"description": "Catalog has 5 commands."}')
-    (fake_repo / ".claude" / "agents").rename(fake_repo / ".claude" / "agents-removed")
+    write(plugin, '{"description": "Catalog has 5 agents."}')
     rc = main([
         "--targets", str(plugin),
         "--repo-root", str(fake_repo),
@@ -400,3 +409,74 @@ def test_render_envelope_human_lists_findings(fake_repo):
     assert "[critical]" in out
     assert "x.md:4" in out
     assert "VERDICT: CRITICAL_FAIL" in out
+
+
+# ---------- ADR-056: Success contract ----------
+
+
+def test_adr056_success_true_on_critical_fail(fake_repo, capsys):
+    target = fake_repo / "docs" / "bad.md"
+    write(target, "Use `dead-skill`.\n")
+    rc = main([
+        "--targets", str(target),
+        "--repo-root", str(fake_repo),
+        "--output", "json",
+    ])
+    assert rc == 1
+    captured = capsys.readouterr().out.strip().splitlines()
+    body = "\n".join(captured[:-1])
+    payload = json.loads(body)
+    # ADR-056: Success reflects scan execution, not finding presence.
+    assert payload["Success"] is True
+    assert payload["Data"]["verdict"] == "CRITICAL_FAIL"
+    assert payload["Error"] is None
+
+
+# ---------- _resolve_repo_root validation ----------
+
+
+def test_invalid_repo_root_returns_config_error(tmp_path, capsys):
+    bogus = tmp_path / "does-not-exist"
+    rc = main([
+        "--repo-root", str(bogus),
+        "--targets", str(tmp_path / "noop.md"),
+    ])
+    assert rc == 2
+
+
+def test_repo_root_pointing_at_file_returns_config_error(tmp_path, capsys):
+    f = tmp_path / "regular-file"
+    f.write_text("not a directory")
+    rc = main([
+        "--repo-root", str(f),
+        "--targets", str(tmp_path / "noop.md"),
+    ])
+    assert rc == 2
+
+
+# ---------- walk pruning + symlink containment ----------
+
+
+def test_walk_prunes_excluded_directories(fake_repo):
+    docs = fake_repo / "docs"
+    write(docs / "ok.md", "Use `alpha-skill`.\n")
+    nm = docs / "node_modules" / "pkg"
+    write(nm / "trap.md", "Use `dead-skill`.\n")
+    refs = docs / "references"
+    write(refs / "trap.md", "Use `dead-skill`.\n")
+    result = scan([docs], fake_repo)
+    bad = [f for f in result.findings if f.kind == "skill_name"]
+    assert bad == []
+
+
+def test_walk_skips_symlink_resolving_outside_repo(tmp_path, fake_repo, caplog):
+    docs = fake_repo / "docs"
+    write(docs / "ok.md", "Hello\n")
+    outside = tmp_path / "outside"
+    write(outside / "trap.md", "Use `dead-skill`.\n")
+    link = docs / "link.md"
+    link.symlink_to(outside / "trap.md")
+    with caplog.at_level("WARNING"):
+        result = scan([docs], fake_repo)
+    assert [f for f in result.findings if f.kind == "skill_name"] == []
+    assert any("outside repo root" in r.getMessage() for r in caplog.records)
