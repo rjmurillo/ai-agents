@@ -1,14 +1,14 @@
 {
   "id": "episode-2026-05-10-session-1830",
   "session": "2026-05-10-session-1830",
-  "timestamp": "2026-05-10T06:29:22.148265+00:00",
+  "timestamp": "2026-05-10T06:35:47.701106+00:00",
   "outcome": "failure",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-10T06:29:22.144062+00:00",
+      "timestamp": "2026-05-10T06:35:47.696908+00:00",
       "type": "error",
       "content": "\"detail\": \"Appended Check 9d (Prior Art / Constraints elicitation) to Step 9 pre-mortem list. 9d FAIL conditions: (a) section absent; (b) all 3 subsections empty without coverage note; (c) guard-string still present (Step 0.5 partial). Updated Step 9 narrative to reference 9a/9b/9c/9d. 9a/9b/9c bodies untouched per plan.\"",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-10T06:29:22.144062+00:00",
+      "timestamp": "2026-05-10T06:35:47.696908+00:00",
       "type": "test",
       "content": "\"detail\": \"Wrote tests/commands/step0_5_parser.py (compute_provisional_tier + section extractors) and tests/commands/test_spec_step0_5.py (S1-S12 plus parametrized parser cases). 30 tests pass. Fixed 8h-tier contradiction (REQ/DESIGN/spec.md prose): 8h is Tier 3 per mapping; parenthetical aligned. Mirrored Step 0.5 + 9d into Copilot CLI SKILL.md to preserve existing byte-identity tests; this resolves deferred-item early (originally out-of-scope per REQ-008). All 95 tests in tests/commands/ pass.\"",
       "caused_by": [],
@@ -24,9 +24,9 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-10T06:29:22.144062+00:00",
+      "timestamp": "2026-05-10T06:35:47.696908+00:00",
       "type": "test",
-      "content": "\"detail\": \"REQ-008 implementation complete. 9 commits on feat/req-008-step-0-5-memory-first-gate. Spec.md grew from 199 to 339 lines; 12 ACs delivered; 107 tests pass; Copilot CLI mirror landed; plan tracked at .agents/plans/active/req-008-step-0-5-memory-first-gate.md. Ready for /review and /ship.\"",
+      "content": "\"detail\": \"REQ-008 implementation complete. 9 commits on feat/req-008-step-0-5-memory-first-gate. Spec.md grew from 199 to 339 lines; 12 ACs delivered; 107 tests pass; Copilot CLI mirror landed; plan tracked at .agents/plans/active/req-008-step-0-5-memory-first-gate.md. Ready for /review.\"",
       "caused_by": [],
       "leads_to": []
     }

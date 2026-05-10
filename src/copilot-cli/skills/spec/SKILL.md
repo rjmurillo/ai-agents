@@ -152,7 +152,7 @@ The gate composes three skills in sequence: `chestertons-fence` (frame: do not c
 
 Compute ProvisionalTier as `max(hours_tier, entity_tier)` from Step 0 answers. Used to depth-gate the knowledge-graph traversal without re-asking the proposer.
 
-Hours extraction: scan Q4 for a numeric estimate followed by `hour`, `hours`, `h`, `hr`, `day`, `days`, `week`, or `weeks` (case-insensitive). Days multiply by 8; weeks multiply by 40. If no numeric estimate is found, default `hours_tier = 2`.
+Hours extraction: scan Q4 for a numeric estimate followed by `hour`, `hours`, `h`, `hr`, `hrs`, `day`, `days`, `week`, or `weeks` (case-insensitive). Days multiply by 8; weeks multiply by 40. If no numeric estimate is found, default `hours_tier = 2`.
 
 Hours mapping (upper bounds strictly less-than; 8h falls in Tier 3, not Tier 2):
 
@@ -194,7 +194,9 @@ The agent lists the derived topics explicitly in the Step 0.5 preamble before ru
 Invoke the three skills in order. Each emits content into a named subsection of the PriorArtBlock.
 
 1. **chestertons-fence (frame)**. Invoke `Skill(skill="chestertons-fence")` with `target` set to the Q3 system path and `change` set to the Q4 wedge description. The skill runs git archaeology, PR/ADR search, and dependency analysis on the target. Output (PRESERVE | MODIFY | REPLACE | REMOVE recommendation plus rationale) feeds the `### Direct prior art from memory` subsection.
-2. **memory (point search)**. For each topic from the topic-extraction step, run `python3 .claude/skills/memory/scripts/search_memory.py "<query>"` at minimum 3 distinct query variants per topic. Distinct queries share no significant token roots; for example, for topic `spec-pipeline`: `"spec pipeline"`, `"spec command BLOCKING"`, `"clarification gate why"`. Result entries with non-zero matches feed the `### Direct prior art from memory` subsection.
+2. **memory (point search)**. For each topic from the topic-extraction step, invoke `search_memory.py` with at minimum 3 distinct query variants per topic. Distinct queries share no significant token roots; for example, for topic `spec-pipeline`: `spec pipeline`, `spec command BLOCKING`, `clarification gate why`. Result entries with non-zero matches feed the `### Direct prior art from memory` subsection.
+
+   **Invocation contract (security)**: the agent MUST invoke the script via an argv list, not via shell string concatenation. Use `subprocess.run(["python3", ".claude/skills/memory/scripts/search_memory.py", topic], shell=False, ...)` or the equivalent argv-vector primitive. String concatenation of topics into a shell command line is forbidden because Q3+Q4 entity strings are author-controlled and the topic normalization rule does not strip shell metacharacters. CWE-78 (OS Command Injection) applies. If the agent cannot use argv-vector invocation in its environment, it MUST first reject any topic matching `[^\w\-\./ ]` and emit a coverage note explaining the rejection.
 3. **exploring-knowledge-graph (traversal)**. Invoke `Skill(skill="exploring-knowledge-graph")` with the topic list. Depth matches ProvisionalTier:
 
 | ProvisionalTier | Phases run | Effect |

@@ -165,8 +165,13 @@
     },
     {
       "timestamp": "2026-05-10T08:30:00Z",
-      "action": "session end",
-      "detail": "REQ-008 implementation complete. 9 commits on feat/req-008-step-0-5-memory-first-gate. Spec.md grew from 199 to 339 lines; 12 ACs delivered; 107 tests pass; Copilot CLI mirror landed; plan tracked at .agents/plans/active/req-008-step-0-5-memory-first-gate.md. Ready for /review and /ship."
+      "action": "M5 close",
+      "detail": "REQ-008 implementation complete. 9 commits on feat/req-008-step-0-5-memory-first-gate. Spec.md grew from 199 to 339 lines; 12 ACs delivered; 107 tests pass; Copilot CLI mirror landed; plan tracked at .agents/plans/active/req-008-step-0-5-memory-first-gate.md. Ready for /review."
+    },
+    {
+      "timestamp": "2026-05-10T09:00:00Z",
+      "action": "review fixes",
+      "detail": "/review surfaced 1 Critical, 5 Important, 7 Suggestion findings across architecture, security, QA. Applied: Critical (weeks unit added to REQ-008 + spec.md); Sec F1 CWE-78 (argv-vector subprocess mandate); Arch F1 (byte-identity mirror test for Step 0.5); QA F2 (entity_count boundary parametrize); QA F4 (phases_needed and supplemental_phase_5_warranted helpers). Deferred: ADR-060 (Arch F2; multi-agent debate cost), Sec F2/F3/F4 suggestions, QA F1 (LLM-only behavioral check), Arch F3/F4. tests/commands/: 131 pass."
     }
   ],
   "endingCommit": "",
