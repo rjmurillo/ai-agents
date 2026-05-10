@@ -2,6 +2,10 @@
 type: design
 id: DESIGN-008
 title: review-axes-convergence
+status: implemented
+priority: high
+created: 2026-05-09
+updated: 2026-05-10
 related:
   - REQ-008
   - REQ-008-01
@@ -29,7 +33,7 @@ REQ-008-01 through REQ-008-08. Resolves drift between `/review` local evaluation
 
 ## Design Overview
 
-A single canonical source directory (`.claude/review-axes/`) holds one markdown file per review role. A generator (`build/scripts/generate_pr_quality_prompts.py`) derives CI prompt files from it atomically. Drift is enforced at two gates: pre-push hook (bypassable) and CI drift-check job (not bypassable). `/review` loads canonical files at runtime and chains 3 skill invocations, merging all 9 verdicts via `ai_review_common.py`. No new abstraction layer is introduced; the 6/3 family split is explicit in `/review` prose.
+A single canonical source directory (`.claude/review-axes/`) holds one markdown file per review role. A generator (`build/scripts/generate_pr_quality_prompts.py`) derives CI prompt files from it atomically. Drift is enforced at two gates: pre-push hook (bypassable) and CI drift-check job (not bypassable). `/review` loads canonical files at runtime and chains 3 skill invocations, merging all 9 verdicts via `ai_review_common/verdict.py`. No new abstraction layer is introduced; the 6/3 family split is explicit in `/review` prose.
 
 ## File Layout
 
@@ -43,11 +47,11 @@ A single canonical source directory (`.claude/review-axes/`) holds one markdown 
     roadmap.md
     security.md
   lib/
-    ai_review_common.py     # verdict merge module (SoR for merge logic)
+    ai_review_common/verdict.py     # verdict merge module (SoR for merge logic)
   commands/
     review.md               # rewritten /review command
     pr-quality/
-      all.md                # updated citation (ai_review_common.py)
+      all.md                # updated citation (ai_review_common/verdict.py)
 
 .github/
   prompts/                  # derived - never hand-edited
@@ -111,7 +115,7 @@ tests/
 **Interface:**
 
 ```python
-# ai_review_common.py
+# ai_review_common/verdict.py
 # Canonical source: .claude/review-axes/{role}.md Output Schema section
 # Verdict tokens: PASS, WARN, CRITICAL_FAIL, REJECTED, FAIL, UNKNOWN
 

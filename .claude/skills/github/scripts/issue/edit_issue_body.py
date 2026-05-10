@@ -8,7 +8,8 @@ spec/implementation when the spec or design changes during a PR.
 Exit codes (per ADR-035):
     0 - Success
     1 - Invalid parameters / logic error
-    2 - File not found / config error
+    2 - Config/environment error (missing lib dir, body-file not found,
+        path-traversal rejected, gh CLI binary missing, gh CLI timeout)
     3 - External error (API failure)
     4 - Auth error (not authenticated)
 """
@@ -16,6 +17,7 @@ Exit codes (per ADR-035):
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -95,9 +97,18 @@ def main(argv: list[str] | None = None) -> int:
         body,
     ]
 
-    result = subprocess.run(
-        gh_args, capture_output=True, text=True, check=False, timeout=30
-    )
+    try:
+        result = subprocess.run(
+            gh_args, capture_output=True, text=True, check=False, timeout=30
+        )
+    except FileNotFoundError:
+        # gh CLI binary missing: environment failure per ADR-035 exit 2.
+        # PR #1965 cluster Q.
+        error_and_exit("gh CLI not found on PATH", 2)
+    except subprocess.TimeoutExpired:
+        # gh hung past timeout: environment failure (network, rate limit,
+        # auth prompt). Treat as config/env per ADR-035. PR #1965 cluster Q.
+        error_and_exit("gh issue edit timed out after 30s", 2)
 
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
@@ -105,7 +116,18 @@ def main(argv: list[str] | None = None) -> int:
             error_and_exit(f"Auth error: {error_str}", 4)
         error_and_exit(f"Failed to edit issue: {error_str}", 3)
 
-    print(f"issue={args.issue} status=updated repo={owner}/{repo}")
+    # Emit structured JSON to match sibling scripts (new_issue.py,
+    # post_issue_comment.py). PR #1965 cluster R.
+    print(
+        json.dumps(
+            {
+                "issue": args.issue,
+                "status": "updated",
+                "repo": f"{owner}/{repo}",
+            },
+            indent=2,
+        )
+    )
     return 0
 
 

@@ -13,8 +13,11 @@ The wrapper:
 
 EXIT CODES (per ADR-035, mirrors generate_pr_quality_prompts.py):
     0 - clean (no drift)
-    1 - drift detected OR config error from underlying generator
-    2 - wrapper-level config error (generator script missing)
+    1 - drift detected (developer must regenerate and commit)
+    2 - config error: wrapper-level (generator script missing) OR underlying
+        generator config error (canonical dir missing, invalid filename,
+        symlink rejected). Distinguishing 1 from 2 is required for CI to
+        report drift vs broken setup. PR #1965 cluster U.
 
 Refs #1934 (REQ-008-03), #1934 /review devops gate finding F1.
 """

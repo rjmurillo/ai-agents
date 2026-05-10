@@ -119,6 +119,30 @@ def _validate_filename(name: str) -> None:
         )
 
 
+def _validate_required_frontmatter(frontmatter: str, role: str) -> None:
+    """Reject canonical files missing required frontmatter keys.
+
+    PR #1965 cluster T: stripping required keys without first verifying their
+    presence let malformed axis files generate CI prompts with no provenance
+    metadata. The schema contract in REQ-008-01 requires `name`, `role`,
+    `version`, `description`; if any is missing, the file is malformed and
+    must not generate.
+    """
+    required = {"name", "role", "version", "description"}
+    keys: set[str] = set()
+    for line in frontmatter.splitlines():
+        if not line or line[0] in (" ", "\t", "#", "-"):
+            continue
+        if ":" in line:
+            keys.add(line.split(":", 1)[0].strip())
+    missing = required - keys
+    if missing:
+        raise GeneratePromptsError(
+            f"canonical {role}.md missing required frontmatter keys: "
+            f"{sorted(missing)}"
+        )
+
+
 def transform(canonical_text: str, role: str) -> str:
     """Apply the canonical-to-CI transform.
 
@@ -134,8 +158,16 @@ def transform(canonical_text: str, role: str) -> str:
     str
         Transformed CI prompt text. Idempotent: same input always yields
         same output, regardless of time, environment, or git state.
+
+    Raises
+    ------
+    GeneratePromptsError
+        When canonical file is missing required frontmatter keys
+        (`name`, `role`, `version`, `description`). PR #1965 cluster T.
     """
     frontmatter, body = _split_frontmatter(canonical_text)
+    if frontmatter:
+        _validate_required_frontmatter(frontmatter, role)
     if frontmatter:
         stripped = _strip_keys_from_frontmatter(frontmatter, _STRIP_FRONTMATTER_KEYS)
         stripped = stripped.strip()

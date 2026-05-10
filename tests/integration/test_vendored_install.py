@@ -162,16 +162,35 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
         rel = py.relative_to(vendored_root)
 
         for node in ast.walk(tree):
-            # Reject `from scripts.X import ...` and `from .agents.X import ...`.
+            # Reject `from scripts.X import ...` (absolute) and relative
+            # imports like `from ..scripts import ...` or `from ..agents import`.
+            # ast.ImportFrom: node.module never starts with `.`; relative
+            # imports are signaled by node.level > 0. PR #1965 cluster V.
             if isinstance(node, ast.ImportFrom):
-                if node.module and (
-                    node.module == "scripts"
-                    or node.module.startswith("scripts.")
-                    or node.module == ".agents"
-                    or node.module.startswith(".agents.")
+                module_name = node.module or ""
+                # Absolute imports.
+                if (
+                    module_name == "scripts"
+                    or module_name.startswith("scripts.")
                 ):
                     failures.append(
-                        f"{rel}:{node.lineno}: import from {node.module!r} "
+                        f"{rel}:{node.lineno}: import from {module_name!r} "
+                        f"(forbidden in vendored install)"
+                    )
+                # Relative imports targeting a forbidden namespace.
+                if node.level > 0 and module_name in {"scripts", "agents"}:
+                    failures.append(
+                        f"{rel}:{node.lineno}: relative import "
+                        f"(level={node.level}) of {module_name!r} "
+                        f"(forbidden in vendored install)"
+                    )
+                if node.level > 0 and (
+                    module_name.startswith("scripts.")
+                    or module_name.startswith("agents.")
+                ):
+                    failures.append(
+                        f"{rel}:{node.lineno}: relative import "
+                        f"(level={node.level}) of {module_name!r} "
                         f"(forbidden in vendored install)"
                     )
             # Reject `import scripts.X`.
