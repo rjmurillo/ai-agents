@@ -91,7 +91,12 @@ FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from counts import enumerate_count, enumerate_skills, is_manifest_file
+    from counts import (
+        enumerate_count,
+        enumerate_skills,
+        is_manifest_file,
+        reset_count_cache,
+    )
     from envelope import (
         VERSION,
         Finding,
@@ -103,7 +108,12 @@ if __package__ in (None, ""):
     from filters import is_known_kebab_word
     from walking import walk_targets
 else:
-    from .counts import enumerate_count, enumerate_skills, is_manifest_file
+    from .counts import (
+        enumerate_count,
+        enumerate_skills,
+        is_manifest_file,
+        reset_count_cache,
+    )
     from .envelope import (
         VERSION,
         Finding,
@@ -315,7 +325,14 @@ def _expand_target(target: Path, repo_root: Path) -> list[Path]:
 
 
 def scan(targets: list[Path], repo_root: Path) -> ScanResult:
-    """Scan all targets relative to repo_root."""
+    """Scan all targets relative to repo_root.
+
+    Clears the per-process count cache at entry so programmatic use
+    (multiple ``scan()`` calls in the same process) does not see stale
+    enumerations after filesystem mutation. The CLI runs one scan per
+    process so cache reset is also safe there.
+    """
+    reset_count_cache()
     repo_root = repo_root.resolve()
     skills = enumerate_skills(repo_root)
     skill_catalog_present = skills is not None
@@ -437,6 +454,16 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.targets:
         target_strs = list(args.targets)
+        if args.include_adrs:
+            LOGGER.warning(
+                "--include-adrs ignored: --targets specified explicitly. "
+                "Add the ADR paths to --targets if you want to scan them."
+            )
+        if args.include_skill_descriptions:
+            LOGGER.warning(
+                "--include-skill-descriptions ignored: --targets specified explicitly. "
+                "Add the skill paths to --targets if you want to scan them."
+            )
     else:
         target_strs = list(DEFAULT_TARGETS)
         if args.include_adrs:

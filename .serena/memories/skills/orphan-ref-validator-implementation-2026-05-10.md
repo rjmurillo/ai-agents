@@ -4,7 +4,7 @@ Implemented `.claude/skills/orphan-ref-validator/` per REQ-008, DESIGN-008, TASK
 
 ## Wedge Decision
 
-PR1 implements AC1, AC2, AC4, AC5, AC6, AC7, AC9 subset. Script-path detection (AC3) and `/test` Gate 5 wiring (AC8) deferred to PR2. Skill scans for skill-name, script-path, and count-claim references; emits ADR-056 envelope with `VERDICT: PASS|WARN|CRITICAL_FAIL`; exit codes per ADR-035.
+PR1 implements AC1, AC2, AC3, AC5, AC6, AC7, AC9 (47 cases). AC4 emission is delegated to canonical `build/scripts/validate_marketplace_counts.py` per `.claude/rules/canonical-source-mirror.md`; PR1 ships the regex (`COUNT_CLAIM_RE` / `COUNT_LABEL_MAP` mirror canonical byte-for-byte) but does not emit `count_claim` Findings. AC8 (`/test` Gate 5 wiring) deferred to PR2. Skill scans for skill_name and script_path references; emits ADR-056 envelope with `VERDICT: PASS|WARN|CRITICAL_FAIL`; exit codes per ADR-035.
 
 ## Default Scope (intentionally narrow)
 
@@ -34,7 +34,7 @@ Rationale: ADRs and docs reference proposed-but-unimplemented or deleted-by-supe
 
 ## Real Orphan Surfaced
 
-`.claude-plugin/marketplace.json` description claimed `23 agents, 23 slash commands, 35 lifecycle hooks, and 67 reusable skills`. Actual: `25, 13, 35, 68`. Fixed in C5 (commit 8e545bd3).
+`.claude-plugin/marketplace.json` description originally claimed `23 agents, 23 slash commands, 35 lifecycle hooks, and 67 reusable skills`. The first PR1 attempt re-fixed the agent and command counts using a naive `iterdir` enumeration that diverged from the canonical `validate_marketplace_counts.py` (which excludes `AGENTS.md`/`CLAUDE.md` from agents and walks recursively for commands). Pre-push surfaced the divergence; canonical autofix (C8 `8e545bd3`) reverted to the canonical-correct counts: 23 agents, 23 slash commands, 35 lifecycle hooks, 68 reusable skills.
 
 ## Tests
 

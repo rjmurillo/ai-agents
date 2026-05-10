@@ -25,7 +25,7 @@ PR1 (this PR, wedge per REQ-008 Q4 revision; expanded to include AC3 during PR #
 | M4 | Wire into /build Mandatory Exit Gates | AC7 | M1-M3 | 0.25h |
 | M5 | Self-test: scan repo, fix surfaced orphans | (validation) | M1-M4 | 0.5h |
 
-PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC9 (42 test cases).
+PR1 total: ~5.25h. ACs delivered: AC1, AC2, AC3, AC4 (extract-only; emission delegated to canonical), AC5, AC6, AC7, AC9 (47 test cases at PR review round 4; count grows with new ACs).
 
 PR2 (follow-up, deferred per REQ-008):
 

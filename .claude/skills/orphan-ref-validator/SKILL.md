@@ -100,7 +100,7 @@ VERDICT: CRITICAL_FAIL
 ### Phase 2: Walk Files
 
 - For directory targets, recurse and yield files whose suffix matches `.md`, `.json`, `.yaml`, `.yml`.
-- Exclude paths whose any segment is in `EXCLUDE_DIR_NAMES` (`__pycache__`, `.git`, `node_modules`, `references`, `templates`).
+- Exclude paths whose any segment is in `EXCLUDE_DIR_NAMES` (`__pycache__`, `.git`, `node_modules`, `worktrees`, `cache`, `references`, `templates`). The first five mirror canonical `validate_marketplace_counts.py:_EXCLUDED_DIRS`; the last two are added because skill `references/` and `templates/` directories are progressive-disclosure docs that legitimately cite external entities.
 - Exclude files matching the secret denylist and files larger than 5 MB.
 
 ### Phase 3: Detect References
@@ -121,7 +121,7 @@ VERDICT: CRITICAL_FAIL
 
 Success criteria for the skill:
 
-- [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports 34 passed.
+- [ ] `uv run pytest .claude/skills/orphan-ref-validator/tests/ -q` reports all tests passed (currently 47 cases; count grows with new ACs).
 - [ ] `python3 .claude/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
 - [ ] `python3 .claude/skills/orphan-ref-validator/scripts/scan.py --targets /tmp/empty.md` exits 0 with `VERDICT: PASS`.
 - [ ] `python3 .claude/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default targets.
@@ -156,11 +156,11 @@ Invoke directly with `python3 .claude/skills/orphan-ref-validator/scripts/scan.p
 
 | Kind | Pattern | Source of truth |
 |---|---|---|
-| `skill_name` | `` `<kebab>` `` where `<kebab>` matches `[a-z][a-z0-9-]+` | `.claude/skills/<name>/SKILL.md` directories |
+| `skill_name` | `` `<kebab>` `` where `<kebab>` matches `[a-z][a-z0-9]*(?:-[a-z0-9]+)+` (at least one hyphen, no trailing hyphen) | `.claude/skills/<name>/SKILL.md` directories |
 | `script_path` | `` `(build/scripts\|scripts/validation\|scripts)/<path>.py` `` | file existence on disk |
-| `count_claim` | `\b<digits>\s+(skills\|agents\|commands\|hooks)\b` (manifest files only) | working-tree enumeration |
+| `count_claim` | canonical `COUNT_PATTERN` from `validate_marketplace_counts.py` matching `<digits>\s+(specialized\s+agent\s+definition\|agent\s+definition\|agent\|slash\s+command\|lifecycle\s+hook\|reusable\s+skill)s?` (manifest files only) | working-tree enumeration via canonical strategies; **emission delegated to canonical validator in PR1** |
 
-Common kebab-case English phrases (`well-known`, `open-source`, `step-by-step`, etc.) are filtered to reduce false positives. The filter list lives in `scan.py:_is_known_kebab_word`.
+Common kebab-case English phrases (`well-known`, `open-source`, `step-by-step`, etc.) are filtered to reduce false positives. The filter list lives in `filters.py:is_known_kebab_word`.
 
 ### Verdict logic
 
@@ -176,7 +176,7 @@ Each missing target path logs `INFO skipping <path>: not present` and is skipped
 
 ### Path safety
 
-Target paths are resolved with `pathlib.Path.resolve()` and must lie under the repository root. Paths outside the repo are skipped with a `WARNING` log. Files in the secret denylist (`.env*`, `secrets.*`, `*.key`, `*.pem`) are excluded. Files larger than 5 MB are skipped with a `WARNING`.
+Target paths are resolved with `pathlib.Path.resolve()` and must lie under the repository root. Paths outside the repo are skipped with a `WARNING` log. Symlink directories that resolve outside the repo are skipped at recursion entry (CWE-22 / CWE-59 hardening). Files in the secret denylist (`.env*`, `secrets.*`, `*.key`, `*.pem`, `*.pfx`, `*.p12`, `id_rsa(.pub)?`, `id_ed25519(.pub)?`, `id_ecdsa(.pub)?`, `id_dsa(.pub)?`, `.netrc`, `.npmrc`, `.pypirc`, `credentials`) are excluded. Files larger than 5 MB are skipped with a `WARNING`.
 
 ## Failure modes
 
@@ -185,8 +185,10 @@ Target paths are resolved with `pathlib.Path.resolve()` and must lie under the r
 | Missing target path (vendored install) | `INFO` log + skip; not an error |
 | Target file unreadable (permissions) | `WARNING` log + skip; no finding |
 | Manifest with malformed JSON | scanned as text; count claims still extracted |
-| Cannot enumerate count for kind (target dir absent) | `WARN`-severity finding |
-| Symlink loops or oversized files | bounded by Python's `Path.rglob` and the 5 MB cap |
+| Cannot enumerate count for kind (target dir absent) | No finding emitted; PR1 delegates count enforcement to canonical `validate_marketplace_counts.py`. The opt-in `--enforce-counts` flag (PR2) will surface a `WARN`-severity finding here. |
+| Symlink directory pointing outside repo | Skipped at recursion entry; logged as `WARNING` (CWE-22 / CWE-59) |
+| Symlink file pointing outside repo | Skipped post-resolution; logged as `WARNING` |
+| Oversized files (>5 MB) | Skipped; logged as `WARNING` |
 | Unknown count kind | ignored |
 
 ## Examples
