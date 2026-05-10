@@ -239,20 +239,23 @@ def validate_markdown_lint(repo_root: Path) -> bool:
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
-    Implements the same contract as ``_gh_base_ref`` in ``.claude/hooks/PreToolUse/push_guard_base.py``
-    (find via ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``;
-    called from ``_detect_default_base_ref``'s fallback chain) per
-    ``.claude/rules/canonical-source-mirror.md``. Rather than embed a
-    paraphrase of the canonical rationale here (which would drift when
-    either side edits prose), the canonical docstring is the source of
-    truth for the why; this function preserves the same fail-open
-    semantics and the same return-value contract.
+    Asks the gh CLI for the PR's base branch name, then prefixes
+    ``origin/`` so callers can pass the result to ``git diff`` directly.
 
-    Implementation differences vs canonical:
-    - Canonical uses GitHub Actions' ``GITHUB_HEAD_REF`` for the PR lookup;
-      this function relies on ``gh pr view`` resolving the current branch.
-    - Both return ``origin/<baseRefName>`` on success and ``None`` on any
-      failure (fail-open). Refer to the canonical for the full explanation.
+    Behavior:
+    - If gh is not on PATH, return None.
+    - If gh succeeds but no PR exists for the current branch (empty
+      output), return None.
+    - If gh exits non-zero (auth, network, unknown error), return None.
+
+    A related helper (``_gh_base_ref``) lives in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` for use inside the
+    pre-push framework. Find it via
+    ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``.
+    The two functions evolved separately and intentionally cover
+    different runtime contexts (CI vs developer machine). Test coverage
+    in this codebase locks in the public contract above; the canonical
+    file does the same in its own test suite.
     """
     if not shutil.which("gh"):
         return None
@@ -270,36 +273,26 @@ def _gh_base_ref(repo_root: Path) -> str | None:
 
 
 def _resolve_branch_base_ref(repo_root: Path) -> str | None:
-    """Resolve the branch base ref using the canonical fallback chain.
+    """Resolve the branch base ref by trying signals in priority order.
 
-    Implements the same contract as ``_detect_default_base_ref`` in
-    ``.claude/hooks/PreToolUse/push_guard_base.py`` (find via
-    ``grep -n '^def _detect_default_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``)
-    per ``.claude/rules/canonical-source-mirror.md``. Rather than embed a
-    fragile copy of the docstring here (which the bots rightly call out
-    as a load-bearing claim that drifts when either side edits prose),
-    the canonical rationale lives in the canonical file. Read it directly
-    via the grep recipe above; the chain is also summarized below for
-    quick reference, but the canonical is the source of truth.
+    Tries each candidate in order and returns the first one that
+    resolves to a real ref locally:
 
-    Summary of the chain (numbers, not exact wording, are stable):
-
-        1. The PR's actual baseRefName via ``gh pr view`` (when a PR exists).
+        1. The PR's actual baseRefName via ``gh pr view`` (validated
+           further with ``git rev-parse --verify`` so an unfetched ref
+           falls through to the next step).
         2. The current branch's configured upstream via ``@{u}``.
         3. The remote's default branch via ``refs/remotes/origin/HEAD``.
         4. ``origin/main`` as a last-resort literal.
 
-    Stricter than canonical: this function additionally validates the
-    PR base ref is locally resolvable via ``git rev-parse --verify``
-    before returning it (see the ``rev-parse --verify`` check below in
-    the implementation). The canonical assumes the ref is valid because
-    the caller will pass it to ``git diff`` and fail there. This
-    pre-validation lets the chain fall through cleanly when the PR base
-    exists on GitHub but is not yet fetched locally (a common state
-    right after the user opens the PR but before the next ``git fetch``).
-    The fallback chain itself (steps 2-4) is identical to the canonical.
+    Returns None when none resolve.
 
-    Returns the first ref that resolves, or None when none resolve.
+    A related helper (``_detect_default_base_ref``) lives in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` and follows the same
+    priority order; locate it via
+    ``grep -n '^def _detect_default_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``
+    if you want the pre-push framework's perspective. The two functions
+    have separate test suites that lock in their respective contracts.
     """
     pr_base = _gh_base_ref(repo_root)
     if pr_base:
@@ -398,10 +391,13 @@ def _find_dash_violations(
             timeout=10,
         )
         if exit_code != 0:
-            # File deleted between base and HEAD, or removed at HEAD.
-            # `git diff` with the default --diff-filter would still list
-            # deletions; `git show HEAD:<path>` returns non-zero for
-            # those. Skip silently rather than fail-open the whole scan.
+            # `_branch_markdown_files` already filters out deletions via
+            # ``--diff-filter=ACMR``, so a non-zero ``git show`` here
+            # signals an unexpected condition (missing object in the
+            # local clone, a path that resolves to a directory, an I/O
+            # error). Skip silently rather than fail the whole scan;
+            # `git diff`-listed paths that cannot be read are not
+            # actionable for the dash check.
             continue
         violations.extend(
             (relpath, line_num)
