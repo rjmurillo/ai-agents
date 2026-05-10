@@ -15,11 +15,25 @@ _KEYWORD_RULES: list[tuple[re.Pattern[str], str]] = [
 
 
 def get_verdict(output: str) -> str:
-    """Parse verdict from AI output.
+    """Parse verdict from raw AI output (legacy CI pipeline).
 
     Tries explicit ``VERDICT:`` pattern first, then falls back to keyword detection.
+    Empty input or no-match returns ``CRITICAL_FAIL`` as a defensive fail-safe:
+    in the legacy CI path, an AI agent that produces no output has effectively
+    failed catastrophically and the pipeline must block.
 
     Common values: PASS, WARN, FAIL, REJECTED, CRITICAL_FAIL, NEEDS_REVIEW.
+
+    NOTE: The ``CRITICAL_FAIL`` default differs intentionally from
+    ``extract_verdict`` (UNKNOWN on no-match) and ``merge_verdicts`` (UNKNOWN
+    on empty). Three parsers, three contracts:
+
+    - ``get_verdict``: legacy AI-output parser; empty -> CRITICAL_FAIL (fail-safe)
+    - ``extract_verdict``: structured skill-output parser; no-match -> UNKNOWN (neutral)
+    - ``merge_verdicts``: verdict-list aggregator; empty -> UNKNOWN (no info)
+
+    Do not align ``get_verdict`` to UNKNOWN: existing CI callers depend on the
+    block-on-empty behavior and tests pin it (test_ai_review.py:92,95).
     """
     if not output or not output.strip():
         return "CRITICAL_FAIL"

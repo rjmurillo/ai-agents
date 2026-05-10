@@ -85,7 +85,9 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 
 ## Refs
 
-- Spec: `.agents/specs/requirements/REQ-008-review-axes-convergence.md`
 - Verdict module: `.claude/lib/ai_review_common/verdict.py`
-- Generator: `build/scripts/generate_pr_quality_prompts.py`
-- Drift hook: `.githooks/pre-push` (Phase 5b)
+- Canonical axes: `.claude/review-axes/`
+- Skill chain: `.claude/skills/{code-qualities-assessment,golden-principles,taste-lints}/`
+
+(Spec, generator, and drift hook live outside the vendored surface and are
+not referenced from this command body. Vendored installs work without them.)

@@ -219,6 +219,17 @@ class TestMergeVerdicts:
     def test_all_unknown(self):
         assert merge_verdicts(["UNKNOWN", "UNKNOWN", "UNKNOWN"]) == "UNKNOWN"
 
+    def test_fail_alone_returns_critical_fail(self):
+        # FAIL is in FAIL_VERDICTS; must collapse to CRITICAL_FAIL.
+        assert merge_verdicts(["FAIL"]) == "CRITICAL_FAIL"
+
+    def test_needs_review_alone_returns_critical_fail(self):
+        # NEEDS_REVIEW added in Issue #470: AI ambiguity treated as blocking.
+        assert merge_verdicts(["NEEDS_REVIEW"]) == "CRITICAL_FAIL"
+
+    def test_needs_review_with_pass(self):
+        assert merge_verdicts(["PASS", "NEEDS_REVIEW", "PASS"]) == "CRITICAL_FAIL"
+
 
 class TestExtractVerdict:
     def test_simple_verdict_line(self):
@@ -262,6 +273,21 @@ class TestExtractVerdict:
     def test_first_match_wins(self):
         from scripts.ai_review_common.verdict import extract_verdict
         assert extract_verdict("Verdict: PASS\nVerdict: WARN") == "PASS"
+
+    def test_matches_inside_fenced_code_block(self):
+        # Pinned behavior: extract_verdict does NOT skip fenced code blocks.
+        # A skill outputting an example `Verdict: PASS` inside a markdown
+        # fence will have that example parsed as the verdict if it appears
+        # before the real verdict line.
+        # Per /review contract, skills emit the canonical Verdict marker as
+        # the FINAL line, so first-match-wins works in practice. This test
+        # pins the limitation so a future change cannot silently drop it.
+        from scripts.ai_review_common.verdict import extract_verdict
+        text = "```text\nVerdict: PASS\n```\n\nReal output here.\n\nVerdict: WARN"
+        assert extract_verdict(text) == "PASS", (
+            "extract_verdict matches first occurrence regardless of fence "
+            "context. Skills must emit Verdict as final line."
+        )
 
 
 # ---------------------------------------------------------------------------

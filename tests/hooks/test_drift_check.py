@@ -114,11 +114,16 @@ def test_generator_module_callable_from_python() -> None:
 
 
 def test_generator_dry_run_clean_state_returns_zero() -> None:
-    """End-to-end smoke: invoking the generator dry-run on the live tree
-    returns 0 (no drift) given the synced state.
+    """End-to-end smoke: the generator dry-run on the live tree returns 0.
 
-    This verifies the hook will pass in the steady state. Drift behavior
-    is covered by tests/build_scripts/test_generate_pr_quality_prompts.py.
+    Drift in the steady state is a regression: it means the canonical files
+    and the generated CI prompts have diverged. The test asserts unconditionally
+    so the failure surfaces; do NOT skip-on-drift (a drifted tree is exactly
+    what the drift check is supposed to catch, and a test that silently passes
+    on drift defeats its purpose).
+
+    Drift behavior under controlled conditions is covered by
+    tests/build_scripts/test_generate_pr_quality_prompts.py.
     """
     import sys
     result = subprocess.run(
@@ -129,10 +134,11 @@ def test_generator_dry_run_clean_state_returns_zero() -> None:
         timeout=30,
         check=False,
     )
-    # 0 = clean, 1 = drift, 2 = config error.
-    assert result.returncode in (0, 1), (
-        f"unexpected generator exit {result.returncode}: "
-        f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    assert result.returncode == 0, (
+        f"generator dry-run reports drift in the steady state "
+        f"(exit {result.returncode}). This means canonical and generated "
+        f"have diverged in the working tree. "
+        f"Run `python3 build/scripts/generate_pr_quality_prompts.py` to fix.\n"
+        f"stdout={result.stdout!r}\n"
+        f"stderr={result.stderr!r}"
     )
-    if result.returncode == 1:
-        pytest.skip("drift present; not the steady state we are pinning")
