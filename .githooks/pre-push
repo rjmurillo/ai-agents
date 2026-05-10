@@ -963,14 +963,18 @@ echo_phase "Phase 5b: Review-axes drift detection"
 # Detect drift between .claude/review-axes/{role}.md (canonical) and
 # .github/prompts/pr-quality-gate-{role}.md (generated). Bypassable via
 # --no-verify; the CI workflow drift-check job is the non-bypassable backstop.
-if command -v python3 >/dev/null 2>&1; then
+# Use set_python_cmd (uv-aware) for consistency with other phases. PR #1965
+# gemini + devin review (cluster B): bare `python3` was inconsistent with the
+# robust detection elsewhere in this hook.
+if set_python_cmd; then
+    DRIFT_GENERATOR_CMD="${PYTHON_CMD[*]} build/scripts/generate_pr_quality_prompts.py"
     DRIFT_OUTPUT=$(mktemp)
-    if python3 build/scripts/generate_pr_quality_prompts.py --dry-run >"$DRIFT_OUTPUT" 2>&1; then
+    if "${PYTHON_CMD[@]}" build/scripts/generate_pr_quality_prompts.py --dry-run >"$DRIFT_OUTPUT" 2>&1; then
         record_pass "Review-axes drift check"
     else
         DRIFT_EXIT=$?
         if [ "$DRIFT_EXIT" -eq 1 ]; then
-            record_fail "Review-axes drift detected (run python3 build/scripts/generate_pr_quality_prompts.py)"
+            record_fail "Review-axes drift detected (run $DRIFT_GENERATOR_CMD)"
             echo_info "  Diff:"
             head -40 "$DRIFT_OUTPUT" | sed 's/^/    /'
         else
@@ -984,7 +988,7 @@ if command -v python3 >/dev/null 2>&1; then
     fi
     rm -f "$DRIFT_OUTPUT"
 else
-    record_skip "Review-axes drift check (python3 not available)"
+    record_skip "Review-axes drift check (no python interpreter found)"
 fi
 
 # ============================================================================

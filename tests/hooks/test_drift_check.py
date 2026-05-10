@@ -96,12 +96,15 @@ def test_pre_push_hook_handles_config_error_as_fail() -> None:
     )
 
 
-def test_pre_push_hook_falls_back_when_python3_missing() -> None:
-    """If python3 is unavailable, the hook records skip (does not crash)."""
+def test_pre_push_hook_falls_back_when_python_missing() -> None:
+    """If no python interpreter is available, the hook records skip (does not crash).
+
+    Detection delegates to set_python_cmd (uv-aware) per PR #1965 cluster B.
+    """
     text = PRE_PUSH_HOOK.read_text(encoding="utf-8")
     drift_phase_idx = text.find("Phase 5b: Review-axes drift detection")
     drift_phase = text[drift_phase_idx : drift_phase_idx + 2000]
-    assert "command -v python3" in drift_phase
+    assert "set_python_cmd" in drift_phase
     assert "record_skip" in drift_phase
 
 
@@ -131,7 +134,9 @@ def test_pre_push_hook_drift_phase_invokes_generator(tmp_path: Path) -> None:
     assert start > 0 and end > start, "Phase 5b boundaries not found"
     phase = hook_text[start:end]
 
-    # Stub harness: define record_pass/fail/skip as no-ops that report.
+    # Stub harness: define record_pass/fail/skip and set_python_cmd as
+    # no-ops that report. set_python_cmd is the new detection helper used
+    # by the drift phase (PR #1965 cluster B).
     harness = """
 record_pass() { echo "PASS: $1"; }
 record_fail() { echo "FAIL: $1"; EXIT_STATUS=1; }
@@ -139,6 +144,7 @@ record_warn() { echo "WARN: $1"; }
 record_skip() { echo "SKIP: $1"; }
 echo_phase() { echo "PHASE: $1"; }
 echo_info() { echo "INFO: $1"; }
+set_python_cmd() { PYTHON_CMD=(python3); return 0; }
 EXIT_STATUS=0
 """
 
