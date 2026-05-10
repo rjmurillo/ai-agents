@@ -58,9 +58,23 @@ FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
 
 
 def merge_verdicts(verdicts: list[str]) -> str:
-    """Aggregate multiple verdicts: CRITICAL_FAIL/REJECTED/FAIL/NEEDS_REVIEW > WARN > PASS."""
+    """Aggregate multiple verdicts via priority order.
+
+    Priority (highest first):
+        1. Any token in FAIL_VERDICTS -> CRITICAL_FAIL
+        2. Any WARN -> WARN
+        3. Any UNKNOWN (and none of the above) -> UNKNOWN
+        4. Empty sequence -> UNKNOWN
+        5. All PASS -> PASS
+
+    UNKNOWN downgrades a would-be PASS (caller cannot claim PASS when an axis
+    failed to evaluate) but does not override real WARN or CRITICAL_FAIL
+    findings.
+
+    Refs REQ-008-05 (issue #1934).
+    """
     if not verdicts:
-        return "PASS"
+        return "UNKNOWN"
 
     for v in verdicts:
         if v in FAIL_VERDICTS:
@@ -69,7 +83,33 @@ def merge_verdicts(verdicts: list[str]) -> str:
     if "WARN" in verdicts:
         return "WARN"
 
+    if "UNKNOWN" in verdicts:
+        return "UNKNOWN"
+
     return "PASS"
+
+
+_EXTRACT_VERDICT_PATTERN = re.compile(
+    r"(?mi)^\s*(?:Final\s+)?[Vv]erdict:\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b",
+)
+
+
+def extract_verdict(text: str) -> str:
+    """Scan text for a verdict marker and return the matched token.
+
+    Matches lines of the form ``Verdict: <TOKEN>`` or ``Final verdict: <TOKEN>``
+    (case-insensitive on the label, exact match on the token). Returns the
+    matched token, or ``UNKNOWN`` when no match is found or input is empty.
+
+    Use this to parse skill output that may embed a verdict in multi-line
+    markdown, where ``get_verdict`` keyword fallbacks would over-match.
+
+    Refs REQ-008-05 (issue #1934).
+    """
+    if not text or not text.strip():
+        return "UNKNOWN"
+    match = _EXTRACT_VERDICT_PATTERN.search(text)
+    return match.group(1) if match else "UNKNOWN"
 
 
 _INFRA_PATTERNS = re.compile(

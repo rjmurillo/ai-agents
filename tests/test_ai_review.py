@@ -195,7 +195,73 @@ class TestMergeVerdicts:
         assert merge_verdicts(["PASS", "FAIL", "WARN"]) == "CRITICAL_FAIL"
 
     def test_empty_array(self):
-        assert merge_verdicts([]) == "PASS"
+        # REQ-008-05 (issue #1934): empty sequence returns UNKNOWN; the caller
+        # cannot claim PASS when no axes were evaluated. Behavior changed from
+        # PASS in PR #1934.
+        assert merge_verdicts([]) == "UNKNOWN"
+
+    def test_unknown_alone(self):
+        assert merge_verdicts(["UNKNOWN"]) == "UNKNOWN"
+
+    def test_unknown_with_pass(self):
+        # UNKNOWN downgrades a would-be PASS: caller cannot claim PASS when
+        # an axis failed to evaluate.
+        assert merge_verdicts(["PASS", "UNKNOWN"]) == "UNKNOWN"
+
+    def test_unknown_with_warn(self):
+        # UNKNOWN does not override a real WARN finding.
+        assert merge_verdicts(["WARN", "UNKNOWN"]) == "WARN"
+
+    def test_unknown_with_critical(self):
+        # UNKNOWN does not override CRITICAL_FAIL.
+        assert merge_verdicts(["CRITICAL_FAIL", "UNKNOWN"]) == "CRITICAL_FAIL"
+
+    def test_all_unknown(self):
+        assert merge_verdicts(["UNKNOWN", "UNKNOWN", "UNKNOWN"]) == "UNKNOWN"
+
+
+class TestExtractVerdict:
+    def test_simple_verdict_line(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Verdict: PASS") == "PASS"
+
+    def test_final_verdict_prefix(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Final verdict: WARN due to X") == "WARN"
+
+    def test_uppercase_label(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("VERDICT: CRITICAL_FAIL") == "CRITICAL_FAIL"
+
+    def test_no_match_returns_unknown(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("no verdict marker here") == "UNKNOWN"
+
+    def test_empty_input(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("") == "UNKNOWN"
+
+    def test_whitespace_only(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("   \n\t  ") == "UNKNOWN"
+
+    def test_multiline_finds_marker(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        text = "## Findings\n\nSomething went wrong.\n\nVerdict: REJECTED\n\nMore text."
+        assert extract_verdict(text) == "REJECTED"
+
+    def test_indented_marker(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("   Verdict: PASS") == "PASS"
+
+    def test_invalid_token_returns_unknown(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        # Token not in the allowed set: pattern requires whole word boundary
+        assert extract_verdict("Verdict: MAYBE") == "UNKNOWN"
+
+    def test_first_match_wins(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Verdict: PASS\nVerdict: WARN") == "PASS"
 
 
 # ---------------------------------------------------------------------------
