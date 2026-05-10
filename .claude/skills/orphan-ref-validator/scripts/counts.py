@@ -25,11 +25,17 @@ byte-for-byte:
             strategy: "skill_dirs"
             sourceDir: ".claude/skills"
 
+The YAML stanza for ``slash command`` does not include an ``exclude``
+key. The canonical strategy ``_count_commands`` defaults that argument
+to ``{"CLAUDE.md"}`` when the YAML does not override it (a
+path-scoped ``CLAUDE.md`` is not a slash command, it is documentation).
+This module passes ``exclude={"CLAUDE.md"}`` explicitly to
+``_count_md_recursive`` for the same effect.
+
 The corresponding strategy implementations from the canonical Python
 source are referenced inline by ``_count_md_agents``, ``_count_md_recursive``,
 ``_count_py_recursive``, and ``enumerate_skills`` below. This module
-re-implements the same algorithms (verbatim source bytes are quoted in
-each helper's docstring) rather than importing from
+re-implements the same algorithms rather than importing from
 ``build/scripts/validate_marketplace_counts.py`` because the canonical
 script depends on a YAML loader and its own CLI scaffolding.
 
