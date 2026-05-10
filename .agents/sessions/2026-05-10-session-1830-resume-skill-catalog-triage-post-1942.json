@@ -162,7 +162,7 @@
       "action": "Real fix: marketplace.json count claim updated from 23 agents/23 commands/67 skills to actual 25 agents/13 commands/68 skills. Wired orphan-ref-validator as fourth Mandatory Exit Gate in .claude/commands/build.md."
     }
   ],
-  "endingCommit": "TBD-populated-after-final-commit",
+  "endingCommit": "8e545bd3",
   "nextSteps": [
     "PR2 follow-up: implement script-path detection AC3 broadly; wire /test Gate 5 AC8",
     "Track preexisting orphans surfaced in --include-adrs and --include-skill-descriptions modes via separate cleanup issue",
