@@ -30,6 +30,10 @@ The skill ships with vendored installs. When a target path is not present (for e
 | `validate manifest counts` | Run on plugin manifests |
 | `build mandatory exit gate` | Invoked by the build lifecycle command |
 
+## Path conventions
+
+Absolute paths in this document (e.g. `python3 .claude/skills/orphan-ref-validator/scripts/scan.py`) assume the canonical Claude install layout under `.claude/`. The Copilot CLI mirror at `src/copilot-cli/skills/orphan-ref-validator/scripts/scan.py` is byte-identical Python; on Copilot CLI, replace `.claude/` with the install root the platform uses. The `Skill(skill="orphan-ref-validator")` invocation form is platform-agnostic and is what the `/build` gate uses.
+
 ## Inputs
 
 ```text
@@ -269,9 +273,9 @@ Repos that want a tighter feedback loop can add a pre-push hook that runs the sk
 
 ## References
 
-- REQ-008, DESIGN-008, TASK-008
+- REQ-008, DESIGN-008, TASK-008 (specs in `.agents/specs/`)
 - ADR-035 (exit codes)
 - ADR-042 (Python first)
 - ADR-056 (skill output envelope)
-- Issue #1939, Epic #1933, retro #1940
+- `.claude/rules/canonical-source-mirror.md` (citation policy)
 - Companion validators: `build/scripts/validate_marketplace_counts.py`, `build/scripts/validate_plugin_manifests.py`

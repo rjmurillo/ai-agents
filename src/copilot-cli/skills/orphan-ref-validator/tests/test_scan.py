@@ -20,11 +20,14 @@ import pytest
 # Load scan.py via a spec keyed to this file's location so the test suite
 # does not collide with a sibling mirror at src/copilot-cli/skills/.../tests/
 # that imports a bare module name. The stable cache key prevents two test
-# suites from racing on sys.modules["scan"].
+# suites from racing on sys.modules["scan"]. Use Path.parts (cross-platform)
+# rather than substring matching against str(_SCRIPT_DIR); on Windows the
+# substring "claude/skills" never matches because the separator is "\\".
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
+_PARTS = _SCRIPT_DIR.parts
 _MODULE_KEY = (
     "_orphan_ref_validator_scan"
-    if "claude/skills" in str(_SCRIPT_DIR)
+    if ".claude" in _PARTS
     else "_orphan_ref_validator_scan_mirror"
 )
 sys.path.insert(0, str(_SCRIPT_DIR))

@@ -93,6 +93,12 @@ def is_safe_subdirectory(entry: Path, repo_root: Path) -> bool:
 def walk_targets(target: Path, repo_root: Path) -> Iterable[Path]:
     """Yield candidate files under ``target`` (or just the target if it is a file).
 
+    Defense in depth: ``scan()`` already verifies repo-root containment
+    for every expanded target, but ``walk_targets`` is also a public
+    entry point. Reject any target whose canonical path resolves outside
+    ``repo_root`` here too so a direct programmatic call cannot bypass
+    the containment check.
+
     Recurses with ``iterdir`` and prunes ``EXCLUDE_DIR_NAMES`` at the
     directory level rather than ``rglob('*')`` + post-filter, so excluded
     subtrees (``node_modules``, ``.git``, ``worktrees``, ``cache``,
@@ -103,6 +109,11 @@ def walk_targets(target: Path, repo_root: Path) -> Iterable[Path]:
     skipped (CWE-22 / CWE-59 hardening). The walker also tracks visited
     canonical paths to defend against in-repo symlink cycles.
     """
+    try:
+        target.resolve().relative_to(repo_root.resolve())
+    except (OSError, ValueError) as exc:
+        LOGGER.warning("skipping %s: target outside repo root (%s)", target, exc)
+        return
     if target.is_file():
         yield from _maybe_yield_file(target, repo_root)
         return

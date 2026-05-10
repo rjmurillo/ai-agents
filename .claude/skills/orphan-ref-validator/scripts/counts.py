@@ -48,6 +48,15 @@ Stricter/looser/different than canonical:
 - ``--fix``: canonical supports auto-fix; this is detection only.
 - Caching: canonical re-walks per call; this caches per
   ``(repo_root, kind)`` so a single manifest scan does one walk per kind.
+- Skill enumeration: canonical ``_count_skill_dirs`` counts every
+  immediate subdirectory under ``.claude/skills/``; this requires each
+  subdirectory to contain a ``SKILL.md`` (see ``enumerate_skills``).
+  The intent here is different: the canonical reports the marketplace's
+  declared inventory, while orphan-ref-validator needs to know which
+  *valid* skills exist so it can decide whether a backticked kebab
+  reference resolves to a real skill catalog entry. A directory without
+  a ``SKILL.md`` is a partial or in-progress skill that cannot legally
+  be referenced. The two functions disagree intentionally.
 """
 
 from __future__ import annotations
