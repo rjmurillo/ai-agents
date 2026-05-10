@@ -1,7 +1,7 @@
 # Skill Observations: pr-review
 
-**Last Updated**: 2026-04-26
-**Sessions Analyzed**: 14
+**Last Updated**: 2026-05-10
+**Sessions Analyzed**: 15
 
 ## Purpose
 
@@ -30,6 +30,11 @@ These are corrections that MUST be followed:
   - Evidence: Batch 37 - Bot claimed paths incorrect but verification showed paths were correct at current commit
 
 - Use /pr-review per-PR exclusively for review thread resolution — never dispatch custom implementer agents for thread work. User explicit correction: "you really just need to run /pr-review on each of these PRs" (Session 14, 2026-04-26, PR shepherding session)
+- get_unresolved_review_threads.py silently undercounts. Session 15 (PR #1965): it returned 0 while 12 threads were open. ALWAYS use get_pr_review_threads.py for authoritative total, then filter where is_resolved=False. (Session 15, 2026-05-10)
+  - Evidence: `unresolved_count` in get_pr_review_threads.py response matched GitHub UI; get_unresolved_review_threads.py response was empty.
+- When adding a verdict token (UNKNOWN, NON_COMPLIANT, etc.), update ALL THREE locations in one commit: (1) action.yml validity case, (2) workflow $blockingVerdicts array, (3) action.yml exit_code case. Missing any one creates contradictory pass/block signals visible to consumers. (Session 15, 2026-05-10, PR #1965 cursor 6s_k + 6yn7)
+- After any scripts/ai_review_common/verdict.py change, run BOTH scripts/sync_plugin_lib.py (.claude/lib/) AND python3 build/scripts/build_all.py (src/copilot-cli/lib/). Missing either causes Validate Generated Files CI failure. (Session 15, 2026-05-10)
+- Exception handlers that abort a write must `continue` after logging. Without it, the happy-path log line fires even when the write was aborted, producing contradictory double-status output (PR #1965 generate_pr_quality_prompts.py cursor 6hZB). (Session 15, 2026-05-10)
 - Never spray a directive or rule across all agent prompt files. Single-source + reference-line is the only acceptable pattern. PRs #1732 (117 files) and #1723 (20+ files) both rejected for this reason by user. (Session 14, 2026-04-26)
 - description-validation-bypass label must be applied per-PR after manual review, never mass-applied. Validator checks labels at CI run time; false positives (contextual file refs in Summary section) warrant bypass. (Session 14, 2026-04-26)
 - Local Stop hook is correct location for reflection, not GitHub CI workflow. #1761 rejected: "useless...real reflection is in the context of the work" — CI has no session context. (Session 14, 2026-04-26)
@@ -54,6 +59,9 @@ These are preferences that SHOULD be followed:
   - Evidence: Batch 37 - Used eyes reaction to acknowledge all review comments before batch processing
 
 - Batch thread work BEFORE empty-commit CI triggers. Empty commits (to trigger CI re-run) also trigger `copilot_code_review.review_on_push:true`, adding new bot threads AND dismissing approvals (`require_last_push_approval:true`). Wait for all /pr-review thread work to finish, THEN push one empty commit. (Session 14, 2026-04-26)
+- get_pr_checks.py returns ALL historical check runs, not just the latest. Dedup by max run ID extracted from DetailsUrl to see true current pass/fail state. Without dedup, cancelled/superseded runs show as FAILURE, inflating the fail count. (Session 15, 2026-05-10)
+- CWE-22 symlink defense must cover BOTH input and output paths. Rejecting input symlinks and trusting the output path is a half-guard. The write helper (_atomic_write) must also check is_symlink() on the destination and parent before writing. (Session 15, 2026-05-10, PR #1965 coderabbit H_3)
+- Axis prompt regex docs are authoritative for AI agents. If the documented regex lags the canonical _EXTRACT_VERDICT_PATTERN, agents emit tokens the parser rejects as UNKNOWN, causing silent gate degradation. Treat the regex doc line in each axis file as a contract that must match the Python pattern exactly. (Session 15, 2026-05-10, PR #1965 copilot 6zXW series)
 - SkillForge skill for improving skill content files. User routed negotiation.md and similar via "use SkillForge skill" directive. (Session 14, 2026-04-26)
 - Bare repo PR shepherding pattern: `git worktree add .worktrees/pr-NNNN <branch>`. All edits/commits/pushes via worktree. Never commit to bare main. (Session 14, 2026-04-26)
 
@@ -65,9 +73,12 @@ These are scenarios to handle:
   - Evidence: Query with first: 100 returned old resolved threads but didn't include most recent unresolved threads at end of list
 
 - Workspace budget check: AGENTS.md + CLAUDE.md each have 3000-byte limit enforced by `scripts/validate_workspace_budget.py`. Exceeding blocks `Run Python Tests` on ALL open PRs merging against main. Run `python3 scripts/validate_workspace_budget.py --path .` before starting any PR session. (Session 14, 2026-04-26)
+- stash pop during concurrent autofix-pr push produces UU (unmerged) conflicts. Run git status before staging. Take upstream fix for the shared file; verify no duplicate tests before committing. (Session 15, 2026-05-10)
 - Semgrep security gate wins over CodeRabbit style suggestions when they conflict. If CodeRabbit demands wording that Semgrep's `skill-roleplay-persona-attack` rule flags, keep the Semgrep-safe wording and explain in the thread reply. (Session 14, 2026-04-26)
 
 ## Notes for Review (LOW confidence)
+
+- Each push on PR #1965 opened 4-12 new bot threads (Copilot, Cursor Bugbot, Devin, CodeRabbit each scan independently). When bot thread count is high, cluster by root cause first, then fix; one resolution per bug prevents per-bot duplicate responses. (Session 15, 2026-05-10)
 
 These are observations that may become patterns:
 
@@ -101,6 +112,15 @@ These are observations that may become patterns:
 | 2026-01-16 | Session 03 | MED | Shell script code duplication consolidation pattern |
 | 2026-01-16 | Session 4 | MED | Memory first before multi-step reasoning |
 | 2026-01-16 | Session 4 | MED | Eyes reaction as acknowledgment pattern |
+| 2026-05-10 | Session 15, PR #1965 | HIGH | get_unresolved_review_threads.py undercounts; use get_pr_review_threads.py |
+| 2026-05-10 | Session 15, PR #1965 | HIGH | Verdict token: update action validity case + blockingVerdicts + exit_code case atomically |
+| 2026-05-10 | Session 15, PR #1965 | HIGH | After verdict.py change: run sync_plugin_lib.py AND build_all.py both |
+| 2026-05-10 | Session 15, PR #1965 | HIGH | Exception handler must `continue` after aborting write (no fall-through to status=written) |
+| 2026-05-10 | Session 15, PR #1965 | MED | CWE-22: close symlink defense on output AND input paths |
+| 2026-05-10 | Session 15, PR #1965 | MED | get_pr_checks.py: dedup by max run ID to see current state |
+| 2026-05-10 | Session 15, PR #1965 | MED | Axis regex docs must match _EXTRACT_VERDICT_PATTERN exactly |
+| 2026-05-10 | Session 15, PR #1965 | MED | stash pop conflict during concurrent autofix-pr: inspect UU before staging |
+| 2026-05-10 | Session 15, PR #1965 | LOW | 4+ bots scan per push; cluster findings before fixing |
 
 ## Related
 
