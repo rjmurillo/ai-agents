@@ -32,7 +32,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+# Mirror the upstream prune set so counts under .claude/<dir>/ never
+# inflate if a vendor directory ever lands inside (defense in depth; the
+# names below should not appear under .claude/ in practice).
+_EXCLUDED_DIR_NAMES: frozenset[str] = frozenset({
+    "node_modules", ".git", "worktrees", "cache", "__pycache__",
+})
+
 _COUNT_CACHE: dict[tuple[str, str], int | None] = {}
+
+
+def _is_excluded(path: Path) -> bool:
+    return any(part in _EXCLUDED_DIR_NAMES for part in path.parts)
 
 
 def enumerate_skills(repo_root: Path) -> set[str] | None:
@@ -111,21 +122,28 @@ def _count_md_agents(directory: Path, exclude: set[str]) -> int | None:
 
 
 def _count_md_recursive(directory: Path, exclude: set[str]) -> int | None:
-    """Recursive count of ``.md`` files, excluding given filenames."""
+    """Recursive count of ``.md`` files, excluding given filenames and
+    paths that pass through any ``_EXCLUDED_DIR_NAMES`` segment."""
     if not directory.exists() or not directory.is_dir():
         return None
     return sum(
         1
         for f in directory.rglob("*.md")
-        if f.is_file() and f.name not in exclude
+        if f.is_file()
+        and f.name not in exclude
+        and not _is_excluded(f.relative_to(directory))
     )
 
 
 def _count_py_recursive(directory: Path) -> int | None:
-    """Recursive count of ``.py`` files."""
+    """Recursive count of ``.py`` files, skipping ``_EXCLUDED_DIR_NAMES``."""
     if not directory.exists() or not directory.is_dir():
         return None
-    return sum(1 for f in directory.rglob("*.py") if f.is_file())
+    return sum(
+        1
+        for f in directory.rglob("*.py")
+        if f.is_file() and not _is_excluded(f.relative_to(directory))
+    )
 
 
 def is_manifest_file(path: Path) -> bool:

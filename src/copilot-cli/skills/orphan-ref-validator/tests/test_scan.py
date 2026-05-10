@@ -574,6 +574,20 @@ def test_glob_target_pattern_expansion(fake_repo):
     assert rc == 1
 
 
+def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
+    """When findings exceed max_findings, scan halts and appends a warn
+    finding so the operator knows the result is partial."""
+    docs = fake_repo / "docs"
+    # Each line produces one finding for `dead-skill`.
+    payload = "\n".join(["Use `dead-skill`." for _ in range(10)])
+    write(docs / "huge.md", payload)
+    result = scan([docs], fake_repo, max_findings=3)
+    truncation = [f for f in result.findings if f.kind == "parse_error"]
+    assert len(truncation) == 1
+    assert truncation[0].severity == "warn"
+    assert "halted" in truncation[0].recommendation.lower()
+
+
 def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):
     """ADR-056: exit-2 path must emit the envelope with Success=false and
     a populated Error block. The contract is documented in render_envelope's

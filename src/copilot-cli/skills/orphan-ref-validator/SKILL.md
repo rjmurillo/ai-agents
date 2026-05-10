@@ -105,10 +105,20 @@ VERDICT: CRITICAL_FAIL
 
 ### Phase 3: Detect References
 
-- Read the first 50 lines for `<!-- orphan-ref-ignore-file -->`. If present, skip the file.
 - Apply `SKILL_REF_RE`, `SCRIPT_REF_RE`, and `COUNT_CLAIM_RE` line by line.
-- Skip any line carrying `<!-- orphan-ref-ignore -->`.
 - Filter known-kebab tokens (model IDs, frontmatter fields, Action names, bot ids, git hooks, vocabulary terms).
+- Honor the ignore directives described below.
+
+### Ignore directives
+
+| Directive | Scope | Where it must appear | Effect |
+|---|---|---|---|
+| `<!-- orphan-ref-ignore-file -->` | Whole file | Anywhere in the **first 50 lines** of the file | Skip the file entirely; emit no findings. |
+| `<!-- orphan-ref-ignore -->` | Single line | Anywhere on the same line as a backticked reference | Skip every reference on that line. |
+
+Place file-scope directives below the YAML frontmatter (if any) and well within the first 50-line window. Adding a directive at line 51 or later silently fails because the scanner only reads `text.splitlines()[:50]`.
+
+Use file-scope on M1-deletion specs and proposed-entity catalogs whose every reference is intentional history. Use line-scope for one-off references that document an absence (for example, "the script `scripts/validation/manifest_counts.py` was not created").
 
 ### Phase 4: Resolve and Verdict
 
@@ -191,6 +201,40 @@ Target paths are resolved with `pathlib.Path.resolve()` and must lie under the r
 | Oversized files (>5 MB) | Skipped; logged as `WARNING` |
 | Unknown count kind | ignored |
 
+## When the /build gate fails
+
+If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is:
+
+1. Re-run with the human formatter to get a grep-able list of `path:line` findings:
+
+   ```bash
+   python3 .claude/skills/orphan-ref-validator/scripts/scan.py --output human
+   ```
+
+2. For each finding, choose one of three resolutions named in the recommendation string:
+
+   | Finding kind | Three options |
+   |---|---|
+   | `skill_name` | restore the skill, update the reference, or remove the mention |
+   | `script_path` | restore the script, update the reference, or remove the mention |
+
+3. If the reference is intentional historical or proposed-entity documentation, add a line-scope `<!-- orphan-ref-ignore -->` (single line) or a file-scope `<!-- orphan-ref-ignore-file -->` (whole file). See "Ignore directives" above for placement rules.
+
+4. Re-run the skill and confirm `VERDICT: PASS`.
+
+## Investigation workflow
+
+To find latent drift in surfaces that are opt-in by default:
+
+```bash
+python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
+    --include-adrs \
+    --include-skill-descriptions \
+    --output human
+```
+
+This adds `.agents/architecture/`, `docs/`, and every `.claude/skills/*/SKILL.md` to the scan. The output is intentionally noisy on first run because preexisting drift surfaces; treat it as a triage list, not a `/build` gate.
+
 ## Examples
 
 ```bash
@@ -208,7 +252,7 @@ python3 .claude/skills/orphan-ref-validator/scripts/scan.py --output human
 ## Tests
 
 ```bash
-pytest .claude/skills/orphan-ref-validator/tests/ -q
+uv run pytest .claude/skills/orphan-ref-validator/tests/ -q
 ```
 
 Coverage target is 80 percent line coverage on `scan.py`. Cases cover positive and negative detection for each kind, the ADR-056 envelope shape, vendored-install scenarios, and edge cases (empty file, mixed living-and-dead refs, large files, secret files).

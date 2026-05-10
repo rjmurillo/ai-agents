@@ -17,10 +17,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-import re
 import sys
 from pathlib import Path
-from typing import Iterable
 
 DEFAULT_TARGETS = (
     ".agents/specs",
@@ -39,56 +37,6 @@ OPT_IN_SKILL_TARGETS = (
     ".claude/skills/*/SKILL.md",
 )
 
-SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
-SCRIPT_REF_RE = re.compile(r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py)`")
-
-# Mirrors COUNT_PATTERN and LABEL_MAP from
-# build/scripts/validate_marketplace_counts.py (canonical). Per
-# .claude/rules/canonical-source-mirror.md, the canonical contract is:
-#
-#     COUNT_PATTERN = re.compile(
-#         r"(\d+)\s+"
-#         r"(specialized\s+agent\s+definition"
-#         r"|agent\s+definition"
-#         r"|agent"
-#         r"|slash\s+command"
-#         r"|lifecycle\s+hook"
-#         r"|reusable\s+skill)"
-#         r"s?"
-#     )
-#     LABEL_MAP = {
-#         "specialized agent definition": "agent",
-#         "agent definition": "agent",
-#         "agent": "agent",
-#         "slash command": "slash command",
-#         "lifecycle hook": "lifecycle hook",
-#         "reusable skill": "reusable skill",
-#     }
-#
-# Stricter/looser/different than canonical: same pattern source bytes;
-# orphan-ref-validator does not implement the canonical's --fix path or
-# YAML-driven per-plugin exclude resolution. Detection only.
-COUNT_CLAIM_RE = re.compile(
-    r"(\d+)\s+"
-    r"(specialized\s+agent\s+definition"
-    r"|agent\s+definition"
-    r"|agent"
-    r"|slash\s+command"
-    r"|lifecycle\s+hook"
-    r"|reusable\s+skill)"
-    r"s?"
-)
-COUNT_LABEL_MAP = {
-    "specialized agent definition": "agent",
-    "agent definition": "agent",
-    "agent": "agent",
-    "slash command": "slash command",
-    "lifecycle hook": "lifecycle hook",
-    "reusable skill": "reusable skill",
-}
-IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
-FILE_IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore-file\s*-->")
-
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from counts import (
@@ -106,6 +54,12 @@ if __package__ in (None, ""):
         render_error_envelope,
     )
     from filters import is_known_kebab_word
+    from patterns import (
+        FILE_IGNORE_DIRECTIVE_RE,
+        extract_count_claims,
+        extract_script_refs,
+        extract_skill_refs,
+    )
     from walking import walk_targets
 else:
     from .counts import (
@@ -123,45 +77,15 @@ else:
         render_error_envelope,
     )
     from .filters import is_known_kebab_word
+    from .patterns import (
+        FILE_IGNORE_DIRECTIVE_RE,
+        extract_count_claims,
+        extract_script_refs,
+        extract_skill_refs,
+    )
     from .walking import walk_targets
 
 LOGGER = logging.getLogger("orphan_ref_validator")
-
-
-
-
-def extract_skill_refs(text: str) -> Iterable[tuple[int, str]]:
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        if _line_has_ignore_directive(line):
-            continue
-        for match in SKILL_REF_RE.finditer(line):
-            yield lineno, match.group(1)
-
-
-def extract_script_refs(text: str) -> Iterable[tuple[int, str]]:
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        if _line_has_ignore_directive(line):
-            continue
-        for match in SCRIPT_REF_RE.finditer(line):
-            yield lineno, match.group(1)
-
-
-def extract_count_claims(text: str) -> Iterable[tuple[int, int, str]]:
-    """Yield ``(lineno, count, canonical_label)`` triples for each count claim.
-
-    ``canonical_label`` is the ``COUNT_LABEL_MAP`` value (one of "agent",
-    "slash command", "lifecycle hook", "reusable skill"); ``enumerate_count``
-    consumes the same labels.
-    """
-    for lineno, line in enumerate(text.splitlines(), start=1):
-        if _line_has_ignore_directive(line):
-            continue
-        for match in COUNT_CLAIM_RE.finditer(line):
-            label_text = re.sub(r"\s+", " ", match.group(2).lower())
-            canonical = COUNT_LABEL_MAP.get(label_text)
-            if canonical is None:
-                continue
-            yield lineno, int(match.group(1)), canonical
 
 
 def _path_under(repo_root: Path, path: Path) -> str:
@@ -174,11 +98,6 @@ def _path_under(repo_root: Path, path: Path) -> str:
 _is_known_kebab_word = is_known_kebab_word
 
 
-def _line_has_ignore_directive(line: str) -> bool:
-    """Return True if the line carries an <!-- orphan-ref-ignore --> directive."""
-    return bool(IGNORE_DIRECTIVE_RE.search(line))
-
-
 def scan_file(
     target_path: Path,
     repo_root: Path,
@@ -188,16 +107,14 @@ def scan_file(
 ) -> tuple[list[Finding], int]:
     """Scan one file. Returns findings and count of refs checked.
 
+    Thin orchestrator: read text, check for the file-scope ignore directive,
+    delegate the three reference checks to private helpers. Each helper is
+    small enough to unit-test in isolation.
+
     ``enforce_counts`` is reserved for an opt-in single-plugin count_claim
     enforcement path. PR1 leaves it ``False`` and defers count enforcement
-    to the canonical validator (see header comment in the count_claim
-    block).
-
-    ``skill_catalog_present`` distinguishes "no skills directory exists"
-    (downgrade skill_name findings to warn; we cannot say a backticked
-    kebab token is orphaned because we do not know what's installed) from
-    "directory exists with zero skills" (treat as authoritative empty set;
-    every backticked kebab token is critical).
+    to the canonical validator. ``skill_catalog_present`` distinguishes
+    "no skills directory exists" (warn) from "empty catalog" (critical).
     """
     findings: list[Finding] = []
     refs_checked = 0
@@ -214,98 +131,146 @@ def scan_file(
         LOGGER.info("file-scope ignore directive in %s; skipping", rel)
         return findings, refs_checked
 
+    skill_findings, skill_refs = _check_skill_refs(
+        text, rel, known_skills, skill_catalog_present
+    )
+    findings.extend(skill_findings)
+    refs_checked += skill_refs
+
+    script_findings, script_refs = _check_script_refs(text, rel, repo_root)
+    findings.extend(script_findings)
+    refs_checked += script_refs
+
+    if is_manifest_file(target_path):
+        count_findings, count_refs = _check_count_claims(
+            text, rel, repo_root, enforce_counts
+        )
+        findings.extend(count_findings)
+        refs_checked += count_refs
+
+    return findings, refs_checked
+
+
+def _check_skill_refs(
+    text: str, rel: str, known_skills: set[str], skill_catalog_present: bool
+) -> tuple[list[Finding], int]:
+    """Emit skill_name findings for backticked kebab tokens that have no
+    matching ``.claude/skills/<name>/`` directory."""
+    findings: list[Finding] = []
+    refs_checked = 0
     for lineno, ref in extract_skill_refs(text):
         if _is_known_kebab_word(ref):
             continue
         refs_checked += 1
-        if ref not in known_skills:
-            severity: Severity = "critical" if skill_catalog_present else "warn"
-            recommendation = (
-                f"Skill `{ref}` not present at .claude/skills/. "
-                "Update reference, restore the skill, or remove the mention."
-                if skill_catalog_present
-                else (
-                    f"Skill `{ref}` cannot be verified: .claude/skills/ "
-                    "directory is absent (vendored install)."
-                )
+        if ref in known_skills:
+            continue
+        severity: Severity = "critical" if skill_catalog_present else "warn"
+        recommendation = (
+            f"Skill `{ref}` not present at .claude/skills/. "
+            "Update reference, restore the skill, or remove the mention."
+            if skill_catalog_present
+            else (
+                f"Skill `{ref}` cannot be verified: .claude/skills/ "
+                "directory is absent (vendored install)."
             )
-            findings.append(
-                Finding(
-                    kind="skill_name",
-                    severity=severity,
-                    target_file=rel,
-                    line=lineno,
-                    referenced_entity=ref,
-                    recommendation=recommendation,
-                )
+        )
+        findings.append(
+            Finding(
+                kind="skill_name",
+                severity=severity,
+                target_file=rel,
+                line=lineno,
+                referenced_entity=ref,
+                recommendation=recommendation,
             )
+        )
+    return findings, refs_checked
 
+
+def _check_script_refs(
+    text: str, rel: str, repo_root: Path
+) -> tuple[list[Finding], int]:
+    """Emit script_path findings for backticked repo-relative ``.py`` paths
+    that do not exist on disk."""
+    findings: list[Finding] = []
+    refs_checked = 0
     for lineno, script_ref in extract_script_refs(text):
         refs_checked += 1
-        candidate = repo_root / script_ref
-        if not candidate.exists():
-            findings.append(
-                Finding(
-                    kind="script_path",
-                    severity="critical",
-                    target_file=rel,
-                    line=lineno,
-                    referenced_entity=script_ref,
-                    recommendation=(
-                        f"Script `{script_ref}` not present on disk. "
-                        "Update reference or restore the script."
-                    ),
-                )
+        if (repo_root / script_ref).exists():
+            continue
+        findings.append(
+            Finding(
+                kind="script_path",
+                severity="critical",
+                target_file=rel,
+                line=lineno,
+                referenced_entity=script_ref,
+                recommendation=(
+                    f"Script `{script_ref}` not present on disk. "
+                    "Update reference or restore the script."
+                ),
             )
-
-    # Count_claim enforcement is delegated to
-    # build/scripts/validate_marketplace_counts.py per
-    # .claude/rules/canonical-source-mirror.md. The canonical validator
-    # reads templates/marketplace-counters.yaml for per-plugin source
-    # directories and exclude lists, supports auto-fix, and runs in CI.
-    # orphan-ref-validator's regex still extracts claims (refs_checked
-    # increments for visibility) but emits no Findings; ``--enforce-counts``
-    # is the planned PR2 surface for opt-in single-plugin enforcement.
-    if is_manifest_file(target_path):
-        for lineno, claimed, kind in extract_count_claims(text):
-            refs_checked += 1
-            if enforce_counts:
-                actual = enumerate_count(repo_root, kind)
-                if actual is None:
-                    findings.append(
-                        Finding(
-                            kind="count_claim",
-                            severity="warn",
-                            target_file=rel,
-                            line=lineno,
-                            referenced_entity=f"{claimed} {kind}",
-                            recommendation=(
-                                f"Cannot enumerate {kind} (target directory absent). "
-                                "Verify count manually or restore the directory."
-                            ),
-                            expected=str(claimed),
-                            actual=None,
-                        )
-                    )
-                    continue
-                if actual != claimed:
-                    findings.append(
-                        Finding(
-                            kind="count_claim",
-                            severity="critical",
-                            target_file=rel,
-                            line=lineno,
-                            referenced_entity=f"{claimed} {kind}",
-                            recommendation=(
-                                f"Manifest claims {claimed} {kind}; actual count is {actual}. "
-                                "Update manifest or use a count-validating generator."
-                            ),
-                            expected=str(claimed),
-                            actual=str(actual),
-                        )
-                    )
-
+        )
     return findings, refs_checked
+
+
+def _check_count_claims(
+    text: str, rel: str, repo_root: Path, enforce_counts: bool
+) -> tuple[list[Finding], int]:
+    """Extract count_claim regex matches. Findings are emitted only when
+    ``enforce_counts`` is True (PR2 path); PR1 delegates emission to
+    ``build/scripts/validate_marketplace_counts.py`` per
+    ``.claude/rules/canonical-source-mirror.md``.
+    """
+    findings: list[Finding] = []
+    refs_checked = 0
+    for lineno, claimed, kind in extract_count_claims(text):
+        refs_checked += 1
+        if not enforce_counts:
+            continue
+        actual = enumerate_count(repo_root, kind)
+        if actual is None:
+            findings.append(_count_warn_finding(rel, lineno, claimed, kind))
+            continue
+        if actual != claimed:
+            findings.append(
+                _count_critical_finding(rel, lineno, claimed, kind, actual)
+            )
+    return findings, refs_checked
+
+
+def _count_warn_finding(rel: str, lineno: int, claimed: int, kind: str) -> Finding:
+    return Finding(
+        kind="count_claim",
+        severity="warn",
+        target_file=rel,
+        line=lineno,
+        referenced_entity=f"{claimed} {kind}",
+        recommendation=(
+            f"Cannot enumerate {kind} (target directory absent). "
+            "Verify count manually or restore the directory."
+        ),
+        expected=str(claimed),
+        actual=None,
+    )
+
+
+def _count_critical_finding(
+    rel: str, lineno: int, claimed: int, kind: str, actual: int
+) -> Finding:
+    return Finding(
+        kind="count_claim",
+        severity="critical",
+        target_file=rel,
+        line=lineno,
+        referenced_entity=f"{claimed} {kind}",
+        recommendation=(
+            f"Manifest claims {claimed} {kind}; actual count is {actual}. "
+            "Update manifest or use a count-validating generator."
+        ),
+        expected=str(claimed),
+        actual=str(actual),
+    )
 
 
 def _expand_target(target: Path, repo_root: Path) -> list[Path]:
@@ -324,13 +289,25 @@ def _expand_target(target: Path, repo_root: Path) -> list[Path]:
     return [abs_target] if abs_target.exists() else []
 
 
-def scan(targets: list[Path], repo_root: Path) -> ScanResult:
+MAX_FINDINGS = 500
+
+
+def scan(
+    targets: list[Path],
+    repo_root: Path,
+    max_findings: int = MAX_FINDINGS,
+) -> ScanResult:
     """Scan all targets relative to repo_root.
 
     Clears the per-process count cache at entry so programmatic use
     (multiple ``scan()`` calls in the same process) does not see stale
     enumerations after filesystem mutation. The CLI runs one scan per
     process so cache reset is also safe there.
+
+    ``max_findings`` bounds memory growth on pathologically large
+    catalogs. When reached, scanning halts early and a synthetic warning
+    finding records the truncation so the operator can re-scan with
+    narrower targets.
     """
     reset_count_cache()
     repo_root = repo_root.resolve()
@@ -368,6 +345,22 @@ def scan(targets: list[Path], repo_root: Path) -> ScanResult:
                 result.findings.extend(findings)
                 result.refs_checked += refs_checked
                 result.files_scanned += 1
+                if len(result.findings) >= max_findings:
+                    result.findings.append(
+                        Finding(
+                            kind="parse_error",
+                            severity="warn",
+                            target_file="<scanner>",
+                            line=0,
+                            referenced_entity=f"{max_findings} findings",
+                            recommendation=(
+                                f"Scan halted at {max_findings} findings to bound "
+                                "memory; re-scan with narrower --targets to see "
+                                "the remaining findings."
+                            ),
+                        )
+                    )
+                    return result
     return result
 
 
@@ -455,14 +448,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.targets:
         target_strs = list(args.targets)
         if args.include_adrs:
-            LOGGER.warning(
-                "--include-adrs ignored: --targets specified explicitly. "
-                "Add the ADR paths to --targets if you want to scan them."
+            print(
+                "warning: --include-adrs ignored because --targets was specified "
+                "explicitly. Add the ADR paths to --targets to scan them.",
+                file=sys.stderr,
             )
         if args.include_skill_descriptions:
-            LOGGER.warning(
-                "--include-skill-descriptions ignored: --targets specified explicitly. "
-                "Add the skill paths to --targets if you want to scan them."
+            print(
+                "warning: --include-skill-descriptions ignored because --targets "
+                "was specified explicitly. Add the skill paths to --targets to "
+                "scan them.",
+                file=sys.stderr,
             )
     else:
         target_strs = list(DEFAULT_TARGETS)
