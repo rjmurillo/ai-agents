@@ -1,18 +1,18 @@
 ---
 type: design
-id: DESIGN-006
+id: DESIGN-007
 title: Skill Catalog Prune M1
 related:
-  - REQ-006
+  - REQ-007
 adr: []
 author: richard
 ---
 
-# DESIGN-006: Skill Catalog Prune M1
+# DESIGN-007: Skill Catalog Prune M1
 
 ## Requirements Addressed
 
-- REQ-006 (all five acceptance criteria)
+- REQ-007 (all five acceptance criteria)
 
 ## Design Overview
 

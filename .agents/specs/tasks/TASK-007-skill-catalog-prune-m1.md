@@ -1,18 +1,18 @@
 ---
 type: task
-id: TASK-006
+id: TASK-007
 title: Skill Catalog Prune M1
 status: open
 priority: medium
 complexity: S
 related:
-  - DESIGN-006
+  - DESIGN-007
 blocked_by: []
 blocks: []
 assignee: ""
 ---
 
-# TASK-006: Skill Catalog Prune M1
+# TASK-007: Skill Catalog Prune M1
 
 ## Objective
 
@@ -39,12 +39,12 @@ Remove three deprecated skill directories, update one cross-reference, delete fo
 
 ## Acceptance Criteria
 
-- [ ] TASK-006-AC1: `.claude/skills/doc-coverage/`, `.claude/skills/doc-sync/`, `.claude/skills/workflow/` do not exist after the PR lands.
-- [ ] TASK-006-AC2: `src/copilot-cli/skills/doc-coverage/` and `src/copilot-cli/skills/doc-sync/` do not exist after the PR lands.
-- [ ] TASK-006-AC3: `codebase-documenter/SKILL.md` and its published copy contain `doc-accuracy` (not `doc-coverage` or `doc-sync`) in the "when NOT to use" section.
-- [ ] TASK-006-AC4: `uv run pytest tests/test_invoke_skill_learning.py` exits 0 with no `doc-sync` routing assertions present.
-- [ ] TASK-006-AC5: `python3 build/scripts/build_all.py --platform copilot-cli` exits 0 after all deletions.
-- [ ] TASK-006-AC6: Pre-push drift detection reports zero drift between `.claude/skills/` and `src/copilot-cli/skills/`.
+- [ ] TASK-007-AC1: `.claude/skills/doc-coverage/`, `.claude/skills/doc-sync/`, `.claude/skills/workflow/` do not exist after the PR lands.
+- [ ] TASK-007-AC2: `src/copilot-cli/skills/doc-coverage/` and `src/copilot-cli/skills/doc-sync/` do not exist after the PR lands.
+- [ ] TASK-007-AC3: `codebase-documenter/SKILL.md` and its published copy contain `doc-accuracy` (not `doc-coverage` or `doc-sync`) in the "when NOT to use" section.
+- [ ] TASK-007-AC4: `uv run pytest tests/test_invoke_skill_learning.py` exits 0 with no `doc-sync` routing assertions present.
+- [ ] TASK-007-AC5: `python3 build/scripts/build_all.py --platform copilot-cli` exits 0 after all deletions.
+- [ ] TASK-007-AC6: Pre-push drift detection reports zero drift between `.claude/skills/` and `src/copilot-cli/skills/`.
 
 ## Files Affected
 
