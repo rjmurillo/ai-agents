@@ -974,7 +974,11 @@ if command -v python3 >/dev/null 2>&1; then
             echo_info "  Diff:"
             head -40 "$DRIFT_OUTPUT" | sed 's/^/    /'
         else
-            record_warn "Review-axes drift check exited $DRIFT_EXIT (config error)"
+            # Exit 2 = config error (canonical dir missing, invalid filename,
+            # symlink rejected). CI fails on the same condition; the hook must
+            # match so developers see the failure locally rather than at CI.
+            # /test gate finding F8 (issue #1934).
+            record_fail "Review-axes drift check exited $DRIFT_EXIT (config error)"
             head -10 "$DRIFT_OUTPUT" | sed 's/^/    /'
         fi
     fi

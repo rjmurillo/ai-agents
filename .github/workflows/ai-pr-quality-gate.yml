@@ -195,7 +195,7 @@ jobs:
     name: Review-axes drift check
     runs-on: ubuntu-24.04-arm
     needs: check-changes
-    if: always() && needs.check-changes.result == 'success'
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
     timeout-minutes: 2
     permissions:
       contents: read
