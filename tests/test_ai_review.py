@@ -316,6 +316,15 @@ class TestExtractVerdict:
         assert extract_verdict("Verdict: NEEDS_REVIEW") == "NEEDS_REVIEW"
         assert extract_verdict("Final verdict: NEEDS_REVIEW") == "NEEDS_REVIEW"
 
+    def test_extract_bracketed_verdict(self):
+        # PR #1965 copilot AA1: CI action.yml accepts `VERDICT: [PASS]`
+        # bracketed form (Issue #575 fix). extract_verdict was strict on
+        # bare tokens which would mismatch.
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Verdict: [PASS]") == "PASS"
+        assert extract_verdict("Final verdict: [CRITICAL_FAIL]") == "CRITICAL_FAIL"
+        assert extract_verdict("VERDICT: [WARN]") == "WARN"
+
     def test_lowercase_token_returns_unknown(self):
         # PR #1965 cluster A: global IGNORECASE caused `Verdict: pass` to match
         # PASS. Token is now case-sensitive uppercase; lowercase verdict text
