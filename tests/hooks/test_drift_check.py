@@ -21,6 +21,7 @@ Refs #1934 (REQ-008-03 AC, REQ-008-07 AC).
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -111,6 +112,64 @@ def test_generator_module_callable_from_python() -> None:
     has been moved or renamed.
     """
     assert GENERATOR.is_file(), f"generator missing at hook-cited path: {GENERATOR}"
+
+
+def test_pre_push_hook_drift_phase_invokes_generator(tmp_path: Path) -> None:
+    """Behavioral test: extract Phase 5b from the hook and invoke it as a
+    standalone shell script with a stubbed generator on PATH.
+
+    Stubs `python3` to a script that echoes a controlled exit code, so we
+    can pin the hook's behavior on each generator outcome (0/1/2).
+    """
+    if shutil.which("bash") is None:
+        pytest.skip("bash not available")
+
+    # Extract just Phase 5b from the hook for isolated execution.
+    hook_text = PRE_PUSH_HOOK.read_text(encoding="utf-8")
+    start = hook_text.find("# Phase 5b: Review-axes drift detection")
+    end = hook_text.find("# Phase 6:", start)
+    assert start > 0 and end > start, "Phase 5b boundaries not found"
+    phase = hook_text[start:end]
+
+    # Stub harness: define record_pass/fail/skip as no-ops that report.
+    harness = """
+record_pass() { echo "PASS: $1"; }
+record_fail() { echo "FAIL: $1"; EXIT_STATUS=1; }
+record_warn() { echo "WARN: $1"; }
+record_skip() { echo "SKIP: $1"; }
+echo_phase() { echo "PHASE: $1"; }
+echo_info() { echo "INFO: $1"; }
+EXIT_STATUS=0
+"""
+
+    for stub_exit, expected in [(0, "PASS:"), (1, "FAIL:"), (2, "FAIL:")]:
+        # Stub python3 with a script that exits with the desired code.
+        stub_dir = tmp_path / f"stub_{stub_exit}"
+        stub_dir.mkdir()
+        stub = stub_dir / "python3"
+        stub.write_text(
+            f'#!/usr/bin/env bash\necho "drift sample output"\nexit {stub_exit}\n',
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+
+        script = harness + phase
+        result = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+            env={
+                **os.environ,
+                "PATH": f"{stub_dir}:{os.environ.get('PATH', '')}",
+            },
+            cwd=str(REPO_ROOT),
+        )
+        assert expected in result.stdout, (
+            f"stub exit {stub_exit}: expected {expected!r} in hook output, "
+            f"got stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
 
 
 def test_generator_dry_run_clean_state_returns_zero() -> None:

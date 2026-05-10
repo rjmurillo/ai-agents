@@ -277,3 +277,32 @@ The canonical-source-mirror rule (`.claude/rules/canonical-source-mirror.md`) re
 ### Dependencies
 
 - REQ-008-05 (module must exist before it can be cited correctly).
+
+---
+
+## Kill Criteria (REQ-008-09)
+
+The convergence experiment is falsifiable. Roll back to the dual-source
+arrangement (separate inline /review prose + .github/prompts/) if any of
+the following fire within 30 days post-merge:
+
+- **K1**: drift hook produces 3+ false positives (axis edits the maintainer
+  intended that the hook blocked incorrectly). Indicates the canonical
+  contract is too strict for normal evolution.
+- **K2**: generator-induced regressions in CI prompts (3+ instances of the
+  generator producing CI prompts that fail the gate when canonical was
+  meant to be a no-op refinement). Indicates the transform is unsafe.
+- **K3**: vendored install breakage (1+ downstream installer reports
+  /review fails to run after a project-toolkit plugin update tied to
+  this PR). Hard fail; rollback immediately.
+- **K4**: drift between local /review verdict and CI verdict on the same
+  commit, observed 3+ times in 30 days. Indicates convergence claim is
+  false; either /review or CI is silently diverging.
+
+If any K1-K4 fires, file a follow-up issue, revert the relevant commits
+on a hotfix branch, and re-evaluate the convergence design.
+
+Rationale: per `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`
+the original problem was unmonitored drift. A convergence design without
+falsifiable kill criteria is itself unmonitored. Discovered by /review
+roadmap axis (#1934).

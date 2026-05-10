@@ -137,38 +137,69 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
 ) -> None:
     """Vendored ai_review_common has no executable dependency on .agents/ or scripts/.
 
-    Docstrings citing ``Canonical: scripts/...`` (the sync_plugin_lib.py
-    marker) are acceptable: they document upstream provenance, not a
-    runtime requirement. What matters is that no import statement, no
-    file read, and no subprocess call references those paths.
+    Walks the AST of every .py file in the vendored lib and asserts:
+    - no Import or ImportFrom node references `scripts.*` or `.agents.*`
+    - no string literal in a Call argument references `.agents/`, `scripts/`,
+      or `.github/` as a filesystem path
 
-    This is a stricter and more accurate version of "no path references"
-    than a literal grep would provide.
+    Docstrings citing ``Canonical: scripts/...`` (the sync_plugin_lib.py
+    marker) are acceptable: AST walk skips Expr(Constant) at module top
+    level (docstrings) by inspecting only Import/ImportFrom and Call args.
     """
+    import ast
+
     lib = vendored_root / ".claude" / "lib" / "ai_review_common"
-    forbidden_patterns = (
-        # imports
-        "from scripts.",
-        "import scripts.",
-        "from .agents.",
-        # filesystem reads
-        "open('.agents",
-        'open(".agents',
-        "Path('.agents",
-        'Path(".agents',
-        "open('scripts/",
-        'open("scripts/',
-        # subprocess invocations
-        "'.agents/'",
-        '".agents/"',
-    )
+    forbidden_path_prefixes = (".agents/", "scripts/", ".github/")
+    failures: list[str] = []
+
     for py in lib.glob("**/*.py"):
         text = py.read_text(encoding="utf-8")
-        for pattern in forbidden_patterns:
-            assert pattern not in text, (
-                f"{py.relative_to(vendored_root)} contains runtime reference "
-                f"to {pattern!r} (would break in vendored install)"
-            )
+        try:
+            tree = ast.parse(text, filename=str(py))
+        except SyntaxError as exc:
+            failures.append(f"{py.name}: parse error: {exc}")
+            continue
+        rel = py.relative_to(vendored_root)
+
+        for node in ast.walk(tree):
+            # Reject `from scripts.X import ...` and `from .agents.X import ...`.
+            if isinstance(node, ast.ImportFrom):
+                if node.module and (
+                    node.module == "scripts"
+                    or node.module.startswith("scripts.")
+                    or node.module == ".agents"
+                    or node.module.startswith(".agents.")
+                ):
+                    failures.append(
+                        f"{rel}:{node.lineno}: import from {node.module!r} "
+                        f"(forbidden in vendored install)"
+                    )
+            # Reject `import scripts.X`.
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "scripts" or alias.name.startswith("scripts."):
+                        failures.append(
+                            f"{rel}:{node.lineno}: import {alias.name!r} "
+                            f"(forbidden in vendored install)"
+                        )
+            # Reject string-literal arguments to Call nodes that start with
+            # forbidden path prefixes (e.g. open(".agents/X")).
+            if isinstance(node, ast.Call):
+                for arg in node.args:
+                    if isinstance(arg, ast.Constant) and isinstance(
+                        arg.value, str
+                    ):
+                        for prefix in forbidden_path_prefixes:
+                            if arg.value.startswith(prefix):
+                                failures.append(
+                                    f"{rel}:{node.lineno}: call arg "
+                                    f"{arg.value!r} starts with {prefix!r} "
+                                    f"(would fail in vendored install)"
+                                )
+
+    assert not failures, "vendored lib has runtime path leaks:\n" + "\n".join(
+        failures
+    )
 
 
 def test_review_command_loads_from_canonical_dir(vendored_root: Path) -> None:
