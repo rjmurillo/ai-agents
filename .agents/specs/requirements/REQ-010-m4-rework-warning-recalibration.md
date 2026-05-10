@@ -3,8 +3,8 @@ type: requirement
 id: REQ-010
 title: M4 rework warning recalibration
 status: draft
-priority: medium
-category: tooling
+priority: P1
+category: non-functional
 related:
   - DESIGN-010
   - TASK-010

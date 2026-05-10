@@ -2,9 +2,10 @@
 type: task
 id: TASK-010
 title: M4 rework warning recalibration
-status: ready
-priority: medium
-complexity: S
+status: todo
+priority: P1
+complexity: XS
+estimate: 1.25h
 related:
   - DESIGN-010
   - REQ-010
@@ -207,7 +208,7 @@ If at least one warning line appears, capture the output. It will be pasted verb
 Step 2: Regenerate the mirror.
 
 ```
-python3 build/build_all.py
+python3 build/scripts/build_all.py
 ```
 
 (or the equivalent generator script; confirm the correct invocation by checking `build/` contents).

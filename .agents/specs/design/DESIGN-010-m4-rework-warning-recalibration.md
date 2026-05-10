@@ -2,6 +2,8 @@
 type: design
 id: DESIGN-010
 title: M4 rework warning recalibration
+status: draft
+priority: P1
 related:
   - REQ-010
   - TASK-010
@@ -66,7 +68,7 @@ After TASK-010-03, the tuple gains `.agents/memory/episodes/` as an additional e
 
 ### Mirror file
 
-`src/copilot-cli/skills/session-end/scripts/rework_warning.py` is regenerated from the canonical template via `python3 build/build_all.py` (or equivalent generator). It MUST NOT be hand-edited. TASK-010-04 covers the regeneration step.
+`src/copilot-cli/skills/session-end/scripts/rework_warning.py` is regenerated from the canonical template via `python3 build/scripts/build_all.py` (or equivalent generator). It MUST NOT be hand-edited. TASK-010-04 covers the regeneration step.
 
 ### Fixture file
 
