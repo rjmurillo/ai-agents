@@ -1,14 +1,14 @@
 {
   "id": "episode-2026-05-10-session-1830",
   "session": "2026-05-10-session-1830",
-  "timestamp": "2026-05-10T07:01:18.862512+00:00",
+  "timestamp": "2026-05-10T07:01:40.860098+00:00",
   "outcome": "failure",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-10T07:01:18.859055+00:00",
+      "timestamp": "2026-05-10T07:01:40.856626+00:00",
       "type": "error",
       "content": "\"Evidence\": \"npx markdownlint-cli2 executed on touched .md files; 0 errors reported\"",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-10T07:01:18.859055+00:00",
+      "timestamp": "2026-05-10T07:01:40.856626+00:00",
       "type": "test",
       "content": "\"action\": \"Implemented .claude/skills/orphan-ref-validator/ with scripts/scan.py and tests/test_scan.py; 34 tests pass\"",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-10T07:01:18.859055+00:00",
+      "timestamp": "2026-05-10T07:01:40.856626+00:00",
       "type": "error",
       "content": "\"action\": \"Wired orphan-ref-validator as fourth Mandatory Exit Gate in .claude/commands/build.md with VERDICT: CRITICAL_FAIL blocking semantics\"",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-10T07:01:18.859055+00:00",
+      "timestamp": "2026-05-10T07:01:40.856626+00:00",
       "type": "test",
       "content": "\"action\": \"Refactored denylist into filters.py module per taste-lints file-size cap; renamed from _filters.py to satisfy snake_case naming rule. scan.py 485 lines under cap. 34 tests pass, scan PASS\"",
       "caused_by": [],
