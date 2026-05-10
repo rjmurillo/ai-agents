@@ -673,3 +673,37 @@ def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):
     assert payload["Error"]["Code"] == 2
     assert payload["Error"]["Type"] == "InvalidParams"
     assert "does not exist" in payload["Error"]["Message"]
+
+
+def test_main_emits_error_envelope_on_unexpected_runtime_failure(
+    tmp_path, capsys, monkeypatch
+):
+    """main() catches an unexpected runtime crash inside scan() and emits the
+    ADR-056 error envelope + VERDICT: ERROR line. Without the catch-all the
+    /build gate parser sees a Python traceback on stdout and the contract
+    breaks. Refs PR #1979 round 18 (Copilot scan.py:488)."""
+    # Patch ``scan`` on the module that owns ``main``: this test file loads
+    # scan.py via an importlib spec under a private cache key (see the
+    # _MODULE_KEY block at the top of the file), so ``import scripts.scan``
+    # would resolve to a *different* module object than the one ``main``
+    # closes over, and the monkeypatch would not take effect.
+    scan_mod = sys.modules[main.__module__]
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("simulated filesystem race")
+
+    monkeypatch.setattr(scan_mod, "scan", boom)
+    rc = main([
+        "--repo-root", str(tmp_path),
+        "--targets", str(tmp_path / "anything.md"),
+        "--output", "json",
+    ])
+    assert rc == 2
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out[-1] == "VERDICT: ERROR"
+    payload = json.loads("\n".join(out[:-1]))
+    assert payload["Success"] is False
+    assert payload["Error"]["Code"] == 2
+    assert payload["Error"]["Type"] == "General"
+    assert "simulated filesystem race" in payload["Error"]["Message"]
+    assert "RuntimeError" in payload["Error"]["Message"]

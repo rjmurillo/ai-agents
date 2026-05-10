@@ -27,7 +27,6 @@ Kind = Literal[
     "skill_name",
     "script_path",
     "count_claim",
-    "parse_error",
     "scan_truncated",
 ]
 Verdict = Literal["PASS", "WARN", "CRITICAL_FAIL"]
@@ -75,13 +74,23 @@ class ScanResult:
         return "PASS"
 
 
-def render_error_envelope(message: str, output: str) -> str:
+ErrorType = Literal[
+    "NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General"
+]
+
+
+def render_error_envelope(
+    message: str, output: str, error_type: ErrorType = "InvalidParams"
+) -> str:
     """Render a skill-output.schema.json envelope for config / runtime failures.
 
     Per ``.agents/schemas/skill-output.schema.json``: ``Code`` is the
     integer exit code (ADR-035: ``2`` for configuration error); ``Type``
-    is the canonical enum (``InvalidParams`` for bad CLI args); ``Message``
-    is the human-readable description.
+    is the canonical enum; ``Message`` is the human-readable description.
+
+    ``error_type`` defaults to ``InvalidParams`` (the original config-error
+    behavior); pass ``General`` for an unhandled runtime exception caught by
+    ``main()``'s catch-all guard.
     """
     envelope = {
         "Success": False,
@@ -89,7 +98,7 @@ def render_error_envelope(message: str, output: str) -> str:
         "Error": {
             "Message": message,
             "Code": 2,
-            "Type": "InvalidParams",
+            "Type": error_type,
         },
         "Metadata": {
             "Script": "scan.py",

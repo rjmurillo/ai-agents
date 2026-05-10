@@ -484,8 +484,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.include_skill_descriptions:
             target_strs.extend(OPT_IN_SKILL_TARGETS)
     targets = [Path(t) for t in target_strs]
-    result = scan(targets, repo_root)
-    print(render_envelope(result, args.output))
+    try:
+        result = scan(targets, repo_root)
+        print(render_envelope(result, args.output))
+    except Exception as exc:
+        # Catch-all so an unexpected runtime crash (filesystem races, encoding
+        # surprises, etc.) still emits the ADR-056 envelope + VERDICT: ERROR
+        # line. Without this guard the build gate parser sees a Python
+        # traceback on stdout and a missing VERDICT line, which violates the
+        # /build gate contract.
+        LOGGER.exception("unhandled exception during scan")
+        message = f"unhandled exception during scan: {type(exc).__name__}: {exc}"
+        print(render_error_envelope(message, args.output, error_type="General"))
+        return 2
     if result.verdict == "CRITICAL_FAIL":
         return 1
     return 0
