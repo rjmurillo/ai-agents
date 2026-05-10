@@ -367,6 +367,54 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - `.agents/specs/design/DESIGN-NNN-{slug}.md`
    - `.agents/specs/tasks/TASK-NNN-{slug}.md`
    The full PRD must be passed as input so spec-generator does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
+
+   #### Co-change checklist (REQ-009-04, REQ-009-05)
+
+   When the requirement touches a shared token (a regex pattern, an enum value, an exit-code table, a status string) that appears at more than one site, the generated `REQ-NNN-{slug}.md` MUST include a `## Co-change checklist` section listing every site. PR #1965 demonstrated the failure mode: a verdict-token addition required 3 commits per token because the implementer discovered missing sites one at a time through bot review. The checklist forces discovery at spec time, not review time.
+
+   Emit the section when EITHER condition holds:
+
+   1. **Opt-in (proposer flag)**: the user answered "yes" to a Step 6 prompt "Is this a multi-site contract change?" earlier in the run.
+   2. **Auto-detect (documentation only at this milestone; not enforced in code)**: the PRD scope touches both `scripts/validation/**` AND `.claude/hooks/**` simultaneously, OR Step 0 Q4 mentions a token literal (a regex pattern in backticks, an enum value in ALL_CAPS, a quoted status string). Enforcement of this rule is deferred; the spec author is responsible for emitting the section when the heuristic applies.
+
+   Section placement: after the last `### Acceptance Criteria` subsection and before `### Rationale`. Header is exactly `## Co-change checklist` (level-2, case-sensitive).
+
+   Each entry follows this format, one line per site:
+
+   ```text
+   - [ ] {file_path}:{line_or_section} -- {what changes}
+   ```
+
+   - `{file_path}` is repo-relative (no leading `/`).
+   - `{line_or_section}` is a line number when known, otherwise a section name in quotes.
+   - `{what changes}` is a single phrase, not a full sentence.
+   - The `-- ` separator is distinct from standard markdown list conventions in this repo and is machine-parseable for future linting.
+
+   Concrete example, taken from PR #1965's verdict-token cascade. Adding a new verdict token (for example `NEEDS_REVISION`) to the quality-gate vocabulary required edits at every site that pattern-matches the existing tokens:
+
+   ```markdown
+   ## Co-change checklist
+
+   - [ ] `scripts/lib/verdict.py:42` -- add `NEEDS_REVISION` to `VERDICT_TOKENS` set
+   - [ ] `scripts/lib/verdict.py:_EXTRACT_VERDICT_PATTERN` -- extend regex alternation
+   - [ ] `.github/actions/pr-quality-gate/action.yml:validity` -- add to valid input list
+   - [ ] `.github/workflows/pr-quality-gate.yml:blockingVerdicts` -- decide whether to block
+   - [ ] `.github/workflows/pr-quality-gate.yml:exit_code` -- map to exit code per ADR-035
+   - [ ] `.claude/review-axes/analyst.md` -- document new verdict in axis prose
+   - [ ] `.claude/review-axes/architect.md` -- (same)
+   - [ ] `.claude/review-axes/qa.md` -- (same)
+   - [ ] `.claude/review-axes/security.md` -- (same)
+   - [ ] `.claude/review-axes/devops.md` -- (same)
+   - [ ] `.claude/review-axes/roadmap.md` -- (same)
+   - [ ] `.github/prompts/pr-quality-gate-analyst.md` -- mirror axis prose
+   - [ ] `.github/prompts/pr-quality-gate-architect.md` -- (same)
+   - [ ] `.github/prompts/pr-quality-gate-qa.md` -- (same)
+   - [ ] `.github/prompts/pr-quality-gate-security.md` -- (same)
+   - [ ] `.github/prompts/pr-quality-gate-devops.md` -- (same)
+   - [ ] `.github/prompts/pr-quality-gate-roadmap.md` -- (same)
+   ```
+
+   The checklist surfaces 17 sites for a single token. Without it, the implementer discovers each one through a separate bot-review round trip.
 7. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
 8. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
 9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing? Then run four binary checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c/9d is FAIL. Checks 9a/9b/9c validate Step 0 (forward-looking demand) drift. Check 9d validates Step 0.5 (backward-looking prior art) elicitation.
