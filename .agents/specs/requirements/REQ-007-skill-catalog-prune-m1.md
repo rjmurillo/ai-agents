@@ -2,11 +2,13 @@
 type: requirement
 id: REQ-007
 title: Skill Catalog Prune M1
-status: draft
-priority: medium
+status: implemented
+priority: P2
 category: maintainability
 epic: skill-catalog-health
 related: []
+created: 2026-05-09
+updated: 2026-05-10
 author: richard
 ---
 

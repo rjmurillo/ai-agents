@@ -2,9 +2,13 @@
 type: design
 id: DESIGN-007
 title: Skill Catalog Prune M1
+status: implemented
+priority: P2
 related:
   - REQ-007
 adr: []
+created: 2026-05-09
+updated: 2026-05-10
 author: richard
 ---
 

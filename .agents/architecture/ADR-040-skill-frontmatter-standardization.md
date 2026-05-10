@@ -115,9 +115,9 @@ Allocate models based on skill complexity:
 
 | Tier | Model | Cost | Use Cases | ai-agents Skills |
 |------|-------|------|-----------|------------------|
-| **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | 11 skills (42.3%): adr-review, skillcreator, planner, merge-resolver, github, analyze, decision-critic, research-and-incorporate, session-log-fixer, incoherence, memory |
-| **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | 11 skills (42.3%): doc-accuracy, memory systems, pr-comment-responder, programming-advisor, prompt-engineer, security-detection, serena-code-architecture |
-| **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | 4 skills (15.4%): fix-markdown-fences, steering-matcher, session |
+| **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | Examples: `adr-review`, `SkillForge`, `planner`, `merge-resolver`, `github`, `decision-critic`, `research-and-incorporate`, `slashcommandcreator`. (Authoritative list: skills with `model: claude-opus-4-6` in their SKILL.md frontmatter.) |
+| **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | Examples: `doc-accuracy`, `analyze`, `code-qualities-assessment`, `cva-analysis`, `incoherence`, `memory`, `memory-documentary`, `memory-enhancement`, `pr-comment-responder`, `prompt-engineer`, `security-scan`, `serena-code-architecture`, `threat-modeling`. (Authoritative list: skills with `model: claude-sonnet-4-6` in their SKILL.md frontmatter.) |
+| **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | Examples: `fix-markdown-fences`, `steering-matcher`, `metrics`, `observability`, `security-detection`, `stuck-detection`. (Authoritative list: skills with `model: claude-haiku-4-5` in their SKILL.md frontmatter.) |
 
 **Selection Matrix**:
 

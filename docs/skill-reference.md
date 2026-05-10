@@ -26,7 +26,7 @@ Agents invoke skills internally. You do not call skills directly.
 | [Session Management](#session-management) | 6 | Session lifecycle, validation, migration |
 | [Memory and Knowledge](#memory-and-knowledge) | 6 | Memory search, curation, exploration, enhancement |
 | [Security](#security) | 4 | Scanning, detection, threat modeling, CodeQL |
-| [Code Quality](#code-quality) | 5 | Style enforcement, linting, doc coverage, analysis |
+| [Code Quality](#code-quality) | 6 | Style enforcement, taste lints, golden principles, code-qualities assessment, incoherence detection, codebase analysis |
 | [Architecture and Design](#architecture-and-design) | 7 | ADR review, CVA, decisions, architecture analysis |
 | [Planning and Strategy](#planning-and-strategy) | 4 | Planning, pre-mortem, buy-vs-build, Cynefin |
 | [Documentation](#documentation) | 3 | Doc accuracy verification, markdown fixes, context optimization |
@@ -137,6 +137,14 @@ Assesses code maintainability through 5 foundational qualities: cohesion, coupli
 ### incoherence
 
 Detects contradictions between documentation and code, ambiguous definitions, and inconsistent patterns across the codebase.
+
+### taste-lints
+
+Custom lints with agent-readable remediation instructions. Enforces taste invariants (file size, naming conventions, structured logging, complexity) and surfaces errors that agents can act on directly.
+
+### golden-principles
+
+Scans the repository for golden-principle violations (GP-001 through GP-008 in `.agents/governance/golden-principles.md`) and produces agent-readable remediation guidance.
 
 ## Architecture and Design
 

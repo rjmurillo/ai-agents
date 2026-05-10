@@ -2,9 +2,10 @@
 type: task
 id: TASK-007
 title: Skill Catalog Prune M1
-status: in-progress
-priority: medium
+status: done
+priority: P2
 complexity: S
+estimate: 4
 created: 2026-05-09
 updated: 2026-05-10
 related:
@@ -12,7 +13,7 @@ related:
   - REQ-007
 blocked_by: []
 blocks: []
-assignee: ""
+assignee: claude-opus-4-7
 ---
 
 # TASK-007: Skill Catalog Prune M1
@@ -38,11 +39,18 @@ Remove three deprecated skill directories, update one cross-reference, delete fo
 
 ## Out of Scope
 
-- Changes to `doc-accuracy` SKILL.md
 - Adding replacement routing test cases for `doc-accuracy`
-- session-qa-eligibility fold or memory decomposition (separate milestones)
+- session-qa-eligibility fold or memory decomposition (separate milestones; tracked under epic #1944)
 - Automated redirection shim
-- Updates to `tests/evals/skills/triage-prompts.json`
+
+## Updated post-merge (2026-05-10)
+
+The original "Out of Scope" list excluded `doc-accuracy` SKILL.md and `tests/evals/skills/triage-prompts.json`. Both were updated in this PR:
+
+- `doc-accuracy/SKILL.md` description reworded from present-tense "Consolidates X" to past-tense "replaced the former X (deleted 2026-05-09)" after `/pr-quality:all` adversarial review surfaced the staleness. Same change mirrored to the `src/copilot-cli/skills/` published copy and to `docs/SKILL-AUTHORING.md` per the canonical-source-mirror rule.
+- `tests/evals/skills/triage-prompts.json` had its workflow/doc-coverage/doc-sync expected-answer blocks reframed as negative-routing fixtures so the evaluator scores correctly when an agent encounters an old-name reference.
+
+Both changes are remediations driven by the adversarial review and the merge with main; neither expands the prune scope itself.
 
 ## Acceptance Criteria
 
