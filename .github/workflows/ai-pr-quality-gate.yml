@@ -211,41 +211,7 @@ jobs:
 
       - name: Run drift check
         id: drift
-        shell: bash
-        run: |
-          set +e
-          OUT=$(python3 build/scripts/generate_pr_quality_prompts.py --dry-run 2>&1)
-          CODE=$?
-          echo "$OUT"
-          {
-            echo "## Review-axes drift check"
-            echo ""
-            if [ "$CODE" -eq 0 ]; then
-              echo "No drift detected."
-            elif [ "$CODE" -eq 1 ]; then
-              echo "Drift detected between .claude/review-axes/ (canonical) and .github/prompts/pr-quality-gate-*.md (generated)."
-              echo ""
-              echo "Fix: python3 build/scripts/generate_pr_quality_prompts.py and commit the regenerated CI prompts."
-              echo ""
-              echo "<details><summary>Diff</summary>"
-              echo ""
-              echo '```diff'
-              echo "$OUT"
-              echo '```'
-              echo ""
-              echo "</details>"
-            else
-              echo "Generator exited with code $CODE (config error)."
-              echo ""
-              echo '```'
-              echo "$OUT"
-              echo '```'
-            fi
-          } >>"$GITHUB_STEP_SUMMARY"
-          if [ "$CODE" -ne 0 ]; then
-            echo "::error file=.github/prompts/::Review-axes drift detected. Run python3 build/scripts/generate_pr_quality_prompts.py and commit."
-            exit 1
-          fi
+        run: python3 build/scripts/run_drift_check_ci.py
 
 # ==============================================================================
 # Pre-execute Tests (Issue #77: QA agent cannot run tests directly)

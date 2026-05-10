@@ -356,3 +356,72 @@ def test_main_dry_run_drift_exit_one(
     monkeypatch.setattr(gen, "CANONICAL_DIR", canonical)
     monkeypatch.setattr(gen, "GENERATED_DIR", generated)
     assert gen.main(["--dry-run"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# CI wrapper (run_drift_check_ci.py)
+# ---------------------------------------------------------------------------
+
+import importlib.util  # noqa: E402
+
+_CI_WRAPPER = REPO_ROOT / "build" / "scripts" / "run_drift_check_ci.py"
+
+
+def _load_wrapper():
+    spec = importlib.util.spec_from_file_location(
+        "run_drift_check_ci", _CI_WRAPPER
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_ci_wrapper_exists() -> None:
+    assert _CI_WRAPPER.is_file()
+
+
+def test_ci_wrapper_returns_two_when_generator_missing(
+    tmp_path: Path,
+) -> None:
+    wrapper = _load_wrapper()
+    assert wrapper.run(tmp_path / "does-not-exist.py") == 2
+
+
+def test_ci_wrapper_format_summary_clean() -> None:
+    wrapper = _load_wrapper()
+    summary = wrapper._format_summary(0, "")
+    assert "No drift detected" in summary
+
+
+def test_ci_wrapper_format_summary_drift_includes_diff() -> None:
+    wrapper = _load_wrapper()
+    summary = wrapper._format_summary(1, "--- old\n+++ new\n+changed line\n")
+    assert "Drift detected" in summary
+    assert "+changed line" in summary
+    assert "```diff" in summary
+
+
+def test_ci_wrapper_format_summary_config_error() -> None:
+    wrapper = _load_wrapper()
+    summary = wrapper._format_summary(2, "config error message")
+    assert "config error" in summary
+    assert "code 2" in summary
+
+
+def test_ci_wrapper_writes_step_summary_when_env_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary_file = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
+    wrapper = _load_wrapper()
+    wrapper._write_step_summary("## Test\n\nbody\n")
+    assert summary_file.read_text(encoding="utf-8") == "## Test\n\nbody\n"
+
+
+def test_ci_wrapper_step_summary_noop_without_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    wrapper = _load_wrapper()
+    # Must not raise; just no-op.
+    wrapper._write_step_summary("## ignored\n")
