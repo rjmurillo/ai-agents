@@ -285,13 +285,29 @@ def regenerate(
     generated_dir.mkdir(parents=True, exist_ok=True)
 
     drift_count = 0
+    error_count = 0
+    config_error = False
     for src in canonical_files:
         role = src.stem
         dest_name = _expected_dest_name(src.name)
         dest = generated_dir / dest_name
 
-        canonical_text = src.read_text(encoding="utf-8")
-        expected = transform(canonical_text, role)
+        # PR #1965 round-6: catch per-file errors so a single malformed
+        # canonical or transient I/O failure does not bypass the ADR-035
+        # exit contract. UnicodeDecodeError / OSError -> exit 1 (logic);
+        # GeneratePromptsError -> exit 2 (config) since transform() raises
+        # it for missing frontmatter or required keys.
+        try:
+            canonical_text = src.read_text(encoding="utf-8")
+            expected = transform(canonical_text, role)
+        except GeneratePromptsError as exc:
+            log.append(f"role={role} status=config_error error={exc}")
+            config_error = True
+            continue
+        except (OSError, UnicodeDecodeError) as exc:
+            log.append(f"role={role} status=io_error error={exc}")
+            error_count += 1
+            continue
 
         if dry_run:
             # Compare against HEAD-committed content (REQ-008-03 AC). If git
@@ -331,9 +347,21 @@ def regenerate(
             else:
                 log.append(f"role={role} status=ok")
         else:
-            _atomic_write(dest, expected)
+            try:
+                _atomic_write(dest, expected)
+            except OSError as exc:
+                log.append(f"role={role} status=io_error error={exc}")
+                error_count += 1
+                continue
             log.append(f"role={role} status=written")
 
+    # Config error (malformed frontmatter etc.) takes precedence over drift.
+    if config_error:
+        log.append("role=ALL status=config_error")
+        return 2, log
+    if error_count > 0:
+        log.append(f"role=ALL status=io_error count={error_count}")
+        return 1, log
     if dry_run and drift_count > 0:
         log.append(f"role=ALL status=drift count={drift_count}")
         return 1, log

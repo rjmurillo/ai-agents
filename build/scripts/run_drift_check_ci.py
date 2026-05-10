@@ -94,14 +94,30 @@ def run(generator: Path) -> int:
         )
         return 2
 
-    result = subprocess.run(
-        [sys.executable, str(generator), "--dry-run"],
-        capture_output=True,
-        text=True,
-        cwd=str(REPO_ROOT),
-        timeout=60,
-        check=False,
-    )
+    # PR #1965 round-6: catch subprocess errors so a hung or missing
+    # interpreter does not bypass the ADR-035 contract or skip the step
+    # summary / annotation.
+    try:
+        result = subprocess.run(
+            [sys.executable, str(generator), "--dry-run"],
+            capture_output=True,
+            text=True,
+            cwd=str(REPO_ROOT),
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        msg = f"generate_pr_quality_prompts.py timed out after {exc.timeout}s"
+        print(msg, file=sys.stderr)
+        _write_step_summary(_format_summary(2, msg))
+        print(f"::error::{msg}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        msg = f"failed to invoke generator: {exc}"
+        print(msg, file=sys.stderr)
+        _write_step_summary(_format_summary(2, msg))
+        print(f"::error::{msg}", file=sys.stderr)
+        return 2
     output = result.stdout + ("\n" + result.stderr if result.stderr else "")
     print(output)
 

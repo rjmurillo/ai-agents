@@ -469,6 +469,40 @@ def test_ci_wrapper_returns_one_on_drift_exit(
     assert wrapper.run(fake_gen) == 1
 
 
+def test_ci_wrapper_handles_subprocess_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Wrapper maps subprocess.TimeoutExpired to exit 2 with annotation.
+
+    PR #1965 round-6: previously a hung generator bypassed the ADR-035
+    exit contract and emitted no step summary.
+    """
+    wrapper = _load_wrapper()
+    fake_gen = tmp_path / "fake_generator.py"
+    fake_gen.write_text("# does not matter; subprocess.run is mocked\n")
+
+    def _boom(*args, **kwargs):
+        raise __import__("subprocess").TimeoutExpired(cmd="python3", timeout=60)
+
+    monkeypatch.setattr(wrapper.subprocess, "run", _boom)
+    assert wrapper.run(fake_gen) == 2
+
+
+def test_ci_wrapper_handles_oserror_from_subprocess(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """OSError from subprocess.run maps to exit 2 (env error)."""
+    wrapper = _load_wrapper()
+    fake_gen = tmp_path / "fake_generator.py"
+    fake_gen.write_text("# does not matter; subprocess.run is mocked\n")
+
+    def _boom(*args, **kwargs):
+        raise OSError("simulated subprocess failure")
+
+    monkeypatch.setattr(wrapper.subprocess, "run", _boom)
+    assert wrapper.run(fake_gen) == 2
+
+
 def test_dry_run_compares_against_head_not_working_tree(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -505,6 +539,53 @@ def test_dry_run_compares_against_head_not_working_tree(
         "working tree; working tree matches but HEAD does not"
     )
     assert any("status=drift" in line for line in log)
+
+
+def test_regenerate_per_file_oserror_returns_one(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """OSError during read/write must surface as exit 1 (logic), not crash.
+
+    PR #1965 round-6: previously regenerate() let exceptions bubble,
+    bypassing the ADR-035 exit contract.
+    """
+    canonical = tmp_path / ".claude" / "review-axes"
+    canonical.mkdir(parents=True)
+    (canonical / "x.md").write_text(
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
+        encoding="utf-8",
+    )
+    generated = tmp_path / "out"
+
+    # Force read to raise OSError.
+    original_read = Path.read_text
+
+    def _bad_read(self, *args, **kwargs):
+        if self.name == "x.md":
+            raise OSError("simulated read failure")
+        return original_read(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _bad_read)
+    code, log = gen.regenerate(canonical, generated, dry_run=False)
+    assert code == 1
+    assert any("io_error" in line for line in log)
+
+
+def test_regenerate_malformed_frontmatter_returns_two(
+    tmp_path: Path,
+) -> None:
+    """A canonical with no frontmatter must surface as exit 2 (config error).
+
+    Confirms transform()'s GeneratePromptsError is caught in regenerate()
+    and converted to exit 2, not allowed to crash.
+    """
+    canonical = tmp_path / ".claude" / "review-axes"
+    canonical.mkdir(parents=True)
+    (canonical / "x.md").write_text("# no frontmatter\n", encoding="utf-8")
+    generated = tmp_path / "out"
+    code, log = gen.regenerate(canonical, generated, dry_run=False)
+    assert code == 2
+    assert any("config_error" in line for line in log)
 
 
 def test_dry_run_falls_back_to_working_tree_when_git_unavailable(
