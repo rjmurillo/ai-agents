@@ -66,7 +66,7 @@ def _resolve_underlying_script() -> Path:
     return here / "get_unresolved_review_threads.py"
 
 
-def build_parser() -> argparse.ArgumentParser:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Poll get_unresolved_review_threads.py until three consecutive "
@@ -289,7 +289,7 @@ def _failure(reason: str, pull_request: int, observations: list[dict]) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    args = _build_parser().parse_args(argv)
 
     if args.pull_request <= 0:
         print(
