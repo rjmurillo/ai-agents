@@ -956,6 +956,34 @@ else
 fi
 
 # ============================================================================
+# Phase 5b: Review-axes drift detection (REQ-008-03)
+# ============================================================================
+echo_phase "Phase 5b: Review-axes drift detection"
+
+# Detect drift between .claude/review-axes/{role}.md (canonical) and
+# .github/prompts/pr-quality-gate-{role}.md (generated). Bypassable via
+# --no-verify; the CI workflow drift-check job is the non-bypassable backstop.
+if command -v python3 >/dev/null 2>&1; then
+    DRIFT_OUTPUT=$(mktemp)
+    if python3 build/scripts/generate_pr_quality_prompts.py --dry-run >"$DRIFT_OUTPUT" 2>&1; then
+        record_pass "Review-axes drift check"
+    else
+        DRIFT_EXIT=$?
+        if [ "$DRIFT_EXIT" -eq 1 ]; then
+            record_fail "Review-axes drift detected (run python3 build/scripts/generate_pr_quality_prompts.py)"
+            echo_info "  Diff:"
+            head -40 "$DRIFT_OUTPUT" | sed 's/^/    /'
+        else
+            record_warn "Review-axes drift check exited $DRIFT_EXIT (config error)"
+            head -10 "$DRIFT_OUTPUT" | sed 's/^/    /'
+        fi
+    fi
+    rm -f "$DRIFT_OUTPUT"
+else
+    record_skip "Review-axes drift check (python3 not available)"
+fi
+
+# ============================================================================
 # Phase 6: Summary
 # ============================================================================
 echo_phase "Pre-Push Summary"
