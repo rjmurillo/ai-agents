@@ -51,9 +51,19 @@ KEBAB_DENYLIST: frozenset[str] = frozenset({
     # Git hook lifecycle names
     "pre-commit", "pre-push", "commit-msg", "post-commit",
     "pre-receive", "post-receive", "pre-rebase",
-    # Plugin namespace identifiers (forthcoming + existing entries)
+    # Plugin namespace identifiers (forthcoming + existing entries).
+    # `project-toolkit` is the actual plugin name in `.claude-plugin/marketplace.json`
+    # and `.github/plugin/marketplace.json`; backticked spec mentions of it (e.g. in
+    # INTERVIEW-review-axes-convergence) match SKILL_REF_RE and would false-positive
+    # without this entry. Refs PR #1979 round 18 (Devin filters.py:57).
     "claude-toolkit", "copilot-cli-toolkit",
     "claude-agents", "copilot-cli-agents",
+    "project-toolkit",
+    # CI job / workflow names referenced in spec content. `drift-check` is the
+    # planned ai-pr-quality-gate.yml job from REQ-008/TASK-008; backticked
+    # references describe a CI job, not a `.claude/skills/drift-check/`. Refs
+    # PR #1979 round 18 (Copilot REQ-008/TASK-008 forward refs).
+    "drift-check",
 })
 
 

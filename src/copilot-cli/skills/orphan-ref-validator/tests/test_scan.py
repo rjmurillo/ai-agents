@@ -1,11 +1,26 @@
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: this module exhaustively covers the
+# REQ-009 acceptance criteria (AC2/AC3/AC4/AC5/AC6/AC8 plus the
+# main() bad-CLI-args and runtime catch-all envelope branches) for both
+# the canonical `.claude/skills/orphan-ref-validator/scripts/scan.py`
+# and its byte-for-byte mirror at
+# `src/copilot-cli/skills/orphan-ref-validator/scripts/scan.py`.
+# Splitting these tests across multiple files would either duplicate the
+# importlib spec-loading shim (lines 22-49) per file, or force tests to
+# share module state across files (`sys.modules[main.__module__]` cache),
+# weakening the canonical/mirror isolation guarantee.
 """Tests for orphan-ref-validator scan.py.
 
 Covers REQ-009 acceptance criteria:
 - AC2: skill_name detection (positive + negative)
+- AC3: script_path detection (positive + negative, repo-root containment)
 - AC4: count_claim detection (positive + negative + warn-when-undeterminable)
-- AC5: ADR-056 envelope + VERDICT line
+- AC5: ADR-056 envelope + VERDICT line (PASS/WARN/CRITICAL_FAIL/ERROR)
 - AC6: vendored install (missing target path -> skip, no raise)
-- AC9: edge cases (empty file, mixed living+dead refs)
+- AC8: edge cases (empty file, mixed living+dead refs, secret denylist,
+  oversized files, ignore directives, glob target expansion, main()
+  bad-CLI-args + runtime catch-all envelope shape)
 """
 
 from __future__ import annotations

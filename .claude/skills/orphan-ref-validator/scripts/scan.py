@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: scan.py groups the regex constants,
+# extractors, enumerators, scan(), render_envelope() bridge, and main()
+# entry point that together implement REQ-009 in a single auditable
+# module. Splitting further would scatter the canonical-source-mirror
+# contract (`.claude/rules/canonical-source-mirror.md`) across more
+# files, multiplying the surfaces that must stay byte-for-byte aligned
+# with `build/scripts/validate_marketplace_counts.py`. The extractor
+# helpers already live in sibling modules (``filters.py``, ``envelope.py``,
+# ``walking.py``); the residual size is the orchestration core.
 """Orphan-ref validator: detect references to absent entities in structured artifacts.
 
 Scans target paths for references to skill names, script paths, and count claims

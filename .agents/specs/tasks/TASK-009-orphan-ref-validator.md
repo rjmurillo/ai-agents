@@ -21,7 +21,7 @@ PR1 (this PR, wedge per REQ-009 Q4 revision; expanded to include AC3 during PR #
 |---|---|---|---|---|
 | M1 | Skill skeleton + scan.py core | AC1, AC2, AC3, AC5, AC6 | none | 2.5h |
 | M2 | Count-claim regex extraction (canonical mirror) | AC4 partial (detect, not enforce) | M1 | 1h |
-| M3 | Test suite | AC8 (subset: AC2/AC3/AC4/AC5/AC6) | M1, M2 | 1h |
+| M3 | Test suite | AC8 (tests for AC2-AC6) | M1, M2 | 1h |
 | M4 | Wire into /build Mandatory Exit Gates | AC7 | M1-M3 | 0.25h |
 | M5 | Self-test: scan repo, fix surfaced orphans | (validation) | M1-M4 | 0.5h |
 
@@ -62,7 +62,7 @@ PR2 total: ~1.25h.
 
 - Skill enumeration: `[d.name for d in (repo_root / ".claude/skills").iterdir() if d.is_dir() and (d / "SKILL.md").exists()]`
 - Vendored install: each missing target path logs INFO and continues.
-- Output: ADR-056 envelope to stdout, then literal final line `VERDICT: <pass|warn|critical_fail>` (UPPERCASE in actual emit).
+- Output: ADR-056 envelope to stdout, then literal final line `VERDICT: <PASS|WARN|CRITICAL_FAIL|ERROR>`. `ERROR` is the configuration / unexpected-runtime-failure case (bad CLI args, scan crash); the gate parser MUST treat `ERROR` as a failure on par with `CRITICAL_FAIL`.
 - Acceptance: scan.py runs `--help` without error; exits 0 on `--targets /tmp/empty.md`; exits 1 with critical_fail finding on a fixture mentioning `nonexistent-skill`. <!-- orphan-ref-ignore -->
 
 ### TASK-009-03: Implement count-claim detection (AC4 partial - extraction only)

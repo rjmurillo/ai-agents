@@ -282,7 +282,7 @@ Final verdict: [X] CRITICAL_FAIL
 - If a skill invocation raises or returns no verdict: log `UNKNOWN` for that axis, continue.
 - `UNKNOWN` propagates into `merge_verdicts` per REQ-008-05 rules (does not force CRITICAL_FAIL).
 
-**OQ1 resolution (Plugin manifest):** `/review` reads `.claude/review-axes/` via relative path from the command's working directory. No plugin manifest enumeration is needed; the directory convention is sufficient. If `validate_plugin_manifests.py` requires explicit enumeration, the 6 role names are a static list that can be hardcoded in the validator. Implementer must read `scripts/validate_plugin_manifests.py` to confirm (TASK-008-06).
+**OQ1 resolution (Plugin manifest):** `/review` reads `.claude/review-axes/` via relative path from the command's working directory. No plugin manifest enumeration is needed; the directory convention is sufficient. If `build/scripts/validate_plugin_manifests.py` requires explicit enumeration, the 6 role names are a static list that can be hardcoded in the validator. Implementer must read `build/scripts/validate_plugin_manifests.py` to confirm (TASK-008-06).
 
 **OQ3 resolution (Schema MUSTs vs SHOULDs):** The three body sections (`Grounding Rules`, `Analysis Focus Areas`, `Output Schema`) are MUST in the axis file schema. Individual sub-fields within `Output Schema` findings are MUST for `severity`, `verdict`; SHOULD for `category`, `location`, `recommendation`.
 
