@@ -89,10 +89,10 @@ def merge_verdicts(verdicts: list[str]) -> str:
 
     Priority (highest first):
         1. Any token in FAIL_VERDICTS -> CRITICAL_FAIL
-        2. Any WARN -> WARN
+        2. Any WARN or PARTIAL -> WARN (PARTIAL is warn-equivalent)
         3. Any UNKNOWN OR any unrecognized token (and none of the above) -> UNKNOWN
         4. Empty sequence -> UNKNOWN
-        5. All PASS -> PASS
+        5. All remaining tokens (PASS or COMPLIANT) -> PASS (COMPLIANT is pass-equivalent)
 
     UNKNOWN downgrades a would-be PASS (caller cannot claim PASS when an axis
     failed to evaluate) but does not override real WARN or CRITICAL_FAIL

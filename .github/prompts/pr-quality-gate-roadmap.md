@@ -169,7 +169,7 @@ object):
   WARN; otherwise PASS).
 
 The response MUST contain a final line matching the regex
-`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b` (label is case-insensitive; tokens are case-sensitive uppercase).
+`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label is case-insensitive; tokens are case-sensitive uppercase).
 This line is parsed by `extract_verdict` in
 `.claude/lib/ai_review_common/verdict.py` and consumed by `merge_verdicts`
 when `/review` aggregates across all axes.
