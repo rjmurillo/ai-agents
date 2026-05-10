@@ -224,7 +224,7 @@ jobs:
       # Pin to SHA matches claude.yml and rjmurillo-bot.yml.
       # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.103
       - name: Run retrospective via Claude Code
-        uses: anthropics/claude-code-action@7d7d3055f1fdc9a97a040c69ead9ba392fa6326a # v1.0.113
+        uses: anthropics/claude-code-action@476e359e6203e73dad705c8b322e333fabbd7416 # v1.0.119
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: ${{ steps.prompt.outputs.PROMPT }}
