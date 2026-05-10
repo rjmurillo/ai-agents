@@ -1,16 +1,32 @@
 {
   "id": "episode-2026-05-09-session-1828",
   "session": "2026-05-09-session-1828",
-  "timestamp": "2026-05-09T23:21:07.366128+00:00",
-  "outcome": "partial",
+  "timestamp": "2026-05-10T00:02:50.249712+00:00",
+  "outcome": "failure",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-09T23:21:07.363456+00:00",
+      "timestamp": "2026-05-10T00:02:50.246747+00:00",
       "type": "commit",
       "content": "Commit: f937a114",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-10T00:02:50.246747+00:00",
+      "type": "test",
+      "content": "{\"step\": \"Pre-push hook BLOCKED: 73 pytest failures + 71/50 file count overage\", \"outcome\": \"Failures traced to 2 root causes: (a) orphan Python tests at tests/workflow/test_{get_agent_history,sync_session_documentation}.py target deleted .claude/skills/workflow/scripts/ files; (b) marketplace.json count assertions stale after plugin manifest count drop.\"},",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-10T00:02:50.246747+00:00",
+      "type": "error",
+      "content": "{\"step\": \"Commit G: pre-push fixes\", \"outcome\": \"Deleted orphan tests/workflow/ Python tests (3 files). Auto-regenerated .claude-plugin/marketplace.json (70->67 skills) and .github/plugin/marketplace.json (82->79 skills) via build/scripts/validate_marketplace_counts.py --fix. Verified test_validate_marketplace_counts passes (18 tests). These are the same orphan-ref class of failures that issue #1939 (orphan-ref-validator skill) is designed to catch pre-commit.\"}",
       "caused_by": [],
       "leads_to": []
     }
@@ -18,9 +34,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 2,
     "recoveries": 0,
-    "commits": 8,
+    "commits": 9,
     "files_changed": 0
   },
   "lessons": [
