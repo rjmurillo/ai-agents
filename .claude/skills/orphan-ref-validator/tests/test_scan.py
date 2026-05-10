@@ -635,6 +635,21 @@ def test_max_findings_cap_truncates_with_warn_finding(fake_repo):
     assert len(result.findings) <= 3
 
 
+def test_render_error_envelope_emitted_on_bad_cli_args(capsys):
+    """argparse calls sys.exit(2) on typoed flags. main() must catch the
+    SystemExit and still emit the ADR-056 error envelope so downstream
+    gates parse a stable shape."""
+    rc = main(["--not-a-real-flag"])
+    assert rc == 2
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out[-1] == "VERDICT: ERROR"
+    body = "\n".join(out[:-1])
+    payload = json.loads(body)
+    assert payload["Success"] is False
+    assert payload["Error"]["Code"] == 2
+    assert payload["Error"]["Type"] == "InvalidParams"
+
+
 def test_render_error_envelope_emitted_on_invalid_repo_root(tmp_path, capsys):
     """ADR-056: exit-2 path must emit the envelope with Success=false and
     a populated Error block. The contract is documented in render_envelope's

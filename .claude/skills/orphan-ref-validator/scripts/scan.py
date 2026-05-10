@@ -442,7 +442,19 @@ def _resolve_repo_root(supplied: str | None) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
+    # argparse calls sys.exit(2) on unknown/invalid flags via SystemExit;
+    # catch so the ADR-056 contract (Success=false, Error block, VERDICT:
+    # ERROR) is honored even for typoed flags. The script's stderr already
+    # carried argparse's "usage: ..." text by this point.
+    try:
+        args = parse_args(argv)
+    except SystemExit as exc:
+        if exc.code in (None, 0):
+            raise
+        message = "invalid command-line arguments (see argparse usage on stderr)"
+        # Default to JSON envelope on parse failure; --output is unknown here.
+        print(render_error_envelope(message, "json"))
+        return 2
     logging.basicConfig(level=args.log_level, format="%(levelname)s %(name)s: %(message)s")
     try:
         repo_root = _resolve_repo_root(args.repo_root)
