@@ -992,6 +992,65 @@ else
 fi
 
 # ============================================================================
+# Phase 5c: Bot-cascade warning (REQ-009-10, M5)
+# ============================================================================
+# Warn (NOT block) when the current branch's PR has open bot threads. The
+# retrospective at .agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md
+# names bot-cascade as the highest-leverage gap (~20 commits saved): pushing
+# with open threads triggers another bot scan, which opens more threads, which
+# triggers another push, and so on. Batch-fix pattern documented in
+# .serena/memories/pr-review/pr-review-observations.md Session 14
+# (2026-04-26): "Wait for all /pr-review thread work to finish, THEN push one
+# empty commit."
+#
+# Skip silently when:
+#   - `gh` is not available (developer may push without GitHub auth)
+#   - No PR is open for the current branch
+#   - The unresolved-thread query fails for any reason
+#
+# This is warn-only; never call record_fail here. Transient gh/network
+# failures must not block legitimate pushes.
+echo_phase "Phase 5c: Bot-cascade warning"
+
+if ! command -v gh >/dev/null 2>&1; then
+    record_skip "Bot-cascade check (gh not available)"
+elif ! set_python_cmd; then
+    record_skip "Bot-cascade check (no python interpreter found)"
+else
+    PR_NUMBER=$(gh pr view --json number --jq .number 2>/dev/null || true)
+    if [ -z "$PR_NUMBER" ]; then
+        record_skip "Bot-cascade check (no PR open for branch)"
+    else
+        BOT_CHECK_OUTPUT=$(mktemp)
+        TEMP_FILES+=("$BOT_CHECK_OUTPUT")
+        if "${PYTHON_CMD[@]}" \
+            .claude/skills/github/scripts/pr/get_unresolved_review_threads.py \
+            --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>/dev/null; then
+            UNRESOLVED_COUNT=$("${PYTHON_CMD[@]}" -c "
+import json, sys
+try:
+    data = json.load(open(sys.argv[1]))
+    print(data.get('unresolved_count', 0))
+except Exception:
+    print(0)
+" "$BOT_CHECK_OUTPUT" 2>/dev/null || echo 0)
+            if [ "${UNRESOLVED_COUNT:-0}" -gt 0 ] 2>/dev/null; then
+                record_warn "PR #$PR_NUMBER has $UNRESOLVED_COUNT unresolved bot thread(s)"
+                echo_info "  Pushing now will trigger another bot scan and may"
+                echo_info "  open more threads. Batch-fix pattern (Session 14,"
+                echo_info "  pr-review-observations.md): resolve all open threads"
+                echo_info "  first, THEN push one empty commit to re-trigger CI."
+                echo_info "  Bypass with: git push --no-verify"
+            else
+                record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved)"
+            fi
+        else
+            record_skip "Bot-cascade check (gh query failed)"
+        fi
+    fi
+fi
+
+# ============================================================================
 # Phase 6: Summary
 # ============================================================================
 echo_phase "Pre-Push Summary"
