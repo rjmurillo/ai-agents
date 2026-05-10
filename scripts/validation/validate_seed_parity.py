@@ -154,25 +154,25 @@ def _ci_source_from_main(role: str) -> str | None:
 def check_role(role: str) -> tuple[bool, str]:
     """Return (parity_ok, message) for one role."""
     canonical = CANONICAL_DIR / f"{role}.md"
-    ci_source = CI_PROMPTS_DIR / f"pr-quality-gate-{role}.md"
 
     if not canonical.is_file():
         raise ParityError(f"canonical missing: {canonical}")
 
-    # Prefer the main-branch version of the CI prompt as the seed source.
-    # The current working-tree copy may have been regenerated from canonical,
-    # which would make every comparison trivially pass (or trivially fail
-    # depending on the transform). The seed parity check is meaningful only
-    # against the pre-PR CI prompt content.
+    # The seed parity check is meaningful ONLY against the pre-PR CI prompt
+    # content from the main branch. Falling back to the working-tree copy
+    # silently produces false `status=ok` when canonical was regenerated
+    # from the same source, which defeats the purpose of seed parity.
+    # PR #1965 coderabbit H_6: fail closed when base-branch CI source is
+    # unavailable.
     ci_text_from_main = _ci_source_from_main(role)
-    if ci_text_from_main is not None:
-        ci_text = ci_text_from_main
-        source_label = "main"
-    elif ci_source.is_file():
-        ci_text = ci_source.read_text(encoding="utf-8")
-        source_label = "working-tree"
-    else:
-        raise ParityError(f"CI source missing: {ci_source}")
+    if ci_text_from_main is None:
+        raise ParityError(
+            f"CI source on main missing or unreadable for role={role}; "
+            "seed parity is a one-shot verification against the original "
+            "CI prompts, NOT the regenerated working-tree copy"
+        )
+    ci_text = ci_text_from_main
+    source_label = "main"
 
     canonical_text = canonical.read_text(encoding="utf-8")
 

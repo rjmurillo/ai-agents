@@ -7,11 +7,15 @@ priority: high
 category: tooling
 epic: "1933"
 related:
-  - issue: "1934"
-  - issue: "1935"
-  - retrospective: .agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md
+  - DESIGN-008
+  - TASK-008
+issues:
+  - 1934
+  - 1935
+retrospective: .agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md
 author: Richard Murillo
-date: 2026-05-09
+created: 2026-05-09
+updated: 2026-05-10
 ---
 
 # REQ-008: review-axes-convergence

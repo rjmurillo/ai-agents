@@ -77,21 +77,6 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
-    if args.body_file:
-        # CWE-22 path traversal hardening: assert_valid_body_file rejects
-        # symlinks and paths outside the repo root. Matches other GitHub
-        # skill scripts (PR #1965 copilot review cluster I).
-        assert_valid_body_file(args.body_file)
-        # Generic OSError (read race, decode failure, permission flip after
-        # validation) maps to exit 2 (env) per ADR-035 instead of crashing
-        # with a traceback. PR #1965 coderabbit Y2/Y9.
-        try:
-            body = Path(args.body_file).read_text(encoding="utf-8")
-        except OSError as exc:
-            error_and_exit(f"failed to read body file: {exc}", 2)
-    else:
-        body = args.body
-
     gh_args = [
         "gh",
         "issue",
@@ -99,9 +84,21 @@ def main(argv: list[str] | None = None) -> int:
         str(args.issue),
         "--repo",
         f"{owner}/{repo}",
-        "--body",
-        body,
     ]
+
+    if args.body_file:
+        # CWE-22 path traversal hardening: assert_valid_body_file rejects
+        # symlinks and paths outside the repo root. Matches other GitHub
+        # skill scripts (PR #1965 copilot review cluster I).
+        assert_valid_body_file(args.body_file)
+        # PR #1965 copilot eoz/epC: pass --body-file through to gh instead
+        # of reading the file ourselves and concatenating to --body. Reading
+        # a multi-MB body, then re-emitting it as a process arg, can exceed
+        # ARG_MAX on some platforms; --body-file avoids the round-trip and
+        # matches the gh CLI contract directly.
+        gh_args.extend(["--body-file", str(Path(args.body_file).resolve())])
+    else:
+        gh_args.extend(["--body", args.body])
 
     try:
         result = subprocess.run(

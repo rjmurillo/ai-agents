@@ -194,7 +194,22 @@ def _atomic_write(path: Path, content: str) -> None:
     """Write file atomically: temp file in same dir, fsync, os.replace.
 
     Preserves prior file on crash mid-write.
+
+    Rejects symlinked destinations (or symlinked parent) before writing.
+    A branch can replace ``.github/prompts`` or an individual
+    ``pr-quality-gate-*.md`` with a symlink that redirects writes outside
+    the repo. Refuses to follow that pointer. CWE-22 path traversal
+    hardening per PR #1965 coderabbit H_3.
     """
+    if path.is_symlink():
+        raise GeneratePromptsError(
+            f"generated path must not be a symlink: {path}"
+        )
+    parent = path.parent
+    if parent.is_symlink():
+        raise GeneratePromptsError(
+            f"generated parent dir must not be a symlink: {parent}"
+        )
     tmp = path.with_suffix(path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(content)
@@ -285,8 +300,17 @@ def regenerate(
     # PR #1965 coderabbit Y4: --dry-run must NOT mutate the filesystem.
     # Creating generated_dir during a validation-only run dirties the
     # workspace. Only create when we will actually write.
+    # PR #1965 coderabbit H_4: wrap mkdir in try/OSError so an unwritable
+    # destination or "exists but is a file" fault returns a structured
+    # ADR-035 config-error exit (2) instead of a raw traceback.
     if not dry_run:
-        generated_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            generated_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return 2, [
+                f"role=ALL status=config_error "
+                f"error=cannot_create_generated_dir path={generated_dir} {exc}"
+            ]
 
     drift_count = 0
     error_count = 0
@@ -353,6 +377,10 @@ def regenerate(
         else:
             try:
                 _atomic_write(dest, expected)
+            except GeneratePromptsError as exc:
+                # Symlinked destination per PR #1965 coderabbit H_3.
+                log.append(f"role={role} status=config_error error={exc}")
+                config_error = True
             except OSError as exc:
                 log.append(f"role={role} status=io_error error={exc}")
                 error_count += 1
