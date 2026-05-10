@@ -34,7 +34,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - axis 7: Skill(skill="code-qualities-assessment")
    - axis 8: Skill(skill="golden-principles")
    - axis 9: Skill(skill="taste-lints")
-5. **Extract verdict per axis**. Each axis output ends with a line matching `(?mi)^\s*(?:Final\s+)?[Vv]erdict:\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b`. Use `extract_verdict` from `.claude/lib/ai_review_common/verdict.py` to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
+5. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b` (label case-insensitive; tokens case-sensitive uppercase). Use `extract_verdict` from `.claude/lib/ai_review_common/verdict.py` to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
 6. **Merge verdicts** via `merge_verdicts(["v1", ..., "v9"])`. Rules: any `CRITICAL_FAIL`/`REJECTED`/`FAIL` -> `CRITICAL_FAIL`; any `WARN` -> `WARN`; any `UNKNOWN` -> `UNKNOWN`; all `PASS` -> `PASS`; empty -> `UNKNOWN`.
 7. **Emit findings table** (see Output below).
 

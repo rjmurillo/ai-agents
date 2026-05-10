@@ -1,6 +1,6 @@
 ---
 name: review
-description: Review before merge. Five-axis code review across architecture, security, quality, tests, and standards. Run after /test.
+description: Review before merge. Nine-axis review across 6 canonical axes (analyst, architect, qa, security, devops, roadmap) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test.
 argument-hint:
   - branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
@@ -13,75 +13,84 @@ Review: $ARGUMENTS
 
 If no argument, review the current branch diff against the base branch. Detect the base branch from `gh pr view --json baseRefName` or fall back to `main`.
 
+## Convergence contract (REQ-008-04)
+
+`/review` evaluates the same axes as the CI workflow `ai-pr-quality-gate.yml`, plus three local-only skill axes that CI cannot afford. The 6 canonical axis prompts live at `.claude/review-axes/{role}.md` (single source of truth) and are mirrored to `.github/prompts/pr-quality-gate-{role}.md` by `python3 build/scripts/generate_pr_quality_prompts.py`. Pre-push hook + CI drift-check job enforce parity (`REQ-008-03`).
+
+`/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. The 3 chained skill extras (`code-qualities-assessment`, `golden-principles`, `taste-lints`) cannot run in CI (they require code execution + repo state) and so layer on top.
+
 ## Process
 
-Run axes sequentially. Each axis produces findings categorized as Critical, Important, or Suggestion.
+Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` in `.claude/lib/ai_review_common/verdict.py`.
 
-1. Read the diff (git diff against detected base branch)
-2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the diff (`git diff` against detected base). Assess the change as Tier 1-5 based on scope, cross-team impact, ambiguity, and reversibility. Return: tier number, rationale, and recommended review depth. Use this to calibrate remaining axes:
-   - Tier 1-2: Focus on correctness and standards. Single-pass review sufficient.
-   - Tier 3: All five axes. Flag missing design docs or SLO definitions.
-   - Tier 4-5: All five axes plus: challenge whether complexity can be driven out. Flag missing ADR, threat model, or stakeholder alignment. Ask "is this simpler than it needs to be?"
-3. **Architecture pass**: Task(subagent_type="architect")
-4. **Security pass**: Task(subagent_type="security")
-5. **Quality pass**: Invoke Skill(skill="code-qualities-assessment")
-6. **Test pass**: Task(subagent_type="qa")
-7. **Standards pass**: Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints")
-8. Synthesize findings across all axes
+1. Read the diff (`git diff` against detected base branch).
+2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
+3. **Run 6 canonical axes**, in order. Each loads its prompt verbatim from `.claude/review-axes/{role}.md`:
+   - axis 1: `analyst` -> `.claude/review-axes/analyst.md`
+   - axis 2: `architect` -> `.claude/review-axes/architect.md`
+   - axis 3: `qa` -> `.claude/review-axes/qa.md`
+   - axis 4: `security` -> `.claude/review-axes/security.md`
+   - axis 5: `devops` -> `.claude/review-axes/devops.md`
+   - axis 6: `roadmap` -> `.claude/review-axes/roadmap.md`
+   For each axis, invoke the matching `Task(subagent_type=...)` agent (analyst, architect, qa, security, devops, roadmap) with the canonical prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract.
+4. **Run 3 chained skill axes** (local-only; CI does not run these):
+   - axis 7: Skill(skill="code-qualities-assessment")
+   - axis 8: Skill(skill="golden-principles")
+   - axis 9: Skill(skill="taste-lints")
+5. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b` (label case-insensitive; tokens case-sensitive uppercase). Use `extract_verdict` from `.claude/lib/ai_review_common/verdict.py` to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
+6. **Merge verdicts** via `merge_verdicts(["v1", ..., "v9"])`. Rules: any `CRITICAL_FAIL`/`REJECTED`/`FAIL` -> `CRITICAL_FAIL`; any `WARN` -> `WARN`; any `UNKNOWN` -> `UNKNOWN`; all `PASS` -> `PASS`; empty -> `UNKNOWN`.
+7. **Emit findings table** (see Output below).
 
-## Axis 1: Architecture
+## Vendored install (REQ-008-06)
 
-Task(subagent_type="architect"): You are a software architect reviewing for structural integrity. Check ADR conformance in .agents/architecture/. Evaluate from the consumer perspective, not the implementer perspective. Findings must cite file:line.
+`/review` MUST work in a vendored install that contains only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` plus `CLAUDE.md`. Do NOT reference `.agents/`, `.github/`, `tests/`, or `scripts/` paths from this command body or any axis file. The `.claude/lib/ai_review_common/` package is synced from `scripts/ai_review_common/` by `scripts/sync_plugin_lib.py`; vendored installs use the synced copy.
 
-- Follows existing patterns? Clean boundaries? Right abstraction level?
-- Coupling intentional? Cohesion strong?
-- ADR conformance? Any decisions that need a new ADR?
+## UNKNOWN handling
 
-## Axis 2: Security
-
-Invoke Skill(skill="security-scan") for CWE pattern detection.
-
-Task(subagent_type="security"): You are a security auditor. Assume every input is malicious. Reference CWE numbers. Evaluate:
-
-- Input validated? Secrets safe? Auth checked?
-- OWASP top 10? STRIDE threats?
-- New permissions, scopes, or access? Challenge each one (Principle of Least Privilege).
-
-## Axis 3: Code Quality
-
-Invoke Skill(skill="code-qualities-assessment") to score all 5 qualities: cohesion, coupling, encapsulation, testability, non-redundancy.
-
-- Cyclomatic complexity <=10? Methods <=60 lines?
-- DRY violations? Premature abstractions?
-
-## Axis 4: Test Completeness
-
-Task(subagent_type="qa"): You are a QA engineer verifying coverage. For every new code path in the diff, verify a corresponding test exists. Flag gaps with specific file:line references.
-
-- Every new code path has a test? Failure paths covered?
-- Acceptance criteria verified?
-
-## Axis 5: Standards
-
-Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints").
-
-- Golden principle violations? Naming conventions?
-- Style enforcement? Consistency with existing patterns?
-
-## Principles
-
-- **Design to interfaces**: Review signatures from the consumer perspective. Hidden implementation details should stay hidden.
-- **Encapsulate what varies**: If the diff introduces variation, is it encapsulated? Or scattered?
-- **Chesterton's Fence**: Before removing code, verify you understand why it existed.
-- **Principle of Least Privilege**: New permissions, scopes, or access? Challenge each one.
+- A skill that crashes or exits non-zero -> mark axis `UNKNOWN`, log the failure, continue with remaining axes.
+- A canonical axis whose output cannot be parsed by `extract_verdict` -> mark `UNKNOWN`.
+- UNKNOWN does NOT override real findings: `merge_verdicts(["WARN", "UNKNOWN"])` returns `WARN`. UNKNOWN only matters when it would otherwise be PASS.
+- UNKNOWN axes are surfaced explicitly in the output table so the reviewer sees what was not evaluated.
 
 ## Output
 
-Categorize each finding as **Critical**, **Important**, or **Suggestion**.
+Findings table with one row per axis:
 
-Per-finding format:
+| Axis | Verdict | Emoji | Summary |
+|------|---------|-------|---------|
+| analyst | PASS | (from get_verdict_emoji) | (one-line summary) |
+| architect | WARN | ... | ... |
+| qa | ... | ... | ... |
+| security | ... | ... | ... |
+| devops | ... | ... | ... |
+| roadmap | ... | ... | ... |
+| code-qualities-assessment | ... | ... | ... |
+| golden-principles | ... | ... | ... |
+| taste-lints | ... | ... | ... |
 
-- Finding (what is wrong)
-- Location (file:line)
-- Severity (Critical/Important/Suggestion)
-- Fix (specific recommendation)
+**FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
+
+Followed by per-axis findings in detail. Each finding:
+
+- **severity**: CRITICAL | IMPORTANT | SUGGESTION
+- **category**: short keyword
+- **location**: `file:line`
+- **recommendation**: one-sentence fix
+
+Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **Important** if `WARN`, **Suggestion** otherwise.
+
+## Principles
+
+- **Strict superset of CI**. Any finding CI surfaces, `/review` surfaces first.
+- **Drift fails closed**. If `.claude/review-axes/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks as a backstop.
+- **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS.
+- **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
+
+## Refs
+
+- Verdict module: `.claude/lib/ai_review_common/verdict.py`
+- Canonical axes: `.claude/review-axes/`
+- Skill chain: `.claude/skills/{code-qualities-assessment,golden-principles,taste-lints}/`
+
+(Spec, generator, and drift hook live outside the vendored surface and are
+not referenced from this command body. Vendored installs work without them.)

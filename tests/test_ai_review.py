@@ -219,6 +219,23 @@ class TestMergeVerdicts:
     def test_all_unknown(self):
         assert merge_verdicts(["UNKNOWN", "UNKNOWN", "UNKNOWN"]) == "UNKNOWN"
 
+    def test_unrecognized_token_returns_unknown(self):
+        # PR #1965 cluster J: previously unrecognized tokens silently fell
+        # through to PASS, undermining the UNKNOWN safety mechanism.
+        # Garbage input must produce UNKNOWN, never PASS.
+        assert merge_verdicts(["FOOBAR"]) == "UNKNOWN"
+        assert merge_verdicts(["pass"]) == "UNKNOWN"  # lowercase
+        assert merge_verdicts(["Pass"]) == "UNKNOWN"  # mixed case
+        assert merge_verdicts(["PASS", "FOOBAR"]) == "UNKNOWN"
+
+    def test_unrecognized_does_not_override_critical(self):
+        # CRITICAL_FAIL still wins over unrecognized tokens.
+        assert merge_verdicts(["FOOBAR", "CRITICAL_FAIL"]) == "CRITICAL_FAIL"
+
+    def test_unrecognized_does_not_override_warn(self):
+        # WARN still wins over unrecognized tokens.
+        assert merge_verdicts(["FOOBAR", "WARN"]) == "WARN"
+
     def test_fail_alone_returns_critical_fail(self):
         # FAIL is in FAIL_VERDICTS; must collapse to CRITICAL_FAIL.
         assert merge_verdicts(["FAIL"]) == "CRITICAL_FAIL"

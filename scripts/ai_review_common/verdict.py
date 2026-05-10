@@ -71,21 +71,26 @@ def get_milestone(output: str) -> str:
 FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
 
 
+_KNOWN_VERDICT_TOKENS: frozenset[str] = frozenset({"PASS", "WARN", "UNKNOWN"}) | FAIL_VERDICTS
+
+
 def merge_verdicts(verdicts: list[str]) -> str:
     """Aggregate multiple verdicts via priority order.
 
     Priority (highest first):
         1. Any token in FAIL_VERDICTS -> CRITICAL_FAIL
         2. Any WARN -> WARN
-        3. Any UNKNOWN (and none of the above) -> UNKNOWN
+        3. Any UNKNOWN OR any unrecognized token (and none of the above) -> UNKNOWN
         4. Empty sequence -> UNKNOWN
         5. All PASS -> PASS
 
     UNKNOWN downgrades a would-be PASS (caller cannot claim PASS when an axis
     failed to evaluate) but does not override real WARN or CRITICAL_FAIL
-    findings.
+    findings. Unrecognized tokens (e.g. lowercase "pass", "FOOBAR") are
+    treated as UNKNOWN per DESIGN-008: silently coercing garbage input to
+    PASS would undermine the UNKNOWN safety mechanism. PR #1965 cluster J.
 
-    Refs REQ-008-05 (issue #1934).
+    Refs REQ-008-05 (issue #1934), PR #1965.
     """
     if not verdicts:
         return "UNKNOWN"
@@ -97,7 +102,9 @@ def merge_verdicts(verdicts: list[str]) -> str:
     if "WARN" in verdicts:
         return "WARN"
 
-    if "UNKNOWN" in verdicts:
+    # Any UNKNOWN or any unrecognized token -> UNKNOWN. Do NOT silently
+    # coerce unknown tokens to PASS.
+    if any(v not in _KNOWN_VERDICT_TOKENS or v == "UNKNOWN" for v in verdicts):
         return "UNKNOWN"
 
     return "PASS"
