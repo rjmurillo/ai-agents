@@ -180,11 +180,15 @@ Each finding MUST be reported with these structured fields:
   `error-handling`, `command-injection`, `missing-test`). Used for clustering.
 - **location**: `file:line` (or `file:line-range`). Required for every finding.
 - **recommendation**: one-sentence imperative fix the author can act on.
-- **verdict**: one of `PASS`, `WARN`, `CRITICAL_FAIL`, `UNKNOWN`. Per-finding;
-  the axis-level verdict is the highest-precedence finding verdict.
+- **verdict**: one of `PASS`, `WARN`, `CRITICAL_FAIL`. Choose one of these
+  three explicitly; do NOT emit `UNKNOWN` yourself. `UNKNOWN` is reserved
+  for `/review`'s parser when an axis output cannot be parsed
+  (`extract_verdict` returns `UNKNOWN` on no match); it is never an authored
+  verdict. Per-finding; the axis-level verdict is the highest-precedence
+  finding verdict.
 
 The response MUST contain a final line matching the regex
-`(?mi)^\s*(?:Final\s+)?[Vv]erdict:\s*(PASS|WARN|CRITICAL_FAIL|UNKNOWN)\b`.
+`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b` (label is case-insensitive; tokens are case-sensitive uppercase).
 This line is parsed by `extract_verdict` in
 `.claude/lib/ai_review_common/verdict.py` and consumed by `merge_verdicts`
 when `/review` aggregates across all axes.
