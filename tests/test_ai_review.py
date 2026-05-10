@@ -274,6 +274,29 @@ class TestExtractVerdict:
         from scripts.ai_review_common.verdict import extract_verdict
         assert extract_verdict("Verdict: PASS\nVerdict: WARN") == "PASS"
 
+    def test_lowercase_token_returns_unknown(self):
+        # PR #1965 cluster A: global IGNORECASE caused `Verdict: pass` to match
+        # PASS. Token is now case-sensitive uppercase; lowercase verdict text
+        # is malformed and returns UNKNOWN.
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Verdict: pass") == "UNKNOWN"
+        assert extract_verdict("Verdict: warn") == "UNKNOWN"
+        assert extract_verdict("Verdict: critical_fail") == "UNKNOWN"
+
+    def test_mixed_case_token_returns_unknown(self):
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("Verdict: Pass") == "UNKNOWN"
+        assert extract_verdict("Verdict: WaRn") == "UNKNOWN"
+
+    def test_label_case_insensitive(self):
+        # Label retains IGNORECASE: VERDICT, Verdict, verdict all match.
+        from scripts.ai_review_common.verdict import extract_verdict
+        assert extract_verdict("verdict: PASS") == "PASS"
+        assert extract_verdict("VERDICT: WARN") == "WARN"
+        assert extract_verdict("Verdict: CRITICAL_FAIL") == "CRITICAL_FAIL"
+        assert extract_verdict("FINAL VERDICT: PASS") == "PASS"
+        assert extract_verdict("final verdict: WARN") == "WARN"
+
     def test_matches_inside_fenced_code_block(self):
         # Pinned behavior: extract_verdict does NOT skip fenced code blocks.
         # A skill outputting an example `Verdict: PASS` inside a markdown

@@ -103,8 +103,13 @@ def merge_verdicts(verdicts: list[str]) -> str:
     return "PASS"
 
 
+# IGNORECASE is scoped to the label only via (?i:...).
+# The token alternation must remain case-sensitive uppercase: a skill emitting
+# `Verdict: pass` (lowercase token) is malformed and should return UNKNOWN, not
+# silently match `PASS`. Per PR #1965 cursor + gemini review (cluster A):
+# global (?mi) caused silent verdict misclassification.
 _EXTRACT_VERDICT_PATTERN = re.compile(
-    r"(?mi)^\s*(?:Final\s+)?[Vv]erdict:\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b",
+    r"(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|UNKNOWN)\b",
 )
 
 
