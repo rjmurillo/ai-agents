@@ -12,6 +12,11 @@ updated: 2026-05-10
 author: richard
 ---
 
+<!-- orphan-ref-ignore-file -->
+<!-- M1 deletion design: every skill_name reference (doc-coverage, doc-sync,
+     workflow) and proposed-but-not-built script reference is intentional
+     historical documentation; orphan-ref-validator must skip this file. -->
+
 # DESIGN-007: Skill Catalog Prune M1
 
 ## Requirements Addressed

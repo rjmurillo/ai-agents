@@ -288,7 +288,7 @@ Note: full end-to-end `/review` invocation (which requires Claude Code) is out o
 
 **In scope:**
 - Rewrite `.claude/commands/review.md` prose per DESIGN-008 `/review` component spec.
-- Read `scripts/validate_plugin_manifests.py` to determine if `.claude/review-axes/` needs explicit enumeration. Resolve OQ1.
+- Read `build/scripts/validate_plugin_manifests.py` to determine if `.claude/review-axes/` needs explicit enumeration. Resolve OQ1.
 - Document the 6/3 split (canonical vs skill) explicitly in command prose.
 - Implement `UNKNOWN` handling per REQ-008-04.
 
@@ -313,7 +313,7 @@ Note: full end-to-end `/review` invocation (which requires Claude Code) is out o
 
 **Implementation notes:**
 - Read the current `.claude/commands/review.md` before rewriting to preserve any non-axis sections (e.g., diff preparation instructions, output formatting header).
-- Read `scripts/validate_plugin_manifests.py` to check if it enumerates `.claude/review-axes/` or similar patterns. If it does, update the manifest to include the new directory. Document the finding in the command file as a comment.
+- Read `build/scripts/validate_plugin_manifests.py` to check if it enumerates `.claude/review-axes/` or similar patterns. If it does, update the manifest to include the new directory. Document the finding in the command file as a comment.
 - The command file is markdown prose (instructions to the Claude agent), not Python. There are no executable tests for it. Manual verification: run `/review` on a PR with known findings and confirm all 9 axes appear in output.
 
 ---

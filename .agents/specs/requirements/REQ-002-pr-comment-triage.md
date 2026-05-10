@@ -44,10 +44,10 @@ Without triage, agents waste time on low-signal comments (summaries, duplicates,
 ## Dependencies
 
 - REQ-001: PR Comment Acknowledgment (comments must be retrieved first)
-- Serena memory: `pr-comment-responder-skills` for signal quality data
+- Serena memory: `pr-comment-responder-skills` for signal quality data <!-- orphan-ref-ignore -->
 
 ## Related Artifacts
 
 - DESIGN-001: PR Comment Processing Architecture
 - `src/claude/pr-comment-responder.md`: Triage heuristics section
-- Memory: `pr-comment-responder-skills`
+- Memory: `pr-comment-responder-skills` <!-- orphan-ref-ignore -->
