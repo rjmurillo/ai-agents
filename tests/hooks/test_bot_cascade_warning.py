@@ -184,19 +184,18 @@ def test_pre_push_hook_bash_syntax_valid() -> None:
 
 
 def test_phase_5c_emits_recorded_outcome_token() -> None:
-    """REQ-011-05 (runtime contract): Phase 5c body reaches a recorded outcome.
+    """REQ-011-05: Phase 5c contains a call site for every recorder outcome.
 
-    The hook's full end-to-end run takes ~3 minutes (it executes the whole
-    test suite as Phase 4) and is unsuitable as a unit test. Instead we
-    verify the structural invariant that the Phase 5c block contains at
-    least one call to each of the three recorder functions used by the
-    contract: `record_skip`, `record_warn`, `record_pass`. If any of the
-    three is absent, the corresponding REQ-011 acceptance branch is
+    Structural verification that the three recorder functions used by the
+    contract (`record_skip`, `record_warn`, `record_pass`) each have at
+    least one call site inside the Phase 5c block. If any of the three is
+    absent, the corresponding REQ-011-01..04 acceptance branch is
     unreachable.
 
-    Runtime evidence from invoking the full hook against the current
-    branch (the actual self-apply gate from TASK-011-04) is captured in
-    the PR description rather than in a flaky 3-minute test.
+    End-to-end runtime evidence belongs to REQ-011-06 (self-apply gate),
+    not this test. Invoking the full hook here would execute Phase 4 (the
+    whole pytest suite, ~3 minutes per case), so the self-apply runtime
+    evidence is captured in the PR description against the live PR.
     """
     block = _phase_5c_block()
     for fn in ("record_skip", "record_warn", "record_pass"):

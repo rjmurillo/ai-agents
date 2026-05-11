@@ -1,38 +1,46 @@
 {
   "id": "episode-2026-05-11-session-1832",
   "session": "2026-05-11-session-1832",
-  "timestamp": "2026-05-11T04:34:26.771379+00:00",
-  "outcome": "partial",
+  "timestamp": "2026-05-11T04:50:10.494051+00:00",
+  "outcome": "failure",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-11T04:34:26.768304+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"11/11 tests pass in tests/hooks/test_bot_cascade_warning.py; bash -n .githooks/pre-push clean\"",
+      "timestamp": "2026-05-11T04:50:10.490841+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"markdownlint-cli2 v0.22.1 ran via pre-commit hook on every staged commit; the markdown files touched by commits 1bb5395f (specs), 4ed01651 (specs revised), 426e89d3 (none) reported 0 errors. Hook output line: 'SUCCESS: Markdown files OK.'\"",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-11T04:34:26.768304+00:00",
+      "timestamp": "2026-05-11T04:50:10.490841+00:00",
+      "type": "test",
+      "content": "\"Evidence\": \"12/12 tests pass in tests/hooks/test_bot_cascade_warning.py (count grew from 11 after adding test_phase_5c_emits_recorded_outcome_token for REQ-011-05); bash -n .githooks/pre-push clean\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-11T04:50:10.490841+00:00",
       "type": "commit",
       "content": "Commit: 3e749bd9",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e004",
-      "timestamp": "2026-05-11T04:34:26.768304+00:00",
+      "id": "e005",
+      "timestamp": "2026-05-11T04:50:10.490841+00:00",
       "type": "test",
       "content": "\"evidence\": \"Phase 5c implemented in .githooks/pre-push; all 11 tests pass; commit d8aee7ed\"",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e006",
-      "timestamp": "2026-05-11T04:34:26.768304+00:00",
+      "id": "e007",
+      "timestamp": "2026-05-11T04:50:10.490841+00:00",
       "type": "test",
       "content": "\"evidence\": \"Clustered 15 bot threads by root cause; patched hook (Cluster A: no-fail-open on gh pr view; success+complete gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). 12/12 tests pass.\"",
       "caused_by": [],
@@ -42,7 +50,7 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
+    "errors": 2,
     "recoveries": 0,
     "commits": 9,
     "files_changed": 0

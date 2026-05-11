@@ -88,7 +88,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed in commits d8aee7ed, 3e749bd9 (lint not applicable to .githooks/pre-push or test_bot_cascade_warning.py)"
+        "Evidence": "markdownlint-cli2 v0.22.1 ran via pre-commit hook on every staged commit; the markdown files touched by commits 1bb5395f (specs), 4ed01651 (specs revised), 426e89d3 (none) reported 0 errors. Hook output line: 'SUCCESS: Markdown files OK.'"
       },
       "changesCommitted": {
         "level": "MUST",
@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "11/11 tests pass in tests/hooks/test_bot_cascade_warning.py; bash -n .githooks/pre-push clean"
+        "Evidence": "12/12 tests pass in tests/hooks/test_bot_cascade_warning.py (count grew from 11 after adding test_phase_5c_emits_recorded_outcome_token for REQ-011-05); bash -n .githooks/pre-push clean"
       },
       "tasksUpdated": {
         "level": "SHOULD",
