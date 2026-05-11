@@ -34,7 +34,7 @@ Phase 5c entry
      -> if fetched_pages_complete == false: record_skip "snapshot incomplete"; return
      -> if JSON parse fails: record_skip "JSON parse failed"; return
      -> if unresolved_count > 0:
-          record_warn "PR #N has K unresolved bot threads"
+          record_warn "PR #N has K unresolved thread(s)"   # not bot-filtered; see Issue #2012
           return
   -> gh api /repos/{owner}/{repo}/pulls/<N>/reviews
      -> if exit != 0: record_skip "gh api reviews failed (exit code)"; return
@@ -66,7 +66,7 @@ Runtime evidence for the actual outcome lines is captured by exercising the hook
 
 ### Test cases per AC (implemented)
 
-The 12 tests in `tests/hooks/test_bot_cascade_warning.py` pin the Phase 5c contract by scoping every assertion to the regex `# Phase 5c.*?(?=# Phase \d|\Z)` so Phase 5b assertions cannot pollute Phase 5c assertions.
+The tests in `tests/hooks/test_bot_cascade_warning.py` pin the Phase 5c contract by scoping every assertion to the regex `# Phase 5c.*?(?=# Phase \d|\Z)` so Phase 5b assertions cannot pollute Phase 5c assertions. The exact test count is intentionally not pinned here; it grows as the contract evolves.
 
 - `test_phase_5c_header_present` (REQ-011-01): Phase 5c block exists and follows Phase 5b (asserts both positions are non-negative).
 - `test_phase_5c_calls_unresolved_threads_script` (REQ-011-01): hook invokes `get_unresolved_review_threads.py`.

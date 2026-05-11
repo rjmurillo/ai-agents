@@ -1154,7 +1154,7 @@ except Exception:
                     # exit code. No `|| true` fall-through; auth/network/
                     # rate-limit failures must not mask in-flight reviews
                     # as PASS.
-                    REVIEW_FAIL_MODE="exit $REVIEW_API_EXIT"
+                    REVIEW_FAIL_MODE="unclassified"
                     if [ -s "$REVIEW_STDERR" ]; then
                         if grep -qiE 'auth|unauthorized|401|403|bad credentials|gh auth login' "$REVIEW_STDERR" 2>/dev/null; then
                             REVIEW_FAIL_MODE="gh api auth failed"
@@ -1164,6 +1164,10 @@ except Exception:
                             REVIEW_FAIL_MODE="gh api network error"
                         fi
                     fi
+                    # Exit code appended once; REVIEW_FAIL_MODE never contains
+                    # the exit code itself (cursor finding on PR #2011: a prior
+                    # default of "exit $REVIEW_API_EXIT" produced "..., exit N,
+                    # exit N").
                     record_skip "Bot-cascade check (PR #$PR_NUMBER gh api reviews failed: $REVIEW_FAIL_MODE, exit $REVIEW_API_EXIT)"
                 fi
             fi

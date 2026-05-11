@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "12/12 tests pass in tests/hooks/test_bot_cascade_warning.py (count grew from 11 after adding test_phase_5c_emits_recorded_outcome_token for REQ-011-05); bash -n .githooks/pre-push clean"
+        "Evidence": "All tests pass in tests/hooks/test_bot_cascade_warning.py; bash -n .githooks/pre-push clean. (Exact test count intentionally not pinned in narrative evidence; it grows as the contract evolves. See test file for current count.)"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -145,8 +145,8 @@
     },
     {
       "timestamp": "2026-05-10T22:10:00-07:00",
-      "action": "PR review rounds 2-4 (16 more threads)",
-      "evidence": "Round 2 (6): STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3 (2): reviews pagination via --paginate --slurp, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4 (8): tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. 13/13 tests pass."
+      "action": "PR review rounds 2-5 (24+ more threads)",
+      "evidence": "Round 2 (6): STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3 (2): reviews pagination via --paginate --slurp, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4 (8): tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. Round 5 (10): further test tightening (warn/skip messages on non-comment lines), purged hard-coded test counts from docs, fixed double-exit-code in unclassified SKIP, REQ-011-02 requirement statement extended to success+complete, bash resolved-path in syntax test. All tests pass; bash -n clean; self-apply gate exercises the unresolved-warn path each iteration."
     }
   ],
   "endingCommit": "d8aee7ed",

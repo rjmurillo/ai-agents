@@ -111,22 +111,23 @@ Warns the developer before another bot scan triggers, reducing the chance of cas
 
 ---
 
-## REQ-011-02: Incomplete Pagination is SKIP, Not PASS
+## REQ-011-02: Untrustworthy Snapshot is SKIP, Not PASS
 
 ### Requirement Statement
 
-WHEN the query returns `fetched_pages_complete == false` OR the JSON parse fails, THE SYSTEM SHALL record SKIP with explicit reason, SO THAT incomplete pagination does not produce false PASS.
+WHEN the query returns `success == false` OR `fetched_pages_complete == false` OR the JSON parse fails OR `unresolved_count` is not a non-negative integer, THE SYSTEM SHALL record SKIP with an explicit reason naming the failed condition, SO THAT an untrustworthy snapshot does not produce a false PASS.
 
 ### Acceptance Criteria
 
-- [ ] Hook parses `fetched_pages_complete` from JSON output before reading `unresolved_count`.
-- [ ] On `fetched_pages_complete == false`, the hook emits `record_skip "Bot-cascade check (PR #N snapshot incomplete)"`.
-- [ ] On JSON parse failure, the hook emits `record_skip "Bot-cascade check (PR #N JSON parse failed)"`.
-- [ ] Neither condition produces a false PASS or warns.
+- [x] Hook parses `success` and `fetched_pages_complete` from JSON output before reading `unresolved_count`; trust requires BOTH `true`.
+- [x] On `success == false`, the hook emits `record_skip "Bot-cascade check (PR #N thread query returned success=false)"`.
+- [x] On `fetched_pages_complete == false`, the hook emits `record_skip "Bot-cascade check (PR #N snapshot incomplete: fetched_pages_complete=false)"`.
+- [x] On JSON parse failure or a non-int/bool/negative `unresolved_count`, the hook emits `record_skip "Bot-cascade check (PR #N JSON parse failed)"`.
+- [x] No condition produces a false PASS or a warn.
 
 ### Rationale
 
-PR #1989 commit `cb1bdf19` retroactively patched the related "trust without flag" issue. REQ-011 builds it in from the start.
+PR #1989 commit `cb1bdf19` retroactively patched the related "trust without flag" issue. REQ-011 builds it in from the start. PR #2011 review extended the trust gate to require `success == true` in addition to `fetched_pages_complete == true`, and to reject `bool` (which subclasses `int` in Python) and negative values for `unresolved_count`.
 
 ---
 

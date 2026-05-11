@@ -105,20 +105,40 @@ def test_phase_5c_parses_fetched_pages_complete() -> None:
 
 
 def test_phase_5c_emits_warn_on_unresolved() -> None:
-    """REQ-011-01: hook emits record_warn (not record_fail) on unresolved."""
-    block = _phase_5c_block()
-    assert "record_warn" in block, "REQ-011-01: hook must emit record_warn"
-    assert "unresolved" in block.lower(), (
-        "REQ-011-01: warn message must reference unresolved threads"
+    """REQ-011-01: a non-comment record_warn line names unresolved threads.
+
+    Bare `record_warn` is too weak (the recent-bot-review path also calls
+    it) and bare `unresolved` is too weak (comments say "zero unresolved").
+    Assert a non-comment line invokes `record_warn` AND mentions
+    "unresolved thread" so removing the unresolved-thread branch fails the
+    test (copilot finding on PR #2011).
+    """
+    code = _phase_5c_code_lines()
+    assert any(
+        "record_warn" in line and "unresolved thread" in line for line in code
+    ), (
+        "REQ-011-01: a non-comment line must call `record_warn` with a "
+        "message referencing 'unresolved thread(s)'"
     )
 
 
 def test_phase_5c_emits_skip_on_incomplete() -> None:
-    """REQ-011-02: hook emits record_skip when fetched_pages_complete=false."""
-    block = _phase_5c_block()
-    assert "record_skip" in block, (
-        "REQ-011-02: hook must emit record_skip on incomplete pagination, "
-        "not fall through to pass"
+    """REQ-011-02: a non-comment record_skip line names the incomplete snapshot.
+
+    Bare `record_skip` is too weak (many branches call it: gh missing, no
+    PR, JSON parse failed). Assert a non-comment line invokes `record_skip`
+    with a message naming the incomplete-snapshot condition
+    ("fetched_pages_complete") so removing that specific SKIP branch fails
+    the test (copilot finding on PR #2011).
+    """
+    code = _phase_5c_code_lines()
+    assert any(
+        "record_skip" in line and "fetched_pages_complete" in line
+        for line in code
+    ), (
+        "REQ-011-02: a non-comment line must call `record_skip` with a "
+        "message naming the incomplete-snapshot condition "
+        "('fetched_pages_complete=false')"
     )
 
 
@@ -215,12 +235,7 @@ def test_phase_5c_warn_only_never_fails() -> None:
     Strips comment lines before matching so the design comment that says
     "Never calls record_fail" does not register as a call site.
     """
-    block = _phase_5c_block()
-    code_lines = [
-        line for line in block.splitlines()
-        if not line.lstrip().startswith("#")
-    ]
-    for line in code_lines:
+    for line in _phase_5c_code_lines():
         assert "record_fail" not in line, (
             f"Phase 5c is warn-only; record_fail must NOT be called. "
             f"Line: {line.strip()}"
@@ -229,10 +244,14 @@ def test_phase_5c_warn_only_never_fails() -> None:
 
 def test_pre_push_hook_bash_syntax_valid() -> None:
     """Hook must parse without syntax errors after Phase 5c additions."""
-    if shutil.which("bash") is None:
+    bash_path = shutil.which("bash")
+    if bash_path is None:
         pytest.skip("bash not available on this platform")
+    # Invoke the resolved absolute path, not the bare name, so the test
+    # exercises the same binary it checked for (coderabbit finding /
+    # Ruff S607 on PR #2011).
     result = subprocess.run(
-        ["bash", "-n", str(PRE_PUSH_HOOK)],
+        [bash_path, "-n", str(PRE_PUSH_HOOK)],
         capture_output=True,
         text=True,
         timeout=10,
