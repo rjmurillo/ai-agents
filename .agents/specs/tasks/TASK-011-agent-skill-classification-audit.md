@@ -5,7 +5,7 @@ title: Execute agent-skill classification audit and post results
 status: todo
 priority: P1
 complexity: M
-estimate: 6h
+estimate: 9h
 related:
   - DESIGN-011
 assignee: implementer
@@ -156,7 +156,7 @@ No modifications to `.claude/agents/`, `templates/agents/`, `src/`.
 
 ## Estimate
 
-6 hours total per Q4 wedge, broken down as:
+9 hours total (per breakdown below; Q4 wedge of 6h was the original estimate, refined to 9h after manual c2 scoring proved more time-intensive than projected), broken down as:
 
 - Steps 1, 8, 9, 10: 60 min (setup + GitHub I/O + validation)
 - Steps 2, 3, 4: 270 min (mechanical + lookup work; partially scriptable)

@@ -312,7 +312,7 @@ For each agent, evidence justifying every score plus the verdict rationale. Nume
 #### `high-level-advisor` (verdict=keep-as-agent, score=0/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
-- **c2 (50-69%)**: 162/199 lines structured (81%); 3 table sep, 3 code blocks, 69 list items, decision/criteria hd, format/schema hd -> manual review: Strategic frameworks/memories are reference; verdict-delivery prose is reasoning; mixed 50-69%
+- **c2 (50-69%)**: heuristic counted 162/199 lines structured (81%) but manual deflation per PRD section 11 count rule excludes the bullets in 'Persona Traits', 'Activation Profile', and 'Strategic Knowledge' sections (those are persona/identity declarations not decision-tree bullets); after deflation, ~120/199 lines (60%) are genuine reference -> manual review: Strategic frameworks/memories are reference; verdict-delivery prose is reasoning; mixed 50-69%
 - **c3 (N/A)**: agent not invoked from any slash command (c1=No)
 - **c4 (Unknown)**: agent emits prose/advisory output; no structured artifact for bots to validate against schema; no PR-history signal possible
 - **c5_frontmatter_bytes**: 452 (full body: 8471)
@@ -322,7 +322,7 @@ For each agent, evidence justifying every score plus the verdict rationale. Nume
 #### `independent-thinker` (verdict=keep-as-agent, score=0/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
-- **c2 (50-69%)**: 137/169 lines structured (81%); 1 table sep, 2 code blocks, 49 list items, decision/criteria hd, format/schema hd -> manual review: Persona Traits + Core Mission are reasoning; Style Guide + Activation Profile are reference; mixed 50-69%
+- **c2 (50-69%)**: heuristic counted 137/169 lines structured (81%) but manual deflation per PRD section 11 count rule excludes the bullets in 'Style Guide Compliance', 'Activation Profile', and 'Persona Traits' sections (those are reasoning/identity prose not decision-tree bullets); after deflation, ~100/169 lines (59%) are genuine reference -> manual review: Persona Traits + Core Mission are reasoning; Style Guide + Activation Profile are reference; mixed 50-69%
 - **c3 (N/A)**: agent not invoked from any slash command (c1=No)
 - **c4 (Unknown)**: agent emits prose/advisory output; no structured artifact for bots to validate against schema; no PR-history signal possible
 - **c5_frontmatter_bytes**: 467 (full body: 8258)

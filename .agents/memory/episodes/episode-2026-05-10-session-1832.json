@@ -10,7 +10,7 @@
       "id": "e001",
       "timestamp": "2026-05-11T05:03:23.039735+00:00",
       "type": "protocol_compliance",
-      "content": "Copilot CLI session, no Serena MCP server available. Functional equivalent: .serena/memories/ accessed via filesystem grep + view (e.g., implementation-007-pr1989-recursive-failure-learnings.md cited in PRD \\u00a71).",
+      "content": "Copilot CLI session, no Serena MCP server available. Functional equivalent: .serena/memories/ accessed via filesystem grep + view (e.g., implementation-007-pr1989-recursive-failure-learnings.md cited in PRD \u00a71).",
       "caused_by": [],
       "leads_to": []
     },
@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-05-11T05:03:23.039735+00:00",
       "type": "evidence",
-      "content": "Read: .serena/memories/implementation/implementation-007-pr1989-recursive-failure-learnings.md (cited in PRD \\u00a71, \\u00a710); searched .serena/memories/ for agent-vs-skill discriminator and consolidation context (matched 10 files; 5 cited in PRD Prior Art).",
+      "content": "Read: .serena/memories/implementation/implementation-007-pr1989-recursive-failure-learnings.md (cited in PRD \u00a71, \u00a710); searched .serena/memories/ for agent-vs-skill discriminator and consolidation context (matched 10 files; 5 cited in PRD Prior Art).",
       "caused_by": [],
       "leads_to": []
     },
@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-05-11T05:03:23.039735+00:00",
       "type": "outcome",
-      "content": "Pre-commit failed twice: dash-prohibition (em-dash and en-dash present in PRD \\u00a71, \\u00a73.1 and REQ-011 dependencies list), session-log requirement. Fixed dashes via Python replace then space-comma cleanup; created this session log; commit succeeds.",
+      "content": "Pre-commit failed twice: dash-prohibition (em-dash and en-dash present in PRD \u00a71, \u00a73.1 and REQ-011 dependencies list), session-log requirement. Fixed dashes via Python replace then space-comma cleanup; created this session log; commit succeeds.",
       "caused_by": [],
       "leads_to": []
     },
@@ -42,7 +42,7 @@
       "id": "e005",
       "timestamp": "2026-05-11T05:03:23.039735+00:00",
       "type": "learning",
-      "content": "\"Spec-schemas.md enum drift is exactly the failure mode this audit addresses; reading the schema before writing REQ/DESIGN/TASK frontmatter is the defense.\",",
+      "content": "\"Spec-schemas.md enum drift is exactly the failure mode this audit addresses; reading the schema before writing REQ/DESIGN/TASK frontmatter is the defense.",
       "caused_by": [],
       "leads_to": []
     }
