@@ -1044,9 +1044,15 @@ else
         BOT_CHECK_OUTPUT=$(mktemp)
         BOT_CHECK_STDERR=$(mktemp)
         TEMP_FILES+=("$BOT_CHECK_OUTPUT" "$BOT_CHECK_STDERR")
-        if "${PYTHON_CMD[@]}" \
+        # Capture the exit code immediately after the command, then branch
+        # on the saved variable (same robust pattern as PR_VIEW_EXIT and
+        # REVIEW_API_EXIT). A later edit that inserts a command before the
+        # `if` would otherwise clobber $? (cursor finding on PR #2011).
+        "${PYTHON_CMD[@]}" \
             .claude/skills/github/scripts/pr/get_unresolved_review_threads.py \
-            --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>"$BOT_CHECK_STDERR"; then
+            --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>"$BOT_CHECK_STDERR"
+        BOT_QUERY_EXIT=$?
+        if [ "$BOT_QUERY_EXIT" -eq 0 ]; then
             # REQ-011-02: require BOTH success=true AND fetched_pages_complete=true
             # before trusting the count. Either failure produces SKIP, never PASS.
             UNRESOLVED_COUNT=$("${PYTHON_CMD[@]}" -c "
@@ -1179,7 +1185,6 @@ except Exception:
                 fi
             fi
         else
-            BOT_QUERY_EXIT=$?
             record_skip "Bot-cascade check (get_unresolved_review_threads.py failed for PR #$PR_NUMBER, exit $BOT_QUERY_EXIT)"
         fi
     fi
