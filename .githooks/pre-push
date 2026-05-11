@@ -1101,21 +1101,24 @@ except Exception:
                 # captured exit code. No `|| true` fall-through.
                 REVIEW_STDERR=$(mktemp)
                 TEMP_FILES+=("$REVIEW_STDERR")
-                # --paginate + --slurp fetches all pages and merges them
-                # into a single array of arrays. The /reviews endpoint
-                # paginates at 30/page by default; without --paginate, a
-                # bot review on page 2+ would be missed and Phase 5c would
-                # report PASS while a scan is in flight (coderabbit P1 on
-                # PR #2011). `--jq '.[][]'` flattens the slurped pages
-                # before filtering.
-                LAST_REVIEW_AGE_OUTPUT=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
-                    --paginate --slurp \
-                    --jq '[.[][] | select(.user.type == "Bot") | .submitted_at] | sort | last' \
+                # The /reviews endpoint paginates at 30/page by default;
+                # without --paginate, a bot review on page 2+ would be
+                # missed and Phase 5c would report PASS while a scan is in
+                # flight (coderabbit P1 on PR #2011). gh's --slurp is
+                # incompatible with --jq, so instead use --paginate with a
+                # per-page --jq that emits each bot review's submitted_at
+                # (one timestamp per line across all pages), then sort and
+                # take the newest in a separate step so $? reflects the gh
+                # call, not the trailing sort/tail pipeline.
+                REVIEW_RAW=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
+                    --paginate \
+                    --jq '.[] | select(.user.type == "Bot") | .submitted_at' \
                     2>"$REVIEW_STDERR")
                 REVIEW_API_EXIT=$?
-                # Defensive: gh --jq emits raw text, but trim stray whitespace
-                # and stray double quotes to harden against CLI version drift
-                # (gemini-code-assist finding on PR #2011).
+                LAST_REVIEW_AGE_OUTPUT=$(printf '%s\n' "$REVIEW_RAW" | sort | tail -n 1)
+                # Defensive: trim stray whitespace and double quotes to
+                # harden against CLI version drift (gemini-code-assist
+                # finding on PR #2011).
                 LAST_REVIEW_AGE_OUTPUT=$(printf '%s' "$LAST_REVIEW_AGE_OUTPUT" | tr -d '"' | tr -d '[:space:]')
                 if [ "$REVIEW_API_EXIT" -eq 0 ]; then
                     if [ -n "$LAST_REVIEW_AGE_OUTPUT" ] && [ "$LAST_REVIEW_AGE_OUTPUT" != "null" ]; then
