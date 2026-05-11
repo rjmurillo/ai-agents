@@ -1,0 +1,46 @@
+{
+  "id": "episode-2026-05-11-session-1832",
+  "session": "2026-05-11-session-1832",
+  "timestamp": "2026-05-11T03:53:50.166586+00:00",
+  "outcome": "partial",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-11T03:53:50.163685+00:00",
+      "type": "test",
+      "content": "\"Evidence\": \"11/11 tests pass in tests/hooks/test_bot_cascade_warning.py; bash -n .githooks/pre-push clean\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-11T03:53:50.163685+00:00",
+      "type": "commit",
+      "content": "Commit: 3e749bd9",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-11T03:53:50.163685+00:00",
+      "type": "test",
+      "content": "\"evidence\": \"Phase 5c implemented in .githooks/pre-push; all 11 tests pass; commit d8aee7ed\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 9,
+    "files_changed": 0
+  },
+  "lessons": [
+    "\"Evidence\": \"Created .serena/memories/implementation/implementation-009-req011-tdd-first-shipment.md capturing TDD-first lessons and comment-vs-call grep trap\"",
+    "\"Evidence\": \"Lessons captured in implementation-009; PR #1989 retrospective referenced as source for Phase 5c contracts\""
+  ]
+}
