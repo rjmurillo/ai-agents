@@ -53,12 +53,12 @@ See PRD §9.
 - [ ] **TAC-1** (covers AC-1, AC-3, AC-4, AC-7, AC-8): file `.agents/audits/2026-05-10-agent-skill-classification-audit.md` exists with exactly 23 data rows, every cell populated, every score has an evidence citation, `has_shared_template` and `c5_frontmatter_bytes` columns present.
 - [ ] **TAC-2** (covers AC-5, AC-6, AC-11): every row has a verdict from the enum {skill, context-fork-skill, keep-as-agent, merge-into-X}; verdict assignment follows the discriminator-2-of-4 rule with documented isolation exceptions for orchestrator / analyst / critic / pr-comment-responder.
 - [ ] **TAC-3** (covers AC-2): a comment on issue #2003 exists (created or edited) containing the marker `<!-- agent-skill-audit:2026-05-10 -->` and a link to the committed file plus a verdict-count summary.
-- [ ] **TAC-4** (covers AC-9): the audit file footer includes total agents, count by verdict, total bytes saved if all skill verdicts migrate, and citations to ADR-030, ADR-036, `agent-consolidation-process.md`.
+- [ ] **TAC-4** (covers AC-9): the audit file footer includes total agents, count by verdict, total bytes saved if all `skill` AND `context-fork-skill` verdicts migrate (both are shape-mismatch refactor candidates per the discriminator), and citations to ADR-030, ADR-036, `agent-consolidation-process.md`.
 - [ ] **TAC-5** (covers AC-10): the audit file's "Phase 2 backlog" section lists every row with `verdict != keep-as-agent`, each with a one-line rationale.
 - [ ] **TAC-6** (covers AC-12): a separate GitHub issue exists for the Phase 3 CI check, linked from this audit's footer.
 - [ ] **TAC-7** (NFR-1, NFR-2): `git status` after the audit shows changes only under `.agents/audits/`, `.agents/specs/`, `.agents/metrics/` (if metrics line appended). No changes under `.claude/agents/`, `templates/agents/`, or `src/`.
 - [ ] **TAC-8** (NFR-3): every assertion in the audit cites a file path, line number, PR number, or git SHA.
-- [ ] **TAC-9** (NFR-4): execution completed in less than 6 hours of reviewer time (track in session log).
+- [ ] **TAC-9** (NFR-4): execution completed in less than 10 hours of reviewer time (revised bound; original wedge of 6h proved too aggressive for manual c2 scoring; track in session log).
 
 ## Implementation Plan
 

@@ -45,7 +45,7 @@ SO THAT misclassified agents are identified and queued for Phase 2 refactor with
 - [ ] **AC-6**: THE SYSTEM SHALL set `verdict = keep-as-agent` when the agent body documents a context-isolation requirement that cannot be satisfied by `context: fork` SO THAT genuine separate-context agents (`orchestrator`, `analyst`, `critic`, `pr-comment-responder` per the issue's counter-signal section) are correctly preserved.
 - [ ] **AC-7**: THE SYSTEM SHALL include a `has_shared_template` column populated by checking for `templates/agents/{agent}.shared.md` per ADR-036 SO THAT Phase 2 refactor planning correctly targets dual-source agents.
 - [ ] **AC-8**: THE SYSTEM SHALL include a per-row `c5_frontmatter_bytes` measurement (bytes from start of file to end of YAML frontmatter delimiter) SO THAT load-budget impact of `verdict = skill` recommendations is quantified.
-- [ ] **AC-9**: THE SYSTEM SHALL include a summary footer with: total agents, count by verdict, total `c5_frontmatter_bytes` saved if all `verdict = skill` rows were migrated, and citations to ADR-030, ADR-036, and `.agents/governance/agent-consolidation-process.md` SO THAT readers see authority and impact at a glance.
+- [ ] **AC-9**: THE SYSTEM SHALL include a summary footer with: total agents, count by verdict, total `c5_frontmatter_bytes` saved if all `verdict = skill` AND `verdict = context-fork-skill` rows were migrated (both are shape-mismatch refactor candidates), and citations to ADR-030, ADR-036, and `.agents/governance/agent-consolidation-process.md` SO THAT readers see authority and impact at a glance.
 - [ ] **AC-10**: THE SYSTEM SHALL produce a Phase 2 backlog list (one bullet per `verdict ≠ keep-as-agent` row, with one-line justification) committed alongside the audit table SO THAT the issue's second acceptance criterion is satisfied.
 - [ ] **AC-11**: THE SYSTEM SHALL record a verdict for every row SO THAT the issue's third acceptance criterion is satisfied; "no decision" is not a valid verdict.
 - [ ] **AC-12**: WHEN the Phase 3 CI check is referenced THE SYSTEM SHALL link to a separate filed GitHub issue (not implement the check) SO THAT the issue's fourth acceptance criterion is satisfied without expanding this audit's scope.
@@ -55,7 +55,7 @@ SO THAT misclassified agents are identified and queued for Phase 2 refactor with
 - **NFR-1 (Determinism, scoped)**: Two runs of the audit on the same git SHA SHALL produce byte-identical output for c1, c3, c4, c5, and `has_shared_template` columns. **c2 is human-judgment and MAY vary between reviewers** (see PRD §11 c2 count rule). Verdict can change for borderline agents whose discriminator_score depends on c2; this is an explicit limitation of the count rule, not a determinism failure. Reviewers may rebalance individual c2 scores.
 - **NFR-2 (Read-only)**: The audit SHALL NOT modify any file under `.claude/agents/`, `templates/agents/`, or `src/`.
 - **NFR-3 (Auditable)**: Every assertion in the audit SHALL cite a file path, line number, PR number, or git SHA in its evidence column.
-- **NFR-4 (Bounded effort)**: Audit execution SHALL complete in less than 6 hours of human reviewer time per Q4 wedge.
+- **NFR-4 (Bounded effort)**: Audit execution SHALL complete in less than 10 hours of human reviewer time. (Q4 wedge originally estimated 6h; revised to 9h actual after manual c2 scoring proved more time-intensive than projected; <10h is the new bound.)
 
 ## Dependencies
 

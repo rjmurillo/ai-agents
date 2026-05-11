@@ -224,6 +224,7 @@
   ],
   "endingCommit": "e4ee4bd0",
   "nextSteps": [
+    "NOTE: endingCommit will need final update at session terminus to point to the actual last commit on this branch (currently chasing PR review thread loop).",
     "Reply-and-resolve all 13 PR review threads with cited fix evidence",
     "Re-run completion gate; verify 0 unresolved + CI green",
     "Validate against PRD \u00a78 AC-1..AC-12 (TASK-011 Step 10) again after round 2 changes",
