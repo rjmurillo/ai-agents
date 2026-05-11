@@ -222,7 +222,7 @@
     "Heuristic c2 scoring over-counts reasoning-focused agents because all-bullets are flagged as structured. Manual review needed for borderline cases per PRD \u00a711 count rule.",
     "11 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command was the round-2 number; round 3 moved roadmap from c1=No to c1=Yes via the descriptive Task() form in review.md, bringing the count back to 11; verified against the 23-row audit table: 12 agents show c1=1 and 11 show c1=0). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
   ],
-  "endingCommit": "83d1c76a (will be updated to round-7c commit SHA at session end)",
+  "endingCommit": "e4ee4bd0",
   "nextSteps": [
     "Reply-and-resolve all 13 PR review threads with cited fix evidence",
     "Re-run completion gate; verify 0 unresolved + CI green",
