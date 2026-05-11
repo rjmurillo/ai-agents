@@ -1159,7 +1159,11 @@ except Exception:
                     # as PASS.
                     REVIEW_FAIL_MODE="unclassified"
                     if [ -s "$REVIEW_STDERR" ]; then
-                        if grep -qiE 'auth|unauthorized|401|403|bad credentials|gh auth login' "$REVIEW_STDERR" 2>/dev/null; then
+                        # Specific auth signals only. A bare 'auth' alternative
+                        # would match 'author' as a substring and misclassify
+                        # unrelated errors (copilot finding on PR #2011). gh
+                        # emits 'HTTP 401'/'HTTP 403' for auth failures.
+                        if grep -qiE 'unauthorized|authentication|bad credentials|gh auth login|HTTP 401|HTTP 403' "$REVIEW_STDERR" 2>/dev/null; then
                             REVIEW_FAIL_MODE="gh api auth failed"
                         elif grep -qiE 'rate limit|429|secondary rate' "$REVIEW_STDERR" 2>/dev/null; then
                             REVIEW_FAIL_MODE="gh api rate-limited"

@@ -93,7 +93,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "3 commits on branch: 1bb5395f (spec docs), 3e749bd9 (TDD red), d8aee7ed (TDD green). Session log and memory committed atomically in this commit."
+        "Evidence": "All branch changes are committed; nothing left in the working tree. The branch began with the TDD-first sequence (spec docs, TDD red, TDD green) and accumulated several PR-review rounds on top; see workLog for the round-by-round narrative. Exact commit count is intentionally not pinned here since the branch grows with each review round."
       },
       "validationPassed": {
         "level": "MUST",
@@ -121,12 +121,12 @@
     {
       "timestamp": "2026-05-10T20:45:00-07:00",
       "action": "TDD red phase",
-      "evidence": "11 structural tests pinning Phase 5c contract; commit 3e749bd9"
+      "evidence": "Structural tests pinning the Phase 5c contract; all fail against a hook without Phase 5c; commit 3e749bd9"
     },
     {
       "timestamp": "2026-05-10T20:50:00-07:00",
       "action": "TDD green phase",
-      "evidence": "Phase 5c implemented in .githooks/pre-push; all 11 tests pass; commit d8aee7ed"
+      "evidence": "Phase 5c implemented in .githooks/pre-push; all tests in test_bot_cascade_warning.py pass; commit d8aee7ed"
     },
     {
       "timestamp": "2026-05-10T20:55:00-07:00",
@@ -136,17 +136,17 @@
     {
       "timestamp": "2026-05-10T21:30:00-07:00",
       "action": "PR open and self-apply gate (TASK-011-04)",
-      "evidence": "PR #2011 opened. Three self-apply paths exercised: SKIP no-PR (pre-PR), PASS all-green (post-open), WARN unresolved (post-bot-scan, 16 threads)."
+      "evidence": "PR #2011 opened. Self-apply paths exercised across iterations: SKIP no-PR (pre-PR), PASS all-green (post-open), WARN unresolved (every bot-scan round), PASS recent-review-old, SKIP gh-api-failure (which surfaced the --slurp incompatibility bug)."
     },
     {
       "timestamp": "2026-05-10T21:35:00-07:00",
-      "action": "PR review address (15 unresolved threads)",
-      "evidence": "Clustered 15 bot threads by root cause; patched hook (Cluster A: no-fail-open on gh pr view; success+complete gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). 12/12 tests pass."
+      "action": "PR review address (round 1)",
+      "evidence": "Clustered the round-1 bot threads by root cause; patched hook (no-fail-open on gh pr view; success+complete trust gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). All tests pass."
     },
     {
       "timestamp": "2026-05-10T22:10:00-07:00",
-      "action": "PR review rounds 2-5 (24+ more threads)",
-      "evidence": "Round 2 (6): STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3 (2): reviews pagination, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4 (8): tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. Round 5 (10): further test tightening (warn/skip messages on non-comment lines), purged hard-coded test counts from docs, fixed double-exit-code in unclassified SKIP, REQ-011-02 requirement statement extended to success+complete, bash resolved-path in syntax test. Round 6: self-apply gate caught that gh's --slurp is incompatible with --jq (the round-3 pagination fix was wrong); replaced with --paginate + per-page --jq emitting one timestamp per bot review, then sort/tail in a separate step so $? reflects the gh call. Now PASSes correctly: 'PASS: Bot-cascade check (PR #2011, 0 unresolved, last bot review 1859s old)'. All tests pass; bash -n clean."
+      "action": "PR review rounds 2-7",
+      "evidence": "Round 2: STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3: reviews pagination, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4: tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. Round 5: further test tightening (warn/skip messages on non-comment lines), purged hard-coded test counts from docs, fixed double-exit-code in unclassified SKIP, REQ-011-02 requirement statement extended to success+complete, bash resolved-path in syntax test. Round 6: self-apply gate caught that gh's --slurp is incompatible with --jq (the round-3 pagination fix was wrong); replaced with --paginate plus a per-page --jq emitting one timestamp per bot review, then sort/tail in a separate step so the exit code reflects the gh call; Phase 5c now PASSes correctly. Round 7: tightened the auth-classifier regex (bare 'auth' matched 'author' substring), purged remaining hard-coded counts and the incorrect --slurp mention from session-log and episode evidence. All tests pass; bash -n clean throughout."
     }
   ],
   "endingCommit": "d8aee7ed",

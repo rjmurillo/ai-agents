@@ -1,14 +1,14 @@
 {
   "id": "episode-2026-05-11-session-1832",
   "session": "2026-05-11-session-1832",
-  "timestamp": "2026-05-11T06:22:18.062168+00:00",
+  "timestamp": "2026-05-11T06:51:17.519504+00:00",
   "outcome": "failure",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-11T06:22:18.058826+00:00",
+      "timestamp": "2026-05-11T06:51:17.516138+00:00",
       "type": "error",
       "content": "\"Evidence\": \"markdownlint-cli2 v0.22.1 ran via pre-commit hook on every staged commit; the markdown files touched by commits 1bb5395f (specs), 4ed01651 (specs revised), 426e89d3 (none) reported 0 errors. Hook output line: 'SUCCESS: Markdown files OK.'\"",
       "caused_by": [],
@@ -16,41 +16,49 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-11T06:22:18.058826+00:00",
+      "timestamp": "2026-05-11T06:51:17.516138+00:00",
       "type": "test",
       "content": "\"Evidence\": \"All tests pass in tests/hooks/test_bot_cascade_warning.py; bash -n .githooks/pre-push clean. (Exact test count intentionally not pinned in narrative evidence; it grows as the contract evolves. See test file for current count.)\"",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e003",
-      "timestamp": "2026-05-11T06:22:18.058826+00:00",
-      "type": "commit",
-      "content": "Commit: 3e749bd9",
+      "id": "e004",
+      "timestamp": "2026-05-11T06:51:17.516138+00:00",
+      "type": "error",
+      "content": "\"evidence\": \"Structural tests pinning the Phase 5c contract; all fail against a hook without Phase 5c; commit 3e749bd9\"",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-11T06:22:18.058826+00:00",
-      "type": "test",
-      "content": "\"evidence\": \"Phase 5c implemented in .githooks/pre-push; all 11 tests pass; commit d8aee7ed\"",
+      "timestamp": "2026-05-11T06:51:17.516138+00:00",
+      "type": "commit",
+      "content": "Commit: d8aee7ed",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e007",
-      "timestamp": "2026-05-11T06:22:18.058826+00:00",
-      "type": "test",
-      "content": "\"evidence\": \"Clustered 15 bot threads by root cause; patched hook (Cluster A: no-fail-open on gh pr view; success+complete gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). 12/12 tests pass.\"",
+      "id": "e006",
+      "timestamp": "2026-05-11T06:51:17.516138+00:00",
+      "type": "error",
+      "content": "\"evidence\": \"PR #2011 opened. Self-apply paths exercised across iterations: SKIP no-PR (pre-PR), PASS all-green (post-open), WARN unresolved (every bot-scan round), PASS recent-review-old, SKIP gh-api-failure (which surfaced the --slurp incompatibility bug).\"",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e009",
-      "timestamp": "2026-05-11T06:22:18.058826+00:00",
+      "id": "e008",
+      "timestamp": "2026-05-11T06:51:17.516138+00:00",
       "type": "test",
-      "content": "\"evidence\": \"Round 2 (6): STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3 (2): reviews pagination, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4 (8): tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. Round 5 (10): further test tightening (warn/skip messages on non-comment lines), purged hard-coded test counts from docs, fixed double-exit-code in unclassified SKIP, REQ-011-02 requirement statement extended to success+complete, bash resolved-path in syntax test. Round 6: self-apply gate caught that gh's --slurp is incompatible with --jq (the round-3 pagination fix was wrong); replaced with --paginate + per-page --jq emitting one timestamp per bot review, then sort/tail in a separate step so $? reflects the gh call. Now PASSes correctly: 'PASS: Bot-cascade check (PR #2011, 0 unresolved, last bot review 1859s old)'. All tests pass; bash -n clean.\"",
+      "content": "\"evidence\": \"Clustered the round-1 bot threads by root cause; patched hook (no-fail-open on gh pr view; success+complete trust gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). All tests pass.\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-05-11T06:51:17.516138+00:00",
+      "type": "test",
+      "content": "\"evidence\": \"Round 2: STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3: reviews pagination, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4: tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. Round 5: further test tightening (warn/skip messages on non-comment lines), purged hard-coded test counts from docs, fixed double-exit-code in unclassified SKIP, REQ-011-02 requirement statement extended to success+complete, bash resolved-path in syntax test. Round 6: self-apply gate caught that gh's --slurp is incompatible with --jq (the round-3 pagination fix was wrong); replaced with --paginate plus a per-page --jq emitting one timestamp per bot review, then sort/tail in a separate step so the exit code reflects the gh call; Phase 5c now PASSes correctly. Round 7: tightened the auth-classifier regex (bare 'auth' matched 'author' substring), purged remaining hard-coded counts and the incorrect --slurp mention from session-log and episode evidence. All tests pass; bash -n clean throughout.\"",
       "caused_by": [],
       "leads_to": []
     }
@@ -58,9 +66,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 3,
+    "errors": 5,
     "recoveries": 0,
-    "commits": 9,
+    "commits": 8,
     "files_changed": 0
   },
   "lessons": [
