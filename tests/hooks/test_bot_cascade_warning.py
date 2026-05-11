@@ -52,14 +52,21 @@ def _phase_5c_block() -> str:
 
 
 def test_phase_5c_header_present() -> None:
-    """REQ-011-01: Phase 5c block exists after Phase 5b."""
+    """REQ-011-01: Phase 5c block exists after Phase 5b.
+
+    Guards the ordering invariant from DESIGN-011: Phase 5c must follow
+    Phase 5b. The `find` calls return -1 on miss; assert non-negative
+    positions explicitly so a missing Phase 5b cannot satisfy the
+    "5b < 5c" check by accident (copilot finding on PR #2011).
+    """
     text = _hook_text()
     assert "Phase 5c" in text, (
         "REQ-011-01: pre-push hook must include a Phase 5c block"
     )
-    # Phase 5c must come after Phase 5b (drift check) per DESIGN-011.
     phase_5b_pos = text.find("Phase 5b")
     phase_5c_pos = text.find("Phase 5c")
+    assert phase_5b_pos >= 0, "Phase 5b header must exist before Phase 5c"
+    assert phase_5c_pos >= 0, "Phase 5c header must exist"
     assert phase_5b_pos < phase_5c_pos, "Phase 5c must follow Phase 5b"
 
 
@@ -174,3 +181,29 @@ def test_pre_push_hook_bash_syntax_valid() -> None:
     assert result.returncode == 0, (
         f"pre-push hook has bash syntax error:\n{result.stderr}"
     )
+
+
+def test_phase_5c_emits_recorded_outcome_token() -> None:
+    """REQ-011-05 (runtime contract): Phase 5c body reaches a recorded outcome.
+
+    The hook's full end-to-end run takes ~3 minutes (it executes the whole
+    test suite as Phase 4) and is unsuitable as a unit test. Instead we
+    verify the structural invariant that the Phase 5c block contains at
+    least one call to each of the three recorder functions used by the
+    contract: `record_skip`, `record_warn`, `record_pass`. If any of the
+    three is absent, the corresponding REQ-011 acceptance branch is
+    unreachable.
+
+    Runtime evidence from invoking the full hook against the current
+    branch (the actual self-apply gate from TASK-011-04) is captured in
+    the PR description rather than in a flaky 3-minute test.
+    """
+    block = _phase_5c_block()
+    for fn in ("record_skip", "record_warn", "record_pass"):
+        # Match the call form `fn "..."` (a string-literal first arg) so a
+        # mere mention in a comment does not satisfy the assertion.
+        pattern = re.compile(rf'(?m)^\s*{fn}\s+"', re.MULTILINE)
+        assert pattern.search(block), (
+            f"REQ-011-05: Phase 5c must contain at least one {fn} call site. "
+            "If a branch is removed, document the deferral in DESIGN-011 first."
+        )

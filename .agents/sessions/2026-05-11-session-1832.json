@@ -132,6 +132,16 @@
       "timestamp": "2026-05-10T20:55:00-07:00",
       "action": "Memory and session log",
       "evidence": "implementation-009 created; session log 1832 populated and validated"
+    },
+    {
+      "timestamp": "2026-05-10T21:30:00-07:00",
+      "action": "PR open and self-apply gate (TASK-011-04)",
+      "evidence": "PR #2011 opened. Three self-apply paths exercised: SKIP no-PR (pre-PR), PASS all-green (post-open), WARN unresolved (post-bot-scan, 16 threads)."
+    },
+    {
+      "timestamp": "2026-05-10T21:35:00-07:00",
+      "action": "PR review address (15 unresolved threads)",
+      "evidence": "Clustered 15 bot threads by root cause; patched hook (Cluster A: no-fail-open on gh pr view; success+complete gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). 12/12 tests pass."
     }
   ],
   "endingCommit": "d8aee7ed",

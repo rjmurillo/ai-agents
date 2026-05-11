@@ -1018,22 +1018,41 @@ if ! command -v gh >/dev/null 2>&1; then
 elif ! set_python_cmd; then
     record_skip "Bot-cascade check (no python interpreter found)"
 else
-    PR_NUMBER=$(gh pr view --json number --jq .number 2>/dev/null || true)
-    if [ -z "$PR_NUMBER" ]; then
+    # REQ-011-04 (generalized): distinguish "no PR for branch" (legitimate
+    # skip) from "gh pr view failed" (auth/network/transient). Capture
+    # stderr+exit. Empty PR_NUMBER with success means no PR; nonzero exit
+    # means we cannot trust the result.
+    PR_VIEW_STDERR=$(mktemp)
+    TEMP_FILES+=("$PR_VIEW_STDERR")
+    PR_NUMBER=$(gh pr view --json number --jq .number 2>"$PR_VIEW_STDERR")
+    PR_VIEW_EXIT=$?
+    if [ "$PR_VIEW_EXIT" -ne 0 ]; then
+        # gh pr view itself failed; do not silently treat as "no PR".
+        # gh emits an explicit "no pull requests found" message in this same
+        # error path, so check for that distinct case before falling back.
+        if grep -qi "no pull requests found" "$PR_VIEW_STDERR" 2>/dev/null; then
+            record_skip "Bot-cascade check (no PR open for branch)"
+        else
+            record_skip "Bot-cascade check (gh pr view failed, exit $PR_VIEW_EXIT)"
+        fi
+    elif [ -z "$PR_NUMBER" ]; then
         record_skip "Bot-cascade check (no PR open for branch)"
     else
         BOT_CHECK_OUTPUT=$(mktemp)
-        TEMP_FILES+=("$BOT_CHECK_OUTPUT")
+        BOT_CHECK_STDERR=$(mktemp)
+        TEMP_FILES+=("$BOT_CHECK_OUTPUT" "$BOT_CHECK_STDERR")
         if "${PYTHON_CMD[@]}" \
             .claude/skills/github/scripts/pr/get_unresolved_review_threads.py \
-            --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>/dev/null; then
-            # REQ-011-02: require fetched_pages_complete=true before trusting
-            # the count. Incomplete snapshot is SKIP, never PASS.
+            --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>"$BOT_CHECK_STDERR"; then
+            # REQ-011-02: require BOTH success=true AND fetched_pages_complete=true
+            # before trusting the count. Either failure produces SKIP, never PASS.
             UNRESOLVED_COUNT=$("${PYTHON_CMD[@]}" -c "
 import json, sys
 try:
     data = json.load(open(sys.argv[1]))
-    if not data.get('fetched_pages_complete', False):
+    if not data.get('success', False):
+        print('NOTSUCCESS')
+    elif not data.get('fetched_pages_complete', False):
         print('INCOMPLETE')
     else:
         print(data.get('unresolved_count', 0))
@@ -1041,25 +1060,41 @@ except Exception:
     print('ERROR')
 " "$BOT_CHECK_OUTPUT" 2>/dev/null || echo 'ERROR')
             if [ "$UNRESOLVED_COUNT" = "INCOMPLETE" ]; then
-                record_skip "Bot-cascade check (PR #$PR_NUMBER snapshot incomplete)"
+                record_skip "Bot-cascade check (PR #$PR_NUMBER snapshot incomplete: fetched_pages_complete=false)"
+            elif [ "$UNRESOLVED_COUNT" = "NOTSUCCESS" ]; then
+                record_skip "Bot-cascade check (PR #$PR_NUMBER thread query returned success=false)"
             elif [ "$UNRESOLVED_COUNT" = "ERROR" ]; then
                 record_skip "Bot-cascade check (PR #$PR_NUMBER JSON parse failed)"
             elif [ "${UNRESOLVED_COUNT:-0}" -gt 0 ] 2>/dev/null; then
                 # REQ-011-01: unresolved threads emit warn (not block).
-                record_warn "PR #$PR_NUMBER has $UNRESOLVED_COUNT unresolved bot thread(s)"
+                # NB: the unresolved count is total (not bot-filtered); the
+                # underlying GraphQL query does not return author for each
+                # thread. Labeled simply as "unresolved thread(s)" so the
+                # message is accurate. See Issue #2012 for shape work and
+                # downstream filtering proposals.
+                record_warn "PR #$PR_NUMBER has $UNRESOLVED_COUNT unresolved thread(s)"
                 echo_info "  Pushing now will trigger another bot scan and may"
-                echo_info "  open more threads. Batch-fix pattern (see"
-                echo_info "  pr-review-observations Session 14): resolve all open"
-                echo_info "  threads first, then push one empty commit to re-trigger CI."
+                echo_info "  open more threads. Batch-fix pattern: resolve all"
+                echo_info "  open threads first, then push one empty commit to"
+                echo_info "  re-trigger CI."
                 echo_info "  Bypass with: git push --no-verify"
             else
-                # REQ-011-03: zero unresolved AND fetched_pages_complete=true.
-                # Check whether a bot review was submitted in the last 120s.
-                # If so, warn (scan likely still in flight).
-                # REQ-011-04: gh api failure is SKIP, never PASS via `|| true`.
-                if LAST_REVIEW_AGE_OUTPUT=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
+                # REQ-011-03: zero unresolved AND fetched_pages_complete=true
+                # AND success=true. Check whether a bot review was submitted
+                # in the last 120s. If so, warn (scan likely still in flight).
+                # REQ-011-04: gh api failure is SKIP with explicit reason and
+                # captured exit code. No `|| true` fall-through.
+                REVIEW_STDERR=$(mktemp)
+                TEMP_FILES+=("$REVIEW_STDERR")
+                LAST_REVIEW_AGE_OUTPUT=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
                     --jq '[.[] | select(.user.type == "Bot") | .submitted_at] | sort | last' \
-                    2>/dev/null); then
+                    2>"$REVIEW_STDERR")
+                REVIEW_API_EXIT=$?
+                # Defensive: gh --jq emits raw text, but trim stray whitespace
+                # and stray double quotes to harden against CLI version drift
+                # (gemini-code-assist finding on PR #2011).
+                LAST_REVIEW_AGE_OUTPUT=$(printf '%s' "$LAST_REVIEW_AGE_OUTPUT" | tr -d '"' | tr -d '[:space:]')
+                if [ "$REVIEW_API_EXIT" -eq 0 ]; then
                     if [ -n "$LAST_REVIEW_AGE_OUTPUT" ] && [ "$LAST_REVIEW_AGE_OUTPUT" != "null" ]; then
                         AGE_SECONDS=$("${PYTHON_CMD[@]}" -c "
 import sys
@@ -1084,14 +1119,15 @@ except Exception:
                         record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved, no bot reviews)"
                     fi
                 else
-                    # REQ-011-04: gh api failed. SKIP with explicit reason.
-                    # No `|| true` fall-through; auth failures must not mask
-                    # in-flight reviews.
-                    record_skip "Bot-cascade check (PR #$PR_NUMBER gh api reviews failed)"
+                    # REQ-011-04: gh api failed. SKIP with explicit exit code.
+                    # No `|| true` fall-through; auth/network failures must
+                    # not mask in-flight reviews as PASS.
+                    record_skip "Bot-cascade check (PR #$PR_NUMBER gh api reviews failed, exit $REVIEW_API_EXIT)"
                 fi
             fi
         else
-            record_skip "Bot-cascade check (gh query failed for PR #$PR_NUMBER)"
+            BOT_QUERY_EXIT=$?
+            record_skip "Bot-cascade check (get_unresolved_review_threads.py failed for PR #$PR_NUMBER, exit $BOT_QUERY_EXIT)"
         fi
     fi
 fi
