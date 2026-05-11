@@ -2,7 +2,7 @@
 type: task
 id: TASK-011
 title: M5 bot-cascade pre-push warning
-status: in-progress
+status: done
 priority: P1
 complexity: S
 estimate: 3.5h

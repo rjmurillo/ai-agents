@@ -142,6 +142,11 @@
       "timestamp": "2026-05-10T21:35:00-07:00",
       "action": "PR review address (15 unresolved threads)",
       "evidence": "Clustered 15 bot threads by root cause; patched hook (Cluster A: no-fail-open on gh pr view; success+complete gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). 12/12 tests pass."
+    },
+    {
+      "timestamp": "2026-05-10T22:10:00-07:00",
+      "action": "PR review rounds 2-4 (16 more threads)",
+      "evidence": "Round 2 (6): STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3 (2): reviews pagination via --paginate --slurp, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4 (8): tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. 13/13 tests pass."
     }
   ],
   "endingCommit": "d8aee7ed",

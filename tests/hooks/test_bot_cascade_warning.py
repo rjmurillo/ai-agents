@@ -10,6 +10,9 @@ Acceptance criteria pinned:
 - REQ-011-02: incomplete pagination emits skip, not pass.
 - REQ-011-03: recent bot review under 120s emits warn.
 - REQ-011-04: gh api auth failures emit skip, not swallow as pass.
+- REQ-011-05: each recorder outcome (skip/warn/pass) has a call site;
+  reviews query and bot filter are matched on non-comment lines so a
+  test cannot pass on comment text alone.
 
 Refs:
 - REQ-011 (acceptance criteria)
@@ -49,6 +52,20 @@ def _phase_5c_block() -> str:
     )
     match = pattern.search(text)
     return match.group(0) if match else ""
+
+
+def _phase_5c_code_lines() -> list[str]:
+    """Return Phase 5c lines that are not pure comments.
+
+    Used by tests that pin the *behavior* (an actual command invocation,
+    a jq filter) rather than mere documentation. A comment that mentions
+    `/reviews` or `Bot` must not satisfy these assertions.
+    """
+    return [
+        line
+        for line in _phase_5c_block().splitlines()
+        if not line.lstrip().startswith("#")
+    ]
 
 
 def test_phase_5c_header_present() -> None:
@@ -106,18 +123,34 @@ def test_phase_5c_emits_skip_on_incomplete() -> None:
 
 
 def test_phase_5c_queries_reviews_endpoint() -> None:
-    """REQ-011-03: hook queries gh api ... /reviews for bot timestamp."""
-    block = _phase_5c_block()
-    assert "/reviews" in block, (
-        "REQ-011-03: hook must query the reviews endpoint to find bot timestamps"
+    """REQ-011-03: hook actually invokes gh api on the /reviews endpoint.
+
+    Asserts on a non-comment line so a stray `/reviews` mention in a
+    comment cannot satisfy this test if the real call were removed
+    (copilot finding on PR #2011).
+    """
+    code = _phase_5c_code_lines()
+    assert any(
+        "gh api" in line and "pulls/" in line and "/reviews" in line
+        for line in code
+    ), (
+        "REQ-011-03: a non-comment line must invoke `gh api ... pulls/.../reviews` "
+        "to find bot review timestamps"
     )
 
 
 def test_phase_5c_filters_bot_reviews() -> None:
-    """REQ-011-03: hook filters for Bot users when computing review age."""
-    block = _phase_5c_block()
-    assert "Bot" in block, (
-        "REQ-011-03: hook must filter user.type == Bot when reading reviews"
+    """REQ-011-03: hook filters reviews to user.type == "Bot".
+
+    Asserts the literal jq filter expression appears on a non-comment
+    line; the substring "Bot" alone is too weak (it also appears in the
+    "Bot-cascade" phase title) and would not fail if the filter were
+    removed (copilot finding on PR #2011).
+    """
+    code = _phase_5c_code_lines()
+    assert any('.user.type == "Bot"' in line for line in code), (
+        'REQ-011-03: a non-comment line must contain the jq filter '
+        '`.user.type == "Bot"`'
     )
 
 
@@ -130,23 +163,50 @@ def test_phase_5c_120_second_threshold() -> None:
 
 
 def test_phase_5c_no_fail_open_on_reviews() -> None:
-    """REQ-011-04: hook does NOT use `|| true` fail-open on reviews query.
+    """REQ-011-04: no `|| true` fail-open in Phase 5c executable code.
 
-    PR #1989's M5 had this exact bug. The reviews call must propagate exit
-    codes; auth/network failures produce SKIP, never PASS.
+    PR #1989's M5 had `gh api ... || true` that swallowed auth failures
+    as a false PASS. Asserts `|| true` does not appear on any non-comment
+    line of the Phase 5c block (stronger and robust to multiline `gh api`
+    continuations than scanning only lines that mention `gh api`;
+    coderabbit finding on PR #2011). The Phase 5c header comment quotes
+    the historical anti-pattern verbatim, so comment lines are stripped
+    before the check. Error fall-through in Phase 5c uses
+    `|| echo '<sentinel>'`, never `|| true`.
+    """
+    for line in _phase_5c_code_lines():
+        assert "|| true" not in line, (
+            "REQ-011-04: Phase 5c must not use `|| true`; it swallows "
+            "external-call failures as PASS. Use `|| echo '<sentinel>'` and "
+            f"route the sentinel to record_skip. Offending line: {line.strip()}"
+        )
+
+
+def test_phase_5c_classifies_review_api_failure() -> None:
+    """REQ-011-04: SKIP message names the failure mode, not just the exit code.
+
+    REQ-011 line 164 requires the SKIP message to classify the failure
+    (auth / rate-limit / network) and use the literal string "gh api auth
+    failed" for the auth case. Asserts the hook contains the classifier
+    strings and greps stderr for the auth signals (copilot finding on
+    PR #2011).
     """
     block = _phase_5c_block()
-    # The reviews call must NOT be followed by `|| true` (fail-open pattern).
-    # Look for the specific dangerous pattern.
-    review_lines = [
-        line for line in block.splitlines()
-        if "reviews" in line and "gh api" in line
-    ]
-    for line in review_lines:
-        assert "|| true" not in line, (
-            f"REQ-011-04: `|| true` on reviews query swallows auth failures; "
-            f"line: {line.strip()}"
-        )
+    assert "gh api auth failed" in block, (
+        "REQ-011-04: SKIP message must use the literal 'gh api auth failed' "
+        "for auth-class failures"
+    )
+    assert "gh api rate-limited" in block, (
+        "REQ-011-04: SKIP message must classify rate-limit failures"
+    )
+    assert "gh api network error" in block, (
+        "REQ-011-04: SKIP message must classify network failures"
+    )
+    # The classifier must inspect captured stderr, not guess.
+    code = _phase_5c_code_lines()
+    assert any("REVIEW_STDERR" in line and "grep" in line for line in code), (
+        "REQ-011-04: failure classification must grep the captured stderr"
+    )
 
 
 def test_phase_5c_warn_only_never_fails() -> None:

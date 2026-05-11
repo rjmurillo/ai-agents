@@ -1059,10 +1059,15 @@ try:
         print('INCOMPLETE')
     else:
         count = data.get('unresolved_count', 0)
-        # Reject non-numeric or negative values; non-int values would
-        # silently fall through to the zero-unresolved branch and hide
-        # bad payloads as PASS (coderabbit P1 on PR #2011).
-        if not isinstance(count, int) or count < 0:
+        # Reject non-int, bool, or negative values. bool subclasses int in
+        # Python, so a corrupted True/False payload would pass a plain
+        # int-instance check (cursor finding on PR #2011). Any of these
+        # would otherwise fall through to the zero-unresolved branch and
+        # hide a bad payload as PASS (coderabbit P1 on PR #2011).
+        # NB: no backticks in this comment; this code is passed to python
+        # via bash -c inside a double-quoted string, where backticks would
+        # trigger command substitution.
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             print('ERROR')
         else:
             print(count)
@@ -1142,10 +1147,24 @@ except Exception:
                         record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved, no bot reviews)"
                     fi
                 else
-                    # REQ-011-04: gh api failed. SKIP with explicit exit code.
-                    # No `|| true` fall-through; auth/network failures must
-                    # not mask in-flight reviews as PASS.
-                    record_skip "Bot-cascade check (PR #$PR_NUMBER gh api reviews failed, exit $REVIEW_API_EXIT)"
+                    # REQ-011-04: gh api failed. SKIP and NAME THE FAILURE
+                    # MODE (REQ-011 line 164 requires the SKIP message to
+                    # classify the failure, with a special-case string for
+                    # auth). Classify from captured stderr; fall back to the
+                    # exit code. No `|| true` fall-through; auth/network/
+                    # rate-limit failures must not mask in-flight reviews
+                    # as PASS.
+                    REVIEW_FAIL_MODE="exit $REVIEW_API_EXIT"
+                    if [ -s "$REVIEW_STDERR" ]; then
+                        if grep -qiE 'auth|unauthorized|401|403|bad credentials|gh auth login' "$REVIEW_STDERR" 2>/dev/null; then
+                            REVIEW_FAIL_MODE="gh api auth failed"
+                        elif grep -qiE 'rate limit|429|secondary rate' "$REVIEW_STDERR" 2>/dev/null; then
+                            REVIEW_FAIL_MODE="gh api rate-limited"
+                        elif grep -qiE 'could not resolve|network|connection|timeout|temporary failure|dns' "$REVIEW_STDERR" 2>/dev/null; then
+                            REVIEW_FAIL_MODE="gh api network error"
+                        fi
+                    fi
+                    record_skip "Bot-cascade check (PR #$PR_NUMBER gh api reviews failed: $REVIEW_FAIL_MODE, exit $REVIEW_API_EXIT)"
                 fi
             fi
         else

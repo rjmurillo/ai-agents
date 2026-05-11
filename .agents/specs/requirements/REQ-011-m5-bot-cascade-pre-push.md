@@ -158,10 +158,10 @@ WHEN `gh api ... reviews` fails (auth error, network error, missing scope), THE 
 
 ### Acceptance Criteria
 
-- [ ] Hook captures `gh api` exit code; non-zero produces SKIP, not PASS.
-- [ ] Hook does NOT use `|| true` or other fail-open patterns on the reviews query.
-- [ ] SKIP message names the failure mode (e.g., "gh api unauthenticated", "gh api timed out").
-- [ ] If auth error (exit 4), hook records SKIP with reason "gh api auth failed" but does NOT exit non-zero (hook is warn-only).
+- [x] Hook captures `gh api` exit code; non-zero produces SKIP, not PASS.
+- [x] Hook does NOT use `|| true` or other fail-open patterns on the reviews query. (Phase 5c uses `|| echo '<sentinel>'` and routes the sentinel to `record_skip`; `test_phase_5c_no_fail_open_on_reviews` asserts `|| true` appears nowhere in the block.)
+- [x] SKIP message names the failure mode. The hook greps captured stderr and classifies as "gh api auth failed" / "gh api rate-limited" / "gh api network error", falling back to "exit N".
+- [x] If auth error, hook records SKIP with reason "gh api auth failed" (matched from stderr containing auth/unauthorized/401/403/bad credentials) but does NOT exit non-zero (hook is warn-only).
 
 ### Rationale
 
