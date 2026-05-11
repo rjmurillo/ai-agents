@@ -232,7 +232,7 @@ For each agent, evidence justifying every score plus the verdict rationale. Nume
 #### `critic` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (Yes)**: .claude/commands/plan.md:21; .claude/commands/spec.md:372; .claude/commands/test.md:84
-- **c2 (50-69%)**: 99/129 lines structured (77%); 8 table sep, 0 code blocks, 34 list items, anti-pattern hd, format/schema hd, validation/rules hd -> manual review: 'Reviewer Asymmetry' and 'Core Behavior' sections are reasoning prose; Adversarial Coverage Checklist is reference but not dominant; 50-69%
+- **c2 (50-69%)**: heuristic counted 99/129 lines structured (77%); manual deflation per PRD section 11 count rule excludes the bullets in 'Reviewer Asymmetry' and 'Core Behavior' sections (those are reasoning prose not decision-tree bullets); after deflation, ~78/129 lines (60%) are genuine reference (Adversarial Coverage Checklist is the only structured-reference-dominant section)
 - **c3 (N/A)**: invoked from 3 distinct slash commands; per 3-pipeline rule
 - **c4 (Unknown)**: agent emits prose/advisory output; no structured artifact for bots to validate against schema; no PR-history signal possible
 - **c5_frontmatter_bytes**: 445 (full body: 12680)
