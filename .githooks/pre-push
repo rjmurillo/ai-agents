@@ -1008,7 +1008,10 @@ fi
 # 1. Require fetched_pages_complete=true before trusting unresolved_count
 #    (REQ-011-02). PR #1965 cb1bdf19 had this fix retroactively.
 # 2. Recent bot review under 120s emits warn (REQ-011-03). PR #1989's M5
-#    omitted this; REQ-009-11 was added after coderabbit caught it.
+#    omitted this; REQ-009-11 was added after coderabbit caught it. The
+#    120-second threshold tracks Copilot/Devin webhook latencies observed
+#    during PR #1965 and PR #2004 (30 to 120 seconds); see DESIGN-011
+#    trade-off 2 and REQ-011 line 145 (which mandates this inline citation).
 # 3. No `|| true` fail-open on reviews query (REQ-011-04). PR #1989's M5
 #    had `gh api ... || true` that swallowed auth failures as false PASS.
 echo_phase "Phase 5c: Bot-cascade warning"
