@@ -72,7 +72,10 @@ See PRD §9.
 
 For each agent name (alphabetical):
 
-- **c1**: `grep -rln "subagent_type.*['\"]${agent}['\"]" .claude/commands/ templates/commands/`. Yes/No + matched file:line.
+- **c1**: detect both literal and descriptive forms of `Task(subagent_type=...)`:
+  - **Literal**: `grep -rEln 'subagent_type\s*[:=]\s*["'"'"']?'${agent}'["'"'"']?' .claude/commands/ templates/commands/` (matches `Task(subagent_type="agent")` and YAML/JSON key-value forms)
+  - **Descriptive**: also check `.claude/commands/*.md` for paragraphs containing both `Task(subagent_type=...)` (literal `...` placeholder) AND a parenthesized agent list naming `${agent}` (e.g., `.claude/commands/review.md:32` invokes `roadmap` this way). Match per `re.search(rf'Task\s*\(\s*subagent_type\s*=\s*\.\.\.\s*\)[^\n]*?\(([^)]+)\)', text)` and check if `${agent}` appears in the captured list.
+  - Yes/No + matched `file:line` for whichever form fired.
 - **c5_frontmatter_bytes**: extract via `awk '/^---$/{n++} n==2{print NR; exit}' .claude/agents/${agent}.md` then `head -n {N} | wc -c`.
 - **c5_full_body_bytes**: `wc -c .claude/agents/${agent}.md`.
 - **has_shared_template**: `test -f templates/agents/${agent}.shared.md`.

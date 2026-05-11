@@ -103,7 +103,7 @@ For each agent, evidence justifying every score plus the verdict rationale. Nume
 
 - **c1 (Yes)**: .claude/commands/spec.md:365
 - **c2 (>=70%)**: 76/95 lines structured (80%); 13 table sep, 1 code blocks, 28 list items, anti-pattern hd, decision/criteria hd, format/schema hd, validation/rules hd
-- **c3 (Yes)**: spec.md: Skill(chestertons-fence); spec.md: Skill(memory); spec.md: Skill(memory)
+- **c3 (Yes)**: spec.md invokes 2 unique sibling skills: Skill(chestertons-fence), Skill(memory) (memory is invoked twice in the same pipeline file at spec.md:194 and spec.md:196; deduplicated by unique skill name)
 - **c4 (Yes)**: PR #1995: 9-of-13 frontmatter schema violations (priority, category, status, complexity enums); PR #1989 similar drift documented in #2001
 - **c5_frontmatter_bytes**: 494 (full body: 5868)
 - **has_shared_template**: No
