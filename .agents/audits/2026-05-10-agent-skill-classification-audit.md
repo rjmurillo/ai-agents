@@ -331,6 +331,7 @@ For each agent, evidence justifying every score plus the verdict rationale. Nume
 
 ## Summary
 
+- **Authority** (per AC-9): this audit applies ADR-030 (Skills Pattern Superiority, discriminator foundation), ADR-036 (Two-Source Agent Template Architecture, `has_shared_template` column source), and `.agents/governance/agent-consolidation-process.md` (existing overlap-analysis matrix and recommendation thresholds).
 - **Total agents audited**: 23 (matches `ls .claude/agents/*.md | grep -v -E '(AGENTS|CLAUDE)\.md' | wc -l`)
 - **Verdict counts**:
   - `skill`: 8

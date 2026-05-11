@@ -177,6 +177,10 @@
     {
       "step": "Round 3: address 3 follow-up review threads (roadmap c1 miss, em-dash in own correction, episode lessons empty)",
       "outcome": "Fixed: (a) roadmap re-scored c1=Yes (descriptive Task form in review.md:32 missed by original literal grep); verdict changed from keep-as-agent to skill; counts shifted from 7+2+14 to 8+2+13; load-budget savings 42% -> 47%; (b) em-dash in session log learnings replaced with comma per universal.md MUST NOT rule 5 (ironic violation noted); (c) episode lessons array populated from session log learnings; (d) audit doc regenerated with descriptive-form c1 method + roadmap row + new isolation note section."
+    },
+    {
+      "step": "Round 4: address code-review agent finding (1 P1)",
+      "outcome": "Audit Summary section now explicitly cites ADR-030 (was only in frontmatter); fully satisfies PRD AC-9 requirement that Summary include citations to ADR-030, ADR-036, and agent-consolidation-process.md."
     }
   ],
   "outcomes": [
@@ -189,7 +193,8 @@
     "Validator bug filed as issue #2007 (deferred per user directive)",
     "42% load-budget reduction available if Phase 2 candidates all migrate",
     "13 PR review threads addressed in round 2 (verdict rule reconciliation, table format clarification, episode/session log accuracy)",
-    "Round 3: roadmap moved to skill candidate (8+2 total); load-budget savings now 47%"
+    "Round 3: roadmap moved to skill candidate (8+2 total); load-budget savings now 47%",
+    "Round 4: code-review agent verdict NEEDS_REVISION -> CLEAN after AC-9 Summary-citation fix"
   ],
   "learnings": [
     "Copilot CLI sessions need to mark Serena MUSTs Complete=true with evidence describing the filesystem-equivalent memory access path; the validator only checks the boolean.",

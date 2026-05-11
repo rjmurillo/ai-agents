@@ -1,14 +1,14 @@
 {
   "id": "episode-2026-05-10-session-1832",
   "session": "2026-05-10-session-1832",
-  "timestamp": "2026-05-11T04:26:35.708076+00:00",
+  "timestamp": "2026-05-11T04:42:01.572586+00:00",
   "outcome": "failure",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-11T04:26:35.702997+00:00",
+      "timestamp": "2026-05-11T04:42:01.567402+00:00",
       "type": "error",
       "content": "\"Evidence\": \"Copilot CLI session, no Serena MCP server available. Functional equivalent: .serena/memories/ accessed via filesystem grep + view (e.g., implementation-007-pr1989-recursive-failure-learnings.md cited in PRD \\u00a71).\"",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-11T04:26:35.702997+00:00",
+      "timestamp": "2026-05-11T04:42:01.567402+00:00",
       "type": "error",
       "content": "\"Evidence\": \"Read: .serena/memories/implementation/implementation-007-pr1989-recursive-failure-learnings.md (cited in PRD \\u00a71, \\u00a710); searched .serena/memories/ for agent-vs-skill discriminator and consolidation context (matched 10 files; 5 cited in PRD Prior Art).\"",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-11T04:26:35.702997+00:00",
+      "timestamp": "2026-05-11T04:42:01.567402+00:00",
       "type": "error",
       "content": "\"Evidence\": \"markdownlint-cli2 runs via pre-commit hook on every commit; spec markdown files in .agents/specs/ are excluded from lint per .markdownlint-cli2.yaml ignore patterns; no markdown lint errors raised on this commit.\"",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-11T04:26:35.702997+00:00",
+      "timestamp": "2026-05-11T04:42:01.567402+00:00",
       "type": "error",
       "content": "\"outcome\": \"Pre-commit failed twice: dash-prohibition (em-dash and en-dash present in PRD \\u00a71, \\u00a73.1 and REQ-011 dependencies list), session-log requirement. Fixed dashes via Python replace then space-comma cleanup; created this session log; commit succeeds.\"",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-11T04:26:35.702997+00:00",
+      "timestamp": "2026-05-11T04:42:01.567402+00:00",
       "type": "error",
       "content": "\"Spec-schemas.md enum drift is exactly the failure mode this audit addresses; reading the schema before writing REQ/DESIGN/TASK frontmatter is the defense.\",",
       "caused_by": [],
