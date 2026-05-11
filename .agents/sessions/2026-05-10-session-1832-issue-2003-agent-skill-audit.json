@@ -185,6 +185,10 @@
     {
       "step": "Round 5: address 7 follow-up review threads (5 stale-numbers, 2 grep-method docs)",
       "outcome": "Fixed: (a) .agents/metrics/agent-skill-audit-runs.tsv updated 7/2/14/42 -> 8/2/13/47 to match committed audit; (b) audit doc spec-generator c3 evidence deduped (memory listed twice -> 'memory invoked twice in same pipeline file, deduplicated by unique skill name'); (c) DESIGN-011 \u00a7C2 c1 method documents the descriptive form (Task(subagent_type=...) followed by parenthesized agent list); (d) TASK-011 Step 2 c1 method updated with same descriptive-form detection; (e) session log workLog round-2 entry marked SUPERSEDED for stale 7/2/14 numbers; (f) session log outcomes reconciled to round-3 numbers (8 skill, 47% savings)."
+    },
+    {
+      "step": "Round 6: address 7 follow-up review threads (1 count, 1 path quote, 1 path style, 2 false-positive semgrep, 2 grep portability)",
+      "outcome": "Fixed: (a) session log learnings c1=No count corrected from 12 back to 11 (round 3 reverted the round-2 correction); (b) audit doc ADR-036 explanation clarified to distinguish src/claude/ (ADR-036 source path) from .claude/agents/ (audit's actual scope); (c) audit doc ~/.claude/ rewritten to repo-relative description; (d) DESIGN-011 + TASK-011 c1 grep patterns updated from \\s to [[:space:]] for grep -E portability (POSIX ERE); (e) two semgrep LDAP-injection findings to be replied as /fp (false positives on regex documentation strings)."
     }
   ],
   "outcomes": [
@@ -199,7 +203,8 @@
     "13 PR review threads addressed in round 2 (verdict rule reconciliation, table format clarification, episode/session log accuracy)",
     "Round 3: roadmap moved to skill candidate (8+2 total); load-budget savings now 47%",
     "Round 4: code-review agent verdict NEEDS_REVISION -> CLEAN after AC-9 Summary-citation fix",
-    "Round 5: all 7 round-4 review threads addressed; TSV/session-log/spec-doc fully reconciled with audit's final round-3 numbers"
+    "Round 5: all 7 round-4 review threads addressed; TSV/session-log/spec-doc fully reconciled with audit's final round-3 numbers",
+    "Round 6: 7 round-5 review threads addressed (count, paths, grep portability, semgrep FPs)"
   ],
   "learnings": [
     "Copilot CLI sessions need to mark Serena MUSTs Complete=true with evidence describing the filesystem-equivalent memory access path; the validator only checks the boolean.",
@@ -207,7 +212,7 @@
     "Spec-schemas.md enum drift is exactly the failure mode this audit addresses; reading the schema before writing REQ/DESIGN/TASK frontmatter is the defense.",
     "spec-generator scores 4/4 on the discriminator (only agent to do so), validating the issue #2003 hypothesis. The 7 other skill candidates score 2-3/4, mostly via c1+c2+c3 (reference-heavy bodies invoked from slash commands with sibling skills).",
     "Heuristic c2 scoring over-counts reasoning-focused agents because all-bullets are flagged as structured. Manual review needed for borderline cases per PRD \u00a711 count rule.",
-    "12 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command; corrected from earlier '11 of 23' which was off by one , verified against the 23-row audit table) (not invoked from any slash command). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
+    "11 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command was the round-2 number; round 3 moved roadmap from c1=No to c1=Yes via the descriptive Task() form in review.md, bringing the count back to 11; verified against the 23-row audit table: 12 agents show c1=1 and 11 show c1=0). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
   ],
   "endingCommit": "addf44b5",
   "nextSteps": [

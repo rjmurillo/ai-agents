@@ -52,9 +52,9 @@ For each agent, score five criteria.
 #### c1: Invoked from slash command via `Task(subagent_type=...)`
 
 - Method: grep slash command files for three patterns matching the actual call forms in this repo:
-  - `subagent_type\s*[:=]\s*["']?{agent}["']?` (matches both `subagent_type="agent"` and `subagent_type=agent` and `subagent_type: agent`)
-  - `Task\s*\(\s*[^)]*["']?{agent}["']?` (matches `Task(subagent_type="agent", ...)` and variants)
-  - **Descriptive form**: paragraphs in `.claude/commands/*.md` that contain both `Task(subagent_type=...)` (with a literal `...` placeholder) AND a parenthesized agent list naming `{agent}`. Example: `.claude/commands/review.md:32` reads `Task(subagent_type=...) agent (analyst, architect, qa, security, devops, roadmap)` and invokes `roadmap` this way. Match per `re.search(rf'Task\s*\(\s*subagent_type\s*=\s*\.\.\.\s*\)[^\n]*?\(([^)]+)\)', text)` and check if `{agent}` appears in the captured list. This form was missed by the first two patterns and produced a false c1=No for `roadmap` until round 3 of audit corrections.
+  - `subagent_type[[:space:]]*[:=][[:space:]]*["']?{agent}["']?` (matches `subagent_type="agent"`, `subagent_type=agent`, and `subagent_type: agent`; uses POSIX `[[:space:]]` for `grep -E` portability)
+  - `Task[[:space:]]*\([[:space:]]*[^)]*["']?{agent}["']?` (matches `Task(subagent_type="agent", ...)` and variants)
+  - **Descriptive form**: paragraphs in `.claude/commands/*.md` that contain both `Task(subagent_type=...)` (with a literal `...` placeholder) AND a parenthesized agent list naming `{agent}`. Example: `.claude/commands/review.md:32` reads `Task(subagent_type=...) agent (analyst, architect, qa, security, devops, roadmap)` and invokes `roadmap` this way. Match per `re.search(rf'Task\s*\(\s*subagent_type\s*=\s*\.\.\.\s*\)[^\n]*?\(([^)]+)\)', text)` and check if `{agent}` appears in the captured list. (The Python `re` module supports `\s`; the equivalent shell form for `grep -E` is `Task[[:space:]]*\([[:space:]]*subagent_type[[:space:]]*=[[:space:]]*\.\.\.[[:space:]]*\)`.) This form was missed by the first two patterns and produced a false c1=No for `roadmap` until round 3 of audit corrections.
 - Search paths: `.claude/commands/` and `templates/commands/`.
 - Yes if any match found in a slash command file.
 - No if matches only in other agent files (peer-to-peer invocation).

@@ -73,8 +73,8 @@ See PRD §9.
 For each agent name (alphabetical):
 
 - **c1**: detect both literal and descriptive forms of `Task(subagent_type=...)`:
-  - **Literal**: `grep -rEln 'subagent_type\s*[:=]\s*["'"'"']?'${agent}'["'"'"']?' .claude/commands/ templates/commands/` (matches `Task(subagent_type="agent")` and YAML/JSON key-value forms)
-  - **Descriptive**: also check `.claude/commands/*.md` for paragraphs containing both `Task(subagent_type=...)` (literal `...` placeholder) AND a parenthesized agent list naming `${agent}` (e.g., `.claude/commands/review.md:32` invokes `roadmap` this way). Match per `re.search(rf'Task\s*\(\s*subagent_type\s*=\s*\.\.\.\s*\)[^\n]*?\(([^)]+)\)', text)` and check if `${agent}` appears in the captured list.
+  - **Literal**: `grep -rEln 'subagent_type[[:space:]]*[:=][[:space:]]*["'"'"']?'${agent}'["'"'"']?' .claude/commands/ templates/commands/` (matches `Task(subagent_type="agent")` and YAML/JSON key-value forms; uses POSIX `[[:space:]]` for `grep -E` portability across BSD and GNU grep)
+  - **Descriptive**: also check `.claude/commands/*.md` for paragraphs containing both `Task(subagent_type=...)` (literal `...` placeholder) AND a parenthesized agent list naming `${agent}` (e.g., `.claude/commands/review.md:32` invokes `roadmap` this way). Match per `re.search(rf'Task\s*\(\s*subagent_type\s*=\s*\.\.\.\s*\)[^\n]*?\(([^)]+)\)', text)` and check if `${agent}` appears in the captured list. (Use Python `re` for this match because the descriptive paragraph form is harder to express portably in `grep -E`; the actual audit script uses Python.)
   - Yes/No + matched `file:line` for whichever form fired.
 - **c5_frontmatter_bytes**: extract via `awk '/^---$/{n++} n==2{print NR; exit}' .claude/agents/${agent}.md` then `head -n {N} | wc -c`.
 - **c5_full_body_bytes**: `wc -c .claude/agents/${agent}.md`.

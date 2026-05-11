@@ -19,7 +19,7 @@ Phase 1 deliverable for issue #2003. Classifies all 23 agents in `.claude/agents
 ## Authority and method
 
 - **ADR-030** Skills Pattern Superiority: documents skill latency (5-20ms) vs subagent spawn (100-200ms), lower token usage, direct MCP access. The discriminator's foundation.
-- **ADR-036** Two-Source Agent Template Architecture: agents live in BOTH `src/claude/*.md` and `templates/agents/*.shared.md`. The `has_shared_template` column quantifies dual-source presence so Phase 2 refactors target both layouts.
+- **ADR-036** Two-Source Agent Template Architecture: ADR-036 documents that source-of-truth agent templates live in `src/claude/*.md` (Claude-specific) AND `templates/agents/*.shared.md` (cross-platform Copilot CLI / VS Code). This audit operates on the Claude Code runtime location `.claude/agents/*.md` (separate from the `src/claude/` source directory; the two are not byte-identical and differ in agent membership, so Phase 2 refactors must consider both). The `has_shared_template` column queries `templates/agents/*.shared.md` to quantify cross-platform refactor cost; it does not query `src/claude/`.
 - **`.agents/governance/agent-consolidation-process.md`**: the existing overlap-analysis matrix and recommendation thresholds. This audit applies it AND extends it with the 4-criterion discriminator + load-budget criterion.
 - **PRD**: `.agents/specs/PRD-agent-skill-classification-audit.md` (committed in the spec commit on this branch).
 - **Spec**: REQ-011 / DESIGN-011 / TASK-011.
@@ -401,7 +401,7 @@ Each candidate becomes a separate filed issue per `phase_2_3_governance: separat
 
 - Phase 2 refactor PRs (one per skill candidate above). Each is a separately filed issue per `phase_2_3_governance: separate-issues`.
 - Phase 3 CI check implementation. See linked stub issue #2008.
-- 24th `caveman` agent under `~/.claude/`. Not in `.claude/agents/`.
+- 24th `caveman` agent in the user-level Claude home directory (outside this repository, not under `.claude/agents/`).
 - Downstream platform variants under `src/copilot-cli/agents/` and `src/vs-code-agents/`.
 - Quantitative ranking via `eval-knowledge-integration.py` / `eval-skill-overlap.py` (#1932). Deferred to Phase 2.
 - `merge-into-X` verdicts (require pairwise overlap analysis; deferred to Phase 2).
