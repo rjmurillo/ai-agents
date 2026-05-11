@@ -33,11 +33,31 @@ The Phase 5c block documents its warn-only property with the comment `# Warn-onl
 
 **Generalization**: any test that uses `not in block` on a hook or shell script must strip comments first if the absent token is documented in a comment.
 
+## Trap: backticks inside `bash -c "..."` embedded Python
+
+The hook passes inline Python via `"${PYTHON_CMD[@]}" -c "..."` using a double-quoted bash string. Inside a double-quoted bash string, backticks are command substitution. A backtick in a Python comment (`# pass an \`isinstance(x, int)\` check`) made bash try to execute `isinstance(x, int)` at runtime: `syntax error near unexpected token \`x,'`.
+
+`bash -n` does NOT catch this: static syntax checking does not expand command substitutions. Only running the hook surfaces it, which is exactly what the TASK-011-04 self-apply gate did.
+
+**Rule**: any Python (or other) code embedded in a `bash -c "..."` double-quoted string MUST NOT contain backticks, `$(...)`, or unescaped `$`. Prefer single-quoted heredocs (`<<'PY'`) for embedded code where possible; when the call site forces double quotes, scrub the embedded code of shell metacharacters and say so in a comment.
+
+## Structural-test lenience: match call sites, not text
+
+Structural tests that grep the whole block for a string (`/reviews`, `Bot`, `|| true`) can pass vacuously because the same string appears in comments. Three failure shapes seen on PR #2011:
+
+- `assert "/reviews" in block` passed because the Phase 5c header comment mentions `/reviews`.
+- `assert "Bot" in block` passed because the phase title is "Bot-cascade".
+- `assert "|| true" not in line for review-lines` was bypassed because a multiline `gh api` continuation put `gh api` and `reviews` on different lines, so the filtered line list was empty.
+
+**Rule**: when pinning a *behavior* (a command invocation, a jq filter, an absent anti-pattern), strip comment lines first (`line.lstrip().startswith("#")`) and assert against the literal expression on a code line. Share a `_code_lines()` helper. When pinning *presence* of documentation text, the whole-block grep is fine.
+
 ## How to apply
 
 - When pinning the absence of a function call in a bash/Python file, filter comment lines before assertion.
-- When pinning the presence of a call, do not filter; presence is presence either way.
+- When pinning the presence of a behavior (call, filter, flag), match the literal expression on a non-comment line, not a bare substring anywhere.
+- When pinning the presence of documentation text, do not filter.
 - When the scope is a single section of a larger file, use a regex with a non-greedy match and a lookahead to the next section header.
+- Never put backticks or `$(...)` in code embedded inside a `bash -c "..."` double-quoted string. `bash -n` will not catch the bug; only a runtime invocation (or the self-apply gate) will.
 
 ## References
 
