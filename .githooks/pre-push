@@ -1058,7 +1058,14 @@ try:
     elif not data.get('fetched_pages_complete', False):
         print('INCOMPLETE')
     else:
-        print(data.get('unresolved_count', 0))
+        count = data.get('unresolved_count', 0)
+        # Reject non-numeric or negative values; non-int values would
+        # silently fall through to the zero-unresolved branch and hide
+        # bad payloads as PASS (coderabbit P1 on PR #2011).
+        if not isinstance(count, int) or count < 0:
+            print('ERROR')
+        else:
+            print(count)
 except Exception:
     print('ERROR')
 " "$BOT_CHECK_OUTPUT" 2>/dev/null || echo 'ERROR')
@@ -1089,8 +1096,16 @@ except Exception:
                 # captured exit code. No `|| true` fall-through.
                 REVIEW_STDERR=$(mktemp)
                 TEMP_FILES+=("$REVIEW_STDERR")
+                # --paginate + --slurp fetches all pages and merges them
+                # into a single array of arrays. The /reviews endpoint
+                # paginates at 30/page by default; without --paginate, a
+                # bot review on page 2+ would be missed and Phase 5c would
+                # report PASS while a scan is in flight (coderabbit P1 on
+                # PR #2011). `--jq '.[][]'` flattens the slurped pages
+                # before filtering.
                 LAST_REVIEW_AGE_OUTPUT=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
-                    --jq '[.[] | select(.user.type == "Bot") | .submitted_at] | sort | last' \
+                    --paginate --slurp \
+                    --jq '[.[][] | select(.user.type == "Bot") | .submitted_at] | sort | last' \
                     2>"$REVIEW_STDERR")
                 REVIEW_API_EXIT=$?
                 # Defensive: gh --jq emits raw text, but trim stray whitespace
@@ -1099,6 +1114,9 @@ except Exception:
                 LAST_REVIEW_AGE_OUTPUT=$(printf '%s' "$LAST_REVIEW_AGE_OUTPUT" | tr -d '"' | tr -d '[:space:]')
                 if [ "$REVIEW_API_EXIT" -eq 0 ]; then
                     if [ -n "$LAST_REVIEW_AGE_OUTPUT" ] && [ "$LAST_REVIEW_AGE_OUTPUT" != "null" ]; then
+                        # Parse the timestamp. On parse failure emit a
+                        # distinguishable sentinel so we SKIP rather than
+                        # PASS with bad data (coderabbit P1 on PR #2011).
                         AGE_SECONDS=$("${PYTHON_CMD[@]}" -c "
 import sys
 from datetime import datetime, timezone
@@ -1107,9 +1125,11 @@ try:
     age = (datetime.now(timezone.utc) - ts).total_seconds()
     print(int(age))
 except Exception:
-    print(99999)
-" "$LAST_REVIEW_AGE_OUTPUT" 2>/dev/null || echo 99999)
-                        if [ "${AGE_SECONDS:-99999}" -lt 120 ] 2>/dev/null; then
+    print('PARSE_ERROR')
+" "$LAST_REVIEW_AGE_OUTPUT" 2>/dev/null || echo 'PARSE_ERROR')
+                        if [ "$AGE_SECONDS" = "PARSE_ERROR" ]; then
+                            record_skip "Bot-cascade check (PR #$PR_NUMBER timestamp parse failed for '$LAST_REVIEW_AGE_OUTPUT')"
+                        elif [ "${AGE_SECONDS:-99999}" -lt 120 ] 2>/dev/null; then
                             record_warn "PR #$PR_NUMBER last bot review is ${AGE_SECONDS}s old (< 120s)"
                             echo_info "  A bot scan is likely still in flight. Threads"
                             echo_info "  may appear after this push. Wait at least 120s"
