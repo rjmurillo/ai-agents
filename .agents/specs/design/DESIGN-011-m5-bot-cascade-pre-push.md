@@ -94,7 +94,7 @@ The full self-apply gate (TASK-011-04) exercises the hook end-to-end against the
 
 ### Trade-off 1: warn-only versus block
 
-- Block: stronger signal. But: pre-push hooks should never block on transient conditions (network failures, auth, etc.). The user can always bypass with `--no-verify`. Warn-only matches the existing Phase 5b drift check behavior.
+- Block: stronger signal. But: pre-push hooks should never block on transient conditions (network failures, auth, etc.). The user can always bypass with `--no-verify`. Phase 5c follows the same phase-integration pattern as Phase 5b (a numbered `echo_phase` block calling `record_pass`/`record_skip`), but is intentionally non-blocking: unlike Phase 5b (which calls `record_fail` and sets `EXIT_STATUS=1` on drift), Phase 5c never calls `record_fail`. The bot-cascade signal is informational, not a gate.
 - Decision: warn-only.
 
 ### Trade-off 2: 120-second threshold
@@ -117,7 +117,7 @@ The full self-apply gate (TASK-011-04) exercises the hook end-to-end against the
 | `gh api` rate limit hits during hook execution | LOW | Single call per push; well under rate limit |
 | 120s threshold wrong empirically | MED | Deferred tunable; revisit after 30 invocations |
 | Hook adds noticeable latency to push | LOW | Two subprocess calls, no polling; typical 200-500ms |
-| Self-application gate (REQ-011-06) fails | MED | TDD red phase ensures the warn paths are exercised before commit |
+| Self-application gate (REQ-011-06) fails | MED | TASK-011-04 runs `.githooks/pre-push` against the milestone branch before commit; each runtime outcome path (skip/warn/pass) is captured in the PR description. The structural tests pin the contract; the self-apply gate exercises the live runtime. |
 
 ## References
 
