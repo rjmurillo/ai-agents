@@ -143,11 +143,21 @@ def test_phase_5c_no_fail_open_on_reviews() -> None:
 
 
 def test_phase_5c_warn_only_never_fails() -> None:
-    """REQ-011-01..04: Phase 5c is warn-only; never calls record_fail."""
+    """REQ-011-01..04: Phase 5c is warn-only; never INVOKES record_fail.
+
+    Strips comment lines before matching so the design comment that says
+    "Never calls record_fail" does not register as a call site.
+    """
     block = _phase_5c_block()
-    assert "record_fail" not in block, (
-        "Phase 5c is warn-only; record_fail must NOT appear in the block"
-    )
+    code_lines = [
+        line for line in block.splitlines()
+        if not line.lstrip().startswith("#")
+    ]
+    for line in code_lines:
+        assert "record_fail" not in line, (
+            f"Phase 5c is warn-only; record_fail must NOT be called. "
+            f"Line: {line.strip()}"
+        )
 
 
 def test_pre_push_hook_bash_syntax_valid() -> None:
