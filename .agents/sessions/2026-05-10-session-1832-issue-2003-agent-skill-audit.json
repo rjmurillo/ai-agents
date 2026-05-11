@@ -173,6 +173,10 @@
     {
       "step": "Round 2: address 13 PR review threads (4 bot reviewers: copilot, devin, cursor, coderabbit)",
       "outcome": "Fixed: (a) audit table truncated rationales expanded to full text; (b) c1=No count corrected from 11 to 12 in learnings; (c) endingCommit set to addf44b5; (d) DESIGN-011 \u00a7C2 c1 grep pattern updated to match actual two-pattern form; (e) DESIGN-011 \u00a7C3 verdict rule rewritten with hard/soft isolation split reconciling PRD AC-6, DESIGN-011, and audit doc; (f) PRD \u00a77 .log file claim removed; (g) REQ-011 NFR-1 scoped determinism to mechanical criteria; (h) audit doc Verdict rule canonical statement added with hard/soft split; (i) episode file outcome/events/metrics manually corrected (auto-extractor bug filed separately)."
+    },
+    {
+      "step": "Round 3: address 3 follow-up review threads (roadmap c1 miss, em-dash in own correction, episode lessons empty)",
+      "outcome": "Fixed: (a) roadmap re-scored c1=Yes (descriptive Task form in review.md:32 missed by original literal grep); verdict changed from keep-as-agent to skill; counts shifted from 7+2+14 to 8+2+13; load-budget savings 42% -> 47%; (b) em-dash in session log learnings replaced with comma per universal.md MUST NOT rule 5 (ironic violation noted); (c) episode lessons array populated from session log learnings; (d) audit doc regenerated with descriptive-form c1 method + roadmap row + new isolation note section."
     }
   ],
   "outcomes": [
@@ -184,7 +188,8 @@
     "Phase 3 CI check stub filed as issue #2008",
     "Validator bug filed as issue #2007 (deferred per user directive)",
     "42% load-budget reduction available if Phase 2 candidates all migrate",
-    "13 PR review threads addressed in round 2 (verdict rule reconciliation, table format clarification, episode/session log accuracy)"
+    "13 PR review threads addressed in round 2 (verdict rule reconciliation, table format clarification, episode/session log accuracy)",
+    "Round 3: roadmap moved to skill candidate (8+2 total); load-budget savings now 47%"
   ],
   "learnings": [
     "Copilot CLI sessions need to mark Serena MUSTs Complete=true with evidence describing the filesystem-equivalent memory access path; the validator only checks the boolean.",
@@ -192,7 +197,7 @@
     "Spec-schemas.md enum drift is exactly the failure mode this audit addresses; reading the schema before writing REQ/DESIGN/TASK frontmatter is the defense.",
     "spec-generator scores 4/4 on the discriminator (only agent to do so), validating the issue #2003 hypothesis. The 7 other skill candidates score 2-3/4, mostly via c1+c2+c3 (reference-heavy bodies invoked from slash commands with sibling skills).",
     "Heuristic c2 scoring over-counts reasoning-focused agents because all-bullets are flagged as structured. Manual review needed for borderline cases per PRD \u00a711 count rule.",
-    "12 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command; corrected from earlier '11 of 23' which was off by one \u2014 verified against the 23-row audit table) (not invoked from any slash command). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
+    "12 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command; corrected from earlier '11 of 23' which was off by one , verified against the 23-row audit table) (not invoked from any slash command). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
   ],
   "endingCommit": "addf44b5",
   "nextSteps": [
