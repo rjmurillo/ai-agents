@@ -8,7 +8,7 @@ authority:
   - ADR-036
   - .agents/governance/agent-consolidation-process.md
 created: 2026-05-10
-git_sha: 7876c0c9
+git_sha: addf44b5
 agent_count: 23
 ---
 
@@ -37,52 +37,69 @@ An agent should be a skill (not an agent) if 2+ of these are true:
 
 5. **c5_frontmatter_bytes**: bytes of agent frontmatter (always-loaded portion of the catalog). Quantifies load-budget impact of skill-migration verdicts.
 
-### Verdict rule
+### Verdict rule (canonical; reconciled with DESIGN-011 §C3 and PRD AC-6)
 
 ```
 discriminator_score = c1 + c2 + c3 + c4
-verdict = skill                if score >= 2 AND no isolation requirement
-verdict = context-fork-skill   if score >= 2 AND isolation benefits exist BUT context: fork serves
-verdict = keep-as-agent        if score >= 2 AND genuine reasoning-asymmetry isolation required
-                                  OR if score < 2
-verdict = merge-into-X         if >=70% capability overlap with another agent (Phase 2 measurement; not assessed here)
+  (c1=Yes counts 1; c2=>=70% counts 1; c3=Yes counts 1; c4=Yes counts 1; everything else 0)
+
+isolation = hard | soft | none
+  hard: agent body documents that it MUST NOT see/pollute parent's context
+        (e.g., orchestrator routing, critic adversarial review, analyst
+        bias-free investigation per #2003 counter-signal). context: fork
+        leaks parent working state and breaks the asymmetry/independence
+        the agent's function depends on.
+  soft: agent benefits from a fresh sub-context but does not require
+        parent-context exclusion. context: fork (skill mode) serves.
+  none: no isolation requirement.
+
+verdict = keep-as-agent       if isolation = hard
+verdict = context-fork-skill  if score >= 2 AND isolation = soft
+verdict = skill               if score >= 2 AND isolation = none
+verdict = keep-as-agent       if score < 2 (no shape mismatch detected)
+verdict = merge-into-X        if >= 70% capability overlap with another agent
+                              (Phase 2 measurement; not assessed here)
 ```
 
-Isolation exceptions per #2003 counter-signal section + PRD AC-6: `orchestrator`, `analyst`, `critic`. (`pr-comment-responder` is already a skill in this codebase.)
+The hard/soft/none distinction reconciles three previously-divergent rules: DESIGN-011 §C3 originally collapsed hard+soft into a single `isolation_exception` flag; PRD AC-6 said `keep-as-agent` only when `context: fork` cannot satisfy; the audit applies the hard/soft split to make both consistent.
+
+Hard-isolation agents identified per #2003 counter-signal: `orchestrator`, `analyst`, `critic` (`pr-comment-responder` is already a skill in this codebase). Soft-isolation candidates identified during this audit: `architect`, `security`, `independent-thinker`, `high-level-advisor`, `memory`, `retrospective`.
 
 ## Audit table
 
-| agent | c1 | c2 | c3 | c4 | scr | c5_fm_B | c5_full_B | shared | verdict | rationale |
-|-------|----|----|----|----|-----|---------|-----------|--------|---------|-----------|
-| `spec-generator` | 1 | 1 | 1 | 1 | 4/4 | 494 | 5868 | No | **skill** | discriminator_score=4/4 (c1=1, c2=1, c3=1, c4=1); 2-of-4 rule fires; no isolatio |
-| `devops` | 1 | 1 | 1 | 0 | 3/4 | 494 | 15574 | Yes | **skill** | discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolatio |
-| `implementer` | 1 | 1 | 1 | 0 | 3/4 | 658 | 18928 | Yes | **skill** | discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolatio |
-| `milestone-planner` | 1 | 1 | 1 | 0 | 3/4 | 458 | 6623 | Yes | **skill** | discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolatio |
-| `qa` | 1 | 1 | 1 | 0 | 3/4 | 473 | 25654 | Yes | **skill** | discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolatio |
-| `task-decomposer` | 1 | 1 | 1 | 0 | 3/4 | 462 | 10359 | Yes | **skill** | discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolatio |
-| `context-retrieval` | 1 | 1 | 0 | 0 | 2/4 | 720 | 5171 | No | **skill** | discriminator_score=2/4 (c1=1, c2=1, c3=0, c4=0); 2-of-4 rule fires; no isolatio |
-| `architect` | 1 | 1 | 1 | 0 | 3/4 | 489 | 23581 | Yes | **context-fork-skill** | score=3/4; isolation benefits exist but context: fork serves: governance review  |
-| `security` | 1 | 1 | 1 | 0 | 3/4 | 466 | 32567 | Yes | **context-fork-skill** | score=3/4; isolation benefits exist but context: fork serves: reviews diffs for  |
-| `analyst` | 1 | 1 | 0 | 0 | 2/4 | 488 | 6925 | Yes | **keep-as-agent** | isolation exception: investigation-time code reads are massive; context: fork co |
-| `adr-generator` | 0 | 1 | 0 | 0 | 1/4 | 228 | 6684 | No | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `backlog-generator` | 0 | 1 | 0 | 0 | 1/4 | 455 | 6905 | Yes | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `critic` | 1 | 0 | 0 | 0 | 1/4 | 445 | 12680 | Yes | **keep-as-agent** | isolation exception: fresh-context adversarial review is the agent's CORE functi |
-| `explainer` | 0 | 1 | 0 | 0 | 1/4 | 489 | 6034 | Yes | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `issue-feature-review` | 0 | 1 | 0 | 0 | 1/4 | 371 | 7884 | Yes | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `memory` | 0 | 1 | 0 | 0 | 1/4 | 505 | 14127 | Yes | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `orchestrator` | 0 | 1 | 0 | 0 | 1/4 | 479 | 15237 | Yes | **keep-as-agent** | isolation exception: routes tasks across all agents; needs isolated routing cont |
-| `quality-auditor` | 0 | 1 | 0 | 0 | 1/4 | 408 | 3533 | No | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `retrospective` | 0 | 1 | 0 | 0 | 1/4 | 509 | 43362 | Yes | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `roadmap` | 0 | 1 | 0 | 0 | 1/4 | 472 | 6149 | Yes | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `skillbook` | 0 | 1 | 0 | 0 | 1/4 | 497 | 7603 | Yes | **keep-as-agent** | discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected |
-| `high-level-advisor` | 0 | 0 | 0 | 0 | 0/4 | 452 | 8471 | Yes | **keep-as-agent** | discriminator_score=0/4; below 2-of-4 threshold; no shape mismatch detected |
-| `independent-thinker` | 0 | 0 | 0 | 0 | 0/4 | 467 | 8258 | Yes | **keep-as-agent** | discriminator_score=0/4; below 2-of-4 threshold; no shape mismatch detected |
+Columns: agent | c1 | c2 | c3 | c4 | discriminator_score | c5_frontmatter_bytes | c5_full_body_bytes | has_shared_template | verdict | rationale (full text below per row in "Per-criterion evidence" section). The numeric c1/c2/c3/c4 cells use 1 for Yes/>=70%/Yes/Yes and 0 otherwise; c2 enum string and c4 Unknown distinction are preserved in the per-row evidence section below.
 
-### Per-criterion evidence
+| agent | c1 | c2 | c3 | c4 | scr | c5_fm_B | c5_full_B | shared | verdict |
+|-------|----|----|----|----|-----|---------|-----------|--------|---------|
+| `spec-generator` | 1 | 1 | 1 | 1 | 4/4 | 494 | 5868 | No | **skill** |
+| `devops` | 1 | 1 | 1 | 0 | 3/4 | 494 | 15574 | Yes | **skill** |
+| `implementer` | 1 | 1 | 1 | 0 | 3/4 | 658 | 18928 | Yes | **skill** |
+| `milestone-planner` | 1 | 1 | 1 | 0 | 3/4 | 458 | 6623 | Yes | **skill** |
+| `qa` | 1 | 1 | 1 | 0 | 3/4 | 473 | 25654 | Yes | **skill** |
+| `task-decomposer` | 1 | 1 | 1 | 0 | 3/4 | 462 | 10359 | Yes | **skill** |
+| `context-retrieval` | 1 | 1 | 0 | 0 | 2/4 | 720 | 5171 | No | **skill** |
+| `architect` | 1 | 1 | 1 | 0 | 3/4 | 489 | 23581 | Yes | **context-fork-skill** |
+| `security` | 1 | 1 | 1 | 0 | 3/4 | 466 | 32567 | Yes | **context-fork-skill** |
+| `analyst` | 1 | 1 | 0 | 0 | 2/4 | 488 | 6925 | Yes | **keep-as-agent** |
+| `adr-generator` | 0 | 1 | 0 | 0 | 1/4 | 228 | 6684 | No | **keep-as-agent** |
+| `backlog-generator` | 0 | 1 | 0 | 0 | 1/4 | 455 | 6905 | Yes | **keep-as-agent** |
+| `critic` | 1 | 0 | 0 | 0 | 1/4 | 445 | 12680 | Yes | **keep-as-agent** |
+| `explainer` | 0 | 1 | 0 | 0 | 1/4 | 489 | 6034 | Yes | **keep-as-agent** |
+| `issue-feature-review` | 0 | 1 | 0 | 0 | 1/4 | 371 | 7884 | Yes | **keep-as-agent** |
+| `memory` | 0 | 1 | 0 | 0 | 1/4 | 505 | 14127 | Yes | **keep-as-agent** |
+| `orchestrator` | 0 | 1 | 0 | 0 | 1/4 | 479 | 15237 | Yes | **keep-as-agent** |
+| `quality-auditor` | 0 | 1 | 0 | 0 | 1/4 | 408 | 3533 | No | **keep-as-agent** |
+| `retrospective` | 0 | 1 | 0 | 0 | 1/4 | 509 | 43362 | Yes | **keep-as-agent** |
+| `roadmap` | 0 | 1 | 0 | 0 | 1/4 | 472 | 6149 | Yes | **keep-as-agent** |
+| `skillbook` | 0 | 1 | 0 | 0 | 1/4 | 497 | 7603 | Yes | **keep-as-agent** |
+| `high-level-advisor` | 0 | 0 | 0 | 0 | 0/4 | 452 | 8471 | Yes | **keep-as-agent** |
+| `independent-thinker` | 0 | 0 | 0 | 0 | 0/4 | 467 | 8258 | Yes | **keep-as-agent** |
 
-For each agent, evidence justifying the score:
+### Per-criterion evidence and rationale (full text)
 
-#### `spec-generator` (skill, score=4/4)
+For each agent, evidence justifying every score plus the verdict rationale. Numeric `c1..c4` cells in the table above collapse {Yes/>=70%/Yes/Yes} to 1 and {No/<70%/No/No/Unknown/N/A} to 0; this section preserves the full enum value and evidence per the schema in DESIGN-011 §C2.
+
+#### `spec-generator` (verdict=skill, score=4/4)
 
 - **c1 (Yes)**: .claude/commands/spec.md:365
 - **c2 (>=70%)**: 76/95 lines structured (80%); 13 table sep, 1 code blocks, 28 list items, anti-pattern hd, decision/criteria hd, format/schema hd, validation/rules hd
@@ -92,7 +109,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: No
 - **verdict_rationale**: discriminator_score=4/4 (c1=1, c2=1, c3=1, c4=1); 2-of-4 rule fires; no isolation requirement documented
 
-#### `devops` (skill, score=3/4)
+#### `devops` (verdict=skill, score=3/4)
 
 - **c1 (Yes)**: .claude/commands/ship.md:15; .claude/commands/test.md:72
 - **c2 (>=70%)**: 332/366 lines structured (91%); 6 table sep, 7 code blocks, 40 list items, decision/criteria hd, format/schema hd, validation/rules hd
@@ -102,7 +119,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolation requirement documented
 
-#### `implementer` (skill, score=3/4)
+#### `implementer` (verdict=skill, score=3/4)
 
 - **c1 (Yes)**: .claude/commands/build.md:27
 - **c2 (>=70%)**: 147/192 lines structured (77%); 9 table sep, 105 list items, anti-pattern hd, validation/rules hd
@@ -112,7 +129,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolation requirement documented
 
-#### `milestone-planner` (skill, score=3/4)
+#### `milestone-planner` (verdict=skill, score=3/4)
 
 - **c1 (Yes)**: .claude/commands/plan.md:17
 - **c2 (>=70%)**: 106/124 lines structured (85%); 9 table sep, 1 code blocks, 28 list items, anti-pattern hd, decision/criteria hd, format/schema hd, validation/rules hd
@@ -122,7 +139,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolation requirement documented
 
-#### `qa` (skill, score=3/4)
+#### `qa` (verdict=skill, score=3/4)
 
 - **c1 (Yes)**: .claude/commands/test.md:33
 - **c2 (>=70%)**: 486/544 lines structured (89%); 16 table sep, 11 code blocks, 68 list items, decision/criteria hd, format/schema hd, validation/rules hd
@@ -132,7 +149,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolation requirement documented
 
-#### `task-decomposer` (skill, score=3/4)
+#### `task-decomposer` (verdict=skill, score=3/4)
 
 - **c1 (Yes)**: .claude/commands/plan.md:18
 - **c2 (>=70%)**: 199/224 lines structured (89%); 10 table sep, 6 code blocks, 36 list items, anti-pattern hd, format/schema hd, validation/rules hd
@@ -142,7 +159,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=3/4 (c1=1, c2=1, c3=1, c4=0); 2-of-4 rule fires; no isolation requirement documented
 
-#### `context-retrieval` (skill, score=2/4)
+#### `context-retrieval` (verdict=skill, score=2/4)
 
 - **c1 (Yes)**: .claude/commands/forgetful/memory-explore.md:11
 - **c2 (>=70%)**: 51/63 lines structured (81%); 4 table sep, 0 code blocks, 16 list items, format/schema hd, validation/rules hd
@@ -152,7 +169,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: No
 - **verdict_rationale**: discriminator_score=2/4 (c1=1, c2=1, c3=0, c4=0); 2-of-4 rule fires; no isolation requirement documented
 
-#### `architect` (context-fork-skill, score=3/4)
+#### `architect` (verdict=context-fork-skill, score=3/4)
 
 - **c1 (Yes)**: .claude/commands/test.md:96
 - **c2 (>=70%)**: 404/448 lines structured (90%); 13 table sep, 7 code blocks, 69 list items, anti-pattern hd, decision/criteria hd, format/schema hd, validation/rules hd
@@ -162,7 +179,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: score=3/4; isolation benefits exist but context: fork serves: governance review benefits from isolation; context: fork serves
 
-#### `security` (context-fork-skill, score=3/4)
+#### `security` (verdict=context-fork-skill, score=3/4)
 
 - **c1 (Yes)**: .claude/commands/test.md:60
 - **c2 (>=70%)**: 561/622 lines structured (90%); 9 table sep, 9 code blocks, 144 list items, decision/criteria hd, format/schema hd, validation/rules hd
@@ -172,7 +189,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: score=3/4; isolation benefits exist but context: fork serves: reviews diffs for vulns; benefits from isolated context but no genuine reasoning-asymmetry; context: fork serves
 
-#### `analyst` (keep-as-agent, score=2/4)
+#### `analyst` (verdict=keep-as-agent, score=2/4)
 
 - **c1 (Yes)**: .claude/commands/build.md:15; .claude/commands/plan.md:20; .claude/commands/review.md:24
 - **c2 (>=70%)**: 80/106 lines structured (75%); 6 table sep, 0 code blocks, 21 list items, decision/criteria hd, format/schema hd, validation/rules hd
@@ -180,9 +197,9 @@ For each agent, evidence justifying the score:
 - **c4 (Unknown)**: agent emits prose/advisory output; no structured artifact for bots to validate against schema; no PR-history signal possible
 - **c5_frontmatter_bytes**: 488 (full body: 6925)
 - **has_shared_template**: Yes
-- **verdict_rationale**: isolation exception: investigation-time code reads are massive; context: fork could work but #2003 counter-signal explicitly lists analyst as agent-shape
+- **verdict_rationale**: hard isolation: investigation must not see parent's reasoning to avoid confirmation bias; #2003 counter-signal lists analyst alongside orchestrator/critic/pr-comment-responder as a 'must not see parent's context' agent. context: fork still couples to parent's working state.
 
-#### `adr-generator` (keep-as-agent, score=1/4)
+#### `adr-generator` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 122/149 lines structured (82%); 0 code blocks, 86 list items, decision/criteria hd, format/schema hd, validation/rules hd
@@ -192,7 +209,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: No
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `backlog-generator` (keep-as-agent, score=1/4)
+#### `backlog-generator` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 83/105 lines structured (79%); 10 table sep, 1 code blocks, 43 list items, validation/rules hd
@@ -202,7 +219,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `critic` (keep-as-agent, score=1/4)
+#### `critic` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (Yes)**: .claude/commands/plan.md:21; .claude/commands/spec.md:372; .claude/commands/test.md:84
 - **c2 (50-69%)**: 99/129 lines structured (77%); 8 table sep, 0 code blocks, 34 list items, anti-pattern hd, format/schema hd, validation/rules hd -> manual review: 'Reviewer Asymmetry' and 'Core Behavior' sections are reasoning prose; Adversarial Coverage Checklist is reference but not dominant; 50-69%
@@ -210,9 +227,9 @@ For each agent, evidence justifying the score:
 - **c4 (Unknown)**: agent emits prose/advisory output; no structured artifact for bots to validate against schema; no PR-history signal possible
 - **c5_frontmatter_bytes**: 445 (full body: 12680)
 - **has_shared_template**: Yes
-- **verdict_rationale**: isolation exception: fresh-context adversarial review is the agent's CORE function (per body 'Reviewer Asymmetry' section); context: fork would break the asymmetry
+- **verdict_rationale**: hard isolation: fresh-context adversarial review IS the function; sharing any parent state breaks the asymmetry. context: fork would partially leak parent state and break the reviewer-asymmetry guarantee documented in critic.md 'Reviewer Asymmetry' section.
 
-#### `explainer` (keep-as-agent, score=1/4)
+#### `explainer` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 73/89 lines structured (82%); 5 table sep, 41 list items, anti-pattern hd, decision/criteria hd, format/schema hd
@@ -222,7 +239,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `issue-feature-review` (keep-as-agent, score=1/4)
+#### `issue-feature-review` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 86/104 lines structured (83%); 8 table sep, 0 code blocks, 18 list items, anti-pattern hd, decision/criteria hd, format/schema hd, validation/rules hd
@@ -232,7 +249,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `memory` (keep-as-agent, score=1/4)
+#### `memory` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 248/296 lines structured (84%); 26 table sep, 9 code blocks, 55 list items, decision/criteria hd, format/schema hd
@@ -242,7 +259,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `orchestrator` (keep-as-agent, score=1/4)
+#### `orchestrator` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 142/177 lines structured (80%); 18 table sep, 1 code blocks, 57 list items, anti-pattern hd, decision/criteria hd, validation/rules hd
@@ -250,9 +267,9 @@ For each agent, evidence justifying the score:
 - **c4 (Unknown)**: agent emits prose/advisory output; no structured artifact for bots to validate against schema; no PR-history signal possible
 - **c5_frontmatter_bytes**: 479 (full body: 15237)
 - **has_shared_template**: Yes
-- **verdict_rationale**: isolation exception: routes tasks across all agents; needs isolated routing context that does not pollute parent thread (AGENTS.md orchestrator pattern)
+- **verdict_rationale**: hard isolation: routes work across all agents; must not see/pollute parent context (per #2003 counter-signal). context: fork would still leak parent state into routing decisions.
 
-#### `quality-auditor` (keep-as-agent, score=1/4)
+#### `quality-auditor` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 54/62 lines structured (87%); 0 code blocks, 34 list items, format/schema hd
@@ -262,7 +279,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: No
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `retrospective` (keep-as-agent, score=1/4)
+#### `retrospective` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 883/1017 lines structured (87%); 41 table sep, 20 code blocks, 97 list items, decision/criteria hd, format/schema hd, validation/rules hd
@@ -272,7 +289,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `roadmap` (keep-as-agent, score=1/4)
+#### `roadmap` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 91/106 lines structured (86%); 8 table sep, 1 code blocks, 24 list items, decision/criteria hd, format/schema hd, validation/rules hd
@@ -282,7 +299,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `skillbook` (keep-as-agent, score=1/4)
+#### `skillbook` (verdict=keep-as-agent, score=1/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (>=70%)**: 89/115 lines structured (77%); 23 table sep, 1 code blocks, 22 list items, anti-pattern hd, decision/criteria hd, format/schema hd, validation/rules hd
@@ -292,7 +309,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=1/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `high-level-advisor` (keep-as-agent, score=0/4)
+#### `high-level-advisor` (verdict=keep-as-agent, score=0/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (50-69%)**: 162/199 lines structured (81%); 3 table sep, 3 code blocks, 69 list items, decision/criteria hd, format/schema hd -> manual review: Strategic frameworks/memories are reference; verdict-delivery prose is reasoning; mixed 50-69%
@@ -302,7 +319,7 @@ For each agent, evidence justifying the score:
 - **has_shared_template**: Yes
 - **verdict_rationale**: discriminator_score=0/4; below 2-of-4 threshold; no shape mismatch detected
 
-#### `independent-thinker` (keep-as-agent, score=0/4)
+#### `independent-thinker` (verdict=keep-as-agent, score=0/4)
 
 - **c1 (No)**: no slash-command Task() invocation found
 - **c2 (50-69%)**: 137/169 lines structured (81%); 1 table sep, 2 code blocks, 49 list items, decision/criteria hd, format/schema hd -> manual review: Persona Traits + Core Mission are reasoning; Style Guide + Activation Profile are reference; mixed 50-69%
@@ -377,7 +394,7 @@ Each candidate becomes a separate filed issue per `phase_2_3_governance: separat
 ## Out of scope (per PRD §9)
 
 - Phase 2 refactor PRs (one per skill candidate above). Each is a separately filed issue per `phase_2_3_governance: separate-issues`.
-- Phase 3 CI check implementation. See linked stub issue.
+- Phase 3 CI check implementation. See linked stub issue #2008.
 - 24th `caveman` agent under `~/.claude/`. Not in `.claude/agents/`.
 - Downstream platform variants under `src/copilot-cli/agents/` and `src/vs-code-agents/`.
 - Quantitative ranking via `eval-knowledge-integration.py` / `eval-skill-overlap.py` (#1932). Deferred to Phase 2.
@@ -391,19 +408,23 @@ Only `spec-generator` scored Yes on c4 (documented in #2001 with PR #1995 eviden
 
 ### c2 (reference vs reasoning) heuristic limitation
 
-The automated heuristic (lines counted: tables + lists + headings + code blocks) over-estimated reference content for reasoning-focused agents. Manual deflation applied to: `critic`, `independent-thinker`, `high-level-advisor`. `analyst` was kept at ≥70% (genuine decision-table dominance). Per PRD §11 lock-in, only decision-tree bullets count, not all bullets. Reviewers may rebalance individual c2 scores; the c2 column documents the count.
+The automated heuristic (lines counted: tables + lists + headings + code blocks) over-estimated reference content for reasoning-focused agents. Manual deflation applied to: `critic`, `independent-thinker`, `high-level-advisor`. `analyst` was kept at >=70% (genuine decision-table dominance). Per PRD §11 lock-in, only decision-tree bullets count, not all bullets. Reviewers may rebalance individual c2 scores; the c2 column documents the count.
 
-### Isolation exceptions
+### Determinism scope
 
-Per #2003 counter-signal + PRD AC-6, three agents are kept as agents despite scoring >=2: `orchestrator`, `analyst`, `critic`. Each has documented isolation requirement (orchestrator routes across all agents; analyst/critic need fresh-context reasoning asymmetry). `context: fork` cannot serve these because the ASYMMETRY (no shared parent state) is the function, not the side-effect.
+NFR-1 in REQ-011 says re-runs produce byte-identical output for c1, c4, c5, has_shared_template, and c3. **c2 is human-judgment and may vary between reviewers** (per PRD §11). Verdict can change for borderline agents whose discriminator_score depends on c2; this is an explicit limitation of the count rule, not a determinism failure.
 
-### `keep-as-agent` agents that are never invoked from slash commands (c1=No)
+### Isolation classification (hard vs soft)
 
-Several agents (`adr-generator`, `backlog-generator`, `explainer`, `issue-feature-review`, `quality-auditor`, `roadmap`, `skillbook`, `high-level-advisor`, `independent-thinker`, `memory`) scored c1=0 and are kept-as-agent by the rule. **A separate triage** (not in #2003 scope) should evaluate whether these are dead code, peer-only invocations, or genuine but undiscoverable agents. Recommend filing a follow-up issue if invocation counts from session logs show <5% usage per `agent-consolidation-process.md` trigger.
+This audit introduces a `hard` vs `soft` isolation distinction (see "Verdict rule" above) to reconcile three previously-divergent rules in PRD AC-6, DESIGN-011 §C3, and the audit's own rule. `hard` isolation maps to `keep-as-agent` regardless of discriminator_score (the agent's function depends on NOT seeing parent context). `soft` isolation maps to `context-fork-skill` when score >= 2 (fork creates a sub-context; the agent benefits but does not require asymmetry). DESIGN-011 §C3 will be updated in a follow-up commit on this branch to encode the hard/soft split explicitly.
 
 ### Phase 3 CI check
 
 Per PRD AC-12 + issue #2003 acceptance criterion 4, the Phase 3 CI check (detect new agents matching skill discriminator) is filed as a separate stub issue: **#2008**.
+
+### `keep-as-agent` agents that are never invoked from slash commands (c1=No)
+
+Several agents (`adr-generator`, `backlog-generator`, `explainer`, `issue-feature-review`, `quality-auditor`, `roadmap`, `skillbook`, `high-level-advisor`, `independent-thinker`, `memory`) scored c1=0 and are kept-as-agent by the rule. **A separate triage** (not in #2003 scope) should evaluate whether these are dead code, peer-only invocations, or genuine but undiscoverable agents. Recommend filing a follow-up issue if invocation counts from session logs show <5% usage per `agent-consolidation-process.md` trigger.
 
 ### Validation
 

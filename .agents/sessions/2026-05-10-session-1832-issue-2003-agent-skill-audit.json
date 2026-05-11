@@ -169,6 +169,10 @@
     {
       "step": "File validator bug #2007 (per user directive)",
       "outcome": "validate_session_json.py false-positive 'Evidence contradiction' warnings on multi-scope evidence (deferred-in-different-scope tokens). Issue includes 3 fix options + acceptance criteria."
+    },
+    {
+      "step": "Round 2: address 13 PR review threads (4 bot reviewers: copilot, devin, cursor, coderabbit)",
+      "outcome": "Fixed: (a) audit table truncated rationales expanded to full text; (b) c1=No count corrected from 11 to 12 in learnings; (c) endingCommit set to addf44b5; (d) DESIGN-011 \u00a7C2 c1 grep pattern updated to match actual two-pattern form; (e) DESIGN-011 \u00a7C3 verdict rule rewritten with hard/soft isolation split reconciling PRD AC-6, DESIGN-011, and audit doc; (f) PRD \u00a77 .log file claim removed; (g) REQ-011 NFR-1 scoped determinism to mechanical criteria; (h) audit doc Verdict rule canonical statement added with hard/soft split; (i) episode file outcome/events/metrics manually corrected (auto-extractor bug filed separately)."
     }
   ],
   "outcomes": [
@@ -179,7 +183,8 @@
     "9 skill candidates identified (7 skill + 2 context-fork-skill); 14 keep-as-agent (3 isolation-required + 11 below 2/4 threshold)",
     "Phase 3 CI check stub filed as issue #2008",
     "Validator bug filed as issue #2007 (deferred per user directive)",
-    "42% load-budget reduction available if Phase 2 candidates all migrate"
+    "42% load-budget reduction available if Phase 2 candidates all migrate",
+    "13 PR review threads addressed in round 2 (verdict rule reconciliation, table format clarification, episode/session log accuracy)"
   ],
   "learnings": [
     "Copilot CLI sessions need to mark Serena MUSTs Complete=true with evidence describing the filesystem-equivalent memory access path; the validator only checks the boolean.",
@@ -187,12 +192,13 @@
     "Spec-schemas.md enum drift is exactly the failure mode this audit addresses; reading the schema before writing REQ/DESIGN/TASK frontmatter is the defense.",
     "spec-generator scores 4/4 on the discriminator (only agent to do so), validating the issue #2003 hypothesis. The 7 other skill candidates score 2-3/4, mostly via c1+c2+c3 (reference-heavy bodies invoked from slash commands with sibling skills).",
     "Heuristic c2 scoring over-counts reasoning-focused agents because all-bullets are flagged as structured. Manual review needed for borderline cases per PRD \u00a711 count rule.",
-    "11 of 23 agents have c1=No (not invoked from any slash command). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
+    "12 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command; corrected from earlier '11 of 23' which was off by one \u2014 verified against the 23-row audit table) (not invoked from any slash command). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
   ],
-  "endingCommit": "pending",
+  "endingCommit": "addf44b5",
   "nextSteps": [
-    "Push branch feat/issue-2003-agent-skill-audit-spec to origin",
-    "Open PR with link to audit + cross-link to #1944",
+    "Reply-and-resolve all 13 PR review threads with cited fix evidence",
+    "Re-run completion gate; verify 0 unresolved + CI green",
+    "Validate against PRD \u00a78 AC-1..AC-12 (TASK-011 Step 10) again after round 2 changes",
     "Comment on #2003 with marker and audit summary (per AC-2)",
     "Comment on epic #1944 noting #2003 as agent-side sibling",
     "Validate against PRD \u00a78 AC-1..AC-12 (TASK-011 Step 10) before PR review"

@@ -120,7 +120,7 @@ The discriminator from #2001/#2002 (4 criteria) plus a 5th load-budget criterion
 
 ## 7. Observability
 
-- **Logs**: audit produces a structured log of per-agent reads (file path, SHA, byte count, criteria scores). Stored under `.agents/audits/2026-05-10-agent-skill-classification-audit.log` (text).
+- **Logs**: audit produces a per-agent log of reads (file path, byte count, criteria scores) inline in the audit markdown's "Per-criterion evidence" section. A separate `.log` file is NOT produced (Phase 1 keeps everything in the markdown table; structured logging deferred to Phase 2 if a script-based scorer is built per PRD §10).
 - **Metrics**: audit emits one count to `.agents/metrics/agent-skill-audit-runs.tsv` (timestamp | agent_count | verdict_skill_count | verdict_context-fork-skill_count | verdict_keep_count | verdict_merge_count) so re-runs can be diff'd.
 - **Traces**: not applicable (single-process, single-pass audit).
 - **Alerts**: not applicable (manual run).

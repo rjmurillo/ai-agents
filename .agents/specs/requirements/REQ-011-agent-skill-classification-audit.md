@@ -52,7 +52,7 @@ SO THAT misclassified agents are identified and queued for Phase 2 refactor with
 
 ## Non-Functional Requirements
 
-- **NFR-1 (Determinism)**: Two runs of the audit on the same git SHA SHALL produce byte-identical output for c1, c3, c4, c5, and `has_shared_template` columns. (c2 may vary between human reviewers; see PRD §11 open question.)
+- **NFR-1 (Determinism, scoped)**: Two runs of the audit on the same git SHA SHALL produce byte-identical output for c1, c3, c4, c5, and `has_shared_template` columns. **c2 is human-judgment and MAY vary between reviewers** (see PRD §11 c2 count rule). Verdict can change for borderline agents whose discriminator_score depends on c2; this is an explicit limitation of the count rule, not a determinism failure. Reviewers may rebalance individual c2 scores.
 - **NFR-2 (Read-only)**: The audit SHALL NOT modify any file under `.claude/agents/`, `templates/agents/`, or `src/`.
 - **NFR-3 (Auditable)**: Every assertion in the audit SHALL cite a file path, line number, PR number, or git SHA in its evidence column.
 - **NFR-4 (Bounded effort)**: Audit execution SHALL complete in less than 6 hours of human reviewer time per Q4 wedge.

@@ -51,10 +51,13 @@ For each agent, score five criteria.
 
 #### c1: Invoked from slash command via `Task(subagent_type=...)`
 
-- Method: `grep -r "subagent_type[\"']*: *[\"']{agent}[\"']" .claude/commands/ templates/commands/`
-- Yes if any match found in a slash command file (path matches `.claude/commands/` or `templates/commands/`).
+- Method: grep slash command files for two patterns matching the actual call form in this repo:
+  - `subagent_type\s*[:=]\s*["']?{agent}["']?` (matches both `subagent_type="agent"` and `subagent_type=agent` and `subagent_type: agent`)
+  - `Task\s*\(\s*[^)]*["']?{agent}["']?` (matches `Task(subagent_type="agent", ...)` and variants)
+- Search paths: `.claude/commands/` and `templates/commands/`.
+- Yes if any match found in a slash command file.
 - No if matches only in other agent files (peer-to-peer invocation).
-- Evidence: matched file:line.
+- Evidence: matched `file:line`.
 
 #### c2: Body composition (≥70% reference)
 
@@ -94,25 +97,31 @@ For each agent, score five criteria.
 
 ### C3. Verdict assigner
 
-Decision rule (per `verdict_decision_thresholds: discriminator-2-of-4`):
+Decision rule (per `verdict_decision_thresholds: discriminator-2-of-4`, with hard/soft isolation split reconciling PRD AC-6 + the audit's verdict rule):
 
 ```text
-discriminator_score = count(c1=Yes) + count(c2=≥70%) + count(c3=Yes) + count(c4=Yes)
+discriminator_score = count(c1=Yes) + count(c2=>=70%) + count(c3=Yes) + count(c4=Yes)
 # c2 50-69% counts as 0; c4 Unknown counts as 0; c3 N/A counts as 0
 
-if discriminator_score >= 2 and not isolation_exception:
-    verdict = skill
-elif discriminator_score >= 2 and isolation_exception:
-    verdict = context-fork-skill
-elif overlap_with_other_agent >= 70%:  # per agent-consolidation-process.md
-    verdict = merge-into-X
-else:
-    verdict = keep-as-agent
+isolation = hard | soft | none
+  hard: agent body documents that it MUST NOT see/pollute parent's context
+        (per #2003 counter-signal: orchestrator routing, critic adversarial
+        review, analyst bias-free investigation). context: fork still leaks
+        parent working state and breaks the asymmetry the agent depends on.
+  soft: agent benefits from a fresh sub-context but does not require
+        parent-context exclusion. context: fork (skill mode) serves.
+  none: no isolation requirement.
+
+verdict = keep-as-agent       if isolation = hard (regardless of score)
+verdict = context-fork-skill  if score >= 2 AND isolation = soft
+verdict = skill               if score >= 2 AND isolation = none
+verdict = keep-as-agent       if score < 2  (no shape mismatch detected)
+verdict = merge-into-X        if overlap_with_other_agent >= 70%  (Phase 2)
 ```
 
-`isolation_exception` is documented when the agent body explicitly states a separate-context requirement (e.g., `orchestrator`, `analyst`, `critic`, `pr-comment-responder` per #2003 counter-signal section).
+`overlap_with_other_agent` is sourced from `.agents/governance/agent-consolidation-process.md` Phase 1 capability matrix. For Phase 1 of this audit, this is human judgment; quantitative scoring deferred to Phase 2.
 
-`overlap_with_other_agent` is sourced from `.agents/governance/agent-consolidation-process.md` Phase 1 capability matrix (Section "Overlap Analysis"). For Phase 1, this is human-judgment; quantitative scoring deferred to Phase 2.
+The hard/soft split was added to reconcile (a) the originally-collapsed `isolation_exception` flag in this design, (b) PRD AC-6's "cannot be satisfied by `context: fork`" language, and (c) the actual Phase 1 audit's `keep-as-agent` assignment for `analyst`/`critic`/`orchestrator`. See the audit document's "Verdict rule" section for the canonical statement.
 
 ### C4. Audit document writer
 
