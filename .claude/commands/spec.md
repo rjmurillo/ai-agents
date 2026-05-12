@@ -63,3 +63,4 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 - **Deferred** (decisions punted with owners)
 - **Open questions** (unresolved unknowns with owners)
 - **CVA summary** (what is common, what varies, what relationships exist)
+- **Buy-vs-build decision** (core-vs-context classification, alternatives evaluated, recommendation: build/buy/partner/defer, rationale; or `N/A (bug fix / doc / refactor)` when step 4a was skipped)
