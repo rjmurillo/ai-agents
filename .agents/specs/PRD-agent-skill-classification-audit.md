@@ -25,7 +25,7 @@
 
 ### Connected context from exploring-knowledge-graph
 
-- Connected entity: `src/claude/agents/` (Claude-platform agent variants, dual to `.claude/agents/`). Adjudication: **in-scope** (audited as part of `include_24th_caveman_agent: include-claude-only` decision; audit verifies dual-source presence per ADR-036).
+- Connected entity: `src/claude/*.md` (Claude-platform agent files generated from `templates/agents/{name}.shared.md` per ADR-036; note there is no `src/claude/agents/` subdirectory in the tree). Adjudication: **out-of-scope as a directly-audited target** (downstream of `templates/agents/`, same posture as `src/copilot-cli/agents/` and `src/vs-code-agents/` below); dual-source presence is verified indirectly via the `has_shared_template` audit-table column, which checks for the upstream `templates/agents/{name}.shared.md` file per ADR-036.
 - Connected entity: `templates/agents/*.shared.md` (cross-platform agent source per ADR-036). Adjudication: **in-scope** (audit table column `has_shared_template`).
 - Connected entity: `src/copilot-cli/agents/` and `src/vs-code-agents/` (auto-generated platform variants). Adjudication: **out-of-scope** (downstream of `templates/agents/`; not directly audited).
 - Connected entity: `.caveman-active` / 24th agent file under `~/.claude/`. Adjudication: **out-of-scope** (per user decision; not in `.claude/agents/`).

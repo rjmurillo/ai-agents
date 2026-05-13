@@ -152,7 +152,7 @@ For each agent:
 | (Read-only) | `templates/agents/*.shared.md` | has_shared_template detection |
 | (Read-only) | `.claude/skills/*/SKILL.md` | c3 sibling detection |
 
-No modifications to `.claude/agents/`, `templates/agents/`, `src/`.
+The audit-execution step makes no modifications to `.claude/agents/`, `templates/agents/`, or `src/` (it identifies skill candidates but does not migrate them). Any `src/` delta carried by the PR comes from merging `main` (e.g., regen of `src/copilot-cli/skills/spec/SKILL.md` after PR #1901), not from the audit; the merge-propagation exception mirrors the one stated in TAC-7 above.
 
 ## Estimate
 
