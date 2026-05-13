@@ -2,7 +2,7 @@
 type: task
 id: TASK-011
 title: Execute agent-skill classification audit and post results
-status: todo
+status: done
 priority: P1
 complexity: M
 estimate: 9h
@@ -10,7 +10,7 @@ related:
   - DESIGN-011
 assignee: implementer
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-05-13
 author: spec
 tags:
   - catalog-consolidation
