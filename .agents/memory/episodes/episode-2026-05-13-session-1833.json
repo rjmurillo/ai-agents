@@ -1,42 +1,51 @@
 {
   "id": "episode-2026-05-13-session-1833",
   "session": "2026-05-13-session-1833",
-  "timestamp": "2026-05-13T03:40:44.982987+00:00",
-  "outcome": "success",
-  "task": "Respond to PR #2009 bot review comments (round 10): audit triage list completeness, PRD verdict invariant",
-  "decisions": [
-    {
-      "id": "d001",
-      "summary": "Won't-fix the devin 'should be 8' count comment: audit table has 8 verdict=skill rows including spec-generator, so '7 other' is correct; 'Round 3 (8+2 total)' means 8 skill + 2 context-fork-skill = 10 candidates, not 8 'other'."
-    }
-  ],
+  "timestamp": "2026-05-13T04:07:53.160470+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-13T03:40:44.979936+00:00",
-      "type": "edit",
-      "content": "Added orchestrator and retrospective to the c1=No triage list in the audit (cursor[bot]); applied the three-clause verdict invariant in PRD section 3.2 (devin-ai-integration[bot]).",
+      "timestamp": "2026-05-13T04:07:53.156607+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"npx markdownlint-cli2 on the two edited .agents/*.md files: 0 errors (files under .agents/** are lint-ignored by repo config; ran anyway to confirm).\"",
       "caused_by": [],
-      "leads_to": ["e002"]
+      "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-13T03:40:44.979936+00:00",
+      "timestamp": "2026-05-13T04:07:53.156607+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"Not invoked; single-round bot-comment response, no novel failure mode.\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-13T04:07:53.156607+00:00",
       "type": "commit",
-      "content": "Commit 6b338e9c; markdownlint-cli2 clean on edited .agents/*.md files; session log validation PASS; 3 of 3 review threads replied to and resolved.",
-      "caused_by": ["e001"],
+      "content": "Commit: 2486c7c8",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-13T04:07:53.156607+00:00",
+      "type": "error",
+      "content": "\"Round 11: corrected session-log endingCommit (6b338e9c) per Copilot. The pre-commit episode extractor (.claude/skills/memory/scripts/extract_session_episode.py) parses session logs as markdown; since logs are now JSON it emits outcome=failure, empty task, error-typed evidence events, and a wrong commit count. Same shape affects episodes 1830/1831/1832 from main. Hand-corrected episode-2026-05-13-session-1833.json and committed with SKIP_AUTOFIX=1 so the extractor does not regenerate the buggy version. Extractor rewrite tracked separately, out of scope here.\",",
+      "caused_by": [],
       "leads_to": []
     }
   ],
   "metrics": {
-    "duration_minutes": 35,
-    "tool_calls": 11,
-    "errors": 0,
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 3,
     "recoveries": 0,
-    "commits": 1,
-    "files_changed": 4
+    "commits": 9,
+    "files_changed": 0
   },
-  "lessons": [
-    "The pre-commit episode extractor (.claude/skills/memory/scripts/extract_session_episode.py) mis-classifies session-log Evidence strings as outcome=failure with type=error events and miscounts commits; the same shape appears in episode-2026-05-11-session-1832.json (merged from main). Extractor fix is out of scope here; episode hand-corrected to match the session log. Corrected episode must be committed WITHOUT the session log staged or the hook regenerates the buggy version."
-  ]
+  "lessons": []
 }

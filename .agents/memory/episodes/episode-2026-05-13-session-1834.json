@@ -15,7 +15,7 @@
       "id": "e001",
       "timestamp": "2026-05-13T04:01:42.916713+00:00",
       "type": "edit",
-      "content": "Updated TASK-011 frontmatter status/date and corrected episode-1833 metrics to match completed session activity.",
+      "content": "Updated TASK-011 frontmatter status/date and corrected episode-2026-05-13-session-1833.json metrics to match completed session activity.",
       "caused_by": [],
       "leads_to": [
         "e002"
