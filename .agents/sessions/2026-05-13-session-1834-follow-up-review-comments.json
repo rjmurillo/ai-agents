@@ -76,9 +76,10 @@
     "Verified unresolved review comments and confirmed two actionable items remained.",
     "Updated TASK-011 frontmatter status to done and updated date to 2026-05-13.",
     "Updated episode metrics to non-zero values aligned with completed session activity.",
-    "Validated changed files with json.tool and validate_session_json.py."
+    "Validated changed files with json.tool and validate_session_json.py.",
+    "Post-push validation flagged episode-1834 extractor fallback output as inconsistent; hand-corrected episode metadata to match this session's successful outcome and real file/commit activity."
   ],
   "nextSteps": [
-    "Push this follow-up commit and close remaining review threads."
+    "Push this follow-up correction commit."
   ]
 }
