@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-05-13-session-1834",
+  "session": "2026-05-13-session-1834",
+  "timestamp": "2026-05-13T04:01:42.919040+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-13T04:01:42.916713+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"Ran markdownlint-cli2 against touched markdown target; command completed with zero errors.\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

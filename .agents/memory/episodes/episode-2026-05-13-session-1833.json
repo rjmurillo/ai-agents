@@ -29,8 +29,8 @@
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
-    "tool_calls": 0,
+    "duration_minutes": 35,
+    "tool_calls": 11,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
