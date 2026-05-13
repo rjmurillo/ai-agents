@@ -434,7 +434,7 @@ Per PRD AC-12 + issue #2003 acceptance criterion 4, the Phase 3 CI check (detect
 
 ### `keep-as-agent` agents that are never invoked from slash commands (c1=No)
 
-Several agents (`adr-generator`, `backlog-generator`, `explainer`, `issue-feature-review`, `quality-auditor`, `skillbook`, `high-level-advisor`, `independent-thinker`, `memory`) scored c1=0 and are kept-as-agent by the rule. **A separate triage** (not in #2003 scope) should evaluate whether these are dead code, peer-only invocations, or genuine but undiscoverable agents. Recommend filing a follow-up issue if invocation counts from session logs show <5% usage per `agent-consolidation-process.md` trigger.
+Eleven agents (`adr-generator`, `backlog-generator`, `explainer`, `issue-feature-review`, `quality-auditor`, `skillbook`, `high-level-advisor`, `independent-thinker`, `memory`, `orchestrator`, `retrospective`) scored c1=0 and are kept-as-agent by the rule. (`orchestrator` is also a hard-isolation agent, so it stays `keep-as-agent` regardless; the other ten are kept-as-agent on the low score alone.) **A separate triage** (not in #2003 scope) should evaluate whether these are dead code, peer-only invocations, or genuine but undiscoverable agents. Recommend filing a follow-up issue if invocation counts from session logs show <5% usage per `agent-consolidation-process.md` trigger.
 
 ### Validation
 

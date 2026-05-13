@@ -89,7 +89,7 @@ The discriminator from #2001/#2002 (4 criteria) plus a 5th load-budget criterion
 
 - Identity: `agent` field (unique per row).
 - Invariant: `discriminator_score = count(c1=Yes, c2=≥70%, c3=Yes, c4=Yes)`.
-- Invariant: `verdict = skill` if `discriminator_score >= 2` AND no isolation-required exception is documented.
+- Invariant: `verdict = skill` if `discriminator_score >= 2` AND isolation = none; `verdict = context-fork-skill` if `discriminator_score >= 2` AND isolation = soft; `verdict = keep-as-agent` if isolation = hard (regardless of score) OR `discriminator_score < 2`.
 - Lifecycle: audit table is **point-in-time**. The committed file at `.agents/audits/2026-05-10-agent-skill-classification-audit.md` includes the date. Re-runs produce a new dated file; old files preserved for diff.
 
 ## 4. Integrations
