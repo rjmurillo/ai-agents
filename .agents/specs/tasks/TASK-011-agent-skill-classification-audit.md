@@ -56,7 +56,7 @@ See PRD §9.
 - [ ] **TAC-4** (covers AC-9): the audit file footer includes total agents, count by verdict, total bytes saved if all `skill` AND `context-fork-skill` verdicts migrate (both are shape-mismatch refactor candidates per the discriminator), and citations to ADR-030, ADR-036, `agent-consolidation-process.md`.
 - [ ] **TAC-5** (covers AC-10): the audit file's "Phase 2 backlog" section lists every row with `verdict != keep-as-agent`, each with a one-line rationale.
 - [ ] **TAC-6** (covers AC-12): a separate GitHub issue exists for the Phase 3 CI check, linked from this audit's footer.
-- [ ] **TAC-7** (NFR-1, NFR-2): `git status` after the audit shows changes only under `.agents/audits/`, `.agents/specs/`, `.agents/metrics/` (if metrics line appended). No changes under `.claude/agents/`, `templates/agents/`, or `src/`.
+- [ ] **TAC-7** (NFR-1, NFR-2): the audit-execution step writes only documentation and session-protocol artifacts: `.agents/audits/`, `.agents/specs/`, `.agents/metrics/`, plus the session log and episode the work session necessarily produces (`.agents/sessions/`, `.agents/memory/episodes/`). The audit itself makes no changes under `.claude/agents/`, `templates/agents/`, or `src/` (any `src/` delta in the PR is merge propagation from `main`, not the audit): it identifies skill candidates but does not migrate them.
 - [ ] **TAC-8** (NFR-3): every assertion in the audit cites a file path, line number, PR number, or git SHA.
 - [ ] **TAC-9** (NFR-4): execution completed in less than 10 hours of reviewer time (revised bound; original wedge of 6h proved too aggressive for manual c2 scoring; track in session log).
 

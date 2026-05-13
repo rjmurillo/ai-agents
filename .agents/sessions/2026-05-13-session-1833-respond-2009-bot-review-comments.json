@@ -121,7 +121,8 @@
     "Note: PR was CONFLICTING with main; user merged main into the branch (commit 2486c7c8) and added the commit-limit-bypass label.",
     "Round 11: corrected session-log endingCommit (6b338e9c) per Copilot. The pre-commit episode extractor (.claude/skills/memory/scripts/extract_session_episode.py) parses session logs as markdown; since logs are now JSON it emits outcome=failure, empty task, error-typed evidence events, and a wrong commit count. Same shape affects episodes 1830/1831/1832 from main. Hand-corrected episode-2026-05-13-session-1833.json and committed with SKIP_AUTOFIX=1 so the extractor does not regenerate the buggy version. Extractor rewrite tracked separately, out of scope here.",
     "Round 11: replied to and resolved the 5 new threads (4 episode/session-log metadata + 1 TASK-011 status).",
-    "Round 11: TASK-011 status todo -> done, updated 2026-05-13 (Copilot: Phase 1 deliverables are in this PR). DESIGN-011/REQ-011 left as draft; the resulting parent-child status mismatch is INFO-only in scripts/validation/traceability.py, and graduating the whole spec set from draft is a separate author decision."
+    "Round 11: TASK-011 status todo -> done, updated 2026-05-13 (Copilot: Phase 1 deliverables are in this PR). DESIGN-011/REQ-011 left as draft; the resulting parent-child status mismatch is INFO-only in scripts/validation/traceability.py, and graduating the whole spec set from draft is a separate author decision.",
+    "Round 12: reworded TAC-7 in TASK-011 to include the session-protocol artifacts the work session necessarily produces (.agents/sessions/, .agents/memory/episodes/) and to scope the no-src/ invariant to the audit step (the src/ delta in the PR is merge propagation from main) (Copilot). Updated the PR description Changes section to disclose the src/copilot-cli/skills/spec/SKILL.md regen carried in from the main merge (Copilot)."
   ],
   "endingCommit": "6b338e9c",
   "nextSteps": [
