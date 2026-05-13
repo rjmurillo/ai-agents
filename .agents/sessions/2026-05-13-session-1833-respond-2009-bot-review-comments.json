@@ -118,7 +118,9 @@
     "Thread r3216540433 (devin, PRD L92): section 3.2 invariant only covered verdict=skill. Applied the suggested three-clause invariant (skill if score>=2 and isolation=none; context-fork-skill if score>=2 and isolation=soft; keep-as-agent if isolation=hard or score<2), matching audit L56-58 and DESIGN-011 L116-118.",
     "Thread r3216540483 (devin, session JSON L221): claimed 'the 7 other skill candidates' is stale and should be 8. Verified: the audit table has 8 verdict=skill rows including spec-generator, so '7 other' is correct; devin miscounted '8+2 total' (8 skill + 2 context-fork = 10 candidates) as '8 other'. Replying won't-fix with the count breakdown.",
     "Committed fixes + session log; replied to and resolved all 3 threads.",
-    "Note: PR is CONFLICTING with main; flagged to user for merge resolution before the completion gate can pass."
+    "Note: PR was CONFLICTING with main; user merged main into the branch (commit 2486c7c8) and added the commit-limit-bypass label.",
+    "Round 11: corrected session-log endingCommit (6b338e9c) per Copilot. The pre-commit episode extractor (.claude/skills/memory/scripts/extract_session_episode.py) parses session logs as markdown; since logs are now JSON it emits outcome=failure, empty task, error-typed evidence events, and a wrong commit count. Same shape affects episodes 1830/1831/1832 from main. Hand-corrected episode-2026-05-13-session-1833.json and committed with SKIP_AUTOFIX=1 so the extractor does not regenerate the buggy version. Extractor rewrite tracked separately, out of scope here.",
+    "Round 11: replied to and resolved the 5 new threads (4 episode/session-log metadata + 1 TASK-011 status)."
   ],
   "endingCommit": "6b338e9c",
   "nextSteps": [
