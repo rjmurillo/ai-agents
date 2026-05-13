@@ -44,6 +44,7 @@ Knowledge → passive context (@imports). Actions → skills.
 |Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect
 |Lifecycle: /spec, /plan, /build, /test, /review, /ship
+|New capability proposed (Context, or new module/scanner/validator/pipeline)|Run buy-vs-build-framework, Quick tier min, BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability surface, extensions of an already-approved capability
 
 ### ADR Review (BLOCKING)
 
