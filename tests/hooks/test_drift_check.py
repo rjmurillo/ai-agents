@@ -127,10 +127,17 @@ def test_pre_push_hook_drift_phase_invokes_generator(tmp_path: Path) -> None:
     if shutil.which("bash") is None:
         pytest.skip("bash not available")
 
-    # Extract just Phase 5b from the hook for isolated execution.
+    # Extract just Phase 5b from the hook for isolated execution. The end
+    # boundary is the next phase header (Phase 5c), NOT Phase 6: Phase 5c
+    # was inserted between 5b and 6, and including it here would run the
+    # bot-cascade code (real `gh api` calls) under the stubbed `python3`,
+    # violating the mock-I/O rule (devin finding on PR #2011).
     hook_text = PRE_PUSH_HOOK.read_text(encoding="utf-8")
     start = hook_text.find("# Phase 5b: Review-axes drift detection")
-    end = hook_text.find("# Phase 6:", start)
+    end = hook_text.find("# Phase 5c:", start)
+    if end < 0:
+        # Fall back to Phase 6 if Phase 5c is ever removed.
+        end = hook_text.find("# Phase 6:", start)
     assert start > 0 and end > start, "Phase 5b boundaries not found"
     phase = hook_text[start:end]
 
