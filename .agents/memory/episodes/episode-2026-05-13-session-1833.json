@@ -1,14 +1,14 @@
 {
   "id": "episode-2026-05-13-session-1833",
   "session": "2026-05-13-session-1833",
-  "timestamp": "2026-05-13T03:40:44.982987+00:00",
+  "timestamp": "2026-05-13T03:53:58.324394+00:00",
   "outcome": "failure",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-13T03:40:44.979936+00:00",
+      "timestamp": "2026-05-13T03:53:58.321384+00:00",
       "type": "error",
       "content": "\"Evidence\": \"npx markdownlint-cli2 on the two edited .agents/*.md files: 0 errors (files under .agents/** are lint-ignored by repo config; ran anyway to confirm).\"",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-13T03:40:44.979936+00:00",
+      "timestamp": "2026-05-13T03:53:58.321384+00:00",
       "type": "error",
       "content": "\"Evidence\": \"Not invoked; single-round bot-comment response, no novel failure mode.\"",
       "caused_by": [],
@@ -28,7 +28,7 @@
     "tool_calls": 0,
     "errors": 2,
     "recoveries": 0,
-    "commits": 6,
+    "commits": 7,
     "files_changed": 0
   },
   "lessons": []

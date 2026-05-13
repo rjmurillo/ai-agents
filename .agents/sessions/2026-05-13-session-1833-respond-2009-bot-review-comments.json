@@ -120,10 +120,9 @@
     "Committed fixes + session log; replied to and resolved all 3 threads.",
     "Note: PR is CONFLICTING with main; flagged to user for merge resolution before the completion gate can pass."
   ],
-  "endingCommit": "",
+  "endingCommit": "6b338e9c",
   "nextSteps": [
-    "Resolve merge conflict against main (PR mergeable=CONFLICTING).",
-    "Re-run python3 .claude/skills/github/scripts/pr/run_completion_gate.py --config .claude/commands/pr-review-config.yaml --pull-request 2009 --json after conflict resolution.",
-    "PR carries needs-split label (10 files, 1417 additions); author decision whether to split."
+    "Round 11 (this commit): corrected episode JSON and session-log endingCommit per Copilot/devin review of the merge commit; replied to all new threads.",
+    "PR carries needs-split and commit-limit-bypass labels; author accepted the scope."
   ]
 }
