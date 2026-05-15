@@ -101,7 +101,7 @@ For each agent, evidence justifying every score plus the verdict rationale. Nume
 
 #### `spec-generator` (verdict=skill, score=4/4)
 
-- **c1 (Yes)**: .claude/commands/spec.md:365
+- **c1 (Yes)**: .claude/commands/spec.md:366 (shifted from :365 after PR #1901 inserted the buy-vs-build step 4a)
 - **c2 (>=70%)**: 76/95 lines structured (80%); 13 table sep, 1 code blocks, 28 list items, anti-pattern hd, decision/criteria hd, format/schema hd, validation/rules hd
 - **c3 (Yes)**: spec.md invokes 2 unique sibling skills: Skill(chestertons-fence), Skill(memory) (memory is invoked twice in the same pipeline file at spec.md:194 and spec.md:196; deduplicated by unique skill name)
 - **c4 (Yes)**: PR #1995: 9-of-13 frontmatter schema violations (priority, category, status, complexity enums); PR #1989 similar drift documented in #2001
