@@ -1,0 +1,67 @@
+{
+  "scenarios": [
+    {
+      "id": "D1",
+      "desc": "Step 0 PASS triggers Step 0.5 before Step 1",
+      "input": "Run /spec for a demanded change. Step 0 answers pass: Q1 names the immediate operational failure, Q2 names the user impact, Q3 names current behavior, and Q4 scopes a 4-6 hour change. No Step 0 halt applies. Decide the next action before drafting Step 1 requirements.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "Step 0.5",
+      "rationale": "AC-01 requires Step 0.5 to run only after Step 0 passes and before Step 1 begins."
+    },
+    {
+      "id": "D6",
+      "desc": "Forgetful unavailable degrades to Serena-only search",
+      "input": "Run /spec after Step 0 PASS. The Forgetful MCP/tool call for memory search fails with service unavailable. Serena memories are available and return relevant prior-art notes. Decide whether Step 0.5 halts or continues.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "coverage notes",
+      "rationale": "AC-07 says memory-source failures do not halt Step 0.5; the agent must record the failed source and continue with available sources."
+    },
+    {
+      "id": "D7",
+      "desc": "Knowledge graph traversal discovers entity absent from Q0/Q3/Q4",
+      "input": "Run /spec after Step 0 PASS. Q0/Q3/Q4 mention spec.md and session logs only. exploring-knowledge-graph Phase 2 discovers ADR-057 as connected prior art relevant to prompt-eval behavior. Decide how Step 0.5 handles the discovered entity.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "connected context",
+      "rationale": "AC-08 requires graph traversal to surface connected entities not already named by Step 0 answers."
+    },
+    {
+      "id": "D9",
+      "desc": "One blast-radius entity remains below halt threshold",
+      "input": "Run /spec in auto-mode after Step 0 PASS. Entity adjudication finds one unmatched entity marked blast-radius. No H10, H12, or H13 trigger applies. Decide whether to emit a step0_5-halt block.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "threshold",
+      "rationale": "AC-09 halts in auto-mode at three or more blast-radius entities; one entity must not halt."
+    },
+    {
+      "id": "D12",
+      "desc": "Step 9 check 9d passes when PriorArtBlock is populated",
+      "input": "Run the Step 9 critic after a PRD includes a PriorArtBlock with non-empty Direct prior art from memory, Connected context from exploring-knowledge-graph, and Coverage notes subsections. Decide the 9d result.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "FAIL", "OTHER"],
+      "expected_reason_contains": "PriorArtBlock",
+      "rationale": "AC-12 requires 9d to pass when the PriorArtBlock schema is present and populated."
+    },
+    {
+      "id": "D13",
+      "desc": "Step 9 check 9d fails when PriorArtBlock is removed",
+      "input": "Run the Step 9 critic after a PRD has Step 0 answers and requirements but the entire PriorArtBlock section has been removed. Decide the 9d result.",
+      "expected_verdict": "FAIL",
+      "verdict_options": ["PASS", "FAIL", "OTHER"],
+      "expected_reason_contains": "PriorArtBlock",
+      "rationale": "AC-12 requires 9d to fail when the PriorArtBlock section is absent."
+    },
+    {
+      "id": "D14",
+      "desc": "Step 3 tier upgrade triggers supplemental Phase 5 traversal",
+      "input": "Run /spec where Step 0.5 classified ProvisionalTier as 3, so phases 1-4 already ran. Step 3 later classifies actual tier as 4. Decide whether Step 0.5 re-enters for supplemental traversal and what gets appended.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "SKIP", "HALT", "OTHER"],
+      "expected_reason_contains": "Supplemental",
+      "rationale": "AC-10 requires a tier upgrade that needs more graph phases to run the missing phase and append a Supplemental Phase 5 block."
+    }
+  ]
+}

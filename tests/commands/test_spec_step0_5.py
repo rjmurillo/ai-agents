@@ -16,14 +16,15 @@ test cases.
 
 Of 14 dynamic D-checks in TASK-008-5, 4 are promoted to pytest here
 (D2, D8, D10, D11) because they are deterministic from spec.md prose
-and parser logic without an LLM in the loop. The remaining 10 (D1,
-D3, D4, D5, D6, D7, D9, D12, D13, D14) require live `/spec` invocation
-or Forgetful MCP simulation; tracked for the LLM eval harness in
-issue #1972 (ADR-057 follow-on).
+and parser logic without an LLM in the loop. The LLM-required checks
+D1, D6, D7, D9, D12, D13, and D14 are captured as ADR-057 scenarios in
+`tests/evals/spec-scenarios.json`. D3, D4, and D5 remain manual because
+they require live memory-query behavior outside this issue's scope.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -47,6 +48,7 @@ from tests.commands.step0_5_parser import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
+SPEC_SCENARIOS_JSON = PROJECT_ROOT / "tests" / "evals" / "spec-scenarios.json"
 
 CANONICAL_DEFERRAL_TEXT = (
     "Revise Step 0 Q4 to name blast-radius entities or add explicit "
@@ -456,10 +458,10 @@ def test_supplemental_traversal_warranted(
 #
 # 4 of 14 D-checks (D2, D8, D10, D11) are promoted to pytest because
 # they are deterministic from spec.md prose and parser logic without an
-# LLM in the loop. The remaining 10 D-checks (D1, D3, D4, D5, D6, D7,
-# D9, D12, D13, D14) require live /spec invocation or Forgetful MCP
-# simulation; tracked manual checks become candidates for the LLM eval
-# harness in #1972 (ADR-057 follow-on).
+# LLM in the loop. D1, D6, D7, D9, D12, D13, and D14 are promoted to
+# ADR-057 behavioral scenarios in tests/evals/spec-scenarios.json.
+# D3, D4, and D5 remain manual because they require live memory-query
+# behavior outside #1972's scope.
 # ---------------------------------------------------------------------------
 
 
@@ -617,6 +619,30 @@ def test_d10_d11_tally_line_rejects_malformed_timestamp():
     line = "2026/05/10 04:30 | pass | none | none"
     with pytest.raises(ValueError, match="canonical format"):
         parse_tally_line(line)
+
+
+def test_llm_required_d_checks_have_adr057_scenarios():
+    """Issue #1972: live /spec D-checks are covered by eval scenarios."""
+    payload = json.loads(SPEC_SCENARIOS_JSON.read_text(encoding="utf-8"))
+    scenarios = payload["scenarios"]
+    by_id = {scenario["id"]: scenario for scenario in scenarios}
+
+    assert set(by_id) == {"D1", "D6", "D7", "D9", "D12", "D13", "D14"}
+    for check_id, scenario in by_id.items():
+        assert scenario["desc"]
+        assert scenario["input"]
+        assert scenario["expected_verdict"] in scenario["verdict_options"]
+        assert scenario["expected_reason_contains"]
+        assert scenario["rationale"]
+        assert check_id in scenario["id"]
+
+    assert by_id["D1"]["expected_verdict"] == "PASS"
+    assert by_id["D6"]["expected_verdict"] == "PASS"
+    assert by_id["D7"]["expected_verdict"] == "PASS"
+    assert by_id["D9"]["expected_verdict"] == "PASS"
+    assert by_id["D12"]["expected_verdict"] == "PASS"
+    assert by_id["D13"]["expected_verdict"] == "FAIL"
+    assert by_id["D14"]["expected_verdict"] == "PASS"
 
 
 # ---------------------------------------------------------------------------

@@ -33,6 +33,13 @@ try:
     assert _spec and _spec.loader
     eval_mod = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(eval_mod)
+
+    _suite_spec = importlib.util.spec_from_file_location(
+        "eval_suite", EVAL_DIR / "eval-suite.py"
+    )
+    assert _suite_spec and _suite_spec.loader
+    eval_suite_mod = importlib.util.module_from_spec(_suite_spec)
+    _suite_spec.loader.exec_module(eval_suite_mod)
 finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
@@ -255,6 +262,23 @@ class TestLoadScenariosValidation:
         })
         scenarios = eval_mod.load_scenarios(path)
         assert scenarios[0]["verdict_options"] == ["ROUTE", "DELEGATE", "EXECUTE"]
+
+
+def test_spec_command_scenarios_are_discoverable_by_eval_suite():
+    scenario_path = eval_suite_mod.find_scenarios_for_prompt(
+        ".claude/commands/spec.md"
+    )
+    assert scenario_path == "tests/evals/spec-scenarios.json"
+    scenarios = eval_mod.load_scenarios(str(REPO_ROOT / scenario_path))
+    assert {scenario["id"] for scenario in scenarios} == {
+        "D1",
+        "D6",
+        "D7",
+        "D9",
+        "D12",
+        "D13",
+        "D14",
+    }
 
 
 # ---------------------------------------------------------------------------

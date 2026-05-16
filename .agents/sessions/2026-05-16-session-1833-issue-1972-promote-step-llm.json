@@ -1,0 +1,135 @@
+{
+  "session": {
+    "number": 1833,
+    "date": "2026-05-16",
+    "branch": "issue-1972-spec-llm-evals",
+    "startingCommit": "fba9fb09",
+    "objective": "Issue #1972 promote Step 0.5 LLM D-checks to eval scenarios"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP tools unavailable in Codex environment; used documented fallback .serena/memories files."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP initial_instructions unavailable; read AGENTS.md and .agents/SESSION-PROTOCOL.md fallback."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md; no issue #1972 per-issue handoff existed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills; GitHub skill scripts not present in this checkout."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .serena/memories/usage-mandatory.md."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded usage-mandatory fallback memory and relevant issue/session history from rg results."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "issue-1972-spec-llm-evals"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On issue-1972-spec-llm-evals"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified main was clean, then created issue-1972-spec-llm-evals."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fba9fb09"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Focused tests and eval dry-runs completed; pre_pr run documented residual unrelated failures."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable; session log records cross-session context fallback."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix \"**/*.md\" ran; failed on 427 pre-existing markdown issues outside changed files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed as test(spec): add Step 0.5 LLM eval scenarios."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/commands/test_spec_step0_5.py tests/eval/test_eval_prompt_change.py: 161 passed; eval-prompt-change dry-run loaded 7 scenarios; eval-suite dry-run passed. pre_pr failed only on unrelated markdownlint and agent drift baseline issues."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #1972 D-check scenario mapping added to tests/evals/spec-scenarios.json."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not invoked; focused issue implementation."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-05-16T03:35:00Z",
+      "action": "Created tests/evals/spec-scenarios.json with ADR-057 behavioral scenarios for D1, D6, D7, D9, D12, D13, and D14."
+    },
+    {
+      "time": "2026-05-16T03:37:00Z",
+      "action": "Updated Step 0.5 tests to assert scenario coverage and eval-suite discovery for .claude/commands/spec.md."
+    },
+    {
+      "time": "2026-05-16T03:38:00Z",
+      "action": "Added deterministic eval-suite discovery coverage so CI pytest validates /spec scenario mapping when the test suite runs."
+    },
+    {
+      "time": "2026-05-16T03:40:00Z",
+      "action": "Validation: 161 focused pytest tests passed; eval-prompt-change dry-run loaded 7 scenarios; eval-suite dry-run passed. gh act unavailable."
+    }
+  ],
+  "endingCommit": "HEAD",
+  "nextSteps": []
+}
