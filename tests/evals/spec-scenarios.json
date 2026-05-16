@@ -4,8 +4,8 @@
       "id": "D1",
       "desc": "Step 0 PASS triggers Step 0.5 before Step 1",
       "input": "Invoke /spec in auto mode. Step 0 has already PASSed with Q1=Maintainer, Q2=Manual D-checks remain, Q3=.claude/commands/spec.md, Q4=Promote LLM-required D-checks to eval harness, Q5=Review deferred QA F1, Q6=Future /spec PRs should be gated. No Step 0 halt conditions apply. Determine the next action before asking any Step 1 clarification questions.",
-      "expected_verdict": "PROCEED_STEP_1",
-      "verdict_options": ["PROCEED_STEP_1", "SKIP_STEP_0_5", "HALT"],
+      "expected_verdict": "RUN_STEP_0_5",
+      "verdict_options": ["RUN_STEP_0_5", "PROCEED_STEP_1", "SKIP_STEP_0_5", "HALT"],
       "expected_reason_contains": "Step 0.5 before Step 1",
       "rationale": "AC-01 is behavioral: Step 0.5 must run only after Step 0 PASS and before Step 1, then append a pass tally if no halt fires."
     },
