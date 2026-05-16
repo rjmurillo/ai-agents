@@ -375,6 +375,20 @@ class TestShippedScenariosValid:
                     f"offer at least 2 choices"
                 )
 
+    def test_spec_step0_5_d_check_scenarios_present(self):
+        scenarios = eval_mod.load_scenarios(
+            str(REPO_ROOT / "tests" / "evals" / "spec-scenarios.json")
+        )
+        assert {s["id"] for s in scenarios} == {
+            "D1",
+            "D6",
+            "D7",
+            "D9",
+            "D12",
+            "D13",
+            "D14",
+        }
+
 
 # ---------------------------------------------------------------------------
 # load_scenarios error paths

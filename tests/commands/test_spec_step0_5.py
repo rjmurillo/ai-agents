@@ -16,10 +16,11 @@ test cases.
 
 Of 14 dynamic D-checks in TASK-008-5, 4 are promoted to pytest here
 (D2, D8, D10, D11) because they are deterministic from spec.md prose
-and parser logic without an LLM in the loop. The remaining 10 (D1,
-D3, D4, D5, D6, D7, D9, D12, D13, D14) require live `/spec` invocation
-or Forgetful MCP simulation; tracked for the LLM eval harness in
-issue #1972 (ADR-057 follow-on).
+and parser logic without an LLM in the loop. The LLM-required subset
+(D1, D6, D7, D9, D12, D13, D14) is promoted to ADR-057 behavioral
+scenarios in `tests/evals/spec-scenarios.json`. The remaining D3-D5
+manual checks require live tool-invocation trace assertions that are
+outside issue #1972.
 """
 
 from __future__ import annotations
@@ -456,10 +457,10 @@ def test_supplemental_traversal_warranted(
 #
 # 4 of 14 D-checks (D2, D8, D10, D11) are promoted to pytest because
 # they are deterministic from spec.md prose and parser logic without an
-# LLM in the loop. The remaining 10 D-checks (D1, D3, D4, D5, D6, D7,
-# D9, D12, D13, D14) require live /spec invocation or Forgetful MCP
-# simulation; tracked manual checks become candidates for the LLM eval
-# harness in #1972 (ADR-057 follow-on).
+# LLM in the loop. ADR-057 behavioral scenarios for the LLM-required
+# #1972 subset live in tests/evals/spec-scenarios.json:
+# D1, D6, D7, D9, D12, D13, D14. D3-D5 still require live tool-call
+# trace assertions and remain manual.
 # ---------------------------------------------------------------------------
 
 

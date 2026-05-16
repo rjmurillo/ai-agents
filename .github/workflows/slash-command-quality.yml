@@ -16,9 +16,12 @@ jobs:
       pull-requests: read
     outputs:
       should-run: ${{ steps.filter.outputs.commands == 'true' || steps.filter.outputs.validator == 'true' }}
+      spec_command_changed: ${{ steps.filter.outputs.spec_command }}
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
 
       - name: Check for relevant changes
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
@@ -27,6 +30,8 @@ jobs:
           filters: |
             commands:
               - '.claude/commands/**/*.md'
+            spec_command:
+              - '.claude/commands/spec.md'
             validator:
               - '.claude/skills/slashcommandcreator/scripts/validate_slash_command.py'
               - 'scripts/modules/slash_command_validator.py'
@@ -51,6 +56,13 @@ jobs:
 
       - name: Validate slash commands
         run: python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"
+
+      - name: Run /spec behavioral evals
+        if: github.event_name == 'pull_request' && needs.check-paths.outputs.spec_command_changed == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/eval/eval-prompt-change.py --prompt .claude/commands/spec.md --scenarios tests/evals/spec-scenarios.json --base-ref "$BASE_REF"
 
   skip-validation:
     runs-on: ubuntu-24.04-arm
