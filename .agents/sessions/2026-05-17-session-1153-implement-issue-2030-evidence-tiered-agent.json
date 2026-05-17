@@ -1,0 +1,151 @@
+{
+  "session": {
+    "number": 1153,
+    "date": "2026-05-17",
+    "branch": "agent/issue-2030-evidence-tiered-policies",
+    "startingCommit": "fba9fb09",
+    "objective": "Implement issue #2030: evidence-tiered agent policies (skillbook system)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions activated project ai-agents (activate_project tool unavailable in harness)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions output in transcript"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md content in context"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts/ (gh-native, issue, milestone, notifications, pr, reactions, utils)"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory memory read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read (language, skill, workflow constraints)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index, usage-mandatory, validation-pre-pr-checklist read"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "agent/issue-2030-evidence-tiered-policies"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On agent/issue-2030-evidence-tiered-policies"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean after worktree core.bare fix"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fba9fb09"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote memory project/skillbook-evidence-tiered-policies"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 on changed markdown files: 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "9 feature commits + audit-trail commit; endingCommit b4cdb6d7"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit 0; validate_skillbook.py exit 0; 100 pytest tests pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No PROJECT-PLAN task tracks issue #2030; not applicable"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "retrospective agent invoked; learnings recorded"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Session start protocol: Serena initialized, HANDOFF/SESSION-PROTOCOL/PROJECT-CONSTRAINTS read, issue #2030 fetched via github skill",
+      "outcome": "No per-issue handoff for 2030 (new issue). Protocol gates satisfied."
+    },
+    {
+      "action": "Diagnosed git worktree failure: shared config core.bare=true with extensions.worktreeConfig but no per-worktree override",
+      "outcome": "Fixed with 'git config --worktree core.bare false'. git status works."
+    },
+    {
+      "action": "Explored repo conventions (schemas, hooks, evals, personas, CI) via Explore subagent",
+      "outcome": "Confirmed: eval fixtures are plain JSON (policy_id added as a field); no jsonschema dependency in repo; thin-workflow CI pattern; 24 agent personas."
+    },
+    {
+      "action": "Implemented skillbook: 4 JSON schemas, scripts/skillbook.py CLI, scripts/validation/validate_skillbook.py, seed data (30 policies / 1 tension / 3 workflows), post-eval hook, CI workflow, README",
+      "outcome": "All 10 issue #2030 acceptance criteria met. 100 pytest tests pass, 96% coverage on skillbook.py."
+    },
+    {
+      "action": "Decision: did not add the jsonschema library; wrote a small purpose-built draft-07 subset checker instead",
+      "outcome": "Matches the repo precedent validate_session_json.py (hand-rolled validation, no jsonschema dependency); no supply-chain expansion."
+    },
+    {
+      "action": "QA agent validated the feature: PASS WITH CONCERNS",
+      "outcome": "Resolved concern C1 (extended seed from 13 to all 24 personas) and C4 (added agent/** to the CI push trigger)."
+    },
+    {
+      "action": "Critic agent reviewed before PR: APPROVED_WITH_CONCERNS, all 10 criteria PASS",
+      "outcome": "Resolved findings 1,2,3,4,6,7 in-session (naming disambiguation, idempotency-key docs, scope note, assertion comment, 2 added tests). Finding 5 (wire validator into pre_pr.py) carried as a follow-up."
+    }
+  ],
+  "endingCommit": "b4cdb6d7",
+  "nextSteps": [
+    "Follow-up: wire scripts/validation/validate_skillbook.py into scripts/validation/pre_pr.py for shift-left local validation (critic finding 5).",
+    "Follow-up: wire select output into agent prompts or session start so the skillbook has a consumer.",
+    "Follow-up: extend questioning status to the observed tier, or document why it is validated-only."
+  ]
+}
