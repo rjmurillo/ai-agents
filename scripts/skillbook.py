@@ -349,6 +349,8 @@ def _tension_annotation(
         if policy_id not in pair:
             continue
         other = (pair - {policy_id}).pop()
+        if other not in selected_ids:
+            continue
         resolution = tension.get("preferred_in_context", {}).get(context)
         if resolution is None:
             verdict = "unresolved"
