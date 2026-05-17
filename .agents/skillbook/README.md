@@ -15,6 +15,16 @@ tier-never-decreases discipline are adapted from `DomDemetz/claude-soul`
 project's regex-detected user-sentiment confirmation signal with eval
 pass/fail, which is deterministic ground truth.
 
+## Not the skillbook agent
+
+This directory is a **policy registry**. It is distinct from the `skillbook`
+agent persona (`templates/agents/skillbook.shared.md`), which curates skill
+definitions. The two share a name by coincidence of vocabulary, not of
+concept. When this README says "skillbook" it means the policy registry in
+this directory. The registry does happen to contain one policy *about* the
+skillbook agent (`pol-skillbook-atomic-skills`), the same way it holds a
+policy for every other agent.
+
 ## Files
 
 | File | Purpose |
@@ -164,7 +174,9 @@ For each fixture tagged with a `policy_id`, the hook aggregates the fixture's
 trial outcomes (the fixture passes when a strict majority of its trials
 passed), logs `confirm` evidence for a pass and `contradict` evidence for a
 fail, then runs `promote`. Evidence is keyed on `<RUN_ID>::<fixture_id>`, so
-re-running the hook on the same run is idempotent.
+re-running the hook on the same run directory is idempotent. `<RUN_ID>` is
+the run directory name, which is the canonical eval run identifier; a new
+eval run gets a new directory and is correctly counted as new evidence.
 
 ## Linking an eval to a policy
 
@@ -214,3 +226,7 @@ PR that touches the skillbook.
 - Cross-repo policy sharing.
 - Confidence-weighted ranking in `select` (v1 uses simple "active first,
   questioning surfaced, retired hidden").
+- Wiring `select` into agent prompts or session start. v1 ships the
+  registry, CLI, schemas, and post-eval hook; no agent persona consumes
+  `select` output yet. That wiring is a deliberate follow-up so the data
+  model can settle before agents depend on it.

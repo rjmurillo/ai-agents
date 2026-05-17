@@ -182,7 +182,9 @@ def promote_policy(policy: dict[str, Any]) -> bool:
 
     old_rank = TIER_RANK.get(old_tier, 0)
     new_rank = max(old_rank, TIER_RANK[eligible_tier(policy)])
-    # Invariant: tiers never decrease.
+    # Tiers never decrease: new_rank is the max of the current and eligible
+    # ranks. This assertion is a regression guard; it fails loudly if a future
+    # edit drops the max() above and lets a tier fall.
     assert new_rank >= old_rank, f"tier decrease blocked for {policy.get('id')}"
     new_tier = RANK_TIER[new_rank]
     new_status = resolve_status(policy, new_tier)

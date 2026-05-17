@@ -17,9 +17,15 @@ Linkage:
 For each tagged fixture this hook aggregates its trials (the fixture passes
 when a strict majority of its trials passed), then logs eval-grounded
 evidence: a passing fixture confirms its policy, a failing fixture
-contradicts it. The evidence id is "<RUN_ID>::<fixture_id>", so re-running
-the hook on the same run is idempotent. After logging evidence it runs the
-promotion pass so tiers and statuses reflect the new evidence.
+contradicts it. After logging evidence it runs the promotion pass so tiers
+and statuses reflect the new evidence.
+
+Idempotency: evidence is keyed on "<RUN_ID>::<fixture_id>", where RUN_ID is
+the canonical eval run identifier (the run directory name, e.g.
+20260503T182553Z-eaa08f8d). Re-processing the same run directory is a
+no-op. A genuinely new eval run produces a new run directory and is
+correctly counted as new evidence. Do not pass --run-id to relabel an
+already-processed run; that defeats the dedupe key.
 
 Usage:
   post-eval.py --run <evals/<spike>/runs/<RUN_ID>> --fixtures <fixtures-dir>
