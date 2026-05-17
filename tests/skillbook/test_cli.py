@@ -202,6 +202,22 @@ class TestTension:
         )
         assert exit_code == EXIT_LOGIC
 
+    def test_prefer_repoints_when_same_eval_changes_winner(
+        self, write_skillbook: Callable[..., Path]
+    ) -> None:
+        # Re-running prefer with the same --eval but a different policy
+        # re-points the winner without double-counting the evidence.
+        skillbook = self._tension_skillbook(write_skillbook)
+        _run(skillbook, "tension", "prefer", "ten-a-b", "ctx", "pol-a",
+             "--eval", "e1")
+        assert _run(skillbook, "tension", "prefer", "ten-a-b", "ctx", "pol-b",
+                    "--eval", "e1") == EXIT_OK
+        data = json.loads((skillbook / "tensions.json").read_text(encoding="utf-8"))
+        resolution = data["tensions"][0]["preferred_in_context"]["ctx"]
+        assert resolution["preferred"] == "pol-b"
+        # The eval id was already recorded, so the count did not rise.
+        assert resolution["confirmed_count"] == 1
+
 
 class TestSelect:
     """select returns an agent's active policies with tension resolution."""

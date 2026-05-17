@@ -124,6 +124,23 @@ class TestRealSchemas:
         errors = SchemaChecker(schema, _SCHEMA_DIR).check(instance, schema, "policy")
         assert any("missing required" in err for err in errors)
 
+    def test_validates_a_policy_carrying_real_evidence(
+        self, write_skillbook: Any
+    ) -> None:
+        # Drive a populated evidence array through the cross-file $ref and the
+        # integrity check together, with non-trivial derived counts.
+        policy = make_policy(
+            evidence=[
+                make_evidence("confirmed", "run::F0"),
+                make_evidence("contradicted", "run::F1"),
+            ],
+            confirms=1.0,
+            contradicts=1.0,
+            application_count=2,
+        )
+        skillbook = write_skillbook(policies=[policy])
+        assert validate_skillbook(skillbook, _SCHEMA_DIR) == []
+
 
 class TestPolicyIntegrity:
     """check_policy_integrity verifies derived counts and cross-references."""
