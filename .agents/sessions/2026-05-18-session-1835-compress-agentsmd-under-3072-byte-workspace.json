@@ -88,7 +88,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "No markdown files changed"
+        "Evidence": "markdownlint-cli2 ran via pre-commit hook (AGENTS.md, 0 errors) and pre-push (2 files, 0 errors)"
       },
       "changesCommitted": {
         "level": "MUST",

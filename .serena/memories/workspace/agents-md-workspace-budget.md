@@ -1,4 +1,4 @@
-# AGENTS.md Workspace Budget Fix (Session 1835, 2026-05-17)
+# AGENTS.md Workspace Budget Fix (Session 1835, 2026-05-18)
 
 **Context**: `AGENTS.md` drifted over the 3072-byte per-file budget enforced by `tests/test_workspace_limits.py::test_per_file_limit[AGENTS.md]` (MAX_PER_FILE=3072, MAX_TOTAL=6758 for AGENTS.md + CLAUDE.md). The test runs on every PR via the pytest CI workflow (AC-3).
 
