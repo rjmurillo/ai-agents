@@ -1,14 +1,12 @@
 # AGENTS.md
 
-Cross-platform agent instructions.
-
 ## Serena Init (BLOCKING)
 
-1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`
+`mcp__serena__activate_project`|`mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`
 
 ## Retrieval-Led Reasoning
 
-Read first, reason second. Pre-training as last resort.
+Read first, reason second. Pre-training last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
@@ -19,14 +17,14 @@ Read first, reason second. Pre-training as last resort.
 
 ## Session Gates
 
-**Start**: Init Serena|Read HANDOFF.md|Read latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
+**Start**: Init Serena|Read HANDOFF.md + latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
 **Mid**: `Commit X/20 (ADR-008)`|Warn at 15+
 **Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan
-**End**: Complete log|Preserve HANDOFF.md|Write issue handoff from template if open|Update Serena|Lint|Commit|Validate JSON
+**End**: Complete log|Preserve HANDOFF.md|Issue handoff (template) if open|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
 
-**Always**: Python for new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|Use PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run `gh act` locally
+**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|`gh act` locally
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
 **Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/
@@ -44,18 +42,11 @@ Knowledge → passive context (@imports). Actions → skills.
 |Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect
 |Lifecycle: /spec, /plan, /build, /test, /review, /ship
-|New capability proposed (Context, or new module/scanner/validator/pipeline)|Run buy-vs-build-framework, Quick tier min, BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability surface, extensions of an already-approved capability
+|New capability (Context/module/scanner/validator/pipeline): run buy-vs-build-framework Quick tier min BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability, already-approved extensions
 
 ### ADR Review (BLOCKING)
 
 Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review skill.
-
-## Agents
-
-|orchestrator: coordination (opus)|analyst: research|architect: ADRs, governance
-|implementer: code, tests|critic: validation|qa: testing
-|security: threats, OWASP|devops: CI/CD|pr-comment-responder: review triage
-|merge-resolver: conflict resolution|retrospective: learning (haiku)|memory: cross-session (haiku)
 
 ## Standards
 
