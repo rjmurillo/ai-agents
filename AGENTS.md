@@ -2,7 +2,7 @@
 
 ## Serena Init (BLOCKING)
 
-`mcp__serena__activate_project`|`mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`
+1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`
 
 ## Retrieval-Led Reasoning
 
