@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-05-18-session-1835",
+  "session": "2026-05-18-session-1835",
+  "timestamp": "2026-05-18T06:40:29.801406+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-18T06:40:29.798608+00:00",
+      "type": "error",
+      "content": "\"outcome\": \"compression insufficient; test still fails\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-18T06:40:29.798608+00:00",
+      "type": "error",
+      "content": "\"outcome\": \"AGENTS.md 2791 B; test_workspace_limits 3/3 pass; markdownlint 0 errors\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 0
+  },
+  "lessons": []
+}
