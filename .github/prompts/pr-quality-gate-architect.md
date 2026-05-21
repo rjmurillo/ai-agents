@@ -1,5 +1,5 @@
 <!-- GENERATED -- DO NOT EDIT -->
-<!-- Source: .claude/review-axes/architect.md -->
+<!-- Source: .claude/skills/review-axes/references/architect.md -->
 <!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
 
 # Architect Review Task

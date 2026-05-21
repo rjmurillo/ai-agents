@@ -14,7 +14,7 @@ covers what is testable in pure Python:
 2. merge_verdicts, get_verdict_emoji, extract_verdict execute correctly
    from the copied module.
 3. All 6 canonical axis files are present and pass schema validation.
-4. No path under .claude/lib/ai_review_common/ or .claude/review-axes/
+4. No path under .claude/lib/ai_review_common/ or .claude/skills/review-axes/references/
    references .agents/, .github/, scripts/, or tests/ (vendored install
    would lack those).
 5. `/review` command prose loads axes from the canonical directory
@@ -44,7 +44,6 @@ VENDORED_SUBTREE = (
     "rules",
     "settings.json",
     "skills",
-    "review-axes",
 )
 
 
@@ -91,8 +90,8 @@ def test_vendored_lib_directory_present(vendored_root: Path) -> None:
 
 
 def test_vendored_axes_directory_present(vendored_root: Path) -> None:
-    """All 6 canonical axes ship under .claude/review-axes/."""
-    axes = vendored_root / ".claude" / "review-axes"
+    """All 6 canonical axes ship under .claude/skills/review-axes/references/."""
+    axes = vendored_root / ".claude" / "skills" / "review-axes" / "references"
     assert axes.is_dir()
     for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
         assert (axes / f"{role}.md").is_file(), f"missing axis: {role}.md"
@@ -232,15 +231,15 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
 
 
 def test_review_command_loads_from_canonical_dir(vendored_root: Path) -> None:
-    """/review prose names .claude/review-axes/ as the source.
+    """/review prose names .claude/skills/review-axes/references/ as the source.
 
     Structural check (grep): the command file must reference the canonical
     directory and the verdict-merge module.
     """
     review = vendored_root / ".claude" / "commands" / "review.md"
     text = review.read_text(encoding="utf-8")
-    assert ".claude/review-axes/" in text, (
-        "/review must reference canonical .claude/review-axes/ as source"
+    assert ".claude/skills/review-axes/references/" in text, (
+        "/review must reference canonical .claude/skills/review-axes/references/ as source"
     )
     assert "merge_verdicts" in text, (
         "/review must invoke merge_verdicts from ai_review_common"

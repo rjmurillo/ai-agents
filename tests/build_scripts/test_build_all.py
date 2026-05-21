@@ -322,7 +322,7 @@ def test_build_review_axes_bundles_canonical_axes(tmp_path: Path) -> None:
     relative to the skill in vendored plugin installs. The build bundles
     them there so the second resolution candidate succeeds.
     """
-    src = tmp_path / ".claude" / "review-axes"
+    src = tmp_path / ".claude" / "skills" / "review-axes" / "references"
     src.mkdir(parents=True)
     for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
         (src / f"{role}.md").write_text(f"# {role}\n", encoding="utf-8")
@@ -332,7 +332,7 @@ def test_build_review_axes_bundles_canonical_axes(tmp_path: Path) -> None:
         'schemaVersion: "1.0"\nprovider: "p"\n'
         "artifacts:\n"
         "  review-axes:\n"
-        '    sourceDir: ".claude/review-axes"\n'
+        '    sourceDir: ".claude/skills/review-axes/references"\n'
         '    outputDir: "src/p/skills/review/references"\n'
     )
     result = build_all._build_review_axes(tmp_path, cfg, "p")
@@ -351,7 +351,7 @@ def test_build_review_axes_rejects_outdir_outside_repo(tmp_path: Path) -> None:
         'schemaVersion: "1.0"\nprovider: "p"\n'
         "artifacts:\n"
         "  review-axes:\n"
-        '    sourceDir: ".claude/review-axes"\n'
+        '    sourceDir: ".claude/skills/review-axes/references"\n'
         '    outputDir: "../escape/axes"\n'
     )
     result = build_all._build_review_axes(tmp_path, cfg, "p")
@@ -365,7 +365,7 @@ def test_build_review_axes_handles_missing_source(tmp_path: Path) -> None:
         'schemaVersion: "1.0"\nprovider: "p"\n'
         "artifacts:\n"
         "  review-axes:\n"
-        '    sourceDir: ".claude/review-axes"\n'
+        '    sourceDir: ".claude/skills/review-axes/references"\n'
         '    outputDir: "out/refs"\n'
     )
     result = build_all._build_review_axes(tmp_path, cfg, "p")
@@ -375,7 +375,7 @@ def test_build_review_axes_handles_missing_source(tmp_path: Path) -> None:
 
 def test_build_review_axes_overwrites_stale_output(tmp_path: Path) -> None:
     """Repeat invocation MUST replace stale files (rmtree-then-copytree)."""
-    src = tmp_path / ".claude" / "review-axes"
+    src = tmp_path / ".claude" / "skills" / "review-axes" / "references"
     src.mkdir(parents=True)
     (src / "analyst.md").write_text("fresh\n", encoding="utf-8")
 
@@ -388,7 +388,7 @@ def test_build_review_axes_overwrites_stale_output(tmp_path: Path) -> None:
         'schemaVersion: "1.0"\nprovider: "p"\n'
         "artifacts:\n"
         "  review-axes:\n"
-        '    sourceDir: ".claude/review-axes"\n'
+        '    sourceDir: ".claude/skills/review-axes/references"\n'
         '    outputDir: "out/refs"\n'
     )
     result = build_all._build_review_axes(tmp_path, cfg, "p")

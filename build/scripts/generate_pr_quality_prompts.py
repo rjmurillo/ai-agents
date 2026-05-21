@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generate .github/prompts/pr-quality-gate-{role}.md from .claude/review-axes/.
+"""Generate .github/prompts/pr-quality-gate-{role}.md from review-axes skill.
 
-Canonical source of PR-quality review prompts is `.claude/review-axes/{role}.md`
+Canonical source of PR-quality review prompts is `.claude/skills/review-axes/references/{role}.md`
 (REQ-008-01). This script transforms each canonical file into the CI-side
 prompt at `.github/prompts/pr-quality-gate-{role}.md` so CI evaluates the
 same criteria as `/review`.
@@ -38,11 +38,11 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CANONICAL_DIR = REPO_ROOT / ".claude" / "review-axes"
+CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review-axes" / "references"
 GENERATED_DIR = REPO_ROOT / ".github" / "prompts"
 
 # Filename regex per REQ-008-02 AC: lowercase + dash, .md extension.
@@ -53,7 +53,7 @@ _FILENAME_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # byte-identical output across runs and machines for the same input.
 _CI_HEADER_TEMPLATE = (
     "<!-- GENERATED -- DO NOT EDIT -->\n"
-    "<!-- Source: .claude/review-axes/{role}.md -->\n"
+    "<!-- Source: .claude/skills/review-axes/references/{role}.md -->\n"
     "<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->\n"
     "\n"
 )
@@ -149,7 +149,7 @@ def transform(canonical_text: str, role: str) -> str:
     Parameters
     ----------
     canonical_text:
-        Raw bytes (decoded as UTF-8) of `.claude/review-axes/{role}.md`.
+        Raw bytes (decoded as UTF-8) of `.claude/skills/review-axes/references/{role}.md`.
     role:
         Axis role name (filename stem). Substituted into the CI header.
 
@@ -239,7 +239,11 @@ def _list_canonical_files(canonical_dir: Path) -> list[Path]:
 
 
 def _expected_dest_name(canonical_name: str) -> str:
-    """`.claude/review-axes/{role}.md` -> `.github/prompts/pr-quality-gate-{role}.md`."""
+    """Map canonical filename to dest filename.
+
+    `.claude/skills/review-axes/references/{role}.md` ->
+    `.github/prompts/pr-quality-gate-{role}.md`.
+    """
     return f"pr-quality-gate-{canonical_name}"
 
 
@@ -411,7 +415,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Generate .github/prompts/pr-quality-gate-*.md from "
-            ".claude/review-axes/*.md. Idempotent. ADR-035 exit codes."
+            ".claude/skills/review-axes/references/*.md. Idempotent. ADR-035 exit codes."
         )
     )
     parser.add_argument(

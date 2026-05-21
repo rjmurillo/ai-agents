@@ -13,8 +13,6 @@ Refs #1934.
 
 from __future__ import annotations
 
-import io
-import os
 import sys
 from pathlib import Path
 from textwrap import dedent
@@ -30,8 +28,8 @@ import generate_pr_quality_prompts as gen  # noqa: E402
 
 @pytest.fixture
 def stub_canonical(tmp_path: Path) -> Path:
-    """Create a minimal valid canonical file under tmp/.claude/review-axes/."""
-    canonical_dir = tmp_path / ".claude" / "review-axes"
+    """Create a minimal valid canonical file under tmp/.claude/skills/review-axes/references/."""
+    canonical_dir = tmp_path / ".claude" / "skills" / "review-axes" / "references"
     canonical_dir.mkdir(parents=True)
     file = canonical_dir / "example.md"
     file.write_text(
@@ -102,7 +100,7 @@ def test_transform_prepends_static_ci_header() -> None:
     )
     out = gen.transform(text, "analyst")
     assert out.startswith("<!-- GENERATED -- DO NOT EDIT -->\n")
-    assert "<!-- Source: .claude/review-axes/analyst.md -->\n" in out
+    assert "<!-- Source: .claude/skills/review-axes/references/analyst.md -->\n" in out
     assert (
         "<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->\n"
         in out
