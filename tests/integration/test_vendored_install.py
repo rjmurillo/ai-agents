@@ -136,7 +136,7 @@ def test_canonical_axes_pass_schema_in_vendored_copy(vendored_root: Path) -> Non
     finally:
         sys.path.remove(str(REPO_ROOT))
 
-    axes = vendored_root / ".claude" / "review-axes"
+    axes = vendored_root / ".claude" / "skills" / "review-axes" / "references"
     for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
         validate_axis_schema(axes / f"{role}.md")
 
