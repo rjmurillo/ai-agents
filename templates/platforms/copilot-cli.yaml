@@ -11,6 +11,11 @@ artifacts:
     sourceDir: ".claude/skills"
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
+    # review-axes is a reference-only skill: the canonical axis prompts are
+    # bundled directly into the bridged /review skill (see review-axes
+    # stanza below). Excluding it from the skills copy avoids shipping a
+    # duplicate copy under skills/review-axes/ in the plugin install.
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md", "review-axes"]
   commands:
     sourceDir: ".claude/commands"
     outputDir: "src/copilot-cli/skills"
@@ -30,6 +35,9 @@ artifacts:
   lib:
     sourceDir: ".claude/lib"
     outputDir: "src/copilot-cli/lib"
+  review-axes:
+    sourceDir: ".claude/skills/review-axes/references"
+    outputDir: "src/copilot-cli/skills/review/references"
   hooks:
     settingsSource: ".claude/settings.json"
     scriptSource: ".claude/hooks"

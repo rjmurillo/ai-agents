@@ -15,35 +15,47 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates the same axes as the project's CI quality gate, plus three local-only skill axes that CI cannot afford. The 6 canonical axis prompts live at `.claude/review-axes/{role}.md` (single source of truth). When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks; vendored installs work from the canonical files alone (no CI dependency).
+`/review` evaluates the same axes as the project's CI quality gate, plus three local-only skill axes that CI cannot afford. The 6 canonical axis prompts are authored at `.claude/skills/review-axes/references/{role}.md` (the single source of truth in the source repo, inside the reference-only `review-axes` skill). When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline also bundles the canonical files into vendored plugin installs (e.g., Copilot CLI) so the command runs without a CI dependency in any harness that supports plugins.
 
 `/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. The 3 chained skill extras (`code-qualities-assessment`, `golden-principles`, `taste-lints`) cannot run in CI (they require code execution + repo state) and so layer on top.
 
+## Path resolution (harness-agnostic)
+
+This command runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree. Resolve runtime dependencies in this order; use the first path that exists:
+
+- **Canonical axis prompts** (`{role}` in `analyst|architect|qa|security|devops|roadmap`):
+  1. `.claude/skills/review-axes/references/{role}.md` (Claude Code project layout; reference-only `review-axes` skill)
+  2. `references/{role}.md` resolved relative to this command/skill's own directory (vendored plugin install; the build pipeline bundles the canonical files here)
+- **Verdict library** (`merge_verdicts`, `extract_verdict`, `get_verdict_emoji`, `FAIL_VERDICTS`):
+  1. `.claude/lib/ai_review_common/verdict.py` (Claude Code project layout)
+  2. `lib/ai_review_common/verdict.py` resolved relative to the plugin install root (vendored install)
+
+The command body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path before reporting an error.
+
 ## Process
 
-Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` in `.claude/lib/ai_review_common/verdict.py`.
+Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
 
 1. Read the diff (`git diff` against detected base branch).
 2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
-3. **Run 6 canonical axes**, in order. Each loads its prompt verbatim from `.claude/review-axes/{role}.md`:
-   - axis 1: `analyst` -> `.claude/review-axes/analyst.md`
-   - axis 2: `architect` -> `.claude/review-axes/architect.md`
-   - axis 3: `qa` -> `.claude/review-axes/qa.md`
-   - axis 4: `security` -> `.claude/review-axes/security.md`
-   - axis 5: `devops` -> `.claude/review-axes/devops.md`
-   - axis 6: `roadmap` -> `.claude/review-axes/roadmap.md`
-   For each axis, invoke the matching `Task(subagent_type=...)` agent (analyst, architect, qa, security, devops, roadmap) with the canonical prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract.
+3. **Run 6 canonical axes**, in order. For each axis, load the canonical prompt for `{role}` via the path resolution above, then invoke the matching `Task(subagent_type=...)` agent (analyst, architect, qa, security, devops, roadmap) with that prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register these role subagent types in its `Task` enum (e.g., Copilot CLI today), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity.
+   - axis 1: `analyst`
+   - axis 2: `architect`
+   - axis 3: `qa`
+   - axis 4: `security`
+   - axis 5: `devops`
+   - axis 6: `roadmap`
 4. **Run 3 chained skill axes** (local-only; CI does not run these):
    - axis 7: Skill(skill="code-qualities-assessment")
    - axis 8: Skill(skill="golden-principles")
    - axis 9: Skill(skill="taste-lints")
-5. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from `.claude/lib/ai_review_common/verdict.py` to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
+5. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from the verdict library (resolved per "Path resolution") to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
 6. **Merge verdicts** via `merge_verdicts(["v1", ..., "v9"])`. Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`.
 7. **Emit findings table** (see Output below).
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored install that contains only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` plus `CLAUDE.md`. The command body and every canonical axis file MUST NOT depend on paths outside `.claude/` at runtime; the `.claude/lib/ai_review_common/` package is the runtime dependency for verdict merging. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this command for project maintainers reading the prose, not as runtime dependencies.
+`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The command body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve dependencies via the "Path resolution" section. The build pipeline bundles the canonical axes alongside the command in plugin installs (e.g., `src/copilot-cli/skills/review/references/{role}.md`) so the second resolution candidate always succeeds when the first does not. The canonical source lives under `.claude/skills/review-axes/` (a reference-only skill chosen because `.claude/` only permits the `.claude-plugin`, `agents`, `commands`, `hooks`, `rules`, and `skills` subdirectories). Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this command for project maintainers reading the prose, not as runtime dependencies.
 
 ## UNKNOWN handling
 
@@ -88,9 +100,9 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 
 ## Refs
 
-- Verdict module: `.claude/lib/ai_review_common/verdict.py`
-- Canonical axes: `.claude/review-axes/`
-- Skill chain: `.claude/skills/{code-qualities-assessment,golden-principles,taste-lints}/`
+- Verdict module: `.claude/lib/ai_review_common/verdict.py` (Claude layout) or `lib/ai_review_common/verdict.py` (vendored layout, plugin-root relative).
+- Canonical axes: `.claude/skills/review-axes/references/{role}.md` (Claude layout) or `references/{role}.md` bundled with the skill (vendored layout, e.g., `src/copilot-cli/skills/review/references/`).
+- Skill chain: `.claude/skills/{code-qualities-assessment,golden-principles,taste-lints}/` (the build pipeline copies these into the plugin install too).
 
 (Spec, generator, and drift hook live outside the vendored surface and are
 not referenced from this command body. Vendored installs work without them.)

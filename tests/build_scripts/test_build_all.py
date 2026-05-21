@@ -6,7 +6,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -14,7 +13,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import build_all  # noqa: E402
-
 
 # Helpers --------------------------------------------------------------------
 
@@ -183,7 +181,9 @@ def test_write_audit_writes_when_clean(tmp_path: Path) -> None:
 # .claude/ guard (REQ-003-010) ----------------------------------------------
 
 
-def test_assert_no_claude_writes_returns_offending(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_assert_no_claude_writes_returns_offending(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(
         build_all,
         "_git_diff_paths",
@@ -302,6 +302,109 @@ def test_build_lib_overwrites_stale_output(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert (out / "fresh.py").is_file()
     assert not (out / "stale.py").exists()
+
+
+# _build_review_axes (#2042) ------------------------------------------------
+
+
+def test_build_review_axes_skips_when_stanza_absent(tmp_path: Path) -> None:
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')
+    result = build_all._build_review_axes(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    assert any("no artifacts.review-axes stanza" in n for n in result.notices)
+
+
+def test_build_review_axes_bundles_canonical_axes(tmp_path: Path) -> None:
+    """#2042: review-axes MUST land alongside the bridged skill.
+
+    The /review command body resolves canonical axes at `references/{role}.md`
+    relative to the skill in vendored plugin installs. The build bundles
+    them there so the second resolution candidate succeeds.
+    """
+    src = tmp_path / ".claude" / "review-axes"
+    src.mkdir(parents=True)
+    for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
+        (src / f"{role}.md").write_text(f"# {role}\n", encoding="utf-8")
+
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  review-axes:\n"
+        '    sourceDir: ".claude/review-axes"\n'
+        '    outputDir: "src/p/skills/review/references"\n'
+    )
+    result = build_all._build_review_axes(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    out = tmp_path / "src" / "p" / "skills" / "review" / "references"
+    for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
+        assert (out / f"{role}.md").is_file()
+    assert result.inputs == 6
+    assert result.outputs == 6
+
+
+def test_build_review_axes_rejects_outdir_outside_repo(tmp_path: Path) -> None:
+    """Containment guard parity with _build_lib."""
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  review-axes:\n"
+        '    sourceDir: ".claude/review-axes"\n'
+        '    outputDir: "../escape/axes"\n'
+    )
+    result = build_all._build_review_axes(tmp_path, cfg, "p")
+    assert result.exit_code == 2
+    assert any("escapes repo root" in n for n in result.notices)
+
+
+def test_build_review_axes_handles_missing_source(tmp_path: Path) -> None:
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  review-axes:\n"
+        '    sourceDir: ".claude/review-axes"\n'
+        '    outputDir: "out/refs"\n'
+    )
+    result = build_all._build_review_axes(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    assert any("review-axes source dir missing" in n for n in result.notices)
+
+
+def test_build_review_axes_overwrites_stale_output(tmp_path: Path) -> None:
+    """Repeat invocation MUST replace stale files (rmtree-then-copytree)."""
+    src = tmp_path / ".claude" / "review-axes"
+    src.mkdir(parents=True)
+    (src / "analyst.md").write_text("fresh\n", encoding="utf-8")
+
+    out = tmp_path / "out" / "refs"
+    out.mkdir(parents=True)
+    (out / "stale.md").write_text("stale\n", encoding="utf-8")
+
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  review-axes:\n"
+        '    sourceDir: ".claude/review-axes"\n'
+        '    outputDir: "out/refs"\n'
+    )
+    result = build_all._build_review_axes(tmp_path, cfg, "p")
+    assert result.exit_code == 0
+    assert (out / "analyst.md").is_file()
+    assert not (out / "stale.md").exists()
+
+
+def test_build_review_axes_registered_in_generators(tmp_path: Path) -> None:
+    """The orchestrator MUST run review-axes alongside lib."""
+    names = [name for name, _fn in build_all.GENERATORS]
+    assert "review-axes" in names, (
+        "review-axes builder MUST be registered in GENERATORS so the "
+        "Copilot CLI plugin install ships the canonical axis prompts "
+        "(#2042)."
+    )
 
 
 # CLI integration -----------------------------------------------------------
