@@ -1,5 +1,5 @@
 <!-- GENERATED -- DO NOT EDIT -->
-<!-- Source: .claude/skills/review-axes/references/analyst.md -->
+<!-- Source: .claude/skills/review/references/analyst.md -->
 <!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
 
 # Analyst Review Task

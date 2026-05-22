@@ -1,5 +1,5 @@
 <!-- GENERATED -- DO NOT EDIT -->
-<!-- Source: .claude/skills/review-axes/references/security.md -->
+<!-- Source: .claude/skills/review/references/security.md -->
 <!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
 
 # Security Review Task
