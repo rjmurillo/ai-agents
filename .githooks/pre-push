@@ -219,12 +219,13 @@ echo_info "Pre-push validation: $FILE_COUNT files in push range"
 # Filter changed files by type
 CHANGED_MD=$(echo "$CHANGED_FILES" | grep -E '\.md$' || true)
 CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
-# Issue #2045: scripts/sync_plugin_lib.py keeps three byte-identical copies of
-# ai_review_common/ in sync (scripts/, .claude/lib/, src/copilot-cli/lib/). CI
-# gates each copy in isolation, but mypy/pytest at workspace root reject the
-# duplicate module name. Filter the synced copies out for tools that walk
-# imports; canonical (scripts/ai_review_common/) is still type-checked + tested.
-CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/ai_review_common/' || true)
+# Issue #2045: scripts/sync_plugin_lib.py keeps three packages in sync across
+# three locations (scripts/, .claude/lib/, src/copilot-cli/lib/): ai_review_common,
+# hook_utilities, and github_core. CI gates each copy in isolation, but
+# mypy/pytest at workspace root reject duplicate module names. Filter all synced
+# copies out for tools that walk imports; canonical (scripts/<pkg>/) is still
+# type-checked + tested.
+CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
@@ -705,15 +706,20 @@ fi
     record_skip "Pester tests (retired, use pytest)"
 
     # 14. Python tests (pytest)
-    # Issue #2045: gate on canonical changes and pass --ignore for synced copies
-    # so pytest collection doesn't trip the duplicate-module error.
+    # Issue #2045: gate on canonical changes and pass --ignore for all synced
+    # copies (ai_review_common, hook_utilities, github_core in .claude/lib/ and
+    # src/copilot-cli/lib/) so pytest collection doesn't trip duplicate-module errors.
     if [ -n "$CHANGED_PY_CANONICAL" ]; then
         if set_python_cmd; then
             if [ -d "$REPO_ROOT/tests" ]; then
                 TEST_OUTPUT=$(mktemp)
                 if "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
                     --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \
+                    --ignore="$REPO_ROOT/.claude/lib/hook_utilities" \
+                    --ignore="$REPO_ROOT/.claude/lib/github_core" \
                     --ignore="$REPO_ROOT/src/copilot-cli/lib/ai_review_common" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/hook_utilities" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/github_core" \
                     -v > "$TEST_OUTPUT" 2>&1; then
                     rm -f "$TEST_OUTPUT"
                     record_pass "Python tests (pytest)"
