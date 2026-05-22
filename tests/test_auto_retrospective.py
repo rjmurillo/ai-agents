@@ -42,9 +42,10 @@ def project_tree(tmp_path: Path) -> Path:
             {"description": "Wrote implementation", "status": "done"},
             {"description": "Added tests", "status": "done"},
         ],
+        "notes": "x" * 600,  # Padding to exceed 500-char trivial threshold
     }
     session_log.write_text(
-        json.dumps(session_data, indent=2) + "\n" + "x" * 600,  # Ensure > 500 chars
+        json.dumps(session_data, indent=2),
         encoding="utf-8",
     )
     return tmp_path
