@@ -2,7 +2,7 @@
 
 Covers the regression class from PR #1773 (broken plugin install for
 all consumers due to invalid `agents`/`hooks` shapes in plugin.json),
-plus positive cases that match real-world working plugins (caveman).
+plus the Claude-specific manifest regression from issue #1833.
 """
 
 from __future__ import annotations
@@ -11,17 +11,20 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import validate_plugin_manifests as vpm  # noqa: E402
 
 
-def _write(tmp_path: Path, manifest: dict) -> Path:
-    plugin_dir = tmp_path / ".claude-plugin"
-    plugin_dir.mkdir()
+def _write(
+    tmp_path: Path,
+    manifest: dict[str, object],
+    plugin_root_name: str = "plugin-root",
+) -> Path:
+    plugin_root = tmp_path / plugin_root_name
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir(parents=True)
     target = plugin_dir / "plugin.json"
     target.write_text(json.dumps(manifest), encoding="utf-8")
     return target
@@ -72,7 +75,7 @@ def test_path_field_as_array_of_strings_valid(tmp_path: Path) -> None:
 
 
 def test_path_field_root_dot_slash_valid(tmp_path: Path) -> None:
-    """`./` (plugin root) is a valid path; src/claude and src/copilot-cli use this."""
+    """`./` (plugin root) is a valid path; src/copilot-cli uses this."""
     target = _write(tmp_path, {"name": "p", "agents": "./"})
     assert vpm.validate_manifest(target) == []
 
@@ -117,12 +120,11 @@ def test_manifest_read_error_returns_clean_message(tmp_path: Path) -> None:
 
 def test_hooks_string_ref_validates_referenced_file(tmp_path: Path) -> None:
     """When `hooks` is a string ref and the file exists, its content is checked."""
-    plugin_root = tmp_path
+    plugin_root = tmp_path / "plugin-root"
     plugin_dir = plugin_root / ".claude-plugin"
-    plugin_dir.mkdir()
+    plugin_dir.mkdir(parents=True)
     manifest = plugin_dir / "plugin.json"
     manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
-    # Valid wrapped hooks.json
     (plugin_root / "hooks.json").write_text(
         json.dumps({"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}}),
         encoding="utf-8",
@@ -132,13 +134,18 @@ def test_hooks_string_ref_validates_referenced_file(tmp_path: Path) -> None:
 
 def test_hooks_string_ref_rejects_invalid_referenced_file(tmp_path: Path) -> None:
     """Referenced hooks.json with unknown event must surface error."""
-    plugin_root = tmp_path
+    plugin_root = tmp_path / "plugin-root"
     plugin_dir = plugin_root / ".claude-plugin"
-    plugin_dir.mkdir()
+    plugin_dir.mkdir(parents=True)
     manifest = plugin_dir / "plugin.json"
     manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
+    invalid_hooks = {
+        "hooks": {
+            "NotARealEvent": [{"hooks": [{"type": "command", "command": "x"}]}]
+        }
+    }
     (plugin_root / "hooks.json").write_text(
-        json.dumps({"hooks": {"NotARealEvent": [{"hooks": [{"type": "command", "command": "x"}]}]}}),
+        json.dumps(invalid_hooks),
         encoding="utf-8",
     )
     errors = vpm.validate_manifest(manifest)
@@ -146,13 +153,12 @@ def test_hooks_string_ref_rejects_invalid_referenced_file(tmp_path: Path) -> Non
 
 
 def test_referenced_hooks_must_have_top_level_wrapper(tmp_path: Path) -> None:
-    """Bare events object (no `hooks` wrapper) is rejected — Claude Code does not load events without it."""
-    plugin_root = tmp_path
+    """Bare events object without `hooks` wrapper is rejected by Claude Code."""
+    plugin_root = tmp_path / "plugin-root"
     plugin_dir = plugin_root / ".claude-plugin"
-    plugin_dir.mkdir()
+    plugin_dir.mkdir(parents=True)
     manifest = plugin_dir / "plugin.json"
     manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
-    # Bare events shape — INVALID per production plugin examples
     (plugin_root / "hooks.json").write_text(
         json.dumps({"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}),
         encoding="utf-8",
@@ -173,9 +179,9 @@ def test_manifest_decode_error_returns_clean_message(tmp_path: Path) -> None:
 
 def test_referenced_hooks_decode_error_caught(tmp_path: Path) -> None:
     """Non-UTF8 referenced hooks.json must surface error, not crash."""
-    plugin_root = tmp_path
+    plugin_root = tmp_path / "plugin-root"
     plugin_dir = plugin_root / ".claude-plugin"
-    plugin_dir.mkdir()
+    plugin_dir.mkdir(parents=True)
     manifest = plugin_dir / "plugin.json"
     manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
     (plugin_root / "hooks.json").write_bytes(b"\xff\xfe\x00")
@@ -184,11 +190,13 @@ def test_referenced_hooks_decode_error_caught(tmp_path: Path) -> None:
 
 
 def test_find_manifests_prunes_node_modules(tmp_path: Path) -> None:
-    """Walk must not descend into excluded dirs (perf: avoid huge node_modules)."""
-    (tmp_path / "node_modules" / "deep" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "node_modules" / "deep" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
-    (tmp_path / "real" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "real" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
+    """Walk must not descend into excluded dirs for perf."""
+    node_modules_manifest = tmp_path / "node_modules" / "deep" / ".claude-plugin" / "plugin.json"
+    node_modules_manifest.parent.mkdir(parents=True)
+    node_modules_manifest.write_text("{}", encoding="utf-8")
+    real_manifest = tmp_path / "real" / ".claude-plugin" / "plugin.json"
+    real_manifest.parent.mkdir(parents=True)
+    real_manifest.write_text("{}", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
     assert "node_modules" not in str(found[0])
@@ -196,13 +204,60 @@ def test_find_manifests_prunes_node_modules(tmp_path: Path) -> None:
 
 def test_hooks_string_ref_skipped_when_file_missing(tmp_path: Path) -> None:
     """Missing referenced file does not crash; path-shape check still applied."""
-    plugin_root = tmp_path
+    plugin_root = tmp_path / "plugin-root"
     plugin_dir = plugin_root / ".claude-plugin"
-    plugin_dir.mkdir()
+    plugin_dir.mkdir(parents=True)
     manifest = plugin_dir / "plugin.json"
-    manifest.write_text(json.dumps({"name": "p", "hooks": "./missing-hooks.json"}), encoding="utf-8")
-    # No referenced file written. Should pass (path shape OK, content check skipped).
+    manifest_data = {"name": "p", "hooks": "./missing-hooks.json"}
+    manifest.write_text(json.dumps(manifest_data), encoding="utf-8")
     assert vpm.validate_manifest(manifest) == []
+
+
+# --- Claude runtime regression: issue #1833 ---------------------------------
+
+
+def test_issue_1833_rejects_agents_for_dot_claude_manifest(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "agents": "./agents"}, plugin_root_name=".claude")
+    errors = vpm.validate_manifest(target)
+    assert any("issue #1833" in e and "`agents`" in e for e in errors)
+
+
+def test_issue_1833_rejects_all_discovery_keys_for_dot_claude_manifest(tmp_path: Path) -> None:
+    target = _write(
+        tmp_path,
+        {
+            "name": "p",
+            "agents": "./agents",
+            "skills": "./skills",
+            "commands": "./commands",
+            "hooks": "./hooks/hooks.json",
+        },
+        plugin_root_name=".claude",
+    )
+    errors = vpm.validate_manifest(target)
+    scoped = [e for e in errors if "issue #1833" in e]
+    assert len(scoped) == 1
+    for key in ("`agents`", "`skills`", "`commands`", "`hooks`"):
+        assert key in scoped[0]
+
+
+def test_issue_1833_rejects_agents_for_src_claude_manifest(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "agents": "./"}, plugin_root_name="src/claude")
+    errors = vpm.validate_manifest(target)
+    assert any("issue #1833" in e and "`agents`" in e for e in errors)
+
+
+def test_issue_1833_rejects_copilot_marketplace_manifest_too(tmp_path: Path) -> None:
+    target = _write(
+        tmp_path,
+        {"name": "copilot-cli-toolkit", "agents": "./", "skills": "./skills"},
+        plugin_root_name="src/copilot-cli",
+    )
+    errors = vpm.validate_manifest(target)
+    scoped = [e for e in errors if "issue #1833" in e]
+    assert len(scoped) == 1
+    assert "`agents`" in scoped[0]
+    assert "`skills`" in scoped[0]
 
 
 # --- Regression: PR #1773 bug -----------------------------------------------
@@ -319,10 +374,12 @@ def test_top_level_must_be_object(tmp_path: Path) -> None:
 
 
 def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
-    (tmp_path / "a" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "a" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
-    (tmp_path / "worktrees" / "b" / ".claude-plugin").mkdir(parents=True)
-    (tmp_path / "worktrees" / "b" / ".claude-plugin" / "plugin.json").write_text("{}", encoding="utf-8")
+    repo_manifest = tmp_path / "a" / ".claude-plugin" / "plugin.json"
+    repo_manifest.parent.mkdir(parents=True)
+    repo_manifest.write_text("{}", encoding="utf-8")
+    worktree_manifest = tmp_path / "worktrees" / "b" / ".claude-plugin" / "plugin.json"
+    worktree_manifest.parent.mkdir(parents=True)
+    worktree_manifest.write_text("{}", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
     assert "worktrees" not in str(found[0])
@@ -346,11 +403,7 @@ def test_main_returns_two_when_no_manifests(tmp_path: Path) -> None:
 
 
 def test_actual_repo_manifests_are_valid() -> None:
-    """All committed plugin.json files in the repo must validate.
-
-    This is the regression gate that prevents shipping broken manifests
-    to plugin consumers (the PR #1773 incident).
-    """
+    """All committed plugin.json files in the repo must validate."""
     manifests = vpm.find_manifests(REPO_ROOT)
     assert manifests, "Expected at least 1 manifest in the repo"
     failures: list[str] = []

@@ -7,6 +7,8 @@ import logging
 import os
 from datetime import UTC, datetime
 
+from .verdict import FAIL_VERDICTS
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -22,9 +24,14 @@ _ALERT_TYPE_MAP: dict[str, str] = {
     "REJECTED": "CAUTION",
     "FAIL": "CAUTION",
     "NEEDS_REVIEW": "CAUTION",
+    "NON_COMPLIANT": "CAUTION",
 }
 
-_FAIL_EXIT_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW"})
+# Sourced from the canonical verdict module per PR #1965 coderabbit H_5.
+# Re-declaring the literal set here was the root cause of the round-11
+# NON_COMPLIANT drift: the canonical FAIL_VERDICTS gained NON_COMPLIANT
+# but the local copy lagged. Importing closes that drift channel.
+_FAIL_EXIT_VERDICTS = FAIL_VERDICTS
 
 _EMOJI_MAP: dict[str, str] = {
     "PASS": "\u2705",
@@ -35,6 +42,7 @@ _EMOJI_MAP: dict[str, str] = {
     "REJECTED": "\u274c",
     "FAIL": "\u274c",
     "NEEDS_REVIEW": "\u274c",
+    "NON_COMPLIANT": "\u274c",
 }
 
 

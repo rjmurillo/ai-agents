@@ -165,7 +165,7 @@ Before starting work, ask:
 ### Before Estimating
 
 1. **Write down the overall approach** first
-2. **Explore the code**, read documentation, read memories. Use `/context_gather` skill
+2. **Explore the code**, read documentation, read memories. Use `/context-gather` skill
 3. **Break down the task** into steps, update TODO list so you don't lose track
 4. **Find similar tasks** in same domain or involving similar technologies
 

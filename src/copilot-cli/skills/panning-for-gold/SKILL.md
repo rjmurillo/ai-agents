@@ -1,7 +1,7 @@
 ---
 name: panning-for-gold
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file across three phases."
 license: MIT
 ---

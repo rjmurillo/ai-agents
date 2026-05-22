@@ -1,4 +1,4 @@
-"""End-to-end install integration tests for copilot-cli-toolkit (REQ-003-007).
+"""End-to-end install integration tests for project-toolkit in Copilot CLI (REQ-003-007).
 
 Heavy integration tests that simulate installing src/copilot-cli/ as a
 Copilot CLI plugin into a temp directory and verify the resulting
@@ -9,12 +9,12 @@ test additionally skips when `copilot` is not on PATH (covers contributors
 without Copilot CLI installed; runs in nightly CI when present).
 
 Verification scope (per task M6-T5):
-  1. plugin.json parses and points to agents/, skills/, hooks/hooks.json
+  1. plugin.json parses and preserves only metadata required by marketplace install
   2. hooks.json has version: 1 wrapper + valid event keys
   3. sample agent file readable
   4. sample skill SKILL.md readable
   5. (conditional) copilot plugin install + copilot plugin list shows
-     copilot-cli-toolkit
+     project-toolkit
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def installed_plugin(tmp_path: Path) -> Path:
 
     Returns the install root inside tmp_path.
     """
-    install_root = tmp_path / "copilot-cli-toolkit"
+    install_root = tmp_path / "project-toolkit"
     shutil.copytree(COPILOT_PLUGIN_SRC, install_root)
     return install_root
 
@@ -71,19 +71,24 @@ class TestInstalledManifest:
         data = json.loads(manifest.read_text(encoding="utf-8"))
         assert isinstance(data, dict)
 
-    def test_manifest_name_is_copilot_cli_toolkit(
+    def test_manifest_name_is_project_toolkit(
         self, installed_plugin: Path
     ) -> None:
         manifest = installed_plugin / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        assert data.get("name") == "copilot-cli-toolkit"
+        assert data.get("name") == "project-toolkit"
 
-    def test_manifest_declares_required_paths(self, installed_plugin: Path) -> None:
-        """plugin.json must point at the agents and skills surface."""
+    def test_manifest_omits_runtime_rejected_discovery_keys(
+        self, installed_plugin: Path
+    ) -> None:
+        """Claude marketplace manifests rely on auto-discovery, not explicit keys."""
         manifest = installed_plugin / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        for field in ("agents", "skills"):
-            assert field in data, f"plugin.json missing '{field}' field"
+        for field in ("agents", "skills", "commands", "hooks"):
+            assert field not in data, (
+                f"plugin.json should omit '{field}' because Claude Code rejects it "
+                "for marketplace manifests"
+            )
 
 
 class TestInstalledHooks:
@@ -197,7 +202,7 @@ class TestCopilotBinaryInstall:
             timeout=30,
         )
         assert list_result.returncode == 0
-        assert "copilot-cli-toolkit" in list_result.stdout, (
-            f"copilot-cli-toolkit not registered after install:\n"
+        assert "project-toolkit" in list_result.stdout, (
+            f"project-toolkit not registered after install:\n"
             f"{list_result.stdout}"
         )

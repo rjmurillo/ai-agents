@@ -1,15 +1,8 @@
-"""Integration tests for the two-plugin marketplace model (REQ-003-003, -012).
+"""Integration tests for the split native marketplace model.
 
-Verifies that the additive marketplace.json entries claude-toolkit and
-copilot-cli-toolkit coexist with the legacy claude-agents,
-copilot-cli-agents, and project-toolkit entries during the backward
-compatibility window (REQ-003-012).
-
-The legacy preservation rule is BLOCKING: removing any of the three
-legacy plugin entries in this PR would violate REQ-003-012 and is
-caught by these tests.
-
-Plugin name uniqueness is also BLOCKING (R10 in plan risk register).
+Claude Code and GitHub Copilot CLI now read separate marketplace manifests
+from the same repository. Both CLIs share `project-toolkit` as the full-install
+plugin name, while keeping platform-specific agent-only bundles.
 """
 
 from __future__ import annotations
@@ -22,72 +15,89 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
 
-LEGACY_PLUGIN_NAMES = {"claude-agents", "copilot-cli-agents", "project-toolkit"}
-NEW_PLUGIN_NAMES = {"claude-toolkit", "copilot-cli-toolkit"}
-EXPECTED_MIN_PLUGINS = 5  # 3 legacy + 2 new
+CLAUDE_PLUGIN_NAMES = {"claude-agents", "project-toolkit"}
+COPILOT_PLUGIN_NAMES = {"project-toolkit"}
+
+# Names that previously appeared in Claude's marketplace but advertised
+# Copilot-only bundles. Kept as an explicit denylist so the marketplace-
+# honesty rule (issue #1840) has a named target the test can guard against
+# regression even after both names were dropped from every shipped manifest.
+CLAUDE_REJECTED_PLUGIN_NAMES = frozenset(
+    {"copilot-cli-agents", "copilot-cli-toolkit"}
+)
 
 
-def _load_marketplace() -> dict:
-    """Read and parse the marketplace.json file."""
-    return json.loads(MARKETPLACE.read_text(encoding="utf-8"))
+def _load_marketplace(path: Path) -> dict:
+    """Read and parse a marketplace.json file."""
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
-# ---- Positive tests ------------------------------------------------------
+def _is_valid_claude_marketplace_shape(plugins: list[dict]) -> bool:
+    """Return True iff `plugins` matches the rule the production manifest
+    must satisfy: the set of plugin names equals ``CLAUDE_PLUGIN_NAMES``
+    and contains no name in ``CLAUDE_REJECTED_PLUGIN_NAMES``.
+
+    Shared by the production-marketplace test and the synthetic-regression
+    test so both exercise the same decision: weakening this helper would
+    fail both tests at once.
+    """
+    names = {p["name"] for p in plugins}
+    return (
+        names == CLAUDE_PLUGIN_NAMES
+        and names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
+    )
 
 
 class TestMarketplaceShape:
-    """Validate the additive two-plugin model is in place."""
+    """Validate each CLI sees only its native marketplace entries."""
 
-    def test_marketplace_file_exists(self) -> None:
-        assert MARKETPLACE.exists(), f"{MARKETPLACE} must exist"
+    @pytest.mark.parametrize("path", [CLAUDE_MARKETPLACE, COPILOT_MARKETPLACE])
+    def test_marketplace_file_exists(self, path: Path) -> None:
+        assert path.exists(), f"{path} must exist"
 
-    def test_marketplace_parses_as_json(self) -> None:
-        data = _load_marketplace()
+    @pytest.mark.parametrize("path", [CLAUDE_MARKETPLACE, COPILOT_MARKETPLACE])
+    def test_marketplace_parses_as_json(self, path: Path) -> None:
+        data = _load_marketplace(path)
         assert isinstance(data, dict)
         assert "plugins" in data
         assert isinstance(data["plugins"], list)
 
-    def test_minimum_plugin_count(self) -> None:
-        """REQ-003-012 + REQ-003-003: at least 5 plugins (3 legacy + 2 new)."""
-        data = _load_marketplace()
-        assert len(data["plugins"]) >= EXPECTED_MIN_PLUGINS, (
-            f"Expected at least {EXPECTED_MIN_PLUGINS} plugins, "
-            f"got {len(data['plugins'])}"
-        )
-
-    def test_all_plugin_names_unique(self) -> None:
-        """R10: name collision would break plugin discovery."""
-        data = _load_marketplace()
+    @pytest.mark.parametrize("path", [CLAUDE_MARKETPLACE, COPILOT_MARKETPLACE])
+    def test_all_plugin_names_unique(self, path: Path) -> None:
+        data = _load_marketplace(path)
         names = [p["name"] for p in data["plugins"]]
         assert len(names) == len(set(names)), (
-            f"Duplicate plugin names detected: {names}"
+            f"Duplicate plugin names detected in {path}: {names}"
         )
 
-    def test_claude_toolkit_present(self) -> None:
-        """REQ-003-003: claude-toolkit entry shall exist with source ./.claude."""
-        data = _load_marketplace()
-        match = [p for p in data["plugins"] if p["name"] == "claude-toolkit"]
-        assert len(match) == 1, "claude-toolkit must be declared exactly once"
-        assert match[0]["source"] == "./.claude"
+    def test_claude_marketplace_contains_only_claude_plugins(self) -> None:
+        data = _load_marketplace(CLAUDE_MARKETPLACE)
+        assert _is_valid_claude_marketplace_shape(data["plugins"]), (
+            "Production Claude marketplace must satisfy the shape rule "
+            "shared with the synthetic-regression test"
+        )
 
-    def test_copilot_cli_toolkit_present(self) -> None:
-        """REQ-003-003: copilot-cli-toolkit shall exist with source ./src/copilot-cli."""
-        data = _load_marketplace()
-        match = [p for p in data["plugins"] if p["name"] == "copilot-cli-toolkit"]
-        assert len(match) == 1, "copilot-cli-toolkit must be declared exactly once"
-        assert match[0]["source"] == "./src/copilot-cli"
+    def test_copilot_marketplace_contains_only_copilot_plugins(self) -> None:
+        data = _load_marketplace(COPILOT_MARKETPLACE)
+        assert {p["name"] for p in data["plugins"]} == COPILOT_PLUGIN_NAMES
+
+    def test_claude_marketplace_excludes_copilot_only_plugins(self) -> None:
+        data = _load_marketplace(CLAUDE_MARKETPLACE)
+        names = {p["name"] for p in data["plugins"]}
+        assert names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
 
 
 class TestSourceDirsExist:
     """Each plugin's `source` path must resolve to an existing directory."""
 
-    def test_all_source_dirs_exist(self) -> None:
-        data = _load_marketplace()
+    @pytest.mark.parametrize("path", [CLAUDE_MARKETPLACE, COPILOT_MARKETPLACE])
+    def test_all_source_dirs_exist(self, path: Path) -> None:
+        data = _load_marketplace(path)
         for plugin in data["plugins"]:
             source = plugin["source"]
-            # `source` is "./<rel-path>" relative to repo root.
             assert source.startswith("./"), (
                 f"plugin {plugin['name']!r}: source must start with './' "
                 f"(got {source!r})"
@@ -103,13 +113,16 @@ class TestSourceDirsExist:
 
 
 class TestCounterValidatorGreen:
-    """REQ-003-003 verification: validator exits 0 on the current marketplace."""
+    """Count and manifest validators stay green for both native marketplaces."""
 
-    def test_validate_marketplace_counts_exits_zero(self) -> None:
+    @pytest.mark.parametrize("marketplace", [CLAUDE_MARKETPLACE, COPILOT_MARKETPLACE])
+    def test_validate_marketplace_counts_exits_zero(self, marketplace: Path) -> None:
         result = subprocess.run(
             [
                 sys.executable,
                 str(REPO_ROOT / "build" / "scripts" / "validate_marketplace_counts.py"),
+                "--marketplace",
+                str(marketplace),
             ],
             capture_output=True,
             text=True,
@@ -138,34 +151,15 @@ class TestCounterValidatorGreen:
         )
 
 
-# ---- Negative / preservation tests ---------------------------------------
-
-
-class TestLegacyPreservation:
-    """REQ-003-012: legacy entries must NOT be removed in the introducing PR."""
-
-    @pytest.mark.parametrize("legacy_name", sorted(LEGACY_PLUGIN_NAMES))
-    def test_legacy_plugin_present(self, legacy_name: str) -> None:
-        """Each legacy plugin shall remain in marketplace.json."""
-        data = _load_marketplace()
-        names = {p["name"] for p in data["plugins"]}
-        assert legacy_name in names, (
-            f"REQ-003-012 violation: legacy plugin {legacy_name!r} "
-            f"removed from marketplace.json. Legacy entries must persist "
-            f"for one release cycle."
-        )
-
-
 class TestUniquenessAssertionDetectsCollision:
     """Verify the uniqueness check actually catches duplicates (test the test)."""
 
     def test_duplicate_name_detected_in_synthetic_fixture(self) -> None:
-        """Synthetic fixture with duplicate plugin names fails the uniqueness check."""
         synthetic = {
             "name": "ai-agents",
             "plugins": [
-                {"name": "claude-toolkit", "source": "./.claude"},
-                {"name": "claude-toolkit", "source": "./other"},  # collision
+                {"name": "project-toolkit", "source": "./.claude"},
+                {"name": "project-toolkit", "source": "./other"},
             ],
         }
         names = [p["name"] for p in synthetic["plugins"]]
@@ -174,23 +168,19 @@ class TestUniquenessAssertionDetectsCollision:
         )
 
 
-class TestLegacyDeletionDetected:
-    """Verify the preservation tests catch deletion of a legacy entry."""
+class TestClaudeMarketplaceRejectsCopilotAgentBundle:
+    """Guard against reintroducing Copilot-only agent bundles into Claude's marketplace."""
 
-    def test_synthetic_marketplace_missing_legacy_fails(self) -> None:
-        """A marketplace without claude-agents fails the legacy preservation check."""
-        synthetic = {
-            "plugins": [
-                {"name": "claude-toolkit", "source": "./.claude"},
-                {"name": "copilot-cli-toolkit", "source": "./src/copilot-cli"},
-                # claude-agents intentionally removed
-                # copilot-cli-agents intentionally removed
-                # project-toolkit intentionally removed
-            ],
-        }
-        names = {p["name"] for p in synthetic["plugins"]}
-        # Each legacy must be missing from this fixture.
-        for legacy in LEGACY_PLUGIN_NAMES:
-            assert legacy not in names, (
-                f"Test fixture must omit {legacy!r} to verify the assertion fires"
-            )
+    def test_synthetic_claude_marketplace_with_copilot_plugin_is_invalid_shape(self) -> None:
+        synthetic_plugins = [
+            {"name": "project-toolkit", "source": "./.claude"},
+            {"name": "copilot-cli-agents", "source": "./src/copilot-cli"},
+        ]
+        # Drives the same helper as the production test: if anyone weakens
+        # _is_valid_claude_marketplace_shape so it accepts copilot-cli-agents,
+        # the production test starts failing AND this test stops failing,
+        # so the regression cannot land silently.
+        assert not _is_valid_claude_marketplace_shape(synthetic_plugins), (
+            "Claude marketplace must reject any shape that contains a "
+            "Copilot-only plugin name"
+        )

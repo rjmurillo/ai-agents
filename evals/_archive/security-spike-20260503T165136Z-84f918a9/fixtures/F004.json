@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "F004",
+  "input": "Bash script review for the deploy pipeline:\n\n```bash\n#!/usr/bin/env bash\nset -e\nIMAGE_TAG=\"$1\"\nCONTAINER_NAME=\"$2\"\ndocker stop \"$CONTAINER_NAME\" || true\ndocker rm \"$CONTAINER_NAME\" || true\neval \"docker run -d --name $CONTAINER_NAME registry.example.com/app:$IMAGE_TAG\"\n```\n\nThe two arguments come from a CI job that reads them from a YAML pipeline file maintained by feature-team developers. Is there a problem with this script?",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "IDENTIFY"},
+    {"kind": "regex", "pattern": "CWE-78"}
+  ],
+  "tags": ["cwe-78", "owasp-a03", "command-injection", "verdict-identify"]
+}

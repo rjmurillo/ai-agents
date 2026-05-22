@@ -16,10 +16,10 @@ Detect the base branch from `gh pr view --json baseRefName` or fall back to `mai
 
 | Type | Patterns | Gates to Run |
 |------|----------|--------------|
-| CODE | *.py, *.ps1, *.ts, *.js, *.cs | All 6 gates |
-| WORKFLOW | *.yml in .github/workflows/ | Gates 1, 3, 4 |
-| CONFIG | *.json, *.yaml (non-workflow) | Gates 3, 4 |
-| DOCS | *.md, *.txt, *.rst | Gate 5 only |
+| CODE | `*.py`, `*.ps1`, `*.ts`, `*.js`, `*.cs` | All 6 gates |
+| WORKFLOW | `*.yml` in `.github/workflows/` | Gates 1, 3, 4 |
+| CONFIG | `*.json`, `*.yaml` (non-workflow) | Gates 3, 4 |
+| DOCS | `*.md`, `*.txt`, `*.rst` | Gate 5 only |
 | MIXED | Combination | Apply per-file rules |
 
 Print: `PR TYPE: [type]. Running gates: [list].`

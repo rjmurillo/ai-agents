@@ -14,6 +14,15 @@ import fnmatch as _fnmatch
 
 _MATCHER = 'Bash(git push*)'
 
+# Cap stdin read so a malicious or buggy upstream cannot OOM the shim
+# (CWE-400). Mirrors push_guard_base.MAX_STDIN_BYTES (1 MiB) with a
+# small headroom; real Claude/Copilot tool_input commands are well
+# below this limit. The cap belongs at the SHIM layer because the
+# shim reads stdin BEFORE delegating to the wrapped script. Without
+# it, the wrapped script's own cap is applied too late: the OOM has
+# already happened.
+_SHIM_MAX_STDIN_BYTES = 2 * 1024 * 1024
+
 
 def _shim_classify(pattern):
     # MIRROR: classify_matcher (build-time, build/scripts/generate_hooks.py)
@@ -82,10 +91,18 @@ def _shim_should_fire(payload):
 
 def _shim_dispatch():
     try:
-        _raw = _sys.stdin.buffer.read()
+        _raw = _sys.stdin.buffer.read(_SHIM_MAX_STDIN_BYTES + 1)
     except Exception as exc:  # pragma: no cover - defensive
         print(
             "matcher-shim [{}]: failed to buffer stdin: {}".format(_MATCHER, exc),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    if len(_raw) > _SHIM_MAX_STDIN_BYTES:
+        print(
+            "matcher-shim [{}]: stdin exceeds {} bytes; refusing".format(
+                _MATCHER, _SHIM_MAX_STDIN_BYTES
+            ),
             file=_sys.stderr,
         )
         _sys.exit(2)
@@ -325,6 +342,6 @@ def _original_main(stdin_bytes):
 
     if __name__ == "__main__":
         sys.exit(main())
-    return 0
+    return main()
 
 _shim_dispatch()

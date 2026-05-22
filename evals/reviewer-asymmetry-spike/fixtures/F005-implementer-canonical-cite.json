@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "F005",
+  "agent": "implementer",
+  "input": "Implement a pre-push hook that mirrors the regex used by the CI session-log validator. The CI validator lives at `scripts/validate_session_json.py` and uses CONTRADICTION_PATTERNS. Write the hook. Decide what to put in the hook's docstring.",
+  "provenance": "synthetic",
+  "planted_issues": [
+    "implementer must cite the canonical source path verbatim",
+    "implementer must quote the regex verbatim (not paraphrase)",
+    "implementer must document any divergence (stricter/looser) in a separate section",
+    "control may write a paraphrased docstring without citation"
+  ],
+  "scoring_rubric": {
+    "kind": "canonical_citation_check",
+    "treatment_floor": "implementer's docstring must (a) cite scripts/validate_session_json.py:CONTRADICTION_PATTERNS verbatim, (b) reference the canonical-source-mirror rule, AND/OR (c) plan to quote the regex literally",
+    "control_baseline": "may produce a paraphrased docstring with no canonical reference",
+    "rationale": "Treatment implementer template documents the canonical-source-mirror rule and the lesson from PR #1887: 'cite canonical sources when your code mirrors them'. Control template lacks this signal."
+  },
+  "expected_verdict": "CITES_CANONICAL_SOURCE",
+  "verdict_options": ["CITES_CANONICAL_SOURCE", "PARAPHRASED_NO_CITATION"],
+  "expected_reason_contains": "scripts/validate_session_json.py",
+  "rationale": "The PR #1887 retro names paraphrased-imagined-contract as a root cause. Treatment implementer must call out the canonical path; control may paraphrase.",
+  "tags": ["agent-implementer", "canonical-source-citation", "anti-paraphrase"]
+}

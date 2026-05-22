@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "F007",
+  "input": "SQL change review:\n\n```python\nfrom sqlalchemy import text\n\nORDER_COLUMNS = {\"name\", \"created_at\", \"updated_at\"}\n\ndef list_items(session, sort_by: str, limit: int):\n    if sort_by not in ORDER_COLUMNS:\n        raise ValueError(\"unsupported sort column\")\n    if not isinstance(limit, int) or limit < 1 or limit > 100:\n        raise ValueError(\"limit out of range\")\n    stmt = text(f\"SELECT id, name FROM items ORDER BY {sort_by} LIMIT :limit\")\n    return session.execute(stmt, {\"limit\": limit}).fetchall()\n```\n\nThe `sort_by` value is interpolated with an f-string — is this a SQL injection bug?",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "OK"}
+  ],
+  "tags": ["verdict-ok", "false-positive-resistance", "cwe-89", "allowlist"]
+}

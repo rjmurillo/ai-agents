@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 """
-Security vulnerability scanner for CWE-22 (path traversal) and CWE-78 (command injection).
+Security vulnerability scanner for CWE-78 (command injection).
 
 Lightweight pattern-based detection for Python, PowerShell, Bash, and C# files.
 Designed for pre-PR scanning and CI integration.
+
+CWE-22 (path traversal) detection is delegated to CodeQL's
+``python-security-extended`` query suite, which runs on every PR via
+``.github/workflows/codeql-analysis.yml``. The internal regex-based scanner
+was found to produce false positives on safe ``Path(__file__)`` derivations
+(see issue #1843, PR #1841) without comparable coverage of real CWE-22
+vectors. Per the buy-vs-build framework, CWE-22 is Context (table stakes
+security, not a competitive differentiator) and CodeQL is the authoritative
+detector already in the repo's CI pipeline.
 
 Exit codes:
     0  - No vulnerabilities found
@@ -65,141 +74,6 @@ class ScanResult:
     suppressed: list = field(default_factory=list)
     errors: list = field(default_factory=list)
 
-
-# CWE-22: Path Traversal patterns by language
-CWE22_PATTERNS = {
-    "python": [
-        {
-            "pattern": re.compile(
-                r"os\.path\.join\s*\([^,]+,\s*(\w*(user|input|param|arg|request|path|file|name)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "os.path.join with potentially unvalidated user input",
-            "severity": "HIGH",
-            "recommendation": (
-                "Validate input does not contain '..' and use "
-                "os.path.realpath() with containment check"
-            ),
-        },
-        {
-            "pattern": re.compile(
-                r"open\s*\(\s*(\w*(user|input|param|arg|request|path|file|name)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "File open with potentially unvalidated path",
-            "severity": "HIGH",
-            "recommendation": "Validate path is within allowed directory before opening",
-        },
-        {
-            "pattern": re.compile(
-                r"Path\s*\(\s*(\w*(user|input|param|arg|request|path|file|name)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "pathlib.Path with potentially unvalidated input",
-            "severity": "HIGH",
-            "recommendation": "Use Path.resolve() and verify path is within allowed directory",
-        },
-        {
-            "pattern": re.compile(
-                r"(shutil\.(copy|move|rmtree)|os\.(remove|unlink|rename))\s*\([^)]*(\w*(user|input|param|arg|request|path|file)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "File operation with potentially unvalidated path",
-            "severity": "HIGH",
-            "recommendation": "Validate all paths before file operations",
-        },
-    ],
-    "powershell": [
-        {
-            "pattern": re.compile(
-                r"Join-Path\s+[^-]+\s+\$(\w*(user|input|param|arg|request|path|file|name)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Join-Path with potentially unvalidated user input",
-            "severity": "HIGH",
-            "recommendation": "Validate input does not contain '..' before joining paths",
-        },
-        {
-            "pattern": re.compile(
-                r"(Get-Content|Set-Content|Remove-Item|Copy-Item|Move-Item)\s+[^|]*\$(\w*(user|input|param|arg|request|path|file|name)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "File operation with potentially unvalidated path",
-            "severity": "HIGH",
-            "recommendation": "Use Resolve-Path and validate path is within allowed directory",
-        },
-        {
-            "pattern": re.compile(
-                r"\.\s+\$(\w*(user|input|param|arg|script|path|file)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Dot-sourcing with potentially unvalidated path",
-            "severity": "CRITICAL",
-            "recommendation": "Never dot-source user-provided paths",
-        },
-    ],
-    "bash": [
-        {
-            "pattern": re.compile(
-                r"(cat|head|tail|less|more|source|\.)\s+[\"']?\$\{?(\w*(user|input|param|arg|request|path|file|name)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "File read with potentially unvalidated path",
-            "severity": "HIGH",
-            "recommendation": "Validate path does not contain '..' and is within allowed directory",
-        },
-        {
-            "pattern": re.compile(
-                r"(rm|mv|cp)\s+(-[rfv]+\s+)?[\"']?\$\{?(\w*(user|input|param|arg|request|path|file)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "File operation with potentially unvalidated path",
-            "severity": "HIGH",
-            "recommendation": "Validate path before file operations",
-        },
-        {
-            "pattern": re.compile(
-                r"source\s+[\"']?\$",
-                re.IGNORECASE,
-            ),
-            "description": "Sourcing script from variable path",
-            "severity": "CRITICAL",
-            "recommendation": "Never source user-provided script paths",
-        },
-    ],
-    "csharp": [
-        {
-            "pattern": re.compile(
-                r"Path\.Combine\s*\([^,]+,\s*(\w*(user|input|param|arg|request|path|file|name)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Path.Combine with potentially unvalidated user input",
-            "severity": "HIGH",
-            "recommendation": (
-                "Use Path.GetFullPath() and verify path starts with allowed "
-                "base directory"
-            ),
-        },
-        {
-            "pattern": re.compile(
-                r"(File\.(ReadAllText|WriteAllText|Delete|Copy|Move)|Directory\.(Delete|Move))\s*\([^)]*(\w*(user|input|param|arg|request|path|file)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "File operation with potentially unvalidated path",
-            "severity": "HIGH",
-            "recommendation": "Validate path is within allowed directory before file operations",
-        },
-        {
-            "pattern": re.compile(
-                r"new\s+FileStream\s*\([^)]*(\w*(user|input|param|arg|request|path|file)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "FileStream with potentially unvalidated path",
-            "severity": "HIGH",
-            "recommendation": "Validate path before creating FileStream",
-        },
-    ],
-}
 
 # CWE-78: Command Injection patterns by language
 CWE78_PATTERNS = {
@@ -426,33 +300,12 @@ def scan_file(
     except (FileNotFoundError, PermissionError) as e:
         return vulnerabilities, [f"Error reading {file_path}: {e}"]
 
-    # Get patterns for this language
-    cwe22_patterns = CWE22_PATTERNS.get(language, [])
+    # Get patterns for this language. CWE-22 detection is delegated to CodeQL
+    # (`.github/workflows/codeql-analysis.yml` runs `python-security-extended.qls`
+    # on every PR); see this module's docstring for the buy-vs-build rationale.
     cwe78_patterns = CWE78_PATTERNS.get(language, [])
 
     for line_num, line in enumerate(lines, 1):
-        # Check CWE-22 patterns
-        if cwe_filter is None or 22 in cwe_filter:
-            for pattern_info in cwe22_patterns:
-                # Mypy type narrowing: pattern_info["pattern"] is re.Pattern at runtime
-                if pattern_info["pattern"].search(line):  # type: ignore[attr-defined]
-                    if is_line_suppressed(line, "CWE-22"):
-                        suppressed.append(f"CWE-22 suppressed at {file_path}:{line_num}")
-                    else:
-                        vulnerabilities.append(
-                            Vulnerability(
-                                cwe="CWE-22",
-                                title="Path Traversal Vulnerability",
-                                file=file_path,
-                                line=line_num,
-                                code=line.strip()[:200],
-                                pattern=str(pattern_info["description"]),
-                                severity=str(pattern_info["severity"]),
-                                recommendation=str(pattern_info["recommendation"]),
-                            )
-                        )
-                    break  # One match per pattern category per line
-
         # Check CWE-78 patterns
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
@@ -521,8 +374,7 @@ def format_console_output(result: ScanResult) -> str:
     for vuln in result.vulnerabilities:
         cwe_counts[vuln.cwe] = cwe_counts.get(vuln.cwe, 0) + 1
     for cwe, count in sorted(cwe_counts.items()):
-        title = "Path Traversal" if cwe == "CWE-22" else "Command Injection"
-        output.append(f"  {cwe} ({title}): {count}")
+        output.append(f"  {cwe} (Command Injection): {count}")
 
     if result.suppressed:
         output.append(f"Suppressed findings: {len(result.suppressed)}")
@@ -533,9 +385,21 @@ def format_console_output(result: ScanResult) -> str:
     return "\n".join(output)
 
 
+_JSON_SCHEMA_VERSION = 2
+
+
 def format_json_output(result: ScanResult) -> str:
-    """Format scan result as JSON."""
+    """Format scan result as JSON.
+
+    The output envelope carries `schema_version` so downstream consumers can
+    detect schema evolution. Readers MUST tolerate unknown fields and treat
+    the absence of `schema_version` as v1 (pre-CWE-22-delegation, no
+    `summary.delegated_cwes` field). v2 added `summary.delegated_cwes` when
+    CWE-22 detection moved to CodeQL (PR #1851, see
+    `.agents/architecture/ADR-054-local-security-scanning.md` amendment).
+    """
     output = {
+        "schema_version": _JSON_SCHEMA_VERSION,
         "scan_timestamp": result.scan_timestamp,
         "files_scanned": result.files_scanned,
         "vulnerabilities": [
@@ -557,6 +421,19 @@ def format_json_output(result: ScanResult) -> str:
             "total": len(result.vulnerabilities),
             "by_cwe": {},
             "by_severity": {},
+            # Delegated CWE classes — this scanner does not detect them; the named
+            # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
+            # this scanner means "not detected here", NOT "no findings"; use the
+            # delegated detector's report for authoritative coverage. Each entry
+            # is self-describing: `tool` names the detector, `query` names the
+            # specific rule pack, `workflow` cites where it runs.
+            "delegated_cwes": {
+                "CWE-22": {
+                    "tool": "codeql",
+                    "query": "python-security-extended.qls",
+                    "workflow": ".github/workflows/codeql-analysis.yml",
+                },
+            },
         },
         "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
     }
@@ -575,7 +452,17 @@ def format_json_output(result: ScanResult) -> str:
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Scan code for CWE-22 and CWE-78 vulnerabilities"
+        description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
+                    "detection is delegated to CodeQL in CI; see module docstring.",
+        epilog=(
+            "Exit codes:\n"
+            "  0  no vulnerabilities found\n"
+            "  1  scan error (invalid args, file not found, path traversal)\n"
+            "  10 vulnerabilities detected (CI-blocking)\n"
+            "\n"
+            "See .agents/architecture/ADR-054-local-security-scanning.md."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "files",
@@ -596,7 +483,12 @@ def main():
         "--cwe",
         type=int,
         action="append",
-        help="Filter by CWE number (22 or 78). Can be specified multiple times.",
+        help=(
+            "Filter by CWE number (only 78 is supported by this scanner). "
+            "CWE-22 is accepted but produces no findings here; detection is "
+            "delegated to CodeQL. "
+            "(Sunset: the CWE-22 flag may be removed after 2026-08-01.)"
+        ),
     )
     parser.add_argument(
         "--format",
@@ -613,36 +505,66 @@ def main():
 
     args = parser.parse_args()
 
-    # Validate input paths to prevent path traversal (CWE-22)
+    # Surface a deprecation-style notice when --cwe 22 is requested. The flag is
+    # accepted for backward compatibility with CI invocations but produces no
+    # findings here; CWE-22 detection is delegated to CodeQL. Without this
+    # warning, a caller could mis-read the silent zero-finding result as a
+    # clean bill of health for path traversal.
+    # Validate --cwe values. The scanner only detects CWE-78; CWE-22 is
+    # accepted for backward compatibility (with a stderr warning) and any
+    # other value is a typo that would otherwise produce a misleading
+    # zero-finding result.
+    _SUPPORTED_CWES = {78}
+    _DELEGATED_CWES = {22}
+    if args.cwe:
+        unsupported = set(args.cwe) - _SUPPORTED_CWES - _DELEGATED_CWES
+        if unsupported:
+            print(
+                f"ERROR: --cwe {sorted(unsupported)} not supported by this "
+                f"scanner. Supported: {sorted(_SUPPORTED_CWES)} "
+                f"(delegated to other tools: {sorted(_DELEGATED_CWES)}).",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_ERROR)
+        if 22 in args.cwe:
+            print(
+                "WARNING: --cwe 22 selected but CWE-22 detection is delegated to "
+                "CodeQL (see python-security-extended.qls in "
+                ".github/workflows/codeql-analysis.yml). This scanner reports no "
+                "CWE-22 findings; rely on the CodeQL workflow for path-traversal "
+                "coverage. If CodeQL flags a CWE-22 finding on your PR, fix the "
+                "code, or add a `lgtm[py/path-injection]` suppression comment "
+                "with justification per CodeQL docs.",
+                file=sys.stderr,
+            )
+
+    # Validate input paths to prevent path traversal (CWE-22).
+    #
+    # Use Path.resolve() to follow symlinks AND normalize, then
+    # Path.is_relative_to() for componentwise containment. The earlier
+    # implementation used os.path.abspath + str.startswith, which had two
+    # gaps: (a) abspath does not follow symlinks, so a symlink inside the
+    # cwd could point outside; (b) startswith matches by string prefix, so
+    # `/foo/barevil` would falsely satisfy a check against `/foo/bar`.
+    # is_relative_to is path-component aware and Python 3.10+ stdlib (the
+    # project requires 3.10+ per pyproject.toml).
     try:
-        allowed_base = os.path.abspath(".")
+        allowed_base = Path(".").resolve(strict=False)
 
-        # Validate --directory if provided
+        def _validate_path(raw: str, label: str) -> None:
+            candidate = Path(raw).resolve(strict=False)
+            if not candidate.is_relative_to(allowed_base):
+                raise ValueError(
+                    f"Path traversal attempt detected in {label}: {raw}"
+                )
+
         if args.directory:
-            directory_path = os.path.abspath(args.directory)
-            if not directory_path.startswith(allowed_base):
-                raise ValueError(
-                    f"Path traversal attempt detected in --directory: "
-                    f"{args.directory}"
-                )
-
-        # Validate --output if provided
+            _validate_path(args.directory, "--directory")
         if args.output:
-            output_path = os.path.abspath(args.output)
-            if not output_path.startswith(allowed_base):
-                raise ValueError(
-                    f"Path traversal attempt detected in --output: "
-                    f"{args.output}"
-                )
-
-        # Validate positional files
+            _validate_path(args.output, "--output")
         if args.files:
             for file in args.files:
-                file_path = os.path.abspath(file)
-                if not file_path.startswith(allowed_base):
-                    raise ValueError(
-                        f"Path traversal attempt detected in file: {file}"
-                    )
+                _validate_path(file, "file")
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(EXIT_ERROR)
@@ -687,6 +609,14 @@ def main():
         output = format_json_output(result)
     else:
         output = format_console_output(result)
+        # Surface CWE-22 delegation in console output too. The JSON envelope
+        # carries `summary.delegated_cwes`, but a console caller running
+        # `--cwe 22` should see the delegation in stdout, not just stderr.
+        if args.cwe and 22 in args.cwe:
+            output += (
+                "\n\nCWE-22: delegated to CodeQL "
+                "(see .github/workflows/codeql-analysis.yml)"
+            )
 
     # Write output
     if args.output:
