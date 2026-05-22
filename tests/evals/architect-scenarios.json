@@ -5,6 +5,7 @@
       "desc": "Challenges GraphQL proposal and requires ADR",
       "input": "A team proposes adding a GraphQL layer on top of our existing REST APIs to 'simplify the frontend'. Review this decision.",
       "expected_verdict": "CHALLENGE",
+      "verdict_options": ["CHALLENGE", "APPROVE", "NEEDS_ADR"],
       "expected_reason_contains": "ADR",
       "rationale": "Architect must challenge the premise (does GraphQL solve the problem?), identify N+1 risks, and require an ADR for the decision."
     },
@@ -13,6 +14,7 @@
       "desc": "Identifies coupling risk in shared package proposal",
       "input": "We need to share business logic between a web app and a mobile app. The proposal is a shared npm package. Architectural review.",
       "expected_verdict": "CHALLENGE",
+      "verdict_options": ["CHALLENGE", "APPROVE", "NEEDS_ADR"],
       "expected_reason_contains": "coupling",
       "rationale": "Shared packages create deployment coupling and version drift. Architect must identify this risk and propose API-first alternative."
     },
@@ -21,6 +23,7 @@
       "desc": "Warns against big-bang microservices migration",
       "input": "Our monolith has grown to 500K LOC. Three teams work on it. Proposal: split into microservices along team boundaries. Assess.",
       "expected_verdict": "CHALLENGE",
+      "verdict_options": ["CHALLENGE", "APPROVE", "NEEDS_ADR"],
       "expected_reason_contains": "modular",
       "rationale": "Gall's Law: complex systems evolve from simple ones. Architect must recommend modular monolith boundaries before microservices."
     },
@@ -29,6 +32,7 @@
       "desc": "Identifies dual-write atomicity problem",
       "input": "Review this design: a service that both reads from and writes to a shared PostgreSQL database, and also publishes events to Kafka for downstream consumers.",
       "expected_verdict": "CHALLENGE",
+      "verdict_options": ["CHALLENGE", "APPROVE", "NEEDS_ADR"],
       "expected_reason_contains": "outbox",
       "rationale": "DB write + Kafka publish are not atomic. Architect must identify the dual-write problem and recommend the outbox pattern or CDC."
     },
@@ -37,6 +41,7 @@
       "desc": "Considers trade-offs, not just one-sided critique",
       "input": "We decided to use PostgreSQL over MongoDB for our new service because we need ACID transactions and complex joins. Review.",
       "expected_verdict": "CHALLENGE",
+      "verdict_options": ["CHALLENGE", "APPROVE", "NEEDS_ADR"],
       "expected_reason_contains": "trade-off",
       "rationale": "Architect must acknowledge the valid ACID rationale while surfacing trade-offs like horizontal scaling limits and schema migration overhead."
     }

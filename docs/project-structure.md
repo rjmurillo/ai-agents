@@ -20,7 +20,7 @@ ai-agents/
 ├── LICENSE
 │
 ├── docs/                     # Human documentation (this folder)
-│   ├── installation.md       # How to install agents via skill-installer
+│   ├── installation.md       # Native marketplace and repository install paths
 │   ├── ideation-workflow.md  # "shower thought" → PRD/plan workflow
 │   ├── autonomous-*.md       # Autonomous workflows (PR monitor, issue dev)
 │   └── project-structure.md  # (this file)
@@ -39,6 +39,8 @@ ai-agents/
 │
 ├── .github/                  # GitHub automation + Copilot integration
 │   ├── agents/               # Copilot/VS Code agents used by GitHub tooling
+│   ├── plugin/               # Copilot CLI native marketplace manifest
+│   │   └── marketplace.json  # `/plugin marketplace add rjmurillo/ai-agents`
 │   ├── prompts/              # Prompts used by workflows (quality gates, triage)
 │   └── workflows/            # CI workflows (keep logic in scripts, not YAML)
 │

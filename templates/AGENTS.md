@@ -27,8 +27,8 @@ templates/agents/*.shared.md ─────────┐
 src/claude/*.md ──────────────────────────────────────────────┘
    (HAND-MAINTAINED - separate flow)                          │
                                                               ▼
-                                                      skill-installer
-                                                   (Python TUI tool)
+                                           Claude marketplace install
+                                           (native Claude Code flow)
                                                               │
                                                               ▼
                                                    .claude/agents/*.md

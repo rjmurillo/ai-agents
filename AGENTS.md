@@ -1,14 +1,12 @@
 # AGENTS.md
 
-Cross-platform agent instructions for Claude Code, Copilot CLI, Cortex, Factory Droid.
-
 ## Serena Init (BLOCKING)
 
 1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`
 
 ## Retrieval-Led Reasoning
 
-Read first, reason second. Pre-training is last resort.
+Read first, reason second. Pre-training last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
@@ -19,23 +17,24 @@ Read first, reason second. Pre-training is last resort.
 
 ## Session Gates
 
-**Start**: Init Serena|Read HANDOFF.md|Create session log|Search memories|Verify git
-**Mid**: Display `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `Validate-PRReadiness.ps1`|No BLOCKING verdicts|Security scan
-**End**: Complete log|Preserve HANDOFF.md|Update Serena|Lint|Commit|Validate JSON
+**Start**: Init Serena|Read HANDOFF.md + latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
+**Mid**: `Commit X/20 (ADR-008)`|Warn at 15+
+**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan
+**End**: Complete log|Preserve HANDOFF.md|Issue handoff (template) if open|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
 
-**Always**: Python for new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|Use PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run `gh act` locally
+**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|`gh act` locally
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
+**Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/
 
 ## Context Type Decision
 
-Knowledge goes in passive context (@imported docs). Actions stay as skills. Passive context eliminates decision points. See `.agents/analysis/vercel-passive-context-vs-skills-research.md`.
+Knowledge → passive context (@imports). Actions → skills.
 
-|Passive context: reference knowledge every turn, content outside training data, <8KB compressed
-|Skills: tool access needed, vertical workflows, user-triggered, file mutation or API calls
+|Passive: ref every turn, outside training, <8KB
+|Skills: tool access, workflows, user-triggered, file mutation
 
 ## Skill-First
 
@@ -43,17 +42,11 @@ Knowledge goes in passive context (@imported docs). Actions stay as skills. Pass
 |Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect
 |Lifecycle: /spec, /plan, /build, /test, /review, /ship
+|New capability (Context/module/scanner/validator/pipeline): run buy-vs-build-framework Quick tier min BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability, already-approved extensions
 
 ### ADR Review (BLOCKING)
 
-Any `.agents/architecture/ADR-*.md` or `.agents/SESSION-PROTOCOL.md` create/edit triggers mandatory adr-review skill.
-
-## Agents
-
-|orchestrator: coordination (opus)|analyst: research|architect: ADRs, governance
-|implementer: code, tests|critic: validation|qa: testing
-|security: threats, OWASP|devops: CI/CD|pr-comment-responder: review triage
-|merge-resolver: conflict resolution|retrospective: learning (haiku)|memory: cross-session (haiku)
+Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review skill.
 
 ## Standards
 
@@ -61,6 +54,7 @@ Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
 Exit codes: 0=ok|1=logic|2=config|3=external|4=auth
 Coverage: 100% security|80% business|60% docs
 Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
+Tests (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv exits. See `.agents/governance/TESTING-RIGOR.md`.
 
 ## Stack
 

@@ -182,6 +182,38 @@ jobs:
           echo "::warning::Agent reviews requiring Copilot CLI will be skipped."
 
 # ==============================================================================
+# Review-axes drift check (REQ-008-03 backstop)
+# ==============================================================================
+#
+# Pre-push hook (.githooks/pre-push Phase 5b) is bypassable via --no-verify.
+# This job is the non-bypassable backstop. It runs the canonical-to-CI
+# generator in --dry-run mode and fails the build if any committed
+# .github/prompts/pr-quality-gate-{role}.md differs from what the canonical
+# .claude/review-axes/{role}.md would produce.
+
+  review-axes-drift-check:
+    name: Review-axes drift check
+    runs-on: ubuntu-24.04-arm
+    needs: check-changes
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
+    timeout-minutes: 2
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.14'
+
+      - name: Run drift check
+        id: drift
+        run: python3 build/scripts/run_drift_check_ci.py
+
+# ==============================================================================
 # Pre-execute Tests (Issue #77: QA agent cannot run tests directly)
 # ==============================================================================
 #
@@ -780,7 +812,13 @@ jobs:
 
           # Identify agents with blocking verdicts
           # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict (occurs when AI response doesn't match expected verdict format, treating ambiguity as blocking)
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW')
+          # UNKNOWN added in #1934: a skill crash or unparseable verdict surfaces as UNKNOWN.
+          # Per REQ-008-05 UNKNOWN must "force explicit attention"; treat it as blocking
+          # so a silent skill failure cannot pass the gate.
+          # NON_COMPLIANT added in PR #1965 (devin BB6): NON_COMPLIANT is in FAIL_VERDICTS
+          # in scripts/ai_review_common/verdict.py; the workflow gate must match so a
+          # NON_COMPLIANT spec-validation verdict actually blocks merge.
+          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW', 'NON_COMPLIANT', 'UNKNOWN')
           $failedAgents = @()
           $missingVerdicts = @()
 

@@ -11,13 +11,16 @@ from unittest.mock import patch
 import pytest
 
 from scripts.github_core import (
+    FetchStatus,
     RateLimitResult,
     RepoInfo,
     assert_gh_authenticated,
     assert_valid_body_file,
     check_workflow_rate_limit,
+    count_unresolved_threads,
     create_issue_comment,
     error_and_exit,
+    filter_unresolved_threads,
     get_all_prs_with_comments,
     get_bot_authors,
     get_bot_authors_config,
@@ -33,6 +36,7 @@ from scripts.github_core import (
     is_github_name_valid,
     is_safe_file_path,
     resolve_repo_params,
+    safe_log_str,
     update_issue_comment,
 )
 from scripts.github_core.api import _403_PATTERN
@@ -830,6 +834,96 @@ class TestGetBotAuthors:
 # ---------------------------------------------------------------------------
 
 
+class TestSafeLogStr:
+    def test_strips_carriage_return(self):
+        assert safe_log_str("a\rb") == "a\\rb"
+
+    def test_strips_newline(self):
+        assert safe_log_str("a\nb") == "a\\nb"
+
+    def test_strips_crlf_log_forging_attempt(self):
+        """Defense against CWE-117: an attacker-controlled error message
+        embedding `\\r\\n op=review_threads_failed reason=fake` must not
+        produce a forged log line.
+        """
+        forged = "real_error\r\n op=review_threads_failed reason=fake"
+        sanitized = safe_log_str(forged)
+        assert "\r" not in sanitized
+        assert "\n" not in sanitized
+        assert sanitized.startswith("real_error\\r\\n")
+
+    def test_handles_non_string(self):
+        assert safe_log_str(42) == "42"
+        assert safe_log_str(RuntimeError("oops")) == "oops"
+
+
+class TestFetchStatus:
+    def test_str_enum_values(self):
+        assert FetchStatus.OK == "ok"
+        assert FetchStatus.TRANSPORT_ERROR == "transport_error"
+        assert FetchStatus.STRUCTURAL_MISSING == "structural_missing"
+
+    def test_typo_raises_attribute_error(self):
+        """Typo on a StrEnum member is a fail-fast attribute error,
+        unlike a bare-string sentinel which would silently miss.
+        """
+        with pytest.raises(AttributeError):
+            _ = FetchStatus.OK_TYPO  # type: ignore[attr-defined]
+
+
+class TestCountUnresolvedThreads:
+    def test_empty_list(self):
+        assert count_unresolved_threads([]) == 0
+
+    def test_all_resolved(self):
+        nodes = [{"isResolved": True}, {"isResolved": True}]
+        assert count_unresolved_threads(nodes) == 0
+
+    def test_all_unresolved(self):
+        nodes = [{"isResolved": False}, {"isResolved": False}]
+        assert count_unresolved_threads(nodes) == 2
+
+    def test_mixed(self):
+        nodes = [
+            {"isResolved": True},
+            {"isResolved": False},
+            {"isResolved": False},
+        ]
+        assert count_unresolved_threads(nodes) == 2
+
+    def test_missing_isResolved_defaults_to_resolved(self):
+        """A malformed thread without isResolved defaults to resolved
+        (treated as not unresolved). Prevents a missing field from
+        silently inflating the unresolved count.
+        """
+        nodes = [{}, {"id": "x"}]
+        assert count_unresolved_threads(nodes) == 0
+
+
+class TestFilterUnresolvedThreads:
+    def test_returns_only_unresolved(self):
+        nodes = [
+            {"id": "a", "isResolved": True},
+            {"id": "b", "isResolved": False},
+            {"id": "c", "isResolved": False},
+        ]
+        result = filter_unresolved_threads(nodes)
+        assert [t["id"] for t in result] == ["b", "c"]
+
+    def test_count_and_filter_agree(self):
+        """The count helper and filter helper share the rule, so
+        ``count == len(filter)`` for any input. This locks the DRY
+        invariant in a test.
+        """
+        nodes = [
+            {"isResolved": True},
+            {"isResolved": False},
+            {},
+            {"isResolved": False},
+        ]
+        assert count_unresolved_threads(nodes) == len(filter_unresolved_threads(nodes))
+
+
 class TestGetUnresolvedReviewThreads:
     def test_returns_unresolved_threads(self):
         graphql_response = json.dumps({
@@ -898,6 +992,314 @@ class TestGetUnresolvedReviewThreads:
                 result = get_unresolved_review_threads("owner", "repo", 1)
         assert result is not None
         assert isinstance(result, list)
+
+    def test_paginates_until_has_next_page_false(self):
+        """Closes PR #1887's pagination cliff: callers see threads on page 2+.
+
+        Two pages: 100 unresolved threads on page 1, 5 unresolved on page 2.
+        The PR #1887 retro records that the prior single-page query missed
+        the second page entirely and reported "0 unresolved" while threads
+        sat there. With pagination, all 105 are returned.
+        """
+        page_one = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {
+                                "hasNextPage": True,
+                                "endCursor": "CURSOR_PAGE_2",
+                            },
+                            "nodes": [
+                                _thread(f"page1-{i}", False, i) for i in range(100)
+                            ],
+                        }
+                    }
+                }
+            }
+        })
+        page_two = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                            "nodes": [
+                                _thread(f"page2-{i}", False, 1000 + i) for i in range(5)
+                            ],
+                        }
+                    }
+                }
+            }
+        })
+
+        responses = [_completed(stdout=page_one), _completed(stdout=page_two)]
+        with patch("subprocess.run", side_effect=responses) as mock_run:
+            result = get_unresolved_review_threads("owner", "repo", 42)
+
+        assert mock_run.call_count == 2, (
+            "Pagination loop did not call gh twice; pageInfo.hasNextPage=true was ignored"
+        )
+        assert len(result) == 105, f"Expected 105 unresolved threads across pages, got {len(result)}"
+        page1_ids = {f"page1-{i}" for i in range(100)}
+        page2_ids = {f"page2-{i}" for i in range(5)}
+        actual_ids = {t["id"] for t in result}
+        assert actual_ids == page1_ids | page2_ids, "Page-2 thread IDs missing from result"
+
+    def test_pagination_passes_cursor_to_second_page(self):
+        """The endCursor from page 1 must be sent as $cursor on page 2.
+
+        Without that, GitHub returns page 1 again forever. We assert the
+        gh argv on call #2 contains the cursor value from page 1.
+        """
+        page_one = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {
+                                "hasNextPage": True,
+                                "endCursor": "CURSOR_FROM_PAGE_1",
+                            },
+                            "nodes": [_thread("t1", False, 1)],
+                        }
+                    }
+                }
+            }
+        })
+        page_two = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [],
+                        }
+                    }
+                }
+            }
+        })
+
+        responses = [_completed(stdout=page_one), _completed(stdout=page_two)]
+        with patch("subprocess.run", side_effect=responses) as mock_run:
+            get_unresolved_review_threads("owner", "repo", 42)
+
+        # Inspect the second subprocess.run call's argv for the cursor value.
+        second_call_argv = mock_run.call_args_list[1][0][0]
+        joined = " ".join(second_call_argv)
+        assert "cursor=CURSOR_FROM_PAGE_1" in joined, (
+            f"Cursor from page 1 not propagated to page 2 query; argv was: {joined}"
+        )
+
+    def test_pagination_stops_when_endcursor_is_empty(self):
+        """Defensive: a hasNextPage=true with empty endCursor must not loop forever."""
+        page_one = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {"hasNextPage": True, "endCursor": ""},
+                            "nodes": [_thread("t1", False, 1)],
+                        }
+                    }
+                }
+            }
+        })
+
+        with patch("subprocess.run", side_effect=[_completed(stdout=page_one)]) as mock_run:
+            result = get_unresolved_review_threads("owner", "repo", 42)
+
+        assert mock_run.call_count == 1, "Loop did not stop on empty endCursor"
+        assert len(result) == 1
+
+    def test_graphql_error_logs_reason_at_api_level(self, caplog):
+        """The api.py-level _fetch_review_threads_page logs reason=graphql_error
+        with op=review_threads_failed, distinct from the script-level logger.
+        Without this, an operator grepping api.py logs for the failure reason
+        would not see why a transport error occurred.
+        """
+        import logging
+        with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
+            with patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="rate limit"),
+            ):
+                with pytest.warns(UserWarning):
+                    result = get_unresolved_review_threads("owner", "repo", 42)
+        assert result == []
+        assert any(
+            "op=review_threads_failed" in r.message
+            and "reason=graphql_error" in r.message
+            for r in caplog.records
+        ), "api.py-level transport error must log op=review_threads_failed reason=graphql_error"
+
+    def test_field_missing_logs_reason_at_api_level(self, caplog):
+        """When pullRequest is null, api.py path emits reason=pr_not_found."""
+        import logging
+        graphql_response = json.dumps({
+            "data": {"repository": {"pullRequest": None}}
+        })
+        with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
+            with patch(
+                "subprocess.run",
+                return_value=_completed(stdout=graphql_response),
+            ):
+                result = get_unresolved_review_threads("owner", "repo", 42)
+        assert result == []
+        assert any(
+            "reason=pr_not_found" in r.message for r in caplog.records
+        ), "Null pullRequest must log reason=pr_not_found at api.py level"
+
+    def test_nodes_missing_logs_reason_at_api_level(self, caplog):
+        """reviewThreads.nodes is null (distinct from connection-missing).
+
+        The skill-side has 4 reasons (pr_not_found, field_missing,
+        nodes_missing, graphql_error). api.py must emit the same taxonomy
+        so operators grepping by reason find both surfaces.
+        """
+        import logging
+        graphql_response = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": None,
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            }
+        })
+        with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
+            with patch(
+                "subprocess.run",
+                return_value=_completed(stdout=graphql_response),
+            ):
+                result = get_unresolved_review_threads("owner", "repo", 42)
+        assert result == []
+        assert any(
+            "reason=nodes_missing" in r.message for r in caplog.records
+        ), "Null reviewThreads.nodes must log reason=nodes_missing"
+
+    def test_cursor_missing_emits_warning_and_logs_reason(self, caplog):
+        """When hasNextPage=true but endCursor is empty/null, the loop must
+        emit a warnings.warn AND a structured log line with
+        ``op=review_threads_failed reason=cursor_missing`` before breaking,
+        so callers cannot mistake the partial result for a complete one.
+        Defensive guardrail flagged by Copilot review on PR #1897.
+        """
+        import logging
+        page_one = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {"hasNextPage": True, "endCursor": ""},
+                            "nodes": [_thread("t1", False, 1)],
+                        }
+                    }
+                }
+            }
+        })
+        with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
+            with patch(
+                "subprocess.run", side_effect=[_completed(stdout=page_one)],
+            ) as mock_run:
+                with pytest.warns(UserWarning, match=r"cursor_missing"):
+                    result = get_unresolved_review_threads("owner", "repo", 42)
+        assert mock_run.call_count == 1
+        assert len(result) == 1
+        assert any(
+            "reason=cursor_missing" in r.message for r in caplog.records
+        ), "cursor_missing branch must emit op=review_threads_failed reason=cursor_missing"
+
+    def test_mid_pagination_structural_failure_emits_warning(self, caplog):
+        """Page 1 OK, page 2 structurally invalid → caller sees a warning.
+
+        A structurally invalid page-2 response (missing repository.pullRequest
+        block, etc.) on a multi-page query truncates the aggregate. Without
+        the warning the loop just breaks and callers see N partial threads
+        with no signal that pages 2+ were dropped.
+        """
+        import logging
+        page_one = json.dumps({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {"hasNextPage": True, "endCursor": "cur1"},
+                            "nodes": [_thread("t1", False, 1)],
+                        }
+                    }
+                }
+            }
+        })
+        page_two_invalid = json.dumps({"data": {"repository": None}})
+        with caplog.at_level(logging.WARNING, logger="scripts.github_core.api"):
+            with patch("subprocess.run", side_effect=[
+                _completed(stdout=page_one),
+                _completed(stdout=page_two_invalid),
+            ]):
+                with pytest.warns(UserWarning, match=r"structural_failure"):
+                    result = get_unresolved_review_threads("owner", "repo", 42)
+        assert len(result) == 1, "page 1 result must be preserved on page 2 failure"
+        assert any(
+            "reason=structural_failure" in r.message for r in caplog.records
+        ), "mid-pagination structural failure must emit reason=structural_failure"
+
+    def test_pagination_cap_emits_warning_and_stops(self):
+        """At-cap exit must warn the caller, not silently truncate.
+
+        The PR #1887 retro records that a silent first:100 truncation hid 6+
+        unresolved threads. A silent at-cap exit at _REVIEW_THREADS_MAX_PAGES
+        would reproduce the same false-zero failure mode at the 5000-thread
+        boundary. This test asserts: (1) the loop stops at exactly the cap;
+        (2) warnings.warn fires with a message naming the cap and the PR;
+        (3) the partial result is still returned (not discarded).
+        """
+        from scripts.github_core.api import _REVIEW_THREADS_MAX_PAGES
+
+        # Every page reports hasNextPage=True and a fresh cursor; one
+        # unresolved thread per page so we can count.
+        def _page_response(page_idx: int) -> str:
+            return json.dumps({
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "reviewThreads": {
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": f"CURSOR_PAGE_{page_idx + 1}",
+                                },
+                                "nodes": [
+                                    _thread(f"page{page_idx}-t", False, page_idx)
+                                ],
+                            }
+                        }
+                    }
+                }
+            })
+
+        # Provide cap+5 pages. Loop must stop at cap.
+        responses = [
+            _completed(stdout=_page_response(i))
+            for i in range(_REVIEW_THREADS_MAX_PAGES + 5)
+        ]
+
+        with patch("subprocess.run", side_effect=responses) as mock_run:
+            with pytest.warns(UserWarning, match=r"Hit _REVIEW_THREADS_MAX_PAGES"):
+                result = get_unresolved_review_threads("owner", "repo", 1894)
+
+        assert mock_run.call_count == _REVIEW_THREADS_MAX_PAGES, (
+            f"Loop did not stop at cap; called {mock_run.call_count} times "
+            f"(expected {_REVIEW_THREADS_MAX_PAGES})"
+        )
+        assert len(result) == _REVIEW_THREADS_MAX_PAGES, (
+            "Partial threads must be returned alongside the warning, not discarded"
+        )
 
 
 # ---------------------------------------------------------------------------
