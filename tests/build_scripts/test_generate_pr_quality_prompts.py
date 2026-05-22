@@ -29,7 +29,7 @@ import generate_pr_quality_prompts as gen  # noqa: E402
 @pytest.fixture
 def stub_canonical(tmp_path: Path) -> Path:
     """Create a minimal valid canonical file under tmp/.claude/skills/review/references/."""
-    canonical_dir = tmp_path / ".claude" / "skills" / "review-axes" / "references"
+    canonical_dir = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical_dir.mkdir(parents=True)
     file = canonical_dir / "example.md"
     file.write_text(

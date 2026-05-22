@@ -89,10 +89,6 @@ ARTIFACT_DISPATCH = {
     "commands": COMMANDS_KEYS,
     "rules": RULES_KEYS,
     "lib": LIB_KEYS,
-    # review-axes is a generic directory-copy stanza like `lib`; shares the
-    # same key shape (sourceDir + outputDir). Added for #2042 so the
-    # canonical /review axis prompts ship into vendored plugin installs.
-    "review-axes": LIB_KEYS,
     "hooks": HOOKS_KEYS,
 }
 
@@ -102,7 +98,6 @@ PATH_FIELDS_BY_ARTIFACT = {
     "commands": ("sourceDir", "outputDir"),
     "rules": ("sourceDir", "outputDir"),
     "lib": ("sourceDir", "outputDir"),
-    "review-axes": ("sourceDir", "outputDir"),
     "hooks": ("settingsSource", "scriptSource", "outputConfig", "outputScripts"),
 }
 
