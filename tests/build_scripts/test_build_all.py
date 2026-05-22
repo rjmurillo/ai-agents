@@ -266,6 +266,24 @@ def test_build_lib_rejects_outdir_outside_repo(tmp_path: Path) -> None:
     assert any("escapes repo root" in n for n in result.notices)
 
 
+def test_build_lib_rejects_outdir_equal_to_repo_root(tmp_path: Path) -> None:
+    """Containment guard: outputDir == repo root MUST fail (CWE-22).
+
+    Without this check, rmtree-then-copytree would wipe the working tree.
+    """
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  lib:\n"
+        '    sourceDir: ".claude/lib"\n'
+        '    outputDir: "."\n'
+    )
+    result = build_all._build_lib(tmp_path, cfg, "p")
+    assert result.exit_code == 2
+    assert any("escapes repo root" in n for n in result.notices)
+
+
 def test_build_lib_handles_missing_source(tmp_path: Path) -> None:
     cfg = tmp_path / "p.yaml"
     cfg.write_text(

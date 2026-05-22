@@ -250,8 +250,13 @@ def _build_directory_copy(
     src = (repo_root / src_rel).resolve()
     out = (repo_root / out_rel).resolve()
     repo_root_resolved = repo_root.resolve()
-    # Containment guard: refuse to write outside the repo root.
-    if not str(out).startswith(str(repo_root_resolved) + "/") and out != repo_root_resolved:
+    # Containment guard (CWE-22): the output dir must resolve to a path
+    # strictly under the repo root. is_relative_to handles OS path
+    # separators correctly and avoids the prefix-confusion failure mode
+    # of string startswith. Equality with the repo root is also rejected
+    # because the rmtree-then-copytree below would otherwise wipe the
+    # entire working tree when outputDir resolves to ".".
+    if out == repo_root_resolved or not out.is_relative_to(repo_root_resolved):
         result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=2)
         result.notices.append(
             f"{platform}: artifacts.{artifact_name}.outputDir escapes repo root: {out_rel}"
