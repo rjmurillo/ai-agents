@@ -198,7 +198,9 @@ def main() -> int:
         for source, text in shown:
             lines.append(f"- [{source}] {text}")
 
-        print("\n".join(lines))
+        # Output must be valid JSON for Cursor PreToolUse hooks
+        output = {"message": "\n".join(lines)}
+        print(json.dumps(output))
     except Exception as exc:
         print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
     return 0
