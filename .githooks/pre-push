@@ -981,7 +981,7 @@ fi
 # ============================================================================
 echo_phase "Phase 5b: Review-axes drift detection"
 
-# Detect drift between .claude/review-axes/{role}.md (canonical) and
+# Detect drift between .claude/skills/review/references/{role}.md (canonical) and
 # .github/prompts/pr-quality-gate-{role}.md (generated). Bypassable via
 # --no-verify; the CI workflow drift-check job is the non-bypassable backstop.
 # Use set_python_cmd (uv-aware) for consistency with other phases. PR #1965
