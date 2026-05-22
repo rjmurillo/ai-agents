@@ -28,7 +28,7 @@ import generate_pr_quality_prompts as gen  # noqa: E402
 
 @pytest.fixture
 def stub_canonical(tmp_path: Path) -> Path:
-    """Create a minimal valid canonical file under tmp/.claude/skills/review-axes/references/."""
+    """Create a minimal valid canonical file under tmp/.claude/skills/review/references/."""
     canonical_dir = tmp_path / ".claude" / "skills" / "review-axes" / "references"
     canonical_dir.mkdir(parents=True)
     file = canonical_dir / "example.md"
@@ -100,7 +100,7 @@ def test_transform_prepends_static_ci_header() -> None:
     )
     out = gen.transform(text, "analyst")
     assert out.startswith("<!-- GENERATED -- DO NOT EDIT -->\n")
-    assert "<!-- Source: .claude/skills/review-axes/references/analyst.md -->\n" in out
+    assert "<!-- Source: .claude/skills/review/references/analyst.md -->\n" in out
     assert (
         "<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->\n"
         in out
@@ -403,7 +403,7 @@ def test_main_dry_run_clean_exit_zero(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """End-to-end: main() returns 0 on a clean dry-run."""
-    canonical = tmp_path / ".claude" / "review-axes"
+    canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
     (canonical / "x.md").write_text(
         "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
@@ -420,7 +420,7 @@ def test_main_dry_run_clean_exit_zero(
 def test_main_dry_run_drift_exit_one(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    canonical = tmp_path / ".claude" / "review-axes"
+    canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
     (canonical / "x.md").write_text(
         "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
@@ -578,7 +578,7 @@ def test_dry_run_compares_against_head_not_working_tree(
     This test verifies the read-from-HEAD path by stubbing the helper and
     asserting it is consulted before the filesystem fallback.
     """
-    canonical = tmp_path / ".claude" / "review-axes"
+    canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
     (canonical / "x.md").write_text(
         "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
@@ -611,7 +611,7 @@ def test_regenerate_per_file_oserror_returns_one(
     PR #1965 round-6: previously regenerate() let exceptions bubble,
     bypassing the ADR-035 exit contract.
     """
-    canonical = tmp_path / ".claude" / "review-axes"
+    canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
     (canonical / "x.md").write_text(
         "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
@@ -641,7 +641,7 @@ def test_regenerate_malformed_frontmatter_returns_two(
     Confirms transform()'s GeneratePromptsError is caught in regenerate()
     and converted to exit 2, not allowed to crash.
     """
-    canonical = tmp_path / ".claude" / "review-axes"
+    canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
     (canonical / "x.md").write_text("# no frontmatter\n", encoding="utf-8")
     generated = tmp_path / "out"
@@ -657,7 +657,7 @@ def test_dry_run_falls_back_to_working_tree_when_git_unavailable(
 
     Keeps pytest tmp_path fixtures functional outside a git repo.
     """
-    canonical = tmp_path / ".claude" / "review-axes"
+    canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
     (canonical / "x.md").write_text(
         "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\nbody\n",
