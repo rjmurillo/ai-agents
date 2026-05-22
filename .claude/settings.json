@@ -24,7 +24,7 @@
         ]
       },
       {
-        "matcher": "Bash(git commit*)",
+        "matcher": "Bash(git commit*|git ci*)",
         "hooks": [
           {
             "type": "command",
