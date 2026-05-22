@@ -29,6 +29,18 @@ These rules apply to every change in this repository.
 2. MUST NOT skip hooks (`--no-verify`) or bypass signing.
 3. MUST NOT edit `.agents/HANDOFF.md` (read-only per ADR-014).
 4. MUST NOT put logic in YAML workflows (ADR-006).
+5. MUST NOT use em-dashes (U+2014) or en-dashes (U+2013) in any authored text:
+   markdown prose, code comments, agent prompts, commit messages, PR descriptions,
+   rule files (`.claude/rules/`, `.github/instructions/`), retrospectives, ADRs,
+   or session logs. Use commas, periods, colons, parentheses, hyphens, or
+   restructure the sentence. Bot reviewers (Copilot, CodeRabbit) flag every
+   occurrence; the cost is one or more threads per dash, every PR. The rule binds
+   identically to the Copilot-side mirror at
+   `.github/instructions/universal.instructions.md`; do not regress one tree
+   while fixing the other. **Carve-out**: test fixtures under
+   `tests/hooks/fixtures/` are exempt because they intentionally carry the
+   prohibited bytes to exercise detection logic; the dash-guard hook and the
+   `validate_dash_prohibition` validator both skip that prefix. Refs Issue #1923.
 
 ## References
 

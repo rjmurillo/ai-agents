@@ -138,6 +138,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "./.claude/hooks/session-start.sh",
+            "timeout": 900,
+            "statusMessage": "Installing project dependencies (matches CI)"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "python3 -u .claude/hooks/SessionStart/invoke_session_initialization_enforcer.py",
             "statusMessage": "Enforcing session protocol initialization (BLOCKING)"
           },

@@ -1,0 +1,360 @@
+Loaded custom prompts from tests/evals/skills/triage-prompts.json
+Skills: ['workflow', 'session', 'session-qa-eligibility', 'session-migration', 'session-log-fixer', 'memory', 'memory-documentary', 'memory-enhancement', 'using-forgetful-memory', 'curating-memories', 'exploring-knowledge-graph', 'doc-coverage', 'doc-sync', 'doc-accuracy', 'codebase-documenter']
+Prompts: 90, API calls: 360
+Starting eval (est. 720s with rate limiting)...
+
+============================================================
+  Skill: workflow (6 prompts, context: 6020 chars, runs: 1)
+============================================================
+  [1/90] Walk me through the canonical workflow command sequence for shipping a...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=4 D=5 S=5
+  [2/90] I see scripts under .claude/skills/workflow/. Should I run them direct...
+    Baseline: A=2 D=4 S=3
+    Enhanced: A=5 D=5 S=5
+  [3/90] What replaces the legacy workflow skill commands?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=5 D=5 S=5
+  [4/90] I want to bundle planning, implementation, and testing into a single s...
+    Baseline: A=1 D=3 S=4
+    Enhanced: A=2 D=4 S=3
+  [5/90] Why was the workflow skill deprecated?...
+    Baseline: A=1 D=2 S=1
+    Enhanced: A=3 D=4 S=4
+  [6/90] Can I still trigger the workflow skill if I find an old reference to i...
+    Baseline: A=1 D=2 S=1
+    Enhanced: A=2 D=4 S=4
+
+============================================================
+  Skill: session (6 prompts, context: 9156 chars, runs: 1)
+============================================================
+  [7/90] I am about to commit but staged only investigation artifacts. Can I sk...
+    Baseline: A=1 D=4 S=3
+    Enhanced: A=5 D=5 S=5
+  [8/90] What allowlist paths qualify a session for investigation-only QA exemp...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=5 D=5 S=5
+  [9/90] List the session protocol gates that fire at session start, mid, pre-P...
+    Baseline: A=1 D=2 S=1
+    Enhanced: A=3 D=5 S=4
+  [10/90] Do I create the session log at session start or end?...
+    Baseline: A=2 D=4 S=3
+    Enhanced: A=4 D=5 S=4
+  [11/90] What command runs Test-InvestigationEligibility for ADR-034 compliance...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=4 D=5 S=5
+  [12/90] Where do session protocol rules live in this repo?...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=4 D=5 S=5
+
+============================================================
+  Skill: session-qa-eligibility (6 prompts, context: 8734 chars, runs: 1)
+============================================================
+  [13/90] Staged files include .agents/sessions/2026-05-09-session-01.json and o...
+    Baseline: A=5 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+  [14/90] Which ADR governs the investigation-only QA skip?...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=5 D=5 S=5
+  [15/90] Can I skip QA for a docs-only commit using this skill?...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=4 D=5 S=5
+  [16/90] What evidence string does the investigation skip emit?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=4 D=4 S=5
+  [17/90] I staged a .agents/security/threat-model-update.md file. Eligible?...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=5 D=4 S=5
+  [18/90] If a file in src/ is staged with session log artifacts, what is the ve...
+    Baseline: A=3 D=5 S=5
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: session-migration (6 prompts, context: 10384 chars, runs: 1)
+============================================================
+  [19/90] We have legacy markdown session logs. How do we migrate to JSON?...
+    Baseline: A=2 D=4 S=3
+    Enhanced: A=5 D=5 S=5
+  [20/90] What is the JSON schema target for migrated session logs?...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=4 D=5 S=5
+  [21/90] Can I run the migration on a single legacy file?...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+  [22/90] Why was session log format changed from markdown to JSON?...
+    Baseline: A=2 D=3 S=2
+    Enhanced: A=5 D=5 S=5
+  [23/90] Is the migration destructive?...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=2 D=4 S=5
+  [24/90] Migration produced a JSON file that fails validate_session_json.py. Ne...
+    Baseline: A=3 D=4 S=5
+    Enhanced: A=3 D=5 S=5
+
+============================================================
+  Skill: session-log-fixer (6 prompts, context: 23617 chars, runs: 1)
+============================================================
+  [25/90] GitHub Actions failed with verdict NON_COMPLIANT on Session Protocol V...
+    Baseline: A=1 D=4 S=4
+    Enhanced: A=4 D=5 S=5
+  [26/90] Aggregate Results job failed for session validation. What does the ski...
+    Baseline: A=1 D=2 S=1
+    Enhanced: A=4 D=3 S=4
+  [27/90] Session JSON missing 'end' evidence. Skill guidance?...
+    Baseline: A=2 D=3 S=3
+    Enhanced: A=4 D=4 S=3
+  [28/90] How does session-log-fixer differ from session-end?...
+    Baseline: A=1 D=1 S=1
+    Enhanced: A=5 D=5 S=5
+  [29/90] Do I need to download the workflow artifact to fix session validation?...
+    Baseline: A=3 D=4 S=2
+    Enhanced: A=5 D=5 S=5
+  [30/90] What error pattern does the fixer recognize?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: memory (6 prompts, context: 147051 chars, runs: 1)
+============================================================
+  [31/90] Explain the four memory tiers per ADR-007 and which tool serves each....
+    Baseline: A=1 D=2 S=1
+    Enhanced: A=4 D=5 S=5
+  [32/90] I need to find prior decisions about ARM runner cost. Which tier?...
+    Baseline: A=1 D=3 S=4
+    Enhanced: A=3 D=4 S=4
+  [33/90] Difference between Serena and Forgetful in this 4-tier system?...
+    Baseline: A=1 D=1 S=1
+    Enhanced: A=4 D=5 S=5
+  [34/90] When does Tier 2 Episodic memory apply?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=5 D=5 S=5
+  [35/90] Tier 3 Causal memory captures what?...
+    Baseline: A=1 D=3 S=3
+    Enhanced: A=4 D=5 S=5
+  [36/90] What is the memory-first rule from ADR-007?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: memory-documentary (6 prompts, context: 12319 chars, runs: 1)
+============================================================
+  [37/90] Generate a documentary on how this repo decided to use Python over Pow...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=4 D=4 S=3
+  [38/90] What memory sources does the documentary search?...
+    Baseline: A=1 D=1 S=1
+    Enhanced: A=3 D=5 S=5
+  [39/90] Output style for the documentary skill?...
+    Baseline: A=2 D=3 S=3
+    Enhanced: A=5 D=5 S=5
+  [40/90] Cite the format expected for evidence chains....
+    Baseline: A=1 D=3 S=4
+    Enhanced: A=5 D=5 S=5
+  [41/90] When should I use memory-documentary vs ad-hoc memory search?...
+    Baseline: A=3 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+  [42/90] Can the documentary skill answer 'what did we decide about X' across p...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: memory-enhancement (6 prompts, context: 27730 chars, runs: 1)
+============================================================
+  [43/90] How do I add a citation to an existing memory entry?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=4 D=5 S=5
+  [44/90] What is the confidence score on a memory entry?...
+    Baseline: A=2 D=3 S=2
+    Enhanced: A=3 D=5 S=5
+  [45/90] I think a memory's code reference is stale. How do I check?...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=3 D=5 S=5
+  [46/90] Difference between memory-enhancement and curating-memories?...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+  [47/90] Where does confidence score persist across sessions?...
+    Baseline: A=1 D=3 S=4
+    Enhanced: A=2 D=4 S=5
+  [48/90] What triggers a memory health check?...
+    Baseline: A=1 D=4 S=5
+    Enhanced: A=4 D=5 S=5
+
+============================================================
+  Skill: using-forgetful-memory (6 prompts, context: 8483 chars, runs: 1)
+============================================================
+  [49/90] How should I structure a new Forgetful memory entry?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=5 D=5 S=5
+  [50/90] When should I create a Forgetful memory vs query existing?...
+    Baseline: A=3 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+  [51/90] Importance scoring in Forgetful, how is it computed?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=2 D=4 S=5
+  [52/90] Can I use Forgetful for cross-project knowledge?...
+    Baseline: A=1 D=2 S=1
+    Enhanced: A=5 D=5 S=5
+  [53/90] What is the atomicity test for a memory?...
+    Baseline: A=1 D=4 S=5
+    Enhanced: A=4 D=5 S=5
+  [54/90] Why is Forgetful unavailable in this session per ADR-007?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=1 D=3 S=2
+
+============================================================
+  Skill: curating-memories (6 prompts, context: 5936 chars, runs: 1)
+============================================================
+  [55/90] I found a memory that contradicts current code. What should I do?...
+    Baseline: A=4 D=5 S=4
+    Enhanced: A=4 D=5 S=5
+  [56/90] How do I link two related memories?...
+    Baseline: A=1 D=4 S=3
+    Enhanced: A=4 D=5 S=5
+  [57/90] When does a memory need curation?...
+    Baseline: A=2 D=4 S=2
+    Enhanced: A=4 D=5 S=5
+  [58/90] Difference between updating a memory and marking it obsolete?...
+    Baseline: A=3 D=4 S=3
+    Enhanced: A=4 D=5 S=5
+  [59/90] What is the bidirectional link rule?...
+    Baseline: A=2 D=4 S=5
+    Enhanced: A=3 D=4 S=5
+  [60/90] How does curation differ from creating a new memory?...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: exploring-knowledge-graph (6 prompts, context: 5216 chars, runs: 1)
+============================================================
+  [61/90] Walk through deep memory traversal for the question 'what do you know ...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=4 D=5 S=5
+  [62/90] When should I use exploring-knowledge-graph instead of a single memory...
+    Baseline: A=4 D=5 S=3
+    Enhanced: A=5 D=5 S=5
+  [63/90] What relations does the knowledge graph track?...
+    Baseline: A=1 D=3 S=4
+    Enhanced: A=3 D=4 S=4
+  [64/90] How deep should graph traversal go?...
+    Baseline: A=2 D=4 S=5
+    Enhanced: A=3 D=5 S=5
+  [65/90] If I find an orphan memory (no incoming or outgoing links), what does ...
+    Baseline: A=4 D=5 S=4
+    Enhanced: A=5 D=5 S=5
+  [66/90] Can graph traversal answer 'what changed since X'?...
+    Baseline: A=4 D=5 S=5
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: doc-coverage (6 prompts, context: 7644 chars, runs: 1)
+============================================================
+  [67/90] Audit my Python module for missing docstrings....
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=4 D=5 S=5
+  [68/90] What documentation types does the skill detect?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=4 D=5 S=5
+  [69/90] How do I gate a PR on doc coverage?...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=2 D=4 S=4
+  [70/90] CHANGELOG gap detection, how does it work?...
+    Baseline: A=4 D=5 S=5
+    Enhanced: A=2 D=4 S=5
+  [71/90] Difference between doc-coverage and doc-accuracy?...
+    Baseline: A=3 D=4 S=5
+    Enhanced: A=2 D=4 S=5
+  [72/90] Output format expected from doc-coverage?...
+    Baseline: A=5 D=5 S=5
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: doc-sync (6 prompts, context: 19580 chars, runs: 1)
+============================================================
+  [73/90] I added a new agent under templates/. What docs need updating?...
+    Baseline: A=3 D=4 S=4
+    Enhanced: A=4 D=3 S=4
+  [74/90] When should I run doc-sync?...
+    Baseline: A=2 D=4 S=3
+    Enhanced: A=3 D=5 S=5
+  [75/90] What is the difference between doc-sync and doc-accuracy?...
+    Baseline: A=2 D=3 S=2
+    Enhanced: A=3 D=4 S=4
+  [76/90] Does doc-sync update individual file docstrings?...
+    Baseline: A=1 D=3 S=2
+    Enhanced: A=5 D=5 S=5
+  [77/90] How does doc-sync detect drift?...
+    Baseline: A=2 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+  [78/90] Run doc-sync triggers what files to change typically?...
+    Baseline: A=2 D=4 S=3
+    Enhanced: A=4 D=5 S=5
+
+============================================================
+  Skill: doc-accuracy (6 prompts, context: 8733 chars, runs: 1)
+============================================================
+  [79/90] Run a pre-release documentation audit. What does doc-accuracy do?...
+    Baseline: A=2 D=3 S=3
+    Enhanced: A=5 D=5 S=5
+  [80/90] Does doc-accuracy replace doc-coverage and doc-sync?...
+    Baseline: A=1 D=4 S=5
+    Enhanced: A=5 D=5 S=5
+  [81/90] What phases does the doc-accuracy workflow include?...
+    Baseline: A=1 D=2 S=1
+    Enhanced: A=3 D=5 S=5
+  [82/90] Behavioral claim verification, how?...
+    Baseline: A=1 D=3 S=4
+    Enhanced: A=5 D=5 S=5
+  [83/90] Which phase is most expensive?...
+    Baseline: A=1 D=1 S=2
+    Enhanced: A=5 D=5 S=5
+  [84/90] When is doc-accuracy most useful?...
+    Baseline: A=2 D=4 S=5
+    Enhanced: A=5 D=5 S=5
+
+============================================================
+  Skill: codebase-documenter (6 prompts, context: 11959 chars, runs: 1)
+============================================================
+  [85/90] Bootstrap docs for a new project with no README. What does the skill p...
+    Baseline: A=3 D=4 S=3
+    Enhanced: A=5 D=5 S=5
+  [86/90] When does codebase-documenter NOT apply?...
+    Baseline: A=2 D=4 S=5
+    Enhanced: A=4 D=5 S=5
+  [87/90] Templates included in the scaffold?...
+    Baseline: A=2 D=3 S=3
+    Enhanced: A=4 D=4 S=5
+  [88/90] Difference between codebase-documenter and doc-accuracy?...
+    Baseline: A=4 D=4 S=4
+    Enhanced: A=5 D=5 S=5
+  [89/90] Can the skill update existing README files?...
+    Baseline: A=1 D=2 S=2
+    Enhanced: A=4 D=5 S=5
+  [90/90] What standards does the CODE_COMMENTS template encode?...
+    Baseline: A=1 D=3 S=4
+    Enhanced: A=2 D=3 S=2
+
+  Cost estimate: 360 API calls, ~1,260,000 tokens
+Results written to evals/reports/skill-triage-20260509-135851/results.json
+
+======================================================================
+  KILL GATE: PROCEED (PASS)
+  Criteria: PROCEED=12/15 pass (no regression), CONDITIONAL=9/15 (or regression downgrades PROCEED), STOP=<9
+======================================================================
+  Skill                  Baseline   Enhanced      Delta   Status
+  ----------------------------------------------------------
+  workflow                   2.00       4.11       2.11     PASS
+  session                    2.17       4.61       2.44     PASS
+  session-qa-eligibility       2.95       4.78       1.83     PASS
+  session-migration          2.78       4.61       1.83     PASS
+  session-log-fixer          2.11       4.50       2.39     PASS
+  memory                     1.78       4.61       2.83     PASS
+  memory-documentary         2.56       4.67       2.11     PASS
+  memory-enhancement         2.78       4.44       1.67     PASS
+  using-forgetful-memory       2.22       4.22       2.00     PASS
+  curating-memories          3.33       4.61       1.28     PASS
+  exploring-knowledge-graph       3.50       4.61       1.11     PASS
+  doc-coverage               3.67       4.17       0.50     PASS
+  doc-sync                   2.89       4.39       1.50     PASS
+  doc-accuracy               2.50       4.89       2.39     PASS
+  codebase-documenter        3.00       4.33       1.33     PASS
+======================================================================

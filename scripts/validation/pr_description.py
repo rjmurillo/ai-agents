@@ -274,7 +274,7 @@ def _strip_informational_sections(description: str) -> str:
     # NOTE: 4-space-indented code blocks are NOT masked. They are
     # indistinguishable from indented list items via regex alone. Authors
     # should prefer fenced blocks in PR descriptions.
-    # Triple-backtick: keep unanchored — GFM permits inline ```code``` spans
+    # Triple-backtick: keep unanchored, GFM permits inline ```code``` spans
     # and we want those treated as code regardless of position.
     text = re.sub(r"```.*?```", "<CODE_BLOCK>", description, flags=re.DOTALL)
     # Tilde fence: anchor to start of line (CommonMark requires fences in
@@ -389,6 +389,68 @@ def file_matches(actual: str, mentioned: str) -> bool:
     if "*" in mentioned or "?" in mentioned:
         return fnmatch.fnmatch(actual, mentioned)
     return False
+
+
+# Em/en-dash detection regex for PR title and body validation. The regex is
+# the same shape used by the pre-commit hook section, the commit-msg hook,
+# and `pre_pr.py:_DASH_RE`; this is the PR-description analogue.
+#
+# Uses Unicode escape sequences so this source file does not contain U+2014
+# or U+2013 itself (per `.claude/rules/universal.md` MUST NOT entry 5,
+# Issue #1923). REQ-006 acceptance criteria cover the four enforcement
+# placements: AC1/AC2 (pre-commit hook for staged files), AC3 (commit-msg
+# hook for commit messages), AC7 (pre_pr.py for branch-wide files), and the
+# universal.md prohibition itself (AC8). PR descriptions live in GitHub and
+# are not covered by any AC explicitly; this guard closes that gap and is
+# tracked under the broader Issue #1923 umbrella, not a specific AC.
+_DASH_RE: re.Pattern[str] = re.compile("[\u2013\u2014]")
+
+
+def validate_no_dashes(title: str, body: str) -> list[Issue]:
+    """Reject U+2014 (em-dash) or U+2013 (en-dash) in PR title or description.
+
+    Closes the gap that the .githooks/pre-commit and .githooks/commit-msg
+    hooks do not cover: PR descriptions live in GitHub, never reach `git
+    commit`, and were the source of bot reviewer threads on PR #1930
+    despite the hook implementation. See `.claude/rules/universal.md`
+    MUST NOT entry 5 (Refs Issue #1923).
+    """
+    issues: list[Issue] = []
+    if _DASH_RE.search(title):
+        issues.append(
+            Issue(
+                severity="CRITICAL",
+                issue_type="Em/en-dash in PR title",
+                file="<pr-title>",
+                message=(
+                    "PR title contains U+2014 (em-dash) or U+2013 (en-dash). "
+                    "Replace with comma, period, hyphen, or restructure. "
+                    "Rule: .claude/rules/universal.md MUST NOT entry 5."
+                ),
+            )
+        )
+    if _DASH_RE.search(body):
+        # Find offending lines for actionable output
+        offending = []
+        for lineno, line in enumerate(body.splitlines(), start=1):
+            if _DASH_RE.search(line):
+                offending.append(f"line {lineno}")
+        offending_str = ", ".join(offending[:5])
+        if len(offending) > 5:
+            offending_str += f", ... (+{len(offending) - 5} more)"
+        issues.append(
+            Issue(
+                severity="CRITICAL",
+                issue_type="Em/en-dash in PR description",
+                file="<pr-body>",
+                message=(
+                    f"PR description contains U+2014 or U+2013 ({offending_str}). "
+                    "Replace with comma, period, hyphen, or restructure. "
+                    "Rule: .claude/rules/universal.md MUST NOT entry 5."
+                ),
+            )
+        )
+    return issues
 
 
 def validate_pr_description(
@@ -554,8 +616,15 @@ def main(argv: list[str] | None = None) -> int:
     mentioned_files = extract_mentioned_files(description)
     print(f"Description mentions {len(mentioned_files)} files")
 
-    # Validate
+    # Validate: file mentions vs diff
     issues = validate_pr_description(pr_files, mentioned_files)
+
+    # Validate: no em/en-dashes in PR title or body (Issue #1923, REQ-006).
+    # The .githooks/pre-commit and .githooks/commit-msg hooks cover staged
+    # files and commit messages but cannot scan PR descriptions, which live
+    # in GitHub and never reach `git commit`. This check closes that gap.
+    title: str = pr_data.get("title", "") or ""
+    issues.extend(validate_no_dashes(title, description))
 
     # Honor the bypass label only when CI mode would otherwise fail. The label
     # is the documented escape hatch for false-positive contextual references
@@ -574,8 +643,27 @@ def main(argv: list[str] | None = None) -> int:
     ]
     bypass_label_lower = args.bypass_label.lower()
     pr_labels_lower = {label.lower() for label in pr_labels}
-    has_critical = any(i.severity == "CRITICAL" for i in issues)
-    if args.ci and has_critical and bypass_label_lower in pr_labels_lower:
+
+    # Em/en-dash violations are NEVER bypassable. The
+    # `description-validation-bypass` label is the documented escape hatch for
+    # file-mention false positives only. Dash violations are bot-revealed
+    # style issues that the entire purpose of Issue #1923 is to mechanically
+    # prevent; allowing the bypass label to suppress them silently would
+    # defeat the rule. Dash criticals always block, before the bypass check.
+    dash_issue_types = {"Em/en-dash in PR title", "Em/en-dash in PR description"}
+    has_dash_critical = any(
+        i.severity == "CRITICAL" and i.issue_type in dash_issue_types
+        for i in issues
+    )
+    if args.ci and has_dash_critical:
+        return print_results(issues, ci=args.ci)
+
+    # File-mention CRITICALs may be bypassed via the bypass label.
+    has_non_dash_critical = any(
+        i.severity == "CRITICAL" and i.issue_type not in dash_issue_types
+        for i in issues
+    )
+    if args.ci and has_non_dash_critical and bypass_label_lower in pr_labels_lower:
         print_results(issues, ci=False)
         print(
             f"\nCRITICAL issues bypassed by '{args.bypass_label}' label. "

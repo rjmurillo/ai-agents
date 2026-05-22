@@ -49,13 +49,14 @@ The agent should self-check:
 
 ## Mandatory Exit Gates
 
-The build is not complete until all three gates below return clean. These are **hard preconditions for declaring done**, not advisory output. If any gate returns findings, the implementer must address them in the same `/build` cycle. Do not kick the can to PR review; advisory framing here produces the iteration paradox where reviewers flag what the implementer should have caught, multiplying the cost of every revision.
+The build is not complete until all four gates below return clean. These are **hard preconditions for declaring done**, not advisory output. If any gate returns findings, the implementer must address them in the same `/build` cycle. Do not kick the can to PR review; advisory framing here produces the iteration paradox where reviewers flag what the implementer should have caught, multiplying the cost of every revision.
 
 Run, in order:
 
 1. Skill(skill="code-qualities-assessment") with `--changed-only` against the changed files. Reject the build if any new or modified method scores below the configured thresholds in `.qualityrc.json`.
 2. Skill(skill="taste-lints") against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
 3. Skill(skill="doc-accuracy") with `--diff-base main` so it audits changed comments, docstrings, and prose. Reject the build on any critical or high finding in code or docs you authored.
+4. Skill(skill="orphan-ref-validator"). Reject the build on `VERDICT: CRITICAL_FAIL`. Catches references to deleted skills and missing script paths before they reach review. Manifest count drift is caught by the canonical `build/scripts/validate_marketplace_counts.py` (which orphan-ref-validator's `COUNT_CLAIM_RE` mirrors but does not duplicate emission). To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. The first three gates run in `--changed-only` mode and ignore preexisting drift; gate 4 scans the default targets across the repo because skill-name and script-path orphans are repo-state global, not per-PR. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
 
 If a gate flags an item that is genuinely out of scope for this build, document the rationale in the session log and link to the follow-up issue. "I will fix it in review" is not an acceptable rationale.
 
