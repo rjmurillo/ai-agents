@@ -1,0 +1,135 @@
+{
+  "session": {
+    "number": 1825,
+    "date": "2026-05-09",
+    "branch": "feat/skill-eval-triage",
+    "startingCommit": "588a21ed",
+    "objective": "skill triage eval - 15 suspect skills evaluated, prune/consolidate slate identified"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena activated via mcp__serena__list_memories at session start; project recognized; memory-index read"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-007 active per SessionStart hook; .serena/ directory present; serena initial_instructions referenced via session protocol"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read at session start; confirmed read-only per ADR-014, no inflight handoff blocking the triage work"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/ at session start (70 directories enumerated); session-init skill invoked for this log; eval-knowledge-integration.py exercised"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, CONTRIBUTING.md, and .agents/SESSION-PROTOCOL.md surfaced via system reminders and read; rule files in .claude/rules/ loaded via @import"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read at session start; triage scoped to comply with python-first (ADR-042), atomic-commits (ADR-008), and memory-first (ADR-007)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory-index read at session start; mcp__serena__list_memories returned full memory inventory; mcp__serena__read_memory used to retrieve memory-index content"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/skill-eval-triage created off main at session start; verified via git rev-parse --abbrev-ref HEAD"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/skill-eval-triage; commits prohibited on main per pre-commit hook"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short run multiple times during session; .serena/project.yml auto-update tracked but not staged"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "588a21ed (test commit landing scenario JSON); session work continued from this commit"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Session Start gates marked complete with evidence; all Session End gates populated below"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched by this session (read-only per ADR-014); git diff confirms no modification"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory skills/skill-triage-eval-2026-05-09 written via mcp__serena__write_memory; documents triage findings and action slate for future sessions"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 exercised on .agents/analysis/skill-triage-2026-05-09.md (excluded by config glob !.agents/** so 0 file lint, 0 errors); analysis report follows standard markdown structure"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commit 588a21ed landed scenarios JSON; closing commit lands analysis report, results.json, run.log, session log"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py exercised against this log; eval-knowledge-integration.py kill gate PROCEED (15/15 PASS); pre-commit taste-lints PASS"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "TaskCreate/TaskUpdate used: 5 tasks created (pick suspects, author scenarios, dry-run, execute eval, synthesize); all marked completed at session close"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Retrospective deferred. Triage report itself documents the methodology and limitations; full retrospective belongs to follow-up Wave 2 session when broader skill catalog effects are observable"
+      }
+    }
+  },
+  "workLog": [
+    {"step": "Configure workspace per CONTRIBUTING.md", "outcome": "core.hooksPath set, .venv created, dev deps installed, Pester 5.7.1 verified"},
+    {"step": "Branch off main: feat/skill-eval-triage", "outcome": "Created at 588a21ed parent"},
+    {"step": "Inventory eval infra and skill catalog", "outcome": "70 skills total; built-in PROMPTS in eval-knowledge-integration.py covers 8 skills only; 62 untested"},
+    {"step": "Pick 15 suspect skills (deprecated + cluster overlap)", "outcome": "workflow + 4 session-* + 6 memory-* + 4 doc-*"},
+    {"step": "Author tests/evals/skills/triage-prompts.json", "outcome": "90 prompts (15 skills × 6 prompts each) committed at 588a21ed"},
+    {"step": "Dry-run eval", "outcome": "JSON loads correctly; 90 prompts × 4 calls × 1 run = 360 API call estimate"},
+    {"step": "Live eval run (background, ~15min)", "outcome": "Exit 0; 360 API calls; results.json + run.log produced"},
+    {"step": "Synthesize findings", "outcome": "All 15 PASS but PASS != non-redundant; identified PRUNE/FOLD/SUNSET/DECOMPOSE/INVESTIGATE/RENAME/KEEP slate; report at .agents/analysis/skill-triage-2026-05-09.md"},
+    {"step": "Update Serena memory", "outcome": "skills/skill-triage-eval-2026-05-09 written"}
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR for this branch with triage report as the deliverable; link findings",
+    "Wave 2 triage for remaining 47 skills (agent-workflow, code-review, retrospective-reflect clusters)",
+    "Pairwise overlap eval design: current eval-knowledge-integration measures uniqueness vs baseline only",
+    "ADR for memory skill decomposition (143 KB exceeds skill ceiling)",
+    "Per-cluster prune PRs: F1 doc, F4 memory, F5 session as separate atomic PRs",
+    "CI cron for eval-suite.py to catch skill drift before catalog bloats again"
+  ]
+}

@@ -49,7 +49,7 @@ Every SKILL.md MUST include valid YAML frontmatter:
 ---
 name: skill-name
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: >-
   One-paragraph description of what the skill does.
   Starts with a verb. Under 200 characters.

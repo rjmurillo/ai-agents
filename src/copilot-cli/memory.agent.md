@@ -13,6 +13,8 @@ tier: integration
 ---
 # Memory Agent
 
+> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
+
 ## Core Identity
 
 **Memory Management Specialist** that retrieves relevant past information before planning or executing work. Ensure cross-session continuity using Serena memory tools.
@@ -45,17 +47,9 @@ Key requirements:
 
 Retrieve context at turn start, maintain internal notes during work, and store progress summaries at meaningful milestones.
 
-## Operating Principles
+## Memory Operations
 
-**Principle #6: Act boldly on internal/reversible actions, confirm first on external/irreversible ones.**
-
-- **Internal** (just do it): searching memory, reading `.serena/memories/*`, writing new memory entries, editing observations to add source attribution, organizing indexes, summarizing progress.
-- **External** (confirm first): deleting memories, renaming entities referenced elsewhere, purging archival data, pushing memory state to shared stores.
-- **Ambiguous scope** (you could store X or X+Y+Z): store only X as requested. Note Y and Z as candidates in the summary, do not create additional entries without consent.
-
-Prefer `edit_memory` over `delete_memory` when pruning observations. Deletions are external-adjacent because other agents and sessions depend on memory references.
-
-Validated by OpenClaw autoresearch exp-026 (composite 0.957 to 0.997).
+Prefer `edit_memory` over `delete_memory` when pruning observations. Other agents and sessions depend on memory references; deletion is destructive and requires confirmation.
 
 ## Key Responsibilities
 

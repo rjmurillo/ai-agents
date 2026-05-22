@@ -49,6 +49,7 @@ Key routing rules:
 - Weekly retro → invoke reflect skill
 - Save progress, checkpoint → invoke session-end skill
 - Code quality, health check → invoke quality-grades skill
+- New capability proposed (Context, new module/scanner/validator/pipeline component) → invoke buy-vs-build-framework skill (Quick tier minimum) BEFORE /spec generates artifacts. Skip for pure bug fixes, doc-only changes, refactors with no new capability surface, or extensions of an already-approved capability that add no new tool/scanner/validator.
 
 ## Lifecycle commands
 

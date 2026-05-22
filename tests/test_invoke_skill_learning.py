@@ -366,34 +366,6 @@ class TestPatternSynchronization(unittest.TestCase):
                 self.assertTrue(result, f"Skill '{skill}' should match pattern '{patterns[0]}'")
 
 
-class TestDocSyncSkillPattern(unittest.TestCase):
-    """Test that doc-sync skill detection is precise (replaces phantom 'documentation' skill)."""
-
-    def test_doc_sync_matches_skill_path(self):
-        """Should match .claude/skills/doc-sync path."""
-        text = "Check .claude/skills/doc-sync for templates"
-        result = check_skill_context(text, "doc-sync")
-        self.assertTrue(result, "Should match skill path reference")
-
-    def test_doc_sync_matches_sync_docs_keyword(self):
-        """Should match 'sync docs' keyword."""
-        text = "Use sync docs to update documentation indexes"
-        result = check_skill_context(text, "doc-sync")
-        self.assertTrue(result, "Should match 'sync docs'")
-
-    def test_doc_sync_matches_skill_name(self):
-        """Should match 'doc-sync' skill name."""
-        text = "Run the doc-sync skill to synchronize"
-        result = check_skill_context(text, "doc-sync")
-        self.assertTrue(result, "Should match 'doc-sync'")
-
-    def test_doc_sync_rejects_generic_documentation(self):
-        """Should NOT match generic 'documentation' mentions."""
-        text = "Read the documentation for more info"
-        result = check_skill_context(text, "doc-sync")
-        self.assertFalse(result, "Should not match generic documentation mention")
-
-
 class TestSuccessPatternPrecision(unittest.TestCase):
     """Bug 5 fix: Test that success/approval patterns avoid false positives."""
 

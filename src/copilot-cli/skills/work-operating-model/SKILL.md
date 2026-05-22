@@ -1,7 +1,7 @@
 ---
 name: work-operating-model
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 description: "Run a 5-layer interview to elicit how a team actually works (rhythms, decisions, dependencies, institutional knowledge, friction) and emit a structured operating model."
 license: MIT
 ---

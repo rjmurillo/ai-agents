@@ -38,7 +38,7 @@ def skill_tree(tmp_path: Path) -> Path:
         "---\n"
         "name: alpha-skill\n"
         "version: 1.0.0\n"
-        "model: claude-sonnet-4-5\n"
+        "model: claude-sonnet-4-6\n"
         "description: Analyzes code quality metrics\n"
         "---\n\n# Alpha\n"
     )
@@ -123,7 +123,7 @@ class TestScanSkill:
         skill_dir = skill_tree / "alpha-skill"
         result = scan_skill(skill_dir, skill_tree.parent.parent)
         assert result.name == "alpha-skill"
-        assert result.model == "claude-sonnet-4-5"
+        assert result.model == "claude-sonnet-4-6"
         assert result.has_tests is True
 
     def test_handles_missing_skill_md(self, skill_tree: Path) -> None:

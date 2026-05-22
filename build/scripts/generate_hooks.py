@@ -244,6 +244,15 @@ import fnmatch as _fnmatch
 
 _MATCHER = {matcher!r}
 
+# Cap stdin read so a malicious or buggy upstream cannot OOM the shim
+# (CWE-400). Mirrors push_guard_base.MAX_STDIN_BYTES (1 MiB) with a
+# small headroom; real Claude/Copilot tool_input commands are well
+# below this limit. The cap belongs at the SHIM layer because the
+# shim reads stdin BEFORE delegating to the wrapped script. Without
+# it, the wrapped script's own cap is applied too late: the OOM has
+# already happened.
+_SHIM_MAX_STDIN_BYTES = 2 * 1024 * 1024
+
 
 def _shim_classify(pattern):
     # MIRROR: classify_matcher (build-time, build/scripts/generate_hooks.py)
@@ -312,10 +321,18 @@ def _shim_should_fire(payload):
 
 def _shim_dispatch():
     try:
-        _raw = _sys.stdin.buffer.read()
+        _raw = _sys.stdin.buffer.read(_SHIM_MAX_STDIN_BYTES + 1)
     except Exception as exc:  # pragma: no cover - defensive
         print(
             "matcher-shim [{{}}]: failed to buffer stdin: {{}}".format(_MATCHER, exc),
+            file=_sys.stderr,
+        )
+        _sys.exit(2)
+    if len(_raw) > _SHIM_MAX_STDIN_BYTES:
+        print(
+            "matcher-shim [{{}}]: stdin exceeds {{}} bytes; refusing".format(
+                _MATCHER, _SHIM_MAX_STDIN_BYTES
+            ),
             file=_sys.stderr,
         )
         _sys.exit(2)
@@ -355,12 +372,36 @@ def _shim_dispatch():
 '''
 
 
+_MAIN_EPILOGUE_RE = _re.compile(
+    r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
+    r"\s+sys\.exit\(\s*main\(\)\s*\)\s*$",
+    _re.MULTILINE,
+)
+
+
+def _has_main_function_and_epilogue(body: str) -> bool:
+    """Detect the canonical ``def main(): ...; if __name__ == '__main__': sys.exit(main())`` shape.
+
+    When the original script declares ``def main()`` and dispatches it via
+    the standard ``if __name__ == '__main__': sys.exit(main())`` block, the
+    generated wrapper must invoke ``main()`` to surface its exit code.
+    Without this, the wrapper falls through to the trailing ``return 0``
+    and every guard always reports success regardless of validator
+    outcome.
+    """
+    has_main = _re.search(r"^def\s+main\s*\(", body, _re.MULTILINE) is not None
+    return has_main and _MAIN_EPILOGUE_RE.search(body) is not None
+
+
 def _wrap_body_in_function(body: str) -> str:
     """Indent ``body`` and wrap it in ``def _original_main(stdin_bytes):``.
 
     The original script's top-level statements become the function body.
-    A trailing ``return 0`` makes scripts that exit by falling off the
-    bottom return a clean exit code. Scripts that call ``sys.exit(...)``
+    Scripts that follow the canonical ``def main(): ...; if __name__ ==
+    '__main__': sys.exit(main())`` shape get a trailing ``return main()``
+    so the wrapper surfaces the validator's real exit code. Other scripts
+    keep the original ``return 0`` fallthrough so falling off the bottom
+    is treated as a clean exit. Scripts that call ``sys.exit(...)``
     explicitly are unaffected: ``SystemExit`` propagates through the
     function call.
 
@@ -368,11 +409,13 @@ def _wrap_body_in_function(body: str) -> str:
     debugging by emitting a leading ``# original script begins`` marker.
     """
     indented = "\n".join("    " + line if line else "" for line in body.splitlines())
+    trailer = "    return main()\n" if _has_main_function_and_epilogue(body) else "    return 0\n"
     return (
         "def _original_main(stdin_bytes):\n"
         + "    # original script body begins below\n"
         + indented
-        + "\n    return 0\n"
+        + "\n"
+        + trailer
     )
 
 
@@ -501,10 +544,12 @@ def _extract_original_body(after_shim: list[str]) -> str:
             continue
         break  # Non-indented line ends the function body.
 
-    # Trim the synthetic trailing ``return 0`` we appended.
+    # Trim the synthetic trailing ``return 0`` or ``return main()``
+    # we appended. The exact trailer depends on whether the original
+    # script had a canonical main() epilogue at generation time.
     while body_lines and body_lines[-1].strip() == "":
         body_lines.pop()
-    if body_lines and body_lines[-1].rstrip() == "return 0":
+    if body_lines and body_lines[-1].rstrip() in ("return 0", "return main()"):
         body_lines.pop()
         while body_lines and body_lines[-1].strip() == "":
             body_lines.pop()

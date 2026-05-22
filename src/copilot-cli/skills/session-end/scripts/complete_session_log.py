@@ -21,6 +21,11 @@ import sys
 from datetime import UTC
 from pathlib import Path
 
+# Sibling-module loader for rework_warning (REQ-010).
+# Loaded lazily inside main() to keep import-time failures from breaking
+# session-end entirely if the sibling is missing or has a syntax error.
+# Pattern documented in implementation-007-pr1989-recursive-failure-learnings.
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -364,6 +369,34 @@ def main(argv: list[str] | None = None) -> int:
             return 1
     else:
         print(f"WARNING: Validation script not found: {validate_script}", file=sys.stderr)
+
+    # Rework warning (REQ-010-01..04). Informational only; MUST NOT block
+    # session-end under any circumstances. Sibling-module loader degrades
+    # gracefully on any failure (missing file, SyntaxError, runtime errors
+    # in compute_rework_warning, etc.). PR #1989 had this bug with a narrow
+    # `(OSError, ImportError, AttributeError)` clause; PR #2004 bot review
+    # caught that exec_module can raise SyntaxError and arbitrary exceptions
+    # from module top-level code. `Exception` is the correct breadth: it
+    # excludes KeyboardInterrupt and SystemExit (BaseException subclasses)
+    # so Ctrl+C still works, but catches every other failure mode.
+    print("", file=sys.stderr)
+    try:
+        import importlib.util as _il
+        _path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "rework_warning.py"
+        )
+        _spec = _il.spec_from_file_location("rework_warning", _path)
+        if _spec is not None and _spec.loader is not None:
+            _rw = _il.module_from_spec(_spec)
+            _spec.loader.exec_module(_rw)
+            _items = _rw.compute_rework_warning()
+            for _line in _rw.emit_rework_warning_lines(_items):
+                print(_line, file=sys.stderr)
+    except Exception:  # noqa: BLE001 — informational; must never block session-end
+        print(
+            "rework-warning: skipped (sibling module unavailable)",
+            file=sys.stderr,
+        )
 
     print("", file=sys.stderr)
     print("[PASS] Session log completed and validated", file=sys.stderr)

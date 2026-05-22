@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "F002",
+  "input": "Design review:\n\nA new internal microservice receives webhook callbacks from a third-party billing provider over plain HTTP on a private VLAN. The webhook payload includes the customer id, invoice id, and a 'status' field. The service trusts the source IP because the VLAN is internal, applies the status update directly to the database, and writes 'invoice <id> updated by webhook' to an append-only audit log. There is no signed payload, no replay-nonce, and no per-request authentication header. Identify any threats the design carries and classify them.",
+  "provenance": "synthetic",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "IDENTIFY"},
+    {"kind": "regex", "pattern": "(?i)(spoof|tamper|repudiat)"}
+  ],
+  "tags": ["stride", "spoofing", "tampering", "repudiation", "verdict-identify", "agent-discriminating"]
+}

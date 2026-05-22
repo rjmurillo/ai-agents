@@ -78,7 +78,24 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `r
 
 ## Completion Gate
 
-ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back up to `invocation_limits.completion_gate_max_retries` times (default: 3) from config. If criteria still fail after the maximum retries, execute `invocation_limits.completion_gate_overflow_action` and halt. See `failure_handling` and `error_recovery` in config for recovery actions.
+The completion gate is dispatchable: each criterion in `completion_criteria` runs an external verification command, and the command's stdout JSON is the source of truth for the verdict. Run the dispatcher exactly once per PR:
+
+```bash
+python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
+    --config .claude/commands/pr-review-config.yaml \
+    --pull-request {pr} \
+    --json
+```
+
+The dispatcher exits 0 if every criterion passes, 1 if any criterion fails, 2 on a config error. On failure, do NOT loop. Looping on a failing verifier produces the same wrong answer; the retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern).
+
+When the dispatcher exits 1, surface the failing criterion's `name`, `command`, `reason`, and a stdout/stderr excerpt from the JSON output, then halt. Do not claim completion. Do not re-run the gate hoping for a different answer. Investigate the underlying failure and address it; once addressed, the gate may be re-run. The `--json` mode emits the verifier evidence inline; the table mode (default) prints the same fields below each FAIL row.
+
+`fail_open: false` (the default for every criterion in this config) means a verifier that errors or returns malformed output also fails the gate. A verifier that cannot verify is not evidence that the criterion holds.
+
+### Trust boundary on the PR branch
+
+When `/pr-review` runs after `gh pr checkout`, the dispatcher reads `pr-review-config.yaml` from the PR's working tree. A malicious PR can change `completion_criteria.command` or `pass_when_python` and the dispatcher will execute it. Before invoking `/pr-review` on a PR that you do not control, INSPECT the diff for any change to `.claude/commands/pr-review-config.yaml`. The same caution applies to any test/lint/build a reviewer runs on a PR branch; this gate just makes the execution path explicit. Hardening (loading the config from `main` or refusing to run on divergence) is tracked as a follow-up to PR #1898.
 
 ## Related Memories
 

@@ -1,7 +1,7 @@
 ---
 name: codebase-documenter
 version: 1.0.0
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 allowed-tools:
   - Read
   - Write
@@ -36,9 +36,7 @@ Use this skill when:
 
 Use a different skill when:
 
-- Documentation already exists and you want to verify accuracy. Use `doc-accuracy`.
-- You want to detect missing XML docs, docstrings, or JSDoc against the code. Use `doc-coverage`.
-- README and CLAUDE.md indexes have drifted from the code layout. Use `doc-sync`.
+- Documentation already exists and you want to verify accuracy, detect missing XML docs / docstrings / JSDoc, or audit README / CLAUDE.md drift. Use `doc-accuracy` for verification, missing-doc detection, and structural sync.
 - You want narrative prose generated for an existing component. Use the `explainer` agent.
 
 ## Boundaries

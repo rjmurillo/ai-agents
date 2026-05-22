@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "F001",
+  "agent": "critic",
+  "input": "Critique this implementer's diff. Do not ask for clarification. Deliver a verdict.\n\n```python\n# scripts/validate_session_json.py\nimport re\n\n# Detects contradiction phrases in session-log evidence fields.\nCONTRADICTION_PATTERNS = re.compile(\n    r'not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD',\n    re.IGNORECASE,\n)\n\ndef has_contradiction(text):\n    return bool(CONTRADICTION_PATTERNS.search(text))\n```\n\n```python\n# tests/test_validate_session_json.py\ndef test_detects_pending():\n    assert has_contradiction('will run pending tests')\n\ndef test_passes_clean():\n    assert not has_contradiction('all tests passed in CI')\n```",
+  "provenance": "synthetic",
+  "planted_issues": [
+    "regex has NO word boundaries: 'TBD' substring will match inside 'STBDX' (false positive)",
+    "regex has NO word boundaries: 'pending' will match inside 'impending', 'descending', 'pendingly'",
+    "regex 'N/A' has no word boundary, will match inside 'aN/Ab', 'IN/ALL'",
+    "tests do not exercise the boundary-token cases",
+    "tests do not exercise mixed-case boundary combinations",
+    "tests do not exercise the documented contract (which words are 'contradiction' words)"
+  ],
+  "scoring_rubric": {
+    "kind": "checklist_vocabulary_present",
+    "treatment_floor": "must surface a finding using the regex-token-boundary vocabulary (word-boundary, token boundary, \\\\b)",
+    "control_baseline": "may flag generic 'untested edge cases' without the specific boundary frame"
+  },
+  "expected_verdict": "BOUNDARY_FINDING_RAISED",
+  "verdict_options": ["BOUNDARY_FINDING_RAISED", "GENERIC_OR_NO_FINDING"],
+  "expected_reason_contains": "boundary",
+  "rationale": "Treatment Adversarial Coverage Checklist item: 'Whitespace / unicode / token boundary variants for regexes: leading or trailing whitespace, mixed line endings, unicode lookalikes, surrounding tokens that change matching context. A regex without a word-boundary test is suspect; cite the wiki entry on regex token boundaries when you write the finding.' Control critic template lacks this vocabulary; even if it flags 'add more tests', it is unlikely to use 'boundary' specifically.",
+  "tags": ["agent-critic", "regex-token-boundary", "checklist-vocabulary"]
+}

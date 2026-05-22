@@ -49,12 +49,14 @@ Keep SKILL.md focused on the workflow. Move detailed knowledge into references. 
 ## Iterate vs Redesign
 
 **Iterate** when:
+
 - The skill's core approach is sound
 - Problems are in specific steps or missing details
 - Fixes are additive (more examples, tighter instructions, new references)
 - Less than 30% of SKILL.md needs to change
 
 **Redesign** when:
+
 - The fundamental approach is wrong (e.g., wrong phases, wrong scope)
 - Users consistently work around the skill instead of through it
 - More than 50% of SKILL.md would need rewriting

@@ -1,3 +1,7 @@
+<!-- orphan-ref-ignore-file -->
+<!-- ADR-011 spec describes proposed session memory entities (session-history,
+     session-violations-log, etc) by name. These are not skills; skip. -->
+
 # Session State MCP Technical Specification
 
 > **Status**: Draft

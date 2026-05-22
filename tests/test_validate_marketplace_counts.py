@@ -17,8 +17,10 @@ _BUILD_SCRIPTS = Path(__file__).resolve().parent.parent / "build" / "scripts"
 sys.path.insert(0, str(_BUILD_SCRIPTS))
 
 from validate_marketplace_counts import (  # noqa: E402
+    COPILOT_MARKETPLACE_JSON,
     parse_counts_from_description,
     validate,
+    validate_known_marketplaces,
 )
 
 
@@ -63,8 +65,26 @@ class TestValidateIntegration:
     """Integration test against the real repo structure."""
 
     def test_current_counts_are_valid(self) -> None:
-        """After --fix, the marketplace.json should pass validation."""
+        """Claude marketplace should pass validation."""
         assert validate(fix=False) == 0
+
+    def test_copilot_marketplace_counts_are_valid(self) -> None:
+        """Copilot marketplace should pass validation."""
+        assert validate(fix=False, marketplace_path=COPILOT_MARKETPLACE_JSON) == 0
+
+    def test_all_known_marketplaces_are_valid(self) -> None:
+        """Default CLI mode validates every shipped marketplace."""
+        assert validate_known_marketplaces(fix=False) == 0
+
+    def test_known_marketplaces_resolve_paths_relative_to_repo_root(
+        self, tmp_path: Path
+    ) -> None:
+        """`repo_root` override must steer the resolver away from the
+        module-level marketplace constants. With an empty fake repo, the
+        function must report a config error (exit 2) instead of silently
+        validating the production manifests under the real REPO_ROOT.
+        """
+        assert validate_known_marketplaces(fix=False, repo_root=tmp_path) == 2
 
 
 class TestValidateWithFixtures:
@@ -148,15 +168,12 @@ class TestZeroEditExtensibility:
     def test_new_plugin_validates_without_python_changes(
         self, tmp_path: Path
     ) -> None:
-        # Fake source tree: 4 .md agents under <repo>/fake-plugin-src.
         src = tmp_path / "fake-plugin-src"
         src.mkdir()
         for name in ["one.md", "two.md", "three.md", "four.md"]:
             (src / name).write_text("agent body\n")
-        # README.md should be excluded so we still count 4.
         (src / "README.md").write_text("docs\n")
 
-        # New plugin counter config (uses existing md_agents strategy).
         counters_yaml = tmp_path / "marketplace-counters.yaml"
         counters_yaml.write_text(
             'schemaVersion: "1.0"\n'
@@ -168,7 +185,6 @@ class TestZeroEditExtensibility:
             '      exclude: ["README.md"]\n'
         )
 
-        # Marketplace.json with description containing the count token.
         marketplace = tmp_path / "marketplace.json"
         marketplace.write_text(
             json.dumps(
@@ -184,7 +200,6 @@ class TestZeroEditExtensibility:
             )
         )
 
-        # Validate: returns 0 with no Python edits required.
         assert (
             validate(
                 fix=False,
@@ -263,8 +278,7 @@ class TestP1Fixes:
     def test_missing_source_dir_yields_config_error_not_traceback(
         self, tmp_path: Path
     ) -> None:
-        """Gate-1 F-001: misconfigured sourceDir → exit 2 (ConfigError),
-        NOT a Python traceback. Hardened in _build_counter."""
+        """Gate-1 F-001: misconfigured sourceDir → exit 2 (ConfigError)."""
         counters_yaml = tmp_path / "marketplace-counters.yaml"
         counters_yaml.write_text(
             'schemaVersion: "1.0"\n'
@@ -276,7 +290,6 @@ class TestP1Fixes:
         )
         marketplace = tmp_path / "marketplace.json"
         marketplace.write_text(json.dumps({"plugins": []}))
-        # Exit 2 is config error per ADR-035 contract.
         assert (
             validate(
                 fix=False,
@@ -288,23 +301,17 @@ class TestP1Fixes:
         )
 
     def test_walk_files_prunes_excluded_dirs(self, tmp_path: Path) -> None:
-        """Gate-2 finding: rglob without pruning walks node_modules etc.
-
-        Counter must skip excluded dirs to prevent CI hang on vendored bloat.
-        """
+        """Counters must skip excluded dirs to prevent CI hangs."""
         from validate_marketplace_counts import _walk_files
 
         src = tmp_path / "src"
         src.mkdir()
         (src / "real.py").write_text("# real\n")
-        # Vendored subtree that MUST be pruned
         node_modules = src / "node_modules" / "deep" / "more"
         node_modules.mkdir(parents=True)
         (node_modules / "vendored.py").write_text("# vendored\n")
-        # .git dir also pruned
         git_dir = src / ".git" / "objects"
         git_dir.mkdir(parents=True)
         (git_dir / "should-skip.py").write_text("# skip\n")
 
-        # Only real.py counted; node_modules + .git pruned during walk.
         assert _walk_files(src, ".py", set()) == 1

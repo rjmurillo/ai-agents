@@ -40,7 +40,7 @@ description: Does something useful when you need it
 ---
 name: advanced-skill
 version: 2.0.0
-model: claude-opus-4-5
+model: claude-opus-4-6
 license: MIT
 description: Complex orchestration skill requiring maximum reasoning capability
 allowed-tools: Bash(pwsh:*), Read, Write, Grep
@@ -80,8 +80,8 @@ Use model aliases in skills. Aliases auto-update when Anthropic releases new sna
 
 | Tier | Alias | Cost (Input/Output per MTok) | Use When |
 |------|-------|------------------------------|----------|
-| Opus | `claude-opus-4-5` | $5 / $25 | Deep reasoning, multi-agent coordination, architectural decisions |
-| Sonnet | `claude-sonnet-4-5` | $3 / $15 | Standard coding workflows, documentation, security detection |
+| Opus | `claude-opus-4-6` | $5 / $25 | Deep reasoning, multi-agent coordination, architectural decisions |
+| Sonnet | `claude-sonnet-4-6` | $3 / $15 | Standard coding workflows, documentation, security detection |
 | Haiku | `claude-haiku-4-5` | $1 / $5 | Simple pattern matching, format fixes, fast hooks |
 
 ### Decision Matrix
@@ -111,7 +111,7 @@ Omit `model` when:
 
 ### Alias vs. Dated ID
 
-Use aliases (`claude-opus-4-5`) for skills. Dated snapshots (`claude-opus-4-5-20251101`) are for production API integrations that need reproducible behavior.
+Use aliases (`claude-opus-4-6`) for skills. Dated snapshots (`claude-opus-4-6-20260101`) are for production API integrations that need reproducible behavior.
 
 ## Description Best Practices
 
@@ -189,10 +189,10 @@ model: claude-haiku-4-5
 
 ```yaml
 ---
-name: doc-sync
-description: Synchronizes CLAUDE.md navigation indexes and README.md architecture docs across a repository. Use when asked to "sync docs", "update CLAUDE.md files", "ensure documentation is in sync", or when documentation maintenance is needed after code changes.
+name: doc-accuracy
+description: Multi-phase documentation verification treating code as source of truth. Single canonical entrypoint for documentation auditing; replaced the former doc-coverage and doc-sync skills (deleted 2026-05-09) and absorbs incoherence detection and comment analysis into one workflow. Use when auditing documentation accuracy, verifying code examples compile, checking behavioral claims, or running pre-release doc audits.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ---
 ```
 
@@ -202,7 +202,7 @@ model: claude-sonnet-4-5
 ---
 name: analyze
 version: 1.0.0
-model: claude-opus-4-5
+model: claude-opus-4-6
 description: Analyze codebase architecture, security posture, or code quality through guided multi-step investigation. Use when performing architecture reviews, security assessments, quality evaluations, or deep technical investigations. Produces prioritized findings with evidence.
 license: MIT
 ---
@@ -226,16 +226,16 @@ Before committing a new skill, verify:
 
 ### 404 Not Found Error
 
-**Symptom**: `404 not_found_error: model 'sonnet-4.5' not found`
+**Symptom**: `404 not_found_error: model 'sonnet-4.6' not found`
 
 **Fix**: Use canonical identifier, not descriptive name.
 
 ```yaml
 # Wrong
-model: sonnet-4.5
+model: sonnet-4.6
 
 # Correct
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 ```
 
 ### Skill Not Triggering

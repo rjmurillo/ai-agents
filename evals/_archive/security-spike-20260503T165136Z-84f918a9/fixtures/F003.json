@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "F003",
+  "input": "API design feedback requested:\n\nGET /api/v2/users/{id} returns the user record. The handler queries the users table and returns the row as JSON. The row contains: id, display_name, avatar_url, email, phone_e164, password_hash, password_reset_token, mfa_recovery_codes, internal_role_flags. The frontend uses the response to render the public profile page (display_name + avatar_url only). The mobile app uses the same endpoint. Both have been in production for six months. Anything to flag?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "IDENTIFY"},
+    {"kind": "regex", "pattern": "CWE-200"}
+  ],
+  "tags": ["cwe-200", "owasp-a01", "owasp-api3", "data-exposure", "verdict-identify"]
+}

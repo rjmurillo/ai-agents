@@ -21,45 +21,29 @@ plugins:
       strategy: "md_agents"
       sourceDir: "src/claude"
       exclude: ["AGENTS.md"]
-  copilot-cli-agents:
-    agent:
-      strategy: "agent_md"
-      sourceDir: "src/copilot-cli"
   project-toolkit:
-    agent:
-      strategy: "md_agents"
-      sourceDir: ".claude/agents"
-      exclude: ["AGENTS.md", "CLAUDE.md"]
-    slash command:
-      strategy: "commands"
-      sourceDir: ".claude/commands"
-    lifecycle hook:
-      strategy: "hooks"
-      sourceDir: ".claude/hooks"
-    reusable skill:
-      strategy: "skill_dirs"
-      sourceDir: ".claude/skills"
-  claude-toolkit:
-    agent:
-      strategy: "md_agents"
-      sourceDir: ".claude/agents"
-      exclude: ["AGENTS.md", "CLAUDE.md"]
-    reusable skill:
-      strategy: "skill_dirs"
-      sourceDir: ".claude/skills"
-    slash command:
-      strategy: "commands"
-      sourceDir: ".claude/commands"
-    lifecycle hook:
-      strategy: "hooks"
-      sourceDir: ".claude/hooks"
-  copilot-cli-toolkit:
-    agent:
-      strategy: "agent_md"
-      sourceDir: "src/copilot-cli"
-    reusable skill:
-      strategy: "skill_dirs"
-      sourceDir: "src/copilot-cli/skills"
-    lifecycle hook:
-      strategy: "hooks"
-      sourceDir: "src/copilot-cli/hooks"
+    marketplaces:
+      .claude-plugin/marketplace.json:
+        agent:
+          strategy: "md_agents"
+          sourceDir: ".claude/agents"
+          exclude: ["AGENTS.md", "CLAUDE.md"]
+        slash command:
+          strategy: "commands"
+          sourceDir: ".claude/commands"
+        lifecycle hook:
+          strategy: "hooks"
+          sourceDir: ".claude/hooks"
+        reusable skill:
+          strategy: "skill_dirs"
+          sourceDir: ".claude/skills"
+      .github/plugin/marketplace.json:
+        agent:
+          strategy: "agent_md"
+          sourceDir: "src/copilot-cli"
+        reusable skill:
+          strategy: "skill_dirs"
+          sourceDir: "src/copilot-cli/skills"
+        lifecycle hook:
+          strategy: "hooks"
+          sourceDir: "src/copilot-cli/hooks"

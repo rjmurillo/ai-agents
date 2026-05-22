@@ -118,7 +118,7 @@ This document reconciles all skill knowledge from official standards (agentskill
 
 - **ai-agents skills**: REQUIRED top-level field
 - **Portable skills**: OMIT this field (use platform defaults)
-- **Value format**: Use aliases (`claude-opus-4-5`) for auto-updates, dated IDs (`claude-opus-4-5-20251101`) for deterministic behavior
+- **Value format**: Use aliases (`claude-opus-4-6`) for auto-updates, dated IDs (`claude-opus-4-6-20251015`) for deterministic behavior
 
 ### Conflict 3: Required Fields Count
 
@@ -201,9 +201,9 @@ allowed-tools: Read Grep Glob
 ```yaml
 ---
 name: adr-review
-model: claude-opus-4-5           # Orchestrator runs on Opus
+model: claude-opus-4-6           # Orchestrator runs on Opus
 metadata:
-  subagent_model: claude-opus-4-5  # Delegates to Opus agents
+  subagent_model: claude-opus-4-6  # Delegates to Opus agents
 ```
 
 **Example (non-orchestrator)**:
@@ -211,7 +211,7 @@ metadata:
 ```yaml
 ---
 name: session-init
-model: claude-sonnet-4-5         # Skill runs on Sonnet
+model: claude-sonnet-4-6         # Skill runs on Sonnet
 metadata:
   domains: [session-protocol]    # No subagent_model (not an orchestrator)
 ```
@@ -231,7 +231,7 @@ description: What and when to use    # Max 1024 chars, trigger keywords
 # REQUIRED (ai-agents Project)
 version: 1.0.0                       # Semantic versioning
 license: MIT                         # SPDX identifier
-model: claude-sonnet-4-5             # Model alias or dated ID
+model: claude-sonnet-4-6             # Model alias or dated ID
 
 # OPTIONAL (Official Standard)
 compatibility: Requires network      # Max 500 chars, env requirements
@@ -244,7 +244,7 @@ mode: context                        # Mode command category
 # OPTIONAL (ai-agents Extensions)
 metadata:
   # Orchestrator-specific
-  subagent_model: claude-opus-4-5    # Model for delegated agents
+  subagent_model: claude-opus-4-6    # Model for delegated agents
 
   # Classification
   domains: [architecture, planning]  # Domain categories
@@ -309,12 +309,12 @@ metadata:
 - **Type**: String
 - **Format**: Model alias or dated snapshot ID
 - **Aliases** (recommended):
-  - `claude-opus-4-5` - Maximum reasoning, orchestration ($5/$25 per MTok)
-  - `claude-sonnet-4-5` - Standard workflows ($3/$15 per MTok)
+  - `claude-opus-4-6` - Maximum reasoning, orchestration ($5/$25 per MTok)
+  - `claude-sonnet-4-6` - Standard workflows ($3/$15 per MTok)
   - `claude-haiku-4-5` - Speed, lightweight ($1/$5 per MTok)
 - **Dated IDs** (deterministic behavior):
-  - `claude-opus-4-5-20251101`
-  - `claude-sonnet-4-5-20250929`
+  - `claude-opus-4-6-20251015`
+  - `claude-sonnet-4-6-20251015`
   - `claude-haiku-4-5-20251015`
 - **Selection Criteria**:
 
@@ -506,7 +506,7 @@ name: my-skill
 version: 1.0.0  # Moved to top-level
 description: Does something useful
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains: [analysis]  # Domain-specific fields remain
 ---
@@ -518,7 +518,7 @@ metadata:
 
 ```yaml
 ---
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6-20251015
 ---
 ```
 
@@ -526,7 +526,7 @@ model: claude-opus-4-5-20251101
 
 ```yaml
 ---
-model: claude-opus-4-5  # Auto-updates within ~1 week of release
+model: claude-opus-4-6  # Auto-updates within ~1 week of release
 ---
 ```
 
@@ -735,7 +735,7 @@ name: session-init
 version: 1.0.0
 description: Create protocol-compliant session logs with verification-based enforcement. Prevents recurring CI validation failures by reading canonical template from SESSION-PROTOCOL.md and validating immediately. Use when starting any new session.
 license: MIT
-model: claude-sonnet-4-5
+model: claude-sonnet-4-6
 metadata:
   domains:
     - session-protocol
@@ -773,9 +773,9 @@ name: adr-review
 version: 1.0.0
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus.
 license: MIT
-model: claude-opus-4-5
+model: claude-opus-4-6
 metadata:
-  subagent_model: claude-opus-4-5  # Model for delegated agents
+  subagent_model: claude-opus-4-6  # Model for delegated agents
   domains:
     - architecture
     - governance
