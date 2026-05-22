@@ -1,4 +1,4 @@
-"""Test fixtures for `.claude/skills/review-axes/references/` and `.claude/lib/` validation.
+"""Test fixtures for `.claude/skills/review/references/` and `.claude/lib/` validation.
 
 Implements REQ-008-01 acceptance criterion: schema-validation fixture asserts
 exact section-title strings (literal level-2 headings) and required frontmatter
@@ -105,7 +105,7 @@ def _find_level_2_headings(body: str) -> list[str]:
 def validate_axis_schema(path: Path) -> None:
     """Validate a canonical axis file against REQ-008-01.
 
-    Validates `.claude/skills/review-axes/references/{role}.md` files.
+    Validates `.claude/skills/review/references/{role}.md` files.
 
     Raises:
         AssertionError: when frontmatter keys are missing, required level-2
