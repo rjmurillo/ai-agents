@@ -211,17 +211,17 @@ def _build_directory_copy(
 ) -> GeneratorResult:
     """Generic directory-mirror builder for ``artifacts.<artifact_name>`` stanzas.
 
-    Shared by :func:`_build_lib` and :func:`_build_review_axes`. The two
-    encode the same knowledge ("copy a configured source dir to a
+    Used by :func:`_build_lib` to copy a configured source dir to a
     configured output dir, with pycache exclusion and a containment
-    guard"); centralizing it here keeps that knowledge in one place.
+    guard. Retained as a shared helper so additional directory-mirror
+    artifacts can reuse it without duplicating the logic.
 
     Parameters:
         artifact_name: stanza key under ``artifacts`` and the value used
             in the audit row's ``artifact`` field.
         count_glob: rglob pattern used for inputs/outputs counts (e.g.,
-            ``"*.py"`` for lib, ``"*.md"`` for review-axes). Matched files
-            inside ``__pycache__`` are excluded from the count.
+            ``"*.py"`` for lib). Matched files inside ``__pycache__`` are
+            excluded from the count.
 
     Skips silently when the platform has no ``artifacts.<name>`` stanza.
     """
@@ -308,38 +308,6 @@ def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorRe
         platform,
         artifact_name="lib",
         count_glob="*.py",
-    )
-
-
-def _build_review_axes(
-    repo_root: Path, config_path: Path, platform: str
-) -> GeneratorResult:
-    """Bundle review-axes prompts alongside the bridged /review skill (#2042).
-
-    The `/review` command body references six canonical axis prompts under
-    ``.claude/skills/review-axes/references/{role}.md`` (the reference-only
-    ``review-axes`` skill is the canonical source; it lives inside
-    ``.claude/skills/`` because the project layout policy permits only
-    ``.claude-plugin``, ``agents``, ``commands``, ``hooks``, ``rules``,
-    and ``skills`` directly under ``.claude/``).
-
-    In a vendored plugin install (e.g., Copilot CLI), the consumer repo
-    has no ``.claude/`` mirror and the command cannot resolve those paths.
-    This step bundles the canonical files alongside the bridged skill at
-    ``src/copilot-cli/skills/review/references/{role}.md`` so the second
-    candidate in the command body's "Path resolution" section succeeds.
-    The skills generator excludes the ``review-axes`` source directory
-    from its own copy so the plugin install does not carry a duplicate
-    under ``skills/review-axes/``.
-
-    Skips silently when the platform has no ``artifacts.review-axes`` stanza.
-    """
-    return _build_directory_copy(
-        repo_root,
-        config_path,
-        platform,
-        artifact_name="review-axes",
-        count_glob="*.md",
     )
 
 
@@ -437,10 +405,6 @@ GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("commands", _build_commands),
     ("rules", _build_rules),
     ("lib", _build_lib),
-    # review-axes MUST land after commands so the bridged
-    # src/copilot-cli/skills/review/ dir exists; the builder also creates
-    # it lazily, but ordering keeps the audit log monotonic.
-    ("review-axes", _build_review_axes),
     ("hooks", _build_hooks),
 ]
 
