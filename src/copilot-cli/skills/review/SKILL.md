@@ -2,7 +2,10 @@
 name: review
 version: 1.0.0
 description: Review before merge. Nine-axis review across 6 canonical axes (analyst, architect, qa, security, devops, roadmap) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test.
+argument-hint:
+  - branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
+user-invocable: true
 license: MIT
 ---
 
