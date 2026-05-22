@@ -104,12 +104,11 @@ Every conversation on a PR MUST traverse the full lifecycle before the PR can la
 1. **READ**: Fetch the comment body and any inline diff context.
 2. **TRIAGE**: Classify per the table below. Record category in your working state.
 3. **SOLVE**: If Blocking, fix the underlying code. If Informational or Stale, no code action required.
-4. **REPLY**: Post a reply via `add_pr_review_thread_reply.py` stating the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated. The script issues `addPullRequestReviewThreadReply` as a single GraphQL mutation.
-5. **RESOLVE**: Call `add_pr_review_thread_reply.py --resolve` (issues reply + a separate `resolveReviewThread` mutation in one script invocation) or `resolve_pr_review_thread.py`. A reply alone does not resolve the thread.
+4. **REPLY + RESOLVE**: Post a reply AND resolve the thread in one call via `add_pr_review_thread_reply.py --resolve`. The script issues `addPullRequestReviewThreadReply` followed by `resolveReviewThread` as two GraphQL mutations. The reply states the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated. A reply alone does not resolve the thread; use `--resolve` to do both in one invocation.
 
-Skipping any step on an unresolved thread is a protocol violation. Threads already RESOLVED before the session started require only read-only inspection (steps 1-2) to confirm the resolution is consistent with the current diff; steps 3-5 do not apply because there is nothing to act on.
+Skipping any step on an unresolved thread is a protocol violation. Threads already RESOLVED before the session started require only read-only inspection (steps 1-2) to confirm the resolution is consistent with the current diff; steps 3-4 do not apply because there is nothing to act on.
 
-The blocking condition for landing is `unresolved_count == 0` AND every unresolved thread the agent saw was walked through steps 1-5. A PR with pre-resolved threads only is landable once the agent has read them and confirmed none need to be re-opened.
+The blocking condition for landing is `unresolved_count == 0` AND every unresolved thread the agent saw was walked through steps 1-4. A PR with pre-resolved threads only is landable once the agent has read them and confirmed none need to be re-opened.
 
 | Category | Criteria | Required Action (steps 3-4) |
 |----------|----------|--------|
