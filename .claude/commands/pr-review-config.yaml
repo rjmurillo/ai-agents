@@ -91,8 +91,7 @@ completion_criteria:
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
     command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}"
-    pass_when: "stdout-json.CanMerge == true AND stdout-json.CIPassing == true AND stdout-json.fetched_pages_complete == true AND stdout-json.UnresolvedThreads == 0 AND stdout-json.MergeStateStatus != \"BEHIND\" AND stdout-json.MergeStateStatus != \"BLOCKED\""
-    pass_when_python: "lambda d: d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
+    pass_when_python: "lambda d: d.get('CanMerge') == True and d.get('CIPassing') == True and d.get('fetched_pages_complete') == True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
     fail_open: false
   - name: "PR is not already merged"
     verification: "command"
