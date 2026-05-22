@@ -35,7 +35,28 @@ python3 scripts/eval/eval-rule-activation.py \
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
 | `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
+| `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
+
+## Reviewer-Asymmetry Eval
+
+`eval-reviewer-asymmetry.py` measures whether the reviewer-asymmetry
+framing in the new critic/qa/implementer templates produces a statistically
+significant behavioral delta vs the origin/main control versions.
+
+- **Control**: agent template at the chosen git ref (default: `main`).
+- **Treatment**: agent template at HEAD (working copy).
+- **Trials**: configurable, default 5; production runs use 10.
+- **Tests**: Fisher's exact (one-sided) on verdict-pass rate; Mann-Whitney U
+  (one-sided) on findings count where the fixture sets `min_findings_count`.
+- **Acceptance**: p < 0.05 AND treatment > control, both overall and
+  per-agent.
+
+Fixtures live in `evals/reviewer-asymmetry-spike/fixtures/` and follow a
+schema that pairs `verdict_options` with optional `min_findings_count` for
+continuous metrics. See `evals/reviewer-asymmetry-spike/README.md`.
+
+Cost: ~$0.60 USD for 10 trials × 6 fixtures × 2 conditions = 120 calls.
 
 ## Rule Activation Eval
 

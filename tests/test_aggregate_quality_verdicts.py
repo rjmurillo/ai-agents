@@ -182,3 +182,44 @@ class TestMain:
         outputs = _read_outputs(output_file)
         # Not all failures are infra, so no downgrade
         assert outputs["final_verdict"] != "WARN"
+
+    def test_unknown_verdict_propagates_to_final(self, tmp_path, monkeypatch):
+        # REQ-008-05 (issue #1934): UNKNOWN downgrades a would-be PASS so a
+        # silent skill failure cannot pass the gate. Workflow gate decision
+        # in ai-pr-quality-gate.yml includes UNKNOWN in $blockingVerdicts;
+        # this test pins the aggregator behavior that feeds it.
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["analyst"] = "UNKNOWN"
+        infra = {a: "false" for a in _AGENTS}
+        rc = main(_make_argv(verdicts, infra))
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "UNKNOWN", (
+            "UNKNOWN must propagate to final_verdict; the workflow gate "
+            "treats it as blocking. Suppressing UNKNOWN here would let a "
+            "crashed skill silently pass the gate."
+        )
+
+    def test_unknown_does_not_override_critical_fail(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["analyst"] = "UNKNOWN"
+        verdicts["security"] = "CRITICAL_FAIL"
+        infra = {a: "false" for a in _AGENTS}
+        rc = main(_make_argv(verdicts, infra))
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        assert outputs["final_verdict"] == "CRITICAL_FAIL"
+
+    def test_unknown_does_not_override_warn(self, tmp_path, monkeypatch):
+        output_file = _capture_outputs(tmp_path, monkeypatch)
+        verdicts = {a: "PASS" for a in _AGENTS}
+        verdicts["analyst"] = "UNKNOWN"
+        verdicts["qa"] = "WARN"
+        infra = {a: "false" for a in _AGENTS}
+        rc = main(_make_argv(verdicts, infra))
+        assert rc == 0
+        outputs = _read_outputs(output_file)
+        # Real WARN outranks UNKNOWN per merge_verdicts severity order.
+        assert outputs["final_verdict"] == "WARN"

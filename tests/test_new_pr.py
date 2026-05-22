@@ -306,7 +306,7 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
     def test_agents_changed_with_session_log_runs_validator(self, tmp_path):
-        changed = ".agents/sessions/2025-01-01-session-01.md\n"
+        changed = ".agents/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
@@ -321,7 +321,7 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
     def test_agents_changed_session_validation_fails_exits_1(self, tmp_path):
-        changed = ".agents/sessions/2025-01-01-session-01.md\n"
+        changed = ".agents/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
@@ -346,6 +346,23 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
         stderr = capsys.readouterr().err
         assert "WARNING" in stderr
+
+    def test_agents_changed_legacy_md_session_log_only_warns_once(
+        self, tmp_path, capsys
+    ):
+        """When only legacy .md session logs are staged, the helper warns
+        about migration; the calling code MUST NOT also print
+        'No session log found' (devin-ai-integration finding on PR #1980).
+        """
+        changed = ".agents/sessions/2026-05-10-session-1830.md\n"
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=changed, rc=0),
+        ):
+            run_validations(str(tmp_path), "main", "feat/branch")
+        stderr = capsys.readouterr().err
+        assert "legacy .md session log" in stderr
+        assert "No session log found" not in stderr
 
     def test_permission_error_on_mkdir_warns(self, tmp_path, capsys):
         with patch("os.makedirs", side_effect=PermissionError("denied")), patch(
@@ -389,3 +406,103 @@ class TestWriteAuditLog:
         files = list((tmp_path / ".agents" / "audit").glob("*.txt"))
         content = files[0].read_text()
         assert "fallbackuser" in content
+
+
+# ---------------------------------------------------------------------------
+# Tests: Validation 5 (em/en-dash check on title and body, Issue #1923)
+# ---------------------------------------------------------------------------
+
+
+class TestValidation5DashCheck:
+    """Tests for Validation 5: em/en-dash guard on PR title and body."""
+
+    def test_clean_title_and_body_passes(self, tmp_path, capsys):
+        """No dashes in either title or body, run_validations completes."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            run_validations(
+                str(tmp_path), "main", "feat/branch",
+                title="feat: clean title",
+                body="body without dashes",
+            )
+        out = capsys.readouterr()
+        assert "No prohibited characters" in out.out
+
+    def test_em_dash_in_title_blocks(self, tmp_path):
+        """Em-dash in title raises SystemExit(1)."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title=f"feat: bad {chr(0x2014)} title",
+                    body="clean body",
+                )
+            except SystemExit as e:
+                assert e.code == 1
+                return
+            raise AssertionError("Expected SystemExit(1)")
+
+    def test_en_dash_in_body_blocks(self, tmp_path):
+        """En-dash in body raises SystemExit(1)."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title="feat: clean",
+                    body=f"range {chr(0x2013)} 10",
+                )
+            except SystemExit as e:
+                assert e.code == 1
+                return
+            raise AssertionError("Expected SystemExit(1)")
+
+    def test_dash_in_body_file_blocks(self, tmp_path):
+        """Em-dash in body-file path raises SystemExit(1)."""
+        body_file = tmp_path / "body.md"
+        body_file.write_text(
+            f"# Body\n\nLine with em-dash {chr(0x2014)} here\n",
+            encoding="utf-8",
+        )
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title="feat: clean",
+                    body_file=str(body_file),
+                )
+            except SystemExit as e:
+                assert e.code == 1
+                return
+            raise AssertionError("Expected SystemExit(1)")
+
+    def test_em_dash_error_message_includes_line_number(self, tmp_path, capsys):
+        """Error stderr includes specific line numbers for actionable output."""
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout="src/main.py\n", rc=0),
+        ):
+            try:
+                run_validations(
+                    str(tmp_path), "main", "feat/branch",
+                    title="feat: clean",
+                    body=f"line 1 clean\nline 2 has {chr(0x2014)} dash\nline 3 clean\n",
+                )
+            except SystemExit:
+                pass
+            stderr = capsys.readouterr().err
+            assert "line 2" in stderr
+            # After refactor (commit 467353d0) to use validate_no_dashes from
+            # scripts.validation.pr_description, the error wording is
+            # "PR description contains U+2014 or U+2013 (line N). ..."
+            assert "U+2014" in stderr or "U+2013" in stderr

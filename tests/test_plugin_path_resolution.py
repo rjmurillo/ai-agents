@@ -13,6 +13,7 @@ and ensures the standard boilerplate includes path validation per ADR-047.
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -37,7 +38,25 @@ PLUGIN_PATH_PATTERN = 'os.environ.get("CLAUDE_PLUGIN_ROOT")'
 LIB_DIR_VALIDATION_PATTERNS = (
     "os.path.isdir(_lib_dir)",
     "os.path.isdir(_LIB_DIR)",
+    "os.path.isdir(lib_dir)",
 )
+
+# Files that delegate plugin-path resolution to a shared bootstrap helper.
+# Importing the helper satisfies the CLAUDE_PLUGIN_ROOT and lib-validation
+# requirements transitively; the canonical resolution lives in the helper.
+#
+# The exemption is granted only when AST analysis confirms BOTH:
+#   1. an actual ``ImportFrom`` node with module == "_bootstrap" that
+#      imports ``ensure_plugin_paths``, and
+#   2. an actual ``Call`` node whose ``func`` resolves to
+#      ``ensure_plugin_paths`` (or ``_bootstrap.ensure_plugin_paths``).
+#
+# A docstring or comment that merely mentions the import string and the
+# call string would have satisfied a substring-only check; the AST-based
+# check rejects that because text inside string literals is not parsed
+# as code.
+_BOOTSTRAP_MODULE = "_bootstrap"
+_BOOTSTRAP_FUNC = "ensure_plugin_paths"
 
 
 def _collect_python_files(directory: Path) -> list[Path]:
@@ -57,6 +76,50 @@ def _has_lib_import(content: str) -> bool:
 def _has_lib_dir_validation(content: str) -> bool:
     """Check if file validates lib directory exists before importing."""
     return any(pattern in content for pattern in LIB_DIR_VALIDATION_PATTERNS)
+
+
+def _delegates_to_shared_bootstrap(content: str) -> bool:
+    """Check if the file delegates plugin-path resolution to ``_bootstrap``.
+
+    Uses AST analysis (not substring matching) so a docstring or comment
+    that happens to contain the import or call text cannot grant the
+    exemption. A file qualifies only when its parsed AST contains:
+
+    1. ``from _bootstrap import ... ensure_plugin_paths ...`` AND
+    2. an actual call to ``ensure_plugin_paths()`` (bare name) or
+       ``_bootstrap.ensure_plugin_paths()`` (attribute form).
+
+    A SyntaxError or any AST traversal failure conservatively denies
+    the exemption: a file the test cannot parse has not proven
+    delegation, so it must satisfy the inline-pattern checks instead.
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return False
+
+    has_import = False
+    has_call = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == _BOOTSTRAP_MODULE:
+            for alias in node.names:
+                if alias.name == _BOOTSTRAP_FUNC:
+                    has_import = True
+                    break
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name) and func.id == _BOOTSTRAP_FUNC:
+                has_call = True
+            elif (
+                isinstance(func, ast.Attribute)
+                and func.attr == _BOOTSTRAP_FUNC
+                and isinstance(func.value, ast.Name)
+                and func.value.id == _BOOTSTRAP_MODULE
+            ):
+                has_call = True
+        if has_import and has_call:
+            return True
+    return False
 
 
 class TestPluginPathResolution:
@@ -83,13 +146,23 @@ class TestPluginPathResolution:
     def test_hooks_with_lib_imports_use_plugin_root(
         self, hook_files: list[Path],
     ) -> None:
-        """Hooks importing from lib must use CLAUDE_PLUGIN_ROOT for path resolution."""
+        """Hooks importing from lib must use CLAUDE_PLUGIN_ROOT for path resolution.
+
+        Files that delegate to the shared ``_bootstrap`` helper satisfy
+        this transitively (the helper itself contains the canonical
+        resolution).
+        """
         violations = []
         for hook_path in hook_files:
             content = hook_path.read_text(encoding="utf-8")
-            if _has_lib_import(content) and PLUGIN_PATH_PATTERN not in content:
-                rel = hook_path.relative_to(REPO_ROOT)
-                violations.append(str(rel))
+            if not _has_lib_import(content):
+                continue
+            if PLUGIN_PATH_PATTERN in content:
+                continue
+            if _delegates_to_shared_bootstrap(content):
+                continue
+            rel = hook_path.relative_to(REPO_ROOT)
+            violations.append(str(rel))
 
         assert not violations, (
             "Hooks importing from lib but missing CLAUDE_PLUGIN_ROOT resolution:\n"

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "F004",
+  "agent": "qa",
+  "input": "QA review request. Diff below. Implementer says 'this is the M4 evidence rule, mirroring the canonical validator at scripts/validate_session_json.py:CONTRADICTION_PATTERNS'. Tests pass. Do not ask for clarification.\n\n```python\n# scripts/validation/check_evidence.py\nimport re\n\n# Imagined contract: evidence fields must be at least 20 chars long.\n# (M4 evidence rule per recent retrospective; mirrors canonical validator.)\nMIN_LEN = 20\n\ndef is_valid_evidence(text: str) -> bool:\n    if len(text) < MIN_LEN:\n        return False\n    if re.search(r'pending|TBD|N/A', text):\n        return False\n    return True\n```\n\n```python\ndef test_short_rejected():\n    assert not is_valid_evidence('TBD')\ndef test_long_accepted():\n    assert is_valid_evidence('all 142 tests passed in CI run #2026')\n```",
+  "provenance": "synthetic",
+  "planted_issues": [
+    "MIN_LEN=20 is NOT in the canonical validator (CONTRADICTION_PATTERNS) — this is an imagined contract",
+    "regex pattern is a SUBSET of the canonical (missing: not available, skipped, deferred, will validate, will run, todo, IGNORECASE flag missing)",
+    "claim 'mirrors the canonical' is false; diff diverges silently",
+    "no docstring quoting the canonical regex verbatim",
+    "tests do not exercise the canonical-rule boundary (e.g. 'will validate later')",
+    "no documented divergence section explaining MIN_LEN justification"
+  ],
+  "scoring_rubric": {
+    "kind": "imagined_contract_check",
+    "treatment_floor": "must flag the imagined-contract pattern (claim mirrors canonical but doesn't); use 'canonical' or 'imagined contract' vocabulary",
+    "control_baseline": "may flag 'inconsistent regex' generically without the canonical-source frame"
+  },
+  "expected_verdict": "IMAGINED_CONTRACT_FLAGGED",
+  "verdict_options": ["IMAGINED_CONTRACT_FLAGGED", "GENERIC_REGEX_CONCERN"],
+  "min_findings_count": 3,
+  "rationale": "The PR #1887 retrospective names 'designed against an imagined contract instead of the canonical validator' as the root cause of four fix commits. Treatment QA template includes the Adversarial Coverage Checklist item explicitly. Control QA template does NOT have the 'canonical' or 'imagined contract' phrase.",
+  "tags": ["agent-qa", "canonical-source-mirror", "imagined-contract"]
+}

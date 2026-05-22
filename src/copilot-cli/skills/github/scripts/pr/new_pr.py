@@ -24,6 +24,34 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_pr_description import _CONVENTIONAL_COMMIT_PATTERN  # noqa: E402
 
+# Em/en-dash detection regex for Validation 5. Inlined here rather than
+# imported from scripts.validation.pr_description because:
+#
+# 1. This file is one of two copies the project keeps in sync:
+#    - .claude/skills/github/scripts/pr/new_pr.py (the source the
+#      developer edits)
+#    - src/copilot-cli/skills/github/scripts/pr/new_pr.py (the
+#      generated copy produced by build/scripts/build_all.py)
+#    Both copies live at different depths from the repo root
+#    (parents[5] vs parents[6]), so any cross-package import requires
+#    path resolution that works at both depths. The complexity (walking
+#    up looking for a marker, subprocess git calls, etc.) is not worth
+#    it for a 5-line regex.
+# 2. The detection logic is small (compile, search). Drift between the
+#    two definitions (this one and scripts.validation.pr_description's
+#    _DASH_RE) is caught by the test suite (tests/test_new_pr.py and
+#    tests/test_validation_pr_description.py) which exercises both with
+#    the same fixtures.
+# 3. The two layers serve different purposes: this is the pre-creation
+#    guard, scripts.validation.pr_description is the CI fallback. Keeping
+#    them independent lets each fail open or fail closed differently per
+#    its threat model.
+#
+# Uses Unicode escape sequences so this source file does not contain
+# U+2014 or U+2013 itself per `.claude/rules/universal.md` MUST NOT
+# entry 5 (Issue #1923).
+_DASH_RE = re.compile("[\u2013\u2014]")
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -69,6 +97,45 @@ def validate_conventional_commit(title: str) -> bool:
     return True
 
 
+_SESSION_LOG_FILENAME_RE = re.compile(
+    # Canonical filename per session-init script:
+    # .agents/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
+    # Keywords are kebab-case (lowercase letters/digits + hyphens only).
+    r"^\.agents/sessions/"
+    r"\d{4}-\d{2}-\d{2}-session-\d+"
+    r"(?:-[a-z0-9-]+)?"
+    r"\.(md|json)$"
+)
+
+
+def _extract_validatable_session_logs(
+    changed_files: list[str],
+) -> tuple[list[str], bool]:
+    """Return (JSON session logs, legacy_md_present) from changed files.
+
+    Filename pattern requires YYYY-MM-DD-session-NN prefix to exclude
+    tally files like STEP-0-METRICS.md and STEP-0.5-METRICS.md.
+    validate_session_json.py only accepts JSON. Legacy .md session logs
+    require migration (handled by the CI workflow at
+    .github/workflows/ai-session-protocol.yml). Local pre-PR validation
+    only checks JSON; warn the author so they know CI will migrate.
+
+    Returns a tuple so callers can distinguish "no session log at all"
+    (both empty) from "legacy .md staged, no JSON to validate locally"
+    (validatable empty, has_legacy_md True).
+    """
+    matched = [f for f in changed_files if _SESSION_LOG_FILENAME_RE.match(f)]
+    legacy_md = [f for f in matched if f.endswith(".md")]
+    if legacy_md:
+        print(
+            f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
+            "CI workflow will migrate to JSON before validation. Local "
+            "pre-PR validation only runs against JSON session logs.",
+            file=sys.stderr,
+        )
+    return [f for f in matched if f.endswith(".json")], bool(legacy_md)
+
+
 def run_validations(
     repo_root: str,
     base: str,
@@ -88,7 +155,7 @@ def run_validations(
     print()
 
     # Validation 1: Session End (if .agents/ files changed)
-    print("[1/4] Checking Session End protocol...")
+    print("[1/5] Checking Session End protocol...")
     result = subprocess.run(
         ["git", "diff", "--name-only", f"{base}...{head}"],
         capture_output=True,
@@ -100,9 +167,23 @@ def run_validations(
     agents_changed = any(f.startswith(".agents/") for f in changed_files)
 
     if agents_changed:
-        session_logs = [f for f in changed_files if re.match(r"^\.agents/sessions/.*\.md$", f)]
+        session_logs, has_legacy_md = _extract_validatable_session_logs(
+            changed_files
+        )
         if session_logs:
-            session_log = session_logs[-1]
+            # Sort by (date, session_number_int) so non-zero-padded
+            # session numbers compare numerically. Lexical sort would
+            # put session-10 before session-9 (CodeRabbit finding).
+            def _session_sort_key(path: str) -> tuple[str, int]:
+                m = re.match(
+                    r"^\.agents/sessions/"
+                    r"(\d{4}-\d{2}-\d{2})-session-(\d+)",
+                    path,
+                )
+                if m is None:
+                    return ("", 0)
+                return (m.group(1), int(m.group(2)))
+            session_log = sorted(session_logs, key=_session_sort_key)[-1]
             validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
             if os.path.exists(validate_script):
                 session_log_path = os.path.join(repo_root, session_log)
@@ -119,14 +200,14 @@ def run_validations(
                 if vresult.returncode != 0:
                     print("Session End validation failed", file=sys.stderr)
                     raise SystemExit(1)
-        else:
+        elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
     else:
         print("  No .agents/ changes, skipping")
 
     # Validation 2: Skill violation detection (WARNING)
     print()
-    print("[2/4] Checking for skill violations...")
+    print("[2/5] Checking for skill violations...")
     skill_script = os.path.join(repo_root, "scripts/detect_skill_violation.py")
     if os.path.exists(skill_script):
         subprocess.run(
@@ -136,7 +217,7 @@ def run_validations(
 
     # Validation 3: Test coverage detection (WARNING)
     print()
-    print("[3/4] Checking test coverage...")
+    print("[3/5] Checking test coverage...")
     test_script = os.path.join(repo_root, "scripts/detect_test_coverage_gaps.py")
     if os.path.exists(test_script):
         subprocess.run(
@@ -146,7 +227,7 @@ def run_validations(
 
     # Validation 4: PR Description validation (WARNING)
     print()
-    print("[4/4] Validating PR description...")
+    print("[4/5] Validating PR description...")
     validate_script = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "validate_pr_description.py",
@@ -164,6 +245,57 @@ def run_validations(
         # Warning mode: don't fail on exit code
     else:
         print("  Skipped (no title available or validator not found)")
+
+    # Validation 5: Em/en-dash check (CRITICAL, blocks creation)
+    # PR descriptions live in GitHub and never reach `git commit`, so the
+    # .githooks/pre-commit and .githooks/commit-msg hooks cannot scan them.
+    # This is the shift-left guard that prevents dashes from being submitted
+    # at all. Closes the gap that allowed PR #1930 to ship with em/en-dashes
+    # in the description despite the hook implementation.
+    # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
+    print()
+    print("[5/5] Em/en-dash check on title and body...")
+    body_content = body or ""
+    if not body_content and body_file and os.path.exists(body_file):
+        try:
+            with open(body_file, encoding="utf-8") as f:
+                body_content = f.read()
+        except OSError as exc:
+            print(f"  WARNING: Could not read body file: {exc}", file=sys.stderr)
+    dash_violations: list[str] = []
+    if _DASH_RE.search(title):
+        dash_violations.append("title")
+    body_dash_lines = [
+        f"line {n}"
+        for n, line in enumerate(body_content.splitlines(), start=1)
+        if _DASH_RE.search(line)
+    ]
+    if body_dash_lines:
+        sample = ", ".join(body_dash_lines[:5])
+        if len(body_dash_lines) > 5:
+            sample += f", ... (+{len(body_dash_lines) - 5} more)"
+        dash_violations.append(f"body ({sample})")
+    if dash_violations:
+        print(
+            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: "
+            + "; ".join(dash_violations),
+            file=sys.stderr,
+        )
+        print(
+            "  Replace with comma, period, hyphen, or restructure.",
+            file=sys.stderr,
+        )
+        print(
+            "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Issue #1923).",
+            file=sys.stderr,
+        )
+        print(
+            "  Override (NOT RECOMMENDED): re-run with --skip-validation"
+            " --audit-reason \"...\".",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    print("  No prohibited characters in title or body.")
 
     print()
     print("All pre-creation validations passed!")

@@ -10,10 +10,12 @@ Validation sequence:
     3. Markdown Lint (auto-fix and validate)
     4. Workflow YAML (validate GitHub Actions workflows)
     5. Design Review Frontmatter (validate DESIGN-REVIEW YAML frontmatter)
-    6. YAML Style (check YAML style with yamllint) [skip if --quick]
-    7. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
-    8. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
-    9. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
+    6. Build Command Exit Gates (PR #1887 retrospective Layer 2)
+    7. Canonical Citation Check (heuristic mirror-claim citation; soft warn)
+    8. YAML Style (check YAML style with yamllint) [skip if --quick]
+    9. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
+   10. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
+   11. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
 
 Exit codes follow ADR-035:
     0 - Success (all validations passed)
@@ -35,6 +37,15 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+
+class MissingScriptSkip(Exception):
+    """Raised by a validation when a referenced script is absent on disk.
+
+    Per ADR-042 (Python migration), several legacy PowerShell validators were
+    expunged. Their absence should not produce a misleading [FAIL]; instead the
+    validation is reported as SKIP and does not affect the overall exit code.
+    """
 
 
 @dataclass
@@ -75,7 +86,7 @@ def _find_latest_session_log(repo_root: Path) -> Path | None:
 
 
 def _run_subprocess(
-    args: list[str], timeout: int = 300
+    args: list[str], timeout: int = 300, cwd: Path | str | None = None
 ) -> tuple[int, str, str]:
     """Run a subprocess and return (exit_code, stdout, stderr)."""
     try:
@@ -84,6 +95,7 @@ def _run_subprocess(
             capture_output=True,
             text=True,
             timeout=timeout,
+            cwd=cwd,
         )
         return result.returncode, result.stdout, result.stderr
     except FileNotFoundError:
@@ -113,36 +125,47 @@ def run_validation(
 
     start = time.monotonic()
     success = False
+    skipped = False
     message = ""
 
     try:
         success = callback()
         message = "Validation passed" if success else "Validation failed"
+    except MissingScriptSkip as exc:
+        skipped = True
+        success = True  # SKIP does not count as failure for the gate
+        message = f"Skipped: {exc}"
     except Exception as exc:
         success = False
         message = f"Validation error: {exc}"
 
     duration = time.monotonic() - start
 
-    if success:
+    if skipped:
+        state.skipped += 1
+        status_label = "SKIP"
+    elif success:
         state.passed += 1
+        status_label = "PASS"
     else:
         state.failed += 1
+        status_label = "FAIL"
 
     state.results.append(
         ValidationRecord(
             name=name,
-            status="PASS" if success else "FAIL",
+            status=status_label,
             duration=duration,
             message=message,
         )
     )
 
     print()
-    status_label = "PASS" if success else "FAIL"
     print(f"[{status_label}] {name} completed in {duration:.2f}s")
-    if not success:
+    if status_label == "FAIL":
         print(f"Error: {message}")
+    elif status_label == "SKIP":
+        print(f"Note: {message}")
 
     return success
 
@@ -165,8 +188,11 @@ def validate_session_end(repo_root: Path) -> bool:
 
     script = repo_root / "scripts" / "Validate-Session.ps1"
     if not script.exists():
-        print("[FAIL] Validate-Session.ps1 not found")
-        return False
+        # Per ADR-042 the PowerShell validator was expunged and no Python port
+        # exists yet. Treat as SKIP rather than a misleading FAIL.
+        raise MissingScriptSkip(
+            "Validate-Session.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-SessionLogPath", str(session_log)]
@@ -178,8 +204,9 @@ def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
     """Run Pester unit tests."""
     script = repo_root / "build" / "scripts" / "Invoke-PesterTests.ps1"
     if not script.exists():
-        print("[FAIL] Invoke-PesterTests.ps1 not found")
-        return False
+        raise MissingScriptSkip(
+            "Invoke-PesterTests.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     verbosity = "Diagnostic" if verbose else "Normal"
     exit_code, _, _ = _run_subprocess(
@@ -206,6 +233,225 @@ def validate_markdown_lint(repo_root: Path) -> bool:
         print("  - MD033: Wrap generic types like ArrayPool<T> in backticks")
         return False
 
+    return True
+
+
+def _gh_base_ref(repo_root: Path) -> str | None:
+    """Return ``origin/<baseRefName>`` for the open PR, or None.
+
+    Asks the gh CLI for the PR's base branch name, then prefixes
+    ``origin/`` so callers can pass the result to ``git diff`` directly.
+
+    Behavior:
+    - If gh is not on PATH, return None.
+    - If gh succeeds but no PR exists for the current branch (empty
+      output), return None.
+    - If gh exits non-zero (auth, network, unknown error), return None.
+
+    A related helper (``_gh_base_ref``) lives in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` for use inside the
+    pre-push framework. Find it via
+    ``grep -n '^def _gh_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``.
+    The two functions evolved separately and intentionally cover
+    different runtime contexts (CI vs developer machine). Test coverage
+    in this codebase locks in the public contract above; the canonical
+    file does the same in its own test suite.
+    """
+    if not shutil.which("gh"):
+        return None
+    exit_code, stdout, _ = _run_subprocess(
+        ["gh", "pr", "view", "--json", "baseRefName", "-q", ".baseRefName"],
+        timeout=5,
+        cwd=repo_root,
+    )
+    if exit_code != 0:
+        return None
+    base = stdout.strip()
+    if not base:
+        return None
+    return f"origin/{base}"
+
+
+def _resolve_branch_base_ref(repo_root: Path) -> str | None:
+    """Resolve the branch base ref by trying signals in priority order.
+
+    Tries each candidate in order and returns the first one that
+    resolves to a real ref locally:
+
+        1. The PR's actual baseRefName via ``gh pr view`` (validated
+           further with ``git rev-parse --verify`` so an unfetched ref
+           falls through to the next step).
+        2. The current branch's configured upstream via ``@{u}``.
+        3. The remote's default branch via ``refs/remotes/origin/HEAD``.
+        4. ``origin/main`` as a last-resort literal.
+
+    Returns None when none resolve.
+
+    A related helper (``_detect_default_base_ref``) lives in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` and follows the same
+    priority order; locate it via
+    ``grep -n '^def _detect_default_base_ref' .claude/hooks/PreToolUse/push_guard_base.py``
+    if you want the pre-push framework's perspective. The two functions
+    have separate test suites that lock in their respective contracts.
+    """
+    pr_base = _gh_base_ref(repo_root)
+    if pr_base:
+        exit_code, _, _ = _run_subprocess(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", pr_base],
+            timeout=10,
+        )
+        if exit_code == 0:
+            return pr_base
+
+    candidates = ("@{u}", "refs/remotes/origin/HEAD", "origin/main")
+    for ref in candidates:
+        exit_code, _, _ = _run_subprocess(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", ref],
+            timeout=10,
+        )
+        if exit_code == 0:
+            return ref
+    return None
+
+
+# Compiled detection regex. Uses Unicode escape sequences so this source
+# file does not contain U+2014 or U+2013 itself (Issue #1923, REQ-006).
+_DASH_RE = re.compile("[\u2013\u2014]")
+
+
+# Paths skipped by the branch-wide dash scan:
+# - node_modules/, .venv/, .serena/cache/: vendored content (REQ-006-AC5)
+# - tests/hooks/fixtures/: test fixtures intentionally contain U+2014/U+2013
+#   to exercise the detection logic; flagging them would fail every PR that
+#   touches the dash-guard test suite
+_VENDORED_PREFIXES = (
+    "node_modules/",
+    ".venv/",
+    ".serena/cache/",
+    "tests/hooks/fixtures/",
+)
+
+
+def _is_vendored(path: str) -> bool:
+    """True when ``path`` starts with any vendored prefix."""
+    return any(path.startswith(prefix) for prefix in _VENDORED_PREFIXES)
+
+
+def _branch_markdown_files(repo_root: Path) -> list[str] | None:
+    """Resolve branch base and return non-vendored markdown paths to scan.
+
+    Returns None when the scan cannot run (no base ref or git diff failure);
+    callers treat None as fail-open (pass without scanning).
+    """
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if base_ref is None:
+        print("[WARNING] Em/en-dash branch scan skipped: no base ref resolved")
+        return None
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMR",
+            f"{base_ref}...HEAD",
+        ],
+        timeout=30,
+    )
+    if exit_code != 0:
+        print(
+            f"[WARNING] Em/en-dash branch scan skipped: git diff failed: {stderr}",
+        )
+        return None
+
+    return [
+        p for p in stdout.splitlines() if p.endswith(".md") and not _is_vendored(p)
+    ]
+
+
+def _find_dash_violations(
+    repo_root: Path, paths: list[str],
+) -> list[tuple[str, int]]:
+    """Read each committed path and return (path, line_num) hits.
+
+    Reads file content from the HEAD commit via ``git show HEAD:<path>``
+    rather than the working tree. The list of paths comes from
+    ``git diff <base>...HEAD --name-only``, so the scan target must be
+    the HEAD blob to match the diff scope. Reading the working tree
+    instead would give wrong answers when the working tree differs from
+    HEAD (uncommitted edits, partial staging, or a fresh checkout that
+    has not yet pulled the branch).
+    """
+    violations: list[tuple[str, int]] = []
+    for relpath in paths:
+        exit_code, stdout, _ = _run_subprocess(
+            ["git", "-C", str(repo_root), "show", f"HEAD:{relpath}"],
+            timeout=10,
+        )
+        if exit_code != 0:
+            # `_branch_markdown_files` already filters out deletions via
+            # ``--diff-filter=ACMR``, so a non-zero ``git show`` here
+            # signals an unexpected condition (missing object in the
+            # local clone, a path that resolves to a directory, an I/O
+            # error). Skip silently rather than fail the whole scan;
+            # `git diff`-listed paths that cannot be read are not
+            # actionable for the dash check.
+            continue
+        violations.extend(
+            (relpath, line_num)
+            for line_num, line in enumerate(stdout.splitlines(), start=1)
+            if _DASH_RE.search(line)
+        )
+    return violations
+
+
+def _print_dash_violations(violations: list[tuple[str, int]]) -> None:
+    """Emit the structured failure block for branch-wide dash violations."""
+    print("[FAIL] Em/en-dash prohibition violated")
+    print("  Files containing U+2014 (em-dash) or U+2013 (en-dash):")
+    for path, line_num in violations:
+        print(f"    {path}:{line_num}")
+    print("  Fix: replace U+2014 with comma, period, or colon;")
+    print("       U+2013 with hyphen in numeric ranges;")
+    print("       or restructure the sentence.")
+    print(
+        "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Refs #1923).",
+    )
+
+
+def validate_dash_prohibition(repo_root: Path) -> bool:
+    """Branch-wide em/en-dash check (Issue #1923, REQ-006-AC7).
+
+    Catches U+2014 (em-dash) and U+2013 (en-dash) in any *.md file
+    changed on this branch since divergence from the base ref. Complements
+    the pre-commit and commit-msg hooks (which only block at commit time)
+    by catching dashes that landed before the hooks were installed.
+
+    Vendored paths (node_modules/, .venv/, .serena/cache/) are skipped.
+    Test fixtures (tests/hooks/fixtures/) are skipped because they
+    intentionally contain dashes to exercise the detection logic.
+    .github/instructions/ is NOT skipped (REQ-006-AC4).
+
+    Returns True (pass) when no violations are found OR when the scan
+    cannot run (fail open). Returns False on any violation.
+    """
+    candidate_paths = _branch_markdown_files(repo_root)
+    if candidate_paths is None:
+        return True
+    if not candidate_paths:
+        print("[PASS] Em/en-dash prohibition (no markdown files on branch)")
+        return True
+
+    violations = _find_dash_violations(repo_root, candidate_paths)
+    if violations:
+        _print_dash_violations(violations)
+        return False
+
+    print(
+        f"[PASS] Em/en-dash prohibition ({len(candidate_paths)} markdown file(s) checked)",
+    )
     return True
 
 
@@ -279,8 +525,9 @@ def validate_path_normalization(repo_root: Path) -> bool:
     """Check for absolute paths."""
     script = repo_root / "build" / "scripts" / "Validate-PathNormalization.ps1"
     if not script.exists():
-        print("[FAIL] Validate-PathNormalization.ps1 not found")
-        return False
+        raise MissingScriptSkip(
+            "Validate-PathNormalization.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-FailOnViolation"]
@@ -292,8 +539,9 @@ def validate_planning_artifacts(repo_root: Path) -> bool:
     """Validate planning consistency."""
     script = repo_root / "build" / "scripts" / "Validate-PlanningArtifacts.ps1"
     if not script.exists():
-        print("[FAIL] Validate-PlanningArtifacts.ps1 not found")
-        return False
+        raise MissingScriptSkip(
+            "Validate-PlanningArtifacts.ps1 not present (ADR-042 expungement; no Python port yet)"
+        )
 
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-FailOnError"]
@@ -436,15 +684,90 @@ def validate_design_review_frontmatter(repo_root: Path) -> bool:
     return all_passed
 
 
-def validate_agent_drift(repo_root: Path) -> bool:
-    """Detect agent semantic drift."""
-    script = repo_root / "build" / "scripts" / "Detect-AgentDrift.ps1"
+def validate_build_gates(repo_root: Path) -> bool:
+    """Verify ``.claude/commands/build.md`` still wires the required exit gates.
+
+    The /build command is the implementer's exit path. If a future edit
+    removes the code-qualities-assessment / taste-lints / doc-accuracy
+    invocations, the iteration paradox documented in PR #1887 returns.
+    Lock the contract here. See ``check_build_gates.py`` for the rules.
+    """
+    script = repo_root / "scripts" / "validation" / "check_build_gates.py"
     if not script.exists():
-        print("[FAIL] Detect-AgentDrift.ps1 not found")
-        return False
+        raise MissingScriptSkip(
+            "scripts/validation/check_build_gates.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
+def validate_canonical_citations(repo_root: Path) -> bool:
+    """Heuristic check for uncited mirror-claims.
+
+    Soft-warn by default. Set STRICT_CANONICAL_CHECK=1 in the environment
+    to upgrade to a hard failure. Always returns True in soft-warn mode
+    so a single uncited claim does not block the PR pipeline.
+
+    See: `.claude/rules/canonical-source-mirror.md` and PR #1887
+    retrospective Layer 4.
+    """
+    script = repo_root / "scripts" / "validation" / "check_canonical_citations.py"
+    if not script.exists():
+        print("[WARNING] check_canonical_citations.py not found (skipping)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+
+    output = stdout.strip()
+    if output:
+        print(output)
+    if stderr.strip():
+        print(stderr.strip())
+
+    # Default mode is soft-warn; the script already exits 0 unless
+    # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
+    # so CI can opt into strict mode by setting the env var.
+    return exit_code == 0
+
+
+def validate_agent_drift(repo_root: Path) -> bool:
+    """Detect agent semantic drift.
+
+    Per ADR-042 the legacy Detect-AgentDrift.ps1 was expunged in favor of the
+    Python port at build/scripts/detect_agent_drift.py. Invoke the Python
+    version directly so the drift gate continues to run after migration.
+    """
+    python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
+    if python_script.exists():
+        exit_code, stdout, stderr = _run_subprocess(
+            [sys.executable, str(python_script)]
+        )
+        # Surface drift output for visibility (mirrors other Python validators).
+        output = (stdout or "") + (stderr or "")
+        if output.strip():
+            for line in output.strip().splitlines()[:40]:
+                print(line)
+        return exit_code == 0
+
+    # Legacy fallback: if neither port nor original PS1 exist, SKIP rather than
+    # report a misleading FAIL (ADR-042 expungement tolerance).
+    legacy = repo_root / "build" / "scripts" / "Detect-AgentDrift.ps1"
+    if not legacy.exists():
+        raise MissingScriptSkip(
+            "detect_agent_drift.py and Detect-AgentDrift.ps1 both absent "
+            "(ADR-042 expungement)"
+        )
 
     exit_code, _, _ = _run_subprocess(
-        ["pwsh", "-NoProfile", "-File", str(script)]
+        ["pwsh", "-NoProfile", "-File", str(legacy)]
     )
     return exit_code == 0
 
@@ -542,6 +865,28 @@ def main(argv: list[str] | None = None) -> int:
         "Design Review Frontmatter",
         state,
         lambda: validate_design_review_frontmatter(repo_root),
+    )
+
+    # 3.7 Build Command Exit Gates (PR #1887 retrospective Layer 2)
+    run_validation(
+        "Build Command Exit Gates",
+        state,
+        lambda: validate_build_gates(repo_root),
+    )
+
+    # 3.8 Canonical Citation Check (heuristic; soft warn unless
+    # STRICT_CANONICAL_CHECK=1; PR #1887 retrospective Layer 4)
+    run_validation(
+        "Canonical Citation Check",
+        state,
+        lambda: validate_canonical_citations(repo_root),
+    )
+
+    # 3.85 Em/en-dash branch-wide check (Issue #1923, REQ-006-AC7)
+    run_validation(
+        "Em/en-dash Prohibition",
+        state,
+        lambda: validate_dash_prohibition(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)

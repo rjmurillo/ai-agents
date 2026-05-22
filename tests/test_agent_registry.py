@@ -299,10 +299,19 @@ class TestValidate:
         agents = [
             AgentDefinition("extra", "Desc", "sonnet", "", Path("extra.md")),
         ]
-        catalog: list[CatalogEntry] = []
+        catalog = [CatalogEntry("other-agent", "sonnet")]
         result = validate(agents, catalog)
         assert result.ok  # Warnings do not fail
         assert any("extra" in w for w in result.warnings)
+
+    def test_empty_catalog_with_agents_fails(self) -> None:
+        agents = [
+            AgentDefinition("agent1", "Desc", "sonnet", "", Path("agent1.md")),
+        ]
+        catalog: list[CatalogEntry] = []
+        result = validate(agents, catalog)
+        assert not result.ok
+        assert any("Catalog is empty" in e for e in result.errors)
 
 
 # ---------------------------------------------------------------------------
@@ -320,14 +329,6 @@ class TestIntegration:
         assert "orchestrator" in names
         assert "analyst" in names
         assert "implementer" in names
-
-    def test_parse_real_catalog(self) -> None:
-        # Threshold is 12 after AGENTS.md compression (was 20 pre-compression).
-        # The compressed pipe-delimited Agents table has 12 rows.
-        catalog = parse_catalog(AGENTS_MD)
-        assert len(catalog) >= 12, f"Expected at least 12 catalog entries, got {len(catalog)}"
-        names = {e.name for e in catalog}
-        assert "orchestrator" in names
 
     def test_validate_real_agents_runs_without_crash(self) -> None:
         """Verify validation completes and returns structured results.

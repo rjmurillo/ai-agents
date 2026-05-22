@@ -6,8 +6,14 @@ import logging
 import os
 import time
 from collections.abc import Callable
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
+
+# PEP 695 generic syntax `def invoke_with_retry[T](...)` requires Python 3.12+,
+# but pyproject.toml declares `requires-python = ">=3.10"`. Use the
+# Python-3.10-compatible TypeVar form. PR #1965 copilot review (cluster G).
+T = TypeVar("T")
 
 _DEFAULT_MAX_RETRIES = 3
 _DEFAULT_RETRY_DELAY = 30
@@ -20,7 +26,7 @@ def _get_config_int(env_var: str, default: int) -> int:
     return default
 
 
-def invoke_with_retry[T](
+def invoke_with_retry(
     func: Callable[[], T],
     max_retries: int | None = None,
     initial_delay: int | None = None,
