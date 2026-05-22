@@ -30,10 +30,16 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree.
 
-- **Canonical axis prompts** (`{role}` in `analyst|architect|qa|security|devops|roadmap`): resolve to `${CLAUDE_SKILL_DIR}/references/{role}.md`. The skill directory variable points at this skill in both layouts (source repo and vendored install), so a single path works without a fallback chain.
+- **Canonical axis prompts** (`{role}` in `analyst|architect|qa|security|devops|roadmap`): try each candidate in order, use the first that exists:
+  1. `${CLAUDE_SKILL_DIR}/references/{role}.md` (if `CLAUDE_SKILL_DIR` is set by the harness)
+  2. `.claude/skills/review/references/{role}.md` (Claude Code project layout)
+  3. `skills/review/references/{role}.md` resolved relative to plugin install root (vendored install)
 - **Verdict library** (`merge_verdicts`, `extract_verdict`, `get_verdict_emoji`, `FAIL_VERDICTS`): try each candidate in order, use the first that exists:
   1. `.claude/lib/ai_review_common/verdict.py` (Claude Code project layout)
   2. `lib/ai_review_common/verdict.py` resolved relative to the plugin install root (vendored install)
+- **Complexity tiers reference** (`engineering-complexity-tiers.md`): try each candidate in order, use the first that exists:
+  1. `.claude/skills/analyze/references/engineering-complexity-tiers.md` (Claude Code project layout)
+  2. `skills/analyze/references/engineering-complexity-tiers.md` resolved relative to plugin install root (vendored install)
 
 The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library before reporting an error.
 
@@ -42,7 +48,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
 
 1. Read the diff (`git diff` against detected base branch).
-2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `.claude/skills/analyze/references/engineering-complexity-tiers.md` and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
+2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 3. **Run 6 canonical axes**, in order. For each axis, load the canonical prompt for `{role}` via the path resolution above, then invoke the matching `Task(subagent_type=...)` agent (analyst, architect, qa, security, devops, roadmap) with that prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register these role subagent types in its `Task` enum (e.g., Copilot CLI today), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity.
    - axis 1: `analyst`
    - axis 2: `architect`
