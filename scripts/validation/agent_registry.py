@@ -190,10 +190,18 @@ def validate(
     - Every catalog agent has a corresponding file
     - Model assignments match between file and catalog
     - No duplicate agent names in parsed files
+    - Catalog is not empty when agents exist (prevents silent skip of catalog validation)
     """
     result = ValidationResult()
     catalog_by_name = {e.name: e for e in catalog}
     agents_by_name: dict[str, AgentDefinition] = {}
+
+    if len(catalog) == 0 and len(agents) > 0:
+        result.errors.append(
+            f"Catalog is empty but {len(agents)} agent(s) found; "
+            "catalog validation would be silently skipped. "
+            "Ensure the catalog file contains a '## Agents' section with agent entries."
+        )
 
     for agent in agents:
         # Duplicate check
