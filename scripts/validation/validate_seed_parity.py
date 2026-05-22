@@ -4,7 +4,7 @@
 This is a FORENSIC TOOL, not a regression gate. Do NOT add it to CI.
 
 Background. REQ-008-01 mandated that each canonical
-``.claude/skills/review-axes/references/{role}.md`` was seeded verbatim from the matching
+``.claude/skills/review/references/{role}.md`` was seeded verbatim from the matching
 ``.github/prompts/pr-quality-gate-{role}.md`` at the seeding commit on
 the main branch. The seed transform adds YAML frontmatter, balances any
 unclosed code fence, and appends an ``## Output Schema`` section. The
