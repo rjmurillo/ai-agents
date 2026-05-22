@@ -42,7 +42,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review-axes" / "references"
+CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 GENERATED_DIR = REPO_ROOT / ".github" / "prompts"
 
 # Filename regex per REQ-008-02 AC: lowercase + dash, .md extension.
