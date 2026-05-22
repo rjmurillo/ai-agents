@@ -299,10 +299,19 @@ class TestValidate:
         agents = [
             AgentDefinition("extra", "Desc", "sonnet", "", Path("extra.md")),
         ]
-        catalog: list[CatalogEntry] = []
+        catalog = [CatalogEntry("other-agent", "sonnet")]
         result = validate(agents, catalog)
         assert result.ok  # Warnings do not fail
         assert any("extra" in w for w in result.warnings)
+
+    def test_empty_catalog_with_agents_fails(self) -> None:
+        agents = [
+            AgentDefinition("agent1", "Desc", "sonnet", "", Path("agent1.md")),
+        ]
+        catalog: list[CatalogEntry] = []
+        result = validate(agents, catalog)
+        assert not result.ok
+        assert any("Catalog is empty" in e for e in result.errors)
 
 
 # ---------------------------------------------------------------------------
