@@ -1,36 +1,41 @@
 ---
 name: review
+version: 1.0.0
 description: Review before merge. Nine-axis review across 6 canonical axes (analyst, architect, qa, security, devops, roadmap) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test.
-argument-hint:
-  - branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
-user-invocable: true
+license: MIT
 ---
 
-@CLAUDE.md
+# Review
 
 Review: $ARGUMENTS
 
 If no argument, review the current branch diff against the base branch. Detect the base branch from `gh pr view --json baseRefName` or fall back to `main`.
 
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `/review` | Run the nine-axis review against the current branch diff |
+| `/review BRANCH_OR_PR` | Run the nine-axis review against the named branch or PR |
+| `review before merge` | Same as `/review` |
+
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates the same axes as the project's CI quality gate, plus three local-only skill axes that CI cannot afford. The 6 canonical axis prompts are authored at `.claude/skills/review-axes/references/{role}.md` (the single source of truth in the source repo, inside the reference-only `review-axes` skill). When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline also bundles the canonical files into vendored plugin installs (e.g., Copilot CLI) so the command runs without a CI dependency in any harness that supports plugins.
+`/review` evaluates the same axes as the project's CI quality gate, plus three local-only skill axes that CI cannot afford. The 6 canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline copies the entire skill directory (including `references/`) into vendored plugin installs so the command runs without a CI dependency in any harness that supports plugins.
 
 `/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. The 3 chained skill extras (`code-qualities-assessment`, `golden-principles`, `taste-lints`) cannot run in CI (they require code execution + repo state) and so layer on top.
 
 ## Path resolution (harness-agnostic)
 
-This command runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree. Resolve runtime dependencies in this order; use the first path that exists:
+This skill runs in two layouts: the source Claude Code project (where `.claude/` is the repo root) and a vendored plugin install (Copilot CLI and similar harnesses) where the consumer repo has no `.claude/` directory and the plugin lives outside the consumer's tree.
 
-- **Canonical axis prompts** (`{role}` in `analyst|architect|qa|security|devops|roadmap`):
-  1. `.claude/skills/review-axes/references/{role}.md` (Claude Code project layout; reference-only `review-axes` skill)
-  2. `references/{role}.md` resolved relative to this command/skill's own directory (vendored plugin install; the build pipeline bundles the canonical files here)
-- **Verdict library** (`merge_verdicts`, `extract_verdict`, `get_verdict_emoji`, `FAIL_VERDICTS`):
+- **Canonical axis prompts** (`{role}` in `analyst|architect|qa|security|devops|roadmap`): resolve to `${CLAUDE_SKILL_DIR}/references/{role}.md`. The skill directory variable points at this skill in both layouts (source repo and vendored install), so a single path works without a fallback chain.
+- **Verdict library** (`merge_verdicts`, `extract_verdict`, `get_verdict_emoji`, `FAIL_VERDICTS`): try each candidate in order, use the first that exists:
   1. `.claude/lib/ai_review_common/verdict.py` (Claude Code project layout)
   2. `lib/ai_review_common/verdict.py` resolved relative to the plugin install root (vendored install)
 
-The command body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path before reporting an error.
+The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library before reporting an error.
 
 ## Process
 
@@ -55,7 +60,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The command body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve dependencies via the "Path resolution" section. The build pipeline bundles the canonical axes alongside the command in plugin installs (e.g., `src/copilot-cli/skills/review/references/{role}.md`) so the second resolution candidate always succeeds when the first does not. The canonical source lives under `.claude/skills/review-axes/` (a reference-only skill chosen because `.claude/` only permits the `.claude-plugin`, `agents`, `commands`, `hooks`, `rules`, and `skills` subdirectories). Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this command for project maintainers reading the prose, not as runtime dependencies.
+`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The skill body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve the verdict library via the "Path resolution" section. The build pipeline copies the entire skill directory (including `references/`) into plugin installs at `src/copilot-cli/skills/review/`, so `${CLAUDE_SKILL_DIR}/references/{role}.md` resolves in both layouts without a fallback chain. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this skill for project maintainers reading the prose, not as runtime dependencies.
 
 ## UNKNOWN handling
 
@@ -94,15 +99,23 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 ## Principles
 
 - **Strict superset of CI**. Any finding CI surfaces, `/review` surfaces first.
-- **Drift fails closed**. If `.claude/review-axes/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks as a backstop.
+- **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks as a backstop.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS.
 - **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
+
+## Verification
+
+- [ ] All 6 canonical axis files exist under `references/{role}.md`
+- [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
+- [ ] The verdict library resolves under one of the two documented candidate paths
+- [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 6
+- [ ] The output table contains exactly 9 rows (6 canonical + 3 chained skills) plus the final verdict line
 
 ## Refs
 
 - Verdict module: `.claude/lib/ai_review_common/verdict.py` (Claude layout) or `lib/ai_review_common/verdict.py` (vendored layout, plugin-root relative).
-- Canonical axes: `.claude/skills/review-axes/references/{role}.md` (Claude layout) or `references/{role}.md` bundled with the skill (vendored layout, e.g., `src/copilot-cli/skills/review/references/`).
+- Canonical axes: `.claude/skills/review/references/{role}.md` (Claude layout) or `${CLAUDE_SKILL_DIR}/references/{role}.md` resolved at runtime (works in both layouts).
 - Skill chain: `.claude/skills/{code-qualities-assessment,golden-principles,taste-lints}/` (the build pipeline copies these into the plugin install too).
 
 (Spec, generator, and drift hook live outside the vendored surface and are
-not referenced from this command body. Vendored installs work without them.)
+not referenced from this skill body. Vendored installs work without them.)
