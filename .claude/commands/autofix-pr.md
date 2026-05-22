@@ -1,3 +1,8 @@
+---
+description: Autonomous PR monitor and fixer per docs/autonomous-pr-monitor.md. Triages open PRs by tier, addresses thread feedback, fixes CI failures, and enables auto-merge when the 4-condition Ready-to-Merge gate passes.
+allowed-tools: Bash, Read, Edit, Write, Skill
+---
+
 # /autofix-pr
 
 Autonomous PR monitor and fixer. Implements the protocol from

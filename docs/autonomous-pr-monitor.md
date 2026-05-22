@@ -56,7 +56,7 @@ This workflow should be completed after initialization and before proceeding wit
 A PR is ready to merge ONLY when ALL of the following hold:
 
 1. **Branch up to date with `main`**. `mergeStateStatus != BEHIND`. If behind, merge `main` into the branch (or rebase) and push before landing. `CanMerge=True` from `test_pr_merge_ready.py` is not sufficient when the GitHub `mergeStateStatus` is `BLOCKED` or `BEHIND`.
-2. **All required checks pass**. Required check with status `SUCCESS`. Failures, cancellations, or pending counts block landing.
+2. **All required checks pass**. Each required check's latest run is `SUCCESS`. The canonical signal is `test_pr_merge_ready.py`'s `CIPassing == true`, which collapses each check name to its latest run state and ignores superseded `CANCELLED` runs when a later `SUCCESS` exists. A `FAILURE` or `PENDING` on the latest run still blocks; a stale `CANCELLED` on an older run does not.
 3. **All conversations addressed end-to-end**. For every thread (resolved or not), the agent must have: (a) READ the comment, (b) TRIAGED its severity per the Thread Severity table, (c) SOLVED the underlying issue if the comment is Blocking, (d) REPLIED with a course of action stating what was done (or why no action), (e) RESOLVED the thread via the GraphQL `resolveReviewThread` mutation. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
 4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable.
 
@@ -99,15 +99,17 @@ Known non-required checks that may fail without blocking:
 
 Every conversation on a PR MUST traverse the full lifecycle before the PR can land. No shortcuts.
 
-**Lifecycle steps (apply to every thread, resolved or not)**:
+**Lifecycle steps (apply to every UNRESOLVED thread the agent encounters)**:
 
 1. **READ**: Fetch the comment body and any inline diff context.
 2. **TRIAGE**: Classify per the table below. Record category in your working state.
 3. **SOLVE**: If Blocking, fix the underlying code. If Informational or Stale, no code action required.
-4. **REPLY**: Post a reply via `add_pr_review_thread_reply.py` stating the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated.
-5. **RESOLVE**: Call `add_pr_review_thread_reply.py --resolve` (combines reply + resolve in one mutation) or `resolve_pr_review_thread.py`. A reply alone does not resolve the thread.
+4. **REPLY**: Post a reply via `add_pr_review_thread_reply.py` stating the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated. The script issues `addPullRequestReviewThreadReply` as a single GraphQL mutation.
+5. **RESOLVE**: Call `add_pr_review_thread_reply.py --resolve` (issues reply + a separate `resolveReviewThread` mutation in one script invocation) or `resolve_pr_review_thread.py`. A reply alone does not resolve the thread.
 
-Skipping any step is a protocol violation. A PR with "0 unresolved threads" still requires confirming the agent walked all five steps for each thread that was already resolved before the session started (read-only inspection is sufficient for pre-resolved threads).
+Skipping any step on an unresolved thread is a protocol violation. Threads already RESOLVED before the session started require only read-only inspection (steps 1-2) to confirm the resolution is consistent with the current diff; steps 3-5 do not apply because there is nothing to act on.
+
+The blocking condition for landing is `unresolved_count == 0` AND every unresolved thread the agent saw was walked through steps 1-5. A PR with pre-resolved threads only is landable once the agent has read them and confirmed none need to be re-opened.
 
 | Category | Criteria | Required Action (steps 3-4) |
 |----------|----------|--------|
@@ -116,7 +118,7 @@ Skipping any step is a protocol violation. A PR with "0 unresolved threads" stil
 | Bot-only | Threads from review bots (CodeRabbit, Cursor, Gemini, devin-ai-integration) | Triage feedback (treat as code review, not noise), reply with disposition, resolve |
 | Stale | Thread predates last commit; underlying code changed | Reply with "addressed in commit <SHA>", resolve |
 
-A PR with 8 threads of type "Bot-only" or "Stale" is still blocked until every thread has been read, triaged, replied to, and resolved. Count of unresolved threads is the metric, not perceived importance.
+A PR with 8 currently-unresolved threads of type "Bot-only" or "Stale" is still blocked until every one of those threads has been read, triaged, replied to, and resolved. Count of unresolved threads is the gate, not perceived importance. Threads that were already RESOLVED before the session do not re-enter the lifecycle.
 
 ## Session Initialization Protocol (REQUIRED FOR NEW SESSIONS)
 
@@ -610,13 +612,20 @@ Do not attempt to land PRs while `mergeable` is `UNKNOWN`. Resolve status first,
 
 If `mergeStateStatus == BEHIND` (or `BLOCKED` with no other obvious cause), the branch must be updated against `main` before the PR can land. Repos with linear-history requirements will not allow squash-merge to bypass this.
 
-Workflow:
+Workflow (substitute `PR=<number>`, `BRANCH=<branch-name>` as shell variables; always double-quote them to avoid word-splitting on branches containing slashes or special characters):
 
-1. Add a worktree at the PR branch: `git worktree add .worktrees/pr-{number} <branch>`.
-2. Fetch latest main: `git -C .worktrees/pr-{number} fetch origin main`.
-3. Merge main: `git -C .worktrees/pr-{number} merge origin/main --no-edit`. Resolve conflicts if any (use merge-resolver skill).
-4. Push the updated branch: `git -C .worktrees/pr-{number} push origin <branch>`. Do not use `--force-with-lease` for a merge-update; merges are fast-forward-friendly.
-5. Re-run the completion gate.
+```bash
+PR=2044
+BRANCH="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.head_branch)"
+WT=".worktrees/pr-$PR"
+git worktree add "$WT" "$BRANCH"
+git -C "$WT" fetch origin main
+git -C "$WT" merge origin/main --no-edit   # resolve conflicts via merge-resolver skill if needed
+git -C "$WT" push origin "$BRANCH"          # fast-forward-friendly; no --force needed
+git worktree remove --force "$WT"
+```
+
+After the push, re-run the completion gate.
 
 Do not use the GitHub web "Update branch" button when an agent has local work to push. Web update creates a merge commit on the server side that the local clone does not see, leading to stale-ref issues on the next push.
 
@@ -626,17 +635,19 @@ Force-push is in the project MUST NOT list (`AGENTS.md`). The agent must NEVER f
 
 Before any push (force or not):
 
-1. **Verify the local branch tip**: `cat .git/refs/heads/<branch>` (or `git rev-parse <branch>`) and compare against the actual PR commits on GitHub via `get_pr_context.py`.
+1. **Verify the local branch tip**: `git rev-parse "refs/heads/$BRANCH"` and compare against the PR's `head.sha` from `get_pr_context.py`. Prefer `git rev-parse` over reading `.git/refs/heads/<branch>` directly: `rev-parse` follows packed refs and reflog, plain-file reads miss both and produce false "missing ref" results on a packed repo.
 2. **Verify the local repo is the right repo**: `git remote get-url origin` should match the expected GitHub URL. Sandbox/template repos may share refs with the real repo and reset branches to bootstrap commits.
 3. **If the local tip diverges from the remote PR head**, STOP. Do not push. The local repo may have been corrupted, or the branch may have been force-reset by another actor. Investigate before any push.
 
 If a force-push is approved:
 
 ```bash
-git push origin <known-good-sha>:refs/heads/<branch> --force-with-lease --no-verify
+SHA="<known-good-sha>"
+BRANCH="<branch-name>"
+git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
 ```
 
-`--force-with-lease` rejects the push if the remote moved since the last fetch. Always pin the SHA being pushed; do not use the local branch name as the source when restoring from corruption.
+Quote every variable expansion. Unquoted `$BRANCH` splits on whitespace; an unquoted refspec containing `:` confuses shells that interpret `$SHA:refs/...` as a single concatenated token rather than a colon-separated refspec. Pin the SHA being pushed; do not use the local branch name as the source when restoring from corruption.
 
 Symptoms of local-repo corruption that have caused PR force-resets:
 
