@@ -277,11 +277,14 @@ def _yaml_quote_if_needed(value: str) -> str:
     """
     if not value:
         return value
+    _yaml_reserved_starts = (
+        "?", "!", "|", ">", "&", "*", "@", "`", "%", "{", "[", "#", "-", "'", '"',
+    )
     needs_quoting = (
         ": " in value
         or value.endswith(":")
         or " #" in value
-        or value.startswith(("?", "!", "|", ">", "&", "*", "@", "`", "%", "{", "[", "#", "-", "'", '"'))
+        or value.startswith(_yaml_reserved_starts)
     )
     if not needs_quoting:
         return value
