@@ -223,6 +223,9 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
 
     Maintains specific field order for consistency.
     Outputs arrays in block-style format for cross-platform compatibility.
+    Values that contain YAML-special characters (colon-space, leading
+    reserved indicators) are wrapped in single quotes so downstream YAML
+    parsers do not mistake the value for a nested mapping. See issue #2052.
     """
     lines: list[str] = []
 
@@ -245,7 +248,7 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
                 result.append(f"  - {item}")
             return result
 
-        return [f"{key}: {value_str}"]
+        return [f"{key}: {_yaml_quote_if_needed(value_str)}"]
 
     # Output fields in defined order first
     for field_name in _FIELD_ORDER:
@@ -258,6 +261,33 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
             lines.extend(_format_field(key, frontmatter[key]))
 
     return "\n".join(lines)
+
+
+def _yaml_quote_if_needed(value: str) -> str:
+    """Wrap a scalar value in single quotes when YAML 1.2 would otherwise
+    misparse it.
+
+    The generator's parser strips surrounding quotes from values
+    (``parse_simple_frontmatter``), so a description authored as
+    ``description: 'phrase: with colon'`` round-trips through the dict as
+    ``phrase: with colon`` and would be re-emitted unquoted. Unquoted
+    ``key: phrase: with colon`` is invalid YAML because ``: `` starts a
+    nested mapping at column N. Quote when we see a YAML indicator that
+    would change parse meaning. See issue #2052 (debug.agent.md).
+    """
+    if not value:
+        return value
+    needs_quoting = (
+        ": " in value
+        or value.endswith(":")
+        or " #" in value
+        or value.startswith(("?", "!", "|", ">", "&", "*", "@", "`", "%", "{", "[", "#", "-", "'", '"'))
+    )
+    if not needs_quoting:
+        return value
+    # YAML single-quote escape: replace ' with ''
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
 
 
 def _parse_array_items(array_content: str) -> list[str]:

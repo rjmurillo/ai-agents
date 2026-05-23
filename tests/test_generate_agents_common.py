@@ -353,6 +353,36 @@ class TestFormatFrontmatterYaml:
         result = format_frontmatter_yaml(fm)
         assert "argument-hint: Specify the context" in result
 
+    def test_description_with_colon_is_quoted(self) -> None:
+        """Issue #2052: description containing 'phrase: more' must be quoted
+        so downstream YAML parsers do not start a nested mapping."""
+        fm = {"description": "Debug bugs. Phases: assessment, fix, verify."}
+        result = format_frontmatter_yaml(fm)
+        # Round-trip through PyYAML to prove the emission is valid
+        import yaml
+        parsed = yaml.safe_load(result)
+        assert parsed["description"] == "Debug bugs. Phases: assessment, fix, verify."
+
+    def test_description_with_embedded_single_quote_is_escaped(self) -> None:
+        fm = {"description": "Don't break: this is hard."}
+        result = format_frontmatter_yaml(fm)
+        import yaml
+        parsed = yaml.safe_load(result)
+        assert parsed["description"] == "Don't break: this is hard."
+
+    def test_value_starting_with_yaml_indicator_is_quoted(self) -> None:
+        fm = {"description": "* leading asterisk is a YAML alias indicator"}
+        result = format_frontmatter_yaml(fm)
+        import yaml
+        parsed = yaml.safe_load(result)
+        assert parsed["description"] == "* leading asterisk is a YAML alias indicator"
+
+    def test_plain_value_is_not_quoted(self) -> None:
+        fm = {"description": "Simple description with no special chars"}
+        result = format_frontmatter_yaml(fm)
+        assert "description: Simple description with no special chars" in result
+        assert "'Simple" not in result
+
 
 class TestConvertHandoffSyntax:
     """Tests for convert_handoff_syntax."""
