@@ -166,8 +166,8 @@ def _original_main(stdin_bytes):
 
     ensure_plugin_paths()
 
-    from push_guard_base import run_guard  # noqa: E402
     from hook_utilities import get_project_directory  # noqa: E402
+    from push_guard_base import run_guard  # noqa: E402
 
     GUARD_NAME = "manifest-count"
     # Globs cover every source directory the marketplace counter walks per
