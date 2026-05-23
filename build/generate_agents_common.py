@@ -144,9 +144,12 @@ def convert_frontmatter_for_platform(
 ) -> dict[str, str | None]:
     """Transform frontmatter for a specific platform."""
     result: dict[str, str | None] = {}
-    # Support both new schema (provider + legacy block) and old schema (platform + top-level keys)
-    platform_name = str(platform_config.get("provider", platform_config.get("platform", "")))
-    legacy = platform_config.get("legacy") if isinstance(platform_config.get("legacy"), dict) else {}
+    # Support both new schema (provider + legacy block) and old schema (platform + top-level)
+    platform_name = str(
+        platform_config.get("provider", platform_config.get("platform", "")),
+    )
+    _legacy_raw = platform_config.get("legacy")
+    legacy: dict[str, object] = _legacy_raw if isinstance(_legacy_raw, dict) else {}
 
     for key, value in frontmatter.items():
         if isinstance(value, str) and value.startswith("{{PLATFORM_"):
@@ -158,7 +161,7 @@ def convert_frontmatter_for_platform(
         result[key] = value
 
     # Look for frontmatter in legacy block first, then top-level for backward compat
-    fm = legacy.get("frontmatter") if legacy.get("frontmatter") else platform_config.get("frontmatter")
+    fm = legacy.get("frontmatter") or platform_config.get("frontmatter")
     if isinstance(fm, dict):
         if fm.get("includeNameField") is True:
             result["name"] = agent_name
@@ -168,7 +171,7 @@ def convert_frontmatter_for_platform(
         # Resolve model: use model_tier mapping if template specifies a tier
         model_tier = frontmatter.get("model_tier")
         # Look for model_tiers in legacy block first, then top-level for backward compat
-        model_tiers = legacy.get("model_tiers") if legacy.get("model_tiers") else platform_config.get("model_tiers")
+        model_tiers = legacy.get("model_tiers") or platform_config.get("model_tiers")
         if model_tier and isinstance(model_tiers, dict) and model_tier in model_tiers:
             result["model"] = str(model_tiers[model_tier])
         else:
@@ -193,7 +196,7 @@ def convert_frontmatter_for_platform(
     # toolsFrom allows a platform to reuse another platform's tools key
     # Normalize alias using the same rules as platform names
     # Look for toolsFrom in legacy block first, then top-level for backward compat
-    tools_from = legacy.get("toolsFrom") if legacy.get("toolsFrom") else platform_config.get("toolsFrom")
+    tools_from = legacy.get("toolsFrom") or platform_config.get("toolsFrom")
     tools_key_alias: str | None = None
     tools_key_alias_alt: str | None = None
     if isinstance(tools_from, str):
