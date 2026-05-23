@@ -40,7 +40,7 @@ plugins:
       .github/plugin/marketplace.json:
         agent:
           strategy: "agent_md"
-          sourceDir: "src/copilot-cli"
+          sourceDir: "src/copilot-cli/agents"
         reusable skill:
           strategy: "skill_dirs"
           sourceDir: "src/copilot-cli/skills"
