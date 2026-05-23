@@ -354,28 +354,31 @@ class TestFormatFrontmatterYaml:
         assert "argument-hint: Specify the context" in result
 
     def test_description_with_colon_is_quoted(self) -> None:
-        """Issue #2052: description containing 'phrase: more' must be quoted
-        so downstream YAML parsers do not start a nested mapping."""
+        """Issue #2052: description containing 'phrase: more' must be wrapped
+        in single quotes so downstream YAML parsers do not start a nested
+        mapping at the unquoted colon."""
         fm = {"description": "Debug bugs. Phases: assessment, fix, verify."}
         result = format_frontmatter_yaml(fm)
-        # Round-trip through PyYAML to prove the emission is valid
-        import yaml  # type: ignore[import-untyped]
-        parsed = yaml.safe_load(result)
-        assert parsed["description"] == "Debug bugs. Phases: assessment, fix, verify."
+        assert (
+            "description: 'Debug bugs. Phases: assessment, fix, verify.'"
+            in result
+        )
 
     def test_description_with_embedded_single_quote_is_escaped(self) -> None:
+        """Single quotes inside a single-quoted YAML scalar must be doubled."""
         fm = {"description": "Don't break: this is hard."}
         result = format_frontmatter_yaml(fm)
-        import yaml  # type: ignore[import-untyped]
-        parsed = yaml.safe_load(result)
-        assert parsed["description"] == "Don't break: this is hard."
+        assert "description: 'Don''t break: this is hard.'" in result
 
     def test_value_starting_with_yaml_indicator_is_quoted(self) -> None:
+        """Values starting with YAML reserved indicators (e.g. '*') get
+        wrapped to avoid being parsed as alias references."""
         fm = {"description": "* leading asterisk is a YAML alias indicator"}
         result = format_frontmatter_yaml(fm)
-        import yaml  # type: ignore[import-untyped]
-        parsed = yaml.safe_load(result)
-        assert parsed["description"] == "* leading asterisk is a YAML alias indicator"
+        assert (
+            "description: '* leading asterisk is a YAML alias indicator'"
+            in result
+        )
 
     def test_plain_value_is_not_quoted(self) -> None:
         fm = {"description": "Simple description with no special chars"}
