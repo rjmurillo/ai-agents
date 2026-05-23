@@ -22,7 +22,6 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_agents  # noqa: E402
 
-
 # Helpers --------------------------------------------------------------------
 
 
