@@ -20,7 +20,7 @@ templates/agents/*.shared.md ─────────┐
                                       │
               ┌───────────────────────┼───────────────────────┐
               ▼                       ▼                       │
-   src/vs-code-agents/*.agent.md  src/copilot-cli/*.agent.md  │
+   src/vs-code-agents/*.agent.md  src/copilot-cli/agents/*.agent.md  │
    (GENERATED - DO NOT EDIT)      (GENERATED - DO NOT EDIT)   │
                                                               │
                                                               │

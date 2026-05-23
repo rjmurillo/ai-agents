@@ -4,7 +4,7 @@ Validates that extract_context_retrieval_data() and collect_metrics()
 from measure_context_retrieval_metrics.py correctly parse session logs
 with known classification data.
 
-See: src/copilot-cli/orchestrator.agent.md Step 3.5
+See: src/copilot-cli/agents/orchestrator.agent.md Step 3.5
 See: tests/eval_scenarios/step35_scenarios.json
 """
 

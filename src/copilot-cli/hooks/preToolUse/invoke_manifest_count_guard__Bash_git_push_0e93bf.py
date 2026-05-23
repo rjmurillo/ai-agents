@@ -182,7 +182,7 @@ def _original_main(stdin_bytes):
         ".claude/hooks/*.py",
         ".claude/hooks/**/*.py",
         ".claude/skills/*/SKILL.md",
-        "src/copilot-cli/*.agent.md",
+        "src/copilot-cli/agents/*.agent.md",
         "src/copilot-cli/hooks/*.py",
         "src/copilot-cli/hooks/**/*.py",
         "src/copilot-cli/skills/*/SKILL.md",

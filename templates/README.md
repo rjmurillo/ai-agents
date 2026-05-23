@@ -79,7 +79,7 @@ templates/agents/*.shared.md     Source of truth
 build/Generate-Agents.ps1        Transformation
            |
            +---> src/vs-code-agents/*.agent.md    VS Code output
-           +---> src/copilot-cli/*.agent.md       Copilot CLI output
+           +---> src/copilot-cli/agents/*.agent.md  Copilot CLI output
 ```
 
 ### Platform Transformations
