@@ -225,7 +225,14 @@ CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
 # mypy/pytest at workspace root reject duplicate module names. Filter all synced
 # copies out for tools that walk imports; canonical (scripts/<pkg>/) is still
 # type-checked + tested.
-CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' || true)
+# Issue #2052: build/scripts/generate_hooks.py mirrors .claude/hooks/<event>/
+# scripts under src/copilot-cli/hooks/<event_lowercase>/ for plugin
+# distribution. Same duplicate-module collision applies; drop the synced
+# copies and keep the canonical .claude/hooks copy in the mypy/pytest set.
+CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" \
+    | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' \
+    | grep -Ev '^src/copilot-cli/hooks/' \
+    || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
