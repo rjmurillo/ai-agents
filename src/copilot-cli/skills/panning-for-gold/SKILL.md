@@ -56,7 +56,7 @@ Run the six forcing questions against the input itself:
 1. **Demand Reality**: Is anyone (including you) actually waiting on insight from this brain dump, or did you capture it because something was on your mind?
 2. **Status Quo**: What happens if this transcript sits untriaged for another month? If "nothing breaks," that's a signal.
 3. **Desperate Specificity**: Name the specific decision, person, or artifact that needs the gold-found output.
-4. **Narrowest Wedge**: Could you extract one high-signal thread by hand in 10 minutes instead of running the full four-phase pipeline?
+4. **Narrowest Wedge**: Could you extract one High-Signal thread by hand in 10 minutes instead of running the full four-phase pipeline?
 5. **Observation**: Have you re-read the transcript recently, or are you triaging from memory of why it felt important when captured?
 6. **Future-fit**: If extraction produces nothing actionable, will you delete the gold-found file or let it accumulate?
 
@@ -87,19 +87,21 @@ Evaluations are independent. They can be authored serially or in parallel.
 
 ### Phase 3: Synthesize
 
-Combine the final inventory and the evaluation files into a gold-found markdown file. The gold-found file groups threads by signal level (High, Medium, Low) and includes a metadata block at the top.
+Combine the final inventory and the evaluation files into a gold-found markdown file. The gold-found file groups threads by signal level (High-Signal, Medium-Signal, Low-Signal, matching the section headers in `references/gold-found-template.md`) and includes a metadata block at the top.
 
-**Elaboration gate (mandatory for High-signal threads)**: For each High-signal thread, force one explicit connection to an existing artifact. Search these paths:
+**Elaboration gate (documentation-only, mandatory for High-Signal threads)**: Like Phase 0, this gate is LLM-applied, not script-enforced. `scripts/synthesis.py` appends the raw evaluation content for each thread; it does not parse for `Connects to:` or fail synthesis when the line is missing. The author of the evaluation (or a manual post-synth edit on the gold-found file) is responsible for producing the line. Future work may add a `pan.py validate --gold-found` check; until then, the acceptance checklist below is the gate.
+
+For each High-Signal thread, write one explicit connection to an existing artifact. Search these paths:
 
 - Skills: `.claude/skills/<name>/SKILL.md`
 - ADRs: `.agents/architecture/ADR-*.md`
-- Serena memories: `.serena/memories/<name>.md` (or `mcp__serena__list_memories`)
+- Serena memories: walk `.serena/memories/**` (topic subdirectories under `.serena/memories/<topic>/<memory-name>.md`) and load via `mcp__serena__read_memory("<topic>/<memory-name>.md")`. `mcp__serena__list_memories` returns top-level indexes only and does not enumerate atomic memories; see `.serena/memories/README.md`.
 - Open issues: GitHub issues in the current repo
 - Prior session logs: `.agents/sessions/YYYY-MM-DD-session-*.json`
 
-Write the connection as a one-liner under the thread: `Connects to: <artifact name> (<one-line why>).`
+Write the connection as a one-liner under the thread in the evaluation file (consumed by `synth`) or add it manually to the gold-found file after synthesis: `Connects to: <artifact name> (<one-line why>).`
 
-If no connection exists, treat that as a flag, not a feature. Genuinely novel insights are rare; usually "no connection" means either (a) the thread isn't as high-signal as it looked, or (b) you haven't searched hard enough. Run a vault/skill/session search before promoting it. The forcing function catches false positives and produces compounding knowledge instead of orphan notes.
+If no connection exists, treat that as a flag, not a feature. Genuinely novel insights are rare; usually "no connection" means either (a) the thread isn't as High-Signal as it looked, or (b) you haven't searched hard enough. Run a vault/skill/session search before promoting it. The forcing function catches false positives and produces compounding knowledge instead of orphan notes.
 
 This is the elaboration principle (Make It Stick) applied at the synthesis layer: new findings are only durable knowledge once wired to existing entities. Standalone artifacts decay; connected ones compound.
 
