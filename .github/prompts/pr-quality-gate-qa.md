@@ -1,5 +1,5 @@
 <!-- GENERATED -- DO NOT EDIT -->
-<!-- Source: .claude/review-axes/qa.md -->
+<!-- Source: .claude/skills/review/references/qa.md -->
 <!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
 
 # QA Review Task

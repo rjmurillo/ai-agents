@@ -59,7 +59,7 @@ def test_canonical_set_matches_known_lifecycle_commands() -> None:
     issue #1926. If a new lifecycle command lands, update this expected
     set in the same PR. That signals the author has consciously taken
     on the additional drift-guard surface."""
-    expected = {"spec", "plan", "build", "test", "review", "ship"}
+    expected = {"spec", "plan", "build", "test", "ship"}
     assert LIFECYCLE_COMMANDS == expected, (
         f"discovered lifecycle commands {LIFECYCLE_COMMANDS} != "
         f"documented {expected}; update both this set and the exclusion "

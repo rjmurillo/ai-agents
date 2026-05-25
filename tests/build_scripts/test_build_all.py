@@ -6,7 +6,6 @@ import json
 import re
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -14,7 +13,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import build_all  # noqa: E402
-
 
 # Helpers --------------------------------------------------------------------
 
@@ -183,7 +181,9 @@ def test_write_audit_writes_when_clean(tmp_path: Path) -> None:
 # .claude/ guard (REQ-003-010) ----------------------------------------------
 
 
-def test_assert_no_claude_writes_returns_offending(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_assert_no_claude_writes_returns_offending(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(
         build_all,
         "_git_diff_paths",
@@ -260,6 +260,24 @@ def test_build_lib_rejects_outdir_outside_repo(tmp_path: Path) -> None:
         "  lib:\n"
         '    sourceDir: ".claude/lib"\n'
         '    outputDir: "../escape/lib"\n'
+    )
+    result = build_all._build_lib(tmp_path, cfg, "p")
+    assert result.exit_code == 2
+    assert any("escapes repo root" in n for n in result.notices)
+
+
+def test_build_lib_rejects_outdir_equal_to_repo_root(tmp_path: Path) -> None:
+    """Containment guard: outputDir == repo root MUST fail (CWE-22).
+
+    Without this check, rmtree-then-copytree would wipe the working tree.
+    """
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\nprovider: "p"\n'
+        "artifacts:\n"
+        "  lib:\n"
+        '    sourceDir: ".claude/lib"\n'
+        '    outputDir: "."\n'
     )
     result = build_all._build_lib(tmp_path, cfg, "p")
     assert result.exit_code == 2

@@ -8,10 +8,10 @@ license = {text = "MIT"}
 
 dependencies = [
     "anthropic==0.101.0",
-    "markdown-it-py>=4.0.0",
+    "markdown-it-py>=4.2.0",
     "python-frontmatter==1.1.0",
     "PyYAML==6.0.3",
-    "tiktoken>=0.12.0",
+    "tiktoken>=0.13.0",
 ]
 
 [project.optional-dependencies]
@@ -84,6 +84,9 @@ ignore = []
 ".claude/skills/**/*.py" = ["ANN"]
 ".claude/hooks/**/*.py" = ["ANN"]
 "packages/**/*.py" = ["ANN"]
+# The skillbook schema checker validates values of arbitrary JSON type;
+# `Any` is the honest annotation for an instance the checker will narrow.
+"scripts/validation/validate_skillbook.py" = ["ANN401"]
 
 [tool.mypy]
 python_version = "3.14"

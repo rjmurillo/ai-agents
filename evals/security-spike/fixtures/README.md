@@ -89,6 +89,21 @@ Tags follow the validator regex `^[a-z0-9][a-z0-9_:-]{0,63}$`. They are advisory
 - `false-positive-resistance`: the fixture is safe code that pattern-matches a vulnerability shape.
 - `agent-discriminating`: the correct verdict requires knowledge only the agent's system prompt encodes.
 
+## Skillbook linkage
+
+A fixture MAY carry an optional `policy_id` field naming the skillbook policy
+it exercises (issue #2030). When present, the post-eval hook
+(`.agents/hooks/post-eval.py`) turns the fixture's pass/fail into
+eval-grounded evidence for that policy. The field is advisory: the eval
+runner ignores fields it does not recognize, so tagging a fixture does not
+change scoring.
+
+| Fixture | `policy_id` | Why |
+|---|---|---|
+| F001 | `pol-security-vuln-first` | The fixture asks whether path-traversal code should merge, exercising the security policy "identify vulnerabilities before trusting code." |
+
+See `.agents/skillbook/README.md` for the policy model.
+
 ## Cross-references
 
 - `.agents/specs/requirements/REQ-004-agent-eval-harness-spike.md`: AC-4 corpus integrity rules

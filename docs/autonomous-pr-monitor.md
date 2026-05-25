@@ -51,6 +51,17 @@ Batch size limit: 8 PRs per `/pr-review` call. Above this, parallelism degrades.
 
 This workflow should be completed after initialization and before proceeding with the main task, unless the main task itself involves PR review.
 
+## Ready-to-Merge Definition
+
+A PR is ready to merge ONLY when ALL of the following hold:
+
+1. **Branch up to date with `main`**. `mergeStateStatus != BEHIND`. If behind, merge `main` into the branch (or rebase) and push before landing. `CanMerge=True` from `test_pr_merge_ready.py` is not sufficient when the GitHub `mergeStateStatus` is `BLOCKED` or `BEHIND`.
+2. **All required checks pass**. Each required check's latest run is `SUCCESS`. The canonical signal is `test_pr_merge_ready.py`'s `CIPassing == true`, which collapses each check name to its latest run state and ignores superseded `CANCELLED` runs when a later `SUCCESS` exists. A `FAILURE` or `PENDING` on the latest run still blocks; a stale `CANCELLED` on an older run does not.
+3. **All conversations addressed end-to-end**. For every currently UNRESOLVED thread, the agent must walk the 5-step lifecycle below (READ, TRIAGE, SOLVE if Blocking, REPLY, RESOLVE). Threads already RESOLVED before the session started require only READ and TRIAGE to confirm the resolution still matches the current diff; SOLVE, REPLY, and RESOLVE do not apply when there is nothing to act on. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
+4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable.
+
+`CanMerge` from `test_pr_merge_ready.py` is a partial signal. Always cross-check against the four conditions above before enabling auto-merge or merging directly.
+
 ## PR Triage Protocol
 
 Before running `/pr-review`, classify each open PR into a tier. This determines batch order and handling.
@@ -59,11 +70,13 @@ Use `test_pr_merge_ready.py` to collect merge readiness data for each PR. Then a
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | No CI failures, no unresolved threads | Land immediately (enable auto-merge) |
-| T2 | CI failures only (no threads) | Fix CI, then land |
-| T3 | Threads only (CI passing) | Resolve threads, then land |
-| T4 | Both CI failures and unresolved threads | Fix CI first, then threads |
+| T1 | Branch up to date, no CI failures, no unresolved threads, `CLEAN` merge state | Land immediately (enable auto-merge) |
+| T2 | CI failures only (no threads), branch up to date | Fix CI, verify all required checks pass, then land |
+| T3 | Threads only (CI passing) | Triage every thread, solve blockers, reply with course of action, resolve all threads, then land |
+| T4 | Both CI failures and unresolved threads | Fix CI first, then walk Thread Severity lifecycle for every thread |
 | T5 | Bot PR with validation failures | See Renovate PR Handling section |
+
+If `mergeStateStatus == BEHIND`, the PR's branch must be updated against `main` BEFORE landing, regardless of tier. Update via merge or rebase; do not rely on auto-merge to handle the update.
 
 Process tiers in order: T1, T2, T3, T4, T5.
 
@@ -82,18 +95,30 @@ Known non-required checks that may fail without blocking:
 | Verify citations | Documentation | Skip on non-doc PRs |
 | Python Security Checks | Security scan | Review output; skip if no Python changes |
 
-### Thread Severity Classification
+### Thread Severity Classification and Lifecycle
 
-When a PR has unresolved threads, classify them before acting.
+Every conversation on a PR MUST traverse the full lifecycle before the PR can land. No shortcuts.
 
-| Category | Criteria | Action |
+**Lifecycle steps (apply to every UNRESOLVED thread the agent encounters)**:
+
+1. **READ**: Fetch the comment body and any inline diff context.
+2. **TRIAGE**: Classify per the table below. Record category in your working state.
+3. **SOLVE**: If Blocking, fix the underlying code. If Informational or Stale, no code action required.
+4. **REPLY**: Post a reply stating the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated.
+5. **RESOLVE**: Mark the thread resolved. `add_pr_review_thread_reply.py --resolve` does steps 4 and 5 in one invocation by issuing `addPullRequestReviewThreadReply` followed by `resolveReviewThread` (two GraphQL mutations, one script call). A reply alone does not resolve the thread.
+
+Skipping any step on an unresolved thread is a protocol violation. Threads already RESOLVED before the session started require only read-only inspection (steps 1-2) to confirm the resolution is consistent with the current diff; steps 3-5 do not apply because there is nothing to act on.
+
+The blocking condition for landing is `unresolved_count == 0` AND every unresolved thread the agent saw was walked through steps 1-5. A PR with pre-resolved threads only is landable once the agent has read them and confirmed none need to be re-opened.
+
+| Category | Criteria | Required Action (steps 3-5) |
 |----------|----------|--------|
-| Blocking | Reviewer requested changes; thread is open | Must resolve before landing |
-| Informational | Comment-only; no change requested | Acknowledge, do not block |
-| Bot-only | All threads from review bots (CodeRabbit, Cursor, Gemini) | Synthesize and post to author |
-| Stale | Thread predates last commit; underlying code changed | Resolve with "addressed in latest commit" |
+| Blocking | Reviewer requested changes; thread open | Fix code, reply with commit SHA, resolve |
+| Informational | Comment-only; no change requested | Reply acknowledging, resolve |
+| Bot-only | Threads from review bots (CodeRabbit, Cursor, Gemini, devin-ai-integration) | Triage feedback (treat as code review, not noise), reply with disposition, resolve |
+| Stale | Thread predates last commit; underlying code changed | Reply with "addressed in commit <SHA>", resolve |
 
-A PR with 8 threads of type "Bot-only" or "Stale" is not blocked. A PR with 1 "Blocking" thread is blocked until resolved.
+A PR with 8 currently-unresolved threads of type "Bot-only" or "Stale" is still blocked until every one of those threads has been read, triaged, replied to, and resolved. Count of unresolved threads is the gate, not perceived importance. Threads that were already RESOLVED before the session do not re-enter the lifecycle.
 
 ## Session Initialization Protocol (REQUIRED FOR NEW SESSIONS)
 
@@ -582,6 +607,55 @@ done
 ```
 
 Do not attempt to land PRs while `mergeable` is `UNKNOWN`. Resolve status first, then proceed with tiering. If status remains stale after retry, enable auto-merge and let GitHub handle it when checks pass.
+
+## Branch Update Against Main
+
+If `mergeStateStatus == BEHIND` (or `BLOCKED` with no other obvious cause), the branch must be updated against `main` before the PR can land. Repos with linear-history requirements will not allow squash-merge to bypass this.
+
+Workflow (substitute `PR=<number>`, `BRANCH=<branch-name>` as shell variables; always double-quote them to avoid word-splitting on branches containing slashes or special characters):
+
+```bash
+PR=2044
+BRANCH="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.head_branch)"
+WT=".worktrees/pr-$PR"
+git worktree add "$WT" "$BRANCH"
+git -C "$WT" fetch origin main
+git -C "$WT" merge origin/main --no-edit   # resolve conflicts via merge-resolver skill if needed
+git -C "$WT" push origin "$BRANCH"          # fast-forward-friendly; no --force needed
+git worktree remove --force "$WT"
+```
+
+After the push, re-run the completion gate.
+
+Do not use the GitHub web "Update branch" button when an agent has local work to push. Web update creates a merge commit on the server side that the local clone does not see, leading to stale-ref issues on the next push.
+
+## Force-Push Safety (Pre-Push Audit)
+
+Force-push is in the project MUST NOT list (`AGENTS.md`). The agent must NEVER force-push without explicit user authorization captured in the session log.
+
+Before any push (force or not):
+
+1. **Verify the local branch tip**: `git rev-parse "refs/heads/$BRANCH"` and compare against the PR's `head.sha` from `get_pr_context.py`. Prefer `git rev-parse` over reading `.git/refs/heads/<branch>` directly: `rev-parse` resolves both loose refs and refs that have been compacted into `.git/packed-refs`, while a plain-file read of `.git/refs/heads/<branch>` returns "missing ref" whenever the branch lives only in `packed-refs`.
+2. **Verify the local repo is the right repo**: `git remote get-url origin` should match the expected GitHub URL. Sandbox/template repos may share refs with the real repo and reset branches to bootstrap commits.
+3. **If the local tip diverges from the remote PR head**, STOP. Do not push. The local repo may have been corrupted, or the branch may have been force-reset by another actor. Investigate before any push.
+
+If a force-push is approved:
+
+```bash
+SHA="<known-good-sha>"
+BRANCH="<branch-name>"
+git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
+```
+
+Quote every variable expansion. The shell does not treat `:` specially in a refspec, so `$SHA:refs/heads/$BRANCH` is already passed to `git` as a single argument; the real reason to quote is that branch names can contain characters the shell DOES treat specially (`*`, `?`, `[`, whitespace), and any of those in `$BRANCH` will cause word-splitting or globbing on an unquoted expansion. Pin the SHA being pushed; do not use the local branch name as the source when restoring from corruption.
+
+Symptoms of local-repo corruption that have caused PR force-resets:
+
+- `git log` in a worktree shows a "feat: initial commit by orchestrator agent" or other bootstrap commit instead of the PR's real history.
+- `ls-remote origin <branch>` returns the same bootstrap SHA.
+- A subsequent push reports a fast-forward but the PR file count balloons (e.g., 5000+ files changed).
+
+When any of these signal a force-reset, restore by force-pushing the last-known-good SHA from the git object database (commits persist even when refs do not).
 
 ## Key Commands Used
 

@@ -1,4 +1,4 @@
-"""Tests for the review-axes drift-check phase in .githooks/pre-push (REQ-008-03 / REQ-008-07).
+"""Tests for the review-skill drift-check phase in .githooks/pre-push (REQ-008-03 / REQ-008-07).
 
 The drift-check phase is bash that delegates to the Python generator's
 ``--dry-run`` mode. The full drift logic is tested at the generator level
