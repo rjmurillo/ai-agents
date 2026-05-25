@@ -163,7 +163,8 @@ def _original_main(stdin_bytes):
     Bypass conditions:
     - SKIP_COMPLETION_GATE=true environment variable
     - Documentation-only changes (*.md files only)
-    - No session log present (fail-open)
+    - No session log present (fail-open), unless the completion claim was
+      inferred from an unreadable -F / --body-file (fail-closed)
     - Non-commit/non-PR commands
 
     Hook Type: PreToolUse (blocking on match)
@@ -380,23 +381,24 @@ def _original_main(stdin_bytes):
         return None
 
 
-    def _is_completion_claim_in_message_file(command: str) -> bool:
+    def _is_completion_claim_in_message_file(command: str) -> tuple[bool, bool]:
         """Check if a git commit -F file contains completion signals.
 
-        Returns True (fail-closed) when a message file is specified but cannot
-        be read. This prevents bypassing the gate by pointing -F at a file
-        outside trusted paths that might contain completion language.
+        Returns a tuple ``(has_claim, body_unreadable)``.
+
+        ``body_unreadable`` is True when ``-F`` was specified but the file
+        could not be read (outside trusted paths or I/O error). Callers use
+        that signal to keep the fail-closed contract end-to-end: when the
+        body cannot be inspected, the gate cannot fall through to the
+        "no session log => allow" branch.
         """
         message_file = _extract_commit_message_file(command)
         if message_file is None:
-            return False
+            return (False, False)
         message_content = _read_commit_message_file(message_file)
         if message_content is None:
-            # Fail-closed: file was specified but couldn't be read (outside
-            # trusted paths or I/O error). Treat as containing completion claims
-            # so verification evidence is required.
-            return True
-        return COMPLETION_SIGNALS.search(message_content) is not None
+            return (True, True)
+        return (COMPLETION_SIGNALS.search(message_content) is not None, False)
 
 
     def _extract_pr_body_file(command: str) -> str | None:
@@ -410,23 +412,21 @@ def _original_main(stdin_bytes):
         return None
 
 
-    def _is_completion_claim_in_pr_body_file(command: str) -> bool:
+    def _is_completion_claim_in_pr_body_file(command: str) -> tuple[bool, bool]:
         """Check if a gh pr create --body-file contains completion signals.
 
         Uses the same path containment as commit message files (CWE-22).
-        Returns True (fail-closed) when a body file is specified but cannot
-        be read.
+        Returns a tuple ``(has_claim, body_unreadable)`` so callers can keep
+        the fail-closed contract end-to-end (see
+        ``_is_completion_claim_in_message_file``).
         """
         body_file = _extract_pr_body_file(command)
         if body_file is None:
-            return False
+            return (False, False)
         body_content = _read_commit_message_file(body_file)
         if body_content is None:
-            # Fail-closed: file was specified but couldn't be read (outside
-            # trusted paths or I/O error). Treat as containing completion claims
-            # so verification evidence is required.
-            return True
-        return COMPLETION_SIGNALS.search(body_content) is not None
+            return (True, True)
+        return (COMPLETION_SIGNALS.search(body_content) is not None, False)
 
 
     # Per-git-call timeout. The hook's outer timeout in .claude/settings.json
@@ -652,13 +652,20 @@ def _original_main(stdin_bytes):
         # Check if the command/message contains completion signals.
         # For `git commit -F <file>`, also check the message file contents.
         # For `gh pr create --body-file <file>`, also check the body file contents.
+        msg_claim, msg_unreadable = _is_completion_claim_in_message_file(command)
+        body_claim, body_unreadable = _is_completion_claim_in_pr_body_file(command)
         has_completion_claim = (
-            _is_completion_claim(command)
-            or _is_completion_claim_in_message_file(command)
-            or _is_completion_claim_in_pr_body_file(command)
+            _is_completion_claim(command) or msg_claim or body_claim
         )
         if not has_completion_claim:
             sys.exit(0)
+
+        # ``body_inferred`` is true when the completion claim was inferred from
+        # a body file that could not be read (commit -F / pr create --body-file
+        # pointing outside trusted paths). The fail-closed contract on those
+        # helpers must propagate: when we cannot read the body, we cannot fall
+        # through to the "no session log => allow" branch below.
+        body_inferred = msg_unreadable or body_unreadable
 
         project_dir = get_project_directory()
 
@@ -672,8 +679,11 @@ def _original_main(stdin_bytes):
         sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
         session_logs = get_today_session_logs(sessions_dir)
 
-        # Fail-open when no session logs exist
-        if not session_logs:
+        # Fail-open when no session logs exist, EXCEPT when the completion
+        # claim was inferred from an unreadable body file. In that case we
+        # honor the fail-closed contract on the body-file helpers and require
+        # verification before allowing the command through.
+        if not session_logs and not body_inferred:
             _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
             sys.exit(0)
 

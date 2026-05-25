@@ -269,61 +269,75 @@ class TestBodyFileFailClosed:
     ) -> None:
         outside = tmp_path.parent / "definitely-outside" / "msg.txt"
         command = f'git commit -F {outside}'
-        assert (
-            invoke_false_completion_gate._is_completion_claim_in_message_file(
-                command
-            )
-            is True
-        )
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            command
+        ) == (True, True)
 
     def test_commit_message_file_missing_fails_closed(
         self, tmp_path: Path
     ) -> None:
         missing = tmp_path / "does-not-exist.txt"
         command = f'git commit -F {missing}'
-        assert (
-            invoke_false_completion_gate._is_completion_claim_in_message_file(
-                command
-            )
-            is True
-        )
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            command
+        ) == (True, True)
 
     def test_pr_body_file_outside_allowlist_fails_closed(
         self, tmp_path: Path
     ) -> None:
         outside = tmp_path.parent / "definitely-outside" / "body.md"
         command = f'gh pr create --body-file {outside}'
-        assert (
-            invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
-                command
-            )
-            is True
-        )
+        assert invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+            command
+        ) == (True, True)
 
     def test_pr_body_file_missing_fails_closed(self, tmp_path: Path) -> None:
         missing = tmp_path / "no-body.md"
         command = f'gh pr create --body-file {missing}'
-        assert (
-            invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
-                command
-            )
-            is True
-        )
+        assert invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+            command
+        ) == (True, True)
 
     def test_no_message_file_returns_false(self) -> None:
         """No -F argument means no body-file claim; do not over-block."""
-        assert (
-            invoke_false_completion_gate._is_completion_claim_in_message_file(
-                'git commit -m "feat: ordinary inline message"'
-            )
-            is False
-        )
-        assert (
-            invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
-                'gh pr create --title "x"'
-            )
-            is False
-        )
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            'git commit -m "feat: ordinary inline message"'
+        ) == (False, False)
+        assert invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+            'gh pr create --title "x"'
+        ) == (False, False)
+
+    def test_unreadable_body_file_blocks_even_with_no_session_logs(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression for Cursor BugBot PRRT_kwDOQoWRls6EfZri.
+
+        When ``gh pr create --body-file`` points at a file outside the
+        trusted allowlist the helper returns the fail-closed claim. The
+        gate's caller MUST honor that signal even when there are no
+        session logs for today; otherwise the no-session fail-open path
+        silently bypasses the fail-closed contract.
+        """
+        outside = tmp_path.parent / "definitely-outside" / "body.md"
+        hook_input = {
+            "tool_input": {"command": f"gh pr create --body-file {outside}"},
+        }
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate, "_is_documentation_only", return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 2
 
 
 class TestAllowedTempRoots:
