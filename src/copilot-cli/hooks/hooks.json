@@ -16,6 +16,13 @@
         "type": "command"
       },
       {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_plan_state_sync__Write_Edit_c39898.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_plan_state_sync__Write_Edit_c39898.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
         "bash": "python3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Bash_f620ca.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Bash_f620ca.py\"",
@@ -50,6 +57,13 @@
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_correction_applier__Bash_f620ca.py\"",
         "timeoutSec": 3,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
+        "timeoutSec": 5,
         "type": "command"
       },
       {
@@ -179,6 +193,13 @@
         "powershell": "py -3 -u \"./hooks/sessionEnd/invoke_session_validator.py\"",
         "timeoutSec": 30,
         "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionEnd/invoke_auto_retrospective.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionEnd/invoke_auto_retrospective.py\"",
+        "timeoutSec": 5,
+        "type": "command"
       }
     ],
     "sessionStart": [
@@ -208,6 +229,13 @@
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/sessionStart/invoke_adr_change_detection.py\"",
         "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionStart/invoke_context_loader.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionStart/invoke_context_loader.py\"",
+        "timeoutSec": 5,
         "type": "command"
       }
     ],
