@@ -20,9 +20,11 @@ permissions:
 jobs:
   dependabot:
     name: Dependabot (GitHub Actions and Python)
+    # All approval and merge calls use the GH_ACTIONS_PR_WRITE PAT. The job
+    # GITHUB_TOKEN keeps the workflow-level read-only stance for least
+    # privilege under pull_request_target.
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     runs-on: ubuntu-24.04-arm
     if: github.actor == 'dependabot[bot]' || github.actor == 'dependabot-preview[bot]'
     steps:
@@ -47,21 +49,29 @@ jobs:
 
   renovate:
     name: Renovate
+    # Approval uses the GH_ACTIONS_PR_WRITE PAT. The job GITHUB_TOKEN keeps
+    # the workflow-level read-only stance for least privilege under
+    # pull_request_target.
     permissions:
-      pull-requests: write
+      contents: read
     runs-on: ubuntu-24.04-arm
     if: github.actor == 'renovate[bot]'
     # Renovate handles auto-merge decisions via platformAutomerge and
     # per-package automerge rules in renovate.json. This workflow only
     # provides the required approval for non-major updates. Major-version
     # bumps are excluded from auto-approval and require manual review.
+    # Major detection reads the 'renovate-major' label that renovate.json
+    # 'major.addLabels' applies on major PRs. Label-based detection is
+    # reliable; PR title regex was not (no marker configured upstream).
     steps:
       - name: Detect major update
         id: detect-major
         env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
+          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          if printf '%s' "$PR_TITLE" | grep -qiE '\(major\)'; then
+          labels=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name] | join(",")')
+          if printf '%s' "$labels" | grep -q '\brenovate-major\b'; then
             echo "is_major=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_major=false" >> "$GITHUB_OUTPUT"
