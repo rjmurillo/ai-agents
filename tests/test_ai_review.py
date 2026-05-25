@@ -984,8 +984,34 @@ class TestRunsOverlap:
         assert runs_overlap(run1, run2) is False
 
     def test_run2_starts_exactly_at_run1_end(self):
+        # Boundary touch (run1.end == run2.start) is NOT overlap.
+        # Half-open interval semantics: [start, end) -- the endpoint is exclusive.
         run1 = {"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T01:00:00Z"}
         run2 = {"created_at": "2026-01-01T01:00:00Z", "updated_at": "2026-01-01T02:00:00Z"}
+        assert runs_overlap(run1, run2) is False
+
+    def test_run1_starts_inside_run2(self):
+        # Symmetric case: run1 starts inside run2. Previously a false-negative
+        # because the old implementation only checked `run2_start` between
+        # `run1_start` and `run1_end`.
+        run1 = {"created_at": "2026-01-01T00:30:00Z", "updated_at": "2026-01-01T01:30:00Z"}
+        run2 = {"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T01:00:00Z"}
+        assert runs_overlap(run1, run2) is True
+
+    def test_run1_fully_contains_run2(self):
+        run1 = {"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T02:00:00Z"}
+        run2 = {"created_at": "2026-01-01T00:30:00Z", "updated_at": "2026-01-01T01:30:00Z"}
+        assert runs_overlap(run1, run2) is True
+
+    def test_run2_fully_contains_run1(self):
+        run1 = {"created_at": "2026-01-01T00:30:00Z", "updated_at": "2026-01-01T01:30:00Z"}
+        run2 = {"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T02:00:00Z"}
+        assert runs_overlap(run1, run2) is True
+
+    def test_run1_starts_exactly_at_run2_end(self):
+        # Symmetric boundary touch.
+        run1 = {"created_at": "2026-01-01T01:00:00Z", "updated_at": "2026-01-01T02:00:00Z"}
+        run2 = {"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T01:00:00Z"}
         assert runs_overlap(run1, run2) is False
 
 

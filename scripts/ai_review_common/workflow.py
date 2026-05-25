@@ -140,11 +140,17 @@ def get_workflow_runs_by_pr(
 
 
 def runs_overlap(run1: dict[str, Any], run2: dict[str, Any]) -> bool:
-    """Check if two workflow runs overlap in time."""
+    """Check if two workflow runs overlap in time.
+
+    Symmetric interval intersection: two half-open intervals [start, end)
+    overlap iff run1.start < run2.end and run2.start < run1.end. Intervals
+    that merely touch at a boundary (run1.end == run2.start) do not overlap.
+    """
     run1_start = datetime.fromisoformat(run1["created_at"].replace("Z", "+00:00"))
     run1_end = datetime.fromisoformat(run1["updated_at"].replace("Z", "+00:00"))
     run2_start = datetime.fromisoformat(run2["created_at"].replace("Z", "+00:00"))
-    return run1_start < run2_start < run1_end
+    run2_end = datetime.fromisoformat(run2["updated_at"].replace("Z", "+00:00"))
+    return run1_start < run2_end and run2_start < run1_end
 
 
 _CONCURRENCY_PREFIXES: list[tuple[str, str]] = [
