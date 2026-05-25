@@ -70,11 +70,15 @@ def get_current_branch(project_dir: Path | None = None) -> str:
     on any subprocess or filesystem error.
     """
     try:
+        # 2s leaves budget under the 5s hook timeout for session JSON reads
+        # and the checkpoint write. A hung git subprocess that consumes the
+        # full hook timeout would let the harness kill the hook mid-flight
+        # and break the fail-open contract.
         result = subprocess.run(
             ["git", "branch", "--show-current"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=2,
             cwd=str(project_dir) if project_dir else None,
         )
         if result.returncode == 0:

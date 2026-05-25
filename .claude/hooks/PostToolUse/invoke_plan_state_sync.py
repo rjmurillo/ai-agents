@@ -192,17 +192,22 @@ def main() -> int:
         )
         return 0
 
-    # Read the file content for summary. Catch UnicodeDecodeError (subclass
-    # of ValueError) alongside OSError so a non-UTF8 file does not crash the
-    # hook and break the fail-open contract; continue with an empty summary.
-    try:
-        content = full_path.read_text(encoding="utf-8") if full_path.is_file() else ""
-    except (OSError, UnicodeDecodeError) as e:
-        print(
-            f"[hook-error] invoke_plan_state_sync read: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-        content = ""
+    # Read the file content for summary. Bound the read to 1024 bytes since
+    # write_checkpoint() slices the first 500 chars; reading the whole file
+    # for a large session log adds unnecessary I/O and pressure on the 5s
+    # hook timeout. Catch UnicodeDecodeError (subclass of ValueError) alongside
+    # OSError so a non-UTF8 file does not crash the hook and break the
+    # fail-open contract; continue with an empty summary.
+    content = ""
+    if full_path.is_file():
+        try:
+            with full_path.open("r", encoding="utf-8") as f:
+                content = f.read(1024)
+        except (OSError, UnicodeDecodeError) as e:
+            print(
+                f"[hook-error] invoke_plan_state_sync read: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
 
     try:
         write_checkpoint(project_dir, normalized_file_path, content)
