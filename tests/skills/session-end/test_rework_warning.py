@@ -330,13 +330,13 @@ class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
     """
 
     @staticmethod
-    def _make_minimal_session_end() -> dict:
+    def _make_minimal_session_end() -> dict[str, Any]:
         """Build a minimal sessionEnd dict with all required MUST items."""
         required_items = [
             "handoffPreserved", "serenaMemoryUpdated", "markdownLintRun",
             "changesCommitted", "validationPassed", "checklistComplete",
         ]
-        section: dict = {
+        section: dict[str, Any] = {
             name: {"Complete": True, "Evidence": "evidence", "level": "MUST"}
             for name in required_items
         }

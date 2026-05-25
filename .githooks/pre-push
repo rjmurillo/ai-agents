@@ -229,9 +229,13 @@ CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
 # scripts under src/copilot-cli/hooks/<event_lowercase>/ for plugin
 # distribution. Same duplicate-module collision applies; drop the synced
 # copies and keep the canonical .claude/hooks copy in the mypy/pytest set.
+# Issue #2063: build/scripts/generate_hooks.py also mirrors .claude/skills/
+# scripts under src/copilot-cli/skills/. Same duplicate-module collision;
+# drop src/copilot-cli/skills/ mirror copies.
 CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" \
     | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' \
     | grep -Ev '^src/copilot-cli/hooks/' \
+    | grep -Ev '^src/copilot-cli/skills/' \
     || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
