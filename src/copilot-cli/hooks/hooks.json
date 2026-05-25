@@ -16,6 +16,13 @@
         "type": "command"
       },
       {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_plan_state_sync__Write_Edit_c39898.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_plan_state_sync__Write_Edit_c39898.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
         "bash": "python3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Bash_f620ca.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/postToolUse/invoke_adr_lifecycle_hook__Bash_f620ca.py\"",
@@ -53,45 +60,59 @@
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_git_commit_442774.py\"",
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_git_commit_442774.py\"",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_session_log_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit_442774.py\"",
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit_442774.py\"",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit_442774.py\"",
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit_442774.py\"",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit_442774.py\"",
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit_442774.py\"",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit_442774.py\"",
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit_442774.py\"",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 10,
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit_442774.py\"",
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit_442774.py\"",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 10,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_gh_pr_create_be117f.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_gh_pr_create_be117f.py\"",
+        "timeoutSec": 5,
         "type": "command"
       },
       {
@@ -179,6 +200,13 @@
         "powershell": "py -3 -u \"./hooks/sessionEnd/invoke_session_validator.py\"",
         "timeoutSec": 30,
         "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionEnd/invoke_auto_retrospective.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionEnd/invoke_auto_retrospective.py\"",
+        "timeoutSec": 30,
+        "type": "command"
       }
     ],
     "sessionStart": [
@@ -207,6 +235,13 @@
         "bash": "python3 -u \"./hooks/sessionStart/invoke_adr_change_detection.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/sessionStart/invoke_adr_change_detection.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionStart/invoke_context_loader.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionStart/invoke_context_loader.py\"",
         "timeoutSec": 30,
         "type": "command"
       }

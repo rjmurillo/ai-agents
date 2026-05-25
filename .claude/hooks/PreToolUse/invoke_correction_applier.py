@@ -220,8 +220,12 @@ def main() -> int:
         # invoke_branch_context_guard, invoke_false_completion_gate,
         # invoke_security_commit_gate, invoke_prompt_eval_gate). Claude
         # Code surfaces the `reason` field; `message` was silently dropped.
-        output = {"decision": "allow", "reason": "\n".join(lines)}
+        advisory = "\n".join(lines)
+        output = {"decision": "allow", "reason": advisory}
         print(json.dumps(output))
+        # Mirror advisory text to stderr for human visibility in logs
+        # (stdout must remain valid JSON for the hook protocol).
+        print(advisory, file=sys.stderr)
     except Exception as exc:
         print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
     return 0
