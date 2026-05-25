@@ -313,9 +313,12 @@ def _original_main(stdin_bytes):
         session_log = find_session_log(project_dir)
         if not session_log:
             return False
+        # Catch UnicodeDecodeError (subclass of ValueError) alongside OSError so
+        # a non-UTF8 session log does not crash this blocking hook and break the
+        # fail-open contract; treat the decode failure as "no evidence" instead.
         try:
             content = session_log.read_text(encoding="utf-8")
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             print(
                 f"[hook-error] invoke_false_completion_gate session-read: {type(e).__name__}: {e}",
                 file=sys.stderr,
@@ -386,14 +389,12 @@ def _original_main(stdin_bytes):
         session_id = ""
         tool_use_id = ""
 
-        # Consumer-repo guard: if .agents/ does not exist, skip with a diagnostic
-        # so the gate does not block commits in repos that install the plugin but
-        # do not follow the ai-agents session protocol.
+        # Consumer-repo guard: if .agents/ does not exist, skip silently so the
+        # gate does not block commits in repos that install the plugin but do not
+        # follow the ai-agents session protocol. Silent because this hook is
+        # registered for the broad Bash matcher and runs on every Bash call; a
+        # diagnostic line here would flood harness stderr in consumer repos.
         if _is_consumer_repo(project_dir):
-            print(
-                "[SKIP] invoke_false_completion_gate: .agents/ not found (consumer repo)",
-                file=sys.stderr,
-            )
             return 0
 
         # Skip if stdin is TTY (interactive shell, not a hook invocation)
