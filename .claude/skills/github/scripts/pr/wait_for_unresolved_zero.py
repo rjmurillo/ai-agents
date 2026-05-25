@@ -356,21 +356,28 @@ def _failure(reason: str, pull_request: int, observations: list[dict]) -> dict:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
+    # Issue #2069 Finding A: the CLI contract is single-channel JSON on
+    # stdout. Earlier code emitted the failure payload to stderr on
+    # invalid args while emitting success payloads to stdout, which
+    # broke stdout-parsing callers (they saw an empty body and treated
+    # the run as malformed). Every outcome now writes JSON to stdout;
+    # stderr is reserved for the short human-readable message.
     if args.pull_request <= 0:
-        print(
-            json.dumps(_failure("pull_request must be positive", args.pull_request, [])),
-            file=sys.stderr,
+        failure = _failure(
+            "pull_request must be positive", args.pull_request, [],
         )
+        print(json.dumps(failure))
+        print("error: pull_request must be positive", file=sys.stderr)
         return 2
     if args.interval_seconds <= 0 or args.max_wait_seconds <= 0:
+        failure = _failure(
+            "interval-seconds and max-wait-seconds must be positive",
+            args.pull_request,
+            [],
+        )
+        print(json.dumps(failure))
         print(
-            json.dumps(
-                _failure(
-                    "interval-seconds and max-wait-seconds must be positive",
-                    args.pull_request,
-                    [],
-                ),
-            ),
+            "error: interval-seconds and max-wait-seconds must be positive",
             file=sys.stderr,
         )
         return 2

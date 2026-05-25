@@ -327,6 +327,71 @@ class ConfigValidationTest(unittest.TestCase):
         )
 
 
+class JsonContractStdoutTest(unittest.TestCase):
+    """Issue #2069 Finding A: invalid-arg JSON payloads emit to stdout.
+
+    Stdout-parsing callers expect every outcome (success, timeout, config
+    error) to surface a JSON object on stdout. The earlier behavior
+    routed invalid-arg failures to stderr only, breaking parsers that
+    consumed `subprocess.run(..., capture_output=True).stdout`. The
+    canonical CLI contract is "JSON to stdout, human noise to stderr."
+    """
+
+    def _capture(self, argv: list[str]) -> tuple[int, str, str]:
+        """Run main(argv) and return (exit_code, stdout, stderr)."""
+        import io
+        import contextlib
+
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            rc = wfz.main(argv)
+        return rc, out_buf.getvalue(), err_buf.getvalue()
+
+    def test_negative_pull_request_emits_json_to_stdout(self) -> None:
+        """POSITIVE: invalid pull_request yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(["--pull-request", "-1"])
+        self.assertEqual(rc, 2)
+        # Stdout MUST contain a parseable JSON object with settled=false.
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+        self.assertIn("positive", (payload.get("reason") or "").lower())
+
+    def test_zero_pull_request_emits_json_to_stdout(self) -> None:
+        """POSITIVE: pull_request=0 yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(["--pull-request", "0"])
+        self.assertEqual(rc, 2)
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+
+    def test_zero_interval_emits_json_to_stdout(self) -> None:
+        """POSITIVE: interval=0 yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(
+            ["--pull-request", "1", "--interval-seconds", "0"],
+        )
+        self.assertEqual(rc, 2)
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+        self.assertIn("interval", (payload.get("reason") or "").lower())
+
+    def test_zero_max_wait_emits_json_to_stdout(self) -> None:
+        """POSITIVE: max-wait=0 yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(
+            ["--pull-request", "1", "--max-wait-seconds", "0"],
+        )
+        self.assertEqual(rc, 2)
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+
+    def test_negative_pull_request_stderr_has_no_json(self) -> None:
+        """NEGATIVE: stderr MUST NOT carry the JSON payload (single channel)."""
+        _, _, stderr = self._capture(["--pull-request", "-1"])
+        # A short human notice on stderr is allowed; a JSON object is not.
+        # Look for the JSON braces; their absence is the load-bearing claim.
+        self.assertNotIn('"settled":', stderr)
+        self.assertNotIn('"observations":', stderr)
+
+
 class AuthErrorPropagationTest(unittest.TestCase):
     """Exit code 4 from the underlying script propagates as settle=false."""
 
