@@ -247,7 +247,10 @@ def main() -> int:
 
     now = datetime.now(tz=UTC)
     today = now.strftime("%Y-%m-%d")
-    timestamp = now.strftime("%H%M%S")
+    # Suffix combines microsecond resolution and PID so two compactions
+    # firing in the same second from different processes do not overwrite
+    # each other's checkpoints.
+    timestamp = now.strftime("%H%M%S-%f") + f"-{os.getpid()}"
     branch = get_current_branch(project_dir)
     session_info = get_session_info(project_dir)
 

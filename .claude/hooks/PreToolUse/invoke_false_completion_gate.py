@@ -247,6 +247,25 @@ def main() -> int:
     session_id = ""
     tool_use_id = ""
 
+    # Drain stdin FIRST, before any early-exit branches. Other lifecycle
+    # hooks in this PR (invoke_context_loader, invoke_compact_checkpoint)
+    # follow the same pattern. Leaving stdin unread can surface as EPIPE
+    # or SIGPIPE on the harness side if its pipe buffer is full.
+    stdin_data = ""
+    if not sys.stdin.isatty():
+        try:
+            stdin_data = sys.stdin.read()
+        except Exception as e:
+            print(
+                f"[hook-error] invoke_false_completion_gate stdin: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
+            if project_dir:
+                write_audit_log(
+                    project_dir, "", "error_parse", f"{type(e).__name__}: {e}", session_id, tool_use_id
+                )
+            return 0  # Fail-open
+
     # Consumer-repo guard: if .agents/ does not exist, skip silently so the
     # gate does not block commits in repos that install the plugin but do not
     # follow the ai-agents session protocol. Silent because this hook is
@@ -259,11 +278,8 @@ def main() -> int:
     if sys.stdin.isatty():
         return 0
 
-    # Read stdin JSON; extract correlation IDs even on parse-failure path.
-    # Broad exception catch keeps fail-open even when stdin itself raises
-    # (OSError on closed/broken pipes, UnicodeDecodeError on bad bytes, etc.).
+    # Parse drained stdin JSON; extract correlation IDs even on parse-failure path.
     try:
-        stdin_data = sys.stdin.read()
         if not stdin_data.strip():
             return 0
         hook_input = json.loads(stdin_data)
