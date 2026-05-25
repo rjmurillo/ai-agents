@@ -45,7 +45,7 @@ If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Upd
 
 ## Force-Push Safety
 
-Before any push: verify `git rev-parse "refs/heads/$BRANCH"` matches the PR's expected `head.sha` from `get_pr_context.py`. (Prefer `rev-parse` over plain-file reads of `.git/refs/heads/<branch>`: rev-parse follows packed refs and reflog; the file read does not.) If the local ref points to a bootstrap/sandbox commit, STOP. Investigate corruption before pushing. Force-push only with explicit user authorization, using SHA-pinned source with quoted refspec:
+Before any push: verify `git rev-parse "refs/heads/$BRANCH"` matches the PR's expected `head.sha` from `get_pr_context.py`. (Prefer `rev-parse` over plain-file reads of `.git/refs/heads/<branch>`: rev-parse resolves loose refs AND refs that have been compacted into `.git/packed-refs`; a plain-file read returns "missing ref" when the branch lives only in `packed-refs`.) If the local ref points to a bootstrap/sandbox commit, STOP. Investigate corruption before pushing. Force-push only with explicit user authorization, using SHA-pinned source with quoted refspec:
 
 ```bash
 SHA="<known-good-sha>"
@@ -53,7 +53,7 @@ BRANCH="<branch-name>"
 git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
 ```
 
-Quote every variable expansion. Unquoted `$BRANCH` splits on whitespace; an unquoted `$SHA:refs/...` confuses shells that treat the colon-form as concatenation rather than a refspec.
+Quote every variable expansion. The shell does not treat `:` specially in a refspec; the real reason to quote is that branch names can contain characters the shell DOES treat specially (`*`, `?`, `[`, whitespace), and unquoted `$BRANCH` will word-split or glob on those.
 
 ## Scripts
 

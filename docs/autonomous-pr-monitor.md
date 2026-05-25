@@ -57,7 +57,7 @@ A PR is ready to merge ONLY when ALL of the following hold:
 
 1. **Branch up to date with `main`**. `mergeStateStatus != BEHIND`. If behind, merge `main` into the branch (or rebase) and push before landing. `CanMerge=True` from `test_pr_merge_ready.py` is not sufficient when the GitHub `mergeStateStatus` is `BLOCKED` or `BEHIND`.
 2. **All required checks pass**. Each required check's latest run is `SUCCESS`. The canonical signal is `test_pr_merge_ready.py`'s `CIPassing == true`, which collapses each check name to its latest run state and ignores superseded `CANCELLED` runs when a later `SUCCESS` exists. A `FAILURE` or `PENDING` on the latest run still blocks; a stale `CANCELLED` on an older run does not.
-3. **All conversations addressed end-to-end**. For every thread (resolved or not), the agent must have: (a) READ the comment, (b) TRIAGED its severity per the Thread Severity table, (c) SOLVED the underlying issue if the comment is Blocking, (d) REPLIED with a course of action stating what was done (or why no action), (e) RESOLVED the thread via the GraphQL `resolveReviewThread` mutation. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
+3. **All conversations addressed end-to-end**. For every currently UNRESOLVED thread, the agent must walk the 5-step lifecycle below (READ, TRIAGE, SOLVE if Blocking, REPLY, RESOLVE). Threads already RESOLVED before the session started require only READ and TRIAGE to confirm the resolution still matches the current diff; SOLVE, REPLY, and RESOLVE do not apply when there is nothing to act on. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
 4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable.
 
 `CanMerge` from `test_pr_merge_ready.py` is a partial signal. Always cross-check against the four conditions above before enabling auto-merge or merging directly.
@@ -104,13 +104,14 @@ Every conversation on a PR MUST traverse the full lifecycle before the PR can la
 1. **READ**: Fetch the comment body and any inline diff context.
 2. **TRIAGE**: Classify per the table below. Record category in your working state.
 3. **SOLVE**: If Blocking, fix the underlying code. If Informational or Stale, no code action required.
-4. **REPLY + RESOLVE**: Post a reply AND resolve the thread in one call via `add_pr_review_thread_reply.py --resolve`. The script issues `addPullRequestReviewThreadReply` followed by `resolveReviewThread` as two GraphQL mutations. The reply states the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated. A reply alone does not resolve the thread; use `--resolve` to do both in one invocation.
+4. **REPLY**: Post a reply stating the course of action: what was changed (with commit SHA), why no action was needed, or how the comment was incorporated.
+5. **RESOLVE**: Mark the thread resolved. `add_pr_review_thread_reply.py --resolve` does steps 4 and 5 in one invocation by issuing `addPullRequestReviewThreadReply` followed by `resolveReviewThread` (two GraphQL mutations, one script call). A reply alone does not resolve the thread.
 
-Skipping any step on an unresolved thread is a protocol violation. Threads already RESOLVED before the session started require only read-only inspection (steps 1-2) to confirm the resolution is consistent with the current diff; steps 3-4 do not apply because there is nothing to act on.
+Skipping any step on an unresolved thread is a protocol violation. Threads already RESOLVED before the session started require only read-only inspection (steps 1-2) to confirm the resolution is consistent with the current diff; steps 3-5 do not apply because there is nothing to act on.
 
-The blocking condition for landing is `unresolved_count == 0` AND every unresolved thread the agent saw was walked through steps 1-4. A PR with pre-resolved threads only is landable once the agent has read them and confirmed none need to be re-opened.
+The blocking condition for landing is `unresolved_count == 0` AND every unresolved thread the agent saw was walked through steps 1-5. A PR with pre-resolved threads only is landable once the agent has read them and confirmed none need to be re-opened.
 
-| Category | Criteria | Required Action (steps 3-4) |
+| Category | Criteria | Required Action (steps 3-5) |
 |----------|----------|--------|
 | Blocking | Reviewer requested changes; thread open | Fix code, reply with commit SHA, resolve |
 | Informational | Comment-only; no change requested | Reply acknowledging, resolve |
@@ -634,7 +635,7 @@ Force-push is in the project MUST NOT list (`AGENTS.md`). The agent must NEVER f
 
 Before any push (force or not):
 
-1. **Verify the local branch tip**: `git rev-parse "refs/heads/$BRANCH"` and compare against the PR's `head.sha` from `get_pr_context.py`. Prefer `git rev-parse` over reading `.git/refs/heads/<branch>` directly: `rev-parse` follows packed refs and reflog, plain-file reads miss both and produce false "missing ref" results on a packed repo.
+1. **Verify the local branch tip**: `git rev-parse "refs/heads/$BRANCH"` and compare against the PR's `head.sha` from `get_pr_context.py`. Prefer `git rev-parse` over reading `.git/refs/heads/<branch>` directly: `rev-parse` resolves both loose refs and refs that have been compacted into `.git/packed-refs`, while a plain-file read of `.git/refs/heads/<branch>` returns "missing ref" whenever the branch lives only in `packed-refs`.
 2. **Verify the local repo is the right repo**: `git remote get-url origin` should match the expected GitHub URL. Sandbox/template repos may share refs with the real repo and reset branches to bootstrap commits.
 3. **If the local tip diverges from the remote PR head**, STOP. Do not push. The local repo may have been corrupted, or the branch may have been force-reset by another actor. Investigate before any push.
 
@@ -646,7 +647,7 @@ BRANCH="<branch-name>"
 git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
 ```
 
-Quote every variable expansion. Unquoted `$BRANCH` splits on whitespace; an unquoted refspec containing `:` confuses shells that interpret `$SHA:refs/...` as a single concatenated token rather than a colon-separated refspec. Pin the SHA being pushed; do not use the local branch name as the source when restoring from corruption.
+Quote every variable expansion. The shell does not treat `:` specially in a refspec, so `$SHA:refs/heads/$BRANCH` is already passed to `git` as a single argument; the real reason to quote is that branch names can contain characters the shell DOES treat specially (`*`, `?`, `[`, whitespace), and any of those in `$BRANCH` will cause word-splitting or globbing on an unquoted expansion. Pin the SHA being pushed; do not use the local branch name as the source when restoring from corruption.
 
 Symptoms of local-repo corruption that have caused PR force-resets:
 
