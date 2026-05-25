@@ -325,6 +325,46 @@ else
 fi
 
 #
+# Em/en-dash Prohibition (Issue #1923, REQ-006-AC1, AC2, AC4, AC5, AC6)
+#
+# Blocks staged *.md files containing U+2014 (em-dash) or U+2013 (en-dash).
+# Reuses STAGED_MD_FILES (line 186) and IS_MERGE (line 136) from this hook.
+# Vendored paths (node_modules/, .venv/, .serena/cache/) are skipped.
+# .github/instructions/ is NOT skipped (REQ-006-AC4).
+# LC_ALL=C.UTF-8 ensures UTF-8 byte matching on both GNU and BSD grep.
+#
+if [ "$IS_MERGE" != "1" ] && [ -n "$STAGED_MD_FILES" ]; then
+    # CRITICAL-001: Build array safely to preserve filenames with spaces
+    DASH_HITS=()
+    while IFS= read -r dash_file; do
+        [ -z "$dash_file" ] && continue
+        case "$dash_file" in
+            node_modules/*|.venv/*|.serena/cache/*|tests/hooks/fixtures/*) continue ;;
+        esac
+        # Scan the staged BLOB, not the working-tree file. Otherwise a
+        # partially-staged commit (working tree edited clean, index still
+        # dirty, or vice versa) would give wrong answers. `git show` writes
+        # the index version of the file to stdout; piping into grep matches
+        # exactly what the commit will contain.
+        if git show ":$dash_file" 2>/dev/null | LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]'; then
+            DASH_HITS+=("$dash_file")
+        fi
+    done <<< "$STAGED_MD_FILES"
+    if [ ${#DASH_HITS[@]} -gt 0 ]; then
+        echo_error "Em/en-dash prohibition violated"
+        echo_info "  Files containing U+2014 (em-dash) or U+2013 (en-dash):"
+        for hit in "${DASH_HITS[@]}"; do
+            echo_info "    $hit"
+        done
+        echo_info "  Fix: replace U+2014 with comma, period, or colon;"
+        echo_info "       U+2013 with hyphen in numeric ranges;"
+        echo_info "       or restructure the sentence."
+        echo_info "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Refs #1923)."
+        EXIT_STATUS=1
+    fi
+fi
+
+#
 # Python Linting with Ruff (ADR-042)
 #
 # Non-blocking linting for Python files. Auto-fixes where possible.
@@ -756,8 +796,18 @@ fi
 #
 SKILL_VALIDATOR="$REPO_ROOT/.claude/skills/SkillForge/scripts/validate-skill.py"
 
-# Check if any SKILL.md files are staged
-STAGED_SKILL_FILES=$(echo "$STAGED_FILES" | grep -E '/SKILL\.md$' || true)
+# Check if any SKILL.md files are staged.
+# Exclude src/copilot-cli/skills/{spec,plan,build,test,review,ship}/SKILL.md:
+# these are Copilot CLI mirrors of the lifecycle commands at
+# .claude/commands/{spec,plan,build,test,review,ship}.md. They use the
+# slash-command frontmatter shape (argument-hint, no Triggers/Verification
+# sections) and intentionally fail SkillForge structural validation. The
+# Claude Code originals are already excluded from markdownlint MD041 for
+# the same reason; this filter is the validator-level analogue.
+STAGED_SKILL_FILES=$(echo "$STAGED_FILES" \
+    | grep -E '/SKILL\.md$' \
+    | grep -v -E '^src/copilot-cli/skills/(spec|plan|build|test|ship)/SKILL\.md$' \
+    || true)
 
 if [ -n "$STAGED_SKILL_FILES" ]; then
     echo_info "Validating staged skill files..."

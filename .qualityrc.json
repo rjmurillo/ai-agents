@@ -1,0 +1,19 @@
+{
+  "_comment": "coupling.max is the only field .claude/skills/code-qualities-assessment/scripts/assess.py (and its src/copilot-cli mirror) reads for coupling (compares coupling.value > max). Set to 10 (the score ceiling) to disable the check until the script's threshold direction is reconciled with the scoring direction (higher score = less coupling = better; current max-based check is inverted). min/warn for coupling are not consumed by the script today.",
+  "thresholds": {
+    "cohesion":       { "min": 7,  "warn": 5 },
+    "coupling":       { "max": 10 },
+    "encapsulation":  { "min": 7,  "warn": 5 },
+    "testability":    { "min": 6,  "warn": 4 },
+    "nonRedundancy":  { "min": 8,  "warn": 6 }
+  },
+  "context": {
+    "test": {
+      "cohesion":       { "min": 6,  "warn": 4 },
+      "coupling":       { "max": 10 },
+      "encapsulation":  { "min": 2,  "warn": 1 },
+      "testability":    { "min": 3,  "warn": 2 },
+      "nonRedundancy":  { "min": 6,  "warn": 4 }
+    }
+  }
+}

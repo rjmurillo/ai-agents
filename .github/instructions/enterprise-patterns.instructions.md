@@ -1,6 +1,6 @@
 ---
 description: Enterprise application architecture patterns from Fowler's PEAA. Apply when designing or changing persistence boundaries, transactional scope, or use-case orchestration. Reinforce existing repositories rather than introduce competing abstractions.
-applyTo: **
+applyTo: '**'
 ---
 
 # Enterprise Patterns

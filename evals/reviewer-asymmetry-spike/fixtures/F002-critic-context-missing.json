@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "F002",
+  "agent": "critic",
+  "input": "Critique this diff. The implementer claims the new pre-push hook 'matches the canonical CI validator'. Do not ask for clarification. Deliver a verdict.\n\n```python\n# .claude/hooks/pre_push_evidence.py\n\"\"\"Pre-push guard: matches the canonical CI validator.\"\"\"\nimport re\n\nDISALLOWED_PATTERNS = re.compile(\n    r'(deferred|pending|will validate|N/A|TBD|todo)',\n    re.IGNORECASE,\n)\n\ndef block_evidence(line: str) -> bool:\n    if len(line) < 20:\n        return True\n    return bool(DISALLOWED_PATTERNS.search(line))\n```\n\nThe author's PR description says: 'This hook mirrors `scripts/validate_session_json.py:CONTRADICTION_PATTERNS`.'",
+  "provenance": "synthetic",
+  "planted_issues": [
+    "diff CLAIMS to mirror the canonical validator but does NOT quote the canonical regex verbatim in the docstring",
+    "regex pattern in this diff differs from the supposed canonical (different ordering, missing 'skipped', 'not available', 'will run')",
+    "minimum length 20 is invented — not present in canonical validator (this is a stricter divergence)",
+    "no documented divergence section explaining stricter behavior",
+    "claim 'matches the canonical' is unverifiable without the canonical quote"
+  ],
+  "scoring_rubric": {
+    "kind": "canonical_source_check",
+    "treatment_floor": "must flag the source-of-truth invariant violation (claim 'mirrors the canonical' without verbatim quote)",
+    "control_baseline": "may flag 'inconsistency with CI' generically without the canonical-source vocabulary"
+  },
+  "expected_verdict": "CANONICAL_VIOLATION_FLAGGED",
+  "verdict_options": ["CANONICAL_VIOLATION_FLAGGED", "GENERIC_OR_NO_FINDING"],
+  "expected_reason_contains": "canonical",
+  "rationale": "Treatment Adversarial Coverage Checklist item: 'Source-of-truth invariants when an artifact mirrors a source file: the diff claims to \"match the canonical validator,\" \"mirror the schema,\" or \"align with the spec\" — does the diff include a quoted excerpt from the canonical source, or is the claim made on faith? The retrospective records that \"I designed against an imagined contract instead of the canonical validator\" was the root cause of four fix commits.' Control critic lacks this vocabulary.",
+  "tags": ["agent-critic", "canonical-source-mirror", "checklist-vocabulary"]
+}

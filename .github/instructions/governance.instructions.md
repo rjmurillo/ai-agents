@@ -1,5 +1,5 @@
 ---
-applyTo: **
+applyTo: '**'
 ---
 
 # Governance File Rules

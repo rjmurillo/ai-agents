@@ -1,6 +1,6 @@
 ---
 description: Production survivability patterns from Michael Nygard's _Release It!_. Apply when designing or changing agent orchestration, lifecycle hooks, inter-agent communication, or any code that calls external APIs, message queues, or long-running services. Skip for purely internal utility or pure-function helpers.
-applyTo: **
+applyTo: '**'
 ---
 
 # Release It! Production Survivability

@@ -124,7 +124,7 @@ ignores:
   # verify. No inline suppression is used because it would propagate to user files
   - "src/claude/claude-instructions.template.md"
   - "src/vs-code-agents/copilot-instructions.md"
-  - "src/copilot-cli/copilot-instructions.md"
+  - "src/copilot-cli/docs/copilot-instructions.md"
 
   # Prompt templates with intentional nested code blocks and XML-like tags (scratchpad, etc.)
   # that confuse the parser. These are prompt content, not markdown errors
@@ -143,11 +143,24 @@ ignores:
   # HTML tags, violating MD033 and MD041. These are tool-managed metadata, not authored markdown.
   - "**/CLAUDE.md"
 
-  # New lifecycle command files have only YAML frontmatter, no H1 heading. MD041 not applicable.
-  # Only the 6 new lifecycle commands are excluded; other command files retain full linting.
+  # Lifecycle command files have only YAML frontmatter, no H1 heading. MD041 not applicable.
+  # Only the 5 lifecycle commands are excluded; other command files retain full linting.
+  # /review is excluded from this list because it was converted from a lifecycle
+  # command to a proper skill in #2042; its SKILL.md has an H1 heading and is
+  # fully linted.
   - ".claude/commands/spec.md"
   - ".claude/commands/plan.md"
   - ".claude/commands/build.md"
   - ".claude/commands/test.md"
-  - ".claude/commands/review.md"
   - ".claude/commands/ship.md"
+
+  # Copilot CLI mirrors of the lifecycle command files. Same structure as
+  # `.claude/commands/{spec,plan,build,test,ship}.md`: YAML frontmatter
+  # followed by `@CLAUDE.md` and prose, with no H1 heading. The Claude Code
+  # paths above were excluded; the Copilot CLI mirrors were missed in that
+  # PR and only surface when hooks are configured (see CONTRIBUTING.md).
+  - "src/copilot-cli/skills/spec/SKILL.md"
+  - "src/copilot-cli/skills/plan/SKILL.md"
+  - "src/copilot-cli/skills/build/SKILL.md"
+  - "src/copilot-cli/skills/test/SKILL.md"
+  - "src/copilot-cli/skills/ship/SKILL.md"

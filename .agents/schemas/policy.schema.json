@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/rjmurillo/ai-agents/schemas/policy.schema.json",
+  "title": "Skillbook Policy Registry",
+  "description": "Validates .agents/skillbook/policies.json: the evidence-tiered registry of agent behavioral policies. See .agents/skillbook/README.md for the tier and status model.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "policies", "meta"],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Registry schema version."
+    },
+    "policies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/policy" }
+    },
+    "meta": { "$ref": "#/$defs/meta" }
+  },
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "owner_agent",
+        "name",
+        "description",
+        "tier",
+        "status",
+        "confirms",
+        "contradicts",
+        "application_count",
+        "evidence",
+        "related_policies",
+        "contradicts_policies",
+        "supersedes",
+        "created_at",
+        "last_tested_at",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^pol-[a-z0-9-]+$",
+          "description": "Stable policy identifier."
+        },
+        "owner_agent": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Agent persona that owns the policy, or 'shared' for cross-cutting rules."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-line imperative statement of the policy."
+        },
+        "description": {
+          "type": "string",
+          "description": "Longer rationale for the policy."
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["hypothesis", "observed", "validated"],
+          "description": "Evidence tier. Tiers never decrease; see promote()."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "questioning", "retired"],
+          "description": "active = relied on normally. questioning = validated tier but contradict rate above the gate; re-examine before relying. retired = no longer applied."
+        },
+        "confirms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Weighted sum of confirmed evidence (external 1.0, self-referential 0.25). Derived from evidence; recomputed on every mutation."
+        },
+        "contradicts": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Weighted sum of contradicted evidence. Derived from evidence."
+        },
+        "application_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of evidence entries (unweighted count). Derived from evidence."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "evidence-entry.schema.json" },
+          "description": "System of record for the policy's evidence."
+        },
+        "related_policies": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "contradicts_policies": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Policy ids this policy is in tension with."
+        },
+        "supersedes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "created_at": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix epoch seconds when the policy was created."
+        },
+        "last_tested_at": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix epoch seconds of the most recent evidence entry, or 0 if none."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bumped on every mutation."
+        },
+        "source": {
+          "type": "string",
+          "description": "Optional provenance: the document or persona file the policy was seeded from."
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_discovered",
+        "total_retired",
+        "total_merged",
+        "last_promotion_at",
+        "promotion_count"
+      ],
+      "properties": {
+        "total_discovered": { "type": "integer", "minimum": 0 },
+        "total_retired": { "type": "integer", "minimum": 0 },
+        "total_merged": { "type": "integer", "minimum": 0 },
+        "last_promotion_at": { "type": "integer", "minimum": 0 },
+        "promotion_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

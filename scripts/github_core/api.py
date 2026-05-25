@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import enum
 import json
 import logging
 import re
 import subprocess
 import sys
+import time
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
@@ -18,6 +20,42 @@ if TYPE_CHECKING:
 from scripts.github_core.validation import is_github_name_valid
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers (log sanitation, thread predicates)
+# ---------------------------------------------------------------------------
+
+
+def safe_log_str(value: object) -> str:
+    """Strip CR/LF from a value before logging it.
+
+    Defends against CWE-117 log forging: GraphQL error messages and other
+    remote-sourced text that flow into ``error=%s`` placeholders may contain
+    embedded `\\r\\n` sequences that, unsanitized, allow an attacker to
+    forge a fake log line. Keeping the substitution in one named helper
+    means future log-injection risk is closed at one site, not 12.
+    """
+    return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
+
+def count_unresolved_threads(thread_nodes: list[dict]) -> int:
+    """Count threads whose ``isResolved`` is False.
+
+    Single authoritative definition of "unresolved" (DRY): the merge-ready
+    inline-page filter and the paginated-helper post-filter MUST share this
+    rule. If the rule changes (e.g., treating an outdated thread differently),
+    one edit propagates everywhere. The default for missing ``isResolved`` is
+    True so a malformed thread does not silently count as unresolved.
+    """
+    return sum(1 for t in thread_nodes if not t.get("isResolved", True))
+
+
+def filter_unresolved_threads(thread_nodes: list[dict]) -> list[dict]:
+    """Return only threads whose ``isResolved`` is False. See
+    ``count_unresolved_threads`` for the canonical definition.
+    """
+    return [t for t in thread_nodes if not t.get("isResolved", True)]
 
 # ---------------------------------------------------------------------------
 # Result types
@@ -542,28 +580,21 @@ def get_trusted_source_comments(
 # ---------------------------------------------------------------------------
 
 
-def get_unresolved_review_threads(
-    owner: str,
-    repo: str,
-    pull_request: int,
-) -> list[dict]:
-    """Retrieve unresolved review threads on a pull request.
+# Safety bound on the reviewThreads pagination loop. A PR with >5000 threads
+# is almost certainly a misuse rather than a real review state; we exit
+# rather than spin forever. The PR #1887 retrospective records that the
+# prior single-page first:100 query masked 6+ unresolved threads twice.
+_REVIEW_THREADS_MAX_PAGES = 50
 
-    Returns an empty list on API failure (never None).
-
-    Args:
-        owner: Repository owner.
-        repo: Repository name.
-        pull_request: PR number.
-
-    Returns:
-        List of thread dicts where isResolved is False.
-    """
-    query = """\
-query($owner: String!, $name: String!, $prNumber: Int!) {
+_REVIEW_THREADS_QUERY = """\
+query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
     repository(owner: $owner, name: $name) {
         pullRequest(number: $prNumber) {
-            reviewThreads(first: 100) {
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
                 nodes {
                     id
                     isResolved
@@ -578,29 +609,211 @@ query($owner: String!, $name: String!, $prNumber: Int!) {
     }
 }"""
 
+
+class FetchStatus(enum.StrEnum):
+    """Result classification for one reviewThreads page fetch.
+
+    The caller distinguishes ``TRANSPORT_ERROR`` (return [] to preserve the
+    never-raises contract) from ``STRUCTURAL_MISSING`` (break the loop with
+    whatever was collected). ``OK`` means a usable page is returned.
+    Using StrEnum instead of bare strings keeps the type checker honest
+    and makes a typo (``FetchStatus.OK_`` vs ``FetchStatus.OK``) a fail-
+    fast attribute error rather than a silent miss.
+    """
+
+    OK = "ok"
+    TRANSPORT_ERROR = "transport_error"
+    STRUCTURAL_MISSING = "structural_missing"
+
+
+def _fetch_review_threads_page(
+    owner: str,
+    repo: str,
+    pull_request: int,
+    cursor: str | None,
+    pages_seen: int,
+    aggregated_count: int,
+) -> tuple[FetchStatus, dict | None]:
+    """Fetch one page of reviewThreads.
+
+    Returns ``(status, review_threads_dict)``. status is one of
+    ``FetchStatus.OK`` / ``FetchStatus.TRANSPORT_ERROR`` / ``FetchStatus.STRUCTURAL_MISSING``.
+    Each failure branch logs a distinct ``op=review_threads_failed
+    reason=...`` line so the surface is greppable.
+    """
+    variables: dict = {"owner": owner, "name": repo, "prNumber": pull_request}
+    if cursor is not None:
+        variables["cursor"] = cursor
+
     try:
-        data = gh_graphql(
-            query,
-            {"owner": owner, "name": repo, "prNumber": pull_request},
-        )
+        data = gh_graphql(_REVIEW_THREADS_QUERY, variables)
     except RuntimeError as exc:
+        logger.warning(
+            "op=review_threads_failed pr=%d owner=%s repo=%s "
+            "page=%d aggregated=%d reason=graphql_error error=%s",
+            pull_request, owner, repo, pages_seen, aggregated_count,
+            safe_log_str(exc),
+        )
         warnings.warn(
-            f"Failed to query review threads for PR #{pull_request}: {exc}",
+            f"Failed to query review threads for PR #{pull_request} "
+            f"on page {pages_seen} (collected {aggregated_count} so far): {exc}",
             stacklevel=2,
         )
-        return []
+        return FetchStatus.TRANSPORT_ERROR, None
 
-    threads = (
-        data.get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
+    repository = data.get("repository") or {}
+    pull_request_obj = repository.get("pullRequest")
+    if pull_request_obj is None:
+        logger.warning(
+            "op=review_threads_failed pr=%d owner=%s repo=%s "
+            "page=%d aggregated=%d reason=pr_not_found",
+            pull_request, owner, repo, pages_seen, aggregated_count,
+        )
+        return FetchStatus.STRUCTURAL_MISSING, None
+    review_threads = pull_request_obj.get("reviewThreads")
+    if review_threads is None:
+        logger.warning(
+            "op=review_threads_failed pr=%d owner=%s repo=%s "
+            "page=%d aggregated=%d reason=field_missing",
+            pull_request, owner, repo, pages_seen, aggregated_count,
+        )
+        return FetchStatus.STRUCTURAL_MISSING, None
+    if review_threads.get("nodes") is None:
+        # Aligns with the taxonomy in
+        # .claude/skills/github/scripts/pr/get_pr_review_threads.py:
+        # `nodes_missing` is a distinct GraphQL response shape from
+        # `field_missing` (the connection itself is present but its node
+        # list is null). Operators grepping by reason find both surfaces.
+        logger.warning(
+            "op=review_threads_failed pr=%d owner=%s repo=%s "
+            "page=%d aggregated=%d reason=nodes_missing",
+            pull_request, owner, repo, pages_seen, aggregated_count,
+        )
+        return FetchStatus.STRUCTURAL_MISSING, None
+
+    return FetchStatus.OK, review_threads
+
+
+def _log_review_threads_page(
+    pull_request: int, pages_seen: int, cursor: str | None,
+    page_info: dict, page_nodes: list, aggregated_count: int,
+) -> None:
+    """Per-page DEBUG log; full cursor so adjacent pages with shared 8-char
+    prefixes can be distinguished.
+    """
+    logger.debug(
+        "op=review_threads_page pr=%d page=%d cursor_in=%s end_cursor=%s "
+        "nodes=%d cumulative=%d has_next=%s",
+        pull_request, pages_seen,
+        cursor if cursor else "<start>",
+        page_info.get("endCursor"),
+        len(page_nodes), aggregated_count,
+        bool(page_info.get("hasNextPage")),
     )
 
-    if not threads:
-        return []
 
-    return [t for t in threads if not t.get("isResolved", True)]
+def _warn_review_threads_capped(pull_request: int, aggregated_count: int) -> None:
+    """Emit cap-truncation warning. The PR #1887 retro names silent
+    truncation as the false-zero failure class; the warning is the
+    machine-readable signal that the result is a lower bound, not exact.
+    """
+    warnings.warn(
+        f"Hit _REVIEW_THREADS_MAX_PAGES={_REVIEW_THREADS_MAX_PAGES} for "
+        f"PR #{pull_request}; result truncated at {aggregated_count} "
+        f"threads. Unresolved-thread count is a lower bound, not exact.",
+        stacklevel=3,
+    )
+
+
+def get_unresolved_review_threads(
+    owner: str,
+    repo: str,
+    pull_request: int,
+) -> list[dict]:
+    """Retrieve unresolved review threads on a pull request.
+
+    Pages through reviewThreads until ``pageInfo.hasNextPage`` is false or
+    ``_REVIEW_THREADS_MAX_PAGES`` is reached. Returns ``[]`` on transport
+    failure (never raises, never partial). On a cap-hit, returns whatever
+    was collected and emits ``warnings.warn``. The PR #1887 retrospective
+    records that the prior single-page first:100 query hid 6+ unresolved
+    threads; this loop plus the cap-warn close both silent-truncation
+    failure modes.
+    """
+    op_start = time.monotonic()
+    aggregated: list[dict] = []
+    cursor: str | None = None
+    pages_seen = 0
+
+    while pages_seen < _REVIEW_THREADS_MAX_PAGES:
+        pages_seen += 1
+        status, review_threads = _fetch_review_threads_page(
+            owner, repo, pull_request, cursor, pages_seen, len(aggregated),
+        )
+        if status == FetchStatus.TRANSPORT_ERROR:
+            return []
+        if status == FetchStatus.STRUCTURAL_MISSING:
+            if pages_seen > 1:
+                # Mid-pagination structural failure: pages 1..N-1 succeeded
+                # and page N returned a structurally invalid response. The
+                # callers see a truncated result, so emit the same surfaced
+                # warning shape used for cursor_missing and page-cap-exceeded
+                # rather than letting the empty-page silently terminate the
+                # loop. Page 1 failures already return [] above; the guard
+                # here is the multi-page case.
+                warnings.warn(
+                    f"Mid-pagination structural failure for PR "
+                    f"#{pull_request} on page {pages_seen}; result truncated "
+                    f"at {len(aggregated)} threads. Reason: structural_failure.",
+                    stacklevel=2,
+                )
+                logger.warning(
+                    "op=review_threads_failed pr=%d owner=%s repo=%s "
+                    "page=%d aggregated=%d reason=structural_failure",
+                    pull_request, owner, repo, pages_seen, len(aggregated),
+                )
+            break
+        assert review_threads is not None  # noqa: S101
+        page_nodes = review_threads.get("nodes", [])
+        aggregated.extend(page_nodes)
+
+        page_info = review_threads.get("pageInfo") or {}
+        _log_review_threads_page(
+            pull_request, pages_seen, cursor, page_info,
+            page_nodes, len(aggregated),
+        )
+        if not page_info.get("hasNextPage"):
+            break
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            # hasNextPage was true but endCursor is empty/null. Cannot
+            # advance — surface as a truncation event rather than a clean
+            # exit, since callers would otherwise see a "complete"-looking
+            # result that silently dropped pages 2+.
+            warnings.warn(
+                f"hasNextPage=true but endCursor empty for PR "
+                f"#{pull_request} on page {pages_seen}; result truncated "
+                f"at {len(aggregated)} threads. Reason: cursor_missing.",
+                stacklevel=2,
+            )
+            logger.warning(
+                "op=review_threads_failed pr=%d owner=%s repo=%s "
+                "page=%d aggregated=%d reason=cursor_missing",
+                pull_request, owner, repo, pages_seen, len(aggregated),
+            )
+            break
+    else:
+        _warn_review_threads_capped(pull_request, len(aggregated))
+
+    unresolved = filter_unresolved_threads(aggregated)
+    logger.info(
+        "op=review_threads_complete pr=%d owner=%s repo=%s "
+        "pages=%d total=%d unresolved=%d duration_ms=%d",
+        pull_request, owner, repo, pages_seen,
+        len(aggregated), len(unresolved),
+        int((time.monotonic() - op_start) * 1000),
+    )
+    return unresolved
 
 
 # ---------------------------------------------------------------------------

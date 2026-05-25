@@ -115,9 +115,9 @@ Allocate models based on skill complexity:
 
 | Tier | Model | Cost | Use Cases | ai-agents Skills |
 |------|-------|------|-----------|------------------|
-| **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | 11 skills (40.7%): adr-review, skillcreator, planner, merge-resolver, github, analyze, decision-critic, research-and-incorporate, session-log-fixer, incoherence, memory |
-| **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | 12 skills (44.4%): doc-sync, memory systems, pr-comment-responder, programming-advisor, prompt-engineer, security-detection, serena-code-architecture |
-| **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | 4 skills (14.8%): fix-markdown-fences, steering-matcher, session |
+| **Tier 1: Opus** | `claude-opus-4-6` | $5/$25 per MTok | Maximum reasoning, multi-agent orchestration, architectural decisions, meta-programming | Examples: `adr-review`, `SkillForge`, `planner`, `merge-resolver`, `github`, `decision-critic`, `research-and-incorporate`, `slashcommandcreator`. (Authoritative list: skills with `model: claude-opus-4-6` in their SKILL.md frontmatter.) |
+| **Tier 2: Sonnet** | `claude-sonnet-4-6` | $3/$15 per MTok | Standard workflows, coding, documentation, memory operations, security detection | Examples: `doc-accuracy`, `analyze`, `code-qualities-assessment`, `cva-analysis`, `incoherence`, `memory`, `memory-documentary`, `memory-enhancement`, `pr-comment-responder`, `prompt-engineer`, `security-scan`, `serena-code-architecture`, `threat-modeling`. (Authoritative list: skills with `model: claude-sonnet-4-6` in their SKILL.md frontmatter.) |
+| **Tier 3: Haiku** | `claude-haiku-4-5` | $1/$5 per MTok | Speed-critical, simple pattern matching, high-frequency execution (hooks, validators) | Examples: `fix-markdown-fences`, `steering-matcher`, `metrics`, `observability`, `security-detection`, `stuck-detection`. (Authoritative list: skills with `model: claude-haiku-4-5` in their SKILL.md frontmatter.) |
 
 **Selection Matrix**:
 
@@ -219,15 +219,17 @@ allowed-tools: Bash(gh:*), Bash(pwsh:*), Read, Write
 > **Superseded 2026-04-30**: The "move into metadata" steps below were reversed. SkillForge validator now requires `name`, `version`, `description`, `license`, and `model` at **top level** (see Field Status table in Section 2 and the validator at `scripts/validation/skill_frontmatter.py`). Skills that ship today have `model` and `version` top-level. The bullets below are retained as historical record of the original Phase 1 plan.
 
 **Session #S356** (2026-01-03):
-- Update all 27 skills to use model aliases
+- Update all 27 model-tier-assigned skills to use model aliases (catalog count of skills WITH explicit `model:` frontmatter at that time; broader catalog included additional skills without tier assignment)
 - ~~Restructure frontmatter (version/model into metadata object, per SkillForge validator)~~ Reversed; top-level retained.
 - Validate against SkillForge packaging requirements
 - Branch: `fix/update-skills-valid-frontmatter`
 
-**Changes Required** (original plan; superseded, see note above):
+**Changes Required** (original plan; superseded, see note above; counts reflect S356 model-tier-assigned skills, not full catalog):
 - 11 skills: Move `model: claude-opus-4-6` from top-level to `metadata.model`
 - 12 skills: Move `model: claude-sonnet-4-6` from top-level to `metadata.model`
 - 4 skills: Move `model: claude-haiku-4-5` from top-level to `metadata.model`
+
+**Post-2026-05-09 M1 prune note:** of the 3 skills deleted in M1 (`doc-coverage`, `doc-sync`, `workflow`), only `doc-sync` was on the S356 model-tier-assigned list (Tier 2 Sonnet). `doc-coverage` and `workflow` either lacked explicit `model:` frontmatter or were added to the catalog after S356. Net effect on the model-tier-assigned population: 27 → 26 (Tier 2 Sonnet 12 → 11). The current-state table at lines 118-120 reflects this post-prune state.
 - All skills: Move `version` from top-level to `metadata.version`
 - All skills: Convert dated snapshots to aliases where appropriate
 

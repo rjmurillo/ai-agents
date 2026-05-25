@@ -1,3 +1,7 @@
+<!-- orphan-ref-ignore-file -->
+<!-- ADR-012 spec describes proposed skill-catalog memory entities by name.
+     These are not skills; orphan-ref-validator must skip. -->
+
 # Skill Catalog MCP Technical Specification
 
 > **Status**: Draft

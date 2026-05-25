@@ -226,4 +226,3 @@ Key differences:
 
 - CLAUDE.md: [Lifecycle commands](../CLAUDE.md#lifecycle-commands) routing rules
 - AGENTS.md: [Skill-First](../AGENTS.md#skill-first) lifecycle references
-- Deprecated workflow skill: [`.claude/skills/workflow/SKILL.md`](../.claude/skills/workflow/SKILL.md)

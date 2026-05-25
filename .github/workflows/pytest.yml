@@ -85,7 +85,7 @@ jobs:
 
       - name: Harden Runner
         if: steps.should-run.outputs.skip != 'true'
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -106,6 +106,10 @@ jobs:
           mkdir -p artifacts
           pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
+      - name: Pin ai_review_common.verdict coverage at 98% (REQ-008-07)
+        if: steps.should-run.outputs.skip != 'true'
+        run: pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=98
+
       - name: Upload test results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always() && steps.should-run.outputs.skip != 'true'
@@ -124,7 +128,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
@@ -147,9 +151,14 @@ jobs:
           #     release. CI installs trusted deps from PyPI via uv lockfile, so
           #     the local-only attack surface does not apply. Remove this ignore
           #     once pip 26.1 ships.
+          #   CVE-2026-6357: pip 26.0.x, fix in pip 26.1 (same class as
+          #     CVE-2026-3219 above: local-only attack surface that does not
+          #     apply to CI's uv-lockfile install path). Drop this ignore in
+          #     the same upgrade as CVE-2026-3219.
           pip-audit \
             --ignore-vuln CVE-2026-4539 \
-            --ignore-vuln CVE-2026-3219
+            --ignore-vuln CVE-2026-3219 \
+            --ignore-vuln CVE-2026-6357
 
       - name: Run Bandit
         run: |
@@ -177,7 +186,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 

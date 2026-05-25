@@ -1,6 +1,6 @@
 ---
 description: Pragmatic Programmer principles from Hunt and Thomas. Apply as a general engineering overlay on every change. Reinforce DRY at the knowledge level, orthogonality, fast feedback, automation, tracer-bullet delivery, and the broken-windows discipline. Source adapted from ciembor/agent-rules-books (MIT).
-applyTo: **
+applyTo: '**'
 ---
 
 # The Pragmatic Programmer

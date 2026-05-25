@@ -53,6 +53,7 @@ TypeError: Cannot read property 'map' of undefined
 ## Triggers
 
 ### Creation Triggers
+
 - `SkillForge: {goal}` - Full autonomous skill creation
 - `create skill` - Natural language activation
 - `design skill for {purpose}` - Purpose-first creation
@@ -60,6 +61,7 @@ TypeError: Cannot read property 'map' of undefined
 - `skillforge --plan-only` - Generate specification without execution
 
 ### Routing Triggers (NEW in v4.0)
+
 - `{any input}` - Analyzes and routes automatically
 - `do I have a skill for` - Searches existing skills
 - `which skill` / `what skill` - Recommends matching skills
@@ -121,6 +123,7 @@ Production-Ready Agentic Skill
 ```
 
 **Key principles:**
+
 - **Phase 0 prevents duplicates** - Always checks existing skills first
 - Evolution/timelessness is the core lens (score ≥ 7 required)
 - Every decision includes WHY
@@ -133,6 +136,7 @@ Production-Ready Agentic Skill
 Start with least privilege (`Read`, `Glob`, `Grep`, `Write`, `Edit`).
 
 Only add higher-risk tools when explicitly required:
+
 - `Bash` for deterministic local scripts that cannot be replaced with file edits
 - `WebFetch` / `WebSearch` only when external facts are required
 - `Task` only for true parallel sub-agent orchestration
@@ -282,6 +286,7 @@ Skills must use only these allowed frontmatter properties:
 | `metadata` | No | Custom fields (version, author, domains, etc.) |
 
 **Basic Example:**
+
 ```yaml
 ---
 name: my-skill
@@ -296,6 +301,7 @@ metadata:
 ```
 
 **Advanced Example (with forked context and hooks):**
+
 ```yaml
 ---
 name: isolated-analyzer
@@ -360,6 +366,7 @@ Scripts enable skills to be **agentic** - capable of autonomous operation with s
 | **Calculation** | Compute metrics/scores | Scoring or analysis |
 
 **Script Requirements:**
+
 - Python 3.x with standard library only (graceful fallbacks for extras)
 - `Result` dataclass pattern for structured returns
 - Exit codes: 0=success, 1=failure, 10=validation failure, 11=verification failure
@@ -500,6 +507,7 @@ USER INPUT: "Create a skill for X"
 ```
 
 **Check for overlap with existing skills:**
+
 ```bash
 ls ~/.claude/skills/
 # Grep for similar triggers in existing SKILL.md files
@@ -554,6 +562,7 @@ ROUND N:
 ```
 
 **Termination Criteria:**
+
 - Three consecutive rounds produce no new insights
 - All 11 thinking models have been applied
 - At least 3 simulated expert perspectives considered
@@ -967,6 +976,7 @@ SKILLCREATOR_CONFIG:
 ## Changelog
 
 ### v4.1.0 (Current)
+
 - **Extended frontmatter support** - Full support for `model`, `context`, `agent`, `hooks`, `user-invocable`
 - Created `scripts/_constants.py` for shared validation constants
 - Updated `scripts/quick_validate.py` with extended property validation
@@ -978,6 +988,7 @@ SKILLCREATOR_CONFIG:
 - Expanded frontmatter requirements table with 10 properties
 
 ### v4.0.0
+
 - **Phase 0 Skill Triage** - Intelligent routing before creation
 - Universal input handling - any prompt works
 - Skill ecosystem scanning with 250+ skills indexed
@@ -985,6 +996,7 @@ SKILLCREATOR_CONFIG:
 - Renamed from SkillCreator to SkillForge
 
 ### v3.2.0
+
 - Added Script Integration Framework for agentic skills
 - Added 4th Script Agent to synthesis panel (conditional)
 - Added Phase 1D: Automation Analysis
@@ -997,12 +1009,14 @@ SKILLCREATOR_CONFIG:
 - Skills can now include self-verifying Python scripts
 
 ### v3.1.0
+
 - Added progressive disclosure structure
 - Fixed frontmatter for packaging compatibility
 - Added validation & packaging section
 - Deep dive sections now collapsible
 
 ### v3.0.0
+
 - Complete redesign as ultimate meta-skill
 - Added regression questioning loop
 - Added multi-lens analysis framework (11 models)
@@ -1010,8 +1024,10 @@ SKILLCREATOR_CONFIG:
 - Added multi-agent synthesis panel
 
 ### v2.0.0
+
 - Pattern selection guide
 - Quality standards checklist
 
 ### v1.0.0
+
 - Basic skill structure

@@ -38,11 +38,17 @@ Invoke each agent command using Skill tool and capture results.
 
 Parse each agent's `VERDICT: TOKEN` output and merge using these rules:
 
-**Merge Logic** (from AIReviewCommon.psm1:Merge-Verdicts):
+**Merge Logic** (canonical: `.claude/lib/ai_review_common/verdict.py:merge_verdicts`):
 
-- ANY `CRITICAL_FAIL`, `REJECTED`, or `FAIL` → Final: **CRITICAL_FAIL**
-- ANY `WARN` (no critical failures) → Final: **WARN**
-- ALL `PASS` → Final: **PASS**
+- ANY `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, or `NON_COMPLIANT` → Final: **CRITICAL_FAIL**
+- ANY `WARN` or `PARTIAL` (no critical failures) → Final: **WARN**
+- ANY `UNKNOWN` (no critical, no warn) → Final: **UNKNOWN**
+- ALL `PASS` or `COMPLIANT` → Final: **PASS**
+- Empty input → Final: **UNKNOWN**
+
+UNKNOWN downgrades a would-be PASS so a missing or crashed axis cannot
+silently produce a green verdict. Real WARN and CRITICAL_FAIL findings
+override UNKNOWN.
 
 ## Output Summary
 
@@ -57,17 +63,18 @@ Generate consolidated report in EXACTLY this format. Do not add preambles or exp
 | ⚙️ DevOps | [verdict] | [emoji] | [summary] |
 | 🗺️ Roadmap | [verdict] | [emoji] | [summary] |
 
-**FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL]
+**FINAL VERDICT**: [PASS|WARN|UNKNOWN|CRITICAL_FAIL]
 
-**Emoji Mapping** (from AIReviewCommon.psm1:Get-VerdictEmoji):
+**Emoji Mapping** (canonical: `.claude/lib/ai_review_common/issue_triage.py:get_verdict_emoji`):
 
-- PASS → ✅
-- WARN → ⚠️
-- CRITICAL_FAIL/REJECTED/FAIL → ❌
+- PASS/COMPLIANT → ✅
+- WARN/PARTIAL → ⚠️
+- CRITICAL_FAIL/REJECTED/FAIL/NEEDS_REVIEW/NON_COMPLIANT → ❌
 - UNKNOWN → ❔
 
 **Next Steps**:
 
 - **PASS**: Safe to commit and push
 - **WARN**: Review findings, address if time permits, safe to push
+- **UNKNOWN**: At least one axis failed to evaluate (skill crashed, no parseable verdict). Investigate which axis and re-run; do NOT treat as PASS.
 - **CRITICAL_FAIL**: Fix blocking issues before pushing

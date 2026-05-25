@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "tensions": [
+    {
+      "id": "ten-design-vs-spike",
+      "policy_a": "pol-architect-design-first",
+      "policy_b": "pol-implementer-spike-first",
+      "preferred_in_context": {},
+      "status": "holding",
+      "detected_at": 1778976000
+    }
+  ]
+}

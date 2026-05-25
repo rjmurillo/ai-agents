@@ -61,9 +61,13 @@ if ! command -v pyenv &>/dev/null; then
     # Add pyenv to shell config for future sessions
     # Detect shell and update appropriate config file
     SHELL_CONFIG=""
-    if [[ -n "$ZSH_VERSION" ]] || [[ "$SHELL" == *"zsh"* ]]; then
+    # Guard with default-empty expansions because the script runs under
+    # `set -u`. ZSH_VERSION/BASH_VERSION are unset when the script is invoked
+    # by a non-interactive shell (e.g. SessionStart hook on a fresh
+    # container), and `set -u` would otherwise abort here on first run.
+    if [[ -n "${ZSH_VERSION:-}" ]] || [[ "${SHELL:-}" == *"zsh"* ]]; then
         SHELL_CONFIG="$HOME/.zshrc"
-    elif [[ -n "$BASH_VERSION" ]] || [[ "$SHELL" == *"bash"* ]]; then
+    elif [[ -n "${BASH_VERSION:-}" ]] || [[ "${SHELL:-}" == *"bash"* ]]; then
         SHELL_CONFIG="$HOME/.bashrc"
     else
         # Default to bashrc if shell cannot be detected

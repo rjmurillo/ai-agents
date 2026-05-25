@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-05-09-session-1826",
+  "session": "2026-05-09-session-1826",
+  "timestamp": "2026-05-09T22:17:30.418630+00:00",
+  "outcome": "partial",
+  "task": "M1 spec formalization (REQ/DESIGN/TASK) and gitignore + doc-accuracy artifact dir",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-09T22:17:30.418630+00:00",
+      "type": "milestone",
+      "content": "Session continued from 1825; spec-generator wrote REQ-006/DESIGN-006/TASK-006 (later renamed to REQ-007/DESIGN-007/TASK-007 after merge with main). 2 commits landed before continuation to session 1827.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 8
+  },
+  "lessons": []
+}

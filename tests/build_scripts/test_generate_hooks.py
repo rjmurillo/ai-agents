@@ -77,6 +77,29 @@ def _run_shim(transformed_source: str, payload: dict) -> subprocess.CompletedPro
         os.unlink(path)
 
 
+def _run_shim_raw(transformed_source: str, raw_input: bytes) -> subprocess.CompletedProcess:
+    """Execute a shimmed script with raw bytes on stdin.
+
+    Used to exercise stdin-cap behavior where the input is intentionally
+    not valid JSON (or simply too large) so the shim's cap path runs
+    before any json.loads attempt.
+    """
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".py", delete=False
+    ) as handle:
+        handle.write(transformed_source)
+        path = handle.name
+    try:
+        return subprocess.run(
+            ["python3", path],
+            input=raw_input,
+            capture_output=True,
+            timeout=20,
+        )
+    finally:
+        os.unlink(path)
+
+
 def _write_settings(path: Path, hooks_obj: dict) -> Path:
     path.write_text(json.dumps({"hooks": hooks_obj}, indent=2), encoding="utf-8")
     return path
@@ -232,6 +255,41 @@ _TRACE_SCRIPT = (
     'print("FIRED:" + (data.get("tool_name") or ""))\n'
     "sys.exit(0)\n"
 )
+
+
+def test_inject_shim_caps_stdin_at_2mib():
+    """The generated shim must reject oversized stdin BEFORE delegating
+    to the wrapped script.
+
+    push_guard_base.MAX_STDIN_BYTES (1 MiB) only applies after the shim
+    has buffered everything; without the shim-level cap, an attacker
+    could exhaust memory before any guard logic ran (CWE-400). The shim
+    caps at _SHIM_MAX_STDIN_BYTES = 2 MiB and exits 2 with a stderr
+    explanation. PR #1887 review thread PRRT_kwDOQoWRls5_r7WA.
+    """
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    # 2 MiB + 1 byte: one over the cap. Use ASCII whitespace so the
+    # bytes are valid stdin even though we never expect json.loads to run.
+    oversize = b" " * (2 * 1024 * 1024 + 1)
+    proc = _run_shim_raw(transformed, oversize)
+    assert proc.returncode == 2
+    stderr = proc.stderr.decode("utf-8", errors="replace")
+    assert "stdin exceeds" in stderr
+    assert "2097152" in stderr  # _SHIM_MAX_STDIN_BYTES literal value
+
+
+def test_inject_shim_accepts_at_cap_boundary():
+    """Exactly at the cap is allowed; one over rejects (boundary check)."""
+    transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
+    payload = json.dumps({"tool_name": "Read"}).encode("utf-8")  # no fire
+    # Pad to exactly _SHIM_MAX_STDIN_BYTES; the read uses MAX+1 so this
+    # path returns len == MAX (no overflow), shim proceeds normally.
+    pad = b" " * (2 * 1024 * 1024 - len(payload))
+    raw = pad + payload
+    assert len(raw) == 2 * 1024 * 1024
+    proc = _run_shim_raw(transformed, raw)
+    # tool_name=Read does not match ^Edit$, so shim no-ops with rc=0.
+    assert proc.returncode == 0
 
 
 def test_inject_shim_fires_on_regex_match():
@@ -1065,6 +1123,88 @@ def test_future_import_round_trip_stable_after_strip() -> None:
     # Stripping then re-injecting yields the same artifact.
     restripped = generate_hooks.inject_shim(generate_hooks.strip_shim(once), matcher)
     assert once == restripped
+
+
+def test_main_epilogue_emits_return_main_trailer() -> None:
+    """Scripts with the canonical main+epilogue shape get ``return main()``.
+
+    Without this, the wrapper falls through to the trailing ``return 0``
+    and every shimmed guard reports success regardless of validator
+    outcome (the bug fixed by PR #1887 generator update). Lock the
+    behavior so a future refactor cannot silently re-break it.
+    """
+    body = (
+        "#!/usr/bin/env python3\n"
+        '"""guard."""\n'
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    return 2\n\n"
+        'if __name__ == "__main__":\n'
+        "    sys.exit(main())\n"
+    )
+    out = generate_hooks.inject_shim(body, "Bash(git push*)")
+    assert "    return main()" in out
+    assert "    return 0\n" not in out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    compile(out, "<generated>", "exec")
+
+
+def test_def_main_without_epilogue_keeps_return_zero() -> None:
+    """def main() WITHOUT 'if __name__ == "__main__": sys.exit(main())' keeps return 0.
+
+    The epilogue, not just the def, gates the return main() trailer.
+    Without this gate a script that defines main() but invokes it inline
+    at module level would get an unreachable return main() injected;
+    harmless but confusing. _has_main_function_and_epilogue uses logical
+    AND for exactly this reason; pin the contract.
+    """
+    body = (
+        "import sys\n"
+        "def main() -> int:\n"
+        "    return 2\n"
+        "main()\n"  # invoked inline, no epilogue
+    )
+    out = generate_hooks.inject_shim(body, "Edit")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert "    return 0\n" in wrapped
+    assert "    return main()" not in wrapped
+    compile(out, "<generated>", "exec")
+
+
+def test_no_main_epilogue_keeps_return_zero_trailer() -> None:
+    """Scripts that fall off the bottom keep the existing ``return 0`` trailer.
+
+    Backwards compatibility: pre-fix scripts (and any future ones that
+    legitimately use module-level statements without a main()) must not
+    regress.
+    """
+    body = "import os\nprint(os.getcwd())\n"
+    out = generate_hooks.inject_shim(body, "Edit")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert "    return 0\n" in wrapped
+    assert "    return main()" not in wrapped
+    compile(out, "<generated>", "exec")
+
+
+def test_strip_round_trip_with_main_epilogue() -> None:
+    """strip_shim then inject_shim is byte-stable for canonical-shape scripts.
+
+    The strip helper must accept both ``return 0`` and ``return main()``
+    trailers; otherwise the round-trip leaks the synthetic trailer back
+    into the recovered body.
+    """
+    body = (
+        "#!/usr/bin/env python3\n"
+        '"""g."""\n'
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    return 0\n\n"
+        'if __name__ == "__main__":\n'
+        "    sys.exit(main())\n"
+    )
+    matcher = "Bash(git push*)"
+    once = generate_hooks.inject_shim(body, matcher)
+    twice = generate_hooks.inject_shim(generate_hooks.strip_shim(once), matcher)
+    assert once == twice
 
 
 def test_inject_without_future_import_no_prefix() -> None:

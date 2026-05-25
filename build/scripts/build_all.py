@@ -29,9 +29,10 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -98,7 +99,8 @@ def _build_skills(repo_root: Path, config_path: Path, platform: str) -> Generato
         cfg = load_platform_config(config_path)
     except ConfigError:
         cfg = {}
-    stanza = (cfg.get("artifacts") or {}).get("skills") if isinstance(cfg.get("artifacts"), dict) else None
+    artifacts = cfg.get("artifacts")
+    stanza = (artifacts or {}).get("skills") if isinstance(artifacts, dict) else None
     if not isinstance(stanza, dict):
         result = GeneratorResult(artifact="skills", platform=platform, exit_code=0)
         result.notices.append(f"{platform}: no artifacts.skills stanza; skipped")
@@ -199,6 +201,94 @@ def _build_rules(repo_root: Path, config_path: Path, platform: str) -> Generator
     return result
 
 
+def _build_directory_copy(
+    repo_root: Path,
+    config_path: Path,
+    platform: str,
+    *,
+    artifact_name: str,
+    count_glob: str,
+) -> GeneratorResult:
+    """Generic directory-mirror builder for ``artifacts.<artifact_name>`` stanzas.
+
+    Used by :func:`_build_lib` to copy a configured source dir to a
+    configured output dir, with pycache exclusion and a containment
+    guard. Retained as a shared helper so additional directory-mirror
+    artifacts can reuse it without duplicating the logic.
+
+    Parameters:
+        artifact_name: stanza key under ``artifacts`` and the value used
+            in the audit row's ``artifact`` field.
+        count_glob: rglob pattern used for inputs/outputs counts (e.g.,
+            ``"*.py"`` for lib). Matched files inside ``__pycache__`` are
+            excluded from the count.
+
+    Skips silently when the platform has no ``artifacts.<name>`` stanza.
+    """
+    try:
+        cfg = load_platform_config(config_path)
+    except ConfigError:
+        cfg = {}
+    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
+    stanza = artifacts.get(artifact_name) if isinstance(artifacts, dict) else None
+    if not isinstance(stanza, dict):
+        result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=0)
+        result.notices.append(
+            f"{platform}: no artifacts.{artifact_name} stanza; skipped"
+        )
+        return result
+
+    src_rel = stanza.get("sourceDir")
+    out_rel = stanza.get("outputDir")
+    if not isinstance(src_rel, str) or not isinstance(out_rel, str):
+        result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=2)
+        result.notices.append(
+            f"{platform}: artifacts.{artifact_name} missing sourceDir or outputDir"
+        )
+        return result
+
+    src = (repo_root / src_rel).resolve()
+    out = (repo_root / out_rel).resolve()
+    repo_root_resolved = repo_root.resolve()
+    # Containment guard (CWE-22): the output dir must resolve to a path
+    # strictly under the repo root. is_relative_to handles OS path
+    # separators correctly and avoids the prefix-confusion failure mode
+    # of string startswith. Equality with the repo root is also rejected
+    # because the rmtree-then-copytree below would otherwise wipe the
+    # entire working tree when outputDir resolves to ".".
+    if out == repo_root_resolved or not out.is_relative_to(repo_root_resolved):
+        result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=2)
+        result.notices.append(
+            f"{platform}: artifacts.{artifact_name}.outputDir escapes repo root: {out_rel}"
+        )
+        return result
+
+    result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=0)
+    if not src.is_dir():
+        result.notices.append(
+            f"{platform}: {artifact_name} source dir missing: {src_rel}"
+        )
+        return result
+
+    import shutil as _shutil
+
+    if out.exists():
+        _shutil.rmtree(out)
+    _shutil.copytree(
+        src,
+        out,
+        ignore=_shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+    )
+
+    result.inputs = sum(
+        1 for _ in src.rglob(count_glob) if "__pycache__" not in _.parts
+    )
+    result.outputs = sum(
+        1 for _ in out.rglob(count_glob) if "__pycache__" not in _.parts
+    )
+    return result
+
+
 def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
     """Copy `.claude/lib/` to the platform's lib output directory (M7-T1).
 
@@ -212,55 +302,13 @@ def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorRe
 
     Skips silently when the platform has no ``artifacts.lib`` stanza.
     """
-    try:
-        cfg = load_platform_config(config_path)
-    except ConfigError:
-        cfg = {}
-    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
-    stanza = artifacts.get("lib") if isinstance(artifacts, dict) else None
-    if not isinstance(stanza, dict):
-        result = GeneratorResult(artifact="lib", platform=platform, exit_code=0)
-        result.notices.append(f"{platform}: no artifacts.lib stanza; skipped")
-        return result
-
-    src_rel = stanza.get("sourceDir")
-    out_rel = stanza.get("outputDir")
-    if not isinstance(src_rel, str) or not isinstance(out_rel, str):
-        result = GeneratorResult(artifact="lib", platform=platform, exit_code=2)
-        result.notices.append(
-            f"{platform}: artifacts.lib missing sourceDir or outputDir"
-        )
-        return result
-
-    src = (repo_root / src_rel).resolve()
-    out = (repo_root / out_rel).resolve()
-    repo_root_resolved = repo_root.resolve()
-    # Containment guard: refuse to write outside the repo root.
-    if not str(out).startswith(str(repo_root_resolved) + "/") and out != repo_root_resolved:
-        result = GeneratorResult(artifact="lib", platform=platform, exit_code=2)
-        result.notices.append(
-            f"{platform}: artifacts.lib.outputDir escapes repo root: {out_rel}"
-        )
-        return result
-
-    result = GeneratorResult(artifact="lib", platform=platform, exit_code=0)
-    if not src.is_dir():
-        result.notices.append(f"{platform}: lib source dir missing: {src_rel}")
-        return result
-
-    import shutil as _shutil
-
-    if out.exists():
-        _shutil.rmtree(out)
-    _shutil.copytree(
-        src,
-        out,
-        ignore=_shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+    return _build_directory_copy(
+        repo_root,
+        config_path,
+        platform,
+        artifact_name="lib",
+        count_glob="*.py",
     )
-
-    result.inputs = sum(1 for _ in src.rglob("*.py") if "__pycache__" not in _.parts)
-    result.outputs = sum(1 for _ in out.rglob("*.py") if "__pycache__" not in _.parts)
-    return result
 
 
 def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:

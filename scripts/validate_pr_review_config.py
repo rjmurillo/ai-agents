@@ -76,7 +76,12 @@ CLAUDE_CODE_ONLY_KEYS = [
 
 REQUIRED_SCRIPT_SECTIONS = ["claude_code", "copilot"]
 
-COMPLETION_CRITERIA_FIELDS = ["criterion", "verification", "required"]
+# Each completion criterion is a dispatchable verification: a command whose
+# stdout JSON drives a pass_when expression. The agent no longer narrates
+# verdicts; the command output IS the verdict. See pr-review-config.yaml
+# header comments for the pass_when DSL.
+COMPLETION_CRITERIA_REQUIRED_FIELDS = ["name", "verification", "command"]
+COMPLETION_CRITERIA_PASS_FIELDS = ["pass_when", "pass_when_python"]
 ERROR_RECOVERY_FIELDS = ["scenario", "action"]
 CHECK_FAILURE_FIELDS = ["check_type", "action"]
 FAILURE_HANDLING_FIELDS = ["type", "action"]
@@ -110,12 +115,89 @@ def validate_config(config: dict) -> list[str]:
                             f"Missing script in scripts.{section}: {script_key}"
                         )
 
-    if "completion_criteria" in config:
+    completion_criteria = config.get("completion_criteria")
+    if completion_criteria is not None and not isinstance(
+        completion_criteria, list,
+    ):
+        # Per Copilot review: if YAML parses ``completion_criteria`` as
+        # a mapping or string, the per-element loop would iterate
+        # keys/chars and emit a noisy series of "must be a mapping"
+        # errors. Reject the container shape with a single clear
+        # message and skip per-criterion validation. Other sections of
+        # the config still get validated below. Mirrors the
+        # dispatcher's behavior.
+        errors.append(
+            f"completion_criteria must be a list "
+            f"(got {type(completion_criteria).__name__})"
+        )
+    elif "completion_criteria" in config:
         for i, item in enumerate(config["completion_criteria"]):
-            for field in COMPLETION_CRITERIA_FIELDS:
+            if not isinstance(item, dict):
+                errors.append(
+                    f"completion_criteria[{i}] must be a mapping"
+                )
+                continue
+            for field in COMPLETION_CRITERIA_REQUIRED_FIELDS:
                 if field not in item:
                     errors.append(
                         f"completion_criteria[{i}] missing field: {field}"
+                    )
+            # Exactly one of pass_when / pass_when_python must be set.
+            # Both-set is ambiguous because the dispatcher silently picks
+            # pass_when_python first; reject it at validation time so
+            # the ambiguity never reaches runtime.
+            # Check both key presence AND truthiness: a key with null or ""
+            # passes `f in item` but fails the dispatcher's `if not pass_when`
+            # check at runtime. Matching truthiness here ensures the validator
+            # rejects configs that would fail at dispatch time.
+            present = [
+                f for f in COMPLETION_CRITERIA_PASS_FIELDS if item.get(f)
+            ]
+            if not present:
+                errors.append(
+                    f"completion_criteria[{i}] missing field: pass_when "
+                    f"(or pass_when_python)"
+                )
+            elif len(present) > 1:
+                errors.append(
+                    f"completion_criteria[{i}] has both pass_when and "
+                    f"pass_when_python; specify exactly one"
+                )
+            verification = item.get("verification")
+            if verification is not None and verification != "command":
+                errors.append(
+                    f"completion_criteria[{i}].verification must be "
+                    f"'command' (got {verification!r})"
+                )
+            fail_open = item.get("fail_open")
+            if fail_open is not None and not isinstance(fail_open, bool):
+                errors.append(
+                    f"completion_criteria[{i}].fail_open must be a boolean"
+                )
+            # Per Copilot review: presence is not enough; reject empty
+            # or wrong-typed values that would slip past the dispatcher
+            # only to crash later.
+            if "name" in item and (
+                not isinstance(item["name"], str) or not item["name"].strip()
+            ):
+                errors.append(
+                    f"completion_criteria[{i}].name must be a non-empty string"
+                )
+            if "command" in item and (
+                not isinstance(item["command"], str)
+                or not item["command"].strip()
+            ):
+                errors.append(
+                    f"completion_criteria[{i}].command must be a non-empty string"
+                )
+            for field in ("pass_when", "pass_when_python"):
+                if field in item and (
+                    not isinstance(item[field], str)
+                    or not item[field].strip()
+                ):
+                    errors.append(
+                        f"completion_criteria[{i}].{field} must be a "
+                        f"non-empty string"
                     )
 
     if "error_recovery" in config:

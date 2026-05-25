@@ -80,6 +80,14 @@ For FAIL:
 
 **IMPORTANT**: The alert block must contain exactly `VERDICT: PASS`, `VERDICT: PARTIAL`, or `VERDICT: FAIL` (no brackets around the token).
 
+After the alert block, append a final literal verdict line on its own line, outside any block, with no markdown formatting:
+
+```text
+VERDICT: PASS
+```
+
+(or `VERDICT: PARTIAL` / `VERDICT: FAIL`). The CI extractor (`.github/actions/ai-review/action.yml`) anchors on a plain end-of-line `VERDICT: <TOKEN>` pattern; the bolded `> **VERDICT: PASS**` inside the alert block is for human readers and does NOT match the extractor (Refs PR #1965 sed anchor tightening).
+
 ## Verdict Guidelines
 
 - `PASS`: 100% of requirements COVERED
