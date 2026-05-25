@@ -1,6 +1,6 @@
 ---
 type: design
-id: DESIGN-005
+id: DESIGN-015
 title: Pre-push validation hooks for PR iteration cost reduction
 status: draft
 priority: P1
@@ -14,7 +14,7 @@ created: 2026-05-03
 updated: 2026-05-04
 ---
 
-# DESIGN-005: Pre-push validation hooks for PR iteration cost reduction
+# DESIGN-015: Pre-push validation hooks for PR iteration cost reduction
 
 ## Requirements Addressed
 

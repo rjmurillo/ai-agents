@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-006
+id: REQ-016
 title: Add Step 0 First Principles Gate to spec pipeline
 status: draft
 priority: P1
@@ -19,7 +19,7 @@ revision_history:
   - 2026-05-09 v2: Evidence section added; hedge detector tightened; speculative/aspirational defined operationally; pre-mortem checks converted to binary; ACs added for H5, auto-mode, kill criteria
 ---
 
-# REQ-006: Add Step 0 First Principles Gate to spec pipeline
+# REQ-016: Add Step 0 First Principles Gate to spec pipeline
 
 ## Problem
 
@@ -49,13 +49,13 @@ The strongest single citation is PR #1887 Phase 6: the retro itself names the qu
 
 ## Requirement Statements
 
-### REQ-006-01: Step 0 precedes Step 1
+### REQ-016-01: Step 0 precedes Step 1
 
 WHEN `/spec` is invoked
 THE SYSTEM SHALL present Step 0 before Step 1, with all six forcing questions (Demand Reality, Status Quo, Desperate Specificity, Narrowest Wedge, Observation, Future-fit)
 SO THAT no clarification work begins on unvalidated demand.
 
-### REQ-006-02: Hedge phrase triggers halt
+### REQ-016-02: Hedge phrase triggers halt
 
 WHEN any Step 0 answer contains a hedge phrase from the canonical list (Section: Hedge Phrase List) as a case-insensitive **word-boundary** match
 THE SYSTEM SHALL halt and cite the specific question that failed and quote the matched phrase
@@ -63,7 +63,7 @@ SO THAT premature specs are blocked at the gate without false-positive halts on 
 
 The hedge check applies only to author-supplied answers, not to system-generated prompt text or instruction quotations. The list is mostly multi-word phrases plus a few unambiguous single-word entries (`probably`, `eventually`, `someday`). Single words "should," "might," and "could" in isolation are excluded from the list because they conflict with RFC 2119. The hyphenated technical term `eventually-consistent` is exempted via a suffix-table lookup (`HEDGE_TECHNICAL_SUFFIXES` in `tests/commands/step0_parser.py`).
 
-### REQ-006-03: Speculative Observation triggers halt (operational test)
+### REQ-016-03: Speculative Observation triggers halt (operational test)
 
 WHEN Question 5 (Observation) is speculative as defined by the operational test below
 THE SYSTEM SHALL halt and cite Question 5 as the failing gate
@@ -76,7 +76,7 @@ SO THAT specs driven by prediction are blocked.
 
 If none of (1), (2), (3) is present, Q5 is speculative.
 
-### REQ-006-04: Aspirational Demand Reality triggers halt (operational test)
+### REQ-016-04: Aspirational Demand Reality triggers halt (operational test)
 
 WHEN Question 1 (Demand Reality) is aspirational as defined by the operational test below
 THE SYSTEM SHALL halt, cite Question 1 as the failing gate, and document the deferral in the session output
@@ -87,7 +87,7 @@ SO THAT aspirational demand does not consume specification resources.
 2. The answer uses future tense or conditional mood about demand existence (examples: "users would want," "if customers start," "when we have," "would be useful").
 3. The answer is generic ("users in general," "engineers," "the team," "stakeholders," "developers").
 
-### REQ-006-05: Unnamed blocked entity triggers halt (operational test)
+### REQ-016-05: Unnamed blocked entity triggers halt (operational test)
 
 WHEN Question 3 (Desperate Specificity) does not name a specific blocked entity as defined by the operational test below
 THE SYSTEM SHALL halt and cite Question 3 as the failing gate
@@ -100,26 +100,26 @@ SO THAT premature specs are blocked.
 
 Generic categories ("users," "engineers," "the mobile app users") fail this test.
 
-### REQ-006-06: Pass produces structured Step 0 block
+### REQ-016-06: Pass produces structured Step 0 block
 
 WHEN Step 0 passes (all six fields non-empty and no hedge language in any field)
 THE SYSTEM SHALL produce a structured block containing all six fields as the first section of the PRD
 SO THAT downstream steps consume validated demand context.
 
-### REQ-006-07: requirements-interview does not re-elicit Step 0 questions
+### REQ-016-07: requirements-interview does not re-elicit Step 0 questions
 
 WHEN Step 2 (requirements-interview) runs
 THE SYSTEM SHALL receive Step 0 output
 AND SHALL NOT re-elicit any of the six Step 0 questions
 SO THAT authors are not asked the same questions twice.
 
-### REQ-006-08: Tier 5 re-validates Step 0 instead of separate simplicity challenge
+### REQ-016-08: Tier 5 re-validates Step 0 instead of separate simplicity challenge
 
 WHEN the complexity tier is Tier 5
 THE SYSTEM SHALL re-validate Step 0 outputs in the context of emerged complexity instead of running a separate "why not simpler?" check
 SO THAT Step 0 is the single gate for this question across all tiers.
 
-### REQ-006-09: Critic pre-mortem runs three binary Step 0 validity checks
+### REQ-016-09: Critic pre-mortem runs three binary Step 0 validity checks
 
 WHEN Step 9 (critic pre-mortem) runs
 THE SYSTEM SHALL execute three binary checks against the final PRD and emit PASS or FAIL for each
@@ -139,7 +139,7 @@ SO THAT Step 0 violations surface before the spec ships.
 
 If any of 9a, 9b, 9c FAILs, the critic SHALL surface the failure as a blocking finding with the specific Q1/Q3/Q4 quote that drifted.
 
-### REQ-006-10: Copilot CLI file mirrors spec.md changes
+### REQ-016-10: Copilot CLI file mirrors spec.md changes
 
 WHEN `.claude/commands/spec.md` is updated
 THE SYSTEM SHALL also update `src/copilot-cli/skills/spec/SKILL.md` with the same body changes
@@ -147,13 +147,13 @@ SO THAT both platforms stay in sync.
 
 The body delta applied to `src/copilot-cli/skills/spec/SKILL.md` SHALL be byte-identical to the delta applied to `.claude/commands/spec.md` for the four edited sections (Step 0 insertion, Step 1 narrowing, Step 3 Tier 5 replacement, Step 9 pre-mortem additions). Frontmatter is preserved unchanged.
 
-### REQ-006-11: Partial completion triggers halt
+### REQ-016-11: Partial completion triggers halt
 
 WHEN fewer than all six Step 0 questions have non-empty answers
 THE SYSTEM SHALL halt and cite the missing question numbers
 SO THAT incomplete Step 0 blocks do not propagate downstream.
 
-### REQ-006-12: Auto-mode honors Step 0 without bypass
+### REQ-016-12: Auto-mode honors Step 0 without bypass
 
 WHEN `/spec` is invoked under auto-mode (no human elicitation possible)
 THE SYSTEM SHALL halt and return to the orchestrator with reason `STEP_0_REQUIRES_ELICITATION`, naming each question that needs an answer
@@ -161,7 +161,7 @@ SO THAT auto-mode invocations cannot bypass Step 0 by default.
 
 The auto-mode halt MAY be resolved by populating Step 0 answers from the source artifact (issue body, PR description) when the source artifact contains the required structured fields. Free-form synthesis of Step 0 answers by the agent is prohibited.
 
-### REQ-006-13: Kill criteria for the gate itself
+### REQ-016-13: Kill criteria for the gate itself
 
 WHEN Step 0 has been live for 30 invocations
 THE SYSTEM SHALL be reviewed against the kill criteria below; if any criterion fires, the gate is loosened or removed in a follow-up PR
@@ -179,7 +179,7 @@ Measurement: a tally is kept in `.agents/sessions/STEP-0-METRICS.md` (one line p
 
 The spec pipeline (`.claude/commands/spec.md`) currently opens with problem clarification (Step 1). Engineers and AI agents frequently skip "why are we doing this?" and proceed directly to "what should it do?". First Principles thinking. applied as a gate, not a retrospective. forces the author to answer six specific questions before spending any downstream resources. The gate pattern mirrors Elon Musk's five-step algorithm (question the requirement first) and the YC "desperate specificity" heuristic.
 
-### Hedge Phrase List (canonical, REQ-006-02)
+### Hedge Phrase List (canonical, REQ-016-02)
 
 Multi-word phrases only. Single words "should," "might," "could" are excluded because they conflict with RFC 2119 requirement language. Substring match is case-insensitive. Applied only to author answers, not to system prompts or quoted instruction text.
 
@@ -211,11 +211,11 @@ Authors who need RFC 2119 "should" semantics in a Step 0 answer are using the wr
 
 ### Halt Triggers (canonical)
 
-1. **H1**: any answer contains a phrase from the Hedge Phrase List (REQ-006-02).
-2. **H2**: Question 5 (Observation) fails the speculative test (REQ-006-03).
-3. **H3**: Question 1 (Demand Reality) fails the aspirational test (REQ-006-04).
-4. **H4**: Question 3 (Desperate Specificity) fails the specificity test (REQ-006-05).
-5. **H5**: Partial completion. fewer than all six questions answered (REQ-006-11).
+1. **H1**: any answer contains a phrase from the Hedge Phrase List (REQ-016-02).
+2. **H2**: Question 5 (Observation) fails the speculative test (REQ-016-03).
+3. **H3**: Question 1 (Demand Reality) fails the aspirational test (REQ-016-04).
+4. **H4**: Question 3 (Desperate Specificity) fails the specificity test (REQ-016-05).
+5. **H5**: Partial completion. fewer than all six questions answered (REQ-016-11).
 
 ### Halt Message Schema
 
@@ -223,12 +223,12 @@ When any trigger fires, the halt message MUST contain:
 1. The trigger ID (H1-H5).
 2. The failing question number and label (e.g., `Q3 Desperate Specificity`).
 3. The author's failing answer (verbatim, or the matched hedge phrase).
-4. The operational test that failed (the rule from REQ-006-02 through REQ-006-05 that was violated).
+4. The operational test that failed (the rule from REQ-016-02 through REQ-016-05 that was violated).
 5. A single-line deferral instruction (e.g., "Re-invoke `/spec` after naming a specific blocked entity.").
 
 ### Auto-mode Behavior
 
-Auto-mode invocations cannot bypass Step 0. If no human is available for elicitation, the agent SHALL halt with reason `STEP_0_REQUIRES_ELICITATION` and return to the orchestrator. The agent MAY populate Step 0 from the source artifact (issue body, PR description) only when the source artifact contains the required structured fields verbatim; free-form synthesis is prohibited (REQ-006-12).
+Auto-mode invocations cannot bypass Step 0. If no human is available for elicitation, the agent SHALL halt with reason `STEP_0_REQUIRES_ELICITATION` and return to the orchestrator. The agent MAY populate Step 0 from the source artifact (issue body, PR description) only when the source artifact contains the required structured fields verbatim; free-form synthesis is prohibited (REQ-016-12).
 
 ## Acceptance Criteria
 
@@ -236,19 +236,19 @@ Each AC is split into static (file-level) and dynamic (session-level) checks whe
 
 - [ ] **AC-1a (static)**: The Step 0 heading appears in `.claude/commands/spec.md` before any "Step 1" heading. Verifiable by byte-offset comparison.
 - [ ] **AC-1b (dynamic)**: When `/spec` is invoked, the model presents Q1-Q6 to the author before any Step 1 prose. Verifiable by session transcript inspection.
-- [ ] **AC-2**: When any Step 0 answer contains a hedge phrase from the canonical list (REQ-006-02), the halt message contains H1 plus the failing question number, the matched phrase quoted verbatim, and the deferral instruction.
-- [ ] **AC-3**: When Q5 fails the operational speculative test (REQ-006-03), the halt message contains H2 plus Q5, the failing answer, and the specific test condition that failed (no quote, no citation, no named person).
-- [ ] **AC-4**: When Q1 fails the operational aspirational test (REQ-006-04), the halt message contains H3 plus Q1, the failing answer, and the specific condition that failed (no named entity, future tense, OR generic category).
-- [ ] **AC-5**: When Q3 fails the operational specificity test (REQ-006-05), the halt message contains H4 plus Q3, the failing answer, and the specific test branch that failed.
+- [ ] **AC-2**: When any Step 0 answer contains a hedge phrase from the canonical list (REQ-016-02), the halt message contains H1 plus the failing question number, the matched phrase quoted verbatim, and the deferral instruction.
+- [ ] **AC-3**: When Q5 fails the operational speculative test (REQ-016-03), the halt message contains H2 plus Q5, the failing answer, and the specific test condition that failed (no quote, no citation, no named person).
+- [ ] **AC-4**: When Q1 fails the operational aspirational test (REQ-016-04), the halt message contains H3 plus Q1, the failing answer, and the specific condition that failed (no named entity, future tense, OR generic category).
+- [ ] **AC-5**: When Q3 fails the operational specificity test (REQ-016-05), the halt message contains H4 plus Q3, the failing answer, and the specific test branch that failed.
 - [ ] **AC-6 (dynamic)**: When Step 0 passes, the PRD artifact's first section is `## Step 0 First Principles` with six labelled subfields (`### Q1 Demand Reality`, `### Q2 Status Quo`, etc.) each containing the author's verbatim answer.
 - [ ] **AC-7a (static)**: `.claude/commands/spec.md` Step 1 prose (item "1. Clarify the problem") contains the directive "Do not re-elicit Q1-Q6 here." (or semantically equivalent text grep-verifiable as `Q1-Q6` in Step 1).
 - [ ] **AC-7b (static)**: `.claude/commands/spec.md` Step 1 prose references the Step 0 block by name (grep `Step 0` in Step 1 paragraph).
 - [ ] **AC-8 (static)**: `.claude/commands/spec.md` Tier 5 bullet does NOT contain the phrase "why not simpler?" AND DOES contain the phrase "Re-validate Step 0 Q4". Both verifiable by grep.
-- [ ] **AC-9**: Step 9 prose contains three labelled checks (Check 9a, 9b, 9c) each phrased as a binary PASS/FAIL assertion per REQ-006-09. Each check has explicit pass conditions.
+- [ ] **AC-9**: Step 9 prose contains three labelled checks (Check 9a, 9b, 9c) each phrased as a binary PASS/FAIL assertion per REQ-016-09. Each check has explicit pass conditions.
 - [ ] **AC-10 (static)**: The body delta applied to `src/copilot-cli/skills/spec/SKILL.md` is byte-identical to the delta applied to `.claude/commands/spec.md` for the four edited sections. Verifiable by `diff` of the two files restricted to the edited sections.
 - [ ] **AC-11**: When fewer than 6 of the Step 0 fields are answered, the halt message contains H5 plus the list of missing question numbers.
 - [ ] **AC-12 (dynamic)**: When `/spec` is invoked under auto-mode without a human, the agent halts with `STEP_0_REQUIRES_ELICITATION` reason and lists each unanswered question. Free-form synthesis of answers is prohibited.
-- [ ] **AC-13**: Step 0 instruction text in `.claude/commands/spec.md` references the kill criteria in REQ-006-13 (grep `STEP-0-METRICS.md` OR `kill criteria`).
+- [ ] **AC-13**: Step 0 instruction text in `.claude/commands/spec.md` references the kill criteria in REQ-016-13 (grep `STEP-0-METRICS.md` OR `kill criteria`).
 
 ## Rationale
 
@@ -261,11 +261,11 @@ A reviewer challenge: ship Q3 alone with one halt trigger; expand if observed va
 - Q1+Q3+Q5 would catch cases 1, 2, 3, 4, 5, 6, 8, 9 (8 of 9).
 - All six are needed to catch case 1 (PR #1887, where Q1+Q5 are both load-bearing).
 
-The kill criteria in REQ-006-13 provide the wedge-narrowing escape valve: if 30 invocations show ≥30% false positives or no catches, the gate is loosened or removed. The wedge is in the kill criteria, not in the question count.
+The kill criteria in REQ-016-13 provide the wedge-narrowing escape valve: if 30 invocations show ≥30% false positives or no catches, the gate is loosened or removed. The wedge is in the kill criteria, not in the question count.
 
 ### Why operational tests over judgment
 
-The first review of REQ-006 v1 flagged "speculative" and "aspirational" as undefined and untestable. The operational tests in REQ-006-03, REQ-006-04, and REQ-006-05 replace judgment with checkable conditions: presence of a quote, presence of a citation, presence of a named entity, presence of future tense. These are model-checkable without subjective interpretation. The cost is occasional false positives on edge cases (a Q1 answer that names a system but uses future tense for the impact); the benefit is reproducibility across authors and agents.
+The first review of REQ-016 v1 flagged "speculative" and "aspirational" as undefined and untestable. The operational tests in REQ-016-03, REQ-016-04, and REQ-016-05 replace judgment with checkable conditions: presence of a quote, presence of a citation, presence of a named entity, presence of future tense. These are model-checkable without subjective interpretation. The cost is occasional false positives on edge cases (a Q1 answer that names a system but uses future tense for the impact); the benefit is reproducibility across authors and agents.
 
 ## Dependencies
 

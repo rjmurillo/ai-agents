@@ -180,7 +180,7 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
         return None
 
 
-# Rework warning (REQ-009-07, REQ-009-08, REQ-009-09 / M4) is extracted
+# Rework warning (REQ-012-07, REQ-012-08, REQ-012-09 / M4) is extracted
 # to a sibling module so this file stays under the 500-line taste-lint
 # threshold. See rework_warning.py for the implementation. The sibling
 # import is loaded via importlib so it works whether the script is run
@@ -226,7 +226,7 @@ def _run_rework_warning_step() -> str:
 
     Returns a one-line summary suitable for the session-end `changes`
     log. Output to stdout is at least one line, never silent
-    (REQ-009-08). The function is extracted so the main() driver does
+    (REQ-012-08). The function is extracted so the main() driver does
     not absorb its branching into its own cyclomatic complexity.
 
     Degrades gracefully when the sibling rework_warning module is
@@ -238,7 +238,7 @@ def _run_rework_warning_step() -> str:
         print("rework-warning: skipped (sibling module unavailable)")
         return "Rework warning: skipped (sibling unavailable)"
     # PR #1989 cursor follow-up: the rework-warning step is informational
-    # and MUST NOT block session-end under any circumstances (REQ-009-08).
+    # and MUST NOT block session-end under any circumstances (REQ-012-08).
     # Wrap runtime calls so an unexpected git or subprocess failure inside
     # compute_rework_warning or emit_rework_warning_lines degrades to a
     # single notice line instead of crashing the driver. Step 4b runs
@@ -365,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
         check["Evidence"] = lint_output
         changes.append(f"Markdown lint: {lint_output}")
 
-    # 4b. Rework warning (REQ-009-07, REQ-009-08). Emitted as informational
+    # 4b. Rework warning (REQ-012-07, REQ-012-08). Emitted as informational
     # stdout lines after lint; never blocks completion.
     changes.append(_run_rework_warning_step())
 

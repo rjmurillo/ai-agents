@@ -707,6 +707,28 @@ def validate_build_gates(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_spec_id_uniqueness(repo_root: Path) -> bool:
+    """Enforce unique `id:` frontmatter across spec catalog (Issue #2068).
+
+    Duplicate REQ/DESIGN/TASK IDs break traceability and any spec-graph
+    tooling that joins by ID. The README under each category already
+    documents uniqueness; this gate enforces it.
+    """
+    script = repo_root / "scripts" / "validation" / "check_spec_id_uniqueness.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_spec_id_uniqueness.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_canonical_citations(repo_root: Path) -> bool:
     """Heuristic check for uncited mirror-claims.
 
@@ -929,6 +951,13 @@ def main(argv: list[str] | None = None) -> int:
         "Build Command Exit Gates",
         state,
         lambda: validate_build_gates(repo_root),
+    )
+
+    # 3.75 Spec ID Uniqueness (Issue #2068)
+    run_validation(
+        "Spec ID Uniqueness",
+        state,
+        lambda: validate_spec_id_uniqueness(repo_root),
     )
 
     # 3.8 Canonical Citation Check (heuristic; soft warn unless

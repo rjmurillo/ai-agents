@@ -1,6 +1,6 @@
 """Tests for invoke_markdownlint_guard.
 
-Covers acceptance criteria from issue #1884 TASK-005-2: clean files pass,
+Covers acceptance criteria from issue #1884 TASK-015-2: clean files pass,
 violations block with structured output, missing binary fails open,
 TimeoutExpired and OSError fail open, empty changeset short-circuits in
 the framework, and the hooks.json registration includes the guard.

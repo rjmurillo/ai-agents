@@ -1,7 +1,7 @@
 # taste-lint: ignore file-size
 """Tests for Step 0.5 Memory-First Gate in /spec command.
 
-Refs #1951, REQ-008, DESIGN-008, TASK-008, plan req-008-step-0-5-memory-first-gate.
+Refs #1951, REQ-017, DESIGN-017, TASK-017, plan req-008-step-0-5-memory-first-gate.
 
 File-size suppression rationale: this test module is the unit-test home
 for all 12 ACs and the 4 parser helpers. Splitting by AC fragments the
@@ -14,7 +14,7 @@ Verifies the static structure of Step 0.5 instructions in
 logic lives in `tests/commands/step0_5_parser.py`; this file holds only
 test cases.
 
-Of 14 dynamic D-checks in TASK-008-5, 4 are promoted to pytest here
+Of 14 dynamic D-checks in TASK-017-5, 4 are promoted to pytest here
 (D2, D8, D10, D11) because they are deterministic from spec.md prose
 and parser logic without an LLM in the loop. The remaining 10 (D1,
 D3, D4, D5, D6, D7, D9, D12, D13, D14) require live `/spec` invocation
@@ -256,7 +256,7 @@ def test_s10_phases_needed_formula_present(spec_text: str):
     assert "phases_needed" in body
     assert "actual_tier > provisional_tier" in body
     assert "phases_needed(actual_tier) > phases_needed(provisional_tier)" in body
-    # Verify the per-tier phase-count constants match REQ-008 AC-10
+    # Verify the per-tier phase-count constants match REQ-017 AC-10
     assert "phases_needed(T) = 2  if T <= 2" in body
     assert "phases_needed(T) = 4  if T == 3" in body
     assert "phases_needed(T) = 5  if T >= 4" in body
@@ -371,12 +371,12 @@ def test_compute_provisional_tier_reference_cases(
 
 
 def test_compute_provisional_tier_seven_point_nine_hours_is_tier_2():
-    """REQ-008 AC-02: <8h is Tier 2 (Tier 2 range is `2 to less than 8`)."""
+    """REQ-017 AC-02: <8h is Tier 2 (Tier 2 range is `2 to less than 8`)."""
     assert compute_provisional_tier("7.9 hours", 1) == 2
 
 
 def test_compute_provisional_tier_eight_hours_is_tier_3():
-    """REQ-008 AC-02 boundary: 8h is in Tier 3 (range `8 to less than 40`).
+    """REQ-017 AC-02 boundary: 8h is in Tier 3 (range `8 to less than 40`).
 
     The Tier 2 range is `2 to less than 8` (strict upper bound), so 8h
     falls in Tier 3, not Tier 2. The mapping table is the canonical
@@ -389,7 +389,7 @@ def test_compute_provisional_tier_no_hours_defaults_to_tier_2():
     assert compute_provisional_tier("", 1) == 2
 
 
-# Entity-count boundary cases (REQ-008 AC-02 entity_tier mapping)
+# Entity-count boundary cases (REQ-017 AC-02 entity_tier mapping)
 @pytest.mark.parametrize(
     "entity_count, expected_entity_tier",
     [
@@ -408,7 +408,7 @@ def test_compute_provisional_tier_no_hours_defaults_to_tier_2():
 def test_compute_provisional_tier_entity_count_boundaries(
     entity_count: int, expected_entity_tier: int
 ):
-    """REQ-008 AC-02: 1=T1; 2-3=T2; 4-7=T3; 8-15=T4; >15=T5.
+    """REQ-017 AC-02: 1=T1; 2-3=T2; 4-7=T3; 8-15=T4; >15=T5.
 
     0 entities maps to Tier 1 (Step 0 Q3 always names at least one
     entity in practice; this is the conservative floor for empty input).
@@ -452,7 +452,7 @@ def test_supplemental_traversal_warranted(
 
 
 # ---------------------------------------------------------------------------
-# Dynamic-check promotion (TASK-008-5 D-list)
+# Dynamic-check promotion (TASK-017-5 D-list)
 #
 # 4 of 14 D-checks (D2, D8, D10, D11) are promoted to pytest because
 # they are deterministic from spec.md prose and parser logic without an
