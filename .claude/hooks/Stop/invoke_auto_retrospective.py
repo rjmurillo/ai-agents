@@ -283,9 +283,12 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not index_path.exists():
-            # Mirror the committed docs/retros/INDEX.md header so
-            # bootstrapped output stays byte-for-byte consistent with
-            # the canonical template.
+            # Mirror the title, callout, and table shape of the committed
+            # docs/retros/INDEX.md template so the bootstrapped file
+            # renders the same and stays semantically consistent with
+            # the canonical version. Small format drift (trailing
+            # whitespace, extra blank line) is tolerable; the structure
+            # is what matters for the table append loop below.
             header = (
                 "# Retrospective Index\n\n"
                 "> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).\n"
@@ -304,25 +307,25 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
 
 
 def _resolve_safe_project_path() -> Path | None:
-    """Resolve the project directory and require it to live under the repo root.
+    """Resolve the project directory and require it to look like a repo root.
 
     Defends against a misconfigured ``CLAUDE_PROJECT_DIR`` pointing outside
     the repository, which would otherwise let this hook write retro files
-    anywhere on disk.
+    anywhere on disk. Validates via repo signals (``.agents/`` or ``.git/``)
+    instead of comparing against ``__file__.parents[3]``: when this hook
+    runs from an installed plugin location, the script's parent chain has
+    nothing to do with the user's repo, so a path-prefix check would
+    spuriously reject valid project directories.
     """
-    # Repository root from script location:
-    # .claude/hooks/Stop/invoke_auto_retrospective.py -> repo root is parents[3]
-    repo_root = Path(__file__).resolve().parents[3]
     candidate = Path(get_project_directory()).resolve()
-    try:
-        candidate.relative_to(repo_root)
-    except ValueError:
-        print(
-            f"[WARNING] {HOOK_NAME}: project_dir outside repo root: {candidate}",
-            file=sys.stderr,
-        )
-        return None
-    return candidate
+    if (candidate / ".agents").is_dir() or (candidate / ".git").is_dir():
+        return candidate
+    print(
+        f"[WARNING] {HOOK_NAME}: project_dir lacks .agents/ or .git/ "
+        f"signal, refusing to write under: {candidate}",
+        file=sys.stderr,
+    )
+    return None
 
 
 def main() -> None:
