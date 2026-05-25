@@ -362,7 +362,17 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - Tier 5 (Principal): Governance review. Multi-org consensus. Re-validate Step 0 Q4 (Narrowest Wedge) in the context of emerged complexity. If the wedge can be narrowed further without losing the unblocking value identified in Q3, narrow it before proceeding. Step 0 Q4 is the canonical wedge question for every tier.
 4. Search for existing solutions in the codebase (grep for related patterns). Use the PRD's Integrations and Data model sections to scope the search.
 5. **CVA analysis (conditional)**: If the complexity tier is 3-5, or Tier 1-2 with multiple use cases, invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships. Otherwise (Tier 1-2 single-use-case), set `CVA summary: N/A (single-use-case Tier 1-2)` and proceed.
-6. **Formalize the PRD into durable artifacts**: Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3 and the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs). The spec-generator agent writes:
+6. **Formalize the PRD into durable artifacts**:
+
+   **First ask the multi-site opt-in prompt (PR #1989 coderabbit t3_).** Before invoking spec-generator, ask the user verbatim:
+
+   ```text
+   Is this a multi-site contract change? (y/n)
+   ```
+
+   Record the answer as `multi_site_opt_in` (boolean). The Co-change checklist subsection below reads this flag to decide whether to emit the checklist via the opt-in branch. The prompt is mandatory; do not skip it.
+
+   Then invoke Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3, the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs), and the `multi_site_opt_in` flag from this step. The spec-generator agent writes:
    - `.agents/specs/requirements/REQ-NNN-{slug}.md` (one per requirement, EARS syntax)
    - `.agents/specs/design/DESIGN-NNN-{slug}.md`
    - `.agents/specs/tasks/TASK-NNN-{slug}.md`
@@ -395,24 +405,26 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    ```markdown
    ## Co-change checklist
 
-   - [ ] `scripts/lib/verdict.py:42` -- add `NEEDS_REVISION` to `VERDICT_TOKENS` set
-   - [ ] `scripts/lib/verdict.py:_EXTRACT_VERDICT_PATTERN` -- extend regex alternation
-   - [ ] `.github/actions/pr-quality-gate/action.yml:validity` -- add to valid input list
-   - [ ] `.github/workflows/pr-quality-gate.yml:blockingVerdicts` -- decide whether to block
-   - [ ] `.github/workflows/pr-quality-gate.yml:exit_code` -- map to exit code per ADR-035
-   - [ ] `.claude/review-axes/analyst.md` -- document new verdict in axis prose
-   - [ ] `.claude/review-axes/architect.md` -- (same)
-   - [ ] `.claude/review-axes/qa.md` -- (same)
-   - [ ] `.claude/review-axes/security.md` -- (same)
-   - [ ] `.claude/review-axes/devops.md` -- (same)
-   - [ ] `.claude/review-axes/roadmap.md` -- (same)
-   - [ ] `.github/prompts/pr-quality-gate-analyst.md` -- mirror axis prose
-   - [ ] `.github/prompts/pr-quality-gate-architect.md` -- (same)
-   - [ ] `.github/prompts/pr-quality-gate-qa.md` -- (same)
-   - [ ] `.github/prompts/pr-quality-gate-security.md` -- (same)
-   - [ ] `.github/prompts/pr-quality-gate-devops.md` -- (same)
-   - [ ] `.github/prompts/pr-quality-gate-roadmap.md` -- (same)
+   - [ ] scripts/lib/verdict.py:42 -- add NEEDS_REVISION to VERDICT_TOKENS set
+   - [ ] scripts/lib/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation
+   - [ ] .github/actions/pr-quality-gate/action.yml:"validity" -- add to valid input list
+   - [ ] .github/workflows/pr-quality-gate.yml:"blockingVerdicts" -- decide whether to block
+   - [ ] .github/workflows/pr-quality-gate.yml:"exit_code" -- map to exit code per ADR-035
+   - [ ] .claude/review-axes/analyst.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/architect.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/qa.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/security.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/devops.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/roadmap.md -- document new verdict in axis prose
+   - [ ] .github/prompts/pr-quality-gate-analyst.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-architect.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-qa.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-security.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-devops.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-roadmap.md -- mirror axis prose
    ```
+
+   Each entry follows the documented contract literally: bare `{file_path}:{line_or_section}` with no backticks. When `{line_or_section}` is not a line number, quote it (for example, `"validity"`). `{what changes}` is a single phrase. The worked example pins the exact byte-level shape that future checklist linters will pattern-match against; do not paraphrase the separator or drop `--`.
 
    The checklist surfaces 17 sites for a single token. Without it, the implementer discovers each one through a separate bot-review round trip.
 7. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
