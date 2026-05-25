@@ -545,12 +545,12 @@ Refer to `.githooks/pre-push` for the authoritative, up-to-date list of all chec
 
 ## Lifecycle Hooks (Claude Code)
 
-Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. The five lifecycle hooks introduced by issue #1703 are non-blocking (fail-open) with one exception: `invoke_false_completion_gate` exits 2 to block `git commit` / `gh pr create` claiming "done" without test evidence. Each of the five lifecycle hooks is registered with a 5-second timeout. Other (older) hooks registered in `.claude/settings.json` may have different timeouts and blocking semantics; check the relevant hook file for its contract.
+Claude Code runs lifecycle hooks at session boundaries. They are registered in `.claude/settings.json` and live in `.claude/hooks/`. The five lifecycle hooks introduced by issue #1703 are non-blocking (fail-open) with one exception: `invoke_false_completion_gate` exits 2 to block `git commit`, `gh pr create`, or `gh pr merge` claiming "done" without test evidence. Each of the five lifecycle hooks is registered with a 5-second timeout. Other (older) hooks registered in `.claude/settings.json` may have different timeouts and blocking semantics; check the relevant hook file for its contract.
 
 | Hook | File | Purpose | Bypass env var |
 |------|------|---------|----------------|
 | SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
-| PreToolUse | `invoke_false_completion_gate.py` | Blocks `git commit`/`gh pr create` claiming "done/fixed" without test evidence in session log | `SKIP_COMPLETION_GATE=true` |
+| PreToolUse | `invoke_false_completion_gate.py` | Blocks `git commit`, `gh pr create`, or `gh pr merge` claiming "done/fixed" without test evidence in session log | `SKIP_COMPLETION_GATE=true` |
 | PostToolUse | `invoke_plan_state_sync.py` | Checkpoints plan/TODO state after Write/Edit | none (fail-open) |
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
 | Stop | `invoke_auto_retrospective.py` | Auto-generates session retrospective on stop | `SKIP_AUTO_RETRO=true` |
