@@ -735,7 +735,7 @@ fi
         if set_python_cmd; then
             if [ -d "$REPO_ROOT/tests" ]; then
                 TEST_OUTPUT=$(mktemp)
-                if env CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" -u CLAUDE_PROJECT_DIR "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
+                if env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
                     --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \
                     --ignore="$REPO_ROOT/.claude/lib/hook_utilities" \
                     --ignore="$REPO_ROOT/.claude/lib/github_core" \

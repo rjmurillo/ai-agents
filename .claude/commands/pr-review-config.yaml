@@ -83,7 +83,13 @@ error_recovery:
 #   pass_when_python  (Optional) Python lambda escape hatch when DSL is too narrow.
 #   fail_open      (Optional, default false) Treat dispatch errors as a pass.
 completion_criteria:
-  - name: "All review threads resolved"
+  # NOTE: Security threads (CWE, OWASP, CVE) are EXEMPT from the "all resolved"
+  # requirement per failure_handling policy. When this criterion fails due to
+  # unresolved security threads, agents MUST verify: (1) each security thread
+  # has a tracking issue logged, (2) the underlying vulnerability is not yet
+  # fixed. Security threads with tracking issues are allowed to remain open;
+  # the agent may proceed if ONLY security threads are unresolved.
+  - name: "All review threads resolved (security threads exempt with tracking)"
     verification: "command"
     command: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {pr}"
     pass_when: "stdout-json.unresolved_count == 0 AND stdout-json.fetched_pages_complete == true"
@@ -91,6 +97,9 @@ completion_criteria:
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
     command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}"
+    # NOTE: UnresolvedThreads == 0 is subject to the same security thread
+    # exemption documented above. Security threads with tracking issues do not
+    # block merge readiness.
     pass_when_python: "lambda d: d.get('CanMerge') == True and d.get('CIPassing') == True and d.get('fetched_pages_complete') == True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
     fail_open: false
   - name: "PR is not already merged"
@@ -106,6 +115,8 @@ failure_handling:
     action: "Note as infrastructure issue; may be transient"
   - type: "AI reviewer fails (code quality)"
     action: "Address findings or document acknowledgment"
+  - type: "Security finding (CWE, OWASP, CVE)"
+    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security threads without a code fix. Log a tracking issue. Security threads with tracking issues are exempt from completion_criteria thread-resolution requirements. Ref: .claude/rules/security.md (canonical security file rule), AGENTS.md NEVER list."
   - type: "Merge conflicts"
     action: "Resolve conflicts or merge base branch"
   - type: "Behind base branch"
