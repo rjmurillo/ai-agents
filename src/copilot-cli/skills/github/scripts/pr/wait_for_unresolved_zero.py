@@ -247,12 +247,17 @@ def wait_for_settled_zero(
         # PR #1989 cursor zTH: missing underlying script is a config
         # error per ADR-035. Surface as exit_code=2 via a synthetic
         # observation so main() returns 2, not 1.
+        #
+        # PR #1989 copilot follow-up: record a real timestamp from the
+        # resolved clock seam so the observation honors the documented
+        # schema (`{"timestamp": float, ...}`). A null timestamp forced
+        # every downstream consumer to handle a special case.
         return _failure(
             f"underlying script missing: {script_path}",
             pull_request,
             [
                 {
-                    "timestamp": None,
+                    "timestamp": clock(),  # type: ignore[operator]
                     "unresolved_count": -1,
                     "fetched_pages_complete": False,
                     "underlying_exit_code": 2,
