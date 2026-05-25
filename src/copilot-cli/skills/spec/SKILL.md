@@ -409,8 +409,8 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    ```markdown
    ## Co-change checklist
 
-   - [ ] scripts/lib/verdict.py:42 -- add NEEDS_REVISION to VERDICT_TOKENS set
-   - [ ] scripts/lib/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation
+   - [ ] scripts/ai_review_common/verdict.py:"_KNOWN_VERDICT_TOKENS" -- add NEEDS_REVISION to the frozenset
+   - [ ] scripts/ai_review_common/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation
    - [ ] .github/actions/pr-quality-gate/action.yml:"validity" -- add to valid input list
    - [ ] .github/workflows/pr-quality-gate.yml:"blockingVerdicts" -- decide whether to block
    - [ ] .github/workflows/pr-quality-gate.yml:"exit_code" -- map to exit code per ADR-035
