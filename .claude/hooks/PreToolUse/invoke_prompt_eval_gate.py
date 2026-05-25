@@ -60,6 +60,7 @@ _PROMPT_PATTERNS = [
     re.compile(r"^\.claude/commands/.*\.md$"),
     re.compile(r"^\.github/prompts/.*\.md$"),
     re.compile(r"^\.agents/security/prompts/.*\.md$"),
+    re.compile(r"^src/copilot-cli/docs/.*\.md$"),
 ]
 
 _AGENT_PATTERNS = [
