@@ -137,7 +137,9 @@ def main() -> int:
     loaded_files = []
     output_parts = []
 
-    # Load HANDOFF.md
+    # Load HANDOFF.md. Catch UnicodeDecodeError (subclass of ValueError)
+    # alongside OSError so a non-UTF8 file does not crash the hook and break
+    # the fail-open contract.
     handoff_path = project_dir / ".agents" / "HANDOFF.md"
     if handoff_path.is_file():
         try:
@@ -146,13 +148,14 @@ def main() -> int:
                 f"--- HANDOFF.md (auto-loaded by context_loader hook) ---\n{content}\n"
             )
             loaded_files.append("HANDOFF.md")
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             print(
                 f"[hook-error] invoke_context_loader handoff_read: {type(e).__name__}: {e}",
                 file=sys.stderr,
             )
 
-    # Load latest retrospective
+    # Load latest retrospective. Same fail-open contract: a corrupt or
+    # non-UTF8 retro file must not crash session start.
     retro_dir = project_dir / ".agents" / "retrospective"
     latest_retro = get_latest_retrospective(retro_dir)
     if latest_retro:
@@ -162,7 +165,7 @@ def main() -> int:
                 f"--- Latest Retro: {latest_retro.name} (auto-loaded) ---\n{content}\n"
             )
             loaded_files.append(latest_retro.name)
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             print(
                 f"[hook-error] invoke_context_loader retro_read: {type(e).__name__}: {e}",
                 file=sys.stderr,

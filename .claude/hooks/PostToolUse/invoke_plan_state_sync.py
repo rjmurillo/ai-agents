@@ -192,10 +192,12 @@ def main() -> int:
         )
         return 0
 
-    # Read the file content for summary
+    # Read the file content for summary. Catch UnicodeDecodeError (subclass
+    # of ValueError) alongside OSError so a non-UTF8 file does not crash the
+    # hook and break the fail-open contract; continue with an empty summary.
     try:
         content = full_path.read_text(encoding="utf-8") if full_path.is_file() else ""
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         print(
             f"[hook-error] invoke_plan_state_sync read: {type(e).__name__}: {e}",
             file=sys.stderr,
