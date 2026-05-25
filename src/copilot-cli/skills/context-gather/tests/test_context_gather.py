@@ -137,8 +137,12 @@ class TestStructure:
 
     def test_context_retrieval_subagent_exists(self) -> None:
         """SKILL.md delegates to the context-retrieval subagent; verify the
-        subagent file exists so renaming/deleting it is caught immediately."""
-        repo_root = SKILL_DIR.parents[2]
+        subagent file exists so renaming/deleting it is caught immediately.
+
+        SKILL_DIR is src/copilot-cli/skills/context-gather/. To reach the repo
+        root: parents[0]=skills, parents[1]=copilot-cli, parents[2]=src,
+        parents[3]=repo root."""
+        repo_root = SKILL_DIR.parents[3]
         subagent = repo_root / ".claude" / "agents" / "context-retrieval.md"
         assert subagent.exists(), (
             f"SKILL.md delegates to context-retrieval subagent but {subagent} is missing"
