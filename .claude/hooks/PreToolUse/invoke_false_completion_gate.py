@@ -138,7 +138,6 @@ VERIFICATION_RESULT_PATTERNS = [
     re.compile(r"\d+\s+failed", re.IGNORECASE),
     re.compile(r"\bPASSED\b"),
     re.compile(r"\bFAILED\b"),
-    re.compile(r"\bOK\b"),
     re.compile(r"exit[_ ]code[:\s]+\d+", re.IGNORECASE),
     re.compile(r"exited with \d+", re.IGNORECASE),
     re.compile(r"tests?[:\s]+\d+", re.IGNORECASE),
