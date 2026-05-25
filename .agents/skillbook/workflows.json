@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "workflows": [
+    {
+      "id": "wf-full-feature-development",
+      "name": "Full feature development lifecycle",
+      "trigger": "a new feature with no existing spec",
+      "steps": [
+        {"order": 1, "action": "Define testable requirements with /spec"},
+        {"order": 2, "action": "Decompose into milestones with /plan"},
+        {"order": 3, "action": "Implement in thin vertical slices with /build"},
+        {"order": 4, "action": "Prove behavior and debug failures with /test"},
+        {"order": 5, "action": "Run the multi-axis review with /review"},
+        {"order": 6, "action": "Validate and open the PR with /ship"}
+      ],
+      "source": "authored",
+      "confidence": 0.5,
+      "execution_count": 0,
+      "success_rate": 0.0,
+      "last_executed_at": 0,
+      "version": 1,
+      "status": "active"
+    },
+    {
+      "id": "wf-pr-review-deep",
+      "name": "Deep PR review with security and performance passes",
+      "trigger": "a pull request labeled needs-deep-review",
+      "steps": [
+        {"order": 1, "action": "Run the security agent on the diff"},
+        {"order": 2, "action": "Run the qa agent for test-coverage gaps"},
+        {"order": 3, "action": "Run a performance pass on hot paths"},
+        {"order": 4, "action": "Synthesize findings and post a single review verdict"}
+      ],
+      "source": "lifted",
+      "confidence": 0.5,
+      "execution_count": 0,
+      "success_rate": 0.0,
+      "last_executed_at": 0,
+      "version": 1,
+      "status": "active"
+    },
+    {
+      "id": "wf-session-lifecycle",
+      "name": "Protocol-compliant session lifecycle",
+      "trigger": "the start of any agent work session",
+      "steps": [
+        {"order": 1, "action": "Create the session log with session-init"},
+        {"order": 2, "action": "Execute tasks with per-task commits"},
+        {"order": 3, "action": "Run scoped validation and close out with session-end"}
+      ],
+      "source": "authored",
+      "confidence": 0.5,
+      "execution_count": 0,
+      "success_rate": 0.0,
+      "last_executed_at": 0,
+      "version": 1,
+      "status": "active"
+    }
+  ]
+}

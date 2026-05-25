@@ -87,6 +87,18 @@ class TestIsGatedFile:
     def test_matches_adr_file(self) -> None:
         assert _is_gated_file(".agents/architecture/ADR-042.md") is True
 
+    def test_matches_slugged_adr_file(self) -> None:
+        assert (
+            _is_gated_file(
+                ".agents/architecture/ADR-006-thin-workflows-testable-modules.md"
+            )
+            is True
+        )
+
+    def test_matches_bare_slugged_adr_file(self) -> None:
+        assert _is_gated_file("ADR-006-thin-workflows-testable-modules.md") is True
+
+
     def test_matches_session_protocol(self) -> None:
         assert _is_gated_file(".agents/SESSION-PROTOCOL.md") is True
 
@@ -95,6 +107,30 @@ class TestIsGatedFile:
 
     def test_rejects_partial_session_protocol(self) -> None:
         assert _is_gated_file("MY-SESSION-PROTOCOL.md.bak") is False
+
+    def test_rejects_adr_substring_within_filename(self) -> None:
+        # ADR pattern must be anchored at a path-component boundary;
+        # filenames where 'ADR-...' appears mid-component are not ADRs.
+        assert _is_gated_file("notADR-001.md") is False
+        assert _is_gated_file("xADR-042-foo.md") is False
+        assert _is_gated_file("docs/notADR-001.md") is False
+
+    def test_matches_windows_path_separator(self) -> None:
+        assert _is_gated_file(r".agents\architecture\ADR-042.md") is True
+
+    def test_redos_resistant_on_pathological_input(self) -> None:
+        # Regression: previous pattern (?:-[\w-]+)* could backtrack
+        # exponentially on inputs like 'ADR-0' followed by many '-'.
+        # The current pattern uses (?:-\w+)* (no '-' inside \w+), so
+        # matching is linear and returns quickly even when it fails.
+        import time
+
+        pathological = "ADR-0" + ("-" * 60) + ".bad"
+        start = time.perf_counter()
+        result = _is_gated_file(pathological)
+        elapsed = time.perf_counter() - start
+        assert result is False
+        assert elapsed < 0.1, f"regex took {elapsed:.3f}s on pathological input"
 
 
 class TestTestADRReviewEvidence:

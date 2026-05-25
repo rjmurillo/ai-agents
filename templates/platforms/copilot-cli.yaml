@@ -1,28 +1,79 @@
-# Copilot CLI Platform Configuration
-# Used by Generate-Agents.ps1 to transform shared sources
-
-platform: copilot-cli
-outputDir: src/copilot-cli
-fileExtension: .agent.md
-
-# Frontmatter settings
-frontmatter:
-  # Copilot CLI model: use CLI model identifiers (not VS Code display names)
-  model: "claude-opus-4.6"
-  # Copilot CLI requires name field
-  includeNameField: true
-
-# Per-agent model tier mappings (used when template specifies model_tier)
-model_tiers:
-  opus: "claude-opus-4.6"
-  sonnet: "claude-sonnet-4.6"
-  haiku: "claude-haiku-4.5"
-
-# Agent handoff syntax
-handoffSyntax: "/agent"
-
-# Tool syntax style
-toolSyntax: path
-
-# Memory protocol prefix (for MCP tools)
-memoryPrefix: "serena/"
+schemaVersion: "1.0"
+provider: "copilot-cli"
+artifacts:
+  agents:
+    sourceDir: ".claude/agents"
+    outputDir: "src/copilot-cli/agents"
+    sourceSuffix: ".md"
+    outputSuffix: ".agent.md"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+  skills:
+    sourceDir: ".claude/skills"
+    outputDir: "src/copilot-cli/skills"
+    mode: "directory-copy"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+  commands:
+    sourceDir: ".claude/commands"
+    outputDir: "src/copilot-cli/skills"
+    transform: "command-to-skill"
+    appendFrontmatter:
+      user-invocable: true
+  rules:
+    sourceDir: ".claude/rules"
+    outputDir: ".github/instructions"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+    frontmatterDrop:
+      - alwaysApply
+      - priority
+  lib:
+    sourceDir: ".claude/lib"
+    outputDir: "src/copilot-cli/lib"
+  hooks:
+    settingsSource: ".claude/settings.json"
+    scriptSource: ".claude/hooks"
+    outputConfig: "src/copilot-cli/hooks/hooks.json"
+    outputScripts: "src/copilot-cli/hooks"
+    eventRemap:
+      PreToolUse: preToolUse
+      PostToolUse: postToolUse
+      Stop: sessionEnd
+      SessionStart: sessionStart
+      UserPromptSubmit: userPromptSubmitted
+    eventDrop:
+      - SubagentStop
+      - PermissionRequest
+      - Notification
+      - PreCompact
+    matcherPolicy: "inline-script-shim"
+    versionField: 1
+auditPolicy:
+  pathBlocklist:
+    - "^/home/"
+    - "^/Users/"
+    - "^/root/"
+    - "@[a-f0-9]{40}\\b"
+    - "GITHUB_TOKEN"
+    - "SECRET"
+  output:
+    file: "build/audit/GENERATION-AUDIT.md"
+    stdoutFormat: "json"
+# Legacy keys preserved for backward-compat with existing build/generate_agents.py.
+# Will be removed after M3 migrates the agent generator to the new schema.
+legacy:
+  # Issue #2052: Copilot CLI plugin loader discovers agents under
+  # `agents/` only. Files at the plugin root are silently dropped.
+  outputDir: "src/copilot-cli/agents"
+  fileExtension: ".agent.md"
+  frontmatter:
+    model: "claude-opus-4.6"
+    includeNameField: true
+  model_tiers:
+    opus: "claude-opus-4.6"
+    sonnet: "claude-sonnet-4.6"
+    haiku: "claude-haiku-4.5"
+  handoffSyntax: "/agent"
+  toolSyntax: "path"
+  memoryPrefix: "serena/"

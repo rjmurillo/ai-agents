@@ -33,21 +33,16 @@ from scripts.validation.models import ValidationResult
 
 # Valid model identifiers.
 # Source: .agents/analysis/claude-code-skill-frontmatter-2026.md
-# Note: the analysis doc enumerates the 4.5-era aliases that shipped with the
-# original research; this allowlist is intentionally ahead of that snapshot
-# because the 4.6 family is the current supported tier for Opus and Sonnet
-# while Haiku remains at 4.5. Refresh the analysis doc before removing the
-# back-compat entries.
+# Opus and Sonnet are pinned to the 4.6 family; the 4.5 aliases are no longer
+# accepted. Haiku stays at 4.5 because no 4.6 Haiku has shipped. Older
+# back-compat (4.0, 3.7) is retained until those skills are migrated.
 VALID_MODEL_ALIASES: frozenset[str] = frozenset(
     {
         # Current (Claude 4.6 family for Opus and Sonnet, per environment as of 2026-04-13)
         "claude-opus-4-6",
         "claude-sonnet-4-6",
         "claude-haiku-4-5",  # Haiku stayed at 4.5; current Haiku alias
-        # Back-compat (Claude 4.5 family for Opus and Sonnet)
-        "claude-opus-4-5",
-        "claude-sonnet-4-5",
-        # Older back-compat
+        # Older back-compat (pre-4.5)
         "claude-sonnet-4-0",
         "claude-3-7-sonnet-latest",
         # CLI shortcuts
@@ -57,15 +52,38 @@ VALID_MODEL_ALIASES: frozenset[str] = frozenset(
     }
 )
 
-# Dated snapshot pattern: claude-{opus|sonnet}-4-{5|6}-YYYYMMDD or claude-haiku-4-5-YYYYMMDD.
-# Haiku is pinned to 4.5; only Opus and Sonnet have 4.6 snapshots.
+# Dated snapshot pattern: claude-{opus|sonnet}-4-6-YYYYMMDD or claude-haiku-4-5-YYYYMMDD.
+# Haiku is pinned to 4.5; Opus and Sonnet are pinned to 4.6.
 DATED_SNAPSHOT_PATTERN: re.Pattern[str] = re.compile(
-    r"^claude-((opus|sonnet)-4-(5|6)|haiku-4-5)-\d{8}$"
+    r"^claude-((opus|sonnet)-4-6|haiku-4-5)-\d{8}$"
 )
 
-# Known Claude Code tools (partial list)
+# Known tool names accepted in `allowed-tools`.
+# Skills under .claude/skills/ are Claude Code skills, which use canonical
+# PascalCase names (Read, Write, Bash, ...). The lowercase entries are kept
+# for Copilot CLI compatibility (gh copilot uses bash, view, edit, create).
+# Source: .agents/analysis/claude-code-skill-frontmatter-2026.md (section 5.4).
+# Parenthesized command-prefix forms like "Bash(pwsh:*)" pass via the
+# wildcard branch in validate_allowed_tools.
 VALID_TOOLS: frozenset[str] = frozenset(
     {
+        # Claude Code canonical tools (PascalCase)
+        "Bash",
+        "Edit",
+        "Glob",
+        "Grep",
+        "Read",
+        "Write",
+        "Task",
+        "WebFetch",
+        "WebSearch",
+        "NotebookEdit",
+        "TodoWrite",
+        "AskUserQuestion",
+        "ExitPlanMode",
+        "Skill",
+        "SlashCommand",
+        # Copilot CLI tools (lowercase)
         "bash",
         "view",
         "edit",
@@ -75,6 +93,7 @@ VALID_TOOLS: frozenset[str] = frozenset(
         "task",
         "web_search",
         "web_fetch",
+        # MCP server roots (skills typically use wildcards like mcp__serena__*)
         "mcp",
         "playwright-browser",
         "github-mcp-server",

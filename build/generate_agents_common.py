@@ -144,7 +144,12 @@ def convert_frontmatter_for_platform(
 ) -> dict[str, str | None]:
     """Transform frontmatter for a specific platform."""
     result: dict[str, str | None] = {}
-    platform_name = str(platform_config.get("platform", ""))
+    # Support both new schema (provider + legacy block) and old schema (platform + top-level)
+    platform_name = str(
+        platform_config.get("provider", platform_config.get("platform", "")),
+    )
+    _legacy_raw = platform_config.get("legacy")
+    legacy: dict[str, object] = _legacy_raw if isinstance(_legacy_raw, dict) else {}
 
     for key, value in frontmatter.items():
         if isinstance(value, str) and value.startswith("{{PLATFORM_"):
@@ -155,7 +160,8 @@ def convert_frontmatter_for_platform(
             continue
         result[key] = value
 
-    fm = platform_config.get("frontmatter")
+    # Look for frontmatter in legacy block first, then top-level for backward compat
+    fm = legacy.get("frontmatter") or platform_config.get("frontmatter")
     if isinstance(fm, dict):
         if fm.get("includeNameField") is True:
             result["name"] = agent_name
@@ -164,7 +170,8 @@ def convert_frontmatter_for_platform(
 
         # Resolve model: use model_tier mapping if template specifies a tier
         model_tier = frontmatter.get("model_tier")
-        model_tiers = platform_config.get("model_tiers")
+        # Look for model_tiers in legacy block first, then top-level for backward compat
+        model_tiers = legacy.get("model_tiers") or platform_config.get("model_tiers")
         if model_tier and isinstance(model_tiers, dict) and model_tier in model_tiers:
             result["model"] = str(model_tiers[model_tier])
         else:
@@ -188,7 +195,8 @@ def convert_frontmatter_for_platform(
 
     # toolsFrom allows a platform to reuse another platform's tools key
     # Normalize alias using the same rules as platform names
-    tools_from = platform_config.get("toolsFrom")
+    # Look for toolsFrom in legacy block first, then top-level for backward compat
+    tools_from = legacy.get("toolsFrom") or platform_config.get("toolsFrom")
     tools_key_alias: str | None = None
     tools_key_alias_alt: str | None = None
     if isinstance(tools_from, str):
@@ -218,6 +226,9 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
 
     Maintains specific field order for consistency.
     Outputs arrays in block-style format for cross-platform compatibility.
+    Values that contain YAML-special characters (colon-space, leading
+    reserved indicators) are wrapped in single quotes so downstream YAML
+    parsers do not mistake the value for a nested mapping. See issue #2052.
     """
     lines: list[str] = []
 
@@ -237,10 +248,10 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
 
             result = [f"{key}:"]
             for item in items:
-                result.append(f"  - {item}")
+                result.append(f"  - {_yaml_quote_if_needed(str(item))}")
             return result
 
-        return [f"{key}: {value_str}"]
+        return [f"{key}: {_yaml_quote_if_needed(value_str)}"]
 
     # Output fields in defined order first
     for field_name in _FIELD_ORDER:
@@ -253,6 +264,44 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
             lines.extend(_format_field(key, frontmatter[key]))
 
     return "\n".join(lines)
+
+
+def _yaml_quote_if_needed(value: str) -> str:
+    """Wrap a scalar value in single quotes when YAML 1.2 would otherwise
+    misparse it.
+
+    The generator's parser strips surrounding quotes from values
+    (``parse_simple_frontmatter``), so a description authored as
+    ``description: 'phrase: with colon'`` round-trips through the dict as
+    ``phrase: with colon`` and would be re-emitted unquoted. Unquoted
+    ``key: phrase: with colon`` is invalid YAML because ``: `` starts a
+    nested mapping at column N. Quote when we see a YAML indicator that
+    would change parse meaning. See issue #2052 (debug.agent.md).
+    """
+    if not value:
+        return value
+    _yaml_reserved_starts = (
+        "?", "!", "|", ">", "&", "*", "@", "`", "%", "{", "[", "#", "-", "'", '"',
+    )
+    # Bool/null word coercion (`true`, `null`, etc.) is intentionally NOT
+    # treated as needs_quoting: schema fields like ``user-invocable: true``
+    # are meant to be booleans, and the skill validator rejects them as
+    # strings. The downstream parsers in this repo round-trip unquoted bool
+    # words as Python booleans, which is the desired behavior. Only quote
+    # what would otherwise change parse meaning.
+    needs_quoting = (
+        ": " in value
+        or ":\t" in value
+        or value.endswith(":")
+        or " #" in value
+        or value.startswith(_yaml_reserved_starts)
+        or value.strip() != value
+    )
+    if not needs_quoting:
+        return value
+    # YAML single-quote escape: replace ' with ''
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
 
 
 def _parse_array_items(array_content: str) -> list[str]:

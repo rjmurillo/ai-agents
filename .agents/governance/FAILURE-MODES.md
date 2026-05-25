@@ -23,6 +23,8 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 6 | Multi-agent rubber-stamping | High | `2025-12-24-parallel-pr-review-session.md` |
 | 7 | Self-contained agent delegation failure | Medium | `2025-12-19-self-contained-agents.md` |
 | 8 | Security drift | Critical | `2026-01-04-pr760-security-suppression-failure.md` |
+| 9 | *Reserved for confident-incorrectness recurrence (see #1919)* | High | `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
+| 10 | Silent defaults and guard-clause suppression | High | PR #1965 round-9/round-11 fixes; daniel.haxx.se 2026-05-11 |
 
 ---
 
@@ -275,6 +277,95 @@ Security instructions live in prose rather than in a blocking CI step. Suppressi
 - Periodic scan flags suppressions older than 90 days for retrospective review.
 
 See `SECURITY-REVIEW-PROTOCOL.md`, `SECURITY-SEVERITY-CRITERIA.md`, and ADR-023 (quality gate prompt testing).
+
+---
+
+## 10. Silent Defaults and Guard-Clause Suppression
+
+### Description
+
+Code swallows errors, masks invalid states, or substitutes defaults for unexpected inputs without surfacing the suppression. The execution succeeds; the failure is invisible. Common shapes:
+
+- `try / except: pass`; exception caught, nothing logged, control returns to the caller as if the operation succeeded
+- `value or default`; falsy real values get silently replaced (the most insidious form: `count or 100` makes `count=0` look like `count=100`)
+- `dict.get(key, default)` where the key being missing is itself a bug worth raising
+- `if not condition: return None` early-exits that hide why the function refused to do its job
+- Schema parsers that fall through to `{}` on shape mismatch instead of raising
+- Verdict parsers that emit `"PASS"` (or `"NEEDS_REVIEW"`) when the underlying check produced no output, treating absence-of-signal as positive-or-neutral signal
+- Catch blocks that re-raise a generic `Exception` swallowing the original type and stack
+- `-Force`/`--no-verify`/`|| true` shell incantations that turn precondition failures into successful exits
+
+The unifying property: **the call site has no way to know the operation didn't actually do what its name claims.** "Completed" is wrong if anything was skipped silently. "Tests pass" is wrong if any were skipped. "Verdict: PASS" is wrong if the parser fell through.
+
+### Trigger
+
+Any of the following code shapes get past review when the reviewer assumes "defensive coding is good" without asking what specifically is being defended against:
+
+```python
+# Suppression
+try:
+    do_thing()
+except Exception:
+    pass
+
+# Silent default on falsy
+timeout = config.get("timeout") or 30   # config["timeout"] = 0 silently becomes 30
+
+# Parser fall-through
+data = json.loads(stdout).get("Data", {})   # script doesn't emit "Data" wrapper -> {}
+
+# Verdict laundering
+verdict = re.search(r"VERDICT:\s*(\w+)", output)
+return verdict.group(1) if verdict else "PASS"   # no verdict line -> claim PASS
+```
+
+### Evidence
+
+- **PR #1965 round 9-11 fixes** (2026-05-10): commits `5bbf355` ("UNKNOWN as blocking verdict"), `c1d8209` ("admit UNKNOWN as a valid verdict token"), `6cb5370` ("block on UNKNOWN in exit_code case statement"). The root issue: the CI parser was treating absence-of-VERDICT as a non-blocking outcome. The fix took three rounds because each layer (parser → exit-code translator → workflow gate) had its own silent-default. See `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md`.
+- **Issue #2006** (security agent NEEDS_REVIEW false positives): security agent output truncated mid-sentence, parser fell through to `NEEDS_REVIEW`, blocked PR #2004 twice despite a substantive PASS review. Same shape: missing signal silently became blocking signal.
+- **Issue #1991** (M5 bot-cascade hook): the original PR #1989 implementation failed open on `gh api || true` and parsed paginated output as complete when it wasn't. Re-spec explicitly bans `gh api || true` and requires `fetched_pages_complete == true && success == true` before trusting any value.
+- **External corroboration**: daniel.haxx.se 2026-05-11 ("Mythos finds a curl vulnerability") names "comments contradicting code behavior" as a *primary* differentiator of AI code analyzers vs traditional SAST. Comment-vs-code drift is the human-facing variant of this failure mode; the comment promises behavior the code silently doesn't deliver. AI analyzers catch this because they read intent, not just structure.
+- **Cross-reference**: This pattern is upstream of FM-4 (False Completion Markers). FM-4 is the symptom; FM-10 is one of the mechanisms that produces it.
+
+### Detection
+
+| Mechanism | Where it runs | What it catches |
+|-----------|---------------|-----------------|
+| `taste-lints` rule for bare `except: pass` | `/build` exit gate | Suppression idiom |
+| AST scan for `or <literal>` defaults on numeric/bool config reads | `/build` exit gate or pre-push | Falsy-value defaulting |
+| Parser hardening lint: any parse function returning a default on missing required fields | `/test` security gate | Schema fall-through |
+| Verdict-extraction grep: any function returning `"PASS"` / `"OK"` / `NEEDS_REVIEW` from a no-match branch | review-axes drift check | Verdict laundering |
+| `|| true` and `--no-verify` scan in workflows + scripts | `.githooks/pre-push` | Shell-level suppression |
+| Generic `except Exception` catch without re-raise or structured log | `/build` exit gate | Stack-trace swallow |
+
+### Enforcement Pattern
+
+The replacement for all variants: **make the suppression an artifact the runtime can grade against.**
+
+| Anti-pattern | Replacement |
+|--------------|-------------|
+| `except: pass` | `except KnownExpectedError as e: log.warning(...); ...`; narrow exception class, structured log, explicit decision |
+| `x or default` for numeric config | `x if x is not None else default` (preserves zero/false as valid) |
+| `dict.get(key, default)` when key is required | `dict[key]` with a `KeyError` handler that names what's missing |
+| Parser returning default on shape mismatch | Raise `SchemaError(field, expected, got)` and surface it |
+| Verdict parser returning fallback | Return a typed `MissingVerdict` sentinel; treat as blocking in the gate |
+| `gh api ... || true` | Capture stderr, check exit code, fail loudly with the underlying error |
+| Generic `except Exception` | Catch the specific exceptions; let unexpected ones propagate |
+
+The principle: **there is no neutral default for a missing signal.** Either the missing signal is itself meaningful (in which case raise/block) or the operation should not have been called (in which case the bug is upstream). "Default to surface uncertainty, not hide it"; every silent default is uncertainty being hidden.
+
+### Why this is FM-10, not part of FM-4
+
+FM-4 (False Completion Markers) describes the *output*: an agent claims a task is done when it isn't. FM-10 describes one of the *mechanisms* that produces FM-4 outputs: the code itself returns success when something was suppressed. FM-4 lives at the agent-narration layer; FM-10 lives at the code-execution layer. A green CI gate built on a verdict parser that silently defaults to PASS is FM-10 producing FM-4. The fix is at the FM-10 layer (harden the parser), not the FM-4 layer (lecture the agent about honesty).
+
+### References
+
+- `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md` (round 9-11 fixes)
+- Issue #2006 (security agent output truncation produces false NEEDS_REVIEW blocks)
+- Issue #1991 (re-spec M5 with strict parsing, `|| true` ban)
+- Issue #1992 (re-spec M1 stable-zero wrapper, `len(threads)` ad-hoc parsing pattern)
+- Issue #1919 (FM-9 confident-incorrectness; adjacent failure mode, separate root cause)
+- daniel.haxx.se 2026-05-11 "Mythos finds a curl vulnerability"; section "How AI Analyzers Differ from Traditional Tools" cites comment-vs-code drift detection
 
 ---
 

@@ -81,4 +81,18 @@ describe("init", () => {
     expect(code).toBe(0);
     expect(emitter.written).toHaveLength(0);
   });
+
+  test("returns 1 when source.read throws", async () => {
+    const emitter = makeEmitter();
+    const source: BundleSource = {
+      async *list() {
+        yield { relativePath: "a.md", size: 1 };
+      },
+      async read() {
+        throw new Error("boom");
+      },
+    };
+    const code = await init(source, emitter, target);
+    expect(code).toBe(1);
+  });
 });

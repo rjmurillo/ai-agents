@@ -1,0 +1,53 @@
+{
+  "id": "episode-2026-05-09-session-1827",
+  "session": "2026-05-09-session-1827",
+  "timestamp": "2026-05-09T22:53:39.282737+00:00",
+  "outcome": "success",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-09T22:53:39.280491+00:00",
+      "type": "milestone",
+      "content": "\"checklistComplete\": {\"level\": \"MUST\", \"Complete\": true, \"Evidence\": \"All Session Start gates complete. /test 6 gates evaluated: 3 inapplicable for deletion-only PR (no perf/security/observability surface), 1 CRITICAL_FAIL on docs orphans (fixed in cdf9c916), 2 WARN with actionable items remediated. /review architect axis run with 1 Important + 2 Suggestion findings (1 cheap fix landed, others routed to follow-up PR).\"},",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-09T22:53:39.280491+00:00",
+      "type": "test",
+      "content": "\"validationPassed\": {\"level\": \"MUST\", \"Complete\": true, \"Evidence\": \"scripts/validate_session_json.py PASS. taste-lints: 1 pre-existing file-size error (test_invoke_skill_learning.py 913 lines, was 941 before this PR; pre-existing). golden-principles: 0 violations. code-qualities-assessment: cohesion 9.7, all others 10/10.\"},",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-09T22:53:39.280491+00:00",
+      "type": "test",
+      "content": "{\"step\": \"/test gates 1+4+5 in parallel\", \"outcome\": \"Gate 5 CRITICAL_FAIL on docs/ orphan refs (3 critical: skill-reference.md, SKILL-AUTHORING.md, workflow-commands.md). Gate 1 WARN (3 findings; gitignore actionable). Gate 4 WARN (pre-existing drift, env-only).\"},",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-09T22:53:39.280491+00:00",
+      "type": "test",
+      "content": "{\"step\": \"/review standards axes\", \"outcome\": \"taste-lints: 1 pre-existing file-size error (out of scope). golden-principles: 0. code-qualities: 9.7-10.0 across all 5 qualities.\"}",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 1,
+    "recoveries": 1,
+    "commits": 6,
+    "files_changed": 4
+  },
+  "lessons": [
+    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in this PR commit messages and analyst/critic gate findings.\"}"
+  ]
+}

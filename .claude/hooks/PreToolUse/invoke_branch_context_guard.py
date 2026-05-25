@@ -21,16 +21,30 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Bootstrap: find lib directory via env var or manifest walk-up.
+# CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
+# looking for .claude-plugin/plugin.json (the plugin marker). Sibling
+# lib/ is the plugin's lib dir. Layout-independent: works in source
+# tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = os.path.join(_plugin_root, "lib")
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
-    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(0)  # Fail open on config issues
+    _cur = Path(__file__).resolve().parent
+    _lib_dir = None
+    while True:
+        if (_cur / ".claude-plugin" / "plugin.json").is_file():
+            _lib_dir = str(_cur / "lib")
+            break
+        if _cur.parent == _cur:
+            break
+        _cur = _cur.parent
+if _lib_dir is None or not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    # Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)
+    sys.exit(0)
 if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)
+    sys.path.insert(0, _lib_dir)  # Fail open on config issues
 
 from hook_utilities import (  # noqa: E402
     get_project_directory,

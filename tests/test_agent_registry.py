@@ -2,9 +2,8 @@
 
 Covers:
 - Frontmatter parsing from agent markdown files
-- Catalog table extraction from AGENTS.md
-- Validation: required fields, model values, model mismatches, duplicates
-- Integration: real src/claude/ files against real AGENTS.md
+- Validation: required fields, model values, duplicates
+- Integration: real src/claude/ files
 """
 
 from __future__ import annotations
@@ -16,11 +15,9 @@ import pytest
 
 from scripts.validation.agent_registry import (
     AgentDefinition,
-    CatalogEntry,
     ValidationResult,
     parse_agent_file,
     parse_agent_files,
-    parse_catalog,
     validate,
 )
 
@@ -30,7 +27,6 @@ from scripts.validation.agent_registry import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AGENT_DIR = REPO_ROOT / "src" / "claude"
-AGENTS_MD = REPO_ROOT / "AGENTS.md"
 
 
 @pytest.fixture()
@@ -196,47 +192,6 @@ class TestParseAgentFiles:
 
 
 # ---------------------------------------------------------------------------
-# Unit: parse_catalog
-# ---------------------------------------------------------------------------
-
-
-class TestParseCatalog:
-    def test_extracts_agents_from_table(self, tmp_path: Path) -> None:
-        catalog_path = tmp_path / "AGENTS.md"
-        catalog_path.write_text(
-            textwrap.dedent("""\
-            # AGENTS.md
-
-            ## Agent Catalog
-
-            | Agent | Purpose | Model |
-            |-------|---------|-------|
-            | orchestrator | Task coordination | opus |
-            | analyst | Research | sonnet |
-            | memory | Context retrieval | haiku |
-
-            Some other content.
-            """),
-            encoding="utf-8",
-        )
-        entries = parse_catalog(catalog_path)
-        assert len(entries) == 3
-        by_name = {e.name: e.model for e in entries}
-        assert by_name["orchestrator"] == "opus"
-        assert by_name["analyst"] == "sonnet"
-        assert by_name["memory"] == "haiku"
-
-    def test_ignores_non_table_lines(self, tmp_path: Path) -> None:
-        catalog_path = tmp_path / "AGENTS.md"
-        catalog_path.write_text(
-            "# No table here\nJust text.\n",
-            encoding="utf-8",
-        )
-        entries = parse_catalog(catalog_path)
-        assert entries == []
-
-
-# ---------------------------------------------------------------------------
 # Unit: validate
 # ---------------------------------------------------------------------------
 
@@ -246,26 +201,15 @@ class TestValidate:
         agents = [
             AgentDefinition("a1", "Desc", "sonnet", "hint", Path("a1.md")),
         ]
-        catalog = [CatalogEntry("a1", "sonnet")]
-        result = validate(agents, catalog)
+        result = validate(agents)
         assert result.ok
         assert result.errors == []
-
-    def test_model_mismatch(self) -> None:
-        agents = [
-            AgentDefinition("a1", "Desc", "haiku", "hint", Path("a1.md")),
-        ]
-        catalog = [CatalogEntry("a1", "opus")]
-        result = validate(agents, catalog)
-        assert not result.ok
-        assert any("model 'haiku' does not match catalog 'opus'" in e for e in result.errors)
 
     def test_invalid_model(self) -> None:
         agents = [
             AgentDefinition("a1", "Desc", "gpt4", "hint", Path("a1.md")),
         ]
-        catalog = [CatalogEntry("a1", "sonnet")]
-        result = validate(agents, catalog)
+        result = validate(agents)
         assert not result.ok
         assert any("invalid model 'gpt4'" in e for e in result.errors)
 
@@ -273,8 +217,7 @@ class TestValidate:
         agents = [
             AgentDefinition("a1", "", "sonnet", "", Path("a1.md")),
         ]
-        catalog = [CatalogEntry("a1", "sonnet")]
-        result = validate(agents, catalog)
+        result = validate(agents)
         assert not result.ok
         assert any("missing required field 'description'" in e for e in result.errors)
 
@@ -283,26 +226,9 @@ class TestValidate:
             AgentDefinition("a1", "Desc1", "sonnet", "", Path("a1.md")),
             AgentDefinition("a1", "Desc2", "sonnet", "", Path("a1_copy.md")),
         ]
-        catalog = [CatalogEntry("a1", "sonnet")]
-        result = validate(agents, catalog)
+        result = validate(agents)
         assert not result.ok
         assert any("Duplicate agent name 'a1'" in e for e in result.errors)
-
-    def test_missing_from_catalog_warns(self) -> None:
-        agents: list[AgentDefinition] = []
-        catalog = [CatalogEntry("missing-agent", "sonnet")]
-        result = validate(agents, catalog)
-        assert result.ok  # Warnings do not fail
-        assert any("missing-agent" in w for w in result.warnings)
-
-    def test_extra_agent_warns(self) -> None:
-        agents = [
-            AgentDefinition("extra", "Desc", "sonnet", "", Path("extra.md")),
-        ]
-        catalog: list[CatalogEntry] = []
-        result = validate(agents, catalog)
-        assert result.ok  # Warnings do not fail
-        assert any("extra" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -311,7 +237,6 @@ class TestValidate:
 
 
 @pytest.mark.skipif(not AGENT_DIR.is_dir(), reason="src/claude/ not found")
-@pytest.mark.skipif(not AGENTS_MD.is_file(), reason="AGENTS.md not found")
 class TestIntegration:
     def test_parse_real_agents(self) -> None:
         agents, _errors = parse_agent_files(AGENT_DIR)
@@ -321,24 +246,10 @@ class TestIntegration:
         assert "analyst" in names
         assert "implementer" in names
 
-    def test_parse_real_catalog(self) -> None:
-        # Threshold is 12 after AGENTS.md compression (was 20 pre-compression).
-        # The compressed pipe-delimited Agents table has 12 rows.
-        catalog = parse_catalog(AGENTS_MD)
-        assert len(catalog) >= 12, f"Expected at least 12 catalog entries, got {len(catalog)}"
-        names = {e.name for e in catalog}
-        assert "orchestrator" in names
-
     def test_validate_real_agents_runs_without_crash(self) -> None:
-        """Verify validation completes and returns structured results.
-
-        Does not assert zero errors because pre-existing model drift
-        between agent files and AGENTS.md is a known condition.
-        The validator correctly detects this drift.
-        """
+        """Verify validation completes and returns structured results."""
         agents, _errors = parse_agent_files(AGENT_DIR)
-        catalog = parse_catalog(AGENTS_MD)
-        result = validate(agents, catalog)
+        result = validate(agents)
         assert isinstance(result, ValidationResult)
         assert isinstance(result.errors, list)
         assert isinstance(result.warnings, list)

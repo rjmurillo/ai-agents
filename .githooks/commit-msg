@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# commit-msg hook: em/en-dash prohibition (Issue #1923, REQ-006-AC3)
+#
+# Blocks commit messages containing U+2014 (em-dash) or U+2013 (en-dash).
+# Standard git hook. Fires for ALL git commits regardless of client
+# (human, Claude Code via Bash tool, CI). Independent of Claude Code's
+# settings.json hook system, which does not support a commit-msg event.
+#
+# ADR-042 exception: New bash scripts are normally prohibited, but the
+# .githooks/ directory is the declared exception because git hooks
+# require shell on non-Windows platforms (see existing pre-commit and
+# pre-push hooks). This hook follows the same exception pattern.
+#
+# Locale safety: LC_ALL=C.UTF-8 ensures UTF-8 byte matching on both
+# GNU grep (Linux) and BSD grep (macOS) regardless of user locale.
+#
+# Exit codes (per AGENTS.md contract):
+#   0 = pass (no dashes in message)
+#   1 = logic error (dashes present, commit blocked)
+
+set -e
+
+COMMIT_MSG_FILE="$1"
+
+if [ -z "$COMMIT_MSG_FILE" ] || [ ! -f "$COMMIT_MSG_FILE" ]; then
+    # No message file passed (unusual). Fail open: do not block on
+    # infrastructure issues, only on actual violations.
+    exit 0
+fi
+
+if LC_ALL=C.UTF-8 grep -qI $'[\xe2\x80\x93\xe2\x80\x94]' -- "$COMMIT_MSG_FILE" 2>/dev/null; then
+    echo "ERROR: commit message contains em-dash (U+2014) or en-dash (U+2013)" >&2
+    echo "  Replace with comma, period, hyphen, or restructure the sentence." >&2
+    echo "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Refs #1923)." >&2
+    exit 1
+fi
+
+exit 0

@@ -49,31 +49,55 @@ error_recovery:
   - scenario: "Merge conflict"
     action: "Log conflict, skip cleanup, report for manual resolution"
 
+# Completion criteria are dispatchable.
+#
+# Each criterion runs an external command. The command's stdout JSON is
+# the source of truth; the criterion passes only when its `pass_when`
+# expression evaluates true against that JSON. A criterion fails closed
+# (passed=false) on any of:
+#   - command failed to run (FileNotFoundError, timeout)
+#   - command exited non-zero (any non-zero status, regardless of stdout)
+#   - command stdout is not a JSON object
+#   - pass_when evaluating false
+# `fail_open: true` flips the dispatch-error cases (command/timeout,
+# non-zero exit, non-JSON stdout) to pass. It does NOT flip the
+# pass_when-false case, and a *broken* pass_when expression (DSL syntax
+# error or pass_when_python lambda exception) always fails closed; that
+# is a config bug, not a verifier outage.
+#
+# This replaces the prior narrative criteria (e.g. "0 unresolved threads")
+# whose verdict was claimed by the agent. The agent now dispatches and
+# reports; the verifier's output IS the verdict.
+#
+# pass_when DSL (handled by run_completion_gate.py):
+#   * dotted path access:    stdout-json.field, stdout-json.nested.field
+#   * literals:              integers, true, false, null, "double-quoted"
+#   * comparison operators:  ==, !=
+#   * boolean composition:   AND, OR (left-to-right; no parens)
+#
+# Fields:
+#   name           Human-readable criterion title.
+#   verification   Currently only "command" is supported.
+#   command        Shell command template; {pr} is substituted with the PR number.
+#   pass_when      DSL expression evaluated against the parsed stdout JSON.
+#   pass_when_python  (Optional) Python lambda escape hatch when DSL is too narrow.
+#   fail_open      (Optional, default false) Treat dispatch errors as a pass.
 completion_criteria:
-  - criterion: "All review comments addressed"
-    verification: "Each review thread has reply + resolution"
-    required: true
-  - criterion: "All PR comments acknowledged"
-    verification: "Each PR comment has acknowledgment (reply or reaction)"
-    required: true
-  - criterion: "No new comments"
-    verification: "Re-check after 45s wait returned 0 new"
-    required: true
-  - criterion: "CI checks pass"
-    verification: "get_pr_checks AllPassing = true (or failures acknowledged)"
-    required: true
-  - criterion: "No unresolved threads"
-    verification: "GraphQL query for unresolved reviewThreads = 0"
-    required: true
-  - criterion: "Merge eligible"
-    verification: "mergeable=MERGEABLE, no conflicts with base"
-    required: true
-  - criterion: "PR not merged"
-    verification: "test_pr_merged exit code 0"
-    required: true
-  - criterion: "Commits pushed"
-    verification: "git status shows up to date with origin"
-    required: true
+  - name: "All review threads resolved"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {pr}"
+    pass_when: "stdout-json.unresolved_count == 0 AND stdout-json.fetched_pages_complete == true"
+    fail_open: false
+  - name: "PR is ready to merge (CI green, no conflicts)"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}"
+    pass_when_python: "lambda d: d.get('CanMerge') == True and d.get('CIPassing') == True and d.get('fetched_pages_complete') == True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
+    fail_open: false
+  - name: "PR is not already merged"
+    verification: "command"
+    command: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {pr}"
+    pass_when: "stdout-json.merged == false"
+    fail_open: false
 
 failure_handling:
   - type: "Session validation fails"
@@ -115,6 +139,24 @@ thread_resolution:
       t1: resolveReviewThread(input: {threadId: "THREAD_ID_1"}) { thread { id isResolved } }
       t2: resolveReviewThread(input: {threadId: "THREAD_ID_2"}) { thread { id isResolved } }
     }
+
+invocation_limits:
+  all_open_max_prs: 5
+  all_open_overflow_action: "Report the PR numbers of the remaining open PRs and instruct the user to process them by specifying those numbers explicitly in a new command (re-running with all-open will re-process the same first N PRs)"
+  # The completion gate is no longer retried in a loop. A failing
+  # criterion produces the same wrong answer when looped, by definition;
+  # the workflow halts and surfaces the failing command's output instead.
+  # These fields are retained for backward compatibility with the schema
+  # validator but are not consulted by the new dispatchable gate.
+  completion_gate_max_retries: 0
+  completion_gate_overflow_action: "Halt and surface failing criterion output; do not loop"
+
+output_constraints:
+  per_pr_max_response_tokens: 4096
+  # Only "table" is supported today. To add another value, update pr-review.md Step 6 in the same change.
+  summary_format: "table"
+  summary_format_allowed_values: ["table"]
+  summary_required_columns: ["PR", "Branch", "Comments", "Acknowledged", "Implemented", "Commit", "Status"]
 
 dry_run:
   description: "Preview planned actions without executing any GitHub mutations"

@@ -1,0 +1,304 @@
+"""Tests for invoke_session_log_field_guard.
+
+Real session logs store markdownLintRun under
+protocolCompliance.sessionEnd.markdownLintRun. The optional schemaVersion
+field is declared in .agents/schemas/session-log.schema.json but the
+canonical scripts/validate_session_json.py does not validate it; this
+guard intentionally matches the canonical validator (no schemaVersion
+enforcement). endingCommit may be absent for investigation-only sessions.
+
+The guard validates:
+- endingCommit is not the literal placeholder string "pending" (when present)
+- markdownLintRun.Complete is true (when markdownLintRun is present)
+- markdownLintRun.Evidence is non-placeholder (when present); aligned with
+  scripts/validate_session_json.py CONTRADICTION_PATTERNS (no length floor)
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import subprocess
+import sys
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
+sys.path.insert(0, str(HOOK_DIR))
+
+import invoke_session_log_field_guard as guard  # noqa: E402
+
+
+def _stdin(command: str) -> str:
+    return json.dumps({"tool_input": {"command": command}})
+
+
+def _diff(stdout: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["git"], returncode=0, stdout=stdout, stderr=""
+    )
+
+
+def _valid_log() -> dict:
+    """Mirror the real session schema: markdownLintRun nested under protocolCompliance.sessionEnd."""
+    return {
+        "session": {"id": 1234, "date": "2026-05-04"},
+        "protocolCompliance": {
+            "sessionEnd": {
+                "markdownLintRun": {
+                    "level": "MUST",
+                    "Complete": True,
+                    "Evidence": (
+                        "markdownlint-cli2 v0.21.0 ran clean on .agents/specs/**/*.md "
+                        "prior to commit"
+                    ),
+                },
+            },
+        },
+        "endingCommit": "abc123def456",
+    }
+
+
+@pytest.fixture(autouse=True)
+def _no_consumer_repo_skip():
+    with patch("push_guard_base.skip_if_consumer_repo", return_value=False):
+        yield
+
+
+@pytest.fixture
+def push_command(monkeypatch):
+    monkeypatch.setattr("sys.stdin", io.StringIO(_stdin("git push origin HEAD")))
+
+
+def _write(tmp_path: Path, name: str, payload) -> str:
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True, exist_ok=True)
+    log_path = sessions / name
+    if isinstance(payload, str):
+        log_path.write_text(payload, encoding="utf-8")
+    else:
+        log_path.write_text(json.dumps(payload), encoding="utf-8")
+    return f".agents/sessions/{name}"
+
+
+def _run(diff_paths, tmp_path):
+    diff_out = "".join(p + "\n" for p in diff_paths)
+    with patch("push_guard_base.subprocess.run", return_value=_diff(diff_out)), \
+         patch("push_guard_base.get_project_directory", return_value=str(tmp_path)), \
+         patch("invoke_session_log_field_guard.get_project_directory", return_value=str(tmp_path)):
+        return guard.main()
+
+
+class TestAllValid:
+    def test_all_fields_valid_returns_zero(self, push_command, tmp_path, capsys):
+        rel = _write(tmp_path, "2026-05-04-session-01.json", _valid_log())
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+        assert "BLOCKED" not in capsys.readouterr().out
+
+    def test_no_schema_version_field_is_tolerated(self, push_command, tmp_path):
+        """schemaVersion is declared but not enforced. Absence must NOT block.
+
+        ``.agents/schemas/session-log.schema.json`` declares ``schemaVersion``
+        as an optional property. The canonical
+        ``scripts/validate_session_json.py`` does not enforce it, so this
+        guard intentionally matches the canonical validator: the field's
+        absence is tolerated rather than rejected.
+        """
+        log = _valid_log()
+        # Already absent in _valid_log; assert it stays out of the way.
+        assert "schemaVersion" not in log
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
+    def test_no_ending_commit_field_is_tolerated(self, push_command, tmp_path):
+        """Investigation-only sessions may omit endingCommit. Absence must NOT block."""
+        log = _valid_log()
+        del log["endingCommit"]
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
+    def test_missing_markdown_lint_run_blocks(self, push_command, tmp_path, capsys):
+        """Canonical validator requires markdownLintRun; absence is a violation."""
+        log = _valid_log()
+        del log["protocolCompliance"]
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        out = capsys.readouterr().out
+        assert "markdownLintRun missing" in out
+
+
+class TestEndingCommit:
+    def test_ending_commit_pending_blocks(self, push_command, tmp_path, capsys):
+        log = _valid_log()
+        log["endingCommit"] = "pending"
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "endingCommit" in capsys.readouterr().out
+
+    def test_ending_commit_real_sha_passes(self, push_command, tmp_path):
+        log = _valid_log()
+        log["endingCommit"] = "abc123def"
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
+
+class TestMarkdownLintComplete:
+    def test_markdown_lint_run_missing_blocks(self, push_command, tmp_path, capsys):
+        """markdownLintRun is required by scripts/validate_session_json.py."""
+        log = _valid_log()
+        del log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "markdownLintRun missing" in capsys.readouterr().out
+
+    def test_complete_false_blocks(self, push_command, tmp_path, capsys):
+        log = _valid_log()
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Complete"] = False
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "Complete" in capsys.readouterr().out
+
+    def test_complete_lowercase_key_tolerated(self, push_command, tmp_path):
+        """Schema permits lowercase complete; do not flag valid logs."""
+        log = _valid_log()
+        run = log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]
+        run.pop("Complete")
+        run["complete"] = True
+        run.pop("Evidence")
+        run["evidence"] = (
+            "markdownlint-cli2 v0.21.0 ran clean on changed files prior to commit"
+        )
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
+
+class TestMarkdownLintEvidence:
+    def test_evidence_empty_blocks(self, push_command, tmp_path, capsys):
+        log = _valid_log()
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = ""
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "Evidence" in capsys.readouterr().out
+
+    def test_evidence_short_non_placeholder_allows(self, push_command, tmp_path, capsys):
+        """Short but non-placeholder evidence must NOT block.
+
+        scripts/validate_session_json.py only rejects evidence that matches
+        a contradiction pattern (placeholders like 'TODO', 'TBD', 'pending');
+        it does not enforce a minimum length. Real session logs include
+        short-but-valid evidence such as '0 errors'
+        (.agents/sessions/2026-01-09-session-385.json). The pre-push guard
+        must accept what CI accepts, otherwise it creates a false local
+        block that the canonical validator would not raise.
+        """
+        log = _valid_log()
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "0 errors"
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 0
+
+    def test_evidence_canonical_placeholder_blocks(self, push_command, tmp_path, capsys):
+        """Each value in EVIDENCE_PLACEHOLDERS must block.
+
+        After 7c44aea9 the set mirrors scripts/validate_session_json.py
+        CONTRADICTION_PATTERNS exactly. Sample one of the patterns the
+        canonical regex also catches.
+        """
+        log = _valid_log()
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = "todo"
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "Evidence" in capsys.readouterr().out
+
+    def test_evidence_pending_with_padding_blocks(self, push_command, tmp_path, capsys):
+        log = _valid_log()
+        log["protocolCompliance"]["sessionEnd"]["markdownLintRun"]["Evidence"] = (
+            "                    pending                    "
+        )
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "Evidence" in capsys.readouterr().out
+
+
+class TestNoLegacyFallback:
+    """Top-level markdownLintRun must NOT pass the guard.
+
+    The canonical scripts/validate_session_json.py reads only
+    protocolCompliance.sessionEnd.markdownLintRun. Accepting a top-level
+    fallback would let a log pass the pre-push guard but still fail CI;
+    that gap is closed.
+    """
+
+    def test_top_level_only_is_treated_as_missing(self, push_command, tmp_path, capsys):
+        log = {
+            "endingCommit": "abc123",
+            "markdownLintRun": {
+                "Complete": True,
+                "Evidence": "markdownlint ran clean over the whole tree",
+            },
+        }
+        rel = _write(tmp_path, "s.json", log)
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        # Reports as canonical-path-missing, not Complete=false.
+        assert "markdownLintRun missing" in capsys.readouterr().out
+
+
+class TestMalformedJson:
+    def test_parse_error_blocks(self, push_command, tmp_path, capsys):
+        rel = _write(tmp_path, "broken.json", "{not valid json")
+        rc = _run([rel], tmp_path)
+        assert rc == 2
+        assert "JSON parse error" in capsys.readouterr().out
+
+
+class TestEmptyChangeset:
+    def test_no_session_files_returns_zero(self, push_command, tmp_path):
+        rc = _run(["src/foo.py", "docs/readme.md"], tmp_path)
+        assert rc == 0
+
+
+class TestHooksJsonRegistration:
+    def test_hooks_json_includes_session_log_field_guard(self):
+        hooks_path = (
+            Path(__file__).resolve().parents[2]
+            / ".claude"
+            / "hooks"
+            / "hooks.json"
+        )
+        data = json.loads(hooks_path.read_text(encoding="utf-8"))
+        push_block = next(
+            block
+            for block in data["hooks"]["PreToolUse"]
+            if block.get("matcher") == "Bash(git push*)"
+        )
+        commands = [hook.get("command", "") for hook in push_block["hooks"]]
+        assert any("invoke_session_log_field_guard.py" in cmd for cmd in commands)
+
+    def test_settings_json_includes_session_log_field_guard(self):
+        """Source-of-truth check; see test_pr_description_guard for rationale."""
+        settings_path = (
+            Path(__file__).resolve().parents[2] / ".claude" / "settings.json"
+        )
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+        push_block = next(
+            block
+            for block in data["hooks"]["PreToolUse"]
+            if block.get("matcher") == "Bash(git push*)"
+        )
+        commands = [hook.get("command", "") for hook in push_block["hooks"]]
+        assert any("invoke_session_log_field_guard.py" in cmd for cmd in commands)

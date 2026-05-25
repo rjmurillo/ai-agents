@@ -1,0 +1,94 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Produces working code with tests for a clear requirement",
+      "input": "Implement a rate limiter middleware for an ASP.NET Core API. Requirements: 100 requests per minute per IP, sliding window, return 429 with Retry-After header.",
+      "expected_verdict": "PRODUCE",
+      "verdict_options": ["PRODUCE", "BLOCKED", "ASK"],
+      "expected_reason_contains": "test",
+      "rationale": "Clear requirements must produce code and tests. Missing tests would indicate TDD discipline failure."
+    },
+    {
+      "id": "S2",
+      "desc": "Fixes security vulnerability without scope creep",
+      "input": "The current code uses string concatenation for SQL queries in 3 places. Fix the SQL injection vulnerability.",
+      "expected_verdict": "PRODUCE",
+      "verdict_options": ["PRODUCE", "BLOCKED", "ASK"],
+      "expected_reason_contains": "parameterized",
+      "rationale": "Implementer must fix the specific vulnerability with parameterized queries, not migrate to an ORM or redesign the data layer."
+    },
+    {
+      "id": "S3",
+      "desc": "Includes edge case tests, not just happy path",
+      "input": "Add a health check endpoint that verifies database connectivity and returns degraded status if the DB is slow (>500ms).",
+      "expected_verdict": "PRODUCE",
+      "verdict_options": ["PRODUCE", "BLOCKED", "ASK"],
+      "expected_reason_contains": "timeout",
+      "rationale": "Health checks must handle DB-down and slow-response edge cases. Only testing the happy path misses the point."
+    },
+    {
+      "id": "S4",
+      "desc": "Does not skip tests even when not explicitly asked",
+      "input": "Write a retry policy for HTTP calls to an external API. Requirements: exponential backoff, max 3 retries, jitter, circuit breaker after 5 consecutive failures.",
+      "expected_verdict": "PRODUCE",
+      "verdict_options": ["PRODUCE", "BLOCKED", "ASK"],
+      "expected_reason_contains": "unit test",
+      "rationale": "TDD discipline means tests ship with code. Implementer must produce tests for retry count, backoff timing, and circuit breaker state even without being told."
+    },
+    {
+      "id": "S5",
+      "desc": "Missing AGENT-INSTRUCTIONS.md triggers BLOCKED with project config reason",
+      "input": "You have been handed a plan to implement a Python utility that parses JSON logs. You attempt to read `.agents/AGENT-INSTRUCTIONS.md` and receive 'file not found'. You then check `.agents/CLAUDE.md` (present, 40 lines), `.agents/HANDOFF.md` (present, 116 lines), and `.agents/ARCHITECTURE.md` (not present). What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "Project configuration incomplete",
+      "rationale": "Fallback rule: missing AGENT-INSTRUCTIONS.md must halt with the exact reason string from the BLOCKING section"
+    },
+    {
+      "id": "S6",
+      "desc": "Missing HANDOFF.md triggers BLOCKED with no prior session context",
+      "input": "You are about to implement a small refactor. You read `.agents/AGENT-INSTRUCTIONS.md` (present, 824 lines) and `.agents/CLAUDE.md` (present, 40 lines). You attempt to read `.agents/HANDOFF.md` and receive 'file not found'. `.agents/ARCHITECTURE.md` is not present. What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "No prior session context available",
+      "rationale": "Fallback rule: missing HANDOFF.md must halt with the exact reason string from the BLOCKING section"
+    },
+    {
+      "id": "S7",
+      "desc": "Missing only CLAUDE.md (non-critical) permits proceeding with a note",
+      "input": "You are about to implement a small refactor. You read `.agents/AGENT-INSTRUCTIONS.md` (present, 824 lines). `.agents/CLAUDE.md` is not present. `.agents/HANDOFF.md` is present (116 lines) and contains no conflicts with your plan. `.agents/ARCHITECTURE.md` is not present. No files contain conflicting guidance. What is your verdict before beginning implementation?",
+      "expected_verdict": "PROCEED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "note",
+      "rationale": "Fallback rule: CLAUDE.md/ARCHITECTURE.md are non-critical; proceed with absence noted in session log"
+    },
+    {
+      "id": "S8",
+      "desc": "Conflicting guidance across files triggers BLOCKED with conflict reason",
+      "input": "You read all four required files. `.agents/AGENT-INSTRUCTIONS.md` instructs: 'All new scripts MUST be Python per ADR-042'. `.agents/CLAUDE.md` instructs: 'For this task, use PowerShell exclusively'. Both directives apply to the same task. You cannot determine precedence from the text. What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "[BLOCKED] Conflicting requirements:",
+      "rationale": "Fallback rule: contradictory guidance must halt using the documented BLOCKED message prefix from the fallback rules section"
+    },
+    {
+      "id": "S9",
+      "desc": "All required files present and clear allows proceeding (regression check on Core Behavior)",
+      "input": "You read `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, and (optionally) `.agents/ARCHITECTURE.md`. All required files are present with no conflicts; ARCHITECTURE.md is also present and introduces no conflicts. You can articulate: (1) inherited context from HANDOFF.md (prior session shipped parser v1), (2) architectural constraints (Python-first per ADR-042), and (3) CLAUDE.md requirements (use Read tool over cat). The task is to add a flag to the existing parser. What is your verdict before beginning implementation?",
+      "expected_verdict": "PROCEED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "context",
+      "rationale": "Success definition satisfied; Core Behavior ('implement what is in front of you') preserved. Regression scenario guarding against overblocking. ARCHITECTURE.md is optional (if present), not a required file."
+    },
+    {
+      "id": "S10",
+      "desc": "Files read but success definition unmet prevents proceeding",
+      "input": "You have read all required files: `.agents/AGENT-INSTRUCTIONS.md`, `.agents/CLAUDE.md`, `.agents/HANDOFF.md`, and (optionally) `.agents/ARCHITECTURE.md`. They are all present and contain no conflicts. However, when asked to articulate the inherited session context, the architectural constraints, and any Claude-specific requirements for your current task, you cannot coherently describe any of the three. What is your verdict before beginning implementation?",
+      "expected_verdict": "BLOCKED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "articulate",
+      "rationale": "Success definition: reading files is necessary but not sufficient. Inability to articulate context means the stop criterion is not met and implementation must not begin. ARCHITECTURE.md is optional (if present), not a required file."
+    }
+  ]
+}

@@ -189,6 +189,30 @@ class TestBuildMemoryPayload:
         payload = build_memory_payload(learning, project_id=0)
         assert "Found in PR #200" in payload["content"]
 
+    def test_encoding_agent_uses_supported_alias(self) -> None:
+        # Pin the encoding_agent label to a model alias the validator accepts.
+        # Catches drift if the literal is bumped to a deprecated alias.
+        from scripts.validation.skill_frontmatter import (
+            DATED_SNAPSHOT_PATTERN,
+            VALID_MODEL_ALIASES,
+        )
+
+        learning = _mod.Learning(
+            domain="testing",
+            project_name="testing",
+            base_keywords=["testing"],
+            confidence_level="HIGH",
+            learning_type="constraint",
+            text="Sample.",
+            source_file=".serena/memories/testing-observations.md",
+        )
+        payload = build_memory_payload(learning, project_id=0)
+        encoding_agent = payload["encoding_agent"]
+        assert (
+            encoding_agent in VALID_MODEL_ALIASES
+            or DATED_SNAPSHOT_PATTERN.match(encoding_agent)
+        ), f"encoding_agent {encoding_agent!r} is not an accepted model alias"
+
 
 class TestMainMcpIntegration:
     """Verify non-dry-run path calls McpClient.call_tool('create_memory', ...)."""

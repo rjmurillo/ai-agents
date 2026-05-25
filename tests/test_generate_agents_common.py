@@ -353,6 +353,78 @@ class TestFormatFrontmatterYaml:
         result = format_frontmatter_yaml(fm)
         assert "argument-hint: Specify the context" in result
 
+    def test_description_with_colon_is_quoted(self) -> None:
+        """Issue #2052: description containing 'phrase: more' must be wrapped
+        in single quotes so downstream YAML parsers do not start a nested
+        mapping at the unquoted colon."""
+        fm = {"description": "Debug bugs. Phases: assessment, fix, verify."}
+        result = format_frontmatter_yaml(fm)
+        assert (
+            "description: 'Debug bugs. Phases: assessment, fix, verify.'"
+            in result
+        )
+
+    def test_description_with_embedded_single_quote_is_escaped(self) -> None:
+        """Single quotes inside a single-quoted YAML scalar must be doubled."""
+        fm = {"description": "Don't break: this is hard."}
+        result = format_frontmatter_yaml(fm)
+        assert "description: 'Don''t break: this is hard.'" in result
+
+    def test_value_starting_with_yaml_indicator_is_quoted(self) -> None:
+        """Values starting with YAML reserved indicators (e.g. '*') get
+        wrapped to avoid being parsed as alias references."""
+        fm = {"description": "* leading asterisk is a YAML alias indicator"}
+        result = format_frontmatter_yaml(fm)
+        assert (
+            "description: '* leading asterisk is a YAML alias indicator'"
+            in result
+        )
+
+    def test_plain_value_is_not_quoted(self) -> None:
+        fm = {"description": "Simple description with no special chars"}
+        result = format_frontmatter_yaml(fm)
+        assert "description: Simple description with no special chars" in result
+        assert "'Simple" not in result
+
+    def test_value_with_colon_tab_is_quoted(self) -> None:
+        """YAML 1.2 treats ``:\\t`` like ``: ``: a nested-mapping indicator."""
+        fm = {"description": "phrase:\twith tab after colon"}
+        result = format_frontmatter_yaml(fm)
+        assert "description: 'phrase:\twith tab after colon'" in result
+
+    def test_value_with_leading_whitespace_is_quoted(self) -> None:
+        """Leading whitespace on an unquoted scalar is stripped by parsers."""
+        fm = {"description": "  leading spaces"}
+        result = format_frontmatter_yaml(fm)
+        assert "description: '  leading spaces'" in result
+
+    def test_value_with_trailing_whitespace_is_quoted(self) -> None:
+        """Trailing whitespace on an unquoted scalar is stripped by parsers."""
+        fm = {"description": "trailing spaces  "}
+        result = format_frontmatter_yaml(fm)
+        assert "description: 'trailing spaces  '" in result
+
+    def test_value_equal_to_yaml_bool_word_is_not_quoted(self) -> None:
+        """Bool and null word coercion (``true``, ``null``, etc.) is
+        intentionally allowed: schema fields like ``user-invocable: true``
+        are meant to be booleans, and the skill validator rejects them as
+        strings. Document the behavior so a future cleanup pass does not
+        re-introduce the over-eager quoting."""
+        for word in ("true", "FALSE", "null"):
+            fm = {"description": word}
+            result = format_frontmatter_yaml(fm)
+            assert f"description: {word}" in result
+            assert f"description: '{word}'" not in result
+
+    def test_array_item_with_special_chars_is_quoted(self) -> None:
+        """Array items starting with a reserved indicator or ending in a
+        bare colon must be quoted so the emitted YAML stays parseable."""
+        fm = {"tools": "[*.py, ends-with:, normal]"}
+        result = format_frontmatter_yaml(fm)
+        assert "- '*.py'" in result
+        assert "- 'ends-with:'" in result
+        assert "- normal" in result
+
 
 class TestConvertHandoffSyntax:
     """Tests for convert_handoff_syntax."""

@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/rjmurillo/ai-agents/schemas/evidence-entry.schema.json",
+  "title": "Skillbook Evidence Entry",
+  "description": "A single piece of evidence for or against a policy. Evidence is the system of record for a policy's confirm/contradict counts; those counts are a derived projection recomputed from the evidence array. See .agents/skillbook/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ts", "type", "eval_id", "pass", "context_type"],
+  "properties": {
+    "ts": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Unix epoch seconds when the evidence was recorded."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["confirmed", "contradicted"],
+      "description": "Whether this evidence confirms or contradicts the policy."
+    },
+    "eval_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the eval run (and fixture) that produced this evidence. Doubles as the idempotency key: a second confirm/contradict with the same eval_id on the same policy is a no-op."
+    },
+    "pass": {
+      "type": "boolean",
+      "description": "The raw eval pass/fail outcome. A passing eval that exercised the policy is 'confirmed'; a failing one is 'contradicted'."
+    },
+    "context_type": {
+      "type": "string",
+      "enum": ["external", "self-referential"],
+      "description": "Provenance of the evidence. 'external' (eval pass/fail, incident, critique) is weighted 1.0; 'self-referential' (an agent's own claim) is weighted 0.25."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Optional human-readable rationale, required in practice for contradictions."
+    }
+  }
+}

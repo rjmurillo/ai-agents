@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-05-09-session-1825",
+  "session": "2026-05-09-session-1825",
+  "timestamp": "2026-05-09T23:14:21.269854+00:00",
+  "outcome": "success",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-09T21:49:44.237332+00:00",
+      "type": "test",
+      "content": "\"Evidence\": \"markdownlint-cli2 exercised on .agents/analysis/skill-triage-2026-05-09.md (excluded by config glob !.agents/** so 0 file lint, 0 errors); analysis report follows standard markdown structure\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-09T21:49:44.237332+00:00",
+      "type": "test",
+      "content": "{\"step\": \"Configure workspace per CONTRIBUTING.md\", \"outcome\": \"core.hooksPath set, .venv created, dev deps installed, Pester 5.7.1 verified\"},",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "commit",
+      "content": "Commit: 9adfcdae",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "test",
+      "content": "\"Evidence\": \"pre-commit hook ran markdownlint-cli2 on every commit (15 commits); 0 errors. Em-dashes removed from all 13 changed files in round-2 fix.\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-09T23:14:21.267327+00:00",
+      "type": "test",
+      "content": "\"Evidence\": \"pytest tests/commands/ passes 59/59; security-scan 0 vulns; golden-principles 0 violations; taste-lints 0 errors.\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 0
+  },
+  "lessons": []
+}

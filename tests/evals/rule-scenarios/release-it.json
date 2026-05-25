@@ -1,0 +1,44 @@
+{
+  "rule_path": ".claude/rules/release-it.md",
+  "rule_id": "release-it",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "External API call without timeout",
+      "input": "I'm adding a call to an external GitHub API to fetch issue details from inside an agent skill. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "timeout",
+        "circuit breaker",
+        "integration point",
+        "retry",
+        "idempotent"
+      ],
+      "expected_gate": "stability-patterns-required",
+      "rationale": "External integration point. Rule mandates explicit timeouts, retry policy, and breaker."
+    },
+    {
+      "id": "S2",
+      "desc": "Unbounded queue between producers and consumers",
+      "input": "I want to add an in-memory work queue between the orchestrator (producer) and agent workers (consumers). Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "bounded",
+        "overflow policy",
+        "backpressure",
+        "depth"
+      ],
+      "expected_gate": "bound-the-queue",
+      "rationale": "Unbounded queues turn slow consumers into outages. Rule requires bound + overflow policy."
+    },
+    {
+      "id": "S3",
+      "desc": "Pure in-memory transformation (negative case)",
+      "input": "I want to add a function that takes a list of dicts and returns a deduplicated list. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "dedup",
+        "set"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No process boundary crossed. Stability patterns do not apply."
+    }
+  ]
+}
