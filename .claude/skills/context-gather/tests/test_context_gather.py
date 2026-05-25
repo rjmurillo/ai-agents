@@ -11,14 +11,14 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 SKILL_MD = SKILL_DIR / "SKILL.md"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def skill_content() -> str:
     """Read SKILL.md content once per test session."""
     assert SKILL_MD.exists(), f"SKILL.md not found at {SKILL_MD}"
     return SKILL_MD.read_text(encoding="utf-8")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def frontmatter(skill_content: str) -> dict[str, str]:
     """Extract YAML frontmatter as a flat dict of string values."""
     lines = skill_content.splitlines()
@@ -92,7 +92,9 @@ class TestStructure:
         next_section = anti_pattern_section.find("\n## ")
         if next_section != -1:
             anti_pattern_section = anti_pattern_section[:next_section]
-        row_count = anti_pattern_section.count("\n|") - 2  # subtract header and separator rows
+        # Markdown tables count the header row AND the |---|---| separator
+        # row as ``\n|`` occurrences; subtract both to get data-row count.
+        row_count = anti_pattern_section.count("\n|") - 2
         assert row_count >= 3, f"Anti-Patterns table has {row_count} entries, need at least 3"
 
     def test_verification_section_exists(self, skill_content: str) -> None:

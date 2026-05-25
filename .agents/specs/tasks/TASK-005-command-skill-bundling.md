@@ -287,7 +287,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 | File | Action | Description |
 |---|---|---|
 | `tests/test_command_bundles.py` | create | Pytest test that parses each command file for required `Skill(skill="...")` calls from the BundleRegistry |
-| `scripts/validation/pre_pr.py` | modify | Add a new check that runs the same parser and produces BLOCKING findings for missing invocations |
+| `scripts/validation/pre_pr.py` | modify | Add a new check that runs the same parser; advisory WARN by default, escalates to BLOCKING when `BUNDLE_CHECK_ENFORCED=1` (per AC-14 and Q3 resolution) |
 
 **In Scope**:
 
@@ -300,7 +300,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 - Coverage target: 80% (business logic per AGENTS.md floor).
 
 **pre_pr.py check (advisory, per Q3 resolution)**:
-- Add a new validation function `check_command_bundle_coverage()` that runs the same parse against the live command files.
+- Add a new validation function `validate_command_bundle_coverage()` that runs the same parse against the live command files.
 - On any missing invocation, emit an **advisory WARN** finding (not BLOCKING) with: `file`, `expected_skill`, `ac_reference`. Drift is surfaced to reviewers; PR review is the enforcement layer (matches PR #1894 pattern for prose-driven changes).
 - Function gated behind `BUNDLE_CHECK_ENFORCED` env var (default `0`, advisory). When set to `1`, findings escalate to BLOCKING — reserved for a future spec once the registry has stabilized.
 - Integrate with existing `pre_pr.py` runner so it appears in the standard pre-PR output (under WARN category).
@@ -308,7 +308,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 
 **BundleRegistry (shared module, imported by both test and pre_pr)**:
 
-Create `tests/bundle_registry.py` as the single source of truth:
+Create `scripts/validation/bundle_registry.py` as the single source of truth (located alongside `pre_pr.py` so the validation consumer imports a sibling, and the test consumer imports via repo-root sys.path injection):
 
 ```python
 BUNDLE_REGISTRY = [
@@ -330,7 +330,7 @@ BUNDLE_REGISTRY = [
 ]
 ```
 
-Both `tests/test_command_bundles.py` and the new function in `scripts/validation/pre_pr.py` MUST import from `tests.bundle_registry` (or a shared path). Do NOT copy-paste the list into both files (prevents drift per pre-mortem finding #3).
+Both `tests/test_command_bundles.py` and the new function in `scripts/validation/pre_pr.py` MUST import from `scripts/validation/bundle_registry.py` (the test side adds the directory to `sys.path`; the pre_pr side imports it as a sibling). Do NOT copy-paste the list into both files (prevents drift per pre-mortem finding #3).
 
 **Out of Scope**: Runtime execution of skills. Testing skill behavior. The test is a static contract check only.
 
@@ -338,7 +338,7 @@ Both `tests/test_command_bundles.py` and the new function in `scripts/validation
 - [ ] `tests/test_command_bundles.py` exists. Rows for not-yet-edited commands carry `@pytest.mark.xfail` so CI stays green during M1 (per plan §M1 Stays Green).
 - [ ] Each test case names the command file and skill clearly in its ID (e.g., `test_bundle[spec.md-session-init]`).
 - [ ] Running `pytest tests/test_command_bundles.py` exits 0 throughout (xfail counts as pass; M3 closing commit removes xfail marks).
-- [ ] `scripts/validation/pre_pr.py` includes `check_command_bundle_coverage()`.
+- [ ] `scripts/validation/pre_pr.py` includes `validate_command_bundle_coverage()`.
 - [ ] Running `pre_pr.py` against a command file with a missing registry entry produces a WARN finding (not BLOCKING) when `BUNDLE_CHECK_ENFORCED=0` (default), and BLOCKING when `BUNDLE_CHECK_ENFORCED=1`.
 - [ ] Running `pre_pr.py` against complete command files produces no findings related to bundles regardless of env var.
 - [ ] New pre_pr.py function has a unit test in `tests/test_pre_pr.py` (or equivalent existing test file) covering: all-present (pass), one-missing under env=0 (WARN), one-missing under env=1 (BLOCKING), empty-registry (pass).
@@ -405,7 +405,7 @@ All within AGENTS.md limits (8 commits < 20; largest commit is 3 files < 5).
 
 - `tests/test_command_bundles.py`: pure static parse; no subprocess, no skill execution; pytest 8+.
 - Coverage: 80% business logic per AGENTS.md (the parser function is the business logic).
-- `tests/test_pre_pr.py` (or existing): three new parametrized test cases for `check_command_bundle_coverage()`.
+- `tests/test_pre_pr.py` (or existing): three new parametrized test cases for `validate_command_bundle_coverage()`.
 - No test mocks network or file system writes; all reads are against the actual command files under `.claude/commands/`.
 
 ---
@@ -422,7 +422,7 @@ All within AGENTS.md limits (8 commits < 20; largest commit is 3 files < 5).
 | `.claude/commands/review.md` | T5-6 | modify |
 | `.claude/commands/pr-review.md` | T5-7 | modify |
 | `.claude/commands/research.md` | T5-7 | modify |
-| `tests/bundle_registry.py` | T5-8 | create |
+| `scripts/validation/bundle_registry.py` | T5-8 | create |
 | `tests/test_command_bundles.py` | T5-8 | create |
 | `scripts/validation/pre_pr.py` | T5-8 | modify |
 
