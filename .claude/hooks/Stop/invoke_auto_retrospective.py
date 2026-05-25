@@ -29,6 +29,7 @@ References:
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import sys
@@ -353,35 +354,37 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
     no-op once the row is present. This lets the caller re-run on
     later sessions if a prior index-write failed after the retro
     markdown was already written.
+
+    Uses advisory file locking to prevent concurrent Stop hooks from
+    racing on the check-then-append operation.
     """
     index_path = Path(project_dir) / "docs" / "retros" / "INDEX.md"
 
     try:
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
+        header = (
+            "# Retrospective Index\n\n"
+            "> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).\n"
+            "> Manual entries are welcome; the hook only appends new rows.\n\n"
+            "| Date | File | Summary |\n"
+            "|------|------|---------|\n"
+        )
+
         if not index_path.exists():
-            # Mirror the title, callout, and table shape of the committed
-            # docs/retros/INDEX.md template so the bootstrapped file
-            # renders the same and stays semantically consistent with
-            # the canonical version. Small format drift (trailing
-            # whitespace, extra blank line) is tolerable; the structure
-            # is what matters for the table append loop below.
-            header = (
-                "# Retrospective Index\n\n"
-                "> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).\n"
-                "> Manual entries are welcome; the hook only appends new rows.\n\n"
-                "| Date | File | Summary |\n"
-                "|------|------|---------|\n"
-            )
             index_path.write_text(header, encoding="utf-8")
 
-        if _index_has_entry_for(index_path, filename):
-            return
-
-        # Append new row
-        with index_path.open("a", encoding="utf-8") as f:
-            f.write(f"| {today} | [{filename}](../../.agents/retrospective/{filename}) "
-                    f"| Auto-generated session retrospective |\n")
+        with index_path.open("r+", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                content = f.read()
+                if filename in content:
+                    return
+                f.seek(0, 2)
+                f.write(f"| {today} | [{filename}](../../.agents/retrospective/{filename}) "
+                        f"| Auto-generated session retrospective |\n")
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
     except OSError as exc:
         print(f"[WARNING] {HOOK_NAME}: Failed to update INDEX.md: {exc}", file=sys.stderr)
 
