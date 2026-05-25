@@ -123,14 +123,15 @@ def _count_paths(stdout: str) -> Counter[str]:
         if not line:
             continue
         parts = line.split("\t")
-        if not parts:
-            continue
+        # str.split always returns >=1 element on a non-empty string, so
+        # parts is never empty here; no defensive empty-list branch.
         status = parts[0]
         if status.startswith("R") and len(parts) >= 3:
             path = _resolve_final_name(parts[2])
         elif len(parts) >= 2:
             path = _resolve_final_name(parts[1])
         else:
+            # Malformed git output: status token with no path. Skip.
             continue
         if path and not _is_excluded_rework_path(path):
             counts[path] += 1

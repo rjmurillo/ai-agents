@@ -193,6 +193,18 @@ class ComputeReworkWarningTests(unittest.TestCase):
         counts = rw._count_paths(stdout)
         self.assertEqual(counts["foo.py"], 2)
 
+    def test_count_paths_skips_status_only_line(self) -> None:
+        """NEGATIVE: a malformed git output line that has a status token
+        but no tab and no path is skipped. Exercises the
+        `else: continue` branch in `_count_paths` (rework_warning.py line
+        for the malformed-line skip path). Real git never emits this
+        shape, but the defensive branch protects the loop against any
+        future format drift; the test pins the behavior."""
+        stdout = "M\nM\tfoo.py"
+        counts = rw._count_paths(stdout)
+        self.assertEqual(counts["foo.py"], 1)
+        self.assertNotIn("M", counts)
+
     def test_excluded_paths_positive_and_negative(self) -> None:
         """POSITIVE: known generated patterns excluded.
         NEGATIVE: ordinary paths are NOT excluded."""
