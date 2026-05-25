@@ -1,5 +1,5 @@
 ---
-applyTo: ".claude/hooks/**,scripts/validation/**,build/scripts/**,.claude/skills/**"
+applyTo: ".claude/hooks/**,scripts/validation/**,build/scripts/**,.claude/skills/**,.claude/review-axes/**,.github/prompts/**"
 priority: high
 ---
 
@@ -11,7 +11,7 @@ This rule binds those claims to evidence. It exists because PR #1887 (the M4 evi
 
 ## What this rule binds
 
-This rule binds any new component under `.claude/hooks/`, `scripts/validation/`, `build/scripts/`, or `.claude/skills/` whose contract is derived from another source in the repository. Examples:
+This rule binds any new component under `.claude/hooks/`, `scripts/validation/`, `build/scripts/`, `.claude/skills/`, `.claude/review-axes/`, or `.github/prompts/` whose contract is derived from another source in the repository. The Copilot-side mirror at `.github/instructions/canonical-source-mirror.instructions.md` (and its `src/copilot-cli/` twin) scopes only to paths Copilot can see (`scripts/validation/**`, `build/scripts/**`, `.github/prompts/**`); the rule still binds the `.claude/` paths on the Claude side. Examples:
 
 - A pre-push hook that "mirrors" a CI validator's regex.
 - A skill helper that "matches" the exit codes of a validator script.
