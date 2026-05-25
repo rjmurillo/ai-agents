@@ -150,8 +150,44 @@ def _read_file_summary(file_path: str) -> str:
         return "(read error)"
 
 
+def _acquire_lock(handle) -> None:
+    """Acquire an advisory exclusive lock on an open file handle."""
+    if os.name == "nt":  # pragma: no cover - platform branch
+        import msvcrt
+
+        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        return
+    import fcntl
+
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+
+
+def _release_lock(handle) -> None:
+    """Release the advisory lock held on an open file handle."""
+    if os.name == "nt":  # pragma: no cover - platform branch
+        import msvcrt
+
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass
+        return
+    import fcntl
+
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
 def _write_checkpoint(project_dir: str, file_path: str, summary: str) -> None:
-    """Write a lightweight checkpoint for plan/state recovery."""
+    """Write a lightweight checkpoint for plan/state recovery.
+
+    Concurrent PostToolUse hooks can race on the per-day checkpoint file, so
+    the read-modify-write sequence is wrapped in an advisory exclusive lock
+    (fcntl.flock on POSIX, msvcrt.locking on Windows). Without the lock,
+    interleaved writes drop entries or produce invalid JSON.
+    """
     checkpoint_dir = Path(project_dir) / ".agents" / ".hook-state"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
@@ -160,31 +196,40 @@ def _write_checkpoint(project_dir: str, file_path: str, summary: str) -> None:
 
     checkpoint_file = checkpoint_dir / f"plan-checkpoint-{today}.json"
 
-    # Read existing checkpoints or start fresh
-    checkpoints: list[dict] = []
-    if checkpoint_file.exists():
+    # Open r+ when present, w+ to create; serialize via OS advisory lock.
+    mode = "r+" if checkpoint_file.exists() else "w+"
+    with checkpoint_file.open(mode, encoding="utf-8") as handle:
+        _acquire_lock(handle)
         try:
-            existing = json.loads(checkpoint_file.read_text(encoding="utf-8"))
-            if isinstance(existing, list):
-                checkpoints = existing
-        except (json.JSONDecodeError, OSError):
-            pass
+            checkpoints: list[dict] = []
+            handle.seek(0)
+            raw = handle.read()
+            if raw:
+                try:
+                    existing = json.loads(raw)
+                    if isinstance(existing, list):
+                        checkpoints = existing
+                except json.JSONDecodeError:
+                    pass
 
-    # Append new checkpoint
-    checkpoints.append({
-        "file": file_path,
-        "timestamp": timestamp,
-        "summary": summary,
-    })
+            checkpoints.append({
+                "file": file_path,
+                "timestamp": timestamp,
+                "summary": summary,
+            })
 
-    # Keep only last 20 checkpoints to avoid unbounded growth
-    if len(checkpoints) > 20:
-        checkpoints = checkpoints[-20:]
+            # Keep only last 20 checkpoints to avoid unbounded growth
+            if len(checkpoints) > 20:
+                checkpoints = checkpoints[-20:]
 
-    checkpoint_file.write_text(
-        json.dumps(checkpoints, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+            handle.seek(0)
+            handle.truncate()
+            handle.write(
+                json.dumps(checkpoints, indent=2, ensure_ascii=False)
+            )
+            handle.flush()
+        finally:
+            _release_lock(handle)
 
 
 def main() -> None:

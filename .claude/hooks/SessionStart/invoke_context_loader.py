@@ -82,20 +82,32 @@ def _read_file_truncated(path: Path, max_chars: int) -> str | None:
 
 
 def _find_latest_retrospective(retro_dir: Path) -> Path | None:
-    """Find the most recent retrospective file by modification time."""
+    """Find the most recent retrospective file by modification time.
+
+    Per-file stat failures (race with deletion, permission issue) skip that
+    file rather than aborting the whole scan, so a single unreadable retro
+    does not hide every other retro from the SessionStart hook.
+    """
     if not retro_dir.is_dir():
         return None
 
+    candidates: list[tuple[float, Path]] = []
     try:
-        retro_files = sorted(
-            retro_dir.glob("*.md"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+        retro_paths = list(retro_dir.glob("*.md"))
     except OSError:
         return None
 
-    return retro_files[0] if retro_files else None
+    for path in retro_paths:
+        try:
+            candidates.append((path.stat().st_mtime, path))
+        except OSError:
+            continue
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda entry: entry[0], reverse=True)
+    return candidates[0][1]
 
 
 def _write_audit_log(project_dir: str, loaded_files: list[str]) -> None:
