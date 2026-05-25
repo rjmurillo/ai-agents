@@ -416,10 +416,6 @@ def _original_main(stdin_bytes):
         if _is_consumer_repo(project_dir):
             return 0
 
-        # Skip if stdin is TTY (interactive shell, not a hook invocation)
-        if sys.stdin.isatty():
-            return 0
-
         # Parse drained stdin JSON; extract correlation IDs even on parse-failure path.
         try:
             if not stdin_data.strip():
