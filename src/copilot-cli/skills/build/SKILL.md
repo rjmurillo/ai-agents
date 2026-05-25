@@ -32,7 +32,7 @@ Task(subagent_type="implementer"): You are a senior engineer. Discover the proje
 For each slice:
 
 1. Read the spec AC for this slice. Every test must trace to an AC number from `/spec` output. Name the test `test_<behavior>` and include the AC identifier in the docstring or comment.
-2. Understand the existing code patterns (read related files, check test conventions). Use Serena symbolic tools; do not grep or Read before checking memory and symbol index.
+2. Understand the existing code patterns (read related files, check test conventions). If Serena (`mcp__serena__find_symbol`, `mcp__serena__get_symbols_overview`) is available, prefer it for symbolic search. Otherwise fall back to `Grep` and `Read` for filesystem-level discovery. Serena is not guaranteed in every harness (fresh installs without MCP, copilot-cli runtime); the fallback keeps the slice executable across hosts.
 3. **Write the failing test first.** This project has pytest 8+. TDD is unconditional. Never write code before a failing test exists. The test expresses the AC contract; code exists only to make it pass. Tests written after code confirm the code's behavior, not the spec's contract.
 4. Write the minimum code to pass the test. Run the test, confirm it fails on the right assertion, then write code.
 5. Refactor toward quality (cohesion, encapsulation, simplicity). Re-run the test.
@@ -64,7 +64,7 @@ If a gate flags an item that is genuinely out of scope for this build, document 
 ## Guardrails
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
-- No code without understanding the existing patterns first. Read memory via Serena; read canonical source before writing code that touches it.
+- No code without understanding the existing patterns first. Read memory via Serena when available; fall back to filesystem `Grep`/`Read` if Serena is not present. Read canonical source before writing code that touches it.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
 - Three similar lines beat a premature abstraction.
 - Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.
