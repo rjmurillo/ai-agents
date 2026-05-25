@@ -48,7 +48,10 @@ No files are deleted. No new directories are created (all parent directories alr
 
 - `get_unresolved_review_threads.py` itself (test only, per scope constraint)
 - All `.claude/review-axes/` axis files (out of scope)
-- `.github/workflows/` (no new CI jobs needed; existing "Run Python Tests" gate is sufficient)
+
+### Changed Late in Implementation
+
+- `.github/workflows/pytest.yml` gained a "Pin REQ-009 module coverage at 100%" step targeting `wait_for_unresolved_zero` and `rework_warning`. The original design omitted this step because the existing "Run Python Tests" gate covers presence-of-tests, not module-level coverage floors. The 100% pin was added on user request during PR #1989 to prevent silent regression below the per-module floor the new tests establish.
 
 ## Component Map
 
@@ -97,21 +100,23 @@ No files are deleted. No new directories are created (all parent directories alr
 
 ### REQ-009-07, REQ-009-08: Rework Warning (Implementation)
 
-**Component:** `.claude/skills/session-end/scripts/complete_session_log.py`
+**Component:** `.claude/skills/session-end/scripts/rework_warning.py` (sibling of `complete_session_log.py`)
 
-**Responsibility:** A new function `check_rework_warning(base_branch: str) -> list[tuple[str, int]]` queries `git log --name-only` for the current branch vs. base. It returns a list of `(filepath, count)` tuples where count >= 6. The caller in `complete_session_log.py` emits warning lines and appends a `## Rework Warning` section to the session log.
+**Responsibility:** `compute_rework_warning(base_branch: str) -> list[tuple[str, int]]` queries `git log --name-status -M origin/{base}..HEAD` for the current branch vs. base. The `-M` flag enables rename tracking; `--name-status` produces tab-separated `M path` and `R<score> old new` lines so renames collapse to the new path. It returns a list of `(filepath, count)` tuples where count >= 6. `run_rework_warning_step` in `complete_session_log.py` calls `compute_rework_warning`, emits warning lines, and appends a `## Rework Warning` section to the session log.
 
 **Interface:**
 
 ```python
-def check_rework_warning(base_branch: str = "main") -> list[tuple[str, int]]:
+def compute_rework_warning(base_branch: str = "main") -> list[tuple[str, int]]:
     """Return files edited >= 6 times on current branch vs base_branch.
 
-    Canonical source: git log --name-only --format="" {base}...HEAD
+    Canonical source: git log --name-status -M origin/{base}..HEAD
     Exit codes: 0=ok (ADR-035).
     Degrades to empty list if git is unavailable.
     """
 ```
+
+The design originally placed the function inside `complete_session_log.py` and called it `check_rework_warning`. During implementation the function moved to its own module (`rework_warning.py`) for testability, was renamed `compute_rework_warning`, and the git argv was hardened: `--name-status -M` for rename tracking, and `origin/{base}..HEAD` (two dots, not three) so the comparison uses the remote tip as the base instead of the merge-base. Tests under `tests/skills/session-end/test_rework_warning.py` pin the shipped argv.
 
 Output format per file: `rework-warning: {file_path} edited {n} times`
 Negative case output: `rework-warning: none`
