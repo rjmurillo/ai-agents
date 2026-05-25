@@ -118,10 +118,13 @@ def test_bundle_marker_adjacent_to_invocation(
 ) -> None:
     """The BUNDLE marker is within the adjacency window of its Skill call.
 
-    Per DESIGN-005 §"BUNDLE Marker Format", emission ordering is "emit
-    marker, then invoke skill". A non-adjacent marker fails to bind the
-    marker to the call it is meant to annotate. The window is sourced
-    from ``bundle_registry.BUNDLE_ADJACENCY_WINDOW``.
+    Per DESIGN-005 §"BUNDLE Marker Format", the convention is to emit
+    the marker before invoking the skill. The check enforces line
+    proximity only, not order, so reviewers see the marker and the
+    invocation as a co-located block on either side. A non-adjacent
+    marker fails to bind the marker to the call it is meant to
+    annotate. The window is sourced from
+    ``bundle_registry.BUNDLE_ADJACENCY_WINDOW``.
     """
     path = COMMANDS_DIR / command_file
     assert path.exists(), f"Command file not found: {path}"

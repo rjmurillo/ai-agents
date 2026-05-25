@@ -101,10 +101,13 @@ def bundle_marker_adjacent(
     """Return ``True`` if a well-formed BUNDLE marker is within ``window``
     lines of the matching ``Skill(skill="...")`` call.
 
-    Per DESIGN-005 §"BUNDLE Marker Format", emission ordering is "emit
-    marker, then invoke skill"; the adjacency window guards against the
-    marker drifting away from its invocation. Returns ``False`` if
-    either side is absent.
+    Per DESIGN-005 §"BUNDLE Marker Format", the convention is to emit the
+    marker before invoking the skill. This check is order-agnostic: it
+    accepts the marker on either side of the invocation as long as the
+    line distance is within ``window``. The intent is to keep the marker
+    and the invocation visibly co-located; strict ordering is not
+    enforced here because reviewers and downstream parsers already see
+    the pairing as a block. Returns ``False`` if either side is absent.
     """
     import re
 

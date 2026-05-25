@@ -88,6 +88,13 @@ class TestStructure:
         assert "## Anti-Patterns" in skill_content, "SKILL.md missing '## Anti-Patterns' section"
 
     def test_anti_patterns_has_minimum_entries(self, skill_content: str) -> None:
+        # Precondition: section header must exist before splitting, so the
+        # test fails cleanly with a useful message instead of IndexError if
+        # the section is renamed or removed. Tests do not assume execution
+        # order, so this assert cannot rely on test_anti_patterns_table_exists.
+        assert "## Anti-Patterns" in skill_content, (
+            "SKILL.md missing '## Anti-Patterns' section (required before counting rows)"
+        )
         anti_pattern_section = skill_content.split("## Anti-Patterns")[1]
         next_section = anti_pattern_section.find("\n## ")
         if next_section != -1:
@@ -101,6 +108,13 @@ class TestStructure:
         assert "## Verification" in skill_content, "SKILL.md missing '## Verification' section"
 
     def test_verification_has_minimum_items(self, skill_content: str) -> None:
+        # Precondition: section header must exist before splitting, so the
+        # test fails cleanly with a useful message instead of IndexError if
+        # the section is renamed or removed. Tests do not assume execution
+        # order, so this assert cannot rely on test_verification_section_exists.
+        assert "## Verification" in skill_content, (
+            "SKILL.md missing '## Verification' section (required before counting items)"
+        )
         verification_section = skill_content.split("## Verification")[1]
         next_section = verification_section.find("\n## ")
         if next_section != -1:
