@@ -90,16 +90,26 @@ def _extract_file_path(hook_input: dict) -> str | None:
     """Extract the file path from hook input.
 
     Defends against malformed hook input where ``hook_input`` or
-    ``tool_input`` is not a mapping. Returning ``None`` lets the caller
-    skip checkpointing without disabling the hook silently.
+    ``tool_input`` is not a mapping, and against non-string ``file_path``
+    values that would later break string ops in ``_is_checkpointable_file``.
+    Returning ``None`` lets the caller skip checkpointing without
+    disabling the hook silently.
     """
     if not isinstance(hook_input, dict):
         return None
     tool_input = hook_input.get("tool_input", {})
     if not isinstance(tool_input, dict):
         return None
-    # Write tool uses 'file_path', Edit tool may use 'file_path' or 'path'
-    return tool_input.get("file_path") or tool_input.get("path")
+    # Write tool uses 'file_path', Edit tool may use 'file_path' or 'path'.
+    # Require a non-empty string; ignore other types so downstream code
+    # never operates on, e.g., a dict or None.
+    for key in ("file_path", "path"):
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped:
+                return stripped
+    return None
 
 
 def _is_checkpointable_file(file_path: str) -> bool:
@@ -211,9 +221,18 @@ def main() -> None:
         sys.exit(0)
 
     summary = _read_file_summary(str(resolved))
-    _write_checkpoint(project_dir, file_path, summary)
 
-    print(f"[INFO] {HOOK_NAME}: Checkpointed state for {file_path}", file=sys.stderr)
+    # Persist a project-relative path so checkpoints stay portable across
+    # machines and CWDs, instead of leaking absolute paths from whoever
+    # invoked Claude.
+    try:
+        recorded_path = str(resolved.relative_to(project_root))
+    except ValueError:
+        recorded_path = file_path
+
+    _write_checkpoint(project_dir, recorded_path, summary)
+
+    print(f"[INFO] {HOOK_NAME}: Checkpointed state for {recorded_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":
