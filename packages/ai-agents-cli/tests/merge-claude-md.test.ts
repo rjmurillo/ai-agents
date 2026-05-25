@@ -56,7 +56,14 @@ describe("mergeClaudeMd", () => {
 
     const content = await readFile(join(testDir, "CLAUDE.md"), "utf-8");
     expect(content).toContain("\r\n");
-    expect(content).not.toMatch(/(?<!\r)\n.*<!-- ai-agents/);
+    // Confirm no orphaned LF appears before the marker block (no lookbehind needed):
+    // an orphaned LF is one not immediately preceded by CR.
+    for (let i = 0; i < content.length; i++) {
+      if (content[i] === "\n" && content[i - 1] !== "\r") {
+        const rest = content.slice(i);
+        expect(rest.includes("<!-- ai-agents")).toBe(false);
+      }
+    }
   });
 
   test("handles missing trailing newline", async () => {

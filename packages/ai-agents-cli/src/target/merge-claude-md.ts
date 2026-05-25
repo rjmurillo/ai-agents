@@ -85,7 +85,10 @@ export async function mergeClaudeMd(
   }
 
   if (detectedCrlf) {
-    result = result.replace(/(?<!\r)\n/g, "\r\n");
+    // Equivalent to /(?<!\r)\n/g but avoids negative lookbehind for
+    // broader engine compatibility: match optional CR + LF and
+    // unconditionally rewrite to CRLF (\r\n is an identity, \n is fixed).
+    result = result.replace(/\r?\n/g, "\r\n");
   }
 
   await writeFile(filePath, result, "utf-8");
