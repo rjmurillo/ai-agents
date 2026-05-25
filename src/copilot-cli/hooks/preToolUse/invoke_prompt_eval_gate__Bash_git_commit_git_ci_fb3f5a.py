@@ -349,7 +349,7 @@ def _original_main(stdin_bytes):
                 return 0
 
             command = tool_input.get("command", "")
-            if "git commit" not in command:
+            if "git commit" not in command and "git ci" not in command:
                 return 0
 
             staged = get_staged_files()

@@ -388,6 +388,6 @@ def _original_main(stdin_bytes):
         except Exception as exc:
             print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
             sys.exit(0)
-    return 0
+    return main()
 
 _shim_dispatch()
