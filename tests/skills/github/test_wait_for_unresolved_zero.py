@@ -624,8 +624,12 @@ class InvokeUnderlyingErrorHandlingTest(unittest.TestCase):
         check returns the sentinel cleanly.
         """
         for payload_str in ("null", "[]", '"a string"', "42"):
-            def runner(*_args: Any, **_kw: Any) -> Any:
-                return mock.Mock(returncode=0, stdout=payload_str, stderr="")
+            # PR #1989 coderabbit t4J: bind payload_str at definition
+            # time via a default argument; otherwise the closure
+            # captures the loop variable by reference and every
+            # iteration runs against the last value.
+            def runner(*_args: Any, _payload_str: str = payload_str, **_kw: Any) -> Any:
+                return mock.Mock(returncode=0, stdout=_payload_str, stderr="")
             count, complete, exit_code = wfz._invoke_underlying(
                 Path("/p.py"), 42, "", "", runner=runner,
             )

@@ -244,10 +244,20 @@ def wait_for_settled_zero(
         sleeper = _sleep
     script_path = _resolve_underlying_script()
     if not script_path.is_file():
+        # PR #1989 cursor zTH: missing underlying script is a config
+        # error per ADR-035. Surface as exit_code=2 via a synthetic
+        # observation so main() returns 2, not 1.
         return _failure(
             f"underlying script missing: {script_path}",
             pull_request,
-            [],
+            [
+                {
+                    "timestamp": None,
+                    "unresolved_count": -1,
+                    "fetched_pages_complete": False,
+                    "underlying_exit_code": 2,
+                },
+            ],
         )
 
     observations: list[dict] = []
@@ -274,6 +284,16 @@ def wait_for_settled_zero(
         if exit_code == 4:
             return _failure(
                 "underlying script returned auth error (exit 4)",
+                pull_request,
+                observations,
+            )
+        # PR #1989 coderabbit t4E: config errors do not heal with more
+        # polling (missing gh, bad repo, malformed env). Short-circuit
+        # exit 2 the same way exit 4 short-circuits, instead of waiting
+        # the full max_wait_seconds before returning the same failure.
+        if exit_code == 2:
+            return _failure(
+                "underlying script returned config error (exit 2)",
                 pull_request,
                 observations,
             )
