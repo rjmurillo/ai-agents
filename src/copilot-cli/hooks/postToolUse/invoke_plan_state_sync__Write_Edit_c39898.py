@@ -380,6 +380,10 @@ def _original_main(stdin_bytes):
         _write_checkpoint(project_dir, recorded_path, summary)
 
         print(f"[INFO] {HOOK_NAME}: Checkpointed state for {recorded_path}", file=sys.stderr)
-    return main()
+    try:
+        return main()
+    except Exception as _exc:
+        sys.stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\n')
+        return 0
 
 _shim_dispatch()

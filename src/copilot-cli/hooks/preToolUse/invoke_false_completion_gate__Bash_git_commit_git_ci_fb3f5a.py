@@ -660,6 +660,10 @@ def _original_main(stdin_bytes):
         })
         print(block_response)
         sys.exit(2)
-    return main()
+    try:
+        return main()
+    except Exception as _exc:
+        sys.stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\n')
+        return 0
 
 _shim_dispatch()
