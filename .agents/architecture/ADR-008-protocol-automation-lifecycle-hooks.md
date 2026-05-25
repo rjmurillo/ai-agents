@@ -97,6 +97,20 @@ Specifically:
 - ADR-004: Pre-Commit Hook Architecture (existing foundation)
 - SESSION-PROTOCOL.md (defines what hooks enforce)
 
+## Implementation Status (2026)
+
+Implemented via Issue #1703. Five new Python hooks added:
+
+| Hook | File | Purpose |
+|------|------|---------|
+| SessionStart | `.claude/hooks/SessionStart/invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective |
+| PreToolUse | `.claude/hooks/PreToolUse/invoke_false_completion_gate.py` | Blocks false completion claims without test evidence |
+| PostToolUse | `.claude/hooks/PostToolUse/invoke_plan_state_sync.py` | Checkpoints plan/TODO state after edits |
+| PreCompact | `.claude/hooks/PreCompact/invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction |
+| Stop | `.claude/hooks/Stop/invoke_auto_retrospective.py` | Auto-generates session retrospective |
+
+All hooks follow ADR-042 (Python-first) and are fail-open (never block on errors).
+
 ## References
 
 - Epic #183: Claude-Flow Inspired Enhancements

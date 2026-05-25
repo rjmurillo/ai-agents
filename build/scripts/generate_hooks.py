@@ -461,11 +461,13 @@ def _wrap_body_in_function(body: str) -> str:
     The original script's top-level statements become the function body.
     Scripts that follow the canonical ``def main(): ...; if __name__ ==
     '__main__': sys.exit(main())`` shape get a trailing ``return main()``
-    so the wrapper surfaces the validator's real exit code. Other scripts
-    keep the original ``return 0`` fallthrough so falling off the bottom
-    is treated as a clean exit. Scripts that call ``sys.exit(...)``
-    explicitly are unaffected: ``SystemExit`` propagates through the
-    function call.
+    so the wrapper surfaces the validator's real exit code, and the
+    original ``if __name__ == '__main__': sys.exit(main())`` epilogue is
+    stripped so the embedded block does not raise SystemExit before the
+    shim's wrapper return. Other scripts keep the original ``return 0``
+    fallthrough so falling off the bottom is treated as a clean exit.
+    Scripts that call ``sys.exit(...)`` explicitly are unaffected:
+    ``SystemExit`` propagates through the function call.
 
     The wrapper preserves the original script's line numbers for
     debugging by emitting a leading ``# original script begins`` marker.
@@ -686,6 +688,12 @@ def _extract_original_body(after_shim: list[str]) -> str:
         j += 1
 
     body_text = "".join(body_lines)
+    if had_main_epilogue:
+        if body_text and not body_text.endswith("\n"):
+            body_text += "\n"
+        if body_text and not body_text.endswith("\n\n"):
+            body_text += "\n"
+        body_text += 'if __name__ == "__main__":\n    sys.exit(main())\n'
     tail = "".join(after_shim[j:])
     if body_text and not body_text.endswith("\n"):
         body_text += "\n"
