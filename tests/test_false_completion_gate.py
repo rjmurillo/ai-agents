@@ -116,6 +116,56 @@ class TestFalseCompletionGate(unittest.TestCase):
                         result = invoke_false_completion_gate.main()
                         self.assertEqual(result, 2)
 
+    def test_pr_merge_with_done_blocks(self):
+        """gh pr merge claiming 'done' without verification should block.
+
+        Earlier the COMPLETION_SIGNALS regex only matched 'merged' (past
+        tense), creating an inconsistency with COMPLETION_COMMANDS that lists
+        `gh pr merge` (present tense). This pins the consistent behavior.
+        """
+        hook_input = {"tool_input": {"command": "gh pr merge --squash --auto # done"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".git").mkdir()
+            (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+
+            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
+                with patch.object(invoke_false_completion_gate, "get_project_directory", return_value=tmp_path):
+                    with patch("sys.stdout", new_callable=StringIO):
+                        result = invoke_false_completion_gate.main()
+                        self.assertEqual(result, 2)
+
+    def test_consumer_repo_skipped(self):
+        """Repos without .agents/ must not be blocked by this gate.
+
+        Without this guard the gate could reject `git commit` in any repo
+        that installs the plugin even when the repo does not follow the
+        ai-agents session protocol.
+        """
+        hook_input = {"tool_input": {"command": "git commit -m 'feat: done'"}}
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".git").mkdir()
+            # Intentionally do NOT create .agents/
+
+            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
+                with patch.object(invoke_false_completion_gate, "get_project_directory", return_value=tmp_path):
+                    result = invoke_false_completion_gate.main()
+                    self.assertEqual(result, 0)
+
+    def test_stdin_oserror_fails_open(self):
+        """Stdin read raising OSError must not crash the blocking hook."""
+        class BrokenStdin:
+            def isatty(self):
+                return False
+
+            def read(self):
+                raise OSError("broken pipe")
+
+        with patch("sys.stdin", BrokenStdin()):
+            result = invoke_false_completion_gate.main()
+            self.assertEqual(result, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

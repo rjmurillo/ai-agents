@@ -62,9 +62,29 @@ except ImportError:
     _lock_file = None  # type: ignore[assignment]
     _unlock_file = None  # type: ignore[assignment]
 
-# Regex for false-completion signals in commands
+
+def _is_consumer_repo(project_dir: Path | None) -> bool:
+    """Return True when the resolved project lacks the ai-agents .agents/ dir.
+
+    Consumer repos that install this plugin must not be blocked by the
+    completion gate, since they may not follow the ai-agents session
+    protocol. Resolved via the hook's own get_project_directory so that
+    tests can patch it; the shared hook_utilities guard binds to the shared
+    utility's get_project_directory and is not patchable from the hook.
+    """
+    if not project_dir or not (project_dir / ".agents").is_dir():
+        return True
+    return False
+
+# Regex for false-completion signals in commands.
+#
+# The matched verbs include "merge" so that a `gh pr merge` command that also
+# names the merged state ("done", "shipped", etc.) is detected. The earlier
+# spelling only matched "merged" (past tense), which produced an inconsistency
+# with COMPLETION_COMMANDS that lists `gh pr merge` (present tense) as a
+# completion-relevant command.
 COMPLETION_SIGNALS = re.compile(
-    r"\b(done|fixed|complete[d]?|finished|resolved|merged|shipped|closes?\s+#\d+)\b",
+    r"\b(done|fixed|complete[d]?|finished|resolved|merge[d]?|shipped|closes?\s+#\d+)\b",
     re.IGNORECASE,
 )
 
@@ -216,33 +236,43 @@ def write_audit_log(
 def main() -> int:
     """Check for false completion claims without verification.
 
-    Audits every decision that involves a completion-relevant command (commit,
-    PR create/merge), plus the bypass and parse-error paths. Non-completion
-    Bash invocations return 0 silently to avoid flooding the audit log; SRE
-    can verify the gate ran on a given commit by looking for an audit entry
-    keyed by the commit's session_id/tool_use_id.
+    Audits every terminal decision that involves a completion-relevant command
+    (commit, PR create, PR merge), plus the bypass and parse-error paths.
+    Non-completion Bash invocations return 0 silently to avoid flooding the
+    audit log; SREs can verify the gate ran on a given commit by looking for
+    an audit entry keyed by the commit's session_id/tool_use_id.
     """
     project_dir = get_project_directory()
     session_id = ""
     tool_use_id = ""
 
-    # Bypass env var (audited so operators see when gate was disabled)
-    if os.environ.get("SKIP_COMPLETION_GATE", "").lower() == "true":
-        if project_dir:
-            write_audit_log(project_dir, "", "bypass_env", "SKIP_COMPLETION_GATE=true", session_id, tool_use_id)
+    # Consumer-repo guard: if .agents/ does not exist, skip silently so the
+    # gate does not block commits in repos that install the plugin but do not
+    # follow the ai-agents session protocol.
+    if _is_consumer_repo(project_dir):
+        print(
+            "[SKIP] invoke_false_completion_gate: .agents/ not found (consumer repo)",
+            file=sys.stderr,
+        )
         return 0
 
     # Skip if stdin is TTY (interactive shell, not a hook invocation)
     if sys.stdin.isatty():
         return 0
 
-    # Read stdin JSON; extract correlation IDs even on parse-failure path
+    # Read stdin JSON; extract correlation IDs even on parse-failure path.
+    # Broad exception catch keeps fail-open even when stdin itself raises
+    # (OSError on closed/broken pipes, UnicodeDecodeError on bad bytes, etc.).
     try:
         stdin_data = sys.stdin.read()
         if not stdin_data.strip():
             return 0
         hook_input = json.loads(stdin_data)
-    except (json.JSONDecodeError, ValueError) as e:
+    except Exception as e:
+        print(
+            f"[hook-error] invoke_false_completion_gate stdin: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
         if project_dir:
             write_audit_log(project_dir, "", "error_parse", f"{type(e).__name__}: {e}", session_id, tool_use_id)
         return 0  # Fail-open
@@ -265,6 +295,15 @@ def main() -> int:
     session_id = str(hook_input.get("session_id", ""))
     tool_use_id = str(hook_input.get("tool_use_id", ""))
 
+    # Bypass env var (audited with correlation IDs from stdin so operators see
+    # which session disabled the gate). Checked AFTER stdin parsing so the
+    # audit entry carries session_id/tool_use_id when the harness provided
+    # them.
+    if os.environ.get("SKIP_COMPLETION_GATE", "").lower() == "true":
+        if project_dir:
+            write_audit_log(project_dir, "", "bypass_env", "SKIP_COMPLETION_GATE=true", session_id, tool_use_id)
+        return 0
+
     # Extract command from tool input (tolerate non-dict tool_input as no-op)
     tool_input = hook_input.get("tool_input", {})
     if not isinstance(tool_input, dict):
@@ -284,9 +323,9 @@ def main() -> int:
             write_audit_log(project_dir, command, "allow_not_completion", "no completion keyword", session_id, tool_use_id)
         return 0
 
-    # Completion signal detected — check for verification evidence
+    # Completion signal detected: check for verification evidence.
     if not project_dir:
-        # Fail-open without project dir; cannot audit either
+        # Fail-open without project dir; cannot audit either.
         return 0
 
     if has_verification_evidence(project_dir):
