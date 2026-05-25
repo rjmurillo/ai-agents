@@ -200,56 +200,32 @@ def _load_rework_module():
     return _mod
 
 
-# Issue #2069 Finding B: lazy-load the sibling on first access. The
-# earlier code ran the import at module-import time; the comment claimed
-# otherwise. The contradiction is now resolved. Cache via the module
-# globals on first call so subsequent accesses are O(1) attribute reads.
-#
-# The rework-warning step is informational, not a gate; a missing or
-# broken sibling MUST NOT crash module import or any other path.
-_REWORK_LOADED = False  # Sentinel: load attempted at least once.
-_REWORK_FALLBACK_THRESHOLD = 6  # Used when sibling cannot be loaded.
+# Issue #2069 Finding B: load the sibling on first access. The earlier
+# code ran the import at module-import time despite the docstring claim.
+# A PEP 562 __getattr__ binds the names lazily; the informational step
+# MUST NOT crash module import on a broken sibling.
+_REWORK_LOADED = False
+_REWORK_LAZY_NAMES = ("compute_rework_warning", "emit_rework_warning_lines", "REWORK_THRESHOLD")
 
 
 def _ensure_rework_loaded() -> None:
-    """Lazy-load rework_warning sibling. Idempotent; safe to call any number of times.
-
-    Binds `compute_rework_warning`, `emit_rework_warning_lines`, and
-    `REWORK_THRESHOLD` into module globals on success. On failure (sibling
-    missing, syntax error, etc.) binds None for the callables and
-    `_REWORK_FALLBACK_THRESHOLD` for the constant so callers can detect
-    the degraded state via the sentinel `compute_rework_warning is None`.
-    """
+    """Lazy-load the rework_warning sibling; bind names into module globals."""
     global _REWORK_LOADED
     if _REWORK_LOADED:
         return
     _REWORK_LOADED = True
     try:
         _mod = _load_rework_module()
-        globals()["REWORK_THRESHOLD"] = _mod.REWORK_THRESHOLD
-        globals()["compute_rework_warning"] = _mod.compute_rework_warning
-        globals()["emit_rework_warning_lines"] = _mod.emit_rework_warning_lines
-    except Exception:  # noqa: BLE001 - informational; must never block.
-        # Sibling missing, syntax error, runtime error during exec, or
-        # wrong shape. Bind None so callers detect the degraded state.
-        # `Exception` excludes KeyboardInterrupt and SystemExit.
-        globals()["REWORK_THRESHOLD"] = _REWORK_FALLBACK_THRESHOLD
-        globals()["compute_rework_warning"] = None
-        globals()["emit_rework_warning_lines"] = None
+        binds = {n: getattr(_mod, n) for n in _REWORK_LAZY_NAMES}
+    except Exception:  # noqa: BLE001 - informational; never block import or runtime.
+        binds = {n: None for n in _REWORK_LAZY_NAMES}
+        binds["REWORK_THRESHOLD"] = 6  # Fallback threshold; sibling unreachable.
+    globals().update(binds)
 
 
 def __getattr__(name: str):
-    """PEP 562 lazy attribute hook.
-
-    Triggers a one-time load when callers access `compute_rework_warning`,
-    `emit_rework_warning_lines`, or `REWORK_THRESHOLD` before any explicit
-    call to `_ensure_rework_loaded()` or `_run_rework_warning_step()`.
-    After the first access, the names are bound in module globals and
-    this hook is no longer called for them (PEP 562 semantics).
-    """
-    if name in (
-        "compute_rework_warning", "emit_rework_warning_lines", "REWORK_THRESHOLD",
-    ):
+    """PEP 562 hook: lazy-bind rework-warning names on first attribute access."""
+    if name in _REWORK_LAZY_NAMES:
         _ensure_rework_loaded()
         return globals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -276,7 +252,7 @@ def _run_rework_warning_step() -> str:
     _ensure_rework_loaded()
     _compute = globals().get("compute_rework_warning")
     _emit = globals().get("emit_rework_warning_lines")
-    _threshold = globals().get("REWORK_THRESHOLD", _REWORK_FALLBACK_THRESHOLD)
+    _threshold = globals().get("REWORK_THRESHOLD", 6)
     if _compute is None or _emit is None:
         print("rework-warning: skipped (sibling module unavailable)")
         return "Rework warning: skipped (sibling unavailable)"
