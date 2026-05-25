@@ -32,9 +32,10 @@ def run_main_wrapper(
 ) -> tuple[int | str | None, str, str]:
     """Run ``module``'s ``__main__`` wrapper with ``main_fn`` substituted.
 
-    Returns ``(exit_code, stdout, stderr)``. The exit code is ``None``
-    when the wrapper raises something other than SystemExit, which means
-    the wrapper is not fail-open.
+    Returns ``(exit_code, stdout, stderr)``. The exit code is the value
+    passed to ``sys.exit`` (or ``None`` when the wrapper exits without
+    calling it). Exceptions other than ``SystemExit`` propagate, which
+    surfaces fail-open violations directly to the test.
     """
     module_source = Path(module.__file__).read_text(encoding="utf-8")
     wrapper_marker = 'if __name__ == "__main__":'

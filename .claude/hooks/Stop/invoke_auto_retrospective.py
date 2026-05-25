@@ -254,6 +254,8 @@ def _generate_retrospective(today: str, session_summary: dict[str, str]) -> str:
 
 > Generated automatically by the auto-retrospective Stop hook.
 > Review and refine this template with actual observations.
+> Per `.claude/rules/retros.md`: fill in Failure Mode Classification,
+> Evidence, and Remediation before this entry can be considered complete.
 
 ## Session Objective
 
@@ -274,10 +276,30 @@ def _generate_retrospective(today: str, session_summary: dict[str, str]) -> str:
 <!-- Specific learnings that should persist across sessions -->
 - (review session log and add observations)
 
+## Failure Mode Classification
+
+<!-- Required by .claude/rules/retros.md MUST #2.
+     Map each failure to a class in .agents/governance/FAILURE-MODES.md.
+     If no existing class matches, propose a new class in a linked ADR. -->
+- (classify against FAILURE-MODES.md)
+
 ## Failure Patterns
 
 <!-- Recurring patterns that led to issues -->
 - (review session log and add observations)
+
+## Evidence
+
+<!-- Required by .claude/rules/retros.md MUST #3.
+     Links to offending commits, PRs, issues, or CI runs. No hand-waving. -->
+- (link commits, PRs, issues, CI runs)
+
+## Remediation
+
+<!-- Required by .claude/rules/retros.md MUST #4.
+     Concrete follow-up actions (governance change, ADR, instruction
+     update, skill change) with owners or issues. -->
+- (list concrete remediations with owners)
 
 ## Work Completed
 

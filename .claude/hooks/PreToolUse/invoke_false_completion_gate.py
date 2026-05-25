@@ -224,7 +224,11 @@ def _is_completion_claim_in_pr_body_file(command: str) -> bool:
     return COMPLETION_SIGNALS.search(body_content) is not None
 
 
-_GIT_TIMEOUT_SECONDS = 5
+# Per-git-call timeout. The hook's outer timeout in .claude/settings.json
+# is 5s and this hook can issue multiple git calls per invocation
+# (PR-base resolution + log inspection); keep each call well under the
+# outer budget so a single slow git invocation cannot starve the rest.
+_GIT_TIMEOUT_SECONDS = 2
 
 
 def _run_git(args: list[str]) -> subprocess.CompletedProcess[str] | None:
