@@ -45,9 +45,10 @@ if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import get_project_directory, get_today_session_log
+    from hook_utilities import get_project_directory, get_recent_session_log, get_today_session_log
     from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
+    from datetime import timedelta
 
     def get_project_directory() -> str:
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
@@ -70,6 +71,22 @@ except ImportError:
         except OSError:
             return None
         return logs[0] if logs else None
+
+    def get_recent_session_log(sessions_dir: str) -> Path | None:
+        """Return newest today or yesterday session log for cross-midnight support."""
+        sessions_path = Path(sessions_dir)
+        if not sessions_path.is_dir():
+            return None
+        now = datetime.now(tz=UTC)
+        for offset in (0, 1):
+            date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+            try:
+                candidates = list(sessions_path.glob(f"{date}-session-*.json"))
+                if candidates:
+                    return max(candidates, key=lambda p: p.stat().st_mtime)
+            except OSError:
+                continue
+        return None
 
     def skip_if_consumer_repo(hook_name: str) -> bool:
         agents_path = Path(get_project_directory()) / ".agents"
@@ -418,9 +435,11 @@ def main() -> None:
         print(f"[INFO] {HOOK_NAME}: Retrospective already exists for {today}", file=sys.stderr)
         sys.exit(0)
 
-    # Check for trivial session
+    # Check for trivial session using get_recent_session_log to support
+    # sessions spanning midnight (falls back to yesterday's log if today's
+    # is missing or trivial).
     sessions_dir = str(project_path / ".agents" / "sessions")
-    session_log = get_today_session_log(sessions_dir)
+    session_log = get_recent_session_log(sessions_dir)
 
     if _is_trivial_session(session_log):
         print(f"[INFO] {HOOK_NAME}: Trivial session, skipping retro generation", file=sys.stderr)

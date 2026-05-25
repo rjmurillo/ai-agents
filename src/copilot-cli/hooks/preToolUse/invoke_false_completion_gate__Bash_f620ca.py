@@ -199,7 +199,11 @@ def _original_main(stdin_bytes):
         sys.path.insert(0, _lib_dir)
 
     try:
-        from hook_utilities import get_project_directory, get_today_session_logs
+        from hook_utilities import (
+            get_project_directory,
+            get_recent_session_log,
+            get_today_session_logs,
+        )
         from hook_utilities.guards import skip_if_consumer_repo
     except ImportError:
 
@@ -219,6 +223,24 @@ def _original_main(stdin_bytes):
             except OSError:
                 return []
 
+        def get_recent_session_log(sessions_dir: str) -> Path | None:
+            """Fallback: return newest today or yesterday session log."""
+            from datetime import timedelta
+
+            sessions_path = Path(sessions_dir)
+            if not sessions_path.is_dir():
+                return None
+            now = datetime.now(tz=UTC)
+            for offset in (0, 1):
+                date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+                try:
+                    candidates = list(sessions_path.glob(f"{date}-session-*.json"))
+                    if candidates:
+                        return max(candidates, key=lambda p: p.stat().st_mtime)
+                except OSError:
+                    continue
+            return None
+
         def skip_if_consumer_repo(hook_name: str) -> bool:
             agents_path = Path(get_project_directory()) / ".agents"
             if not agents_path.is_dir():
@@ -235,7 +257,7 @@ def _original_main(stdin_bytes):
         re.IGNORECASE,
     )
 
-    # Verification evidence patterns in session logs
+    # Verification evidence patterns in session logs (command names)
     VERIFICATION_PATTERNS = [
         re.compile(r"pytest", re.IGNORECASE),
         re.compile(r"npm\s+test", re.IGNORECASE),
@@ -249,6 +271,23 @@ def _original_main(stdin_bytes):
         re.compile(r"Invoke-Pester", re.IGNORECASE),
         re.compile(r"uv\s+run\s+pytest", re.IGNORECASE),
         re.compile(r"make\s+test", re.IGNORECASE),
+    ]
+
+    # Result patterns that indicate actual test execution (pass/fail counts, exit codes)
+    # Required in addition to command patterns to prevent narrative mentions from
+    # satisfying the gate (e.g., "need to run pytest" should not count as evidence).
+    VERIFICATION_RESULT_PATTERNS = [
+        re.compile(r"\d+\s+passed", re.IGNORECASE),
+        re.compile(r"\d+\s+failed", re.IGNORECASE),
+        re.compile(r"\bPASSED\b"),
+        re.compile(r"\bFAILED\b"),
+        re.compile(r"exit[_ ]code[:\s]+\d+", re.IGNORECASE),
+        re.compile(r"exited with \d+", re.IGNORECASE),
+        re.compile(r"tests?[:\s]+\d+", re.IGNORECASE),
+        re.compile(r"errors?[:\s]+\d+", re.IGNORECASE),
+        re.compile(r"✓|✔|✗|✘"),
+        re.compile(r"All checks have passed", re.IGNORECASE),
+        re.compile(r"checks? (passed|failed)", re.IGNORECASE),
     ]
 
 
@@ -582,26 +621,69 @@ def _original_main(stdin_bytes):
         return all(f.endswith(".md") for f in files)
 
 
-    def _has_verification_evidence(session_log: Path) -> bool:
+    def _has_verification_evidence_in_log(
+        session_log: Path, found_command: bool, found_result: bool
+    ) -> tuple[bool, bool]:
         """Check session log for test/build verification evidence.
 
-        Streams the log line-by-line and returns on first match so a large
-        session log does not balloon hook memory. This blocking PreToolUse
-        gate runs on every gated commit/PR-create, so the memory and I/O
-        cost matters in the hot path.
+        Requires both a command pattern (e.g., "pytest", "npm test") AND a result
+        pattern (e.g., "5 passed", "FAILED") to prevent narrative mentions like
+        "need to run pytest" from satisfying the gate.
+
+        Streams the log line-by-line. Memory cost is O(1) regardless of log size.
 
         Args:
             session_log: Path to the session log file. Caller must ensure
                 this is not None.
+            found_command: Whether a command pattern was already found in a
+                previous log (for aggregation across multiple logs).
+            found_result: Whether a result pattern was already found in a
+                previous log (for aggregation across multiple logs).
+
+        Returns:
+            Tuple of (found_command, found_result) after scanning this log.
         """
         try:
             with session_log.open(encoding="utf-8", errors="replace") as handle:
                 for line in handle:
-                    for pattern in VERIFICATION_PATTERNS:
-                        if pattern.search(line):
-                            return True
+                    if not found_command:
+                        for pattern in VERIFICATION_PATTERNS:
+                            if pattern.search(line):
+                                found_command = True
+                                break
+                    if not found_result:
+                        for pattern in VERIFICATION_RESULT_PATTERNS:
+                            if pattern.search(line):
+                                found_result = True
+                                break
+                    if found_command and found_result:
+                        return (found_command, found_result)
         except OSError:
-            return False
+            pass
+        return (found_command, found_result)
+
+
+    def _has_verification_evidence_across_logs(session_logs: list[Path]) -> bool:
+        """Check multiple session logs for test/build verification evidence.
+
+        Aggregates evidence across all logs: a command pattern in one log and
+        a result pattern in another log satisfies the gate. This handles cases
+        where verification output is split across multiple same-day session files.
+
+        Args:
+            session_logs: List of session log paths to check.
+
+        Returns:
+            True if both command and result patterns were found across all logs.
+        """
+        found_command = False
+        found_result = False
+        for session_log in session_logs:
+            found_command, found_result = _has_verification_evidence_in_log(
+                session_log, found_command, found_result
+            )
+            if found_command and found_result:
+                return True
         return False
 
 
@@ -676,8 +758,16 @@ def _original_main(stdin_bytes):
 
         # Check for verification evidence in all of today's session logs.
         # Verification may exist in an earlier session file from the same day.
+        # Falls back to get_recent_session_log for sessions spanning midnight.
         sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
         session_logs = get_today_session_logs(sessions_dir)
+
+        # Midnight fallback: if no today logs exist, check for a recent session
+        # (yesterday's log) to support sessions spanning midnight.
+        if not session_logs:
+            recent_log = get_recent_session_log(sessions_dir)
+            if recent_log:
+                session_logs = [recent_log]
 
         # Fail-open when no session logs exist, EXCEPT when the completion
         # claim was inferred from an unreadable body file. In that case we
@@ -687,10 +777,9 @@ def _original_main(stdin_bytes):
             _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
             sys.exit(0)
 
-        for session_log in session_logs:
-            if _has_verification_evidence(session_log):
-                _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
-                sys.exit(0)
+        if _has_verification_evidence_across_logs(session_logs):
+            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
+            sys.exit(0)
 
         # Block: completion claim without verification
         _write_audit_log(project_dir, command, "BLOCK", "completion claim without verification")
