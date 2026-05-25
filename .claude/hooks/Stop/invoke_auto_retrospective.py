@@ -349,9 +349,18 @@ def write_audit_log(
 ) -> None:
     """Append a per-hook JSONL audit record for this run.
 
-    Mirrors the audit pattern in ``invoke_false_completion_gate.write_audit_log``
-    so operators can correlate retro creation with completion-gate decisions
-    in the same ``.hook-state/`` tree.
+    Canonical source: ``.claude/hooks/PreToolUse/invoke_false_completion_gate.py``
+    (function ``write_audit_log``, lines 191-234). Quoted contract:
+
+    - Audit root is ``project_dir / ".agents" / ".hook-state"``.
+    - Skip silently when ``.agents/`` does not exist (consumer-repo guard).
+    - JSONL line carries ``schema=1``, ``timestamp`` (ISO-8601 UTC),
+      ``hook`` (function-local hook id), and per-hook payload fields.
+    - File handle is taken with ``open(audit_file, "a", encoding="utf-8")``
+      and serialized through the shared ``_lock_file`` / ``_unlock_file``
+      helpers when available.
+    - Errors writing the audit log are swallowed and surfaced to stderr
+      to preserve fail-open behavior.
 
     Per Issue #2062 acceptance, records land at::
 
@@ -367,10 +376,22 @@ def write_audit_log(
     - ``skip_reason``: human-readable explanation when status is ``skipped``
       or ``failed``; empty string for ``created``.
 
-    Error tolerance: any OSError writing the audit file is swallowed and
-    surfaced to stderr to preserve the Stop hook's fail-open contract.
-    Consumer repos (no ``.agents/`` dir) skip silently so we never create
-    state outside the project's own working set.
+    Stricter/looser/different than canonical:
+
+    - Subdirectory: writes under ``.hook-state/auto-retrospective/`` instead
+      of the canonical's flat ``.hook-state/`` so retro audit files do not
+      collide with completion-gate audit files. The canonical writes a
+      single ``audit-{date}.jsonl`` per day; this hook namespaces by hook.
+    - Exception scope: catches ``Exception`` rather than the canonical's
+      ``OSError``. The Stop-hook fail-open contract requires resilience
+      against unexpected runtime errors (``TypeError``, ``ValueError``,
+      JSON-serialization edge cases) in addition to disk errors, while
+      still letting ``BaseException`` (``KeyboardInterrupt``,
+      ``SystemExit``) propagate. Refs PR #2077 gemini-code-assist review.
+    - Payload shape: ``status`` / ``retro_filename`` / ``skip_reason``
+      fields replace the canonical's ``command`` / ``decision`` / ``reason``
+      / ``session_id`` / ``tool_use_id``; the two hooks log different
+      events and the field names track each event's domain.
     """
     try:
         agents_dir = project_dir / ".agents"
@@ -396,7 +417,11 @@ def write_audit_log(
             finally:
                 if _unlock_file is not None:
                     _unlock_file(f)
-    except OSError as e:
+    except Exception as e:
+        # Broader than canonical's OSError: see docstring "Stricter/looser/
+        # different than canonical". Preserves Stop hook's fail-open contract
+        # against unexpected runtime errors (e.g. TypeError, ValueError) while
+        # still letting BaseException (KeyboardInterrupt, SystemExit) escape.
         print(
             f"[hook-error] invoke_auto_retrospective audit: {type(e).__name__}: {e}",
             file=sys.stderr,
