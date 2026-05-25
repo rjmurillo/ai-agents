@@ -125,12 +125,15 @@ def _extract_text_items(value: object) -> list[str]:
         for entry in value:
             items.extend(_extract_text_items(entry))
     elif isinstance(value, dict):
+        # ``status`` is a state token ("done", "in_progress"), not a
+        # description; including it would produce bullets like ``- done``
+        # when an entry has only ``status`` set. Outcome/result keys carry
+        # narrative content and stay.
         preferred_keys = (
             "description",
             "task",
             "summary",
             "result",
-            "status",
             "outcome",
             "title",
             "name",
@@ -280,9 +283,13 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
         if not index_path.exists():
+            # Mirror the committed docs/retros/INDEX.md header so
+            # bootstrapped output stays byte-for-byte consistent with
+            # the canonical template.
             header = (
                 "# Retrospective Index\n\n"
-                "> Auto-maintained by the auto-retrospective Stop hook.\n\n"
+                "> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).\n"
+                "> Manual entries are welcome; the hook only appends new rows.\n\n"
                 "| Date | File | Summary |\n"
                 "|------|------|---------|\n"
             )
