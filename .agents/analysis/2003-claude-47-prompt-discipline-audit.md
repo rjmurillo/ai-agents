@@ -93,7 +93,7 @@ Apply this to each canonical prompt file in `~/src/GitHub/rjmurillo/ai-agents/`.
 - `.github/prompts/*.md` (26 files, 3144 LOC)
 - `.github/agents/*.md` (25 files, 12012 LOC)
 - `.github/instructions/*.md` (4 files, 158 LOC)
-- `templates/agents/*.shared.md` (18 files, 11428 LOC — SOURCE OF TRUTH; generates src/claude, src/copilot-cli, src/vs-code-agents)
+- `templates/agents/*.shared.md` (18 files, 11428 LOC, SOURCE OF TRUTH; generates src/claude, src/copilot-cli, src/vs-code-agents)
 
 DO NOT audit:
 - `worktrees/**` (transient feature branches; not canonical)
@@ -470,12 +470,12 @@ Scoring legend: A=32-35, B=26-31, C=20-25, D=14-19, F<14.
 ### Tier distribution (templates)
 
 - A: 0
-- B: 5 (critic, implementer, orchestrator, pr-comment-responder, retrospective, security; six but critic at 26 is the boundary ,  recounted: critic 26, implementer 27, orchestrator 27, pr-comment-responder 26, retrospective 29, security 26 = **6 B**)
+- B: 6 (critic, implementer, orchestrator, pr-comment-responder, retrospective, security)
 - C: 12
 - D: 0
 - F: 0
 
-Corrected: **A=0, B=6, C=12, D=0, F=0** out of 18.
+Total: **A=0, B=6, C=12, D=0, F=0** out of 18.
 
 ### Average per-axis score (templates)
 
@@ -539,7 +539,7 @@ Axis 7 ≤ 3 on six files: missing one or more of {delegation protocol, completi
 
 Em-dash + banned vocab discipline (cross-cutting Axis 1/3 risk):
 
-- 28 em-dash hits across 14 templates. Heaviest: `orchestrator.shared.md` (7), `pr-comment-responder.shared.md` (2 in body plus 8 in tables of `→`-style arrows that read as em-dashes), `critic.shared.md` (3), `retrospective.shared.md` (2), `architect.shared.md` (1 at line 46 inside the Summon paragraph: "speak with the technical authority on system design—the architect").
+- 28 em-dash hits across 14 templates. Heaviest: `orchestrator.shared.md` (7), `pr-comment-responder.shared.md` (2 in body plus 8 in tables of `→`-style arrows that read as em-dashes), `critic.shared.md` (3), `retrospective.shared.md` (2), `architect.shared.md` (1 at line 46 inside the Summon paragraph, em-dash before "the architect").
 - Banned vocab: "comprehensive" appears in `planner.shared.md`, `implementer.shared.md`, `qa.shared.md`. Total 5 hits. Confined to descriptive copy, not load-bearing instruction lines.
 
 ## Section 2: .github/instructions/*.md (4 files, /30)
