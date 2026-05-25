@@ -29,12 +29,16 @@ References:
 
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+
+try:
+    import fcntl as _fcntl  # POSIX-only; absent on Windows
+except ImportError:  # pragma: no cover - exercised on Windows runners
+    _fcntl = None  # type: ignore[assignment]
 
 # --- Standard hook boilerplate ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -382,7 +386,8 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
             index_path.write_text(header, encoding="utf-8")
 
         with index_path.open("r+", encoding="utf-8") as f:
-            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            if _fcntl is not None:
+                _fcntl.flock(f.fileno(), _fcntl.LOCK_EX)
             try:
                 content = f.read()
                 if filename in content:
@@ -391,7 +396,8 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
                 f.write(f"| {today} | [{filename}](../../.agents/retrospective/{filename}) "
                         f"| Auto-generated session retrospective |\n")
             finally:
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                if _fcntl is not None:
+                    _fcntl.flock(f.fileno(), _fcntl.LOCK_UN)
     except OSError as exc:
         print(f"[WARNING] {HOOK_NAME}: Failed to update INDEX.md: {exc}", file=sys.stderr)
 

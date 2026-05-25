@@ -89,9 +89,15 @@ class TestIsTrivialSession:
         log.write_text("{}", encoding="utf-8")
         assert invoke_auto_retrospective._is_trivial_session(log) is True
 
-    def test_long_session_is_not_trivial(self, tmp_path: Path) -> None:
-        log = tmp_path / "long.json"
-        log.write_text("x" * 1000, encoding="utf-8")
+    def test_session_with_work_is_not_trivial(self, tmp_path: Path) -> None:
+        log = tmp_path / "real.json"
+        payload = {
+            "work": [
+                {"description": "Implement gate", "status": "in_progress"}
+            ],
+            "outcomes": [],
+        }
+        log.write_text(json.dumps(payload), encoding="utf-8")
         assert invoke_auto_retrospective._is_trivial_session(log) is False
 
 
@@ -191,7 +197,7 @@ class TestMain:
             return_value=project_tree,
         ), patch.object(
             invoke_auto_retrospective,
-            "get_today_session_log",
+            "get_recent_session_log",
             return_value=session_log,
         ):
             invoke_auto_retrospective.main()
@@ -216,7 +222,7 @@ class TestMain:
             return_value=project_tree,
         ), patch.object(
             invoke_auto_retrospective,
-            "get_today_session_log",
+            "get_recent_session_log",
             return_value=session_log,
         ):
             invoke_auto_retrospective.main()

@@ -166,7 +166,7 @@ class TestMain:
             return_value=str(project_tree),
         ), patch.object(
             invoke_compact_checkpoint,
-            "get_today_session_log",
+            "get_recent_session_log",
             return_value=session_log,
         ), patch.object(
             invoke_compact_checkpoint,
@@ -192,7 +192,7 @@ class TestMain:
             return_value=str(tmp_path),
         ), patch.object(
             invoke_compact_checkpoint,
-            "get_today_session_log",
+            "get_recent_session_log",
             return_value=None,
         ), patch.object(
             invoke_compact_checkpoint,
