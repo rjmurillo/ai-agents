@@ -10,6 +10,7 @@ Addresses 44 false completion mentions across 80+ retrospectives.
 Gate triggers on:
 - git commit messages containing completion signals
 - gh pr create commands with completion language
+- gh pr merge commands (inherently completion actions)
 
 Evidence requirements (any one satisfies):
 1. Test run in session log (pytest, npm test, etc.)
@@ -21,7 +22,7 @@ Bypass conditions:
 - Documentation-only changes (*.md files only)
 - No session log present (fail-open), unless the completion claim was
   inferred from an unreadable -F / --body-file (fail-closed)
-- Non-commit/non-PR commands
+- Non-commit/non-PR/non-merge commands
 
 Hook Type: PreToolUse (blocking on match)
 Exit Codes (Claude Hook Semantics):
@@ -448,17 +449,17 @@ def _changed_files_for_pr(
     return [f.strip() for f in diff.stdout.strip().split("\n") if f.strip()]
 
 
-def _is_documentation_only(is_pr_create: bool) -> bool:
+def _is_documentation_only(is_branch_operation: bool) -> bool:
     """Check if the relevant changed files are documentation-only.
 
-    For ``git commit`` we look at the index. For ``gh pr create`` we
-    resolve the actual base branch (upstream / origin/HEAD / common
-    defaults) and diff the branch against the merge base. If no base
-    can be resolved we fall back to the staged diff so docs-only PRs
-    keep their bypass when possible.
+    For ``git commit`` we look at the index. For ``gh pr create`` and
+    ``gh pr merge`` we resolve the actual base branch (upstream /
+    origin/HEAD / common defaults) and diff the branch against the
+    merge base. If no base can be resolved we fall back to the staged
+    diff so docs-only PRs keep their bypass when possible.
     """
     deadline = _start_deadline()
-    if is_pr_create:
+    if is_branch_operation:
         head_branch_result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], deadline)
         if head_branch_result is None or head_branch_result.returncode != 0:
             return False
@@ -583,21 +584,24 @@ def main() -> None:
     if not command:
         sys.exit(0)
 
-    # Only gate on `git commit`/`git ci` and `gh pr create` commands.
+    # Only gate on `git commit`/`git ci`, `gh pr create`, and `gh pr merge` commands.
     # The trailing boundary keeps neighbours like `git commit-tree` or
     # `gh pr create-checkout` from accidentally matching.
     is_commit = re.search(r"(?:^|\s)git\s+(commit|ci)(?:\s|$)", command)
     is_pr_create = re.search(r"(?:^|\s)gh\s+pr\s+create(?:\s|$)", command)
-    if not is_commit and not is_pr_create:
+    is_pr_merge = re.search(r"(?:^|\s)gh\s+pr\s+merge(?:\s|$)", command)
+    if not is_commit and not is_pr_create and not is_pr_merge:
         sys.exit(0)
 
     # Check if the command/message contains completion signals.
     # For `git commit -F <file>`, also check the message file contents.
     # For `gh pr create --body-file <file>`, also check the body file contents.
+    # `gh pr merge` is always treated as a completion claim since merging is
+    # an inherent "done" action that requires verification evidence.
     msg_claim, msg_unreadable = _is_completion_claim_in_message_file(command)
     body_claim, body_unreadable = _is_completion_claim_in_pr_body_file(command)
     has_completion_claim = (
-        _is_completion_claim(command) or msg_claim or body_claim
+        _is_completion_claim(command) or msg_claim or body_claim or bool(is_pr_merge)
     )
     if not has_completion_claim:
         sys.exit(0)
@@ -612,7 +616,7 @@ def main() -> None:
     project_dir = get_project_directory()
 
     # Bypass for documentation-only changes
-    if _is_documentation_only(is_pr_create=bool(is_pr_create)):
+    if _is_documentation_only(is_branch_operation=bool(is_pr_create or is_pr_merge)):
         _write_audit_log(project_dir, command, "ALLOW", "documentation-only changes")
         sys.exit(0)
 

@@ -83,6 +83,17 @@
         ]
       },
       {
+        "matcher": "Bash(gh pr merge*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
+            "timeout": 5,
+            "statusMessage": "Checking for false completion claims without verification (#1703)"
+          }
+        ]
+      },
+      {
         "matcher": "^(Write|Edit)$",
         "hooks": [
           {
