@@ -226,6 +226,70 @@ class TestMain:
         content = index.read_text(encoding="utf-8")
         assert "auto-retro" in content
 
+    def test_retries_missing_index_when_retro_exists(
+        self, project_tree: Path
+    ) -> None:
+        """A prior INDEX.md write failure must be recoverable.
+
+        When the per-day retro markdown already exists but INDEX.md is
+        missing the row for it, the next Stop hook invocation must
+        append the row instead of short-circuiting on
+        `_retro_exists_today`. Without this, an early INDEX.md failure
+        is permanent because later runs skip the index update entirely.
+        """
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        retro_dir = project_tree / ".agents" / "retrospective"
+        filename = f"{today}-auto-retro.md"
+        (retro_dir / filename).write_text("existing", encoding="utf-8")
+
+        # INDEX.md does not exist yet, simulating a prior write failure
+        # after the retro markdown was already on disk.
+        index = project_tree / "docs" / "retros" / "INDEX.md"
+        assert not index.exists()
+
+        with patch.object(
+            invoke_auto_retrospective, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_auto_retrospective,
+            "_resolve_safe_project_path",
+            return_value=project_tree,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_auto_retrospective.main()
+            assert exc_info.value.code == 0
+
+        assert index.exists()
+        content = index.read_text(encoding="utf-8")
+        assert filename in content
+
+    def test_index_update_is_idempotent_across_runs(
+        self, project_tree: Path
+    ) -> None:
+        """A second run with the row already present must not duplicate it."""
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        retro_dir = project_tree / ".agents" / "retrospective"
+        filename = f"{today}-auto-retro.md"
+        (retro_dir / filename).write_text("existing", encoding="utf-8")
+
+        with patch.object(
+            invoke_auto_retrospective, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_auto_retrospective,
+            "_resolve_safe_project_path",
+            return_value=project_tree,
+        ):
+            with pytest.raises(SystemExit):
+                invoke_auto_retrospective.main()
+            with pytest.raises(SystemExit):
+                invoke_auto_retrospective.main()
+
+        index = project_tree / "docs" / "retros" / "INDEX.md"
+        content = index.read_text(encoding="utf-8")
+        # Each row contains `filename` twice (link text + URL fragment),
+        # so one row -> count of 2. Two rows would be count of 4.
+        row_marker = f"| {today} | [{filename}]"
+        assert content.count(row_marker) == 1
+
 
 class TestFailOpen:
     """Test fail-open behavior of the script wrapper."""

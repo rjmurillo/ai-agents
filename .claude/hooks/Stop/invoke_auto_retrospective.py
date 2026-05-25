@@ -93,6 +93,24 @@ def _retro_exists_today(retro_dir: Path, today: str) -> bool:
         return False
 
 
+def _find_today_retro_filename(retro_dir: Path, today: str) -> str | None:
+    """Return the basename of today's retro markdown, or None.
+
+    Used by main() to repair a missing INDEX.md row when the per-day
+    retro file already exists. Returns the lexically-first match so the
+    result is deterministic when multiple files exist for the same day.
+    """
+    if not retro_dir.is_dir():
+        return None
+    try:
+        matches = sorted(retro_dir.glob(f"{today}*.md"))
+    except OSError:
+        return None
+    if not matches:
+        return None
+    return matches[0].name
+
+
 def _is_trivial_session(session_log: Path | None) -> bool:
     """Check if session was trivial (too short to warrant retrospective).
 
@@ -275,8 +293,28 @@ def _generate_retrospective(today: str, session_summary: dict[str, str]) -> str:
 """
 
 
+def _index_has_entry_for(index_path: Path, filename: str) -> bool:
+    """Return True when INDEX.md already references `filename`.
+
+    Used to make _update_retro_index idempotent so a previous index-write
+    failure can be retried on the next Stop hook invocation even after
+    the per-day retro markdown exists. The check is a plain substring
+    match because every row this hook writes embeds the exact filename.
+    """
+    try:
+        return filename in index_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
 def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
-    """Append entry to docs/retros/INDEX.md, creating it if needed."""
+    """Append entry to docs/retros/INDEX.md, creating it if needed.
+
+    Idempotent: a second call with the same (today, filename) is a
+    no-op once the row is present. This lets the caller re-run on
+    later sessions if a prior index-write failed after the retro
+    markdown was already written.
+    """
     index_path = Path(project_dir) / "docs" / "retros" / "INDEX.md"
 
     try:
@@ -297,6 +335,9 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
                 "|------|------|---------|\n"
             )
             index_path.write_text(header, encoding="utf-8")
+
+        if _index_has_entry_for(index_path, filename):
+            return
 
         # Append new row
         with index_path.open("a", encoding="utf-8") as f:
@@ -344,8 +385,14 @@ def main() -> None:
 
     retro_dir = project_path / ".agents" / "retrospective"
 
-    # Idempotent: skip if retro already exists today
+    # Idempotent: skip retro generation if one already exists today, but
+    # still retry the INDEX.md update so a previous index-write failure
+    # is recoverable on the next Stop hook invocation. _update_retro_index
+    # short-circuits when the row is already present.
     if _retro_exists_today(retro_dir, today):
+        existing = _find_today_retro_filename(retro_dir, today)
+        if existing is not None:
+            _update_retro_index(project_dir, today, existing)
         print(f"[INFO] {HOOK_NAME}: Retrospective already exists for {today}", file=sys.stderr)
         sys.exit(0)
 
