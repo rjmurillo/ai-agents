@@ -7,7 +7,7 @@ can resume seamlessly after compaction. Prints resume context to stdout
 for injection into the compacted context.
 
 Hook Type: PreCompact (non-blocking)
-Exit Codes: Always 0 (fail-open — never blocks compaction)
+Exit Codes: Always 0 (fail-open, never blocks compaction)
 
 Related:
 - Issue #1703 (lifecycle hook infrastructure)
@@ -61,7 +61,14 @@ except ImportError:
 
 
 def get_current_branch(project_dir: Path | None = None) -> str:
-    """Get current git branch name."""
+    """Return current git branch name, or 'unknown' / 'detached' on edge cases.
+
+    `git branch --show-current` exits 0 with empty output when HEAD is
+    detached; without normalization the empty string propagates into the
+    checkpoint and renders as 'Branch: . Session: ...' in resume context.
+    Return 'detached' so the resume context stays readable, and 'unknown'
+    on any subprocess or filesystem error.
+    """
     try:
         result = subprocess.run(
             ["git", "branch", "--show-current"],
@@ -74,6 +81,7 @@ def get_current_branch(project_dir: Path | None = None) -> str:
             branch = result.stdout.strip()
             if branch:
                 return branch
+            return "detached"
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
         print(
             f"[hook-error] invoke_compact_checkpoint get_current_branch: {type(e).__name__}: {e}",

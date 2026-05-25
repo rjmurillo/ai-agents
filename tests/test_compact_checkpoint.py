@@ -76,6 +76,25 @@ class TestCompactCheckpoint(unittest.TestCase):
                 result = invoke_compact_checkpoint.main()
                 self.assertEqual(result, 0)
 
+    def test_detached_head_returns_sentinel(self):
+        """git branch --show-current is empty in detached HEAD; must not be ''."""
+        from subprocess import CompletedProcess
+
+        fake = CompletedProcess(args=[], returncode=0, stdout="\n", stderr="")
+        with patch("subprocess.run", return_value=fake):
+            self.assertEqual(invoke_compact_checkpoint.get_current_branch(), "detached")
+
+    def test_branch_name_returned_when_present(self):
+        from subprocess import CompletedProcess
+
+        fake = CompletedProcess(args=[], returncode=0, stdout="feature/1703\n", stderr="")
+        with patch("subprocess.run", return_value=fake):
+            self.assertEqual(invoke_compact_checkpoint.get_current_branch(), "feature/1703")
+
+    def test_subprocess_error_returns_unknown(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError("no git")):
+            self.assertEqual(invoke_compact_checkpoint.get_current_branch(), "unknown")
+
 
 if __name__ == "__main__":
     unittest.main()
