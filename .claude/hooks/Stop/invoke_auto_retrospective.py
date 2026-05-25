@@ -378,10 +378,6 @@ def main() -> int:
     if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
         return 0
 
-    # Skip if stdin is TTY (interactive shell, not a hook invocation)
-    if sys.stdin.isatty():
-        return 0
-
     project_dir = get_project_directory()
     if not project_dir:
         return 0
