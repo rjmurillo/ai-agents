@@ -455,7 +455,12 @@ class CoverageCompleterTests(unittest.TestCase):
         self.assertIn("positive", (result.get("reason") or "").lower())
 
     def test_wait_for_settled_zero_handles_missing_underlying_script(self) -> None:
-        """When _resolve_underlying_script returns a non-file path, fail clean."""
+        """When _resolve_underlying_script returns a non-file path, fail clean.
+
+        PR #1989 copilot follow-up: the synthetic observation MUST honor the
+        documented schema (`timestamp: float`). Record the resolved clock
+        value, never None, so downstream consumers never special-case the type.
+        """
         from pathlib import Path as _Path
 
         with mock.patch.object(
@@ -468,11 +473,16 @@ class CoverageCompleterTests(unittest.TestCase):
                 interval_seconds=180,
                 max_wait_seconds=1200,
                 runner=lambda *_a, **_kw: mock.Mock(returncode=0, stdout="{}"),
-                clock=lambda: 0.0,
+                clock=lambda: 1234.5,
                 sleeper=lambda _s: None,
             )
         self.assertFalse(result["settled"])
         self.assertIn("missing", (result.get("reason") or "").lower())
+        observations = result.get("observations") or []
+        self.assertEqual(len(observations), 1)
+        timestamp = observations[0].get("timestamp")
+        self.assertIsInstance(timestamp, float)
+        self.assertEqual(timestamp, 1234.5)
 
     def test_sleep_seam_real_no_op_path(self) -> None:
         """Call _sleep(0) so the module-level body is covered."""
