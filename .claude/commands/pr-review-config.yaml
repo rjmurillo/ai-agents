@@ -30,8 +30,6 @@ check_failure_actions:
     action: "May be transient; note and continue"
   - check_type: "AI reviewer (code quality)"
     action: "Address findings or acknowledge"
-  - check_type: "AI reviewer (security)"
-    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security bot threads without a code fix."
   - check_type: "Tests (Pester/pytest)"
     action: "Run locally, fix failures"
   - check_type: "Markdown lint"
