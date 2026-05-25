@@ -435,3 +435,134 @@ def test_main_missing_config_returns_2(tmp_path: Path) -> None:
         "--config", str(tmp_path / "nope.yaml"), "--repo-root", str(tmp_path),
     ])
     assert rc == 2
+
+
+# Multi-output (outputDirs) --------------------------------------------------
+
+
+def _write_multi_output_config(tmp_path: Path, outputs: list[str]) -> Path:
+    cfg = tmp_path / "platform.yaml"
+    outputs_yaml = "\n".join(f'      - "{o}"' for o in outputs)
+    cfg.write_text(
+        f"""\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    outputDirs:
+{outputs_yaml}
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+    frontmatterRemap:
+      paths: applyTo
+    frontmatterDrop:
+      - alwaysApply
+      - priority
+"""
+    )
+    return cfg
+
+
+def test_outputDirs_writes_to_every_target(tmp_path: Path) -> None:
+    """outputDirs list emits one copy of each rule into every target dir.
+
+    Why it matters: ships rules to .github/instructions/ (repo-internal
+    Copilot) AND src/copilot-cli/instructions/ (plugin install tree) in
+    a single generator run, so vendor installs via marketplace pick them
+    up alongside agents/skills/hooks.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "demo",
+        frontmatter='paths: "**/*.py"\n',
+        body="Body.\n",
+    )
+    cfg = _write_multi_output_config(tmp_path, ["out_a", "out_b"])
+    rc, result = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    assert result.written == 2  # one rule x two targets
+    for sub in ("out_a", "out_b"):
+        target = tmp_path / sub / "demo.instructions.md"
+        assert target.is_file(), f"missing: {target}"
+        content = target.read_text(encoding="utf-8")
+        assert "applyTo: **/*.py" in content
+        assert "paths:" not in content
+
+
+def test_outputDirs_and_outputDir_both_set_returns_2(tmp_path: Path) -> None:
+    """Setting both keys is a config error. Intent must be unambiguous."""
+    _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    outputDir: "single_out"
+    outputDirs:
+      - "list_out"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+"""
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2
+
+
+def test_outputDirs_empty_list_returns_2(tmp_path: Path) -> None:
+    """Empty outputDirs is a config error (no destination = nothing to do)."""
+    _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    outputDirs: []
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+"""
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2
+
+
+def test_neither_outputDir_nor_outputDirs_returns_2(tmp_path: Path) -> None:
+    """Missing both keys is a config error."""
+    _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+"""
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2
+
+
+def test_outputDirs_prunes_orphans_in_every_target(tmp_path: Path) -> None:
+    """Orphan pruning runs per output dir. Stale files removed from all targets."""
+    _write_rule(tmp_path / "rules_src", "live", frontmatter='paths: "**"\n')
+    for sub in ("out_a", "out_b"):
+        d = tmp_path / sub
+        d.mkdir()
+        (d / "stale.instructions.md").write_text("---\napplyTo: \"**\"\n---\nstale\n")
+    cfg = _write_multi_output_config(tmp_path, ["out_a", "out_b"])
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    for sub in ("out_a", "out_b"):
+        assert (tmp_path / sub / "live.instructions.md").is_file()
+        assert not (tmp_path / sub / "stale.instructions.md").exists(), (
+            f"orphan not pruned in {sub}"
+        )

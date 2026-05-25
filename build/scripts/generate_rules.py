@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
-"""Generate ``.github/instructions/`` rule files from ``.claude/rules/`` (REQ-003-006).
+"""Generate Copilot instruction files from ``.claude/rules/`` (REQ-003-006).
 
 Reads ``artifacts.rules`` from a platform YAML and rewrites every Claude
 rule into a Copilot-compatible instruction file. Rules are universal
 across providers; unscoped rules emit with ``applyTo: "**"`` (the
 universal-scope default).
+
+Output targets:
+  - ``outputDir`` (string): single destination. Backward-compatible.
+  - ``outputDirs`` (list of strings): multiple destinations, one copy
+    each. Set when a rule must ship to both the repo-internal Copilot
+    path (``.github/instructions/``) and the project-toolkit plugin
+    path (``src/copilot-cli/instructions/``) so vendor installs via
+    marketplace pick them up alongside agents, skills, and hooks.
+
+``outputDir`` and ``outputDirs`` are mutually exclusive. At least one
+must be set.
 
 Per-rule logic (Round 3 amendment, 2026-04-29):
 
@@ -100,16 +111,56 @@ class GenerateRulesResult:
 
 
 def _resolve_paths(
-    repo_root: Path, source_dir: str, output_dir: str
-) -> tuple[Path, Path]:
-    for field_name, value in (
-        ("sourceDir", source_dir),
-        ("outputDir", output_dir),
-    ):
-        errs = validate_relative_path(field_name, value)
+    repo_root: Path, source_dir: str, output_dirs: list[str]
+) -> tuple[Path, list[Path]]:
+    """Validate and resolve sourceDir + one or more outputDirs.
+
+    ``output_dirs`` is always a list of one or more entries. Multi-output
+    support exists so a single rule can ship to both the GitHub Copilot
+    instructions tree (`.github/instructions/`) and the project-toolkit
+    plugin's instructions tree (`src/copilot-cli/instructions/`) without
+    a second generator run. Each entry is validated and resolved
+    independently; validation failure on any one fails the whole run.
+    """
+    errs = validate_relative_path("sourceDir", source_dir)
+    if errs:
+        raise GenerateRulesError("; ".join(errs))
+    if not output_dirs:
+        raise GenerateRulesError("at least one outputDir is required")
+    resolved_outputs: list[Path] = []
+    for idx, out in enumerate(output_dirs):
+        field_label = f"outputDirs[{idx}]" if len(output_dirs) > 1 else "outputDir"
+        errs = validate_relative_path(field_label, out)
         if errs:
             raise GenerateRulesError("; ".join(errs))
-    return repo_root / source_dir, repo_root / output_dir
+        resolved_outputs.append(repo_root / out)
+    return repo_root / source_dir, resolved_outputs
+
+
+def _read_output_dirs(stanza: dict) -> list[str]:
+    """Parse `outputDir` (string) or `outputDirs` (list) from the rules stanza.
+
+    Backward-compatible: existing configs and tests use `outputDir`. New
+    multi-target configs use `outputDirs`. Setting both is a config error
+    so the intent stays unambiguous.
+    """
+    single = stanza.get("outputDir")
+    multi = stanza.get("outputDirs")
+    if single is not None and multi is not None:
+        raise GenerateRulesError(
+            "set either `outputDir` or `outputDirs`, not both"
+        )
+    if multi is not None:
+        if not isinstance(multi, list) or not multi:
+            raise GenerateRulesError(
+                "`outputDirs` must be a non-empty list"
+            )
+        return [str(item) for item in multi]
+    if single is not None:
+        return [str(single)]
+    raise GenerateRulesError(
+        "rules stanza requires `outputDir` or `outputDirs`"
+    )
 
 
 def _has_path_scope(frontmatter: dict[str, str | None]) -> bool:
@@ -321,7 +372,11 @@ def generate_rules(
         return 2, result
 
     source_dir_str = str(stanza.get("sourceDir", ""))
-    output_dir_str = str(stanza.get("outputDir", ""))
+    try:
+        output_dir_strs = _read_output_dirs(stanza)
+    except GenerateRulesError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2, result
     source_suffix = str(stanza.get("sourceSuffix", _DEFAULT_SOURCE_SUFFIX))
     output_suffix = str(stanza.get("outputSuffix", _DEFAULT_OUTPUT_SUFFIX))
 
@@ -344,8 +399,8 @@ def generate_rules(
     drop: set[str] = {str(item) for item in raw_drop}
 
     try:
-        source_dir, output_dir = _resolve_paths(
-            repo_root, source_dir_str, output_dir_str
+        source_dir, output_dirs = _resolve_paths(
+            repo_root, source_dir_str, output_dir_strs
         )
     except GenerateRulesError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -365,6 +420,10 @@ def generate_rules(
 
     start = time.monotonic()
     print(f"Found {len(sources)} rule(s)")
+    if len(output_dirs) > 1:
+        print(f"Output targets: {len(output_dirs)}")
+        for out in output_dirs:
+            print(f"  - {out.relative_to(repo_root)}")
 
     expected_outputs: set[str] = set()
     for src in sources:
@@ -374,36 +433,44 @@ def generate_rules(
             else src.stem
         )
         expected_outputs.add(f"{name}{output_suffix}")
-        action, name_out, reason = _process_rule(
-            src,
-            output_dir,
-            source_suffix=source_suffix,
-            output_suffix=output_suffix,
-            remap=remap,
-            drop=drop,
-            what_if=what_if,
-        )
-        result.entries.append(RuleAuditEntry(name=name_out, action=action, reason=reason))
-        if action == "emitted":
-            result.written += 1
-        elif action == "sentinel-skipped":
-            result.sentinel_skipped += 1
+        # Process once per output target. The audit records each
+        # write separately so callers can see all destinations.
+        for output_dir in output_dirs:
+            action, name_out, reason = _process_rule(
+                src,
+                output_dir,
+                source_suffix=source_suffix,
+                output_suffix=output_suffix,
+                remap=remap,
+                drop=drop,
+                what_if=what_if,
+            )
+            result.entries.append(
+                RuleAuditEntry(name=name_out, action=action, reason=reason)
+            )
+            if action == "emitted":
+                result.written += 1
+            elif action == "sentinel-skipped":
+                result.sentinel_skipped += 1
 
-    # M7-T4: prune orphan instruction files (output exists with no source).
-    # Without this, deleted-source files leave stale .github/instructions/*.md
+    # M7-T4: prune orphan instruction files in every output target.
+    # Without this, deleted-source files leave stale *.instructions.md
     # entries that re-introduce internal-path leakage and rotted applyTo
     # globs. Skips files carrying the NO-REGEN sentinel and skips entirely
     # in --what-if mode so dry-runs never delete.
-    if not what_if and output_dir.is_dir():
-        for existing in output_dir.glob(f"*{output_suffix}"):
-            if existing.name in expected_outputs:
+    if not what_if:
+        for output_dir in output_dirs:
+            if not output_dir.is_dir():
                 continue
-            reason = regen_detect_reason(existing)
-            if reason is not None:
-                print(f"  NOTICE: kept orphan {existing} (NO-REGEN: {reason})")
-                continue
-            existing.unlink()
-            print(f"  PRUNED orphan: {existing.relative_to(repo_root)}")
+            for existing in output_dir.glob(f"*{output_suffix}"):
+                if existing.name in expected_outputs:
+                    continue
+                reason = regen_detect_reason(existing)
+                if reason is not None:
+                    print(f"  NOTICE: kept orphan {existing} (NO-REGEN: {reason})")
+                    continue
+                existing.unlink()
+                print(f"  PRUNED orphan: {existing.relative_to(repo_root)}")
 
     duration = time.monotonic() - start
 
