@@ -97,8 +97,35 @@ def test_co_change_checklist_concrete_example_present(step_6_region: str) -> Non
     shape. The 17-site verdict-token cascade from PR #1965 is the
     canonical reference because it is documented end-to-end in the
     retrospective.
+
+    Pinned per PR #1989 copilot follow-up: the previous test asserted
+    only that the word "verdict" appears in the region, which would
+    still pass if the worked example and the checklist lines were
+    removed or malformed. The assertions below pin a distinctive
+    fragment of the worked example (a specific NEEDS_REVISION token
+    addition with its exact checklist-line shape) plus the section
+    header itself, so regressions actually get caught.
     """
-    # The example demonstrates at least one verdict-token site.
-    assert "verdict" in step_6_region.lower(), (
+    region_lower = step_6_region.lower()
+    assert "verdict" in region_lower, (
         "Step 6 must include a worked example referencing the verdict-token cascade"
     )
+    # Distinctive fragments from the worked example. Each one is a
+    # concrete line the spec-generator must reproduce verbatim; pinning
+    # the literal bytes catches drift in the documented contract.
+    distinctive_fragments = [
+        # The section header in its level-2, case-sensitive form.
+        "## Co-change checklist",
+        # The worked example introduces the NEEDS_REVISION token by name.
+        "NEEDS_REVISION",
+        # The canonical first checklist entry pinning the `--` separator,
+        # the bare `file:line` form, and the imperative phrase shape.
+        "scripts/lib/verdict.py:42 -- add NEEDS_REVISION to VERDICT_TOKENS set",
+        # A second entry that exercises the quoted-section variant of
+        # `{line_or_section}` so both branches of the format are pinned.
+        'scripts/lib/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation',
+    ]
+    for fragment in distinctive_fragments:
+        assert fragment in step_6_region, (
+            f"Step 6 worked example must contain distinctive fragment: {fragment!r}"
+        )
