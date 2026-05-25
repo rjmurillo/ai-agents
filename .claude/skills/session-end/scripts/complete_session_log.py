@@ -218,7 +218,15 @@ def _ensure_rework_loaded() -> None:
     try:
         _mod = _load_rework_module()
         binds = {n: getattr(_mod, n) for n in _REWORK_LAZY_NAMES}
-    except Exception:  # noqa: BLE001 - informational; never block import or runtime.
+    except Exception as exc:  # noqa: BLE001 - informational; never block import or runtime.
+        # PR #2070 follow-up (Gemini review): swallowing the failure left
+        # SyntaxError / ImportError on the sibling invisible. Log the
+        # underlying cause to stderr so failures stay diagnosable while
+        # the main flow still falls back to the safe defaults below.
+        print(
+            f"rework-warning: lazy load failed ({type(exc).__name__}: {exc})",
+            file=sys.stderr,
+        )
         binds = {n: None for n in _REWORK_LAZY_NAMES}
         binds["REWORK_THRESHOLD"] = 6  # Fallback threshold; sibling unreachable.
     _REWORK_BINDS.update(binds)

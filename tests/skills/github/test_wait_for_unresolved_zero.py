@@ -568,9 +568,52 @@ class CoverageCompleterTests(unittest.TestCase):
         self.assertFalse(result["success"])
 
     def test_main_invalid_pull_request_argv_value(self) -> None:
-        """argparse rejects non-integer pull_request before main logic runs."""
-        with self.assertRaises(SystemExit):
-            wfz.main(["--pull-request", "abc"])
+        """argparse rejects non-integer pull_request; main catches SystemExit
+        and returns exit code 2 instead of propagating.
+
+        PR #2070 follow-up: parse-level argparse failures (bad type, missing
+        required arg, unknown flag) now emit JSON to stdout and return 2,
+        preserving the single-channel JSON stdout contract for every outcome.
+        """
+        import contextlib
+        import io
+        out_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(io.StringIO()):
+            rc = wfz.main(["--pull-request", "abc"])
+        self.assertEqual(rc, 2)
+        payload = json.loads(out_buf.getvalue())
+        self.assertFalse(payload["settled"])
+        self.assertEqual(payload["reason"], "invalid CLI arguments")
+
+    def test_main_missing_required_arg_emits_json_to_stdout(self) -> None:
+        """argparse missing-required-arg failure produces JSON on stdout.
+
+        PR #2070 Copilot review thread: stdout-parsing callers must see a
+        parseable JSON payload even when argparse rejects the invocation
+        before main() can run its own validation.
+        """
+        import contextlib
+        import io
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            rc = wfz.main([])
+        self.assertEqual(rc, 2)
+        payload = json.loads(out_buf.getvalue())
+        self.assertFalse(payload["settled"])
+        # stderr carries a short human message, not the JSON payload.
+        self.assertNotIn('"settled":', err_buf.getvalue())
+
+    def test_main_unknown_flag_emits_json_to_stdout(self) -> None:
+        """argparse unknown-flag failure produces JSON on stdout (exit 2)."""
+        import contextlib
+        import io
+        out_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(io.StringIO()):
+            rc = wfz.main(["--bogus-flag"])
+        self.assertEqual(rc, 2)
+        payload = json.loads(out_buf.getvalue())
+        self.assertFalse(payload["settled"])
 
     def test_main_returns_zero_when_settled(self) -> None:
         """POSITIVE: main returns 0 when wait_for_settled_zero settles."""

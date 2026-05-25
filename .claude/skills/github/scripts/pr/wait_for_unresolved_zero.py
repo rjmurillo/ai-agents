@@ -354,14 +354,32 @@ def _failure(reason: str, pull_request: int, observations: list[dict]) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _build_parser().parse_args(argv)
-
     # Issue #2069 Finding A: the CLI contract is single-channel JSON on
     # stdout. Earlier code emitted the failure payload to stderr on
     # invalid args while emitting success payloads to stdout, which
     # broke stdout-parsing callers (they saw an empty body and treated
     # the run as malformed). Every outcome now writes JSON to stdout;
     # stderr is reserved for the short human-readable message.
+    #
+    # PR #2070 follow-up (Copilot review thread): argparse parse errors
+    # raise SystemExit and emit usage text to stderr before main() can
+    # build its own JSON payload. Catch SystemExit so even parse-level
+    # CLI failures (missing required args, unknown flags, bad types) emit
+    # a JSON failure payload on stdout, preserving the single-channel
+    # contract for every outcome.
+    parser = _build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+        if code == 0:
+            # argparse exits 0 for --help; honor it without emitting a
+            # failure payload (help text is already on stdout).
+            return 0
+        failure = _failure("invalid CLI arguments", 0, [])
+        print(json.dumps(failure))
+        print("error: invalid CLI arguments", file=sys.stderr)
+        return 2
     if args.pull_request <= 0:
         failure = _failure(
             "pull_request must be positive", args.pull_request, [],
