@@ -83,7 +83,20 @@ Replying does NOT resolve threads. Use `add_thread_reply` then `resolve_thread` 
 
 ## Completion Gate
 
-ALL criteria from `completion_criteria` in config must pass before claiming completion. If ANY fails, loop back. See `failure_handling` and `error_recovery` in config for recovery actions.
+The completion gate is dispatchable. Each criterion in `completion_criteria` runs an external command, and the command's stdout JSON drives the verdict via the `pass_when` expression. Run the dispatcher exactly once per PR:
+
+```bash
+python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
+    --config .claude/commands/pr-review-config.yaml \
+    --pull-request {pr} \
+    --json
+```
+
+Exit 0 = all criteria passed; exit 1 = at least one failed; exit 2 = config error. On failure, do NOT loop. The retry-on-failure behavior was the wrong design and has been removed (see retrospective `2026-05-05-pr-1887-iteration-paradox.md`, Layer 6: Reporting-Without-Acting Anti-Pattern). Surface the failing criterion's `name`, `command`, `reason`, and stdout/stderr excerpt from the JSON output, then halt. The default table mode prints the same fields below each FAIL row.
+
+### Trust boundary on the PR branch
+
+When `/pr-review` runs after `gh pr checkout`, the dispatcher reads `pr-review-config.yaml` from the PR's working tree. A malicious PR can change `completion_criteria.command` or `pass_when_python` and the dispatcher will execute it. Before invoking `/pr-review` on a PR that you do not control, INSPECT the diff for any change to `.claude/commands/pr-review-config.yaml`. Hardening (loading the config from `main` or refusing to run on divergence) is tracked as a follow-up to PR #1898.
 
 ## Related Memories
 

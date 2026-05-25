@@ -179,6 +179,20 @@ PROMPTS: dict[str, list[dict[str, str]]] = {
         {"prompt": "What are the 7 questions in the Zimmermann ADR review checklist?",
          "expected": "1. Problem relevant enough? 2. Options solve the problem? Valid options missing? 3. Decision drivers MECE? 4. Conflicting criteria prioritized? 5. Chosen solution solves problem, rationale convincing? 6. Consequences objective? 7. Solution actionable, traceable, has review date?"},
     ],
+    "world-model-diagnostic": [
+        {"prompt": "A 60-person knowledge-work startup with strong senior engineers wants to build retrieval over their docs and Slack. Which paradigm fits?",
+         "expected": "Vector database. Knowledge work, under 100 people, senior team can act as human boundary layer. Pair with aggressive boundary work and explicit outcome encoding. Risk: loses effectiveness as senior judgment thins."},
+        {"prompt": "A regulated healthcare enterprise wants to automate clinical decision support. Which paradigm and why?",
+         "expected": "Structured ontology. Enterprise + regulated + safety-critical, errors are expensive. Boundary must be architectural. Trade-off: high upfront structure cost. Risk: over-engineered schema before patterns emerge."},
+        {"prompt": "An e-commerce platform has transaction logs, user behavior telemetry, and operational exhaust. Which paradigm?",
+         "expected": "Signal-fidelity. Platform business with high-fidelity machine-readable signal. Higher ceiling than vector DB or ontology. Risk: mistaking soft signals (emails, notes) for hard signals (transactions, metrics)."},
+        {"prompt": "A team says 'AI will decide which support tickets are urgent'. What's the diagnostic concern?",
+         "expected": "Automating judgment that should stay human. Urgency requires context only humans have. Boundary audit shows interpret this first. Use AI for routing only, keep human in loop. Distinguish act on this from interpret first."},
+        {"prompt": "Why does the diagnostic refuse to give a numeric readiness score?",
+         "expected": "Numeric scores conflate facts with interpretation and present judgment with the same voice as evidence. The diagnostic uses firm finding, inference, open question labels. Goal is to expose where information routing ends and editorial judgment begins, not produce a single number."},
+        {"prompt": "Cues conflict: company has high-fidelity transaction signal but only three senior people. How does the diagnostic resolve this?",
+         "expected": "Priority order from Paradigm Mapping Contract: 1. Highest-fidelity signal. 2. Cost of bad interpretive decision. 3. Senior human judgment available. Signal-fidelity wins on highest-fidelity rule. Caveat: thin senior layer means boundary work is non-negotiable."},
+    ],
 }
 
 SKILLS = list(PROMPTS.keys())

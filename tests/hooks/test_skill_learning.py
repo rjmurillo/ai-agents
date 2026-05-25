@@ -127,6 +127,124 @@ class TestCheckSkillContext:
 # ---------------------------------------------------------------------------
 
 
+class TestPrivacyDefaultsM7T6:
+    """M7-T6: privacy + reliability defaults for the LLM fallback path."""
+
+    def test_use_llm_fallback_defaults_to_false(self, monkeypatch):
+        """Module-level USE_LLM_FALLBACK MUST default to False (opt-in).
+
+        The pre-fix default sent session transcripts to Anthropic on every
+        Stop hook fire unless the operator opted out. Now operators MUST
+        explicitly set SKILL_LEARNING_USE_LLM=true to opt in.
+        """
+        monkeypatch.delenv("SKILL_LEARNING_USE_LLM", raising=False)
+        # Reload the module under fresh env
+        import importlib
+        importlib.reload(invoke_skill_learning)
+        assert invoke_skill_learning.USE_LLM_FALLBACK is False
+
+    def test_use_llm_fallback_true_when_explicit(self, monkeypatch):
+        monkeypatch.setenv("SKILL_LEARNING_USE_LLM", "true")
+        import importlib
+        importlib.reload(invoke_skill_learning)
+        assert invoke_skill_learning.USE_LLM_FALLBACK is True
+
+    def test_get_api_key_no_dotenv_fallback(self, tmp_path, monkeypatch):
+        """M7-T6: get_api_key() MUST NOT scan .env files anymore."""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("SKILL_LEARNING_API_KEY", raising=False)
+        # Drop a .env in cwd that the old code would have read
+        env_file = tmp_path / ".env"
+        env_file.write_text("ANTHROPIC_API_KEY=sk-DO-NOT-LEAK\n")
+        monkeypatch.chdir(tmp_path)
+        # Reload to pick up cleared env vars
+        import importlib
+        importlib.reload(invoke_skill_learning)
+        assert invoke_skill_learning.get_api_key() is None
+
+    def test_get_api_key_prefers_skill_learning_specific_var(self, monkeypatch):
+        """SKILL_LEARNING_API_KEY takes precedence over ANTHROPIC_API_KEY."""
+        monkeypatch.setenv("SKILL_LEARNING_API_KEY", "sk-skill")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-shared")
+        import importlib
+        importlib.reload(invoke_skill_learning)
+        assert invoke_skill_learning.get_api_key() == "sk-skill"
+
+    def test_llm_timeout_default_is_bounded(self, monkeypatch):
+        """LLM_TIMEOUT_SEC MUST be a finite positive float (M7-T6)."""
+        monkeypatch.delenv("SKILL_LEARNING_LLM_TIMEOUT_SEC", raising=False)
+        import importlib
+        importlib.reload(invoke_skill_learning)
+        assert invoke_skill_learning.LLM_TIMEOUT_SEC > 0
+        assert invoke_skill_learning.LLM_TIMEOUT_SEC < 60  # sanity ceiling
+
+
+class TestSafeBaseDirM7T5:
+    """M7-T5: SAFE_BASE_DIR derives from runtime env, not __file__ ancestors.
+
+    The function honors ``CLAUDE_PROJECT_DIR`` when it contains the live
+    hook script (CWE-22 containment guard added by commit be11bd53). When
+    the env var is set but does not contain the script, it falls through
+    to the git walk-up — refusing to trust an attacker-controlled env that
+    points outside the script's true repository.
+    """
+
+    def test_safe_base_dir_honors_claude_project_dir_when_contains_script(
+        self, monkeypatch, tmp_path
+    ):
+        # Use the actual repo root (which DOES contain the hook script) to
+        # exercise the trusted-env path. The repo root is two parents above
+        # tests/hooks/.
+        repo_root = Path(__file__).resolve().parents[2]
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo_root))
+        result = invoke_skill_learning._detect_safe_base_dir()
+        assert result == repo_root.resolve()
+
+    def test_safe_base_dir_refuses_env_outside_script_falls_through_to_git(
+        self, tmp_path, monkeypatch
+    ):
+        """CWE-22 guard: env that does not contain the script is rejected;
+        fall through to git walk-up."""
+        # Build a fake project with .git so the git walk-up succeeds.
+        proj = tmp_path / "project"
+        (proj / ".git").mkdir(parents=True)
+        sub = proj / "sub" / "dir"
+        sub.mkdir(parents=True)
+        # Env points at tmp_path which does NOT contain the script.
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        monkeypatch.chdir(sub)
+        result = invoke_skill_learning._detect_safe_base_dir()
+        # MUST NOT be tmp_path; MUST be the git root from cwd walk-up.
+        assert result != tmp_path.resolve()
+        assert result == proj.resolve()
+
+    def test_safe_base_dir_walks_up_to_git_when_env_unset(self, tmp_path, monkeypatch):
+        proj = tmp_path / "project"
+        (proj / ".git").mkdir(parents=True)
+        sub = proj / "sub" / "dir"
+        sub.mkdir(parents=True)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.chdir(sub)
+        result = invoke_skill_learning._detect_safe_base_dir()
+        assert result == proj.resolve()
+
+    def test_safe_base_dir_falls_back_to_sentinel_when_no_git(
+        self, tmp_path, monkeypatch
+    ):
+        """When walk-up exhausts without finding .git, fall back to a
+        non-existent sentinel path so every downstream containment check
+        fails closed. Returning a real directory (cwd, /tmp, $HOME) would
+        silently disable CWE-22 containment if the walk-up exhausts.
+        """
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        # tmp_path is below /tmp; walk-up from /tmp/pytest-of-X/... will
+        # never find a .git ancestor inside the test sandbox, so the
+        # fallback path runs.
+        monkeypatch.chdir(tmp_path)
+        result = invoke_skill_learning._detect_safe_base_dir()
+        assert result == Path("/__nonexistent_containment_sentinel__")
+
+
 class TestWriteLearningNotification:
     def test_outputs_notification(self, capsys):
         invoke_skill_learning.write_learning_notification("reflect", 1, 2, 0)

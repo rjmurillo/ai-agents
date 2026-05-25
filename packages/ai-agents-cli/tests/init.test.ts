@@ -34,7 +34,11 @@ function makeEmitter(canEmit = true): TargetEmitter & {
   };
 }
 
-const target: TargetContext = { targetDir: "/tmp/x", force: false };
+const target: TargetContext = {
+  targetDir: "/tmp/x",
+  force: false,
+  dryRun: false,
+};
 
 describe("init", () => {
   test("returns 2 when canEmit is false", async () => {

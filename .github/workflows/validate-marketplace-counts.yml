@@ -40,6 +40,7 @@ jobs:
           filters: |
             paths:
               - '.claude-plugin/marketplace.json'
+              - '.github/plugin/marketplace.json'
               - 'src/claude/**'
               - 'src/copilot-cli/**'
               - '.claude/agents/**'
@@ -47,6 +48,8 @@ jobs:
               - '.claude/hooks/**'
               - '.claude/skills/**'
               - 'build/scripts/validate_marketplace_counts.py'
+              - 'build/scripts/yaml_loader.py'
+              - 'templates/marketplace-counters.yaml'
               - '.github/workflows/validate-marketplace-counts.yml'
 
   validate:
@@ -60,6 +63,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Validate marketplace.json counts
         run: python3 build/scripts/validate_marketplace_counts.py

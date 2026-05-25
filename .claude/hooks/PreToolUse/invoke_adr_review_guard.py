@@ -27,14 +27,27 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+# Bootstrap: find lib directory via env var or manifest walk-up.
+# CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
+# looking for .claude-plugin/plugin.json (the plugin marker). Sibling
+# lib/ is the plugin's lib dir. Layout-independent: works in source
+# tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
-    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
-if not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
-    sys.exit(2)  # Config error per ADR-035
+    _cur = Path(__file__).resolve().parent
+    _lib_dir = None
+    while True:
+        if (_cur / ".claude-plugin" / "plugin.json").is_file():
+            _lib_dir = str(_cur / "lib")
+            break
+        if _cur.parent == _cur:
+            break
+        _cur = _cur.parent
+if _lib_dir is None or not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
@@ -45,7 +58,7 @@ from hook_utilities import (  # noqa: E402
 )
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
-_ADR_PATTERN = re.compile(r"ADR-\d+\.md$", re.IGNORECASE)
+_ADR_PATTERN = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 _CANONICAL_SOURCE_PATTERN = re.compile(r"SESSION-PROTOCOL\.md$", re.IGNORECASE)
 
 _REVIEW_PATTERNS = [
@@ -112,6 +125,7 @@ This ensures 6-agent debate before ADR acceptance.
 
 def write_audit_log(message: str) -> None:
     """Write to the hook audit log for infrastructure error visibility."""
+    # audit_log_path is __file__-derived + constant filename; no user input.
     try:
         hook_dir = Path(__file__).resolve().parents[1]
         audit_log_path = hook_dir / "audit.log"

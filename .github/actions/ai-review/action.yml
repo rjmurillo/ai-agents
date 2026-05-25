@@ -818,11 +818,40 @@ runs:
         # (keywords like "CRITICAL_FAIL" in issue descriptions were being matched)
         # Fix: Use [A-Z_][A-Z_]* to require at least one character (prevents empty match)
         # Fix for Issue #575: Handle optional brackets around verdict (AI sometimes outputs VERDICT: [PASS])
-        verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\[\?\([A-Z_]*\)\]\?.*/\1/p' | tail -n 1)
+        # PR #1965 copilot 7k+7t: anchor to end-of-line so template lines like
+        # `VERDICT: [PASS|WARN|CRITICAL_FAIL]` (in axis prompts) do NOT match
+        # the first token. A template echo with `|` after the captured token
+        # fails the trailing `[[:space:]]*$` anchor and is rejected. Also
+        # uses `[A-Z_][A-Z_]*` to require at least one character (matches
+        # the comment intent: previous `[A-Z_]*` allowed empty match).
+        verdict=$(echo "$output" | sed -n 's/.*VERDICT:[[:space:]]*\[\?\([A-Z_][A-Z_]*\)\]\?[[:space:]]*$/\1/p' | tail -n 1)
+
+        # PR #1965: JSON fallback. The canonical axes instruct the agent to
+        # emit a "Structured JSON Output" block with a "verdict": "<TOKEN>"
+        # field AND a final VERDICT: line. AI agents sometimes follow the
+        # JSON-only path and skip the literal VERDICT: line, causing the
+        # sed match above to return empty. Try JSON extraction before
+        # falling back to NEEDS_REVIEW.
+        # PR #1965 copilot/cursor 7s+X3: use findall[-1] (last match wins,
+        # matching extract_verdict semantics) AND reject template forms
+        # like `"verdict": "PASS|WARN|CRITICAL_FAIL"` by requiring the
+        # captured value to be a single known token (not a `|`-separated
+        # alternation).
+        if [ -z "$verdict" ]; then
+          verdict=$(printf '%s' "$output" | python3 -c 'import re, sys; ms = re.findall(r"\"verdict\"\s*:\s*\"([A-Z_]+)\"", sys.stdin.read()); print(ms[-1] if ms else "")' 2>/dev/null || echo "")
+          if [ -n "$verdict" ]; then
+            echo "::notice::Verdict extracted from JSON 'verdict' field (no literal VERDICT: line)"
+          fi
+        fi
 
         # Validate verdict is a known token
+        # PR #1965 cursor 6s_k: include UNKNOWN so a crashed skill or
+        # axis that emits `Verdict: UNKNOWN` (the canonical "no info"
+        # token from merge_verdicts) propagates to the workflow gate
+        # rather than being coerced to NEEDS_REVIEW. Both tokens are in
+        # $blockingVerdicts; the distinction matters for diagnostics.
         case "$verdict" in
-          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL)
+          PASS|WARN|CRITICAL_FAIL|REJECTED|COMPLIANT|NON_COMPLIANT|PARTIAL|FAIL|NEEDS_REVIEW|UNKNOWN)
             # Valid verdict token - use as-is
             ;;
           *)
@@ -850,11 +879,15 @@ runs:
         milestone=$(echo "$output" | sed -n 's/.*MILESTONE:[[:space:]]*\([^[:space:]]*\).*/\1/p' | head -1)
 
         # Determine exit code based on verdict
-        # Failure verdicts: CRITICAL_FAIL, REJECTED, FAIL, NON_COMPLIANT, NEEDS_REVIEW
+        # Failure verdicts (block): CRITICAL_FAIL, REJECTED, FAIL,
+        # NON_COMPLIANT, NEEDS_REVIEW, UNKNOWN. UNKNOWN added per PR #1965
+        # cursor 6yn7: it sits in $blockingVerdicts in the workflow gate,
+        # so the action's exit_code output must agree, otherwise consumers
+        # of the action see a contradictory pass/block signal.
         # Pass/warning verdicts: PASS, WARN, COMPLIANT, PARTIAL
         exit_code=0
         case "$verdict" in
-          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW)
+          CRITICAL_FAIL|REJECTED|FAIL|NON_COMPLIANT|NEEDS_REVIEW|UNKNOWN)
             exit_code=1
             ;;
         esac

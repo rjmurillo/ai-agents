@@ -4,7 +4,7 @@ Validates that extract_context_retrieval_data() and collect_metrics()
 from measure_context_retrieval_metrics.py correctly parse session logs
 with known classification data.
 
-See: src/copilot-cli/orchestrator.agent.md Step 3.5
+See: src/copilot-cli/agents/orchestrator.agent.md Step 3.5
 See: tests/eval_scenarios/step35_scenarios.json
 """
 
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -23,13 +24,14 @@ from scripts.measure_context_retrieval_metrics import (
 SCENARIOS_PATH = Path(__file__).parent / "eval_scenarios" / "step35_scenarios.json"
 
 
-def _load_unit_scenarios() -> list[dict]:
+def _load_unit_scenarios() -> list[dict[str, Any]]:
     """Load unit test scenarios from shared JSON file."""
     data = json.loads(SCENARIOS_PATH.read_text(encoding="utf-8"))
-    return data["unit_scenarios"]
+    scenarios: list[dict[str, Any]] = data["unit_scenarios"]
+    return scenarios
 
 
-def _build_session_log(scenario: dict) -> dict:
+def _build_session_log(scenario: dict[str, Any]) -> dict[str, Any]:
     """Build a synthetic session log JSON from a scenario definition.
 
     The session log mirrors the structure parsed by
@@ -61,7 +63,7 @@ _SCENARIO_IDS = [s["id"] for s in _UNIT_SCENARIOS]
 class TestExtractContextRetrievalData:
     """Verify extract_context_retrieval_data against each scenario."""
 
-    def test_invocation_status(self, scenario: dict, tmp_path: Path) -> None:
+    def test_invocation_status(self, scenario: dict[str, Any], tmp_path: Path) -> None:
         """The invoked field matches the expected decision."""
         session_log = _build_session_log(scenario)
         session_file = tmp_path / f"{scenario['id']}.json"
@@ -85,7 +87,7 @@ class TestExtractContextRetrievalData:
             f"got {record.invoked}"
         )
 
-    def test_classification_fields(self, scenario: dict, tmp_path: Path) -> None:
+    def test_classification_fields(self, scenario: dict[str, Any], tmp_path: Path) -> None:
         """Classification fields are correctly extracted."""
         if scenario.get("classification") is None:
             pytest.skip("No classification data in this scenario")
@@ -103,7 +105,7 @@ class TestExtractContextRetrievalData:
         assert record.confidence == cls["classification_confidence"]
         assert record.user_requested is cls["user_requested_context"]
 
-    def test_session_id_from_filename(self, scenario: dict, tmp_path: Path) -> None:
+    def test_session_id_from_filename(self, scenario: dict[str, Any], tmp_path: Path) -> None:
         """Session ID is derived from the filename stem."""
         if scenario.get("classification") is None:
             pytest.skip("No classification data in this scenario")

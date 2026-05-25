@@ -144,7 +144,7 @@ flowchart TD
     subgraph Sources["Source Files"]
         SC[src/claude/*.md]
         SV[src/vs-code-agents/*.agent.md]
-        SCP[src/copilot-cli/*.agent.md]
+        SCP[src/copilot-cli/agents/*.agent.md]
         MCP[.mcp.json]
     end
 
@@ -162,7 +162,7 @@ flowchart TD
     style Scripts fill:#fff3e0
 ```
 
-> **Note**: Agent installation is handled by [skill-installer](https://github.com/rjmurillo/skill-installer).
+> **Note**: Agent installation is handled through each tool's native marketplace support.
 > See [docs/installation.md](../docs/installation.md) for installation instructions.
 
 ## Agent Catalog

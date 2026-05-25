@@ -6,6 +6,14 @@ export interface BundleEntry {
 export interface TargetContext {
   readonly targetDir: string;
   readonly force: boolean;
+  readonly dryRun: boolean;
+}
+
+export interface VersionPin {
+  readonly version: string;
+  readonly manifestHash: string;
+  readonly installedAt: string;
+  readonly source: string;
 }
 
 export interface BundleSource {

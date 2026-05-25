@@ -176,7 +176,7 @@ class TestMainBlockPath:
 
 
 class TestMainFailOpen:
-    @patch("invoke_session_log_guard.is_git_commit_command", side_effect=Exception("boom"))
+    @patch("invoke_session_log_guard.is_session_logged_command", side_effect=Exception("boom"))
     @patch("invoke_session_log_guard.sys.stdin", new_callable=StringIO)
     def test_failopen_on_exception(
         self,

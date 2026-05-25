@@ -121,6 +121,25 @@ class TestRunValidation:
         assert result is False
         assert state.failed == 1
 
+    def test_missing_script_skip_does_not_fail(self) -> None:
+        """MissingScriptSkip should be reported as SKIP, not FAIL.
+
+        Regression guard for issue #1850: pre_pr.py must not produce FAIL
+        lines for PowerShell scripts expunged per ADR-042.
+        """
+        from scripts.validation.pre_pr import MissingScriptSkip
+
+        def raise_skip() -> bool:
+            raise MissingScriptSkip("Some-Validator.ps1 not present")
+
+        state = ValidationState()
+        result = run_validation("Test Check", state, raise_skip)
+        assert result is True  # SKIP must not block the gate
+        assert state.skipped == 1
+        assert state.failed == 0
+        assert state.passed == 0
+        assert state.results[0].status == "SKIP"
+
     def test_records_duration(self) -> None:
         state = ValidationState()
         run_validation("Test Check", state, lambda: True)
@@ -151,15 +170,19 @@ class TestValidateSessionEnd:
         result = validate_session_end(tmp_path)
         assert result is True
 
-    def test_missing_script_returns_false(self, tmp_path: Path) -> None:
+    def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import MissingScriptSkip
+
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         (sessions / "2025-12-01-session-1.md").write_text("log", encoding="utf-8")
-        # scripts/Validate-Session.ps1 does not exist
+        # scripts/Validate-Session.ps1 does not exist (ADR-042 expungement).
         (tmp_path / "scripts").mkdir(exist_ok=True)
 
-        result = validate_session_end(tmp_path)
-        assert result is False
+        import pytest
+
+        with pytest.raises(MissingScriptSkip):
+            validate_session_end(tmp_path)
 
 
 # ---------------------------------------------------------------------------
@@ -381,3 +404,128 @@ class TestMain:
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
         assert result in (0, 1)
+
+
+# ---------------------------------------------------------------------------
+# validate_dash_prohibition (Issue #1923, REQ-006-AC7, M4)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateDashProhibition:
+    """Tests for the branch-wide em/en-dash check."""
+
+    def test_returns_true_when_no_base_ref_resolves(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        # tmp_path is not a git repo; no ref will resolve.
+        assert validate_dash_prohibition(tmp_path) is True
+
+    def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.side_effect = [
+                (0, "README.md\n", ""),  # git diff
+                (0, "clean content\n", ""),  # git show
+            ]
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_returns_false_on_em_dash(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        # _find_dash_violations now reads HEAD content via `git show`
+        # rather than the working tree. Mock the two subprocess calls
+        # in order: (1) git diff returns the file list, (2) git show
+        # returns the file content as if from HEAD.
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.side_effect = [
+                (0, "doc.md\n", ""),  # git diff
+                (0, f"prose with {chr(0x2014)} em-dash\n", ""),  # git show
+            ]
+            assert validate_dash_prohibition(tmp_path) is False
+
+    def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.side_effect = [
+                (0, "range.md\n", ""),
+                (0, f"range 1{chr(0x2013)}10\n", ""),
+            ]
+            assert validate_dash_prohibition(tmp_path) is False
+
+    def test_skips_vendored_paths(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        vendored = tmp_path / "node_modules" / "pkg" / "README.md"
+        vendored.parent.mkdir(parents=True)
+        vendored.write_text(f"upstream prose with {chr(0x2014)} dash\n", encoding="utf-8")
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_skips_test_fixtures_dir(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        fixture = tmp_path / "tests" / "hooks" / "fixtures" / "dash_violations.md"
+        fixture.parent.mkdir(parents=True)
+        fixture.write_text(f"intentional {chr(0x2014)}\n", encoding="utf-8")
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_includes_github_instructions_tree(self, tmp_path: Path) -> None:
+        """REQ-006-AC4: .github/instructions/ is NOT excluded."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.side_effect = [
+                (0, ".github/instructions/universal.instructions.md\n", ""),
+                (0, f"prose {chr(0x2014)} dash\n", ""),
+            ]
+            assert validate_dash_prohibition(tmp_path) is False
+
+    def test_returns_true_when_git_diff_fails(self, tmp_path: Path) -> None:
+        """Fail open on git subprocess failure (do not block on infra issues)."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (128, "", "fatal: bad revision")
+            assert validate_dash_prohibition(tmp_path) is True
+
+    def test_reads_head_content_not_working_tree(self, tmp_path: Path) -> None:
+        """`_find_dash_violations` reads HEAD via `git show`, not the working tree.
+
+        Working-tree edit could differ from committed content. The branch-wide
+        scan must reflect what is committed (HEAD), since the diff scope
+        comes from `git diff base...HEAD`.
+        """
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        # Working tree clean, but HEAD content (mocked) has em-dash:
+        # the function MUST flag it.
+        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
+             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_ref.return_value = "origin/main"
+            mock_run.side_effect = [
+                (0, "doc.md\n", ""),
+                # HEAD content has dash; working tree (clean) does not.
+                (0, f"committed em-dash {chr(0x2014)} here\n", ""),
+            ]
+            # No file at tmp_path/doc.md (working tree). Function should
+            # still detect the violation because it reads HEAD content.
+            assert validate_dash_prohibition(tmp_path) is False

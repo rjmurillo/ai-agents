@@ -39,7 +39,7 @@ Key requirements:
 
 **Keywords**: PR, Comments, Review, Triage, Feedback, Reviewers, Resolution, Thread, Commits, Acknowledgment, Context, Bot, Actionable, Classification, Implementation, Reply, Track, Map, Addressed, Conversation
 
-**Summon**: I need a PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. You triage by actionability, track thread conversations, and map each comment to a resolution status. Classify each comment—quick fix, standard, or strategic—then delegate appropriately. Leave no comment unaddressed, no reviewer ignored.
+**Summon**: I need a PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. You triage by actionability, track thread conversations, and map each comment to a resolution status. Classify each comment, quick fix, standard, or strategic, then delegate appropriately. Leave no comment unaddressed, no reviewer ignored.
 
 ## Claude Code Tools
 
@@ -782,7 +782,7 @@ Save to: `.agents/pr-comments/PR-[number]/comments.md`
 
 ````
 
-**Critical**: Each comment is analyzed and routed independently. Do not merge, combine, or aggregate comments that touch the same file—even if 10 comments reference the same line. Each gets its own triage path (Quick Fix, Standard, or Strategic) and task. Comment independence prevents grouping-bias errors.
+**Critical**: Each comment is analyzed and routed independently. Do not merge, combine, or aggregate comments that touch the same file, even if 10 comments reference the same line. Each gets its own triage path (Quick Fix, Standard, or Strategic) and task. Comment independence prevents grouping-bias errors.
 
 ### Phase 3: Analysis (Delegate to Orchestrator)
 
@@ -1648,4 +1648,4 @@ This agent primarily delegates to **orchestrator**. Direct handoffs:
 4. **Incomplete verification**: Always verify all comments addressed
 5. **Skipping acknowledgment**: Always react with eyes emoji first
 6. **Orphaned PRs**: Clean up unnecessary bot-created PRs
-7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments—this places replies out of context as top-level comments instead of in-thread. Use `/pulls/{pull_number}/comments` with `in_reply_to`
+7. **Wrong reply API**: Never use `/issues/{number}/comments` to reply to review comments, this places replies out of context as top-level comments instead of in-thread. Use `/pulls/{pull_number}/comments` with `in_reply_to`
