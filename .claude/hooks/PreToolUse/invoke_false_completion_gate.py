@@ -40,6 +40,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -155,30 +156,73 @@ def _extract_commit_message_file(command: str) -> str | None:
     return None
 
 
+def _allowed_temp_roots() -> tuple[Path, ...]:
+    """Trusted root directories where absolute message-file paths are allowed.
+
+    ``gh pr create --body-file`` and ``git commit -F`` are commonly invoked with
+    paths under ``$TMPDIR`` (or ``/tmp`` on POSIX); refusing those silently
+    bypasses the gate. The allowlist mirrors the pattern used by
+    ``src/copilot-cli/lib/github_core/validation.py:assert_valid_body_file``
+    (repo root plus temp roots), narrowed to read-only inspection here.
+    """
+    roots: list[Path] = []
+    tmp_env = os.environ.get("TMPDIR")
+    if tmp_env:
+        try:
+            roots.append(Path(tmp_env).resolve())
+        except OSError:
+            pass
+    try:
+        roots.append(Path(tempfile.gettempdir()).resolve())
+    except OSError:
+        pass
+    for fixed in ("/tmp", "/var/tmp"):
+        try:
+            roots.append(Path(fixed).resolve())
+        except OSError:
+            pass
+    # Deduplicate while preserving order.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for root in roots:
+        if root not in seen:
+            seen.add(root)
+            unique.append(root)
+    return tuple(unique)
+
+
+def _is_within(candidate: Path, root: Path) -> bool:
+    """Return True when ``candidate`` resolves inside ``root``."""
+    try:
+        candidate.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
 def _read_commit_message_file(filepath: str) -> str | None:
     """Read the contents of a commit message file.
 
     Returns the file contents if readable, otherwise None.
 
-    Security: Applies CWE-22 path traversal containment. Rejects absolute
-    paths and resolved paths that escape the project root via `..` segments.
+    Security: Applies CWE-22 path traversal containment. Relative paths must
+    resolve inside the project root. Absolute paths are allowed only when they
+    resolve inside the project root or a trusted temp root (``$TMPDIR``,
+    ``tempfile.gettempdir()``, ``/tmp``, ``/var/tmp``); anything outside those
+    is rejected so callers cannot point the gate at arbitrary filesystem
+    locations.
     """
     try:
         project_root = Path(get_project_directory()).resolve()
         path = Path(filepath)
 
-        # Reject absolute paths outright (CWE-22 containment)
         if path.is_absolute():
-            return None
+            resolved = path.resolve()
+        else:
+            resolved = (project_root / path).resolve()
 
-        # Resolve relative path against project root
-        resolved = (project_root / path).resolve()
-
-        # Ensure resolved path is within project root (prevents .. escape)
-        try:
-            resolved.relative_to(project_root)
-        except ValueError:
-            # Path escapes project root
+        trusted_roots = (project_root, *_allowed_temp_roots())
+        if not any(_is_within(resolved, root) for root in trusted_roots):
             return None
 
         if resolved.is_file():
@@ -258,12 +302,18 @@ def _resolve_pr_base_branch() -> str | None:
     caller can fall back to staged changes.
 
     Note: We intentionally skip ``@{u}`` (upstream tracking) because after
-    ``git push -u origin feature-branch``, it resolves to ``origin/feature-branch``
-    — the push target, not the PR merge target (e.g., ``main``).
+    ``git push -u origin feature-branch``, it resolves to ``origin/feature-branch``,
+    which is the push target, not the PR merge target (e.g., ``main``).
     """
 
+    # If git itself is unhealthy (index lock, slow FS), `_run_git` returns
+    # None on timeout. Each call costs up to ``_GIT_TIMEOUT_SECONDS`` and the
+    # outer hook budget is 5s; treat a single timeout/error as a signal to
+    # stop probing and let the caller fall back to the staged diff.
     head_ref = _run_git(["symbolic-ref", "refs/remotes/origin/HEAD"])
-    if head_ref and head_ref.returncode == 0:
+    if head_ref is None:
+        return None
+    if head_ref.returncode == 0:
         ref = head_ref.stdout.strip()
         if ref:
             return ref.removeprefix("refs/remotes/")
@@ -271,7 +321,9 @@ def _resolve_pr_base_branch() -> str | None:
     for default_branch in ("origin/main", "origin/master", "origin/develop",
                            "main", "master", "develop"):
         rev = _run_git(["rev-parse", "--verify", "--quiet", default_branch])
-        if rev and rev.returncode == 0:
+        if rev is None:
+            return None
+        if rev.returncode == 0:
             return default_branch
     return None
 
