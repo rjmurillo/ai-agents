@@ -16,7 +16,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 - [ ] **M1: Stable-zero wrapper (hardened)** , `.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py`. Polls existing pagination-correct script; requires 3 consecutive zero readings ≥180s apart (not 2x60s); argv-vector subprocess call (CWE-78); integration test with real-pagination fixture.
 - [ ] **M2: applyTo glob extension (repriced)** , `.claude/rules/canonical-source-mirror.md` extends glob to cover `.claude/review-axes/**` and `.github/prompts/**`. Contract test handles string-vs-list applyTo coercion via fnmatch.
 - [ ] **M3: Co-change-checklist (auto-detect + opt-in)** , `.claude/commands/spec.md` Step 6 emits checklist on (a) proposer-flagged multi-site change OR (b) auto-detected token literal patterns in diff scope.
-- [ ] **M4: Rework warning (calibrated)** , `.claude/skills/session-end/scripts/complete_session_log.py` emits warning for files edited 6+ times. Includes `--diff-filter=R` rename detection, excludes generated patterns (`*.session.json`, `src/claude/`).
+- [ ] **M4: Rework warning (calibrated)** , `.claude/skills/session-end/scripts/complete_session_log.py` emits warning for files edited 6+ times. Uses `git log --name-status -M` for rename tracking (the shipped form; `--diff-filter=R` was rejected because it restricts output to renames only and would erase the rework signal), excludes generated patterns (`*.session.json`, `src/claude/`).
 - [ ] **M5: Bot-cascade pre-push warning (NEW)** , `.githooks/pre-push` warns (not blocks) when current PR has unresolved bot threads or recent bot reviews. Closes the retro's highest-leverage gap (~20 commits saved).
 
 ## Milestones
@@ -27,7 +27,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 
 **Tasks (atomic, S/M/L):**
 - T1.1 (M, ~1.5h): create `wait_for_unresolved_zero.py` with argv-vector subprocess call, 180s default interval, 3-reading default, CLI flags per ADR-035 exit codes
-- T1.2 (M, ~1h): unit tests (subprocess.run stub) for bot-settle scenario `[0, 3, 0, 0]` requiring reading 4
+- T1.2 (M, ~1h): unit tests (subprocess.run stub) for the 3-reading bot-settle contract; the implemented rule needs three consecutive zero readings, so a `[0, 3, 0, 0, 0]` sequence settles at reading 5 (reading 2 resets the streak; readings 3, 4, 5 form the first complete-and-zero triple)
 - T1.3 (S, ~0.5h): integration test against multi-page GraphQL fixture (real pagination, not stubbed subprocess)
 - T1.4 (S, ~0.5h): test for `fetched_pages_complete=false` rejection on first zero reading
 - T1.5 (S, ~0.5h): test for max-wait timeout exits 1 with `settled=false`
@@ -86,7 +86,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 **Purpose.** Surface 56-edit-`scan.py`-class loops before submission. Calibrated against PR #1965 actual edit cycles.
 
 **Tasks:**
-- T4.1 (M, ~1h): extend `complete_session_log.py` to walk `git log --name-only --diff-filter=R` against branch base, count per-file edits collapsing renames, exclude `*.session.json` + `src/claude/` generated patterns
+- T4.1 (M, ~1h): extend `complete_session_log.py` to walk `git log --name-status -M` against branch base, count per-file edits collapsing renames (the shipped form drops the rejected `--diff-filter=R` which would have restricted output to renames only), exclude `*.session.json` + `src/claude/` generated patterns
 - T4.2 (M, ~45m): test `tests/skills/session-end/test_rework_warning.py` against stubbed git log fixtures (one file at 6 edits, one at 3, one renamed mid-branch)
 - T4.3 (S, ~15m): emit `rework-warning: none` line on no warnings (per REQ-009-08)
 - T4.4 (S, ~30m): document threshold-6 as starter calibration with 30-invocation kill-criteria review (mirrors Step 0 gate kill criteria)
