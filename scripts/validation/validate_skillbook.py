@@ -360,6 +360,17 @@ def main(argv: list[str] | None = None) -> int:
     except json.JSONDecodeError as exc:
         print(f"Error: invalid JSON: {exc}", file=sys.stderr)
         return EXIT_CONFIG
+    except ValueError as exc:
+        # Path-traversal guard in SchemaChecker._load_ref_file raises
+        # ValueError when a $ref escapes the schema directory. ADR-035
+        # classifies this as a configuration error (EXIT_CONFIG=2).
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    except OSError as exc:
+        # IsADirectoryError, PermissionError, and other I/O failures while
+        # reading a $ref target. ADR-035: configuration error (2).
+        print(f"Error: failed to read referenced schema: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
 
     if errors:
         print(f"Skillbook validation FAILED with {len(errors)} error(s):")

@@ -310,3 +310,77 @@ class TestValidatorMain:
             ["--skillbook-dir", str(skillbook), "--schema-dir", str(_SCHEMA_DIR)]
         )
         assert exit_code == EXIT_LOGIC
+
+    def test_exit_config_on_path_traversal_value_error(
+        self, write_skillbook: Any, tmp_path: Path
+    ) -> None:
+        # When SchemaChecker._load_ref_file raises ValueError (path traversal
+        # guard, CWE-22), main() must catch it and exit with EXIT_CONFIG (2)
+        # per ADR-035, not crash with a Python traceback. Reach this branch by
+        # writing a custom schema dir whose policy.schema.json uses a $ref with
+        # `..` segments that escape the schema directory.
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        # Minimal policy schema that $refs an outside path.
+        (schema_dir / "policy.schema.json").write_text(
+            json.dumps(
+                {
+                    "type": "object",
+                    "properties": {
+                        "policies": {
+                            "type": "array",
+                            "items": {"$ref": "../outside.json"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        # Tension and workflow schemas: empty pass-through objects.
+        (schema_dir / "tension.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        (schema_dir / "workflow.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        skillbook = write_skillbook(policies=[make_policy()])
+        exit_code = main(
+            ["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)]
+        )
+        assert exit_code == EXIT_CONFIG
+
+    def test_exit_config_on_os_error_from_ref(
+        self, write_skillbook: Any, tmp_path: Path
+    ) -> None:
+        # When _load_ref_file raises OSError (e.g. IsADirectoryError because
+        # the $ref points at a directory), main() must catch it and return
+        # EXIT_CONFIG (2), not crash. Reach this branch by writing a schema
+        # whose $ref names a subdirectory that exists inside the schema dir.
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        (schema_dir / "sub").mkdir()
+        (schema_dir / "policy.schema.json").write_text(
+            json.dumps(
+                {
+                    "type": "object",
+                    "properties": {
+                        "policies": {
+                            "type": "array",
+                            "items": {"$ref": "sub"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (schema_dir / "tension.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        (schema_dir / "workflow.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        skillbook = write_skillbook(policies=[make_policy()])
+        exit_code = main(
+            ["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)]
+        )
+        assert exit_code == EXIT_CONFIG
