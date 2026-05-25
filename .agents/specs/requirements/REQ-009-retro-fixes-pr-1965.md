@@ -3,8 +3,8 @@ type: requirement
 id: REQ-009
 title: Retro fixes from PR #1965 (rework + contract drift)
 status: draft
-priority: high
-category: tooling
+priority: P1
+category: non-functional
 related:
   - DESIGN-009
   - TASK-009
@@ -67,7 +67,7 @@ All four fixes scale linearly with PR volume; none becomes a liability at 10x gr
 
 ---
 
-## Prior Art and Constraints
+## Prior Art / Constraints
 
 ### Direct prior art from memory
 

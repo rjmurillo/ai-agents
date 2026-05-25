@@ -4,6 +4,16 @@ applyTo: scripts/validation/**,build/scripts/**,.github/prompts/**
 
 # Canonical Source Mirror Rule
 
+> **Note on `applyTo` scope (PR #1989 review):** The canonical rule at
+> `.claude/rules/canonical-source-mirror.md` binds `.claude/hooks/**`,
+> `.claude/skills/**`, `.claude/review-axes/**`, `scripts/validation/**`,
+> `build/scripts/**`, and `.github/prompts/**`. This Copilot mirror omits
+> the `.claude/**` entries by design: `build/scripts/generate_rules.py`
+> drops internal-only globs because the GitHub Copilot runtime cannot
+> resolve paths under `.claude/`. The rule body still describes all
+> bound paths; only the YAML glob is narrowed to those the Copilot
+> runtime can match against.
+
 When a component's docstring, comment, or README claims to "match", "mirror", "align with", or "extend" an existing source (a regex, a schema, a function signature, a set of exit codes, a JSON contract), the claim is a load-bearing assertion. The reader trusts it. So does the reviewer. So does the next maintainer who replays the contract from your code instead of from the source.
 
 This rule binds those claims to evidence. It exists because PR #1887 (the M4 evidence-rule guard) was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py:CONTRADICTION_PATTERNS` regex. The error survived several reviews. Aligning M4 to canonical took 7 fix commits. The retrospective at `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` names this anti-pattern "confident incorrectness": partial signal, premature conclusion, confident delivery, multi-round correction.

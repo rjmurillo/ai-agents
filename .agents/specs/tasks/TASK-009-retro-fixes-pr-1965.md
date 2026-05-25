@@ -2,9 +2,9 @@
 type: task
 id: TASK-009
 title: Retro fixes from PR #1965 (rework + contract drift)
-status: draft
-priority: high
-complexity: Tier-2
+status: todo
+priority: P1
+complexity: M
 related:
   - REQ-009
   - DESIGN-009

@@ -13,11 +13,11 @@
 
 Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md` after critic NEEDS-REVISION pass on the initial 4-milestone draft.
 
-- [ ] **M1: Stable-zero wrapper (hardened)** — `.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py`. Polls existing pagination-correct script; requires 3 consecutive zero readings ≥180s apart (not 2x60s); argv-vector subprocess call (CWE-78); integration test with real-pagination fixture.
-- [ ] **M2: applyTo glob extension (repriced)** — `.claude/rules/canonical-source-mirror.md` extends glob to cover `.claude/review-axes/**` and `.github/prompts/**`. Contract test handles string-vs-list applyTo coercion via fnmatch.
-- [ ] **M3: Co-change-checklist (auto-detect + opt-in)** — `.claude/commands/spec.md` Step 6 emits checklist on (a) proposer-flagged multi-site change OR (b) auto-detected token literal patterns in diff scope.
-- [ ] **M4: Rework warning (calibrated)** — `.claude/skills/session-end/scripts/complete_session_log.py` emits warning for files edited 6+ times. Includes `--diff-filter=R` rename detection, excludes generated patterns (`*.session.json`, `src/claude/`).
-- [ ] **M5: Bot-cascade pre-push warning (NEW)** — `.githooks/pre-push` warns (not blocks) when current PR has unresolved bot threads or recent bot reviews. Closes the retro's highest-leverage gap (~20 commits saved).
+- [ ] **M1: Stable-zero wrapper (hardened)** , `.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py`. Polls existing pagination-correct script; requires 3 consecutive zero readings ≥180s apart (not 2x60s); argv-vector subprocess call (CWE-78); integration test with real-pagination fixture.
+- [ ] **M2: applyTo glob extension (repriced)** , `.claude/rules/canonical-source-mirror.md` extends glob to cover `.claude/review-axes/**` and `.github/prompts/**`. Contract test handles string-vs-list applyTo coercion via fnmatch.
+- [ ] **M3: Co-change-checklist (auto-detect + opt-in)** , `.claude/commands/spec.md` Step 6 emits checklist on (a) proposer-flagged multi-site change OR (b) auto-detected token literal patterns in diff scope.
+- [ ] **M4: Rework warning (calibrated)** , `.claude/skills/session-end/scripts/complete_session_log.py` emits warning for files edited 6+ times. Includes `--diff-filter=R` rename detection, excludes generated patterns (`*.session.json`, `src/claude/`).
+- [ ] **M5: Bot-cascade pre-push warning (NEW)** , `.githooks/pre-push` warns (not blocks) when current PR has unresolved bot threads or recent bot reviews. Closes the retro's highest-leverage gap (~20 commits saved).
 
 ## Milestones
 
