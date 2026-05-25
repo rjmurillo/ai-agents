@@ -31,6 +31,20 @@ describe("computeManifestHash", () => {
     const hash = computeManifestHash(["a", "b"]);
     expect(hash).toMatch(/^[0-9a-f]{16}$/);
   });
+
+  test("does not mutate caller-provided array", () => {
+    const entries = ["z", "a", "m"];
+    const snapshot = [...entries];
+    computeManifestHash(entries);
+    expect(entries).toEqual(snapshot);
+  });
+
+  test("distinguishes boundary-collision splits", () => {
+    // Without length prefixing, ["ab","c"] and ["a","bc"] hash identically.
+    const a = computeManifestHash(["ab", "c"]);
+    const b = computeManifestHash(["a", "bc"]);
+    expect(a).not.toBe(b);
+  });
 });
 
 describe("writeVersionPin", () => {

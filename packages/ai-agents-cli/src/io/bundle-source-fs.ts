@@ -1,5 +1,5 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import type { BundleEntry, BundleSource } from "../types.js";
 
 export class FsBundleSource implements BundleSource {
@@ -25,8 +25,11 @@ export class FsBundleSource implements BundleSource {
         yield* this.walk(fullPath);
       } else if (entry.isFile()) {
         const info = await stat(fullPath);
+        // Normalize to forward slashes so downstream prefix checks
+        // (e.g., startsWith("skills/")) behave identically on Windows.
+        const rel = relative(this.assetsDir, fullPath);
         yield {
-          relativePath: relative(this.assetsDir, fullPath),
+          relativePath: sep === "/" ? rel : rel.split(sep).join("/"),
           size: info.size,
         };
       }

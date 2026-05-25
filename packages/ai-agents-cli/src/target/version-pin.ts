@@ -5,8 +5,14 @@ import type { VersionPin } from "../types.js";
 
 export function computeManifestHash(entries: string[]): string {
   const hash = createHash("sha256");
-  for (const entry of entries.sort()) {
+  // Copy before sort so we do not mutate caller-owned arrays.
+  // Length-prefix + NUL terminator so distinct splits like
+  // ["ab","c"] and ["a","bc"] hash to different values.
+  for (const entry of [...entries].sort()) {
+    hash.update(String(entry.length));
+    hash.update(":");
     hash.update(entry);
+    hash.update("\0");
   }
   return hash.digest("hex").slice(0, 16);
 }
