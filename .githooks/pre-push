@@ -219,6 +219,13 @@ echo_info "Pre-push validation: $FILE_COUNT files in push range"
 # Filter changed files by type
 CHANGED_MD=$(echo "$CHANGED_FILES" | grep -E '\.md$' || true)
 CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
+# Issue #2045: scripts/sync_plugin_lib.py keeps three packages in sync across
+# three locations (scripts/, .claude/lib/, src/copilot-cli/lib/): ai_review_common,
+# hook_utilities, and github_core. CI gates each copy in isolation, but
+# mypy/pytest at workspace root reject duplicate module names. Filter all synced
+# copies out for tools that walk imports; canonical (scripts/<pkg>/) is still
+# type-checked + tested.
+CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
@@ -404,14 +411,18 @@ else
 fi
 
 # 7. Python type check (mypy) - BLOCKING
-if [ -n "$CHANGED_PY" ]; then
+# Issue #2045: use CHANGED_PY_CANONICAL to drop synced ai_review_common copies;
+# mypy at workspace root refuses duplicate module names. Canonical copy still
+# gets type-checked when its files change, and sync_plugin_lib.py guarantees
+# the synced copies are byte-identical.
+if [ -n "$CHANGED_PY_CANONICAL" ]; then
     if command -v mypy &> /dev/null; then
         PY_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
             [ -L "$file" ] && continue
             [ -f "$file" ] && PY_FILES+=("$file")
-        done <<< "$CHANGED_PY"
+        done <<< "$CHANGED_PY_CANONICAL"
 
         if [ ${#PY_FILES[@]} -gt 0 ]; then
             MYPY_OUTPUT=$(mktemp)
@@ -695,11 +706,21 @@ fi
     record_skip "Pester tests (retired, use pytest)"
 
     # 14. Python tests (pytest)
-    if [ -n "$CHANGED_PY" ]; then
+    # Issue #2045: gate on canonical changes and pass --ignore for all synced
+    # copies (ai_review_common, hook_utilities, github_core in .claude/lib/ and
+    # src/copilot-cli/lib/) so pytest collection doesn't trip duplicate-module errors.
+    if [ -n "$CHANGED_PY_CANONICAL" ]; then
         if set_python_cmd; then
             if [ -d "$REPO_ROOT/tests" ]; then
                 TEST_OUTPUT=$(mktemp)
-                if "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" -v > "$TEST_OUTPUT" 2>&1; then
+                if "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
+                    --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \
+                    --ignore="$REPO_ROOT/.claude/lib/hook_utilities" \
+                    --ignore="$REPO_ROOT/.claude/lib/github_core" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/ai_review_common" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/hook_utilities" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/github_core" \
+                    -v > "$TEST_OUTPUT" 2>&1; then
                     rm -f "$TEST_OUTPUT"
                     record_pass "Python tests (pytest)"
                 else
@@ -960,7 +981,7 @@ fi
 # ============================================================================
 echo_phase "Phase 5b: Review-axes drift detection"
 
-# Detect drift between .claude/review-axes/{role}.md (canonical) and
+# Detect drift between .claude/skills/review/references/{role}.md (canonical) and
 # .github/prompts/pr-quality-gate-{role}.md (generated). Bypassable via
 # --no-verify; the CI workflow drift-check job is the non-bypassable backstop.
 # Use set_python_cmd (uv-aware) for consistency with other phases. PR #1965

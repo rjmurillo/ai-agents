@@ -189,7 +189,7 @@ jobs:
 # This job is the non-bypassable backstop. It runs the canonical-to-CI
 # generator in --dry-run mode and fails the build if any committed
 # .github/prompts/pr-quality-gate-{role}.md differs from what the canonical
-# .claude/review-axes/{role}.md would produce.
+# .claude/skills/review/references/{role}.md would produce.
 
   review-axes-drift-check:
     name: Review-axes drift check

@@ -806,7 +806,7 @@ SKILL_VALIDATOR="$REPO_ROOT/.claude/skills/SkillForge/scripts/validate-skill.py"
 # the same reason; this filter is the validator-level analogue.
 STAGED_SKILL_FILES=$(echo "$STAGED_FILES" \
     | grep -E '/SKILL\.md$' \
-    | grep -v -E '^src/copilot-cli/skills/(spec|plan|build|test|review|ship)/SKILL\.md$' \
+    | grep -v -E '^src/copilot-cli/skills/(spec|plan|build|test|ship)/SKILL\.md$' \
     || true)
 
 if [ -n "$STAGED_SKILL_FILES" ]; then
