@@ -355,6 +355,21 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
 def main() -> int:
     """Generate retrospective on session stop."""
+    # Drain stdin FIRST, before any early-exit branches. Sibling hook
+    # invoke_false_completion_gate.py documents the same constraint: leaving
+    # stdin unread can surface as EPIPE or SIGPIPE on the harness side if its
+    # pipe buffer is full. The other lifecycle hooks introduced in this PR
+    # (invoke_context_loader, invoke_compact_checkpoint, invoke_plan_state_sync)
+    # all drain immediately after the TTY check.
+    if not sys.stdin.isatty():
+        try:
+            sys.stdin.read()
+        except Exception as e:
+            print(
+                f"[hook-error] invoke_auto_retrospective stdin: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
+
     # Skip for consumer repos (avoid creating directories outside .agents/)
     if skip_if_consumer_repo("auto-retrospective"):
         return 0
@@ -363,15 +378,9 @@ def main() -> int:
     if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
         return 0
 
-    # Skip if stdin is TTY
+    # Skip if stdin is TTY (interactive shell, not a hook invocation)
     if sys.stdin.isatty():
         return 0
-
-    # Read stdin (consume it)
-    try:
-        sys.stdin.read()
-    except Exception as e:
-        print(f"[hook-error] invoke_auto_retrospective stdin: {type(e).__name__}: {e}", file=sys.stderr)
 
     project_dir = get_project_directory()
     if not project_dir:
@@ -397,7 +406,10 @@ def main() -> int:
             )
         return 0
 
-    # Skip trivial sessions (only considers today's work to avoid misattribution)
+    # Skip trivial sessions. is_trivial_session() prefers today's session log
+    # to avoid misattributing yesterday's work, but falls back to yesterday
+    # when no today-prefixed session exists (cross-midnight continuation).
+    # Mirrors the same precedence used by hook_utilities.get_recent_session_log.
     if is_trivial_session(project_dir):
         return 0
 
