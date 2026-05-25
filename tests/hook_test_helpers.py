@@ -38,6 +38,12 @@ def run_main_wrapper(
     """
     module_source = Path(module.__file__).read_text(encoding="utf-8")
     wrapper_marker = 'if __name__ == "__main__":'
+    if wrapper_marker not in module_source:
+        raise AssertionError(
+            f"{module.__file__!s} has no {wrapper_marker!r} block; "
+            "run_main_wrapper cannot test a fail-open contract that "
+            "does not exist. Add the wrapper or call main() directly."
+        )
     wrapper_block = wrapper_marker + module_source.rsplit(wrapper_marker, 1)[1]
 
     # Reuse the module's own globals so module-level names (HOOK_NAME,
