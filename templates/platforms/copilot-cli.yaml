@@ -20,7 +20,12 @@ artifacts:
       user-invocable: true
   rules:
     sourceDir: ".claude/rules"
-    outputDir: ".github/instructions"
+    # Dual-target: ships rules to the canonical Copilot instructions
+    # tree AND to the project-toolkit plugin tree so vendor installs
+    # via marketplace pick them up alongside agents, skills, and hooks.
+    outputDirs:
+      - ".github/instructions"
+      - "src/copilot-cli/instructions"
     sourceSuffix: ".md"
     outputSuffix: ".instructions.md"
     frontmatterRemap:
@@ -60,8 +65,11 @@ auditPolicy:
   output:
     file: "build/audit/GENERATION-AUDIT.md"
     stdoutFormat: "json"
-# Legacy keys preserved for backward-compat with existing build/generate_agents.py.
-# Will be removed after M3 migrates the agent generator to the new schema.
+# Legacy keys: still load-bearing. Consumed by build/generate_agents.py
+# (grep `platform.get("legacy")` and `legacy.get(`) for outputDir,
+# fileExtension, toolsFrom, handoffSyntax, memoryPrefix, frontmatter, and
+# the model_tiers map. Remove this block only after generate_agents.py is
+# migrated to read those values from the `artifacts.agents` stanza directly.
 legacy:
   # Issue #2052: Copilot CLI plugin loader discovers agents under
   # `agents/` only. Files at the plugin root are silently dropped.

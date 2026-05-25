@@ -18,6 +18,7 @@ from scripts.validation.pre_pr import (
     build_parser,
     main,
     run_validation,
+    validate_command_bundle_coverage,
     validate_design_review_frontmatter,
     validate_session_end,
 )
@@ -404,6 +405,143 @@ class TestMain:
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
         assert result in (0, 1)
+
+
+# ---------------------------------------------------------------------------
+# validate_command_bundle_coverage  (SPEC-005 AC-14)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateCommandBundleCoverage:
+    """Tests for the SPEC-005 bundle coverage advisory check.
+
+    Behavior contract:
+
+    - All present: returns ``True``.
+    - Any missing, ``BUNDLE_CHECK_ENFORCED`` unset / 0: returns ``True``
+      (advisory WARN, never blocks pre-PR).
+    - Any missing, ``BUNDLE_CHECK_ENFORCED=1``: returns ``False``
+      (escalates to BLOCKING).
+    - bundle_registry import failure with enforcement off: returns
+      ``True`` (advisory skip; import failure must not block pre_pr).
+    - bundle_registry import failure with enforcement on: returns
+      ``False``.
+    """
+
+    def setup_method(self) -> None:
+        """Drop any cached ``bundle_registry`` so each test sees the
+        fake from its own tmp_path (or no module, in failure tests)."""
+        import sys
+
+        sys.modules.pop("bundle_registry", None)
+
+    teardown_method = setup_method
+
+    def _make_repo(
+        self,
+        tmp_path: Path,
+        registry: list[tuple[str, str]],
+        present: set[tuple[str, str]],
+    ) -> Path:
+        """Build a fake repo root with a vendored bundle_registry and
+        ``.claude/commands/`` files for the given ``present`` pairs."""
+        # Lay out a vendored bundle_registry.py the validator can import.
+        validation_dir = tmp_path / "scripts" / "validation"
+        validation_dir.mkdir(parents=True)
+        registry_literal = ",\n    ".join(
+            f"({cmd!r}, {skill!r})" for cmd, skill in registry
+        )
+        (validation_dir / "bundle_registry.py").write_text(
+            "BUNDLE_REGISTRY = [\n    "
+            + registry_literal
+            + "\n]\n"
+            "def expected_skill_invocation(skill):\n"
+            "    return f'Skill(skill=\"{skill}\")'\n",
+            encoding="utf-8",
+        )
+
+        commands_dir = tmp_path / ".claude" / "commands"
+        commands_dir.mkdir(parents=True)
+        # Only write the command files that are 'present' in the registry.
+        # Group invocations by command file.
+        bodies: dict[str, list[str]] = {}
+        for cmd, skill in present:
+            bodies.setdefault(cmd, []).append(f'Skill(skill="{skill}")')
+        for cmd, lines in bodies.items():
+            (commands_dir / cmd).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return tmp_path
+
+    def test_all_present_returns_true(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        registry = [("spec.md", "session-init"), ("ship.md", "session-end")]
+        repo = self._make_repo(tmp_path, registry, present=set(registry))
+        monkeypatch.delenv("BUNDLE_CHECK_ENFORCED", raising=False)
+        assert validate_command_bundle_coverage(repo) is True
+
+    def test_missing_advisory_returns_true(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        registry = [("spec.md", "session-init"), ("ship.md", "session-end")]
+        repo = self._make_repo(
+            tmp_path,
+            registry,
+            present={("spec.md", "session-init")},  # ship.md missing
+        )
+        monkeypatch.delenv("BUNDLE_CHECK_ENFORCED", raising=False)
+        # Advisory: missing must NOT fail the gate.
+        assert validate_command_bundle_coverage(repo) is True
+
+    def test_missing_enforced_returns_false(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        registry = [("spec.md", "session-init"), ("ship.md", "session-end")]
+        repo = self._make_repo(
+            tmp_path,
+            registry,
+            present={("spec.md", "session-init")},  # ship.md missing
+        )
+        monkeypatch.setenv("BUNDLE_CHECK_ENFORCED", "1")
+        assert validate_command_bundle_coverage(repo) is False
+
+    def test_empty_registry_passes(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        repo = self._make_repo(tmp_path, registry=[], present=set())
+        monkeypatch.delenv("BUNDLE_CHECK_ENFORCED", raising=False)
+        assert validate_command_bundle_coverage(repo) is True
+
+    def test_import_failure_advisory_returns_true(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        """Import failure path: pre-poison ``sys.modules`` with a stub
+        that raises ``ImportError`` on attribute access, simulating a
+        broken or absent bundle_registry. Advisory mode must NOT block
+        pre_pr."""
+        import sys
+
+        class BrokenModule:
+            def __getattr__(self, name: str) -> Any:  # noqa: ANN401
+                raise ImportError(f"simulated import failure for {name}")
+
+        monkeypatch.setitem(sys.modules, "bundle_registry", BrokenModule())
+        monkeypatch.delenv("BUNDLE_CHECK_ENFORCED", raising=False)
+        assert validate_command_bundle_coverage(tmp_path) is True
+
+    def test_import_failure_enforced_returns_false(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        """Same as the advisory case but with enforcement on. Must
+        return ``False`` so pre_pr surfaces the failure."""
+        import sys
+
+        class BrokenModule:
+            def __getattr__(self, name: str) -> Any:  # noqa: ANN401
+                raise ImportError(f"simulated import failure for {name}")
+
+        monkeypatch.setitem(sys.modules, "bundle_registry", BrokenModule())
+        monkeypatch.setenv("BUNDLE_CHECK_ENFORCED", "1")
+        assert validate_command_bundle_coverage(tmp_path) is False
 
 
 # ---------------------------------------------------------------------------
