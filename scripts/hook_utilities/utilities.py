@@ -261,8 +261,6 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
 
     return _newest_by_mtime(yesterday_candidates)
 
-    return None
-
 
 def coerce_to_list(value) -> list:
     """Normalize work/outcomes to a list, regardless of session schema shape.
