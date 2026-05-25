@@ -292,8 +292,16 @@ class LazyLoadTests(unittest.TestCase):
     cannot mask the bug. A peer test in this file imports the sibling
     directly (`import rework_warning as rw`), which warms sys.modules and
     triggers attribute access on `csl.compute_rework_warning`. The check
-    that proves lazy loading is the value of `csl.compute_rework_warning`
-    BEFORE any access path triggers the load: it must be `None`.
+    that proves lazy loading is the membership of `compute_rework_warning`
+    in `vars(csl)` BEFORE any access path triggers the load: the name
+    must be absent from the module's `__dict__` (unbound). PEP 562
+    `__getattr__` binds it on demand, so `getattr(csl, ...)` would
+    falsely succeed; we inspect `vars()` directly to bypass that hook.
+
+    PR #2070 follow-up (Copilot review thread): an earlier draft of this
+    docstring said the proof was `csl.compute_rework_warning is None`,
+    which contradicts the actual check (`'compute_rework_warning' in
+    vars(csl)` is False). The docstring now matches the tested condition.
     """
 
     def _run_probe(self, post_import: str) -> tuple[int, str, str]:
