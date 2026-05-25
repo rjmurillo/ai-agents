@@ -63,7 +63,9 @@ auditPolicy:
 # Legacy keys preserved for backward-compat with existing build/generate_agents.py.
 # Will be removed after M3 migrates the agent generator to the new schema.
 legacy:
-  outputDir: "src/copilot-cli"
+  # Issue #2052: Copilot CLI plugin loader discovers agents under
+  # `agents/` only. Files at the plugin root are silently dropped.
+  outputDir: "src/copilot-cli/agents"
   fileExtension: ".agent.md"
   frontmatter:
     model: "claude-opus-4.6"
