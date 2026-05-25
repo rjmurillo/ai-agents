@@ -378,19 +378,34 @@ _MAIN_EPILOGUE_RE = _re.compile(
     _re.MULTILINE,
 )
 
+# Matches the try/except pattern: if __name__ == "__main__": try: main() ...
+# Used by fail-open hooks that wrap main() in exception handling.
+_MAIN_EPILOGUE_TRY_RE = _re.compile(
+    r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
+    r"\s+try:\s*\n"
+    r"\s+main\(\)",
+    _re.MULTILINE,
+)
+
 
 def _has_main_function_and_epilogue(body: str) -> bool:
-    """Detect the canonical ``def main(): ...; if __name__ == '__main__': sys.exit(main())`` shape.
+    """Detect scripts that define ``main()`` and invoke it from a ``__main__`` guard.
 
     When the original script declares ``def main()`` and dispatches it via
-    the standard ``if __name__ == '__main__': sys.exit(main())`` block, the
-    generated wrapper must invoke ``main()`` to surface its exit code.
-    Without this, the wrapper falls through to the trailing ``return 0``
-    and every guard always reports success regardless of validator
-    outcome.
+    a ``if __name__ == '__main__':`` block (either the canonical
+    ``sys.exit(main())`` or a try/except wrapper), the generated wrapper
+    must invoke ``main()`` to surface its exit code. Without this, the
+    wrapper falls through to the trailing ``return 0`` and every guard
+    always reports success regardless of validator outcome.
+
+    Recognized patterns:
+    - ``if __name__ == '__main__': sys.exit(main())``
+    - ``if __name__ == '__main__': try: main() except: ...``
     """
     has_main = _re.search(r"^def\s+main\s*\(", body, _re.MULTILINE) is not None
-    return has_main and _MAIN_EPILOGUE_RE.search(body) is not None
+    if not has_main:
+        return False
+    return _MAIN_EPILOGUE_RE.search(body) is not None or _MAIN_EPILOGUE_TRY_RE.search(body) is not None
 
 
 def _wrap_body_in_function(body: str) -> str:
