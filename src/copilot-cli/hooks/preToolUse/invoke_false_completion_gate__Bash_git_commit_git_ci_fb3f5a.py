@@ -281,8 +281,11 @@ def _original_main(stdin_bytes):
         re.compile(r"\d+\s+failed", re.IGNORECASE),
         re.compile(r"\bPASSED\b"),
         re.compile(r"\bFAILED\b"),
-        re.compile(r"exit[_ ]code[:\s]+\d+", re.IGNORECASE),
-        re.compile(r"exited with \d+", re.IGNORECASE),
+        # Only successful exits count as verification evidence. A failing exit
+        # (exit code: 1) alongside a pytest mention proves the run happened but
+        # does not prove completion; the gate must reject the commit claim.
+        re.compile(r"exit[_ ]code[:\s]+0\b", re.IGNORECASE),
+        re.compile(r"exited with 0\b", re.IGNORECASE),
         re.compile(r"tests?[:\s]+\d+", re.IGNORECASE),
         re.compile(r"errors?[:\s]+\d+", re.IGNORECASE),
         re.compile(r"✓|✔|✗|✘"),

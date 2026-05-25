@@ -60,13 +60,6 @@
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
-        "timeoutSec": 5,
-        "type": "command"
-      },
-      {
         "bash": "python3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
