@@ -106,6 +106,8 @@ failure_handling:
     action: "Note as infrastructure issue; may be transient"
   - type: "AI reviewer fails (code quality)"
     action: "Address findings or document acknowledgment"
+  - type: "AI reviewer security finding (CWE, OWASP, CVE)"
+    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security bot threads without a code fix. Log a tracking issue. Ref: AGENTS.md security boundaries."
   - type: "Merge conflicts"
     action: "Resolve conflicts or merge base branch"
   - type: "Behind base branch"
