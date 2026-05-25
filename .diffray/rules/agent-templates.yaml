@@ -11,7 +11,7 @@ rules:
     match:
       file_glob:
         - "src/vs-code-agents/*.agent.md"
-        - "src/copilot-cli/*.agent.md"
+        - "src/copilot-cli/agents/*.agent.md"
         - ".github/agents/*.agent.md"
 
     checklist:

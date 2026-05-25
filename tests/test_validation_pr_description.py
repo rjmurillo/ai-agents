@@ -220,6 +220,24 @@ class TestExtractMentionedFiles:
         assert "renovate.json" in result
         assert not any("actions/cache" in f for f in result)
 
+    def test_human_details_block_surfaces_file_claims(self) -> None:
+        # Regression for #1782: human-authored <details> blocks must not
+        # silently drop change claims. The validator needs to see the
+        # files inside so CRITICAL "mentioned but not in diff" still fires
+        # for genuine mismatches.
+        desc = (
+            "## Summary\n"
+            "Refactor of order processing.\n\n"
+            "<details>\n"
+            "<summary>Files changed (2)</summary>\n\n"
+            "- `packages/orders/processor.py`\n"
+            "- `packages/orders/queue.py`\n\n"
+            "</details>"
+        )
+        result = extract_mentioned_files(desc)
+        assert "packages/orders/processor.py" in result
+        assert "packages/orders/queue.py" in result
+
     def test_test_plan_section_ignored(self) -> None:
         desc = (
             "## Summary\n"
@@ -540,17 +558,209 @@ class TestExtractMentionedFiles:
 
 
 # ---------------------------------------------------------------------------
+# extract_mentioned_files: extension boundary (issue #1874)
+# ---------------------------------------------------------------------------
+
+
+class TestExtensionBoundary:
+    """Regression coverage for issue #1874.
+
+    `FILE_MENTION_PATTERNS` previously greedy-backtracked across longer
+    real extensions, producing a known shorter extension as a false
+    positive (`runs.jsonl` -> `runs.json`, `app.tsx` -> `app.ts`,
+    `module.pyc` -> `module.py`, `script.bashrc` -> `script.bash`).
+    The boundary lookahead `(?![A-Za-z0-9])` after the captured
+    extension rejects continuations that would have produced a different
+    real filename.
+    """
+
+    def test_jsonl_does_not_extract_json(self) -> None:
+        desc = "- `runs.jsonl` - 60 records"
+        result = extract_mentioned_files(desc)
+        assert "runs.json" not in result
+
+    def test_tsx_does_not_extract_ts(self) -> None:
+        desc = "Updated `app.tsx`"
+        result = extract_mentioned_files(desc)
+        assert "app.ts" not in result
+
+    def test_pyc_does_not_extract_py(self) -> None:
+        desc = "Removed stale `module.pyc`"
+        result = extract_mentioned_files(desc)
+        assert "module.py" not in result
+
+    def test_bashrc_does_not_extract_bash(self) -> None:
+        desc = "See `script.bashrc`"
+        result = extract_mentioned_files(desc)
+        assert "script.bash" not in result
+
+    def test_json_still_extracts(self) -> None:
+        desc = "Edited `foo.json`"
+        result = extract_mentioned_files(desc)
+        assert "foo.json" in result
+
+    def test_md_still_extracts(self) -> None:
+        desc = "Updated `bar.md`"
+        result = extract_mentioned_files(desc)
+        assert "bar.md" in result
+
+    def test_list_item_json_still_extracts(self) -> None:
+        desc = "- foo.json"
+        result = extract_mentioned_files(desc)
+        assert "foo.json" in result
+
+    @pytest.mark.parametrize(
+        "desc",
+        [
+            "Inline form: `runs.jsonl` here",
+            "Bold form: **runs.jsonl** here",
+            "- `runs.jsonl` list item",
+            "- runs.jsonl bare list item",
+            "Link form: [runs.jsonl] here",
+        ],
+        ids=["inline", "bold", "list-backtick", "list-bare", "link"],
+    )
+    def test_boundary_applies_to_all_four_patterns(self, desc: str) -> None:
+        """AC-9: the boundary rule must hold uniformly across all four
+        FILE_MENTION_PATTERNS variants (inline code, bold, list item,
+        markdown link)."""
+        result = extract_mentioned_files(desc)
+        assert "runs.json" not in result, (
+            f"expected boundary to reject 'runs.json' from input: {desc!r}; "
+            f"got result={result!r}"
+        )
+
+    def test_actual_file_runs_jsonl_not_extracted(self) -> None:
+        """`.jsonl` is not in `_EXT_GROUP`, so the file should not be
+        extracted at all (current scope per issue #1874 'Out of scope':
+        adding new extensions is a separate decision)."""
+        desc = "- `runs.jsonl` - generated artifact"
+        result = extract_mentioned_files(desc)
+        assert "runs.jsonl" not in result
+        assert "runs.json" not in result
+
+    # Boundary widening: underscore continuation (PR #1882 review feedback).
+    def test_underscore_continuation_does_not_extract(self) -> None:
+        """`foo.json_schema` is an identifier, not a `.json` file. The
+        boundary must reject `_` as a continuation character."""
+        desc = "Updated `foo.json_schema` constant."
+        result = extract_mentioned_files(desc)
+        assert "foo.json" not in result
+
+    def test_underscore_continuation_in_list_item(self) -> None:
+        desc = "- foo.py_old"
+        result = extract_mentioned_files(desc)
+        assert "foo.py" not in result
+
+    # Boundary widening: path-separator continuation (PR #1882 review
+    # feedback).
+    def test_forward_slash_continuation_does_not_extract(self) -> None:
+        """`- path/to/file.py/extra` should not extract `path/to/file.py`
+        because the slash signals the file has more path components."""
+        desc = "- path/to/file.py/extra"
+        result = extract_mentioned_files(desc)
+        assert "path/to/file.py" not in result
+
+    def test_backslash_continuation_does_not_extract(self) -> None:
+        """Windows-style path separator after the extension is also a
+        continuation."""
+        desc = "- src\\foo.py\\bar"
+        result = extract_mentioned_files(desc)
+        # neither the truncated nor the path-prefix-only form
+        assert "src/foo.py" not in result
+        assert "src\\foo.py" not in result
+
+    # Regression: real path with separator inside body still extracts.
+    def test_path_with_separators_still_extracts(self) -> None:
+        desc = "- packages/orders/processor.py"
+        result = extract_mentioned_files(desc)
+        assert "packages/orders/processor.py" in result
+
+
+# ---------------------------------------------------------------------------
 # _strip_informational_sections
 # ---------------------------------------------------------------------------
 
 
 class TestStripInformationalSections:
-    def test_strips_details_blocks(self) -> None:
-        text = "before\n<details>\nhidden\n</details>\nafter"
+    def test_preserves_details_block_without_summary(self) -> None:
+        # Bug #1782: a <details> block without a <summary> carries no bot
+        # marker, so contents are preserved (default: do not strip).
+        text = "before\n<details>\nkept\n</details>\nafter"
         result = _strip_informational_sections(text)
-        assert "hidden" not in result
+        assert "kept" in result
         assert "before" in result
         assert "after" in result
+
+    def test_strips_renovate_details_block(self) -> None:
+        text = (
+            "before\n"
+            "<details>\n"
+            "<summary>chore(deps): update actions/cache</summary>\n"
+            "body\n"
+            "</details>\n"
+            "after"
+        )
+        result = _strip_informational_sections(text)
+        assert "body" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_strips_dependabot_details_block(self) -> None:
+        text = (
+            "<details>\n"
+            "<summary>Bump pytest from 8.0.0 to 8.1.0</summary>\n"
+            "changelog body\n"
+            "</details>"
+        )
+        result = _strip_informational_sections(text)
+        assert "changelog body" not in result
+
+    def test_preserves_human_details_block_with_file_claims(self) -> None:
+        # Bug #1782: human-authored <details> blocks carry real change
+        # claims that must reach the validator.
+        text = (
+            "## Summary\n"
+            "Refactor.\n\n"
+            "<details>\n"
+            "<summary>Files changed (2)</summary>\n\n"
+            "- `packages/orders/processor.py`\n"
+            "- `packages/orders/queue.py`\n\n"
+            "</details>"
+        )
+        result = _strip_informational_sections(text)
+        assert "packages/orders/processor.py" in result
+        assert "packages/orders/queue.py" in result
+
+    def test_strips_renovate_details_block_with_attributes(self) -> None:
+        # PR #1783 review: bots may emit `<details open>` or
+        # `<summary class="...">`; attribute-bearing tags must still match.
+        text = (
+            "before\n"
+            '<details open id="x">\n'
+            '<summary class="bot">chore(deps): bump foo</summary>\n'
+            "body\n"
+            "</details>\n"
+            "after"
+        )
+        result = _strip_informational_sections(text)
+        assert "body" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_preserves_human_summary_mentioning_renovate(self) -> None:
+        # PR #1783 review: a human summary that merely mentions a bot
+        # keyword (e.g. "Renovate migration") must NOT be stripped. The
+        # _BOT_DETAILS_SUMMARY_PATTERN is anchored to summary start so
+        # only true bot summaries match.
+        text = (
+            "<details>\n"
+            "<summary>Files changed for Renovate migration</summary>\n\n"
+            "- `packages/orders/queue.py`\n\n"
+            "</details>"
+        )
+        result = _strip_informational_sections(text)
+        assert "packages/orders/queue.py" in result
 
     def test_strips_detected_package_files_section(self) -> None:
         text = (
@@ -1419,3 +1629,158 @@ class TestBypassLabel:
         assert "`weird'label`" in body
         # Audit marker still intact.
         assert "<!-- DESCRIPTION-VALIDATION-BYPASS -->" in body
+
+
+# ---------------------------------------------------------------------------
+# validate_no_dashes (Issue #1923, em/en-dash check on PR title and body)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateNoDashes:
+    """Tests for validate_no_dashes: PR title/body em/en-dash detection."""
+
+    def test_clean_title_and_body_returns_no_issues(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes("feat: clean title", "body without dashes")
+        assert issues == []
+
+    def test_em_dash_in_title_returns_critical(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            f"feat: bad {chr(0x2014)} title", "clean body",
+        )
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Em/en-dash in PR title"
+        assert issues[0].file == "<pr-title>"
+
+    def test_en_dash_in_title_returns_critical(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            f"feat: range 1{chr(0x2013)}10", "clean body",
+        )
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_em_dash_in_body_returns_critical_with_line_numbers(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        body = (
+            "Line one is clean.\n"
+            f"Line two has em-dash {chr(0x2014)} here.\n"
+            "Line three is clean.\n"
+        )
+        issues = validate_no_dashes("feat: clean", body)
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+        assert issues[0].issue_type == "Em/en-dash in PR description"
+        assert "line 2" in issues[0].message
+
+    def test_en_dash_in_body_returns_critical(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        body = f"range {chr(0x2013)} here"
+        issues = validate_no_dashes("feat: clean", body)
+        assert len(issues) == 1
+        assert issues[0].severity == "CRITICAL"
+
+    def test_both_title_and_body_dirty_returns_two_issues(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            f"feat: bad {chr(0x2014)}",
+            f"body {chr(0x2013)} here",
+        )
+        assert len(issues) == 2
+        assert {i.file for i in issues} == {"<pr-title>", "<pr-body>"}
+
+    def test_many_dash_lines_truncates_sample(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        body = "\n".join(f"line {n} {chr(0x2014)}" for n in range(1, 11))
+        issues = validate_no_dashes("feat: clean", body)
+        assert len(issues) == 1
+        assert "+5 more" in issues[0].message
+
+    def test_hyphen_does_not_trigger(self) -> None:
+        from scripts.validation.pr_description import validate_no_dashes
+        issues = validate_no_dashes(
+            "feat: hyphen-separated word",
+            "body with multi-word hyphen",
+        )
+        assert issues == []
+
+    def test_unicode_chars_with_e2_80_prefix_do_not_trigger(self) -> None:
+        """U+2019 (right single quote) shares E2 80 prefix; must not match."""
+        from scripts.validation.pr_description import validate_no_dashes
+        body = f"don{chr(0x2019)}t match this"
+        issues = validate_no_dashes("feat: clean", body)
+        assert issues == []
+
+
+# ---------------------------------------------------------------------------
+# Bypass label does NOT suppress em/en-dash CRITICAL issues
+# ---------------------------------------------------------------------------
+
+
+class TestBypassLabelExcludesDashViolations:
+    """Verify description-validation-bypass label cannot silence dash CRITICALs.
+
+    Em/en-dash violations are bot-revealed style issues that the entire
+    purpose of Issue #1923 is to mechanically prevent. The bypass label
+    is the escape hatch for file-mention false positives only.
+    """
+
+    def test_bypass_label_with_only_dash_critical_returns_1(self, tmp_path):
+        from unittest.mock import patch
+        from scripts.validation.pr_description import main as pr_main
+        # Mock fetch_pr_data to return a PR with the bypass label and a
+        # body containing a dash. Expect exit 1 (NOT bypassed).
+        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
+             patch("scripts.validation.pr_description.get_repo_info") as mock_repo:
+            from scripts.github_core.api import RepoInfo
+            mock_repo.return_value = RepoInfo(owner="a", repo="b")
+            mock_fetch.return_value = {
+                "title": "feat: clean",
+                "body": f"body with em-dash {chr(0x2014)} here",
+                "files": [],
+                "labels": [{"name": "description-validation-bypass"}],
+            }
+            result = pr_main(["--pr-number", "1", "--ci"])
+            assert result == 1, "dash violations must NOT be bypassable"
+
+    def test_bypass_label_with_only_file_mention_critical_returns_0(
+        self, tmp_path,
+    ):
+        """Bypass label suppresses file-mention CRITICALs (existing behavior)."""
+        from unittest.mock import patch
+        from scripts.validation.pr_description import main as pr_main
+        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
+             patch("scripts.validation.pr_description.get_repo_info") as mock_repo, \
+             patch("scripts.validation.pr_description._emit_bypass_audit"):
+            from scripts.github_core.api import RepoInfo
+            mock_repo.return_value = RepoInfo(owner="a", repo="b")
+            mock_fetch.return_value = {
+                "title": "feat: clean",
+                "body": "Description claims `nonexistent.py` was changed.",
+                "files": [{"path": "real.py"}],
+                "labels": [{"name": "description-validation-bypass"}],
+            }
+            result = pr_main(["--pr-number", "1", "--ci"])
+            assert result == 0, "file-mention CRITICAL bypass should still work"
+
+    def test_bypass_label_with_both_critical_types_returns_1(self, tmp_path):
+        """Mixed CRITICALs: dash takes priority and blocks the merge."""
+        from unittest.mock import patch
+        from scripts.validation.pr_description import main as pr_main
+        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
+             patch("scripts.validation.pr_description.get_repo_info") as mock_repo:
+            from scripts.github_core.api import RepoInfo
+            mock_repo.return_value = RepoInfo(owner="a", repo="b")
+            mock_fetch.return_value = {
+                "title": "feat: clean",
+                "body": (
+                    f"Em-dash {chr(0x2014)} here.\n"
+                    "Description claims `nonexistent.py` was changed."
+                ),
+                "files": [{"path": "real.py"}],
+                "labels": [{"name": "description-validation-bypass"}],
+            }
+            result = pr_main(["--pr-number", "1", "--ci"])
+            assert result == 1, "dash violation must block even when label set"

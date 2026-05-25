@@ -79,7 +79,7 @@ templates/agents/*.shared.md     Source of truth
 build/Generate-Agents.ps1        Transformation
            |
            +---> src/vs-code-agents/*.agent.md    VS Code output
-           +---> src/copilot-cli/*.agent.md       Copilot CLI output
+           +---> src/copilot-cli/agents/*.agent.md  Copilot CLI output
 ```
 
 ### Platform Transformations
@@ -304,3 +304,76 @@ tools_copilot:
 - `## Handoff Options` - When to hand off to other agents
 
 See `agents/analyst.shared.md` for a complete example.
+
+---
+
+## Platform Configuration Schema (REQ-003)
+
+`templates/platforms/*.yaml` files declare per-provider substitution rules
+consumed by the build pipeline. The schema is governed by
+[ADR-006 Amendment 2026-04-28](../.agents/architecture/ADR-006-thin-workflows-testable-modules.md#amendment-2026-04-28-config-data-exception-for-build-pipelines)
+and specified in
+[REQ-003-002](../.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md).
+
+### Provider × Artifact mapping (current state)
+
+| Provider        | agents | skills | commands | rules | hooks | Status |
+|-----------------|--------|--------|----------|-------|-------|--------|
+| `copilot-cli`   | yes    | yes    | yes      | yes   | yes   | Canonical (REQ-003 M1) |
+| `vscode`        | legacy | -      | -        | -     | -     | Header only; artifacts pending |
+| `visual-studio` | legacy | -      | -        | -     | -     | Header only; artifacts pending |
+
+`legacy` columns indicate fields preserved under the `legacy:` block for
+backward-compat with `build/generate_agents.py` until the new generators
+land in REQ-003 M3.
+
+### Adding an artifact type to an existing provider
+
+1. Edit the provider's YAML under `templates/platforms/<provider>.yaml`.
+2. Add a stanza under `artifacts:` with the keys defined for that artifact
+   type. Allowed keys per artifact:
+   - `agents`: `sourceDir`, `outputDir`, `sourceSuffix`, `outputSuffix`,
+     `excludeFilenames`
+   - `skills`: `sourceDir`, `outputDir`, `mode`
+   - `commands`: `sourceDir`, `outputDir`, `transform`, `appendFrontmatter`
+   - `rules`: `sourceDir`, `outputDir`, `sourceSuffix`, `outputSuffix`,
+     `frontmatterRemap`, `frontmatterDrop`, `skipIfNoPathScope`
+   - `hooks`: `settingsSource`, `scriptSource`, `outputConfig`,
+     `outputScripts`, `eventRemap`, `eventDrop`, `matcherPolicy`,
+     `versionField`
+3. Path values are repo-relative; absolute paths and `..` traversal are
+   rejected (REQ-003-009).
+4. No code change is required if the artifact type already exists in the
+   build pipeline. The Python generators read the schema directly.
+
+### Validating locally
+
+```bash
+python3 build/scripts/validate_templates_schema.py
+# or for a single file:
+python3 build/scripts/validate_templates_schema.py \
+    --platform templates/platforms/copilot-cli.yaml
+```
+
+Exit codes:
+
+- `0` - all configs valid
+- `1` - schema-validation failure (unknown keys, bad values)
+- `2` - config error (missing file, parse error, schemaVersion incompat,
+  path traversal, anchor/alias detected, file too large)
+
+### CI gating
+
+`validate_templates_schema.py` runs in `build-validation.yml` (added in
+REQ-003 M2). A failing exit blocks the PR. Treat the validator as
+authoritative: if it rejects a YAML change, fix the YAML, do not relax
+the validator without an ADR amendment.
+
+### Constraints (ADR-006 Amendment Conditions 3 + 7)
+
+- `safe_load` only; no Python tags, no anchors, no aliases.
+- Container nesting depth bounded; deeper schemas belong in code.
+- Lists of objects limited to 2 keys per object.
+- Total file size capped at 200 lines.
+- Path values rejected if absolute or containing `..`.
+- Audit-policy `pathBlocklist` patterns must compile under `re.compile`.

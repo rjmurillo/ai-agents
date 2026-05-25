@@ -26,13 +26,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC_PAIRS: list[tuple[str, str]] = [
     ("scripts/hook_utilities", ".claude/lib/hook_utilities"),
     ("scripts/github_core", ".claude/lib/github_core"),
+    ("scripts/ai_review_common", ".claude/lib/ai_review_common"),
 ]
 
 IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"from scripts\.github_core\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.hook_utilities\.(\w+) import"), r"from .\1 import"),
+    (re.compile(r"from scripts\.ai_review_common\.(\w+) import"), r"from .\1 import"),
     (re.compile(r"from scripts\.github_core import"), "from . import"),
     (re.compile(r"from scripts\.hook_utilities import"), "from . import"),
+    (re.compile(r"from scripts\.ai_review_common import"), "from . import"),
 ]
 
 # Files that exist only in the lib copy and must not be deleted during sync.

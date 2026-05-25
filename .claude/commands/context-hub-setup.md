@@ -11,7 +11,7 @@ Configure Context Hub's dependencies: Forgetful MCP server and prerequisite plug
 Context Hub requires these plugins to be installed:
 
 1. **Serena** - Symbol-level code analysis (required for `/encode-repo-serena`)
-2. **Context7** - Framework documentation (recommended for `/context_gather`)
+2. **Context7** - Framework documentation (recommended for `/context-gather`)
 
 ## Step 1: Check Plugin Prerequisites
 
@@ -41,7 +41,7 @@ Or search for it in the marketplace:
 **If Context7 is not installed:**
 
 ```text
-For framework documentation in /context_gather, install Context7:
+For framework documentation in /context-gather, install Context7:
 
   claude plugins install context7 --marketplace pleaseai/claude-code-plugins
 
@@ -118,7 +118,7 @@ Serena Plugin:  [Installed / Not installed - run: claude plugins install serena]
 Context7 Plugin: [Installed / Not installed - run: claude plugins install context7 --marketplace pleaseai/claude-code-plugins]
 
 Commands available:
-- /context_gather - Multi-source context retrieval
+- /context-gather - Multi-source context retrieval
 - /encode-repo-serena - Repository encoding (requires Serena)
 - /memory-search, /memory-list, /memory-save, /memory-explore - Memory management
 ```

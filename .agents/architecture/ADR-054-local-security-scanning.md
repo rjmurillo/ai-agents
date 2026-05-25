@@ -1,9 +1,29 @@
 # ADR-054: Local Security Scanning
 
-**Status**: Accepted
+**Status**: Accepted (amended 2026-05-02)
 **Date**: 2026-02-19
 **Deciders**: Security Agent, DevOps Agent
 **Context**: Pre-push security scanning to complement CI-based CodeQL
+
+---
+
+## Amendment 2026-05-02: CWE-22 scope narrowing for the `security-scan` skill
+
+Scope of this amendment: the internal `security-scan` skill at `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`. This is a SEPARATE tool from the semgrep pre-push hook described in the Decision and Implementation sections below. The skill is a regex-based scanner invoked manually or by Claude during code review; the semgrep hook runs in `.githooks/pre-push`. Both fall under the broader "local security scanning" umbrella.
+
+Change: the skill no longer detects CWE-22 (path traversal). CWE-22 detection is delegated to CodeQL's `python-security-extended.qls` query suite, which runs on every PR via `.github/workflows/codeql-analysis.yml`. The skill remains in scope for CWE-78 (command injection).
+
+Rationale: PR #1841 demonstrated that the regex CWE-22 patterns generated false positives on safe `Path(__file__)` derivations (seven inline suppression annotations were added across three files to silence them). A buy-vs-build analysis (issue #1843) confirmed CodeQL's taint-tracking dataflow is a strict superset of what the regex caught for CWE-22, and the regex's substring-on-variable-name heuristic missed real attacker-controlled paths anyway. Path-traversal detection is Context (table stakes), not a competitive differentiator; CodeQL is the right tool.
+
+What this amendment does NOT change:
+
+- The semgrep pre-push hook (`scripts/security/run_semgrep.py`) is untouched. Whatever CWE-22 patterns its `--config auto` ruleset matches continue to fire.
+- ADR-054's core decision (run lightweight security scanning before push) is intact.
+- The pre-push performance budget (1-5 seconds for the semgrep hook) is unchanged.
+
+Authoritative scope statement for the skill: see `.claude/skills/security-scan/SKILL.md` `## Scope`.
+
+Refs: issue #1843, PR #1841, PR #1851, branch `agent/issue-1843`.
 
 ---
 

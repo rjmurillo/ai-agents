@@ -171,7 +171,7 @@ Always commit the template AND generated files together:
 ```bash
 git add templates/agents/analyst.shared.md
 git add src/vs-code-agents/analyst.agent.md
-git add src/copilot-cli/analyst.agent.md
+git add src/copilot-cli/agents/analyst.agent.md
 git commit -m "feat(analyst): add new research capability"
 ```
 
@@ -272,6 +272,26 @@ Add the new agent to:
 - `README.md` (Agents table)
 - `CLAUDE.md` (Agent Catalog table)
 - `USING-AGENTS.md` (if it exists)
+
+## Writing a New Hook
+
+ADR-047 (`.agents/architecture/ADR-047-plugin-mode-hook-behavior.md`) is the canonical specification for hook bootstrap. Read it before adding a new hook.
+
+The shipped pattern:
+
+1. **Copy the inline bootstrap from an existing hook verbatim.** Do not introduce a new resolver, do not extract to a helper, do not rewrite the manifest walk-up. The grep-style test in `tests/test_plugin_path_resolution.py` requires the literal string `os.environ.get("CLAUDE_PLUGIN_ROOT")` and a literal `os.path.isdir(_lib_dir)` validation in every file with a `from hook_utilities` or `from github_core` import. Helper-extraction breaks the test, even when it is functionally equivalent.
+
+2. **`setup_hook_lib_path()` exists in `.claude/lib/bootstrap.py` for cases that do not need ADR-047 grep-test compliance** (for example, scripts that live outside `.claude/hooks/`). Hooks themselves must use the inline form.
+
+3. **Pick the right exit code on bootstrap failure.** Use `sys.exit(2)` for blocking hooks (the missing lib means the hook cannot run, so the gate must fail closed). Use `sys.exit(0)` for non-blocking hooks where a missing lib should not stop the user. Add the inline annotation `# Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)` next to a `sys.exit(0)` so the next reader does not "fix" it.
+
+4. **Canonical examples (23 production hooks).** Pick a sibling at the same blocking/non-blocking tier:
+   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_session_log_guard.py`, `.claude/hooks/PreToolUse/invoke_skill_first_guard.py`, `.claude/hooks/Stop/invoke_session_validator.py`, `.claude/hooks/SessionStart/invoke_memory_first_enforcer.py`
+   - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/PreToolUse/invoke_branch_context_guard.py`, `.claude/hooks/PreToolUse/invoke_correction_applier.py`, `.claude/hooks/PreToolUse/invoke_retrospective_gate.py`, `.claude/hooks/UserPromptSubmit/invoke_research_then_implement.py`
+
+5. **Run the platform regen after adding the hook.** `python3 build/scripts/build_all.py --platform copilot-cli` (and any other downstream platform) so the regenerated copy under `src/<provider>/hooks/` stays in sync.
+
+6. **Before pushing, run the relevant tests.** `uv run pytest tests/test_plugin_path_resolution.py tests/test_bootstrap.py tests/hooks/ -q` is the minimum.
 
 ## Validating Prompt, Skill, and Agent Changes (ADR-057)
 
@@ -448,7 +468,7 @@ The `agent-drift-detection.yml` workflow runs on every PR that touches agent-rel
 
 ### What counts as drift?
 
-Drift is detected when any generated file (`src/vs-code-agents/*.agent.md`, `src/copilot-cli/*.agent.md`) differs from what `generate_agents.py` would produce from the current templates. This includes both:
+Drift is detected when any generated file (`src/vs-code-agents/*.agent.md`, `src/copilot-cli/agents/*.agent.md`) differs from what `generate_agents.py` would produce from the current templates. This includes both:
 
 - **Content drift**, body text changed directly in a generated file
 - **Frontmatter drift**, YAML frontmatter edited outside the generation pipeline

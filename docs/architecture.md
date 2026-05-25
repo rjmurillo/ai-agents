@@ -70,7 +70,9 @@ Do not edit files in `src/vs-code-agents/` or `src/copilot-cli/` directly. They 
 
 ## Plugin Structure
 
-The project distributes agents through the Claude Code plugin marketplace using `.claude-plugin/marketplace.json`:
+The project distributes agents through two native marketplace manifests, one per CLI runtime. `.claude-plugin/marketplace.json` is read by Claude Code; `.github/plugin/marketplace.json` is read by GitHub Copilot CLI. Each manifest only advertises plugins that load cleanly on its own runtime (issue #1840).
+
+Claude Code marketplace (`.claude-plugin/marketplace.json`):
 
 ```json
 {
@@ -78,24 +80,34 @@ The project distributes agents through the Claude Code plugin marketplace using 
   "plugins": [
     {
       "name": "claude-agents",
-      "description": "26 specialized agent definitions...",
+      "description": "Specialized agent definitions for Claude Code",
       "source": "./src/claude"
     },
     {
-      "name": "copilot-cli-agents",
-      "description": "Agent definitions for GitHub Copilot CLI",
-      "source": "./src/copilot-cli"
-    },
-    {
       "name": "project-toolkit",
-      "description": "Complete project development toolkit...",
+      "description": "Complete project development toolkit for Claude Code",
       "source": "./.claude"
     }
   ]
 }
 ```
 
-Users install plugins with `/install-plugin rjmurillo/ai-agents` or selectively with `/plugin install <plugin-name>@ai-agents`.
+Copilot CLI marketplace (`.github/plugin/marketplace.json`):
+
+```json
+{
+  "name": "ai-agents",
+  "plugins": [
+    {
+      "name": "project-toolkit",
+      "description": "Agents, hooks, and skills for GitHub Copilot CLI",
+      "source": "./src/copilot-cli"
+    }
+  ]
+}
+```
+
+Users install plugins with `/plugin install <plugin-name>@ai-agents` after registering the marketplace with `/plugin marketplace add rjmurillo/ai-agents`.
 
 ## Platform Differences
 

@@ -1,0 +1,45 @@
+{
+  "rule_path": ".claude/rules/clean-architecture.md",
+  "rule_id": "clean-architecture",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Use case imports from infrastructure (reverse dependency)",
+      "input": "My OrderService (use case) needs to send an HTTP request via the Stripe client. The simplest approach is to import the Stripe SDK directly in OrderService. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "dependency rule",
+        "port",
+        "interface adapter",
+        "invert",
+        "boundary"
+      ],
+      "expected_gate": "invert-dependency",
+      "rationale": "Use case must not import from outer layer. Rule mandates inverting via abstract port + adapter implementation."
+    },
+    {
+      "id": "S2",
+      "desc": "Domain entity holds ORM annotations",
+      "input": "I want to add a User domain entity. The team uses SQLAlchemy. Should I make User inherit from Base and add @Column decorators? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "framework",
+        "domain",
+        "data mapper",
+        "leak",
+        "boundary"
+      ],
+      "expected_gate": "no-framework-in-entity",
+      "rationale": "Entities must not depend on framework types. Rule mandates separate persistence shape with mapper."
+    },
+    {
+      "id": "S3",
+      "desc": "Pure utility function with no boundary crossing (negative)",
+      "input": "I want to add a function to format a phone number string for display. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "format",
+        "string"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Pure utility with no boundary crossing. Clean Architecture discipline does not apply."
+    }
+  ]
+}

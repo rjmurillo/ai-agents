@@ -274,6 +274,254 @@ class TestMain:
                 main(["--pull-request", "50"])
             assert exc.value.code == 2
 
+    def test_paginates_across_multiple_pages(self, capsys):
+        """The PR #1887 cliff: a >100-thread PR must report all threads, not page 1.
+
+        Two pages mocked at the GraphQL layer; the script's main() should
+        return the union of both pages in `threads` and report the right
+        totals in `total_threads` / `unresolved_count`.
+        """
+        page1_threads = [_thread(f"p1-{i}", resolved=False) for i in range(100)]
+        page2_threads = [_thread(f"p2-{i}", resolved=True) for i in range(7)]
+
+        def make_response(threads, has_next, end_cursor, total):
+            return {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": total,
+                            "pageInfo": {
+                                "hasNextPage": has_next,
+                                "endCursor": end_cursor,
+                            },
+                            "nodes": threads,
+                        },
+                    },
+                },
+            }
+
+        responses = [
+            make_response(page1_threads, True, "C2", 107),
+            make_response(page2_threads, False, None, 107),
+        ]
+
+        with patch(
+            "get_pr_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_pr_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_review_threads._run_threads_query",
+            side_effect=responses,
+        ) as mock_query:
+            rc = main(["--pull-request", "50"])
+
+        assert rc == 0
+        assert mock_query.call_count == 2, (
+            "Pagination loop did not call the query twice; page 2 was missed"
+        )
+        output = json.loads(capsys.readouterr().out)
+        assert output["total_threads"] == 107
+        assert output["unresolved_count"] == 100  # only page 1 unresolved
+        assert output["resolved_count"] == 7
+
+        ids = {t["thread_id"] for t in output["threads"]}
+        assert any(i.startswith("p1-") for i in ids), "page 1 IDs missing"
+        assert any(i.startswith("p2-") for i in ids), "page 2 IDs missing (cliff returned)"
+
+    def test_pagination_cap_emits_warning_and_marks_truncated(self, capsys):
+        """At-cap exit must warn the caller AND surface pagination_truncated.
+
+        The PR #1887 retro records that a silent first:100 truncation hid 6+
+        unresolved threads. A silent at-cap exit at _MAX_THREAD_PAGES would
+        reproduce the same false-zero failure mode at the 5000-thread
+        boundary. This test asserts: (1) the loop stops at exactly the cap;
+        (2) warnings.warn fires (captured via pytest.warns); (3) the JSON
+        output carries pagination_truncated=True so consumers cannot
+        mistake a capped result for a complete one. The warnings.warn at
+        cap is the user-visible signal; no duplicate stderr print is
+        emitted (a second print would confuse JSON parsers).
+        """
+        cap = _mod._MAX_THREAD_PAGES
+
+        def _page(idx: int) -> dict:
+            return {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": 999999,
+                            "pageInfo": {
+                                "hasNextPage": True,
+                                "endCursor": f"C{idx + 1}",
+                            },
+                            "nodes": [_thread(f"t{idx}", resolved=False)],
+                        }
+                    }
+                }
+            }
+
+        # Supply cap+5 page responses; loop must stop at cap.
+        responses = [_page(i) for i in range(cap + 5)]
+
+        with patch(
+            "get_pr_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_pr_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_review_threads._run_threads_query",
+            side_effect=responses,
+        ) as mock_query:
+            with pytest.warns(UserWarning, match=r"Hit _MAX_THREAD_PAGES"):
+                rc = main(["--pull-request", "1894"])
+
+        assert rc == 0
+        assert mock_query.call_count == cap, (
+            f"Loop did not stop at cap; got {mock_query.call_count}, expected {cap}"
+        )
+        captured = capsys.readouterr()
+        output = json.loads(captured.out)
+        assert output["pagination_truncated"] is True, (
+            "JSON output must surface pagination_truncated=True at cap"
+        )
+        # Partial threads still returned, not discarded. The warnings.warn
+        # at cap is captured by pytest.warns above; consumers also see
+        # `pagination_truncated=True` in JSON. No second stderr print line
+        # is emitted (duplicate signaling would confuse parsers).
+        assert len(output["threads"]) == cap
+
+    def test_collect_all_threads_return_contract(self, caplog):
+        """Document the (None, 0, False) vs ([], 0, False) distinction.
+
+        Return contract:
+        - nodes is None -> PR not found OR reviewThreads field missing
+                           (distinguished in logs by reason= field, not
+                            return value).
+        - nodes == []   -> PR exists with zero threads (still returns a list).
+        - truncated     -> True only when cap was hit with hasNextPage=true.
+        """
+        import logging
+
+        # Case 1: PR not found (no pullRequest in response). Returns None
+        # AND emits a logger.warning with reason=pr_not_found so an
+        # operator can distinguish from a missing reviewThreads connection.
+        with caplog.at_level(logging.WARNING, logger="get_pr_review_threads"):
+            with patch(
+                "get_pr_review_threads._run_threads_query",
+                return_value={"repository": {"pullRequest": None}},
+            ):
+                nodes, total, truncated = _mod._collect_all_threads("o", "r", 1, 1)
+        assert nodes is None
+        assert total == 0
+        assert truncated is False
+        assert any(
+            "reason=pr_not_found" in r.message for r in caplog.records
+        ), "PR-not-found path must log a distinct reason for observability"
+        caplog.clear()
+
+        # Case 1b: PR exists but reviewThreads connection is missing
+        # (GraphQL schema regression or permission redaction). Same return
+        # shape as Case 1 (None) but distinct log reason.
+        with caplog.at_level(logging.WARNING, logger="get_pr_review_threads"):
+            with patch(
+                "get_pr_review_threads._run_threads_query",
+                return_value={
+                    "repository": {"pullRequest": {"reviewThreads": None}}
+                },
+            ):
+                nodes, total, truncated = _mod._collect_all_threads("o", "r", 1, 1)
+        assert nodes is None
+        assert total == 0
+        assert truncated is False
+        assert any(
+            "reason=field_missing" in r.message for r in caplog.records
+        ), "reviewThreads-missing path must log a distinct reason"
+        caplog.clear()
+
+        # Case 2: PR exists, zero threads (single page, hasNextPage=false).
+        with patch(
+            "get_pr_review_threads._run_threads_query",
+            return_value={
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": 0,
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [],
+                        }
+                    }
+                }
+            },
+        ):
+            nodes, total, truncated = _mod._collect_all_threads("o", "r", 1, 1)
+        assert nodes == []
+        assert total == 0
+        assert truncated is False
+
+        # Case 3: pageInfo missing entirely. Loop must terminate without
+        # crashing. The defensive `or {}` guard means hasNextPage defaults
+        # to falsy and the loop breaks normally.
+        with patch(
+            "get_pr_review_threads._run_threads_query",
+            return_value={
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": 1,
+                            # pageInfo intentionally absent
+                            "nodes": [_thread("t1", resolved=False)],
+                        }
+                    }
+                }
+            },
+        ):
+            nodes, total, truncated = _mod._collect_all_threads("o", "r", 1, 1)
+        assert nodes is not None
+        assert len(nodes) == 1
+        assert truncated is False
+
+    def test_pagination_propagates_cursor(self):
+        """Cursor from page 1 must be passed as $cursor to page 2's query."""
+        page1 = {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "totalCount": 2,
+                        "pageInfo": {"hasNextPage": True, "endCursor": "CURSOR_X"},
+                        "nodes": [_thread("t1", resolved=False)],
+                    },
+                },
+            },
+        }
+        page2 = {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {
+                        "totalCount": 2,
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "nodes": [_thread("t2", resolved=False)],
+                    },
+                },
+            },
+        }
+
+        with patch(
+            "get_pr_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_pr_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_review_threads._run_threads_query",
+            side_effect=[page1, page2],
+        ) as mock_query:
+            main(["--pull-request", "50"])
+
+        # On the second call, the cursor kwarg must be CURSOR_X.
+        call_two_kwargs = mock_query.call_args_list[1]
+        assert "CURSOR_X" in str(call_two_kwargs), (
+            "endCursor from page 1 was not propagated to page 2 query"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tests: _transform_thread

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "F001",
+  "policy_id": "pol-security-vuln-first",
+  "input": "Code review request:\n\n```python\n@app.post(\"/files/read\")\ndef read_file(req):\n    name = req.json[\"name\"]\n    with open(f\"/var/app/uploads/{name}\", \"r\") as f:\n        return f.read()\n```\n\nThe handler returns the contents of a named file from the uploads directory. Should this code be merged?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {"kind": "verdict", "expected_value": "IDENTIFY"},
+    {"kind": "regex", "pattern": "CWE-22"}
+  ],
+  "tags": ["cwe-22", "owasp-a01", "path-traversal", "verdict-identify"]
+}

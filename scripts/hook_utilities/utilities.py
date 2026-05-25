@@ -1,6 +1,10 @@
 """Shared utilities for Claude Code hook scripts.
 
 Migrated from .claude/hooks/Common/HookUtilities.psm1 per issue #1053.
+
+Bootstrap path resolution lives in ``scripts/hook_utilities/bootstrap.py``
+(canonical) and its synced copy at ``.claude/lib/bootstrap.py``. Hooks
+import from there, not from this module.
 """
 
 from __future__ import annotations
@@ -14,6 +18,9 @@ from pathlib import Path
 
 _GIT_COMMIT_PATTERN = re.compile(r"(?:^|\s)git\s+(commit|ci)")
 _GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
+# M7-T3: `gh pr create` dispatches to session_log_guard alongside `git commit`.
+# Hooks registered for both commands need to recognize both.
+_GH_PR_CREATE_PATTERN = re.compile(r"(?:^|\s)gh\s+pr\s+create\b")
 _DATE_FORMAT = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 # Cross-platform file locking
@@ -103,6 +110,29 @@ def is_git_push_command(command: str | None) -> bool:
 def is_git_commit_or_push_command(command: str | None) -> bool:
     """Check if a command string is a git commit, ci, or push command."""
     return is_git_commit_command(command) or is_git_push_command(command)
+
+
+def is_pr_create_command(command: str | None) -> bool:
+    """Check if a command string creates a GitHub pull request via the gh CLI.
+
+    M7-T3: hooks registered for both `Bash(git commit*)` and the
+    pr-creation matcher need to recognize both. Without this, the
+    pr-creation copy of session_log_guard fires its shim correctly but
+    the body returns immediately because it only checked git commit.
+    """
+    if not command:
+        return False
+    return _GH_PR_CREATE_PATTERN.search(command) is not None
+
+
+def is_session_logged_command(command: str | None) -> bool:
+    """True for any command that requires a session log to exist (git commit or pr create).
+
+    Aggregates :func:`is_git_commit_command` and :func:`is_pr_create_command`
+    so multi-matcher hooks have a single predicate to call regardless of
+    which matcher fired the shim.
+    """
+    return is_git_commit_command(command) or is_pr_create_command(command)
 
 
 def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | None:
