@@ -107,9 +107,26 @@ class SchemaChecker:
         )
 
     def _load_ref_file(self, ref: str) -> dict[str, Any]:
-        """Load and cache an external schema file referenced by $ref."""
+        """Load and cache an external schema file referenced by $ref.
+
+        Guards against path traversal (CWE-22): the resolved path must stay
+        inside ``self._schema_dir``. Although ``ref`` values come from
+        in-repo schema files rather than untrusted input, anchoring the
+        resolution defends against accidental or malicious ``..`` segments
+        and absolute paths that would escape the schema directory.
+        """
         if ref not in self._file_cache:
-            text = (self._schema_dir / ref).read_text(encoding="utf-8")
+            schema_root = self._schema_dir.resolve()
+            candidate = (self._schema_dir / ref).resolve()
+            try:
+                candidate.relative_to(schema_root)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Path traversal detected in $ref {ref!r}: "
+                    f"resolved path {candidate} escapes schema directory "
+                    f"{schema_root}"
+                ) from exc
+            text = candidate.read_text(encoding="utf-8")
             self._file_cache[ref] = json.loads(text)
         return self._file_cache[ref]
 

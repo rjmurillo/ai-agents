@@ -124,6 +124,46 @@ class TestRealSchemas:
         errors = SchemaChecker(schema, _SCHEMA_DIR).check(instance, schema, "policy")
         assert any("missing required" in err for err in errors)
 
+    def test_load_ref_file_resolves_a_sibling_schema(self, tmp_path: Path) -> None:
+        # Positive path: a sibling file inside the schema dir loads normally.
+        sibling = tmp_path / "sub.json"
+        sibling.write_text(json.dumps({"type": "string"}), encoding="utf-8")
+        checker = SchemaChecker({"$ref": "sub.json"}, tmp_path)
+        # _load_ref_file is exercised indirectly through check() -> _check_ref.
+        errors = checker.check("hello", {"$ref": "sub.json"}, "root")
+        assert errors == []
+
+    def test_load_ref_file_rejects_parent_traversal(self, tmp_path: Path) -> None:
+        # Negative path: a $ref with `..` segments that escape _schema_dir
+        # must raise ValueError (CWE-22 guard), even if the target file exists.
+        outside = tmp_path / "outside.json"
+        outside.write_text(json.dumps({"type": "string"}), encoding="utf-8")
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        checker = SchemaChecker({"$ref": "../outside.json"}, schema_dir)
+        try:
+            checker.check("hello", {"$ref": "../outside.json"}, "root")
+        except ValueError as exc:
+            assert "Path traversal detected" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("expected ValueError for path traversal")
+
+    def test_load_ref_file_rejects_absolute_path(self, tmp_path: Path) -> None:
+        # Negative path: an absolute $ref must also be rejected — Path / abs
+        # discards the left operand, so resolution lands outside _schema_dir.
+        target = tmp_path / "abs.json"
+        target.write_text(json.dumps({"type": "string"}), encoding="utf-8")
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        ref = str(target.resolve())
+        checker = SchemaChecker({"$ref": ref}, schema_dir)
+        try:
+            checker.check("hello", {"$ref": ref}, "root")
+        except ValueError as exc:
+            assert "Path traversal detected" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("expected ValueError for absolute path $ref")
+
     def test_validates_a_policy_carrying_real_evidence(
         self, write_skillbook: Any
     ) -> None:
