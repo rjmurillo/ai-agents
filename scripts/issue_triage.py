@@ -236,10 +236,12 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
         raise RuntimeError(f"gh issue list failed: {stderr}") from err
     except subprocess.TimeoutExpired as err:
         raise RuntimeError(f"gh issue list timed out after {err.timeout}s") from err
+    except OSError as err:
+        raise RuntimeError(f"gh issue list failed to execute: {err}") from err
     try:
         data = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError as err:
-        raise RuntimeError(f"gh issue list returned invalid JSON: {err}") from err
+    except (json.JSONDecodeError, ValueError, TypeError) as err:
+        raise RuntimeError(f"Failed to parse gh output: {err}") from err
     if not isinstance(data, list):
         raise RuntimeError(f"gh issue list returned non-list payload: {type(data).__name__}")
     return data

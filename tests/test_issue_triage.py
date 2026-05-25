@@ -301,12 +301,18 @@ class TestFetchOpenIssues:
             with pytest.raises(RuntimeError, match="timed out"):
                 fetch_open_issues("o", "r", limit=10)
 
+    def test_raises_on_missing_gh_binary(self):
+        err = FileNotFoundError(2, "No such file or directory", "gh")
+        with patch("scripts.issue_triage.subprocess.run", side_effect=err):
+            with pytest.raises(RuntimeError, match="failed to execute"):
+                fetch_open_issues("o", "r", limit=10)
+
     def test_raises_on_invalid_json(self):
         completed = type(
             "Completed", (), {"returncode": 0, "stdout": "not json", "stderr": ""},
         )
         with patch("scripts.issue_triage.subprocess.run", return_value=completed):
-            with pytest.raises(RuntimeError, match="invalid JSON"):
+            with pytest.raises(RuntimeError, match="parse gh output"):
                 fetch_open_issues("o", "r", limit=10)
 
     def test_raises_on_non_list_payload(self):
