@@ -3,7 +3,7 @@ type: design
 id: DESIGN-009
 title: Retro fixes from PR #1965 (rework + contract drift)
 status: draft
-priority: high
+priority: P1
 created: 2026-05-10
 updated: 2026-05-10
 related:
