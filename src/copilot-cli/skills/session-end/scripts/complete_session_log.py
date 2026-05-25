@@ -221,22 +221,28 @@ except Exception:  # noqa: BLE001 - informational; must never block import
     pass
 
 
-def _run_rework_warning_step() -> str:
+def _run_rework_warning_step() -> tuple[str, list[str]]:
     """Run the rework-warning check and emit lines to stdout.
 
-    Returns a one-line summary suitable for the session-end `changes`
-    log. Output to stdout is at least one line, never silent
-    (REQ-012-08). The function is extracted so the main() driver does
-    not absorb its branching into its own cyclomatic complexity.
+    Returns a tuple of:
+    - summary: one-line string suitable for the session-end ``changes`` log.
+    - evidence_lines: list of strings emitted to stdout (REQ-012-08).
+      Persisted under ``protocolCompliance.sessionEnd.reworkWarning.Evidence``
+      in the session log JSON (ADR-060).
 
-    Degrades gracefully when the sibling rework_warning module is
-    missing or broken (PR #1989 coderabbit): emits a single notice line
-    and returns the same shape as a clean no-warning run, so callers do
-    not have to special-case the import failure.
+    Output to stdout is at least one line, never silent (REQ-012-08). The
+    function is extracted so the main() driver does not absorb its branching
+    into its own cyclomatic complexity.
+
+    Degrades gracefully when the sibling rework_warning module is missing or
+    broken (PR #1989 coderabbit): emits a single notice line and returns the
+    same shape as a clean no-warning run, so callers do not have to
+    special-case the import failure.
     """
     if compute_rework_warning is None or emit_rework_warning_lines is None:
-        print("rework-warning: skipped (sibling module unavailable)")
-        return "Rework warning: skipped (sibling unavailable)"
+        notice = "rework-warning: skipped (sibling module unavailable)"
+        print(notice)
+        return "Rework warning: skipped (sibling unavailable)", [notice]
     # PR #1989 cursor follow-up: the rework-warning step is informational
     # and MUST NOT block session-end under any circumstances (REQ-012-08).
     # Wrap runtime calls so an unexpected git or subprocess failure inside
@@ -247,17 +253,21 @@ def _run_rework_warning_step() -> str:
     # SystemExit so Ctrl+C still works.
     try:
         rework_items = compute_rework_warning()
-        for line in emit_rework_warning_lines(rework_items):
+        lines = list(emit_rework_warning_lines(rework_items))
+        for line in lines:
             print(line)
     except Exception as exc:  # noqa: BLE001 - informational; must never block
-        print(f"rework-warning: skipped (runtime error: {type(exc).__name__})")
-        return "Rework warning: skipped (runtime error)"
+        notice = f"rework-warning: skipped (runtime error: {type(exc).__name__})"
+        print(notice)
+        return "Rework warning: skipped (runtime error)", [notice]
     if rework_items:
-        return (
+        summary = (
             f"[WARN] rework warning: {len(rework_items)} file(s) "
             f"at {REWORK_THRESHOLD}+ edits"
         )
-    return "Rework warning: none"
+    else:
+        summary = "Rework warning: none"
+    return summary, lines
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -367,7 +377,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # 4b. Rework warning (REQ-012-07, REQ-012-08). Emitted as informational
     # stdout lines after lint; never blocks completion.
-    changes.append(_run_rework_warning_step())
+    # ADR-060: evidence lines are also persisted in the session log JSON under
+    # protocolCompliance.sessionEnd.reworkWarning.Evidence. Pre-existing
+    # reworkWarning keys (set by other tooling) are preserved.
+    rework_summary, rework_evidence = _run_rework_warning_step()
+    changes.append(rework_summary)
+    if "reworkWarning" not in session_end:
+        session_end["reworkWarning"] = {}
+    session_end["reworkWarning"]["Evidence"] = rework_evidence
 
     # 5. changesCommitted
     has_uncommitted = _test_uncommitted_changes()
