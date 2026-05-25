@@ -534,29 +534,38 @@ def main() -> int:
 
     try:
         retro_path = generate_retrospective(project_dir, today)
-        if retro_path:
-            update_retro_index(project_dir, today, retro_path.name)
-            write_audit_log(
-                project_dir,
-                "created",
-                retro_filename=retro_path.name,
-            )
-        else:
-            write_audit_log(
-                project_dir,
-                "failed",
-                skip_reason="generate_retrospective returned None",
-            )
     except Exception as e:
-        # Broad catch preserves fail-open contract; surface to stderr.
         print(
-            f"[hook-error] invoke_auto_retrospective main: {type(e).__name__}: {e}",
+            f"[hook-error] invoke_auto_retrospective generate: {type(e).__name__}: {e}",
             file=sys.stderr,
         )
         write_audit_log(
             project_dir,
             "failed",
             skip_reason=f"{type(e).__name__}: {e}",
+        )
+        return 0
+
+    if not retro_path:
+        write_audit_log(
+            project_dir,
+            "failed",
+            skip_reason="generate_retrospective returned None",
+        )
+        return 0
+
+    write_audit_log(
+        project_dir,
+        "created",
+        retro_filename=retro_path.name,
+    )
+
+    try:
+        update_retro_index(project_dir, today, retro_path.name)
+    except Exception as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective index: {type(e).__name__}: {e}",
+            file=sys.stderr,
         )
 
     return 0
