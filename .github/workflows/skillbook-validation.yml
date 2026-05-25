@@ -1,0 +1,102 @@
+# Skillbook Validation
+#
+# Validates the evidence-tiered policy registry (.agents/skillbook/*.json)
+# against the JSON schemas in .agents/schemas/ and runs referential-integrity
+# checks. All logic lives in scripts/validation/validate_skillbook.py per
+# ADR-006 (thin workflows, testable modules); this YAML only orchestrates.
+#
+# pytest coverage for scripts/skillbook.py and tests/skillbook/ is provided by
+# pytest.yml, which already filters on '**/*.py'.
+#
+# Local developers and AI agents can run the same check with:
+#   python3 scripts/validation/validate_skillbook.py
+
+name: Skillbook Validation
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'agent/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-025: ARM runner for cost optimization.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      skillbook-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.skillbook }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check for skillbook changes
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            skillbook:
+              - '.agents/skillbook/**'
+              - '.agents/schemas/policy.schema.json'
+              - '.agents/schemas/tension.schema.json'
+              - '.agents/schemas/workflow.schema.json'
+              - '.agents/schemas/evidence-entry.schema.json'
+              - 'scripts/skillbook.py'
+              - 'scripts/validation/validate_skillbook.py'
+              - '.github/workflows/skillbook-validation.yml'
+
+  validate:
+    name: Validate Skillbook
+    needs: check-paths
+    if: needs.check-paths.outputs.skillbook-changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Validate skillbook registry against schemas
+        run: python3 scripts/validation/validate_skillbook.py
+
+  # Pass-through job: satisfies the required "Validate Skillbook" check when no
+  # skillbook files changed. GitHub branch protection requires SUCCESS (not
+  # SKIPPED) for required checks. See pytest.yml and Issue #1168.
+  skip-validate:
+    name: Validate Skillbook
+    needs: check-paths
+    if: needs.check-paths.outputs.skillbook-changed != 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Skip validation (no skillbook changes)
+        run: |
+          echo "No skillbook files changed - skipping validation."
+          echo "See the 'skillbook' filter in check-paths for trigger paths."

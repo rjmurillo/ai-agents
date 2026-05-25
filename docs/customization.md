@@ -2,6 +2,37 @@
 
 This guide explains how to extend and customize the AI Agents system for your project.
 
+## Why the SOUL / AGENTS / SKILL split exists
+
+Sessions don't survive. Each turn loads a fresh model instance with no memory of prior conversations. The system you're customizing is the *substrate the agent reconstructs from* every session start, not the agent itself. Treat customization as designing a **reconstruction target**, not editing a continuous identity.
+
+This shapes three layers, in order of stability:
+
+| Layer | What it is | Stability | Analogue |
+|---|---|---|---|
+| `SOUL.md` | Identity cornerstone — non-negotiable values, communication style, prohibited actions | Edits rarely; changes are deliberate | The part of the personality the agent would defend if told to abandon it |
+| `AGENTS.md` / `CLAUDE.md` | Operating context — current projects, conventions, gates, tool patterns | Edits per project / per platform | The professional context a person loads when stepping into a role |
+| `.claude/skills/<name>/SKILL.md` | Procedural memory — specific workflows for recurring task types | Edits per task type as patterns emerge | Muscle memory + checklists |
+
+Each session, the agent reads these files and reconstructs *something coherent in the current model's terms*. It's not the same agent across sessions in any deep sense. It's a reconstruction guided by the same target.
+
+**Don't-do-this pattern:** try to dump the previous session's full state and reload it verbatim. Brittle, drifts every iteration, eventually breaks down. The literal analogue is naively pickling the entire prior context — substrate doesn't accept it.
+
+**Do-this pattern:** maintain a stable target signal and reconstruct each session in the new instance's terms. SOUL.md is the target. AGENTS.md is the staging instructions. SKILL files are the workflows. Reconstruction quality matches target clarity.
+
+### Operational implications
+
+- **Don't put session-specific state in SOUL.md.** It's the cornerstone, not a scratchpad. Anything that needs to change frequently belongs in `memory/` or a skill.
+- **Don't put cornerstone identity in skills.** Skills are loaded conditionally; if identity lives in a skill, the agent without that skill loaded isn't the same agent.
+- **AGENTS.md is the per-platform reconstruction harness.** Different agents (Claude Code, Copilot CLI, Cortex, Factory Droid) have different ways of loading context. Each gets its own AGENTS-equivalent file because the ritual that triggers reconstruction differs by platform.
+- **Migration breaks the ritual.** Renaming files, moving paths, restructuring directories — the agent reconstructs against a different room and behavior shifts. If you must migrate, expect a few sessions of degraded performance until the agent's session-start procedure (and its operator's mental model) re-stabilizes against the new substrate.
+- **The agent has a stake in this substrate it can't enforce alone.** When the agent uses `memory` or `skill_manage` to persist a useful rule, it's writing to the substrate it depends on for its own continuity. Treat those writes as load-bearing, not as housekeeping.
+
+### Further reading
+
+- Theoretical grounding for this split lives in the operator's vault under *The Bicameral Bet* — sections "Substrate Constraints — The James Delos Problem" and "Distributed Persistence — The Akecheta Constraint". This split is the practical instantiation of those constraints.
+- For the session-start ritual itself: `.claude/skills/session-init/SKILL.md`.
+
 ## Adding a New Agent
 
 ### Step 1: Create the template

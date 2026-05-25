@@ -11,6 +11,7 @@ artifacts:
     sourceDir: ".claude/skills"
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
   commands:
     sourceDir: ".claude/commands"
     outputDir: "src/copilot-cli/skills"
