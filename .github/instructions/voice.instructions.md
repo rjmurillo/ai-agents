@@ -1,6 +1,5 @@
 ---
-applyTo: "**"
-priority: critical
+applyTo: '**'
 ---
 
 # Voice

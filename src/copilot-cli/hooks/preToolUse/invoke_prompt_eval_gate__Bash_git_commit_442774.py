@@ -208,7 +208,14 @@ def _original_main(stdin_bytes):
     _AGENT_PATTERNS = [
         re.compile(r"^\.claude/agents/(?!CLAUDE\.md|README\.md|INDEX\.md).*\.md$"),
         re.compile(r"^src/claude/(?!CLAUDE\.md|README\.md|AGENTS\.md)(?!.*\.template\.).*\.md$"),
-        re.compile(r"^src/copilot-cli/.*\.(?:md|agent\.md)$"),
+        # Narrowed after #2052 moved agents to src/copilot-cli/agents/. The
+        # prior pattern (`^src/copilot-cli/.*\.(?:md|agent\.md)$`) matched
+        # every markdown file under the plugin tree, including generated
+        # mirrors at src/copilot-cli/instructions/ and src/copilot-cli/skills/
+        # that are mechanical regenerator output with no authored prompt
+        # content. The eval gate is for behavioral changes to authored
+        # agent prompts only.
+        re.compile(r"^src/copilot-cli/agents/.*\.agent\.md$"),
         re.compile(r"^src/vs-code-agents/.*\.md$"),
     ]
 
