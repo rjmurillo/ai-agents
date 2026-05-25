@@ -66,7 +66,11 @@ SESSION_LOG_PATTERN = re.compile(r"\.agents/sessions/.*\.json$")
 PLAN_FILE_PATTERNS = [
     re.compile(r"TODO\.md$", re.IGNORECASE),
     re.compile(r"PLAN\.md$", re.IGNORECASE),
-    re.compile(r"\.agents/plan.*\.md$", re.IGNORECASE),
+    # Match `.agents/plan*.md` at the .agents/ root only. Earlier pattern
+    # `\.agents/plan.*\.md$` also matched `.agents/planning/.../*.md` and
+    # other nested files, triggering checkpoints for unrelated planning
+    # docs. `[^/]*` keeps the match scoped to a single path segment.
+    re.compile(r"\.agents/plan[^/]*\.md$", re.IGNORECASE),
     re.compile(r"PROJECT-PLAN\.md$", re.IGNORECASE),
 ]
 

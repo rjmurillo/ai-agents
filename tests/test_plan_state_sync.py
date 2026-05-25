@@ -48,6 +48,13 @@ class TestIsCheckpointableFile:
             ".agents/architecture/ADR-001.md",
             "package.json",
             "tests/test_foo.py",
+            # Nested planning docs must not match `.agents/plan*.md`.
+            # The earlier `\.agents/plan.*\.md$` pattern crossed segment
+            # boundaries and matched these paths; the scoped pattern
+            # `\.agents/plan[^/]*\.md$` keeps the match within one segment.
+            ".agents/planning/roadmap.md",
+            ".agents/planning/2026/q2.md",
+            ".agents/planner/notes.md",
         ],
     )
     def test_ignores_non_checkpointable_files(self, path: str) -> None:
