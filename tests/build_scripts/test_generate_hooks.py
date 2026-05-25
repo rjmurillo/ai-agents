@@ -1297,6 +1297,96 @@ def test_all_generated_hooks_parse_as_python() -> None:
     for path in sorted(hooks_dir.rglob("*.py")):
         try:
             compile(path.read_text(encoding="utf-8"), str(path), "exec")
-        except SyntaxError as exc:
-            failures.append(f"{path.relative_to(REPO_ROOT)}: {exc}")
+        except SyntaxError as err:
+            failures.append(f"{path.relative_to(REPO_ROOT)}: {err}")
     assert not failures, "Generated hooks have syntax errors:\n" + "\n".join(failures)
+
+
+def test_shim_strips_original_main_epilogue_no_double_exec() -> None:
+    """Wrapped shim MUST NOT contain the original ``if __name__`` block.
+
+    Refs cursor bugbot thread PRRT_kwDOQoWRls6Eef5O (PR #1763).
+    Before the fix, regenerated matcher shims appended ``return main()``
+    while the wrapped script still carried ``if __name__ == "__main__":
+    main()``, so main ran twice when the shim ran as ``__main__``.
+    Pin the contract: the synthetic ``return main()`` trailer is the
+    ONLY path that invokes main inside _original_main.
+    """
+    body = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    return 2\n\n"
+        'if __name__ == "__main__":\n'
+        "    sys.exit(main())\n"
+    )
+    out = generate_hooks.inject_shim(body, "Bash(git push*)")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert 'if __name__ == "__main__":' not in wrapped
+    # sys.exit(main()) is the canonical original invocation site; it MUST
+    # be stripped so only the synthetic ``return main()`` trailer remains.
+    assert "sys.exit(main())" not in wrapped
+    assert "return main()" in wrapped
+    compile(out, "<generated>", "exec")
+
+
+def test_shim_preserves_fail_open_handler() -> None:
+    """Wrapped shim MUST preserve the fail-open contract.
+
+    Refs cursor bugbot threads PRRT_kwDOQoWRls6Eekqj and Eep7i (PR #1763).
+    When the original script wraps ``main()`` in a try/except that
+    catches Exception and sys.exit(0)s, the shim MUST also wrap its
+    synthetic ``return main()`` trailer in a try/except returning 0;
+    otherwise an unexpected error from main() escapes the shim as a
+    non-zero exit and breaks the fail-open contract for hooks like
+    invoke_false_completion_gate and invoke_plan_state_sync.
+    """
+    body = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    return 0\n\n"
+        'if __name__ == "__main__":\n'
+        "    try:\n"
+        "        main()\n"
+        "    except Exception as err:\n"
+        "        sys.stderr.write(str(err))\n"
+        "        sys.exit(0)\n"
+    )
+    out = generate_hooks.inject_shim(body, "Bash(git commit*)")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    # original main() call inside the if __name__ block is stripped
+    assert 'if __name__ == "__main__":' not in wrapped
+    # synthetic trailer wraps return main() in try/except returning 0
+    assert "    try:\n        return main()" in wrapped
+    assert "return 0" in wrapped
+    compile(out, "<generated>", "exec")
+
+
+def test_shim_preserves_fail_open_via_runtime_behavior() -> None:
+    """End-to-end: a shim wrapping a fail-open script returns 0 on raise.
+
+    The static checks above pin the shape of the generated trailer.
+    This test pins the runtime contract: when main() raises an
+    unexpected error, the shim still exits 0 because the fail-open
+    handler caught it.
+    """
+    body = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n\n"
+        "def main() -> int:\n"
+        '    raise RuntimeError("boom")\n\n'
+        'if __name__ == "__main__":\n'
+        "    try:\n"
+        "        main()\n"
+        "    except Exception as err:\n"
+        "        sys.stderr.write(str(err))\n"
+        "        sys.exit(0)\n"
+    )
+    transformed = generate_hooks.inject_shim(body, "Bash(git commit*)")
+    proc = _run_shim(
+        transformed,
+        {"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}},
+    )
+    assert proc.returncode == 0
+    assert "boom" in proc.stderr

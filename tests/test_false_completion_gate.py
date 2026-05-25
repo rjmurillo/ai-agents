@@ -252,3 +252,75 @@ class TestFailOpen:
         )
         assert code == 0
         assert "boom" in stderr
+
+
+class TestBodyFileFailClosed:
+    """Test fail-closed when body-file paths are unreadable.
+
+    Refs cursor bugbot thread PRRT_kwDOQoWRls6Eef5V (PR #1763).
+    When git commit -F <path> or gh pr create --body-file <path>
+    points outside the trusted allowlist or to a missing file, the gate
+    MUST treat that as a completion claim (block until verified) instead
+    of silently skipping evaluation.
+    """
+
+    def test_commit_message_file_outside_allowlist_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        outside = tmp_path.parent / "definitely-outside" / "msg.txt"
+        command = f'git commit -F {outside}'
+        assert (
+            invoke_false_completion_gate._is_completion_claim_in_message_file(
+                command
+            )
+            is True
+        )
+
+    def test_commit_message_file_missing_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        missing = tmp_path / "does-not-exist.txt"
+        command = f'git commit -F {missing}'
+        assert (
+            invoke_false_completion_gate._is_completion_claim_in_message_file(
+                command
+            )
+            is True
+        )
+
+    def test_pr_body_file_outside_allowlist_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        outside = tmp_path.parent / "definitely-outside" / "body.md"
+        command = f'gh pr create --body-file {outside}'
+        assert (
+            invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+                command
+            )
+            is True
+        )
+
+    def test_pr_body_file_missing_fails_closed(self, tmp_path: Path) -> None:
+        missing = tmp_path / "no-body.md"
+        command = f'gh pr create --body-file {missing}'
+        assert (
+            invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+                command
+            )
+            is True
+        )
+
+    def test_no_message_file_returns_false(self) -> None:
+        """No -F argument means no body-file claim; do not over-block."""
+        assert (
+            invoke_false_completion_gate._is_completion_claim_in_message_file(
+                'git commit -m "feat: ordinary inline message"'
+            )
+            is False
+        )
+        assert (
+            invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+                'gh pr create --title "x"'
+            )
+            is False
+        )
