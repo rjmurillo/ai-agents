@@ -100,6 +100,37 @@ class TestAutoRetrospective(unittest.TestCase):
                 result = invoke_auto_retrospective.main()
                 self.assertEqual(result, 0)
 
+    def test_index_repaired_when_retro_already_exists(self):
+        """Existing retro without INDEX row triggers index recovery on next run."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            retro_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            existing = retro_dir / f"{today}-auto-retro.md"
+            existing.write_text("# Prior retro")
+            # docs/retros/INDEX.md intentionally missing
+
+            with patch("sys.stdin", StringIO("")):
+                with patch.object(invoke_auto_retrospective, "get_project_directory", return_value=tmp_path):
+                    result = invoke_auto_retrospective.main()
+                    self.assertEqual(result, 0)
+                    index = tmp_path / "docs" / "retros" / "INDEX.md"
+                    self.assertTrue(index.exists())
+                    self.assertIn(f"{today}-auto-retro.md", index.read_text())
+
+    def test_index_update_idempotent_on_repeat(self):
+        """update_retro_index does not duplicate a row already present."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            today = "2026-04-20"
+            invoke_auto_retrospective.update_retro_index(tmp_path, today, "2026-04-20-auto-retro.md")
+            invoke_auto_retrospective.update_retro_index(tmp_path, today, "2026-04-20-auto-retro.md")
+            index = tmp_path / "docs" / "retros" / "INDEX.md"
+            content = index.read_text()
+            self.assertEqual(content.count("2026-04-20-auto-retro.md"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,7 @@ Creates a structured retrospective template in .agents/retrospective/ and
 updates docs/retros/INDEX.md with a new entry.
 
 Hook Type: Stop (non-blocking, always exits 0)
-Exit Codes: Always 0 (fail-open — never blocks session stop)
+Exit Codes: Always 0 (fail-open, never blocks session stop)
 
 Bypass: SKIP_AUTO_RETRO=true environment variable
 
@@ -303,7 +303,13 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
 
 
 def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
-    """Append entry to docs/retros/INDEX.md, creating if needed."""
+    """Append entry to docs/retros/INDEX.md, creating if needed.
+
+    Idempotent: if a row already references `filename`, no new row is added.
+    This protects the index from a partial-failure path where the retro file
+    was written on a prior call but the index append failed (or this run
+    re-attempted index recovery after the retro file already existed).
+    """
     index_dir = project_dir / "docs" / "retros"
     index_dir.mkdir(parents=True, exist_ok=True)
     index_path = index_dir / "INDEX.md"
@@ -323,10 +329,21 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
                 # File was just created, write header
                 f.write((header + "\n").encode("utf-8"))
             else:
-                f.seek(-1, os.SEEK_END)
-                last_byte = f.read(1)
-                if last_byte != b"\n":
+                # Idempotency check: skip if this filename is already indexed.
+                # Read existing content to detect a prior write that produced
+                # the same row, even if a later index update was lost.
+                f.seek(0)
+                existing = f.read().decode("utf-8", errors="replace")
+                if filename in existing:
+                    return
+                # Ensure file ends with a newline before appending the row
+                # so a previous write that lacked trailing '\n' does not
+                # corrupt the markdown table.
+                if not existing.endswith("\n"):
+                    f.seek(0, os.SEEK_END)
                     f.write(b"\n")
+                else:
+                    f.seek(0, os.SEEK_END)
             f.write((row + "\n").encode("utf-8"))
         finally:
             if _unlock_file is not None:
@@ -360,8 +377,21 @@ def main() -> int:
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     retro_dir = project_dir / ".agents" / "retrospective"
 
-    # Idempotent: skip if retro already exists today
+    # If a retro file already exists today, do not regenerate it, but still
+    # call update_retro_index to repair the case where a prior run created
+    # the retro file but failed to write the index entry. The index update
+    # is idempotent on the filename, so this is a no-op when the row is
+    # already present.
     if has_retro_today(retro_dir, today):
+        try:
+            existing = next(retro_dir.glob(f"{today}*.md"), None)
+            if existing is not None:
+                update_retro_index(project_dir, today, existing.name)
+        except Exception as e:
+            print(
+                f"[hook-error] invoke_auto_retrospective index-repair: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
         return 0
 
     # Skip trivial sessions (only considers today's work to avoid misattribution)
