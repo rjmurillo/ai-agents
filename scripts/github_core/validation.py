@@ -72,10 +72,10 @@ def is_safe_file_path(path: str, allowed_base: str | None = None) -> bool:
 def _candidate_temp_roots() -> list[str]:
     """Return all temp-directory roots a mktemp-style command may use.
 
-    macOS resolves TMPDIR to a per-user /var/folders path but mktemp -t
-    may still place files under /tmp or /private/var/folders depending on
-    PATH and shell. Linux GNU mktemp obeys TMPDIR consistently. Collect
-    every plausible base so reply staging works under all shells.
+    macOS resolves TMPDIR to a per-user /var/folders/.../T/ path. mktemp -t
+    may place files under /tmp or /private/tmp depending on PATH and shell.
+    Linux GNU mktemp obeys TMPDIR consistently. Collect every plausible
+    base so reply staging works under all shells.
     """
     import tempfile
 
@@ -85,9 +85,7 @@ def _candidate_temp_roots() -> list[str]:
         os.environ.get("TMPDIR"),
         tempfile.gettempdir(),
         "/tmp",
-        "/var/folders",
         "/private/tmp",
-        "/private/var/folders",
     ):
         if not candidate:
             continue
@@ -107,10 +105,9 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
     Raises SystemExit if the file does not exist or escapes the allowed base.
 
     When allowed_base is None, accepts paths within either the repo root or
-    any plausible system temp directory (TMPDIR, tempfile.gettempdir(), or
-    well-known POSIX temp roots). This supports temp-file-based reply
-    staging on every shell, including macOS bash where mktemp -t may land
-    outside TMPDIR (e.g. /var/folders or /private/var/folders).
+    any plausible system temp directory (TMPDIR, tempfile.gettempdir(), /tmp,
+    or /private/tmp). This supports temp-file-based reply staging on every
+    shell.
 
     Args:
         body_file: The file path to validate.
