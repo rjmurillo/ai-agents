@@ -6,7 +6,7 @@ Addresses issue #1703 acceptance criteria: SessionStart hook implemented and tes
 Fixes 95.8% context reading failure rate by injecting critical context automatically.
 
 Hook Type: SessionStart (non-blocking)
-Exit Codes: Always 0 (fail-open — never blocks session start)
+Exit Codes: Always 0 (fail-open, never blocks session start)
 
 Related:
 - Issue #1672 (session-start gate)
