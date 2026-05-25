@@ -1059,11 +1059,16 @@ except Exception:
                 # flight even though threads currently show zero). Without
                 # this, a push that lands seconds after an automated review
                 # missed the bot-cascade gate.
-                LAST_REVIEW_AGE=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
+                # PR #1989 coderabbit/copilot: capture gh exit status. The
+                # original `|| true` masked auth/network failures, so an
+                # empty result fell through to `record_pass "no bot
+                # reviews"`. Treat a failed reviews query as a skip, not
+                # a pass, to avoid false reassurance during outages.
+                if LAST_REVIEW_AGE=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
                     --jq '[.[] | select(.user.type == "Bot") | .submitted_at] | sort | last' \
-                    2>/dev/null || true)
-                if [ -n "$LAST_REVIEW_AGE" ] && [ "$LAST_REVIEW_AGE" != "null" ]; then
-                    AGE_SECONDS=$("${PYTHON_CMD[@]}" -c "
+                    2>/dev/null); then
+                    if [ -n "$LAST_REVIEW_AGE" ] && [ "$LAST_REVIEW_AGE" != "null" ]; then
+                        AGE_SECONDS=$("${PYTHON_CMD[@]}" -c "
 import sys
 from datetime import datetime, timezone
 try:
@@ -1073,17 +1078,20 @@ try:
 except Exception:
     print(99999)
 " "$LAST_REVIEW_AGE" 2>/dev/null || echo 99999)
-                    if [ "${AGE_SECONDS:-99999}" -lt 120 ] 2>/dev/null; then
-                        record_warn "PR #$PR_NUMBER last bot review is ${AGE_SECONDS}s old (< 120s)"
-                        echo_info "  A bot scan is likely still in flight. Threads"
-                        echo_info "  may appear after this push. Wait at least 120s"
-                        echo_info "  since the most recent bot review."
-                        echo_info "  Bypass with: git push --no-verify"
+                        if [ "${AGE_SECONDS:-99999}" -lt 120 ] 2>/dev/null; then
+                            record_warn "PR #$PR_NUMBER last bot review is ${AGE_SECONDS}s old (< 120s)"
+                            echo_info "  A bot scan is likely still in flight. Threads"
+                            echo_info "  may appear after this push. Wait at least 120s"
+                            echo_info "  since the most recent bot review."
+                            echo_info "  Bypass with: git push --no-verify"
+                        else
+                            record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved, last bot review ${AGE_SECONDS}s old)"
+                        fi
                     else
-                        record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved, last bot review ${AGE_SECONDS}s old)"
+                        record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved, no bot reviews)"
                     fi
                 else
-                    record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved, no bot reviews)"
+                    record_skip "Bot-cascade check (PR #$PR_NUMBER reviews query failed)"
                 fi
             fi
         else

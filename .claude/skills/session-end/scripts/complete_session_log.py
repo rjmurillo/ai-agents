@@ -205,9 +205,12 @@ try:
     REWORK_THRESHOLD = _rework.REWORK_THRESHOLD
     compute_rework_warning = _rework.compute_rework_warning
     emit_rework_warning_lines = _rework.emit_rework_warning_lines
-except (OSError, ImportError, AttributeError):
+except (OSError, ImportError, AttributeError, SyntaxError):
     # Sibling missing, syntax error, or wrong shape. Skip silently; the
     # rework step at runtime will detect None and emit a degraded line.
+    # PR #1989 cursor sIQ: SyntaxError from exec_module is not an
+    # ImportError subclass; without it a malformed sibling crashes
+    # this module's import and blocks session-end entirely.
     pass
 
 
@@ -231,7 +234,10 @@ def _run_rework_warning_step() -> str:
     for line in emit_rework_warning_lines(rework_items):
         print(line)
     if rework_items:
-        return f"[WARN] rework warning: {len(rework_items)} file(s) at 6+ edits"
+        return (
+            f"[WARN] rework warning: {len(rework_items)} file(s) "
+            f"at {REWORK_THRESHOLD}+ edits"
+        )
     return "Rework warning: none"
 
 
