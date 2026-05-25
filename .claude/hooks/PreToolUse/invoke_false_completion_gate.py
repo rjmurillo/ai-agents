@@ -161,9 +161,17 @@ def _allowed_temp_roots() -> tuple[Path, ...]:
 
     ``gh pr create --body-file`` and ``git commit -F`` are commonly invoked with
     paths under ``$TMPDIR`` (or ``/tmp`` on POSIX); refusing those silently
-    bypasses the gate. The allowlist mirrors the pattern used by
-    ``src/copilot-cli/lib/github_core/validation.py:assert_valid_body_file``
-    (repo root plus temp roots), narrowed to read-only inspection here.
+    bypasses the gate. The allowlist mirrors the temp-root set used by
+    ``scripts/github_core/validation.py:_candidate_temp_roots`` (consumed by
+    ``assert_valid_body_file``), narrowed to read-only inspection here.
+
+    Canonical set (verbatim from ``_candidate_temp_roots``):
+        ``os.environ.get("TMPDIR")``, ``tempfile.gettempdir()``, ``/tmp``,
+        ``/private/tmp``.
+
+    No intentional divergence: this list MUST stay character-for-character in
+    sync with the canonical source so a body file accepted by the upstream
+    validator is also accepted by this read-only gate.
     """
     roots: list[Path] = []
     tmp_env = os.environ.get("TMPDIR")
@@ -176,7 +184,7 @@ def _allowed_temp_roots() -> tuple[Path, ...]:
         roots.append(Path(tempfile.gettempdir()).resolve())
     except OSError:
         pass
-    for fixed in ("/tmp", "/var/tmp"):
+    for fixed in ("/tmp", "/private/tmp"):
         try:
             roots.append(Path(fixed).resolve())
         except OSError:
@@ -208,8 +216,8 @@ def _read_commit_message_file(filepath: str) -> str | None:
     Security: Applies CWE-22 path traversal containment. Relative paths must
     resolve inside the project root. Absolute paths are allowed only when they
     resolve inside the project root or a trusted temp root (``$TMPDIR``,
-    ``tempfile.gettempdir()``, ``/tmp``, ``/var/tmp``); anything outside those
-    is rejected so callers cannot point the gate at arbitrary filesystem
+    ``tempfile.gettempdir()``, ``/tmp``, ``/private/tmp``); anything outside
+    those is rejected so callers cannot point the gate at arbitrary filesystem
     locations.
     """
     try:
