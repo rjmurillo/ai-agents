@@ -210,7 +210,17 @@ def _write_checkpoint(project_dir: str, file_path: str, summary: str) -> None:
                     if isinstance(existing, list):
                         checkpoints = existing
                 except json.JSONDecodeError:
-                    pass
+                    # Preserve the corrupt file under .corrupt so prior
+                    # checkpoints are not silently wiped when the daily
+                    # JSON cannot be parsed. The new write proceeds with
+                    # an empty list so the hook still records progress.
+                    corrupt_path = checkpoint_file.with_suffix(
+                        checkpoint_file.suffix + ".corrupt"
+                    )
+                    try:
+                        corrupt_path.write_text(raw, encoding="utf-8")
+                    except OSError:
+                        pass
 
             checkpoints.append({
                 "file": file_path,
