@@ -56,13 +56,20 @@ except ImportError:
     _lock_file = None  # type: ignore[assignment]
     _unlock_file = None  # type: ignore[assignment]
 
-# Files that trigger checkpointing
+# Files that trigger checkpointing.
+#
+# Patterns anchor the basename to '/' or start-of-string so files like
+# `MyTODO.md`, `OLD-PLAN.md`, or `vendor/foo/SOMETODO.md` do not match.
+# The `.agents/plan*` pattern is also anchored to a `.agents/` segment so
+# unrelated files containing the substring elsewhere do not trigger
+# checkpoint writes that would evict real plan/session edits from the
+# 20-entry ring.
 PLAN_PATTERNS = [
-    re.compile(r"(^|/)\.agents/sessions/.*\.json$"),
-    re.compile(r"(^|/)TODO\.md$", re.IGNORECASE),
-    re.compile(r"(^|/)PLAN\.md$", re.IGNORECASE),
-    re.compile(r"(^|/)\.agents/plan.*\.md$", re.IGNORECASE),
-    re.compile(r"(^|/)PROJECT-PLAN\.md$", re.IGNORECASE),
+    re.compile(r"(?:^|/)\.agents/sessions/[^/]+\.json$"),
+    re.compile(r"(?:^|/)TODO\.md$", re.IGNORECASE),
+    re.compile(r"(?:^|/)PLAN\.md$", re.IGNORECASE),
+    re.compile(r"(?:^|/)\.agents/plan[^/]*\.md$", re.IGNORECASE),
+    re.compile(r"(?:^|/)PROJECT-PLAN\.md$", re.IGNORECASE),
 ]
 
 
