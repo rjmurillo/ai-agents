@@ -95,7 +95,8 @@ def _get_current_branch() -> str:
             timeout=5,
         )
         if result.returncode == 0:
-            return result.stdout.strip()
+            branch = result.stdout.strip()
+            return branch if branch else "(detached)"
     except (OSError, subprocess.TimeoutExpired):
         pass
     return "(unknown)"

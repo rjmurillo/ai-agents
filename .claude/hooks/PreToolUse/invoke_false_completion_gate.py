@@ -478,7 +478,9 @@ def _is_documentation_only(is_pr_create: bool) -> bool:
     return all(f.endswith(".md") for f in files)
 
 
-def _has_verification_evidence(session_log: Path) -> bool:
+def _has_verification_evidence_in_log(
+    session_log: Path, found_command: bool, found_result: bool
+) -> tuple[bool, bool]:
     """Check session log for test/build verification evidence.
 
     Requires both a command pattern (e.g., "pytest", "npm test") AND a result
@@ -490,9 +492,14 @@ def _has_verification_evidence(session_log: Path) -> bool:
     Args:
         session_log: Path to the session log file. Caller must ensure
             this is not None.
+        found_command: Whether a command pattern was already found in a
+            previous log (for aggregation across multiple logs).
+        found_result: Whether a result pattern was already found in a
+            previous log (for aggregation across multiple logs).
+
+    Returns:
+        Tuple of (found_command, found_result) after scanning this log.
     """
-    found_command = False
-    found_result = False
     try:
         with session_log.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:
@@ -507,9 +514,33 @@ def _has_verification_evidence(session_log: Path) -> bool:
                             found_result = True
                             break
                 if found_command and found_result:
-                    return True
+                    return (found_command, found_result)
     except OSError:
-        return False
+        pass
+    return (found_command, found_result)
+
+
+def _has_verification_evidence_across_logs(session_logs: list[Path]) -> bool:
+    """Check multiple session logs for test/build verification evidence.
+
+    Aggregates evidence across all logs: a command pattern in one log and
+    a result pattern in another log satisfies the gate. This handles cases
+    where verification output is split across multiple same-day session files.
+
+    Args:
+        session_logs: List of session log paths to check.
+
+    Returns:
+        True if both command and result patterns were found across all logs.
+    """
+    found_command = False
+    found_result = False
+    for session_log in session_logs:
+        found_command, found_result = _has_verification_evidence_in_log(
+            session_log, found_command, found_result
+        )
+        if found_command and found_result:
+            return True
     return False
 
 
@@ -603,10 +634,9 @@ def main() -> None:
         _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
         sys.exit(0)
 
-    for session_log in session_logs:
-        if _has_verification_evidence(session_log):
-            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
-            sys.exit(0)
+    if _has_verification_evidence_across_logs(session_logs):
+        _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
+        sys.exit(0)
 
     # Block: completion claim without verification
     _write_audit_log(project_dir, command, "BLOCK", "completion claim without verification")
