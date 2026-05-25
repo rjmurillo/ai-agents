@@ -265,12 +265,26 @@ class TestLoadScenariosValidation:
 
 
 def test_spec_command_scenarios_are_discoverable_by_eval_suite():
-    scenario_path = eval_suite_mod.find_scenarios_for_prompt(
+    # Compare via Path so the assertion is OS-independent.
+    # find_scenarios_for_prompt returns str(candidate.relative_to(REPO_ROOT)),
+    # which uses the platform path separator. A raw string compare fails on
+    # Windows (`tests\\evals\\spec-scenarios.json`) even though discovery works.
+    # Per PR #2028 review.
+    scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(
         ".claude/commands/spec.md"
     )
-    assert scenario_path == "tests/evals/spec-scenarios.json"
-    scenarios = eval_mod.load_scenarios(str(REPO_ROOT / scenario_path))
-    assert {scenario["id"] for scenario in scenarios} == {
+    assert Path(scenario_path_str) == Path("tests/evals/spec-scenarios.json")
+
+    scenarios = eval_mod.load_scenarios(str(REPO_ROOT / scenario_path_str))
+    ids = [scenario["id"] for scenario in scenarios]
+    # Uniqueness must be asserted on the raw list before converting to a set;
+    # otherwise duplicate scenario IDs collapse silently and the eval reports
+    # ambiguous keyed-by-scenario_id results. Per PR #2028 review.
+    assert len(ids) == len(set(ids)), (
+        "spec-scenarios.json must not contain duplicate scenario IDs. "
+        f"Found: {ids}"
+    )
+    assert set(ids) == {
         "D1",
         "D6",
         "D7",

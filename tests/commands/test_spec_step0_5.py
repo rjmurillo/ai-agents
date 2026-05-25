@@ -622,19 +622,33 @@ def test_d10_d11_tally_line_rejects_malformed_timestamp():
 
 
 def test_llm_required_d_checks_have_adr057_scenarios():
-    """Issue #1972: live /spec D-checks are covered by eval scenarios."""
+    """Issue #1972: live /spec D-checks are covered by eval scenarios.
+
+    Asserts uniqueness of scenario IDs BEFORE the dict collapse so a duplicate
+    ID is caught here; otherwise eval-suite would report results keyed by a
+    collapsed ID and ambiguity would slip through. Per PR #2028 review.
+    """
     payload = json.loads(SPEC_SCENARIOS_JSON.read_text(encoding="utf-8"))
     scenarios = payload["scenarios"]
-    by_id = {scenario["id"]: scenario for scenario in scenarios}
 
-    assert set(by_id) == {"D1", "D6", "D7", "D9", "D12", "D13", "D14"}
-    for check_id, scenario in by_id.items():
+    ids = [scenario["id"] for scenario in scenarios]
+    assert len(ids) == len(set(ids)), (
+        "spec-scenarios.json must not contain duplicate scenario IDs; "
+        "eval results are keyed by scenario_id and duplicates produce "
+        f"ambiguous output. Found: {ids}"
+    )
+
+    by_id = {scenario["id"]: scenario for scenario in scenarios}
+    expected_d_checks = {"D1", "D6", "D7", "D9", "D12", "D13", "D14"}
+    assert set(by_id) == expected_d_checks
+    assert len(scenarios) == len(expected_d_checks)
+    for scenario in scenarios:
         assert scenario["desc"]
         assert scenario["input"]
         assert scenario["expected_verdict"] in scenario["verdict_options"]
         assert scenario["expected_reason_contains"]
         assert scenario["rationale"]
-        assert check_id in scenario["id"]
+        assert scenario["id"].startswith("D")
 
     assert by_id["D1"]["expected_verdict"] == "PASS"
     assert by_id["D6"]["expected_verdict"] == "PASS"
