@@ -1,19 +1,19 @@
+/**
+ * Pipeline interfaces for ai-agents init (REQ-1.7).
+ *
+ * Pipeline: BundleSource -> Transform[] -> TargetEmitter
+ */
+
+export type Target = "claude" | "copilot" | "both";
+
 export interface BundleEntry {
   readonly relativePath: string;
-  readonly size: number;
+  readonly category: "agent" | "command" | "skill" | "config" | "other";
 }
 
 export interface TargetContext {
-  readonly targetDir: string;
-  readonly force: boolean;
-  readonly dryRun: boolean;
-}
-
-export interface VersionPin {
-  readonly version: string;
-  readonly manifestHash: string;
-  readonly installedAt: string;
-  readonly source: string;
+  readonly target: Target;
+  readonly destDir: string;
 }
 
 export interface BundleSource {
@@ -28,5 +28,6 @@ export interface TargetEmitter {
 
 export type Transform = (
   entry: BundleEntry,
+  content: Buffer,
   target: TargetContext,
-) => BundleEntry | null;
+) => { entry: BundleEntry; content: Buffer } | null;
