@@ -118,10 +118,18 @@ def _extract_open_items(session_log: Path) -> list[str]:
                 status = str(entry.get("status", "")).lower()
                 if status in ("done", "complete", "completed"):
                     continue
-                desc = entry.get("description", entry.get("task", str(entry)))
-                items.append(str(desc))
+                # Prefer description, then task. Skip entries whose values
+                # are missing or empty rather than appending "None" / blank
+                # strings that pollute the resume context.
+                desc = entry.get("description") or entry.get("task")
+                if isinstance(desc, str):
+                    stripped = desc.strip()
+                    if stripped:
+                        items.append(stripped)
             elif isinstance(entry, str):
-                items.append(entry)
+                stripped = entry.strip()
+                if stripped:
+                    items.append(stripped)
 
     try:
         content = session_log.read_text(encoding="utf-8", errors="replace")
@@ -216,18 +224,27 @@ def main() -> None:
             items_preview += f" ... (+{len(open_items) - 5} more)"
         resume_context += f" Items: {items_preview}"
 
-    # Write checkpoint
-    _write_checkpoint(
-        project_dir,
-        session_log_name,
-        session_mtime,
-        branch,
-        open_items,
-        resume_context,
-    )
-
-    # Print resume context to stdout (injected into compacted context)
+    # Print the resume context to stdout first so the post-compaction
+    # session still receives it even when checkpoint persistence fails
+    # (full disk, read-only mount, permission error, etc.). The injected
+    # context is the primary product of this hook; the on-disk checkpoint
+    # is a best-effort audit artifact.
     print(f"## ⚠️ Pre-Compaction Checkpoint\n\n{resume_context}")
+
+    try:
+        _write_checkpoint(
+            project_dir,
+            session_log_name,
+            session_mtime,
+            branch,
+            open_items,
+            resume_context,
+        )
+    except OSError as exc:
+        print(
+            f"[WARNING] {HOOK_NAME} checkpoint write failed: {exc}",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
