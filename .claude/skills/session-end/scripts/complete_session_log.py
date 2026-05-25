@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import types
 from datetime import UTC
 from pathlib import Path
 
@@ -186,7 +187,7 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
 # import is loaded via importlib so it works whether the script is run
 # directly (sys.path[0] is the script dir) or imported by tests via
 # importlib.util.spec_from_file_location (which does NOT add the dir).
-def _load_rework_module():
+def _load_rework_module() -> types.ModuleType:
     """Load the rework_warning sibling module without depending on sys.path."""
     import importlib.util as _il
     _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rework_warning.py")

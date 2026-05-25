@@ -292,7 +292,7 @@ class RunReworkWarningStepReturnShapeTests(unittest.TestCase):
     """
 
     def test_no_items_returns_none_summary_and_evidence_list(self) -> None:
-        """Empty rework items -> summary 'Rework warning: none', evidence ['rework-warning: none']."""
+        """Empty rework items produce a 'none' summary and a one-item evidence list."""
         with mock.patch.object(csl, "compute_rework_warning", return_value=[]):
             summary, evidence = csl._run_rework_warning_step()
         self.assertEqual(summary, "Rework warning: none")
@@ -312,15 +312,11 @@ class RunReworkWarningStepReturnShapeTests(unittest.TestCase):
 
     def test_sibling_unavailable_returns_skipped_tuple(self) -> None:
         """When sibling module is missing, returns skipped summary + evidence list."""
-        orig_compute = csl.compute_rework_warning
-        orig_emit = csl.emit_rework_warning_lines
-        try:
-            csl.compute_rework_warning = None  # type: ignore[assignment]
-            csl.emit_rework_warning_lines = None  # type: ignore[assignment]
+        with (
+            mock.patch.object(csl, "compute_rework_warning", None),
+            mock.patch.object(csl, "emit_rework_warning_lines", None),
+        ):
             summary, evidence = csl._run_rework_warning_step()
-        finally:
-            csl.compute_rework_warning = orig_compute
-            csl.emit_rework_warning_lines = orig_emit
         self.assertIn("skipped", summary.lower())
         self.assertEqual(len(evidence), 1)
         self.assertIn("skipped", evidence[0])
@@ -376,7 +372,7 @@ class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
         validate_session_json only validates items declared as MUST/MUST NOT;
         an absent optional field is silently ignored (backward compatibility).
         """
-        from scripts.validate_session_json import validate_session_end, ValidationResult
+        from scripts.validate_session_json import ValidationResult, validate_session_end
 
         session_end = self._make_minimal_session_end()
         # Confirm: no reworkWarning key present (simulates old log).
@@ -388,7 +384,7 @@ class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
 
     def test_new_log_with_rework_warning_field_passes_validation(self) -> None:
         """A session_end dict WITH reworkWarning also passes validation."""
-        from scripts.validate_session_json import validate_session_end, ValidationResult
+        from scripts.validate_session_json import ValidationResult, validate_session_end
 
         session_end = self._make_minimal_session_end()
         session_end["reworkWarning"] = {"Evidence": ["rework-warning: none"]}

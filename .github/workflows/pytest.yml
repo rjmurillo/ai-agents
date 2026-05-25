@@ -116,8 +116,8 @@ jobs:
           pytest \
             tests/skills/github/test_wait_for_unresolved_zero.py \
             tests/skills/session-end/test_rework_warning.py \
-            --cov=wait_for_unresolved_zero \
-            --cov=rework_warning \
+            --cov=.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py \
+            --cov=.claude/skills/session-end/scripts/rework_warning.py \
             --cov-branch --cov-fail-under=100
 
       - name: Upload test results
