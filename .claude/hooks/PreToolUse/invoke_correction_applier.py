@@ -198,7 +198,12 @@ def main() -> int:
         for source, text in shown:
             lines.append(f"- [{source}] {text}")
 
-        output = {"decision": "allow", "message": "\n".join(lines)}
+        # Match the {decision, reason} envelope used by every other
+        # PreToolUse hook in this repo (invoke_branch_protection_guard,
+        # invoke_branch_context_guard, invoke_false_completion_gate,
+        # invoke_security_commit_gate, invoke_prompt_eval_gate). Claude
+        # Code surfaces the `reason` field; `message` was silently dropped.
+        output = {"decision": "allow", "reason": "\n".join(lines)}
         print(json.dumps(output))
     except Exception as exc:
         print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
