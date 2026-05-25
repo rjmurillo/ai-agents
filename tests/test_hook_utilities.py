@@ -311,6 +311,32 @@ class TestGetRecentSessionLog:
         result = get_recent_session_log(str(tmp_path))
         assert result is not None and result.name == today_f.name
 
+    def test_skips_candidate_with_transient_stat_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A single failing stat must not blind the selector to siblings.
+
+        Race conditions (file deleted between glob and stat, transient
+        permission error) on one candidate must not cause the whole
+        selection to return None when other candidates are healthy.
+        """
+        today_d = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        bad = tmp_path / f"{today_d}-session-01.json"
+        good = tmp_path / f"{today_d}-session-02.json"
+        bad.write_text("{}")
+        good.write_text("{}")
+        real_stat = Path.stat
+
+        def flaky_stat(self: Path, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if self.name == bad.name:
+                raise OSError("transient stat failure")
+            return real_stat(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "stat", flaky_stat)
+        with pytest.warns(UserWarning, match="Skipping unreadable session log"):
+            result = get_recent_session_log(str(tmp_path))
+        assert result is not None and result.name == good.name
+
 
 class TestCoerceToList:
     """Behavior of coerce_to_list added by PR #1724."""

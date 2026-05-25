@@ -169,6 +169,30 @@ def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | 
     return logs[0]
 
 
+def _newest_by_mtime(candidates: list[Path]) -> Path | None:
+    """Return newest candidate by mtime, skipping ones whose stat fails.
+
+    A single transient stat failure (race with deletion/rename, permission
+    issue) on one candidate must not blind the caller to the rest. Skip
+    unreadable entries and pick the newest of those that stat successfully.
+    """
+    best: Path | None = None
+    best_mtime = float("-inf")
+    for candidate in candidates:
+        try:
+            mtime = candidate.stat().st_mtime
+        except OSError as exc:
+            warnings.warn(
+                f"Skipping unreadable session log {candidate}: {exc}",
+                stacklevel=2,
+            )
+            continue
+        if mtime > best_mtime:
+            best_mtime = mtime
+            best = candidate
+    return best
+
+
 def get_today_session_logs(sessions_dir: str) -> list[Path]:
     """Find all session logs for today's date."""
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
@@ -213,15 +237,16 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
         )
         return None
 
+    most_recent = _newest_by_mtime(today_candidates)
+    if most_recent is not None:
+        return most_recent
     if today_candidates:
-        try:
-            return max(today_candidates, key=lambda f: f.stat().st_mtime)
-        except OSError as exc:
-            warnings.warn(
-                f"Failed to stat session logs: {exc}",
-                stacklevel=2,
-            )
-            return None
+        # All today candidates errored on stat. Fall through to yesterday so a
+        # single transient stat failure does not blind hooks to the session.
+        warnings.warn(
+            "All today session logs failed stat; falling back to yesterday",
+            stacklevel=2,
+        )
 
     # Only fall back to yesterday if no today session exists (cross-midnight continuation)
     yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -234,15 +259,7 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
         )
         return None
 
-    if yesterday_candidates:
-        try:
-            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
-        except OSError as exc:
-            warnings.warn(
-                f"Failed to stat session logs: {exc}",
-                stacklevel=2,
-            )
-            return None
+    return _newest_by_mtime(yesterday_candidates)
 
     return None
 
