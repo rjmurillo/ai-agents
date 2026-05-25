@@ -422,6 +422,11 @@ def main() -> int:
     # the retro file but failed to write the index entry. The index update
     # is idempotent on the filename, so this is a no-op when the row is
     # already present.
+    #
+    # Multiple same-day retros (manual plus auto, reruns) can coexist. Pick
+    # deterministically: newest by mtime, with filename as a stable tiebreaker
+    # when mtimes match or stat fails. This keeps index repair predictable
+    # across runs.
     if has_retro_today(retro_dir, today):
         try:
             existing = _pick_same_day_retro(retro_dir, today)
