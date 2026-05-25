@@ -206,6 +206,7 @@ def _load_rework_module():
 # MUST NOT crash module import on a broken sibling.
 _REWORK_LOADED = False
 _REWORK_LAZY_NAMES = ("compute_rework_warning", "emit_rework_warning_lines", "REWORK_THRESHOLD")
+_REWORK_BINDS: dict = {}  # Cache for loaded values; survives attribute deletion.
 
 
 def _ensure_rework_loaded() -> None:
@@ -220,14 +221,21 @@ def _ensure_rework_loaded() -> None:
     except Exception:  # noqa: BLE001 - informational; never block import or runtime.
         binds = {n: None for n in _REWORK_LAZY_NAMES}
         binds["REWORK_THRESHOLD"] = 6  # Fallback threshold; sibling unreachable.
-    globals().update(binds)
+    _REWORK_BINDS.update(binds)
+    g = globals()
+    for name, value in binds.items():
+        if name not in g:
+            g[name] = value
 
 
 def __getattr__(name: str):
     """PEP 562 hook: lazy-bind rework-warning names on first attribute access."""
     if name in _REWORK_LAZY_NAMES:
         _ensure_rework_loaded()
-        return globals()[name]
+        g = globals()
+        if name in g:
+            return g[name]
+        return _REWORK_BINDS.get(name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
