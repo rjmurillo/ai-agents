@@ -44,7 +44,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # --- Standard hook boilerplate ---
@@ -620,18 +620,22 @@ def main() -> None:
         _write_audit_log(project_dir, command, "ALLOW", "documentation-only changes")
         sys.exit(0)
 
-    # Check for verification evidence in all of today's session logs.
-    # Verification may exist in an earlier session file from the same day.
-    # Falls back to get_recent_session_log for sessions spanning midnight.
+    # Check for verification evidence in session logs from today and yesterday.
+    # Cross-midnight sessions may have verification in yesterday's log while
+    # a new session file exists for today.
     sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
     session_logs = get_today_session_logs(sessions_dir)
 
-    # Midnight fallback: if no today logs exist, check for a recent session
-    # (yesterday's log) to support sessions spanning midnight.
-    if not session_logs:
-        recent_log = get_recent_session_log(sessions_dir)
-        if recent_log:
-            session_logs = [recent_log]
+    # Cross-midnight support: also include yesterday's logs so verification
+    # recorded before midnight is found even when today's logs exist.
+    sessions_path = Path(sessions_dir)
+    if sessions_path.is_dir():
+        yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+        try:
+            yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
+            session_logs.extend(yesterday_logs)
+        except OSError:
+            pass
 
     # Fail-open when no session logs exist, EXCEPT when the completion
     # claim was inferred from an unreadable body file. In that case we
