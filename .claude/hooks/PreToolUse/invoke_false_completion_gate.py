@@ -620,34 +620,60 @@ def main() -> None:
         _write_audit_log(project_dir, command, "ALLOW", "documentation-only changes")
         sys.exit(0)
 
-    # Check for verification evidence in session logs from today and yesterday.
-    # Cross-midnight sessions may have verification in yesterday's log while
-    # a new session file exists for today.
+    # Check for verification evidence in session logs from today first.
+    # Only fall back to yesterday's logs when today's logs lack evidence,
+    # to prevent stale verification from a prior day from satisfying a
+    # fresh session's claim.
     sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
     session_logs = get_today_session_logs(sessions_dir)
-
-    # Cross-midnight support: also include yesterday's logs so verification
-    # recorded before midnight is found even when today's logs exist.
-    sessions_path = Path(sessions_dir)
-    if sessions_path.is_dir():
-        yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
-        try:
-            yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
-            session_logs.extend(yesterday_logs)
-        except OSError:
-            pass
 
     # Fail-open when no session logs exist, EXCEPT when the completion
     # claim was inferred from an unreadable body file. In that case we
     # honor the fail-closed contract on the body-file helpers and require
     # verification before allowing the command through.
     if not session_logs and not body_inferred:
-        _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
-        sys.exit(0)
+        # No today logs: check yesterday (cross-midnight continuation).
+        sessions_path = Path(sessions_dir)
+        if sessions_path.is_dir():
+            yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+            try:
+                yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
+                if yesterday_logs:
+                    if _has_verification_evidence_across_logs(yesterday_logs):
+                        _write_audit_log(project_dir, command, "ALLOW", "verification evidence found (yesterday)")
+                        sys.exit(0)
+                    # Yesterday logs exist but lack evidence; fall through to block.
+                else:
+                    # No yesterday logs either; fail-open.
+                    _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+                    sys.exit(0)
+            except OSError:
+                # Can't read yesterday logs; fail-open.
+                _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+                sys.exit(0)
+        else:
+            # No sessions directory; fail-open.
+            _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+            sys.exit(0)
+    elif session_logs:
+        # Today's logs exist: check them first, only fall back to yesterday
+        # if today's logs lack evidence (cross-midnight continuation).
+        if _has_verification_evidence_across_logs(session_logs):
+            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
+            sys.exit(0)
 
-    if _has_verification_evidence_across_logs(session_logs):
-        _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
-        sys.exit(0)
+        # Today's logs lack evidence; try yesterday as fallback.
+        sessions_path = Path(sessions_dir)
+        if sessions_path.is_dir():
+            yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+            try:
+                yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
+                if yesterday_logs and _has_verification_evidence_across_logs(yesterday_logs):
+                    _write_audit_log(project_dir, command, "ALLOW", "verification evidence found (yesterday)")
+                    sys.exit(0)
+            except OSError:
+                pass
+        # Fall through to block.
 
     # Block: completion claim without verification
     _write_audit_log(project_dir, command, "BLOCK", "completion claim without verification")
