@@ -33,7 +33,7 @@ For each slice:
 
 1. Read the spec AC for this slice. Every test must trace to an AC number from `/spec` output. Name the test `test_<behavior>` and include the AC identifier in the docstring or comment.
 2. Understand the existing code patterns (read related files, check test conventions). Use Serena symbolic tools; do not grep or Read before checking memory and symbol index.
-3. **Write the failing test first.** This project has pytest 8+. TDD is unconditional — never write code before a failing test exists. The test expresses the AC contract; code exists only to make it pass. Tests written after code confirm the code's behavior, not the spec's contract.
+3. **Write the failing test first.** This project has pytest 8+. TDD is unconditional. Never write code before a failing test exists. The test expresses the AC contract; code exists only to make it pass. Tests written after code confirm the code's behavior, not the spec's contract.
 4. Write the minimum code to pass the test. Run the test, confirm it fails on the right assertion, then write code.
 5. Refactor toward quality (cohesion, encapsulation, simplicity). Re-run the test.
 6. **Self-apply gate for detection tools.** If this slice adds a guard, warning, or detector (hook, linter, threshold check), run it against the current branch NOW before committing. If it does not fire on conditions present in the branch, the threshold or detection logic is wrong. Fix the logic before step 7.
