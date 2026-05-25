@@ -119,8 +119,7 @@
     "Added scenario-presence coverage to tests/eval/test_eval_prompt_change.py.",
     "Updated slash-command-quality workflow to run eval-prompt-change against /spec scenarios when .claude/commands/spec.md changes in a pull request.",
     "Validation: python3 -m json.tool, eval-prompt-change --dry-run, uv run pytest tests/eval/test_eval_prompt_change.py tests/commands/test_spec_step0_5.py, scripts/validate_workflows.py.",
-    "pre_pr.py failed on existing repo-level markdownlint/python-file linting and merge-resolver agent drift; act dry-run failed because act is not installed."
-    ,
+    "pre_pr.py failed on existing repo-level markdownlint/python-file linting and merge-resolver agent drift; act dry-run failed because act is not installed.",
     "Push/PR blocked: authenticated GitHub token belongs to ZardLi1115 and lacks workflow scope; GitHub rejected the branch because the fix edits .github/workflows/slash-command-quality.yml."
   ],
   "endingCommit": "final amended commit on fix/issue-1972-spec-d-evals",
