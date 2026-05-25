@@ -59,13 +59,19 @@ def _collapse_rename(line: str) -> str:
     """
     if "=>" not in line:
         return line.rstrip()
-    if "{" in line and "}" in line:
-        # Brace form: `prefix{old => new}suffix`. Extract everything between
-        # the first `{` and the matching `}` and take the side after `=>`.
-        brace_open = line.index("{")
-        brace_close = line.index("}", brace_open)
+    brace_open = line.find("{")
+    brace_close = line.find("}", brace_open + 1) if brace_open != -1 else -1
+    inside = (
+        line[brace_open + 1 : brace_close]
+        if 0 <= brace_open < brace_close
+        else ""
+    )
+    # PR #1989 coderabbit t4C: only enter brace form when `=>` lives
+    # inside the braces. Paths like `src{config} => src{config}_new`
+    # have literal braces with the `=>` outside; without the guard,
+    # `inside.split("=>", 1)[1]` raises IndexError.
+    if brace_open != -1 and brace_close != -1 and "=>" in inside:
         prefix = line[:brace_open]
-        inside = line[brace_open + 1 : brace_close]
         suffix = line[brace_close + 1 :]
         new_inside = inside.split("=>", 1)[1].strip()
         new_path = f"{prefix}{new_inside}{suffix}"

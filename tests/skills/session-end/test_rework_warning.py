@@ -190,6 +190,20 @@ class ComputeReworkWarningTests(unittest.TestCase):
         # `prefix//suffix` -> collapse to `prefix/suffix`.
         self.assertEqual(rw._collapse_rename("a/{b => }/c.py"), "a/c.py")
 
+    def test_collapse_rename_braces_with_arrow_outside(self) -> None:
+        """REGRESSION (PR #1989 coderabbit t4C): braces present but `=>` outside.
+
+        `src{config} => src{config}_new` has literal braces with the `=>`
+        living between them (top-level), not inside. Without the new
+        inside-arrow guard, `inside.split("=>", 1)[1]` raised IndexError.
+        Now collapses via the bare-form path.
+        """
+        # Bare form wins because arrow is outside the brace span.
+        self.assertEqual(
+            rw._collapse_rename("src{config} => src{config}_new"),
+            "src{config}_new",
+        )
+
     def test_collapse_rename_negative_cases(self) -> None:
         """NEGATIVE: malformed inputs degrade gracefully (no exceptions)."""
         # Empty string
