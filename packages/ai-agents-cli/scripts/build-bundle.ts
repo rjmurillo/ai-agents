@@ -1,4 +1,4 @@
-import { cp, rm, readdir, stat } from "node:fs/promises";
+import { cp, rm, mkdir, readdir, stat } from "node:fs/promises";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,11 +33,13 @@ async function copyTree(src: string, dest: string, depth: number): Promise<numbe
       const skillsDest = join(dest, "skills");
       const skills = await readdir(skillsSrc, { withFileTypes: true });
       for (const skill of skills) {
+        if (!skill.isDirectory()) continue;
         if (EXCLUDED_SKILLS.has(skill.name)) continue;
         const skillSrc = join(skillsSrc, skill.name);
         const skillDest = join(skillsDest, skill.name);
-        await cp(skillSrc, skillDest, { recursive: true });
-        count++;
+        // Recurse into each kept skill so EXCLUDED_FILES / EXCLUDED_PATTERNS
+        // are enforced inside skill subtrees (lockfiles, caches, local overrides).
+        count += await copyTree(skillSrc, skillDest, depth + 1);
       }
       continue;
     }
@@ -49,7 +51,8 @@ async function copyTree(src: string, dest: string, depth: number): Promise<numbe
       count += await copyTree(srcPath, destPath, depth + 1);
     } else {
       const dir = dirname(destPath);
-      await cp(srcPath, destPath, { recursive: true });
+      await mkdir(dir, { recursive: true });
+      await cp(srcPath, destPath);
       count++;
     }
   }
