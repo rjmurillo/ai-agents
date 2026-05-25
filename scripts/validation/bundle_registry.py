@@ -42,8 +42,15 @@ BUNDLE_REGISTRY: list[tuple[str, str]] = [
 
 # Per SPEC-005 DESIGN-005 §"BUNDLE Marker Format":
 # the static parser looks for both the ``Skill(skill="...")`` call and
-# an adjacent ``BUNDLE: <command-base> -> <skill>`` text fragment.
+# an adjacent ``BUNDLE: <command-base> -> <skill> (<status>)`` text
+# fragment. ``<status>`` is one of ``invoked``, ``skipped:<reason>``,
+# or ``failed:<reason>`` per DESIGN-005 §"BUNDLE Marker Format".
 SKILL_INVOCATION_TEMPLATE = 'Skill(skill="{skill}")'
+
+# Maximum line distance between a ``Skill(...)`` call and its matching
+# ``BUNDLE:`` marker for them to count as adjacent. Sourced from
+# DESIGN-005; updates require a paired spec edit.
+BUNDLE_ADJACENCY_WINDOW = 5
 
 
 def expected_skill_invocation(skill: str) -> str:
@@ -52,10 +59,71 @@ def expected_skill_invocation(skill: str) -> str:
 
 
 def expected_bundle_marker(command_file: str, skill: str) -> str:
-    """Return the literal ``BUNDLE:`` marker the parser searches for.
+    """Return the literal ``BUNDLE:`` marker prefix (including the
+    opening ``(`` of the status suffix).
 
     ``command_file`` is the basename (e.g. ``spec.md``); the marker uses
-    the slash-command base (no extension), e.g. ``spec``.
+    the slash-command base (no extension), e.g. ``spec``. The trailing
+    ``(`` forces a status suffix per DESIGN-005 §"BUNDLE Marker Format"
+    so non-conformant markers without a status do not silently pass.
+    Use :func:`bundle_marker_present` for full validation of the status
+    set, and :func:`bundle_marker_adjacent` for adjacency to the
+    matching ``Skill(...)`` call.
     """
     base = command_file.rsplit(".md", 1)[0]
-    return f"BUNDLE: {base} -> {skill}"
+    return f"BUNDLE: {base} -> {skill} ("
+
+
+def bundle_marker_present(text: str, command_file: str, skill: str) -> bool:
+    """Return ``True`` if a well-formed BUNDLE marker for the pair exists.
+
+    A well-formed marker matches ``BUNDLE: <base> -> <skill> (<status>)``
+    where ``<status>`` is one of ``invoked``, ``skipped:<reason>``, or
+    ``failed:<reason>`` per DESIGN-005.
+    """
+    import re
+
+    base = command_file.rsplit(".md", 1)[0]
+    pattern = re.compile(
+        rf"BUNDLE:\s+{re.escape(base)}\s+->\s+{re.escape(skill)}\s+"
+        rf"\((invoked|skipped:[^)]+|failed:[^)]+)\)"
+    )
+    return bool(pattern.search(text))
+
+
+def bundle_marker_adjacent(
+    text: str,
+    command_file: str,
+    skill: str,
+    *,
+    window: int = BUNDLE_ADJACENCY_WINDOW,
+) -> bool:
+    """Return ``True`` if a well-formed BUNDLE marker is within ``window``
+    lines of the matching ``Skill(skill="...")`` call.
+
+    Per DESIGN-005 §"BUNDLE Marker Format", emission ordering is "emit
+    marker, then invoke skill"; the adjacency window guards against the
+    marker drifting away from its invocation. Returns ``False`` if
+    either side is absent.
+    """
+    import re
+
+    base = command_file.rsplit(".md", 1)[0]
+    invocation = expected_skill_invocation(skill)
+    marker_re = re.compile(
+        rf"BUNDLE:\s+{re.escape(base)}\s+->\s+{re.escape(skill)}\s+"
+        rf"\((invoked|skipped:[^)]+|failed:[^)]+)\)"
+    )
+
+    lines = text.splitlines()
+    invocation_lines = [i for i, line in enumerate(lines) if invocation in line]
+    marker_lines = [i for i, line in enumerate(lines) if marker_re.search(line)]
+
+    if not invocation_lines or not marker_lines:
+        return False
+
+    for inv in invocation_lines:
+        for mk in marker_lines:
+            if abs(inv - mk) <= window:
+                return True
+    return False

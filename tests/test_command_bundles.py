@@ -31,7 +31,10 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "scripts" / "validation"))
 
 from bundle_registry import (  # noqa: E402
+    BUNDLE_ADJACENCY_WINDOW,
     BUNDLE_REGISTRY,
+    bundle_marker_adjacent,
+    bundle_marker_present,
     expected_bundle_marker,
     expected_skill_invocation,
 )
@@ -48,6 +51,10 @@ PENDING_ROWS: set[tuple[str, str]] = set(BUNDLE_REGISTRY)
 def _xfail_or_pass_param(row: tuple[str, str]):
     file_, skill = row
     if row in PENDING_ROWS:
+        # strict=True forces CI to fail (XPASS -> FAIL) when a pending row
+        # starts passing. That makes the milestone cleanup of removing the
+        # row from PENDING_ROWS a hard requirement, preventing silent loss
+        # of enforcement once a command file is updated.
         return pytest.param(
             file_,
             skill,
@@ -55,7 +62,7 @@ def _xfail_or_pass_param(row: tuple[str, str]):
                 reason=(
                     f"awaits M2/M3 command edit: {file_} not yet bundled with {skill}"
                 ),
-                strict=False,
+                strict=True,
             ),
             id=f"{file_}-{skill}",
         )
@@ -84,15 +91,46 @@ def test_bundle_invocation_present(command_file: str, skill: str) -> None:
     [_xfail_or_pass_param(row) for row in BUNDLE_REGISTRY],
 )
 def test_bundle_marker_present(command_file: str, skill: str) -> None:
-    """The command file contains the adjacent ``BUNDLE:`` marker text."""
+    """The command file contains a well-formed ``BUNDLE:`` marker.
+
+    Per DESIGN-005 §"BUNDLE Marker Format", a conformant marker is
+    ``BUNDLE: <command> -> <skill> (<status>)`` where ``<status>`` is
+    one of ``invoked``, ``skipped:<reason>``, ``failed:<reason>``.
+    """
     path = COMMANDS_DIR / command_file
     assert path.exists(), f"Command file not found: {path}"
     text = path.read_text(encoding="utf-8")
-    marker = expected_bundle_marker(command_file, skill)
-    assert marker in text, (
-        f"{command_file} missing required marker '{marker}'. "
-        f"Per SPEC-005 DESIGN-005 §BUNDLE Marker Format, every bundled "
-        f"invocation must have an adjacent BUNDLE: marker."
+    assert bundle_marker_present(text, command_file, skill), (
+        f"{command_file} missing well-formed marker for skill "
+        f"'{skill}'. Per SPEC-005 DESIGN-005, the marker format is "
+        f"'BUNDLE: <command> -> <skill> (<status>)' where <status> is "
+        f"one of invoked, skipped:<reason>, failed:<reason>. "
+        f"Prefix expected: {expected_bundle_marker(command_file, skill)!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("command_file", "skill"),
+    [_xfail_or_pass_param(row) for row in BUNDLE_REGISTRY],
+)
+def test_bundle_marker_adjacent_to_invocation(
+    command_file: str, skill: str
+) -> None:
+    """The BUNDLE marker is within the adjacency window of its Skill call.
+
+    Per DESIGN-005 §"BUNDLE Marker Format", emission ordering is "emit
+    marker, then invoke skill". A non-adjacent marker fails to bind the
+    marker to the call it is meant to annotate. The window is sourced
+    from ``bundle_registry.BUNDLE_ADJACENCY_WINDOW``.
+    """
+    path = COMMANDS_DIR / command_file
+    assert path.exists(), f"Command file not found: {path}"
+    text = path.read_text(encoding="utf-8")
+    assert bundle_marker_adjacent(text, command_file, skill), (
+        f"{command_file}: BUNDLE marker for '{skill}' is not within "
+        f"{BUNDLE_ADJACENCY_WINDOW} lines of the matching "
+        f"Skill(skill=\"{skill}\") call (DESIGN-005 §BUNDLE Marker "
+        f"Format requires adjacency)."
     )
 
 

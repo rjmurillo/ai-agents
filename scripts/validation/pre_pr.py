@@ -462,15 +462,21 @@ def validate_command_bundle_coverage(repo_root: Path) -> bool:
     ``BUNDLE_CHECK_ENFORCED=1`` to escalate to BLOCKING (returns False
     on any missing invocation). Per SPEC-005 AC-14 and Q3 resolution.
     """
+    enforced = os.environ.get("BUNDLE_CHECK_ENFORCED", "").lower() in ("1", "true")
+
     # Lazy import; sibling module under scripts/validation/.
     sys.path.insert(0, str(repo_root / "scripts" / "validation"))
     try:
         from bundle_registry import BUNDLE_REGISTRY, expected_skill_invocation
     except ImportError as exc:
-        print(f"[FAIL] Could not import bundle_registry: {exc}")
-        return False
+        # Per SPEC-005 Q3: default is advisory. An import failure in advisory
+        # mode must not block pre_pr; in enforced mode it is a hard fail.
+        if enforced:
+            print(f"[FAIL] Could not import bundle_registry: {exc}")
+            return False
+        print(f"[WARN] Could not import bundle_registry (advisory skip): {exc}")
+        return True
 
-    enforced = os.environ.get("BUNDLE_CHECK_ENFORCED", "").lower() in ("1", "true")
     commands_dir = repo_root / ".claude" / "commands"
 
     missing: list[tuple[str, str]] = []
@@ -488,7 +494,8 @@ def validate_command_bundle_coverage(repo_root: Path) -> bool:
         return True
 
     label = "FAIL" if enforced else "WARN"
-    print(f"[{label}] {len(missing)} bundle invocation(s) missing (advisory):")
+    mode = "blocking" if enforced else "advisory"
+    print(f"[{label}] {len(missing)} bundle invocation(s) missing ({mode}):")
     for cmd, skill in missing:
         print(f"  - {cmd}: missing Skill(skill=\"{skill}\")")
     if not enforced:
