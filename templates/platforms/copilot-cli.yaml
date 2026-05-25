@@ -66,10 +66,10 @@ auditPolicy:
     file: "build/audit/GENERATION-AUDIT.md"
     stdoutFormat: "json"
 # Legacy keys: still load-bearing. Consumed by build/generate_agents.py
-# (see _resolve_agent_config around line 255) for outputDir, fileExtension,
-# toolsFrom, handoffSyntax, memoryPrefix, and the model_tiers map. Remove
-# this block only after generate_agents.py is migrated to read those
-# values from the `artifacts.agents` stanza directly.
+# (grep `platform.get("legacy")` and `legacy.get(`) for outputDir,
+# fileExtension, toolsFrom, handoffSyntax, memoryPrefix, frontmatter, and
+# the model_tiers map. Remove this block only after generate_agents.py is
+# migrated to read those values from the `artifacts.agents` stanza directly.
 legacy:
   # Issue #2052: Copilot CLI plugin loader discovers agents under
   # `agents/` only. Files at the plugin root are silently dropped.

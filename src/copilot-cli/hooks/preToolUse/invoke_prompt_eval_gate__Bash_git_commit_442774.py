@@ -215,8 +215,15 @@ def _original_main(stdin_bytes):
         # mirrors at src/copilot-cli/instructions/ and src/copilot-cli/skills/
         # that are mechanical regenerator output with no authored prompt
         # content. The eval gate is for behavioral changes to authored
-        # agent prompts only.
+        # agent prompts and authored plugin docs only.
+        #
+        # Authored paths under src/copilot-cli/:
+        #   - agents/*.agent.md (agent prompts; moved here in #2052)
+        #   - docs/*.md         (copilot-instructions.md and other plugin docs)
+        # Mirror paths NOT matched (mechanical regenerator output):
+        #   instructions/, skills/, lib/, hooks/
         re.compile(r"^src/copilot-cli/agents/.*\.agent\.md$"),
+        re.compile(r"^src/copilot-cli/docs/.*\.md$"),
         re.compile(r"^src/vs-code-agents/.*\.md$"),
     ]
 

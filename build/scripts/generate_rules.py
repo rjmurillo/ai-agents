@@ -87,11 +87,19 @@ class GenerateRulesError(Exception):
 
 @dataclass
 class RuleAuditEntry:
-    """One rule's outcome — used by tests to assert audit messaging."""
+    """One rule's outcome at one output target.
+
+    Used by tests to assert audit messaging. With multi-output (`outputDirs`)
+    one rule produces one entry per destination, so callers can distinguish
+    which write succeeded, was skipped, or hit a sentinel; the ``destination``
+    field carries the repo-relative output dir (e.g. ``.github/instructions``
+    or ``src/copilot-cli/instructions``) for that entry.
+    """
 
     name: str
     action: str  # "emitted" | "sentinel-skipped"
     reason: str = ""
+    destination: str = ""
 
 
 @dataclass
@@ -143,6 +151,13 @@ def _read_output_dirs(stanza: dict) -> list[str]:
     Backward-compatible: existing configs and tests use `outputDir`. New
     multi-target configs use `outputDirs`. Setting both is a config error
     so the intent stays unambiguous.
+
+    Type-strict: a non-string `outputDir` or a non-string element inside
+    `outputDirs` is a config error. Without this check, ``str(item)`` would
+    coerce an int or `null` to a string and the downstream
+    ``validate_relative_path`` would happily accept ``"None"`` or ``"42"``
+    as a directory name. The YAML loader returns native Python types here,
+    so we require strings explicitly.
     """
     single = stanza.get("outputDir")
     multi = stanza.get("outputDirs")
@@ -155,9 +170,19 @@ def _read_output_dirs(stanza: dict) -> list[str]:
             raise GenerateRulesError(
                 "`outputDirs` must be a non-empty list"
             )
-        return [str(item) for item in multi]
+        for idx, item in enumerate(multi):
+            if not isinstance(item, str):
+                raise GenerateRulesError(
+                    f"`outputDirs[{idx}]` must be a string (got "
+                    f"{type(item).__name__})"
+                )
+        return list(multi)
     if single is not None:
-        return [str(single)]
+        if not isinstance(single, str):
+            raise GenerateRulesError(
+                f"`outputDir` must be a string (got {type(single).__name__})"
+            )
+        return [single]
     raise GenerateRulesError(
         "rules stanza requires `outputDir` or `outputDirs`"
     )
@@ -445,8 +470,17 @@ def generate_rules(
                 drop=drop,
                 what_if=what_if,
             )
+            try:
+                destination = str(output_dir.relative_to(repo_root))
+            except ValueError:
+                destination = str(output_dir)
             result.entries.append(
-                RuleAuditEntry(name=name_out, action=action, reason=reason)
+                RuleAuditEntry(
+                    name=name_out,
+                    action=action,
+                    reason=reason,
+                    destination=destination,
+                )
             )
             if action == "emitted":
                 result.written += 1

@@ -488,6 +488,12 @@ def test_outputDirs_writes_to_every_target(tmp_path: Path) -> None:
         content = target.read_text(encoding="utf-8")
         assert "applyTo: '**/*.py'" in content
         assert "paths:" not in content
+    # Each audit entry must carry its destination so callers (and CI) can
+    # tell which output dir an "emitted" or "skipped" outcome refers to.
+    destinations = {e.destination for e in result.entries}
+    assert destinations == {"out_a", "out_b"}, (
+        f"audit entries lost destination info: {destinations}"
+    )
 
 
 def test_outputDirs_and_outputDir_both_set_returns_2(tmp_path: Path) -> None:
@@ -543,6 +549,48 @@ provider: "test"
 artifacts:
   rules:
     sourceDir: "rules_src"
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+"""
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2
+
+
+def test_outputDir_non_string_returns_2(tmp_path: Path) -> None:
+    """A non-string outputDir is a config error; reject before str() coercion."""
+    _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    outputDir: 42
+    sourceSuffix: ".md"
+    outputSuffix: ".instructions.md"
+"""
+    )
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 2
+
+
+def test_outputDirs_with_non_string_element_returns_2(tmp_path: Path) -> None:
+    """A non-string element in outputDirs is a config error."""
+    _write_rule(tmp_path / "rules_src", "x", frontmatter='paths: "**"\n')
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        """\
+schemaVersion: "1.0"
+provider: "test"
+artifacts:
+  rules:
+    sourceDir: "rules_src"
+    outputDirs:
+      - "valid_out"
+      - 42
     sourceSuffix: ".md"
     outputSuffix: ".instructions.md"
 """

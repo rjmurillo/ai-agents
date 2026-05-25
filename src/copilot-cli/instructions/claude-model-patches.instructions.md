@@ -6,7 +6,7 @@ applyTo: '**'
 
 These nudges are tuned for the Claude model family (Anthropic models). They apply whenever Claude is the runtime model, regardless of harness (Claude Code CLI, GitHub Copilot CLI invoking Anthropic, the Anthropic API, an IDE extension wrapping Claude). The patches encode behaviors that the model tends to drift from without explicit prompting.
 
-`priority: critical` in the frontmatter is delivery priority: this file MUST be loaded into the model's context on every session. The CONTENT priority of each patch (against other rules) is set by the Precedence section below. Critical-to-load does not mean critical-to-obey; that ordering is the next paragraph.
+**Loading vs. obeying.** In the canonical source under `.claude/rules/` this file's frontmatter sets `priority: critical`, meaning the rule loader MUST include the file in every session's context. That key is intentionally stripped from the generated Copilot instruction mirrors (`.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md`) because those trees use a different frontmatter contract (`applyTo` only). The CONTENT priority of each patch against other rules is set by the Precedence section below. Critical-to-load is not the same as critical-to-obey; the next section sets the obey order.
 
 ## Precedence
 
