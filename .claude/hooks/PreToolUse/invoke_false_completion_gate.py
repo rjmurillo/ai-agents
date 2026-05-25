@@ -53,7 +53,7 @@ if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import get_project_directory, get_today_session_log
+    from hook_utilities import get_project_directory, get_today_session_log, get_today_session_logs
     from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
 
@@ -78,6 +78,16 @@ except ImportError:
         except OSError:
             return None
         return logs[0] if logs else None
+
+    def get_today_session_logs(sessions_dir: str) -> list[Path]:
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        sessions_path = Path(sessions_dir)
+        if not sessions_path.is_dir():
+            return []
+        try:
+            return list(sessions_path.glob(f"{today}-session-*.json"))
+        except OSError:
+            return []
 
     def skip_if_consumer_repo(hook_name: str) -> bool:
         agents_path = Path(get_project_directory()) / ".agents"
@@ -148,6 +158,45 @@ def _extract_command(hook_input: dict) -> str:
 def _is_completion_claim(command: str) -> bool:
     """Check if a command contains completion signals."""
     return COMPLETION_SIGNALS.search(command) is not None
+
+
+def _extract_commit_message_file(command: str) -> str | None:
+    """Extract the filename from a `git commit -F <file>` command.
+
+    Returns the file path if found, otherwise None.
+    """
+    match = re.search(r"(?:^|\s)git\s+(?:commit|ci)\s+.*?(?:-F|--file)[=\s]+([^\s]+)", command)
+    if match:
+        return match.group(1).strip("'\"")
+    return None
+
+
+def _read_commit_message_file(filepath: str) -> str | None:
+    """Read the contents of a commit message file.
+
+    Returns the file contents if readable, otherwise None.
+    """
+    try:
+        project_dir = get_project_directory()
+        path = Path(filepath)
+        if not path.is_absolute():
+            path = Path(project_dir) / path
+        if path.is_file():
+            return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        pass
+    return None
+
+
+def _is_completion_claim_in_message_file(command: str) -> bool:
+    """Check if a git commit -F file contains completion signals."""
+    message_file = _extract_commit_message_file(command)
+    if message_file is None:
+        return False
+    message_content = _read_commit_message_file(message_file)
+    if message_content is None:
+        return False
+    return COMPLETION_SIGNALS.search(message_content) is not None
 
 
 _GIT_TIMEOUT_SECONDS = 5
@@ -327,8 +376,10 @@ def main() -> None:
     if not is_commit and not is_pr_create:
         sys.exit(0)
 
-    # Check if the command/message contains completion signals
-    if not _is_completion_claim(command):
+    # Check if the command/message contains completion signals.
+    # For `git commit -F <file>`, also check the message file contents.
+    has_completion_claim = _is_completion_claim(command) or _is_completion_claim_in_message_file(command)
+    if not has_completion_claim:
         sys.exit(0)
 
     project_dir = get_project_directory()
@@ -338,18 +389,20 @@ def main() -> None:
         _write_audit_log(project_dir, command, "ALLOW", "documentation-only changes")
         sys.exit(0)
 
-    # Check for verification evidence in session log
+    # Check for verification evidence in all of today's session logs.
+    # Verification may exist in an earlier session file from the same day.
     sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
-    session_log = get_today_session_log(sessions_dir)
+    session_logs = get_today_session_logs(sessions_dir)
 
-    # Fail-open when no session log exists
-    if session_log is None:
+    # Fail-open when no session logs exist
+    if not session_logs:
         _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
         sys.exit(0)
 
-    if _has_verification_evidence(session_log):
-        _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
-        sys.exit(0)
+    for session_log in session_logs:
+        if _has_verification_evidence(session_log):
+            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
+            sys.exit(0)
 
     # Block: completion claim without verification
     _write_audit_log(project_dir, command, "BLOCK", "completion claim without verification")
