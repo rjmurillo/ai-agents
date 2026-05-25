@@ -62,7 +62,10 @@ except ImportError:
 HOOK_NAME = "plan-state-sync"
 
 # Patterns for files we want to checkpoint
-SESSION_LOG_PATTERN = re.compile(r"\.agents/sessions/.*\.json$")
+# All patterns use (?:^|/) anchors to ensure we match only project-relative
+# paths starting with .agents/, not arbitrary paths containing that substring
+# (e.g., "mock.agents/sessions/log.json" should not match).
+SESSION_LOG_PATTERN = re.compile(r"(?:^|/)\.agents/sessions/.*\.json$")
 PLAN_FILE_PATTERNS = [
     re.compile(r"(?:^|/)TODO\.md$", re.IGNORECASE),
     re.compile(r"(?:^|/)PLAN\.md$", re.IGNORECASE),
@@ -70,7 +73,7 @@ PLAN_FILE_PATTERNS = [
     # `\.agents/plan.*\.md$` also matched `.agents/planning/.../*.md` and
     # other nested files, triggering checkpoints for unrelated planning
     # docs. `[^/]*` keeps the match scoped to a single path segment.
-    re.compile(r"\.agents/plan[^/]*\.md$", re.IGNORECASE),
+    re.compile(r"(?:^|/)\.agents/plan[^/]*\.md$", re.IGNORECASE),
     re.compile(r"(?:^|/)PROJECT-PLAN\.md$", re.IGNORECASE),
 ]
 

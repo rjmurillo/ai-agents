@@ -458,8 +458,24 @@ def _resolve_safe_project_path() -> Path | None:
     return None
 
 
+def _drain_stdin() -> None:
+    """Drain stdin to prevent pipe buffer blocking on the harness side.
+
+    Even when this hook does not need input data, consuming stdin keeps
+    the fail-open contract with the harness: an unconsumed pipe can leave
+    the producer blocked or trigger EPIPE/SIGPIPE when the hook exits.
+    """
+    if not sys.stdin.isatty():
+        try:
+            sys.stdin.read()
+        except OSError:
+            pass
+
+
 def main() -> None:
     """Generate retrospective if one doesn't exist for today."""
+    _drain_stdin()
+
     if skip_if_consumer_repo(HOOK_NAME):
         sys.exit(0)
 
