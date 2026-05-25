@@ -69,20 +69,50 @@ def is_safe_file_path(path: str, allowed_base: str | None = None) -> bool:
         return False
 
 
+def _candidate_temp_roots() -> list[str]:
+    """Return all temp-directory roots a mktemp-style command may use.
+
+    macOS resolves TMPDIR to a per-user /var/folders/.../T/ path. mktemp -t
+    may place files under /tmp or /private/tmp depending on PATH and shell.
+    Linux GNU mktemp obeys TMPDIR consistently. Collect every plausible
+    base so reply staging works under all shells.
+    """
+    import tempfile
+
+    roots: list[str] = []
+    seen: set[str] = set()
+    for candidate in (
+        os.environ.get("TMPDIR"),
+        tempfile.gettempdir(),
+        "/tmp",
+        "/private/tmp",
+    ):
+        if not candidate:
+            continue
+        try:
+            resolved = str(Path(candidate).resolve())
+        except (OSError, ValueError):
+            continue
+        if resolved not in seen and Path(resolved).exists():
+            seen.add(resolved)
+            roots.append(resolved)
+    return roots
+
+
 def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> None:
     """Validate a body file parameter for safe file access.
 
     Raises SystemExit if the file does not exist or escapes the allowed base.
 
-    When allowed_base is None, accepts paths within either the repo root or the
-    system temp directory (to support mktemp-based reply staging per ADR guidance).
+    When allowed_base is None, accepts paths within either the repo root or
+    any plausible system temp directory (TMPDIR, tempfile.gettempdir(), /tmp,
+    or /private/tmp). This supports temp-file-based reply staging on every
+    shell.
 
     Args:
         body_file: The file path to validate.
         allowed_base: Optional base directory restriction.
     """
-    import tempfile
-
     from .api import error_and_exit  # lazy import to avoid cycle
 
     if not Path(body_file).exists():
@@ -96,8 +126,8 @@ def assert_valid_body_file(body_file: str, allowed_base: str | None = None) -> N
     if is_safe_file_path(body_file, None):
         return
 
-    tmpdir = os.environ.get("TMPDIR") or tempfile.gettempdir()
-    if is_safe_file_path(body_file, tmpdir):
-        return
+    for temp_root in _candidate_temp_roots():
+        if is_safe_file_path(body_file, temp_root):
+            return
 
     error_and_exit(f"Body file path traversal not allowed: {body_file}", 2)
