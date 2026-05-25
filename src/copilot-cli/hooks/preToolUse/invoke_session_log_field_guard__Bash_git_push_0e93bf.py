@@ -341,8 +341,6 @@ def _original_main(stdin_bytes):
         return run_guard(_validate, GLOBS, GUARD_NAME)
 
 
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()
