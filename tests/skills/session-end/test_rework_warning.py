@@ -393,6 +393,30 @@ class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
         validate_session_end(session_end, result)
         self.assertEqual(result.errors, [], msg="New log with reworkWarning must have no errors")
 
+    def test_rework_warning_persistence_preserves_existing_keys(self) -> None:
+        """Evidence assignment must not clobber pre-existing reworkWarning keys.
+
+        Mirrors the persistence pattern used in main(): when reworkWarning
+        already carries metadata (e.g., level, Complete) from a template,
+        only Evidence is added or updated. Other keys must survive.
+        """
+        session_end = self._make_minimal_session_end()
+        session_end["reworkWarning"] = {"level": "INFO", "Complete": True}
+
+        with mock.patch.object(csl, "compute_rework_warning", return_value=[]):
+            _, evidence = csl._run_rework_warning_step()
+
+        # Mirror the main() guard pattern.
+        if "reworkWarning" not in session_end:
+            session_end["reworkWarning"] = {}
+        session_end["reworkWarning"]["Evidence"] = evidence
+
+        self.assertEqual(session_end["reworkWarning"]["level"], "INFO")
+        self.assertTrue(session_end["reworkWarning"]["Complete"])
+        self.assertEqual(
+            session_end["reworkWarning"]["Evidence"], ["rework-warning: none"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

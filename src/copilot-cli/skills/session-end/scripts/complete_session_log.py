@@ -382,7 +382,9 @@ def main(argv: list[str] | None = None) -> int:
     # protocolCompliance.sessionEnd.reworkWarning.Evidence.
     rework_summary, rework_evidence = _run_rework_warning_step()
     changes.append(rework_summary)
-    session_end["reworkWarning"] = {"Evidence": rework_evidence}
+    if "reworkWarning" not in session_end:
+        session_end["reworkWarning"] = {}
+    session_end["reworkWarning"]["Evidence"] = rework_evidence
 
     # 5. changesCommitted
     has_uncommitted = _test_uncommitted_changes()
