@@ -28,8 +28,8 @@ import argparse
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 GENERATOR = REPO_ROOT / "build" / "scripts" / "generate_pr_quality_prompts.py"
@@ -64,8 +64,9 @@ def _format_summary(exit_code: int, output: str) -> str:
     if exit_code == 1:
         return (
             "## Review-axes drift check\n\n"
-            "Drift detected between `.claude/review-axes/` (canonical) and "
-            "`.github/prompts/pr-quality-gate-*.md` (generated).\n\n"
+            "Drift detected between `.claude/skills/review/references/` "
+            "(canonical) and `.github/prompts/pr-quality-gate-*.md` "
+            "(generated).\n\n"
             "Fix: `python3 build/scripts/generate_pr_quality_prompts.py` and "
             "commit the regenerated CI prompts.\n\n"
             "<details><summary>Diff</summary>\n\n"

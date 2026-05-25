@@ -1,4 +1,4 @@
-"""Test fixtures for `.claude/review-axes/` and `.claude/lib/` validation.
+"""Test fixtures for `.claude/skills/review/references/` and `.claude/lib/` validation.
 
 Implements REQ-008-01 acceptance criterion: schema-validation fixture asserts
 exact section-title strings (literal level-2 headings) and required frontmatter
@@ -9,8 +9,8 @@ Spec: .agents/specs/requirements/REQ-008-review-axes-convergence.md
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Iterable
 
 import pytest
 
@@ -63,7 +63,7 @@ def _parse_frontmatter_keys(frontmatter: str) -> set[str]:
     are nested.
     """
     try:
-        import yaml  # type: ignore[import-not-found]
+        import yaml  # type: ignore[import-not-found,import-untyped]
 
         loaded = yaml.safe_load(frontmatter) or {}
         if not isinstance(loaded, dict):
@@ -103,7 +103,9 @@ def _find_level_2_headings(body: str) -> list[str]:
 
 
 def validate_axis_schema(path: Path) -> None:
-    """Validate a `.claude/review-axes/{role}.md` canonical file against REQ-008-01.
+    """Validate a canonical axis file against REQ-008-01.
+
+    Validates `.claude/skills/review/references/{role}.md` files.
 
     Raises:
         AssertionError: when frontmatter keys are missing, required level-2
@@ -167,7 +169,7 @@ def validate_axis_schema_fn():
     return validate_axis_schema
 
 
-__all__: Iterable[str] = (
+__all__: Sequence[str] = (
     "REQUIRED_FRONTMATTER_KEYS",
     "REQUIRED_SECTION_HEADINGS",
     "REQUIRED_SCHEMA_FIELDS",

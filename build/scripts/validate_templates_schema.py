@@ -53,7 +53,7 @@ AGENTS_KEYS = {
     "outputSuffix",
     "excludeFilenames",
 }
-SKILLS_KEYS = {"sourceDir", "outputDir", "mode"}
+SKILLS_KEYS = {"sourceDir", "outputDir", "mode", "excludeFilenames"}
 # `lib` only supports directory-copy today; no `mode` selector. If a
 # second mode (symlink, etc.) lands later, add `mode` to LIB_KEYS and
 # enforce it in `_build_lib`. Until then, an unused field is documentation

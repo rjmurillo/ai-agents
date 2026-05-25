@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/rjmurillo/ai-agents/schemas/workflow.schema.json",
+  "title": "Skillbook Workflow Registry",
+  "description": "Validates .agents/skillbook/workflows.json: reusable multi-step workflows with eval-grounded success-rate scoring. See .agents/skillbook/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workflows"],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Workflow registry schema version."
+    },
+    "workflows": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workflow" }
+    }
+  },
+  "$defs": {
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "trigger",
+        "steps",
+        "source",
+        "confidence",
+        "execution_count",
+        "success_rate",
+        "last_executed_at",
+        "version",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^wf-[a-z0-9-]+$",
+          "description": "Stable workflow identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Condition that should invoke the workflow."
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "source": {
+          "type": "string",
+          "enum": ["discovered", "authored", "lifted"],
+          "description": "discovered = inferred from runs. authored = written by hand. lifted = adapted from another project."
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Subjective confidence in the workflow shape."
+        },
+        "execution_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "success_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of eval runs exercising this workflow that passed."
+        },
+        "last_executed_at": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "retired"]
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["order", "action"],
+      "properties": {
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "action": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -14,7 +14,7 @@ covers what is testable in pure Python:
 2. merge_verdicts, get_verdict_emoji, extract_verdict execute correctly
    from the copied module.
 3. All 6 canonical axis files are present and pass schema validation.
-4. No path under .claude/lib/ai_review_common/ or .claude/review-axes/
+4. No path under .claude/lib/ai_review_common/ or .claude/skills/review/references/
    references .agents/, .github/, scripts/, or tests/ (vendored install
    would lack those).
 5. `/review` command prose loads axes from the canonical directory
@@ -44,7 +44,6 @@ VENDORED_SUBTREE = (
     "rules",
     "settings.json",
     "skills",
-    "review-axes",
 )
 
 
@@ -91,8 +90,8 @@ def test_vendored_lib_directory_present(vendored_root: Path) -> None:
 
 
 def test_vendored_axes_directory_present(vendored_root: Path) -> None:
-    """All 6 canonical axes ship under .claude/review-axes/."""
-    axes = vendored_root / ".claude" / "review-axes"
+    """All 6 canonical axes ship under .claude/skills/review/references/."""
+    axes = vendored_root / ".claude" / "skills" / "review" / "references"
     assert axes.is_dir()
     for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
         assert (axes / f"{role}.md").is_file(), f"missing axis: {role}.md"
@@ -137,7 +136,7 @@ def test_canonical_axes_pass_schema_in_vendored_copy(vendored_root: Path) -> Non
     finally:
         sys.path.remove(str(REPO_ROOT))
 
-    axes = vendored_root / ".claude" / "review-axes"
+    axes = vendored_root / ".claude" / "skills" / "review" / "references"
     for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
         validate_axis_schema(axes / f"{role}.md")
 
@@ -231,16 +230,16 @@ def test_no_runtime_dependency_on_agents_or_scripts_in_lib(
     )
 
 
-def test_review_command_loads_from_canonical_dir(vendored_root: Path) -> None:
-    """/review prose names .claude/review-axes/ as the source.
+def test_review_skill_loads_from_canonical_dir(vendored_root: Path) -> None:
+    """/review prose names .claude/skills/review/references/ as the source.
 
-    Structural check (grep): the command file must reference the canonical
+    Structural check (grep): the skill file must reference the canonical
     directory and the verdict-merge module.
     """
-    review = vendored_root / ".claude" / "commands" / "review.md"
+    review = vendored_root / ".claude" / "skills" / "review" / "SKILL.md"
     text = review.read_text(encoding="utf-8")
-    assert ".claude/review-axes/" in text, (
-        "/review must reference canonical .claude/review-axes/ as source"
+    assert ".claude/skills/review/references/" in text, (
+        "/review must reference canonical .claude/skills/review/references/ as source"
     )
     assert "merge_verdicts" in text, (
         "/review must invoke merge_verdicts from ai_review_common"
@@ -250,9 +249,9 @@ def test_review_command_loads_from_canonical_dir(vendored_root: Path) -> None:
     )
 
 
-def test_review_command_chains_skill_extras(vendored_root: Path) -> None:
+def test_review_skill_chains_skill_extras(vendored_root: Path) -> None:
     """/review chains the 3 local-only skill axes after the 6 canonical axes."""
-    review = vendored_root / ".claude" / "commands" / "review.md"
+    review = vendored_root / ".claude" / "skills" / "review" / "SKILL.md"
     text = review.read_text(encoding="utf-8")
     for skill in ("code-qualities-assessment", "golden-principles", "taste-lints"):
         assert skill in text, f"/review missing skill chain: {skill}"
