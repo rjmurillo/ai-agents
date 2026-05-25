@@ -98,7 +98,7 @@ def test_co_change_checklist_concrete_example_present(step_6_region: str) -> Non
     canonical reference because it is documented end-to-end in the
     retrospective.
 
-    Pinned per PR #1989 copilot follow-up: the previous test asserted
+    Pinned per PR #1989 review (copilot): the previous test asserted
     only that the word "verdict" appears in the region, which would
     still pass if the worked example and the checklist lines were
     removed or malformed. The assertions below pin a distinctive

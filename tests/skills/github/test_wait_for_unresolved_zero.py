@@ -522,7 +522,7 @@ class CoverageCompleterTests(unittest.TestCase):
     def test_wait_for_settled_zero_handles_missing_underlying_script(self) -> None:
         """When _resolve_underlying_script returns a non-file path, fail clean.
 
-        PR #1989 copilot follow-up: the synthetic observation MUST honor the
+        Pinned per PR #1989 review (copilot): the synthetic observation MUST honor the
         documented schema (`timestamp: float`). Record the resolved clock
         value, never None, so downstream consumers never special-case the type.
         """

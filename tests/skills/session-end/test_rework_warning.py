@@ -253,7 +253,7 @@ class ReworkThresholdConstantTest(unittest.TestCase):
 class RunReworkWarningStepRuntimeFailureTests(unittest.TestCase):
     """REQ-009-08: rework-warning step MUST NOT block session-end.
 
-    Pinned per PR #1989 cursor follow-up: a runtime exception inside
+    Pinned per PR #1989 review (cursor): a runtime exception inside
     compute_rework_warning or emit_rework_warning_lines must degrade to a
     notice line and return a non-crash summary string, never propagate.
     Step 4b runs before validation, so a crash would also prevent the
