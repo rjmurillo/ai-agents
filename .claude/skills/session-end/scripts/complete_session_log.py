@@ -280,7 +280,7 @@ def _run_rework_warning_step() -> str:
     if _compute is None or _emit is None:
         print("rework-warning: skipped (sibling module unavailable)")
         return "Rework warning: skipped (sibling unavailable)"
-    # PR #1989 cursor follow-up: the rework-warning step is informational
+    # Pinned per PR #1989 review (cursor): the rework-warning step is informational
     # and MUST NOT block session-end under any circumstances (REQ-009-08).
     # Wrap runtime calls so an unexpected git or subprocess failure inside
     # compute_rework_warning or emit_rework_warning_lines degrades to a

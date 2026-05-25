@@ -248,7 +248,7 @@ def wait_for_settled_zero(
         # error per ADR-035. Surface as exit_code=2 via a synthetic
         # observation so main() returns 2, not 1.
         #
-        # PR #1989 copilot follow-up: record a real timestamp from the
+        # Pinned per PR #1989 review (copilot): record a real timestamp from the
         # resolved clock seam so the observation honors the documented
         # schema (`{"timestamp": float, ...}`). A null timestamp forced
         # every downstream consumer to handle a special case.
