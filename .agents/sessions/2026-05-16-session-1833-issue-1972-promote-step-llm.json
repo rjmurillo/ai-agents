@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "uv run pytest tests/commands/test_spec_step0_5.py tests/eval/test_eval_prompt_change.py: 161 passed; eval-prompt-change dry-run loaded 7 scenarios; eval-suite dry-run passed. pre_pr failed only on unrelated markdownlint and agent drift baseline issues."
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-05-16-session-1833-issue-1972-promote-step-llm.json: PASS (session-log schema and CONTRADICTION_PATTERNS clean). uv run pytest tests/commands/test_spec_step0_5.py tests/eval/test_eval_prompt_change.py: 161 passed; eval-prompt-change dry-run loaded 7 scenarios; eval-suite dry-run passed. pre_pr.py failed only on unrelated pre-existing markdownlint findings and merge-resolver agent-drift baseline; none touched by this PR."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -130,6 +130,6 @@
       "action": "Validation: 161 focused pytest tests passed; eval-prompt-change dry-run loaded 7 scenarios; eval-suite dry-run passed. gh act unavailable."
     }
   ],
-  "endingCommit": "HEAD",
+  "endingCommit": "92fbd61b71b10e79db8d1a7e46539203563c7e6c",
   "nextSteps": []
 }
