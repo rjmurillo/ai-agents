@@ -352,17 +352,66 @@ class LazyLoadTests(unittest.TestCase):
             f"REWORK_THRESHOLD bound at import. stdout={stdout!r}",
         )
 
-    def test_compute_bound_after_step_invocation(self) -> None:
-        """POSITIVE: first call to the step lazy-binds the sibling functions."""
+    def test_compute_bound_after_ensure_loaded(self) -> None:
+        """POSITIVE: calling _ensure_rework_loaded lazy-binds the sibling.
+
+        PR #2070 Copilot review thread (LOGIC): the earlier probe invoked
+        `csl._run_rework_warning_step()`, which spawns a real `git`
+        subprocess via `compute_rework_warning()`. The minimal probe for
+        "the lazy binding works" is calling `_ensure_rework_loaded()`
+        directly; it triggers the binding without running the step's
+        runtime work. The "step calls ensure" claim is covered by the
+        in-process unit test `test_step_invokes_ensure_rework_loaded`
+        below.
+        """
         rc, stdout, _ = self._run_probe(
-            "csl._run_rework_warning_step();"
+            "csl._ensure_rework_loaded();"
             "print('BOUND=', vars(csl).get('compute_rework_warning') is not None)"
         )
         self.assertEqual(rc, 0)
         self.assertIn(
             "BOUND= True", stdout,
-            f"Step did not lazy-load the sibling. stdout={stdout!r}",
+            f"_ensure_rework_loaded did not bind the sibling. stdout={stdout!r}",
         )
+
+
+class StepInvokesEnsureLoadedTest(unittest.TestCase):
+    """PR #2070 Copilot follow-up: pair the lazy-load proof with the
+    in-process claim that `_run_rework_warning_step` calls
+    `_ensure_rework_loaded` before doing its runtime work. The probe
+    test above proves the binding works; this test proves the step is
+    the trigger. Together they cover "step lazy-loads" without running
+    real subprocesses.
+    """
+
+    def test_step_invokes_ensure_rework_loaded(self) -> None:
+        """POSITIVE: the step calls _ensure_rework_loaded before runtime work.
+
+        The step body in complete_session_log.py first calls
+        `_ensure_rework_loaded()`, then reads `compute_rework_warning` and
+        `emit_rework_warning_lines` out of `globals()`. We stub those
+        siblings into globals so the step does no real git work, and we
+        wrap `_ensure_rework_loaded` to confirm it is the trigger.
+        """
+        import importlib
+        import sys
+        from unittest.mock import patch
+
+        script_dir = REPO_ROOT / ".claude" / "skills" / "session-end" / "scripts"
+        sys.path.insert(0, str(script_dir))
+        try:
+            csl = importlib.import_module("complete_session_log")
+            csl = importlib.reload(csl)
+            # Pre-populate globals so the step does not need real siblings.
+            csl_globals = vars(csl)
+            csl_globals["compute_rework_warning"] = lambda: []
+            csl_globals["emit_rework_warning_lines"] = lambda paths: []
+            csl_globals["REWORK_THRESHOLD"] = 6
+            with patch.object(csl, "_ensure_rework_loaded") as ensure:
+                csl._run_rework_warning_step()
+                ensure.assert_called_once()
+        finally:
+            sys.path.remove(str(script_dir))
 
 
 if __name__ == "__main__":

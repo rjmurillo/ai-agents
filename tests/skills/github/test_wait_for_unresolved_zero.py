@@ -391,6 +391,25 @@ class JsonContractStdoutTest(unittest.TestCase):
         self.assertNotIn('"settled":', stderr)
         self.assertNotIn('"observations":', stderr)
 
+    def test_help_flag_exits_zero_without_json_payload(self) -> None:
+        """POSITIVE: --help is the documented exception; exits 0, no JSON.
+
+        Pins the docstring claim at wait_for_unresolved_zero.main() that
+        argparse's --help path writes help text to stdout, exits 0, and
+        deliberately does NOT emit a JSON failure payload. Without this
+        test the `if code == 0: return 0` branch (line 388) is uncovered.
+        """
+        rc, stdout, _ = self._capture(["--help"])
+        self.assertEqual(rc, 0)
+        # Argparse-formatted help text is on stdout; no JSON object.
+        self.assertNotIn('"settled":', stdout)
+        self.assertNotIn('"observations":', stdout)
+        # Help text should mention the program description or one of its flags.
+        self.assertTrue(
+            "--pull-request" in stdout or "usage:" in stdout.lower(),
+            f"expected argparse help text on stdout; got: {stdout!r}",
+        )
+
 
 class AuthErrorPropagationTest(unittest.TestCase):
     """Exit code 4 from the underlying script propagates as settle=false."""
