@@ -175,14 +175,30 @@ def _read_commit_message_file(filepath: str) -> str | None:
     """Read the contents of a commit message file.
 
     Returns the file contents if readable, otherwise None.
+
+    Security: Applies CWE-22 path traversal containment. Rejects absolute
+    paths and resolved paths that escape the project root via `..` segments.
     """
     try:
-        project_dir = get_project_directory()
+        project_root = Path(get_project_directory()).resolve()
         path = Path(filepath)
-        if not path.is_absolute():
-            path = Path(project_dir) / path
-        if path.is_file():
-            return path.read_text(encoding="utf-8", errors="replace")
+
+        # Reject absolute paths outright (CWE-22 containment)
+        if path.is_absolute():
+            return None
+
+        # Resolve relative path against project root
+        resolved = (project_root / path).resolve()
+
+        # Ensure resolved path is within project root (prevents .. escape)
+        try:
+            resolved.relative_to(project_root)
+        except ValueError:
+            # Path escapes project root
+            return None
+
+        if resolved.is_file():
+            return resolved.read_text(encoding="utf-8", errors="replace")
     except OSError:
         pass
     return None
@@ -197,6 +213,31 @@ def _is_completion_claim_in_message_file(command: str) -> bool:
     if message_content is None:
         return False
     return COMPLETION_SIGNALS.search(message_content) is not None
+
+
+def _extract_pr_body_file(command: str) -> str | None:
+    """Extract the filename from a `gh pr create --body-file <file>` command.
+
+    Returns the file path if found, otherwise None.
+    """
+    match = re.search(r"(?:^|\s)gh\s+pr\s+create\s+.*?(?:--body-file|-F)[=\s]+([^\s]+)", command)
+    if match:
+        return match.group(1).strip("'\"")
+    return None
+
+
+def _is_completion_claim_in_pr_body_file(command: str) -> bool:
+    """Check if a gh pr create --body-file contains completion signals.
+
+    Uses the same path containment as commit message files (CWE-22).
+    """
+    body_file = _extract_pr_body_file(command)
+    if body_file is None:
+        return False
+    body_content = _read_commit_message_file(body_file)
+    if body_content is None:
+        return False
+    return COMPLETION_SIGNALS.search(body_content) is not None
 
 
 _GIT_TIMEOUT_SECONDS = 5
@@ -378,7 +419,12 @@ def main() -> None:
 
     # Check if the command/message contains completion signals.
     # For `git commit -F <file>`, also check the message file contents.
-    has_completion_claim = _is_completion_claim(command) or _is_completion_claim_in_message_file(command)
+    # For `gh pr create --body-file <file>`, also check the body file contents.
+    has_completion_claim = (
+        _is_completion_claim(command)
+        or _is_completion_claim_in_message_file(command)
+        or _is_completion_claim_in_pr_body_file(command)
+    )
     if not has_completion_claim:
         sys.exit(0)
 
