@@ -1,13 +1,13 @@
 ---
 type: requirement
-id: REQ-009
+id: REQ-012
 title: Retro fixes from PR #1965 (rework + contract drift)
 status: draft
 priority: P1
 category: non-functional
 related:
-  - DESIGN-009
-  - TASK-009
+  - DESIGN-012
+  - TASK-012
 issues: []
 retrospective: .agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md
 author: Richard Murillo
@@ -15,7 +15,7 @@ created: 2026-05-10
 updated: 2026-05-10
 ---
 
-# REQ-009: Retro fixes from PR #1965 (rework + contract drift)
+# REQ-012: Retro fixes from PR #1965 (rework + contract drift)
 
 ## Step 0 First Principles
 
@@ -97,7 +97,7 @@ All four fixes scale linearly with PR volume; none becomes a liability at 10x gr
 
 ---
 
-## REQ-009-01: Stable-Zero Check Wrapper
+## REQ-012-01: Stable-Zero Check Wrapper
 
 ### Requirement Statement
 
@@ -128,7 +128,7 @@ Pagination already works in the underlying script (commit `00151b78` added `fetc
 
 ---
 
-## REQ-009-02: Stable-Zero Check Test (Bot-Settle Detection)
+## REQ-012-02: Stable-Zero Check Test (Bot-Settle Detection)
 
 ### Requirement Statement
 
@@ -153,11 +153,11 @@ A test that only verifies "two zeros pass" misses the failure mode: bots opening
 
 ### Dependencies
 
-REQ-009-01 (wrapper script must exist).
+REQ-012-01 (wrapper script must exist).
 
 ---
 
-## REQ-009-03: canonical-source-mirror.md applyTo Glob Coverage
+## REQ-012-03: canonical-source-mirror.md applyTo Glob Coverage
 
 ### Requirement Statement
 
@@ -183,7 +183,7 @@ None.
 
 ---
 
-## REQ-009-04: co-change-checklist Section Template in /spec
+## REQ-012-04: co-change-checklist Section Template in /spec
 
 ### Requirement Statement
 
@@ -209,7 +209,7 @@ None. `.claude/commands/spec.md` is a standalone file.
 
 ---
 
-## REQ-009-05: co-change-checklist Placeholder Format
+## REQ-012-05: co-change-checklist Placeholder Format
 
 ### Requirement Statement
 
@@ -231,15 +231,15 @@ The format is machine-parseable for future linting and human-reviewable as a com
 
 ### Dependencies
 
-REQ-009-04 (same template).
+REQ-012-04 (same template).
 
 ---
 
-## REQ-009-06: CI Gate Enforcement
+## REQ-012-06: CI Gate Enforcement
 
 ### Requirement Statement
 
-WHEN any of REQ-009-01 through REQ-009-09 fails,
+WHEN any of REQ-012-01 through REQ-012-09 fails,
 THE SYSTEM SHALL block PR merge via the existing "Run Python Tests" required check,
 SO THAT the fixes do not silently regress.
 
@@ -256,11 +256,11 @@ The existing required check provides the enforcement gate. No new CI infrastruct
 
 ### Dependencies
 
-REQ-009-01, REQ-009-02, REQ-009-03, REQ-009-09 (test files must exist and be pytest-discoverable).
+REQ-012-01, REQ-012-02, REQ-012-03, REQ-012-09 (test files must exist and be pytest-discoverable).
 
 ---
 
-## REQ-009-07: Rework Warning in session-end (Positive Case)
+## REQ-012-07: Rework Warning in session-end (Positive Case)
 
 ### Requirement Statement
 
@@ -287,7 +287,7 @@ session-end skill must exist at `.claude/skills/session-end/`.
 
 ---
 
-## REQ-009-08: Rework Warning in session-end (Negative Case)
+## REQ-012-08: Rework Warning in session-end (Negative Case)
 
 ### Requirement Statement
 
@@ -307,11 +307,11 @@ A check that produces no output on the happy path is indistinguishable from a ch
 
 ### Dependencies
 
-REQ-009-07 (same implementation).
+REQ-012-07 (same implementation).
 
 ---
 
-## REQ-009-09: Rework Warning Contract Test
+## REQ-012-09: Rework Warning Contract Test
 
 ### Requirement Statement
 
@@ -334,11 +334,11 @@ Without a pinned threshold test, a future edit could silently lower the threshol
 
 ### Dependencies
 
-REQ-009-07 (implementation must exist before the test can be written).
+REQ-012-07 (implementation must exist before the test can be written).
 
 ---
 
-## REQ-009-10: Bot-Cascade Pre-Push Warning
+## REQ-012-10: Bot-Cascade Pre-Push Warning
 
 ### Requirement Statement
 
@@ -364,7 +364,7 @@ PR #1965 retrospective names bot-cascade as the highest-leverage gap (~20 commit
 
 ---
 
-## REQ-009-11: Bot-Cascade Recent-Review Warning
+## REQ-012-11: Bot-Cascade Recent-Review Warning
 
 ### Requirement Statement
 
@@ -386,7 +386,7 @@ PR #1989 coderabbit finding: a developer who pushes immediately after a bot has 
 
 ### Dependencies
 
-REQ-009-10 (the Phase 5c block must already exist). `gh api` access to the `/pulls/{n}/reviews` endpoint.
+REQ-012-10 (the Phase 5c block must already exist). `gh api` access to the `/pulls/{n}/reviews` endpoint.
 
 ---
 

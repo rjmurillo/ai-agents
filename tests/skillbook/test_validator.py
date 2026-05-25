@@ -124,6 +124,46 @@ class TestRealSchemas:
         errors = SchemaChecker(schema, _SCHEMA_DIR).check(instance, schema, "policy")
         assert any("missing required" in err for err in errors)
 
+    def test_load_ref_file_resolves_a_sibling_schema(self, tmp_path: Path) -> None:
+        # Positive path: a sibling file inside the schema dir loads normally.
+        sibling = tmp_path / "sub.json"
+        sibling.write_text(json.dumps({"type": "string"}), encoding="utf-8")
+        checker = SchemaChecker({"$ref": "sub.json"}, tmp_path)
+        # _load_ref_file is exercised indirectly through check() -> _check_ref.
+        errors = checker.check("hello", {"$ref": "sub.json"}, "root")
+        assert errors == []
+
+    def test_load_ref_file_rejects_parent_traversal(self, tmp_path: Path) -> None:
+        # Negative path: a $ref with `..` segments that escape _schema_dir
+        # must raise ValueError (CWE-22 guard), even if the target file exists.
+        outside = tmp_path / "outside.json"
+        outside.write_text(json.dumps({"type": "string"}), encoding="utf-8")
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        checker = SchemaChecker({"$ref": "../outside.json"}, schema_dir)
+        try:
+            checker.check("hello", {"$ref": "../outside.json"}, "root")
+        except ValueError as exc:
+            assert "Path traversal detected" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("expected ValueError for path traversal")
+
+    def test_load_ref_file_rejects_absolute_path(self, tmp_path: Path) -> None:
+        # Negative path: an absolute $ref must also be rejected — Path / abs
+        # discards the left operand, so resolution lands outside _schema_dir.
+        target = tmp_path / "abs.json"
+        target.write_text(json.dumps({"type": "string"}), encoding="utf-8")
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        ref = str(target.resolve())
+        checker = SchemaChecker({"$ref": ref}, schema_dir)
+        try:
+            checker.check("hello", {"$ref": ref}, "root")
+        except ValueError as exc:
+            assert "Path traversal detected" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("expected ValueError for absolute path $ref")
+
     def test_validates_a_policy_carrying_real_evidence(
         self, write_skillbook: Any
     ) -> None:
@@ -270,3 +310,77 @@ class TestValidatorMain:
             ["--skillbook-dir", str(skillbook), "--schema-dir", str(_SCHEMA_DIR)]
         )
         assert exit_code == EXIT_LOGIC
+
+    def test_exit_config_on_path_traversal_value_error(
+        self, write_skillbook: Any, tmp_path: Path
+    ) -> None:
+        # When SchemaChecker._load_ref_file raises ValueError (path traversal
+        # guard, CWE-22), main() must catch it and exit with EXIT_CONFIG (2)
+        # per ADR-035, not crash with a Python traceback. Reach this branch by
+        # writing a custom schema dir whose policy.schema.json uses a $ref with
+        # `..` segments that escape the schema directory.
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        # Minimal policy schema that $refs an outside path.
+        (schema_dir / "policy.schema.json").write_text(
+            json.dumps(
+                {
+                    "type": "object",
+                    "properties": {
+                        "policies": {
+                            "type": "array",
+                            "items": {"$ref": "../outside.json"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        # Tension and workflow schemas: empty pass-through objects.
+        (schema_dir / "tension.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        (schema_dir / "workflow.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        skillbook = write_skillbook(policies=[make_policy()])
+        exit_code = main(
+            ["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)]
+        )
+        assert exit_code == EXIT_CONFIG
+
+    def test_exit_config_on_os_error_from_ref(
+        self, write_skillbook: Any, tmp_path: Path
+    ) -> None:
+        # When _load_ref_file raises OSError (e.g. IsADirectoryError because
+        # the $ref points at a directory), main() must catch it and return
+        # EXIT_CONFIG (2), not crash. Reach this branch by writing a schema
+        # whose $ref names a subdirectory that exists inside the schema dir.
+        schema_dir = tmp_path / "schemas"
+        schema_dir.mkdir()
+        (schema_dir / "sub").mkdir()
+        (schema_dir / "policy.schema.json").write_text(
+            json.dumps(
+                {
+                    "type": "object",
+                    "properties": {
+                        "policies": {
+                            "type": "array",
+                            "items": {"$ref": "sub"},
+                        }
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (schema_dir / "tension.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        (schema_dir / "workflow.schema.json").write_text(
+            json.dumps({"type": "object"}), encoding="utf-8"
+        )
+        skillbook = write_skillbook(policies=[make_policy()])
+        exit_code = main(
+            ["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)]
+        )
+        assert exit_code == EXIT_CONFIG

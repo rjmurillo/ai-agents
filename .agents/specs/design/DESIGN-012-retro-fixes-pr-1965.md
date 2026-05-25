@@ -1,25 +1,25 @@
 ---
 type: design
-id: DESIGN-009
+id: DESIGN-012
 title: Retro fixes from PR #1965 (rework + contract drift)
 status: draft
 priority: P1
 created: 2026-05-10
 updated: 2026-05-10
 related:
-  - REQ-009
-  - TASK-009
+  - REQ-012
+  - TASK-012
 adr:
   - ADR-035 (exit codes)
   - ADR-042 (Python-first)
 author: Richard Murillo
 ---
 
-# DESIGN-009: Retro fixes from PR #1965 (rework + contract drift)
+# DESIGN-012: Retro fixes from PR #1965 (rework + contract drift)
 
 ## Requirements Addressed
 
-REQ-009-01 through REQ-009-09. Resolves three RCAs from `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md`:
+REQ-012-01 through REQ-012-09. Resolves three RCAs from `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md`:
 
 - RCA-1: `get_unresolved_review_threads.py` returned 0 for paginated results.
 - RCA-2: `.claude/rules/canonical-source-mirror.md` `applyTo` glob excluded axis and prompt directories.
@@ -55,7 +55,7 @@ No files are deleted. No new directories are created (all parent directories alr
 
 ## Component Map
 
-### REQ-009-01, REQ-009-02: Pagination Contract Test
+### REQ-012-01, REQ-012-02: Pagination Contract Test
 
 **Component:** `tests/skills/github/test_get_unresolved_review_threads.py`
 
@@ -68,7 +68,7 @@ No files are deleted. No new directories are created (all parent directories alr
 
 **Exit codes:** Test harness returns pytest standard codes. The script under test must return exit code 0 on success (ADR-035).
 
-### REQ-009-03: canonical-source-mirror.md applyTo Glob
+### REQ-012-03: canonical-source-mirror.md applyTo Glob
 
 **Component:** `.claude/rules/canonical-source-mirror.md` (frontmatter only) + `tests/build_scripts/test_canonical_source_mirror.py`
 
@@ -78,7 +78,7 @@ No files are deleted. No new directories are created (all parent directories alr
 
 **Constraint:** Rule body prose is read-only per chestertons-fence guidance. Only `applyTo` changes.
 
-### REQ-009-04, REQ-009-05: co-change-checklist in /spec
+### REQ-012-04, REQ-012-05: co-change-checklist in /spec
 
 **Component:** `.claude/commands/spec.md`
 
@@ -92,13 +92,13 @@ No files are deleted. No new directories are created (all parent directories alr
 
 **Placement:** The `## Co-change checklist` section is inserted after the last `### Acceptance Criteria` subsection and before `### Rationale` in each generated requirement.
 
-### REQ-009-06: CI Gate Enforcement
+### REQ-012-06: CI Gate Enforcement
 
 **Component:** No new component. Existing "Run Python Tests" required check covers `tests/` by default.
 
 **Responsibility:** New test files placed under `tests/` are auto-discovered by pytest. No workflow edits needed.
 
-### REQ-009-07, REQ-009-08: Rework Warning (Implementation)
+### REQ-012-07, REQ-012-08: Rework Warning (Implementation)
 
 **Component:** `.claude/skills/session-end/scripts/rework_warning.py` (sibling of `complete_session_log.py`)
 
@@ -121,7 +121,7 @@ The design originally placed the function inside `complete_session_log.py` and c
 Output format per file: `rework-warning: {file_path} edited {n} times`
 Negative case output: `rework-warning: none`
 
-### REQ-009-09: Rework Warning Contract Test
+### REQ-012-09: Rework Warning Contract Test
 
 **Component:** `tests/skills/session-end/test_rework_warning.py`
 
@@ -185,7 +185,7 @@ All tests are discoverable by pytest without additional configuration. All tests
 
 ## References
 
-- REQ-009: `.agents/specs/requirements/REQ-009-retro-fixes-pr-1965.md`
+- REQ-009: `.agents/specs/requirements/REQ-012-retro-fixes-pr-1965.md`
 - Retro: `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md`
 - PR #1887 retro: `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`
 - ADR-035: `.agents/architecture/ADR-035-exit-code-standardization.md`

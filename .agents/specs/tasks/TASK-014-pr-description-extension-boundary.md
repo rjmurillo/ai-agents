@@ -1,6 +1,6 @@
 ---
 type: task
-id: TASK-004
+id: TASK-014
 requirement: REQ-004
 design: DESIGN-004
 status: ready
@@ -9,7 +9,7 @@ created: 2026-05-03
 updated: 2026-05-03
 ---
 
-# TASK-004: Apply extension-boundary lookahead to PR description extractor
+# TASK-014: Apply extension-boundary lookahead to PR description extractor
 
 ## Goal
 

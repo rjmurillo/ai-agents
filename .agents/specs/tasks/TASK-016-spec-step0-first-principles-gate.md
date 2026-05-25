@@ -1,6 +1,6 @@
 ---
 type: task
-id: TASK-006
+id: TASK-016
 title: Implement Step 0 First Principles Gate in spec pipeline
 status: todo
 priority: P1
@@ -17,7 +17,7 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
-# TASK-006: Implement Step 0 First Principles Gate in spec pipeline
+# TASK-016: Implement Step 0 First Principles Gate in spec pipeline
 
 ## Objective
 
@@ -47,7 +47,7 @@ Step 9 critic checks. Optionally write ADR-060. No new CI workflow files or runt
 
 ---
 
-## TASK-006-1: Insert Step 0 block in `.claude/commands/spec.md`
+## TASK-016-1: Insert Step 0 block in `.claude/commands/spec.md`
 
 **Objective**: Add the six-question First Principles gate as Step 0, before Step 1.
 
@@ -75,11 +75,11 @@ Step 9 critic checks. Optionally write ADR-060. No new CI workflow files or runt
 - Read the current file before editing to confirm insertion point.
 - The Step 0 block must be a new numbered step (Step 0), visually distinct from Step 1.
 - Use a horizontal rule or clear heading to delimit Step 0 from Step 1.
-- Do not change Step 1 prose in this task (that is TASK-006-2).
+- Do not change Step 1 prose in this task (that is TASK-016-2).
 
 ---
 
-## TASK-006-2: Update Step 1 in `.claude/commands/spec.md`
+## TASK-016-2: Update Step 1 in `.claude/commands/spec.md`
 
 **Objective**: Narrow Step 1 to constraints, edge cases, and integration surface only, removing
 any overlap with Step 0 questions.
@@ -103,7 +103,7 @@ any overlap with Step 0 questions.
 
 ---
 
-## TASK-006-3: Update Step 3 Tier 5 bullet in `.claude/commands/spec.md`
+## TASK-016-3: Update Step 3 Tier 5 bullet in `.claude/commands/spec.md`
 
 **Objective**: Replace the standalone "why not simpler?" challenge in the Tier 5 bullet with a
 reference to Step 0 Q4 re-validation.
@@ -127,7 +127,7 @@ reference to Step 0 Q4 re-validation.
 
 ---
 
-## TASK-006-4: Add Step 0 validity checks to Step 9 critic pre-mortem in `.claude/commands/spec.md`
+## TASK-016-4: Add Step 0 validity checks to Step 9 critic pre-mortem in `.claude/commands/spec.md`
 
 **Objective**: Add three Step 0 validity checks to the critic pre-mortem so violations surface
 before the spec ships.
@@ -164,7 +164,7 @@ before the spec ships.
 
 ---
 
-## TASK-006-5: Mirror all changes to `src/copilot-cli/skills/spec/SKILL.md`
+## TASK-016-5: Mirror all changes to `src/copilot-cli/skills/spec/SKILL.md`
 
 **Objective**: Apply identical body changes to the Copilot CLI twin.
 
@@ -182,7 +182,7 @@ before the spec ships.
 
 | File | Action | Description |
 |---|---|---|
-| `src/copilot-cli/skills/spec/SKILL.md` | Edit | Mirror all four body changes from TASK-006-1 through TASK-006-4 |
+| `src/copilot-cli/skills/spec/SKILL.md` | Edit | Mirror all four body changes from TASK-016-1 through TASK-016-4 |
 
 **Implementation notes**:
 - Read `src/copilot-cli/skills/spec/SKILL.md` before editing to confirm structure.
@@ -191,7 +191,7 @@ before the spec ships.
 
 ---
 
-## TASK-006-6: Verify `src/copilot-cli/skills/memory/spec/skill-specification.xml`
+## TASK-016-6: Verify `src/copilot-cli/skills/memory/spec/skill-specification.xml`
 
 **Objective**: Determine whether this file duplicates spec body content and update if yes.
 
@@ -213,7 +213,7 @@ before the spec ships.
 
 ---
 
-## TASK-006-7 (Optional): Write ADR-060
+## TASK-016-7 (Optional): Write ADR-060
 
 **Objective**: Record the architectural decision to add a blocking front gate to the spec pipeline.
 
@@ -235,7 +235,7 @@ before the spec ships.
 
 ---
 
-## TASK-006-8: Manual validation run (13 test cases)
+## TASK-016-8: Manual validation run (13 test cases)
 
 **Objective**: Prove the halt cases, pass cases, and edge cases work in practice. See DESIGN-006 Testing Strategy section "Dynamic verification" for the full T1-T13 catalog.
 
@@ -267,7 +267,7 @@ None (validation only; evidence documented in PR description).
 
 ## Testing Requirements
 
-Tier 1 complexity. Parser-based automated checks are required for deterministic validation; LLM spot-checks are documented as supplemental evidence per TASK-006-8.
+Tier 1 complexity. Parser-based automated checks are required for deterministic validation; LLM spot-checks are documented as supplemental evidence per TASK-016-8.
 
 The pytest harness lives under `tests/commands/`:
 
@@ -281,14 +281,14 @@ LLM spot-checks (T2, T3, T4, T10, T12, T13) probe model interpretation; they are
 
 | Task | Complexity | Hours |
 |---|---|---|
-| TASK-006-1 (Insert Step 0; includes hedge phrase list, operational tests, halt schema, kill criteria ref) | XS | 2-3 |
-| TASK-006-2 (Update Step 1) | XS | 1 |
-| TASK-006-3 (Update Step 3 Tier 5) | XS | 0.5 |
-| TASK-006-4 (Update Step 9 with binary checks) | XS | 1 |
-| TASK-006-5 (Mirror SKILL.md) | XS | 1 |
-| TASK-006-6 (Verify XML) | XS | 0.5 |
-| TASK-006-7 (ADR-060, optional) | XS | 1 |
-| TASK-006-8 (13 dynamic + 2 static validation) | S | 2-3 |
+| TASK-016-1 (Insert Step 0; includes hedge phrase list, operational tests, halt schema, kill criteria ref) | XS | 2-3 |
+| TASK-016-2 (Update Step 1) | XS | 1 |
+| TASK-016-3 (Update Step 3 Tier 5) | XS | 0.5 |
+| TASK-016-4 (Update Step 9 with binary checks) | XS | 1 |
+| TASK-016-5 (Mirror SKILL.md) | XS | 1 |
+| TASK-016-6 (Verify XML) | XS | 0.5 |
+| TASK-016-7 (ADR-060, optional) | XS | 1 |
+| TASK-016-8 (13 dynamic + 2 static validation) | S | 2-3 |
 | **Total** | **XS-S** | **9-11** |
 
 ## Revision History
@@ -306,5 +306,5 @@ LLM spot-checks (T2, T3, T4, T10, T12, T13) probe model interpretation; they are
   - DESIGN-006 Edit 1 expanded with hedge phrase list, operational tests, halt message schema, kill criteria reference.
   - DESIGN-006 Edit 4 expanded with binary check phrasing.
   - DESIGN-006 Testing Strategy expanded from 8 manual checks to 13 dynamic + 2 static with coverage tracker.
-  - TASK-006-8 expanded from 2 cases to 13 + lint integration.
+  - TASK-016-8 expanded from 2 cases to 13 + lint integration.
   - Effort estimate updated 6.5-7.5h → 9-11h.

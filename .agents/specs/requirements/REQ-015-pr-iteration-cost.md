@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-005
+id: REQ-015
 title: Reduce PR iteration cost via pre-push validation
 status: draft
 priority: P1
@@ -15,7 +15,7 @@ created: 2026-05-03
 updated: 2026-05-04
 ---
 
-# REQ-005: Reduce PR iteration cost via pre-push validation
+# REQ-015: Reduce PR iteration cost via pre-push validation
 
 ## Problem
 
@@ -25,7 +25,7 @@ Success metric: reduce mechanical-error review iterations by at least 50% measur
 
 ## User Stories and Requirements
 
-### REQ-005-US1: Block markdown style violations pre-push
+### REQ-015-US1: Block markdown style violations pre-push
 
 **Requirement Statement**
 
@@ -57,7 +57,7 @@ Markdown style violations are purely mechanical. CI already catches them, but at
 
 ---
 
-### REQ-005-US2: Block marketplace count drift pre-push
+### REQ-015-US2: Block marketplace count drift pre-push
 
 **Requirement Statement**
 
@@ -99,7 +99,7 @@ Counts are mechanical projections. Their value at push time must equal the files
 
 ---
 
-### REQ-005-US3: Block session log placeholder values pre-push
+### REQ-015-US3: Block session log placeholder values pre-push
 
 **Requirement Statement**
 
@@ -133,7 +133,7 @@ Placeholder values are definitively wrong. A narrow field-level check has low fa
 
 ---
 
-### REQ-005-CROSS: Shared hook framework (common behaviors)
+### REQ-015-CROSS: Shared hook framework (common behaviors)
 
 **Requirement Statement**
 

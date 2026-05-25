@@ -8,6 +8,7 @@ import unittest
 from datetime import UTC, datetime
 from io import StringIO
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Stop"))
@@ -41,7 +42,9 @@ class TestAutoRetrospective(unittest.TestCase):
             existing.write_text("# Already exists")
 
             with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_auto_retrospective, "get_project_directory", return_value=tmp_path):
+                with patch.object(
+                    invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+                ):
                     result = invoke_auto_retrospective.main()
                     self.assertEqual(result, 0)
                     # No new file created
@@ -59,7 +62,9 @@ class TestAutoRetrospective(unittest.TestCase):
             session.write_text(json.dumps({"work": [], "outcomes": []}))
 
             with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_auto_retrospective, "get_project_directory", return_value=tmp_path):
+                with patch.object(
+                    invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+                ):
                     result = invoke_auto_retrospective.main()
                     self.assertEqual(result, 0)
 
@@ -77,7 +82,9 @@ class TestAutoRetrospective(unittest.TestCase):
             }))
 
             with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_auto_retrospective, "get_project_directory", return_value=tmp_path):
+                with patch.object(
+                    invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+                ):
                     result = invoke_auto_retrospective.main()
                     self.assertEqual(result, 0)
 
@@ -96,7 +103,11 @@ class TestAutoRetrospective(unittest.TestCase):
     def test_fail_open_on_os_error(self):
         """OSError should not crash the hook."""
         with patch("sys.stdin", StringIO("")):
-            with patch.object(invoke_auto_retrospective, "get_project_directory", return_value=Path("/nonexistent/path")):
+            with patch.object(
+                invoke_auto_retrospective,
+                "get_project_directory",
+                return_value=Path("/nonexistent/path"),
+            ):
                 result = invoke_auto_retrospective.main()
                 self.assertEqual(result, 0)
 
@@ -113,7 +124,9 @@ class TestAutoRetrospective(unittest.TestCase):
             # docs/retros/INDEX.md intentionally missing
 
             with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_auto_retrospective, "get_project_directory", return_value=tmp_path):
+                with patch.object(
+                    invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+                ):
                     result = invoke_auto_retrospective.main()
                     self.assertEqual(result, 0)
                     index = tmp_path / "docs" / "retros" / "INDEX.md"
@@ -125,8 +138,12 @@ class TestAutoRetrospective(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             today = "2026-04-20"
-            invoke_auto_retrospective.update_retro_index(tmp_path, today, "2026-04-20-auto-retro.md")
-            invoke_auto_retrospective.update_retro_index(tmp_path, today, "2026-04-20-auto-retro.md")
+            invoke_auto_retrospective.update_retro_index(
+                tmp_path, today, "2026-04-20-auto-retro.md"
+            )
+            invoke_auto_retrospective.update_retro_index(
+                tmp_path, today, "2026-04-20-auto-retro.md"
+            )
             index = tmp_path / "docs" / "retros" / "INDEX.md"
             content = index.read_text()
             self.assertEqual(content.count("2026-04-20-auto-retro.md"), 1)
@@ -167,6 +184,215 @@ class TestAutoRetrospective(unittest.TestCase):
             third = invoke_auto_retrospective._pick_same_day_retro(retro_dir, today)
             self.assertEqual(first, second)
             self.assertEqual(second, third)
+
+
+class TestAutoRetrospectiveAudit(unittest.TestCase):
+    """Audit-trail JSONL coverage for Issue #2062."""
+
+    @staticmethod
+    def _read_audit_records(project_dir: Path) -> list[dict[str, Any]]:
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        audit_file = (
+            project_dir / ".agents" / ".hook-state" / "auto-retrospective" / f"{today}.jsonl"
+        )
+        if not audit_file.exists():
+            return []
+        records = []
+        for line in audit_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            records.append(json.loads(line))
+        return records
+
+    def _assert_record_shape(self, record: dict[str, Any]) -> None:
+        """Audit records carry every field the acceptance criteria requires."""
+        self.assertIn("timestamp", record)
+        self.assertIn("status", record)
+        self.assertIn("retro_filename", record)
+        self.assertIn("skip_reason", record)
+        self.assertEqual(record.get("hook"), "invoke_auto_retrospective")
+        self.assertEqual(record.get("schema"), 1)
+        # Timestamp is a valid ISO 8601 string.
+        datetime.fromisoformat(record["timestamp"])
+
+    def test_audit_created_path(self):
+        """A nontrivial session writes a 'created' audit record with filename."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            session = sessions_dir / f"{today}-session-01.json"
+            session.write_text(json.dumps({
+                "work": ["Implemented audit trail"],
+                "outcomes": ["Audit log emitted"],
+            }))
+
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ):
+                result = invoke_auto_retrospective.main()
+                self.assertEqual(result, 0)
+
+            records = self._read_audit_records(tmp_path)
+            self.assertEqual(len(records), 1)
+            self._assert_record_shape(records[0])
+            self.assertEqual(records[0]["status"], "created")
+            self.assertTrue(records[0]["retro_filename"].endswith("-auto-retro.md"))
+            self.assertIn(today, records[0]["retro_filename"])
+            self.assertEqual(records[0]["skip_reason"], "")
+
+    def test_audit_skipped_trivial_session(self):
+        """A trivial session emits a 'skipped' record with skip_reason."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            session = sessions_dir / f"{today}-session-01.json"
+            session.write_text(json.dumps({"work": [], "outcomes": []}))
+
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ):
+                result = invoke_auto_retrospective.main()
+                self.assertEqual(result, 0)
+
+            records = self._read_audit_records(tmp_path)
+            self.assertEqual(len(records), 1)
+            self._assert_record_shape(records[0])
+            self.assertEqual(records[0]["status"], "skipped")
+            self.assertEqual(records[0]["skip_reason"], "trivial session")
+            self.assertEqual(records[0]["retro_filename"], "")
+
+    def test_audit_skipped_existing_retro(self):
+        """An existing retro emits a 'skipped' record naming the existing file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            retro_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            existing = retro_dir / f"{today}-manual-retro.md"
+            existing.write_text("# Already exists")
+
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ):
+                result = invoke_auto_retrospective.main()
+                self.assertEqual(result, 0)
+
+            records = self._read_audit_records(tmp_path)
+            self.assertEqual(len(records), 1)
+            self._assert_record_shape(records[0])
+            self.assertEqual(records[0]["status"], "skipped")
+            self.assertEqual(records[0]["skip_reason"], "retro already exists today")
+            self.assertEqual(records[0]["retro_filename"], existing.name)
+
+    def test_audit_skipped_bypass_env(self):
+        """SKIP_AUTO_RETRO=true emits a 'skipped' record citing the env var."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+
+            with patch.dict("os.environ", {"SKIP_AUTO_RETRO": "true"}):
+                with patch("sys.stdin", StringIO("")), patch.object(
+                    invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+                ):
+                    result = invoke_auto_retrospective.main()
+                    self.assertEqual(result, 0)
+
+            records = self._read_audit_records(tmp_path)
+            self.assertEqual(len(records), 1)
+            self._assert_record_shape(records[0])
+            self.assertEqual(records[0]["status"], "skipped")
+            self.assertEqual(records[0]["skip_reason"], "SKIP_AUTO_RETRO=true")
+
+    def test_audit_failed_path(self):
+        """An exception during generation emits a 'failed' record."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            session = sessions_dir / f"{today}-session-01.json"
+            session.write_text(json.dumps({
+                "work": ["force-failure"],
+                "outcomes": ["ok"],
+            }))
+
+            def _explode(*_args, **_kwargs):
+                raise RuntimeError("synthetic failure")
+
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ), patch.object(
+                invoke_auto_retrospective, "generate_retrospective", side_effect=_explode
+            ):
+                result = invoke_auto_retrospective.main()
+                # Fail-open: still returns 0 even though generation threw.
+                self.assertEqual(result, 0)
+
+            records = self._read_audit_records(tmp_path)
+            self.assertEqual(len(records), 1)
+            self._assert_record_shape(records[0])
+            self.assertEqual(records[0]["status"], "failed")
+            self.assertIn("RuntimeError", records[0]["skip_reason"])
+            self.assertIn("synthetic failure", records[0]["skip_reason"])
+
+    def test_audit_write_tolerates_missing_agents_dir(self):
+        """write_audit_log silently no-ops when .agents/ is absent (consumer repo)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            # Intentionally do NOT create .agents/.
+            invoke_auto_retrospective.write_audit_log(
+                tmp_path, "skipped", skip_reason="consumer repo guard"
+            )
+            self.assertFalse((tmp_path / ".agents").exists())
+
+    def test_audit_write_tolerates_unwritable_audit_dir(self):
+        """write_audit_log swallows OSError and never propagates to the hook."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+
+            def _raise_oserror(*_args, **_kwargs):
+                raise OSError("simulated read-only filesystem")
+
+            # Patch Path.mkdir to simulate an unwritable .hook-state directory.
+            with patch("pathlib.Path.mkdir", side_effect=_raise_oserror):
+                # Must not raise; the hook's fail-open contract depends on this.
+                invoke_auto_retrospective.write_audit_log(
+                    tmp_path, "created", retro_filename="x.md"
+                )
+
+    def test_audit_record_is_valid_jsonl(self):
+        """Every audit line is valid JSON; lines are newline-delimited."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+
+            # Write three records back-to-back.
+            for i in range(3):
+                invoke_auto_retrospective.write_audit_log(
+                    tmp_path, "skipped", skip_reason=f"run {i}"
+                )
+
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            audit_file = (
+                tmp_path / ".agents" / ".hook-state" / "auto-retrospective" / f"{today}.jsonl"
+            )
+            self.assertTrue(audit_file.exists())
+            lines = audit_file.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 3)
+            for i, line in enumerate(lines):
+                record = json.loads(line)  # must parse
+                self.assertEqual(record["status"], "skipped")
+                self.assertEqual(record["skip_reason"], f"run {i}")
 
 
 if __name__ == "__main__":

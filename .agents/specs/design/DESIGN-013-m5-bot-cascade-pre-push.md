@@ -1,22 +1,22 @@
 ---
 type: design
-id: DESIGN-011
+id: DESIGN-013
 title: M5 bot-cascade pre-push warning
 status: draft
 priority: P1
 related:
-  - REQ-011
-  - TASK-011
+  - REQ-013
+  - TASK-013
 author: Richard Murillo
 created: 2026-05-10
 updated: 2026-05-10
 ---
 
-# DESIGN-011: M5 Bot-Cascade Pre-Push Warning
+# DESIGN-013: M5 Bot-Cascade Pre-Push Warning
 
 ## Requirements Addressed
 
-REQ-011 (all six acceptance criteria REQ-011-01 through REQ-011-06).
+REQ-011 (all six acceptance criteria REQ-013-01 through REQ-013-06).
 
 ## Architecture
 
@@ -47,12 +47,12 @@ Phase 5c entry
 
 | AC | Code Location | Behavior |
 |----|---------------|----------|
-| REQ-011-01 | Phase 5c block in `.githooks/pre-push` | `record_warn` on `unresolved_count > 0` |
-| REQ-011-02 | Phase 5c JSON parser | `record_skip` on `fetched_pages_complete == false` or parse fail |
-| REQ-011-03 | Phase 5c `gh api ... reviews` parser | `record_warn` on bot review age < 120s |
-| REQ-011-04 | Phase 5c reviews call | `record_skip` on non-zero exit from `gh api`; no `|| true` |
-| REQ-011-05 | `tests/hooks/test_bot_cascade_warning.py` | one test per AC |
-| REQ-011-06 | Implementer runs hook against own branch before TASK-011-04 commit | output in PR description |
+| REQ-013-01 | Phase 5c block in `.githooks/pre-push` | `record_warn` on `unresolved_count > 0` |
+| REQ-013-02 | Phase 5c JSON parser | `record_skip` on `fetched_pages_complete == false` or parse fail |
+| REQ-013-03 | Phase 5c `gh api ... reviews` parser | `record_warn` on bot review age < 120s |
+| REQ-013-04 | Phase 5c reviews call | `record_skip` on non-zero exit from `gh api`; no `|| true` |
+| REQ-013-05 | `tests/hooks/test_bot_cascade_warning.py` | one test per AC |
+| REQ-013-06 | Implementer runs hook against own branch before TASK-011-04 commit | output in PR description |
 
 ## Test Strategy
 
@@ -62,24 +62,24 @@ Phase 5c is a thin bash delegate: it parses two subprocess outputs and emits one
 
 The implemented suite uses the same structural verification pattern that already covers Phase 5b drift detection (`tests/hooks/test_drift_check.py`): grep the hook text inside the Phase 5c block, plus `bash -n` for syntax. One additional test asserts that each REQ-011 outcome path has at least one call site (`record_skip`, `record_warn`, `record_pass` all appear). Combined, these pin the AC contract without paying the runtime cost.
 
-Runtime evidence for the actual outcome lines is captured by exercising the hook against the current branch as part of the TASK-011-04 self-apply gate (REQ-011-06). Each of the four documented runtime paths has been exercised against a real PR; the captured output is in the PR description rather than in the test suite.
+Runtime evidence for the actual outcome lines is captured by exercising the hook against the current branch as part of the TASK-011-04 self-apply gate (REQ-013-06). Each of the four documented runtime paths has been exercised against a real PR; the captured output is in the PR description rather than in the test suite.
 
 ### Test cases per AC (implemented)
 
 The tests in `tests/hooks/test_bot_cascade_warning.py` pin the Phase 5c contract by scoping every assertion to the regex `# Phase 5c.*?(?=# Phase \d|\Z)` so Phase 5b assertions cannot pollute Phase 5c assertions. The exact test count is intentionally not pinned here; it grows as the contract evolves.
 
-- `test_phase_5c_header_present` (REQ-011-01): Phase 5c block exists and follows Phase 5b (asserts both positions are non-negative).
-- `test_phase_5c_calls_unresolved_threads_script` (REQ-011-01): hook invokes `get_unresolved_review_threads.py`.
-- `test_phase_5c_parses_fetched_pages_complete` (REQ-011-02): hook checks `fetched_pages_complete`.
-- `test_phase_5c_emits_warn_on_unresolved` (REQ-011-01): hook contains `record_warn` and references `unresolved`.
-- `test_phase_5c_emits_skip_on_incomplete` (REQ-011-02): hook contains `record_skip` for incomplete snapshot.
-- `test_phase_5c_queries_reviews_endpoint` (REQ-011-03): hook queries `/reviews`.
-- `test_phase_5c_filters_bot_reviews` (REQ-011-03): hook filters `user.type == "Bot"`.
-- `test_phase_5c_120_second_threshold` (REQ-011-03): hook references the 120-second threshold.
-- `test_phase_5c_no_fail_open_on_reviews` (REQ-011-04): no `|| true` on the reviews query.
-- `test_phase_5c_warn_only_never_fails` (REQ-011-01..04): no `record_fail` call site (comments stripped before matching).
+- `test_phase_5c_header_present` (REQ-013-01): Phase 5c block exists and follows Phase 5b (asserts both positions are non-negative).
+- `test_phase_5c_calls_unresolved_threads_script` (REQ-013-01): hook invokes `get_unresolved_review_threads.py`.
+- `test_phase_5c_parses_fetched_pages_complete` (REQ-013-02): hook checks `fetched_pages_complete`.
+- `test_phase_5c_emits_warn_on_unresolved` (REQ-013-01): hook contains `record_warn` and references `unresolved`.
+- `test_phase_5c_emits_skip_on_incomplete` (REQ-013-02): hook contains `record_skip` for incomplete snapshot.
+- `test_phase_5c_queries_reviews_endpoint` (REQ-013-03): hook queries `/reviews`.
+- `test_phase_5c_filters_bot_reviews` (REQ-013-03): hook filters `user.type == "Bot"`.
+- `test_phase_5c_120_second_threshold` (REQ-013-03): hook references the 120-second threshold.
+- `test_phase_5c_no_fail_open_on_reviews` (REQ-013-04): no `|| true` on the reviews query.
+- `test_phase_5c_warn_only_never_fails` (REQ-013-01..04): no `record_fail` call site (comments stripped before matching).
 - `test_pre_push_hook_bash_syntax_valid`: `bash -n` on the whole hook.
-- `test_phase_5c_emits_recorded_outcome_token` (REQ-011-05): each of `record_skip`, `record_warn`, `record_pass` has at least one call site in Phase 5c.
+- `test_phase_5c_emits_recorded_outcome_token` (REQ-013-05): each of `record_skip`, `record_warn`, `record_pass` has at least one call site in Phase 5c.
 
 ### Runtime evidence captured outside the test suite
 
@@ -117,7 +117,7 @@ The full self-apply gate (TASK-011-04) exercises the hook end-to-end against the
 | `gh api` rate limit hits during hook execution | LOW | Single call per push; well under rate limit |
 | 120s threshold wrong empirically | MED | Deferred tunable; revisit after 30 invocations |
 | Hook adds noticeable latency to push | LOW | Two subprocess calls, no polling; typical 200-500ms |
-| Self-application gate (REQ-011-06) fails | MED | TASK-011-04 runs `.githooks/pre-push` against the milestone branch before commit; each runtime outcome path (skip/warn/pass) is captured in the PR description. The structural tests pin the contract; the self-apply gate exercises the live runtime. |
+| Self-application gate (REQ-013-06) fails | MED | TASK-011-04 runs `.githooks/pre-push` against the milestone branch before commit; each runtime outcome path (skip/warn/pass) is captured in the PR description. The structural tests pin the contract; the self-apply gate exercises the live runtime. |
 
 ## References
 

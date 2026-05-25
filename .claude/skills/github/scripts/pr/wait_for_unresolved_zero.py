@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wait for a PR's unresolved thread count to settle at zero (REQ-009-01).
+"""Wait for a PR's unresolved thread count to settle at zero (REQ-012-01).
 
 Polls ``get_unresolved_review_threads.py`` and exits 0 only after observing
 THREE consecutive readings of ``unresolved_count == 0 AND
@@ -50,7 +50,7 @@ import time
 from pathlib import Path
 
 # How many consecutive complete-and-zero readings we require to declare
-# the PR settled. Documented in REQ-009-01 revised AC. Pinned in tests.
+# the PR settled. Documented in REQ-012-01 revised AC. Pinned in tests.
 REQUIRED_CONSECUTIVE_ZEROS = 3
 
 

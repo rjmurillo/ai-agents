@@ -1,48 +1,15 @@
 {
   "id": "episode-2026-05-25-session-1837",
   "session": "2026-05-25-session-1837",
-  "timestamp": "2026-05-25T16:21:32.530967+00:00",
-  "outcome": "failure",
+  "timestamp": "2026-05-25T16:22:54.773847+00:00",
+  "outcome": "partial",
   "task": "",
   "decisions": [],
-  "events": [
-    {
-      "id": "e002",
-      "timestamp": "2026-05-25T16:21:32.527474+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"132 tests pass (uv run pytest tests/skills/session-end/ tests/skills/github/); pre_pr.py Markdown Linting and Agent Drift Detection failures confirmed pre-existing on origin/main\"",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e003",
-      "timestamp": "2026-05-25T16:21:32.527474+00:00",
-      "type": "test",
-      "content": "\"outcome\": \"27 session-end tests pass; 132 total tests pass\"",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e004",
-      "timestamp": "2026-05-25T16:21:32.527474+00:00",
-      "type": "error",
-      "content": "\"action\": \"Confirmed pre_pr.py Markdown Linting and Agent Drift Detection failures are pre-existing on origin/main (not introduced by this session)\",",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-05-25T16:21:32.527474+00:00",
-      "type": "error",
-      "content": "\"outcome\": \"No new failures introduced\"",
-      "caused_by": [],
-      "leads_to": []
-    }
-  ],
+  "events": [],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 3,
+    "errors": 0,
     "recoveries": 0,
     "commits": 1,
     "files_changed": 0

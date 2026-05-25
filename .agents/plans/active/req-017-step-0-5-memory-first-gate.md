@@ -1,4 +1,4 @@
-# Execution Plan: REQ-008 Step 0.5 Memory-First Gate
+# Execution Plan: REQ-017 Step 0.5 Memory-First Gate
 
 ## Metadata
 
@@ -106,7 +106,7 @@
 ### M5: Validation Run with Pytest-Promotion (S, 2-3h)
 
 **Tasks**:
-- D-list defined in `TASK-008-5` (`.agents/specs/tasks/TASK-008-spec-memory-first-gate.md`, "TASK-008-5: Manual validation run" section, lines D1-D14).
+- D-list defined in `TASK-017-5` (`.agents/specs/tasks/TASK-017-spec-memory-first-gate.md`, "TASK-017-5: Manual validation run" section, lines D1-D14).
 - Promote deterministic checks to pytest (8 cases): D1 (Step 0 → Step 0.5 ordering), D2 (ProvisionalTier=2 with 4-6h+2 entities), D3 (chestertons-fence target/change), D4 (3+ memory queries for "spec.md" topic), D5 (zero-result coverage note), D8 (3 blast-radius → H11 emitted), D10 (pass tally line), D11 (halt tally line).
 - Manual checks (6, with tracked follow-on issue for promotion): D6 (Forgetful unavailable simulation), D7 (graph traversal entity discovery), D9 (1 blast-radius → no halt), D12 (Step 9 9d PASS), D13 (Step 9 9d FAIL after manual block removal), D14 (Step 3 tier upgrade triggers Phase 5 supplemental).
 - Single live `/spec` invocation exercising halt path + pass path + degradation path.
@@ -147,15 +147,15 @@ Serial chain. M3 was originally parallel with M2 but pre-mortem F6 (merge confli
 
 | Date | Update | Agent |
 |------|--------|-------|
-| 2026-05-09 | Plan created from REQ-008/DESIGN-008/TASK-008 after /spec workflow completed | planner |
+| 2026-05-09 | Plan created from REQ-017/DESIGN-017/TASK-017 after /spec workflow completed | planner |
 | 2026-05-09 | Revised post pre-mortem (7 findings) and critic (6 findings); M2 collapsed, M3 serialized, M1 expanded, M5 partial pytest promotion | planner |
 | 2026-05-09 | Critic v2 surgical fixes: AC-08 explicit in 2A; M4 12-check AC mapping; M5 D-list inlined with citation; 2A guard-string + M3 guard-detection prevents AC-12 false-positive on partial M2 | planner |
-| 2026-05-09 | M1 complete. Three SKILL.md files verified; invocation contracts documented at .agents/plans/active/req-008-m1-skill-contracts.md. Branch feat/req-008-step-0-5-memory-first-gate. | implementer |
+| 2026-05-09 | M1 complete. Three SKILL.md files verified; invocation contracts documented at .agents/plans/active/req-017-m1-skill-contracts.md. Branch feat/req-017-step-0-5-memory-first-gate. | implementer |
 | 2026-05-10 | M2 complete. Step 0.5 inserted into .claude/commands/spec.md across 2 commits (1d60205f scaffold AC-01 to AC-08; b97378f1 halt+supplemental+metrics AC-09 to AC-11). Guard string introduced and removed. spec.md grew from 199 to 339 lines. | implementer |
 | 2026-05-10 | M3 complete. Check 9d appended to Step 9 pre-mortem list (AC-12). 9a/9b/9c untouched. 9d FAIL conditions include guard-string detection per plan. Step 9 narrative updated to cover 9a-9d. | implementer |
 | 2026-05-10 | M4 complete. step0_5_parser.py + test_spec_step0_5.py committed; 30 tests pass. Existing test_spec_step0.py byte-identity tests preserved by mirroring Step 0.5 + 9d into Copilot CLI SKILL.md (deferred-item resolved early). 8h-tier contradiction in REQ/DESIGN/spec.md prose corrected: 8h is Tier 3 per mapping. Total tests/commands/: 95 pass. | implementer |
 | 2026-05-10 | M5 complete. Promoted D2/D8/D10/D11 to pytest (12 new tests): D2 ProvisionalTier from "4-6 hours" + 2 entities = Tier 2; D8 step0_5-halt block parser with field-set/trigger validation; D10/D11 metrics tally line parser with state/trigger consistency checks. Manual checks D1, D6, D7, D9, D12, D13, D14 require live /spec invocation or Forgetful MCP simulation; tracked as candidates for ADR-057 LLM eval harness follow-on. Total tests/commands/: 107 pass. | implementer |
-| 2026-05-10 | /review fixes applied. Critical: weeks unit added to REQ-008 + spec.md hours-extraction list (parser already supported it; spec text now matches). Important: Sec F1 CWE-78 mitigation - spec.md mandates argv-vector subprocess invocation, prohibits string concat, requires sanitization regex if argv unavailable; Arch F1 byte-identity test for Step 0.5 mirror added; QA F2 entity_count boundary parametrize (10 cases) added; QA F4 phases_needed and supplemental_phase_5_warranted helpers added with 13 boundary tests. Deferred: ADR-060 (multi-agent debate cost), 3 Suggestions documented. tests/commands/: 131 pass. | implementer |
+| 2026-05-10 | /review fixes applied. Critical: weeks unit added to REQ-017 + spec.md hours-extraction list (parser already supported it; spec text now matches). Important: Sec F1 CWE-78 mitigation - spec.md mandates argv-vector subprocess invocation, prohibits string concat, requires sanitization regex if argv unavailable; Arch F1 byte-identity test for Step 0.5 mirror added; QA F2 entity_count boundary parametrize (10 cases) added; QA F4 phases_needed and supplemental_phase_5_warranted helpers added with 13 boundary tests. Deferred: ADR-060 (multi-agent debate cost), 3 Suggestions documented. tests/commands/: 131 pass. | implementer |
 
 ## Risk Register
 
@@ -192,9 +192,9 @@ All 8 sub-issues linked to parent #1951 via GitHub sub-issue API (GraphQL `addSu
 - Issue: #1951
 - Parent Epic: #1952
 - Sibling: #1926 (Step 0, prerequisite via REQ-006)
-- Spec: `.agents/specs/requirements/REQ-008-spec-memory-first-gate.md`
-- Design: `.agents/specs/design/DESIGN-008-spec-memory-first-gate.md`
-- Tasks: `.agents/specs/tasks/TASK-008-spec-memory-first-gate.md`
+- Spec: `.agents/specs/requirements/REQ-017-spec-memory-first-gate.md`
+- Design: `.agents/specs/design/DESIGN-017-spec-memory-first-gate.md`
+- Tasks: `.agents/specs/tasks/TASK-017-spec-memory-first-gate.md`
 - Interview: `.agents/specs/interviews/INTERVIEW-1951-spec-memory-first-gate.md`
 - PR: (pending)
 - ADR: (none required for Tier 2)

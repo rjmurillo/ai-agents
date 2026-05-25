@@ -20,6 +20,7 @@ import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
@@ -101,7 +102,9 @@ def _pick_same_day_retro(retro_dir: Path, today: str) -> Path | None:
             mtime = candidate.stat().st_mtime
         except OSError:
             continue
-        if mtime > best_mtime or (mtime == best_mtime and (best is None or candidate.name > best.name)):
+        if mtime > best_mtime or (
+            mtime == best_mtime and (best is None or candidate.name > best.name)
+        ):
             best_mtime = mtime
             best = candidate
 
@@ -161,10 +164,10 @@ def find_recent_session_file(sessions_dir: Path, today_only: bool = False) -> Pa
         return _find_recent_session_fallback(sessions_dir, today_only=today_only)
 
     # Use shared utility for standard "prefer today, fall back to yesterday" logic
-    return _get_recent_session_log(str(sessions_dir))
+    return cast(Path | None, _get_recent_session_log(str(sessions_dir)))
 
 
-def _coerce_to_list_fallback(value) -> list:
+def _coerce_to_list_fallback(value: object) -> list[Any]:
     """Fallback normalizer when hook_utilities is unavailable."""
     if value is None:
         return []
@@ -186,7 +189,7 @@ def _coerce_to_list_fallback(value) -> list:
     return []
 
 
-def coerce_to_list(value) -> list:
+def coerce_to_list(value: object) -> list[Any]:
     """Normalize work/outcomes to a list, regardless of session schema shape.
 
     Session logs in this repo have used several shapes over time:
@@ -196,11 +199,11 @@ def coerce_to_list(value) -> list:
     - bare strings (rare)
     """
     if _coerce_to_list is not None:
-        return _coerce_to_list(value)
+        return cast(list[Any], _coerce_to_list(value))
     return _coerce_to_list_fallback(value)
 
 
-def _format_work_item_fallback(item: dict) -> str:
+def _format_work_item_fallback(item: dict[str, Any]) -> str:
     """Fallback formatter when hook_utilities is unavailable."""
     if "action" in item:
         parts = []
@@ -217,7 +220,7 @@ def _format_work_item_fallback(item: dict) -> str:
     return str(item)
 
 
-def format_work_item(item: dict) -> str:
+def format_work_item(item: dict[str, Any]) -> str:
     """Format a work item dict into a human-readable string.
 
     Supports multiple session schemas:
@@ -225,11 +228,11 @@ def format_work_item(item: dict) -> str:
     - Legacy: {'description': '...'} or {'task': '...'}
     """
     if _format_work_item is not None:
-        return _format_work_item(item)
+        return cast(str, _format_work_item(item))
     return _format_work_item_fallback(item)
 
 
-def _extract_work_outcomes(data) -> tuple[list, list]:
+def _extract_work_outcomes(data: object) -> tuple[list[Any], list[Any]]:
     """Pull work and outcomes from session data, supporting workLog and work shapes."""
     if not isinstance(data, dict):
         return [], []
@@ -304,7 +307,8 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
                             session_context += f"- {outcome.get('result', str(outcome))}\n"
             except Exception as e:
                 print(
-                    f"[hook-error] invoke_auto_retrospective generate_retrospective: {type(e).__name__}: {e}",
+                    "[hook-error] invoke_auto_retrospective generate_retrospective: "
+                    f"{type(e).__name__}: {e}",
                     file=sys.stderr,
                 )
 
@@ -335,6 +339,93 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
 
     retro_path.write_text(content, encoding="utf-8")
     return retro_path
+
+
+def write_audit_log(
+    project_dir: Path,
+    status: str,
+    retro_filename: str = "",
+    skip_reason: str = "",
+) -> None:
+    """Append a per-hook JSONL audit record for this run.
+
+    Canonical source: ``.claude/hooks/PreToolUse/invoke_false_completion_gate.py``
+    (function ``write_audit_log``, lines 191-234). Quoted contract:
+
+    - Audit root is ``project_dir / ".agents" / ".hook-state"``.
+    - Skip silently when ``.agents/`` does not exist (consumer-repo guard).
+    - JSONL line carries ``schema=1``, ``timestamp`` (ISO-8601 UTC),
+      ``hook`` (function-local hook id), and per-hook payload fields.
+    - File handle is taken with ``open(audit_file, "a", encoding="utf-8")``
+      and serialized through the shared ``_lock_file`` / ``_unlock_file``
+      helpers when available.
+    - Errors writing the audit log are swallowed and surfaced to stderr
+      to preserve fail-open behavior.
+
+    Per Issue #2062 acceptance, records land at::
+
+        .agents/.hook-state/auto-retrospective/{YYYY-MM-DD}.jsonl
+
+    Schema (forward-compat ``schema: 1``):
+
+    - ``timestamp``: ISO-8601 UTC of the record.
+    - ``hook``: always ``"invoke_auto_retrospective"`` for cross-hook joins.
+    - ``status``: ``created`` | ``skipped`` | ``failed``.
+    - ``retro_filename``: basename of the retro file when known (created or
+      re-discovered on the skip-because-exists path), else empty string.
+    - ``skip_reason``: human-readable explanation when status is ``skipped``
+      or ``failed``; empty string for ``created``.
+
+    Stricter/looser/different than canonical:
+
+    - Subdirectory: writes under ``.hook-state/auto-retrospective/`` instead
+      of the canonical's flat ``.hook-state/`` so retro audit files do not
+      collide with completion-gate audit files. The canonical writes a
+      single ``audit-{date}.jsonl`` per day; this hook namespaces by hook.
+    - Exception scope: catches ``Exception`` rather than the canonical's
+      ``OSError``. The Stop-hook fail-open contract requires resilience
+      against unexpected runtime errors (``TypeError``, ``ValueError``,
+      JSON-serialization edge cases) in addition to disk errors, while
+      still letting ``BaseException`` (``KeyboardInterrupt``,
+      ``SystemExit``) propagate. Refs PR #2077 gemini-code-assist review.
+    - Payload shape: ``status`` / ``retro_filename`` / ``skip_reason``
+      fields replace the canonical's ``command`` / ``decision`` / ``reason``
+      / ``session_id`` / ``tool_use_id``; the two hooks log different
+      events and the field names track each event's domain.
+    """
+    try:
+        agents_dir = project_dir / ".agents"
+        if not agents_dir.is_dir():
+            return  # Consumer repo: skip silently to avoid creating .agents/
+        audit_dir = agents_dir / ".hook-state" / "auto-retrospective"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        audit_file = audit_dir / f"{today}.jsonl"
+        entry = json.dumps({
+            "schema": 1,
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+            "hook": "invoke_auto_retrospective",
+            "status": status,
+            "retro_filename": retro_filename,
+            "skip_reason": skip_reason,
+        })
+        with open(audit_file, "a", encoding="utf-8") as f:
+            if _lock_file is not None:
+                _lock_file(f)
+            try:
+                f.write(entry + "\n")
+            finally:
+                if _unlock_file is not None:
+                    _unlock_file(f)
+    except Exception as e:
+        # Broader than canonical's OSError: see docstring "Stricter/looser/
+        # different than canonical". Preserves Stop hook's fail-open contract
+        # against unexpected runtime errors (e.g. TypeError, ValueError) while
+        # still letting BaseException (KeyboardInterrupt, SystemExit) escape.
+        print(
+            f"[hook-error] invoke_auto_retrospective audit: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
 
 
 def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
@@ -408,6 +499,13 @@ def main() -> int:
 
     # Bypass
     if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
+        project_dir = get_project_directory()
+        if project_dir:
+            write_audit_log(
+                project_dir,
+                "skipped",
+                skip_reason="SKIP_AUTO_RETRO=true",
+            )
         return 0
 
     project_dir = get_project_directory()
@@ -428,15 +526,23 @@ def main() -> int:
     # when mtimes match or stat fails. This keeps index repair predictable
     # across runs.
     if has_retro_today(retro_dir, today):
+        existing_name = ""
         try:
             existing = _pick_same_day_retro(retro_dir, today)
             if existing is not None:
+                existing_name = existing.name
                 update_retro_index(project_dir, today, existing.name)
         except Exception as e:
             print(
                 f"[hook-error] invoke_auto_retrospective index-repair: {type(e).__name__}: {e}",
                 file=sys.stderr,
             )
+        write_audit_log(
+            project_dir,
+            "skipped",
+            retro_filename=existing_name,
+            skip_reason="retro already exists today",
+        )
         return 0
 
     # Skip trivial sessions. is_trivial_session() prefers today's session log
@@ -444,16 +550,46 @@ def main() -> int:
     # when no today-prefixed session exists (cross-midnight continuation).
     # Mirrors the same precedence used by hook_utilities.get_recent_session_log.
     if is_trivial_session(project_dir):
+        write_audit_log(
+            project_dir,
+            "skipped",
+            skip_reason="trivial session",
+        )
         return 0
 
     try:
         retro_path = generate_retrospective(project_dir, today)
-        if retro_path:
-            update_retro_index(project_dir, today, retro_path.name)
     except Exception as e:
-        # Broad catch preserves fail-open contract; surface to stderr.
         print(
-            f"[hook-error] invoke_auto_retrospective main: {type(e).__name__}: {e}",
+            f"[hook-error] invoke_auto_retrospective generate: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+        write_audit_log(
+            project_dir,
+            "failed",
+            skip_reason=f"{type(e).__name__}: {e}",
+        )
+        return 0
+
+    if not retro_path:
+        write_audit_log(
+            project_dir,
+            "failed",
+            skip_reason="generate_retrospective returned None",
+        )
+        return 0
+
+    write_audit_log(
+        project_dir,
+        "created",
+        retro_filename=retro_path.name,
+    )
+
+    try:
+        update_retro_index(project_dir, today, retro_path.name)
+    except Exception as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective index: {type(e).__name__}: {e}",
             file=sys.stderr,
         )
 

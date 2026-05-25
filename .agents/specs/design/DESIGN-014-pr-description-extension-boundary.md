@@ -1,13 +1,13 @@
 ---
 type: design
-id: DESIGN-004
+id: DESIGN-014
 requirement: REQ-004
 status: draft
 created: 2026-05-03
 updated: 2026-05-03
 ---
 
-# DESIGN-004: Anchor file-mention extraction to extension token boundary
+# DESIGN-014: Anchor file-mention extraction to extension token boundary
 
 ## Context
 
