@@ -355,22 +355,28 @@ def _failure(reason: str, pull_request: int, observations: list[dict]) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     # Issue #2069 Finding A: the CLI contract is single-channel JSON on
-    # stdout. Earlier code emitted the failure payload to stderr on
-    # invalid args while emitting success payloads to stdout, which
-    # broke stdout-parsing callers (they saw an empty body and treated
-    # the run as malformed). Every outcome now writes JSON to stdout.
-    # Stderr carries a short human-readable message from this function
-    # on every failure path; on argparse parse-level failures (missing
-    # required args, unknown flags, bad types) argparse first writes
-    # its own usage and error text to stderr before raising SystemExit,
-    # so stderr on those paths is argparse usage plus our message. The
-    # single-channel contract is on stdout, not stderr; callers parse
-    # stdout and may ignore stderr entirely.
+    # stdout for every RUN outcome (success or failure). Earlier code
+    # emitted the failure payload to stderr on invalid args while
+    # emitting success payloads to stdout, which broke stdout-parsing
+    # callers (they saw an empty body and treated the run as malformed).
+    # Every run outcome now writes JSON to stdout. Stderr carries a
+    # short human-readable message from this function on every failure
+    # path; on argparse parse-level failures (missing required args,
+    # unknown flags, bad types) argparse first writes its own usage and
+    # error text to stderr before raising SystemExit, so stderr on
+    # those paths is argparse usage plus our message. The single-channel
+    # contract is on stdout, not stderr; callers parse stdout and may
+    # ignore stderr entirely.
+    #
+    # Documented exception: `--help` (and `--version`-style argparse
+    # exits with code 0) writes argparse-formatted help text to stdout
+    # and exits 0 without emitting a JSON payload. Callers parsing
+    # stdout MUST invoke the script with real arguments, not `--help`.
     #
     # PR #2070 follow-up (Copilot review thread): catch SystemExit so
     # even parse-level CLI failures emit a JSON failure payload on
     # stdout, preserving the stdout single-channel contract for every
-    # outcome.
+    # run outcome.
     parser = _build_parser()
     try:
         args = parser.parse_args(argv)
