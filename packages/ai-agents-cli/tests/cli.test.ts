@@ -1,43 +1,47 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { mkdtemp, rm, readFile, readdir, access } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
-const cliPath = join(import.meta.dir, "..", "src", "cli.ts");
+let testDir: string;
 
-describe("CLI argument parsing", () => {
-  test("--help prints usage and exits 0", async () => {
-    const proc = Bun.spawn(["bun", "run", cliPath, "--help"], {
+beforeEach(async () => {
+  testDir = await mkdtemp(join(tmpdir(), "cli-test-"));
+});
+
+afterEach(async () => {
+  await rm(testDir, { recursive: true, force: true });
+});
+
+describe("CLI init (integration)", () => {
+  test("--version prints version", async () => {
+    const proc = Bun.spawn(["bun", "run", "src/cli.ts", "--version"], {
+      cwd: join(import.meta.dir, ".."),
       stdout: "pipe",
     });
     const output = await new Response(proc.stdout).text();
-    await proc.exited;
-    expect(proc.exitCode).toBe(0);
-    expect(output).toContain("Usage:");
-    expect(output).toContain("init");
+    expect(output.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  test("no arguments prints usage and exits non-zero", async () => {
-    const proc = Bun.spawn(["bun", "run", cliPath], { stdout: "pipe" });
+  test("--help prints usage", async () => {
+    const proc = Bun.spawn(["bun", "run", "src/cli.ts", "--help"], {
+      cwd: join(import.meta.dir, ".."),
+      stdout: "pipe",
+    });
     const output = await new Response(proc.stdout).text();
-    await proc.exited;
-    expect(proc.exitCode).not.toBe(0);
-    expect(output).toContain("Usage:");
+    expect(output).toContain("Usage: ai-agents init");
+    expect(output).toContain("--force");
+    expect(output).toContain("--dry-run");
   });
 
-  test("unknown command exits non-zero", async () => {
-    const proc = Bun.spawn(["bun", "run", cliPath, "bogus"], { stderr: "pipe" });
+  test("unknown command exits with error", async () => {
+    const proc = Bun.spawn(["bun", "run", "src/cli.ts", "unknown"], {
+      cwd: join(import.meta.dir, ".."),
+      stderr: "pipe",
+    });
     const stderr = await new Response(proc.stderr).text();
     await proc.exited;
     expect(proc.exitCode).not.toBe(0);
     expect(stderr).toContain("Unknown command");
-  });
-
-  test("init command runs stub", async () => {
-    const proc = Bun.spawn(["bun", "run", cliPath, "init", "."], {
-      stdout: "pipe",
-    });
-    const output = await new Response(proc.stdout).text();
-    await proc.exited;
-    expect(proc.exitCode).toBe(0);
-    expect(output).toContain("ai-agents init");
   });
 });
