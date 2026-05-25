@@ -628,6 +628,11 @@ def test_llm_required_d_checks_have_adr057_scenarios():
     ID is caught here; otherwise eval-suite would report results keyed by a
     collapsed ID and ambiguity would slip through. Per PR #2028 review.
     """
+    assert SPEC_SCENARIOS_JSON.exists(), (
+        f"Expected scenarios fixture not found at {SPEC_SCENARIOS_JSON}. "
+        "tests/evals/spec-scenarios.json is required for ADR-057 D-check "
+        "coverage of /spec Step 0.5."
+    )
     payload = json.loads(SPEC_SCENARIOS_JSON.read_text(encoding="utf-8"))
     scenarios = payload["scenarios"]
 

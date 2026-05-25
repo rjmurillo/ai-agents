@@ -273,6 +273,11 @@ def test_spec_command_scenarios_are_discoverable_by_eval_suite():
     scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(
         ".claude/commands/spec.md"
     )
+    assert scenario_path_str is not None, (
+        "find_scenarios_for_prompt('.claude/commands/spec.md') returned None; "
+        "spec-scenarios.json discovery is broken. Check eval-suite.py and the "
+        "tests/evals/<prompt-basename>-scenarios.json convention."
+    )
     assert Path(scenario_path_str) == Path("tests/evals/spec-scenarios.json")
 
     scenarios = eval_mod.load_scenarios(str(REPO_ROOT / scenario_path_str))
