@@ -1,6 +1,6 @@
 """Tests for .claude/rules/canonical-source-mirror.md applyTo coverage.
 
-Pins REQ-009-03: the canonical-source-mirror rule's applyTo glob must cover
+Pins REQ-012-03: the canonical-source-mirror rule's applyTo glob must cover
 `.claude/review-axes/**` and `.github/prompts/**` in addition to the
 original hooks/validation/build/skills scopes. Existing coverage of
 `.claude/hooks/**` is preserved.
@@ -68,14 +68,14 @@ def apply_to_patterns() -> list[str]:
 
 
 def test_review_axes_path_matches(apply_to_patterns: list[str]) -> None:
-    """REQ-009-03 AC: .claude/review-axes/analyst.md must match the glob."""
+    """REQ-012-03 AC: .claude/review-axes/analyst.md must match the glob."""
     assert _matches_any(".claude/review-axes/analyst.md", apply_to_patterns), (
         f"applyTo does not cover .claude/review-axes/; patterns={apply_to_patterns}"
     )
 
 
 def test_github_prompts_path_matches(apply_to_patterns: list[str]) -> None:
-    """REQ-009-03 AC: .github/prompts/pr-quality-gate-analyst.md must match."""
+    """REQ-012-03 AC: .github/prompts/pr-quality-gate-analyst.md must match."""
     assert _matches_any(
         ".github/prompts/pr-quality-gate-analyst.md", apply_to_patterns
     ), f"applyTo does not cover .github/prompts/; patterns={apply_to_patterns}"

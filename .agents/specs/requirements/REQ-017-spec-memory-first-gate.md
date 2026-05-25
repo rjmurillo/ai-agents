@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-008
+id: REQ-017
 title: Add Step 0.5 Memory-First Gate to spec pipeline
 status: draft
 priority: P1
@@ -24,7 +24,7 @@ revision_history:
   - 2026-05-09 v3: Q4 wedge revised per Step 9 check 9c; auto-mode blast-radius threshold raised to 3
 ---
 
-# REQ-008: Add Step 0.5 Memory-First Gate to spec pipeline
+# REQ-017: Add Step 0.5 Memory-First Gate to spec pipeline
 
 ## Step 0 First Principles
 

@@ -1,6 +1,6 @@
-"""Tests for wait_for_unresolved_zero.py (REQ-009-01, REQ-009-02 revised).
+"""Tests for wait_for_unresolved_zero.py (REQ-012-01, REQ-012-02 revised).
 
-Pins the four AC scenarios from REQ-009-02 (revised per /plan ceremony):
+Pins the four AC scenarios from REQ-012-02 (revised per /plan ceremony):
 
 1. Bot-settle: stubbed sequence [0, 3, 0, 0, 0] does not settle until
    the third consecutive zero is observed.
@@ -79,7 +79,7 @@ def _make_clock_and_sleeper(interval_seconds: int):
 
 
 class BotSettleScenarioTest(unittest.TestCase):
-    """REQ-009-02 AC 1: bot-settle detection."""
+    """REQ-012-02 AC 1: bot-settle detection."""
 
     def test_does_not_settle_until_third_consecutive_zero(self) -> None:
         """Sequence [0, 3, 0, 0, 0] settles only after the third zero.
@@ -117,7 +117,7 @@ class BotSettleScenarioTest(unittest.TestCase):
 
 
 class FetchedPagesCompleteRejectionTest(unittest.TestCase):
-    """REQ-009-02 AC 2: incomplete pagination is not a valid zero observation."""
+    """REQ-012-02 AC 2: incomplete pagination is not a valid zero observation."""
 
     def test_incomplete_pagination_does_not_count(self) -> None:
         """First reading is (0, false); must not count toward streak.
@@ -154,7 +154,7 @@ class FetchedPagesCompleteRejectionTest(unittest.TestCase):
 
 
 class MaxWaitTimeoutTest(unittest.TestCase):
-    """REQ-009-02 AC 3: max-wait timeout exits with settled=false."""
+    """REQ-012-02 AC 3: max-wait timeout exits with settled=false."""
 
     def test_timeout_exits_not_settled(self) -> None:
         """When readings stay non-zero, max_wait_seconds elapses and exits 1.
@@ -186,7 +186,7 @@ class MaxWaitTimeoutTest(unittest.TestCase):
 
 
 class IntervalFloorEnforcementTest(unittest.TestCase):
-    """REQ-009-02 AC 4 (revised): two zeros inside the interval count as one.
+    """REQ-012-02 AC 4 (revised): two zeros inside the interval count as one.
 
     The interval-floor requirement is symmetric to the 3-reading requirement:
     a streak only advances when the previous counted reading was at least
@@ -310,7 +310,7 @@ class ArgvContractTest(unittest.TestCase):
 
 
 class ConfigValidationTest(unittest.TestCase):
-    """REQ-009-01 AC: invalid CLI args return exit code 2 (config error)."""
+    """REQ-012-01 AC: invalid CLI args return exit code 2 (config error)."""
 
     def test_negative_pull_request_exits_two(self) -> None:
         self.assertEqual(wfz.main(["--pull-request", "-1"]), 2)
@@ -413,7 +413,7 @@ class AuthErrorPropagationTest(unittest.TestCase):
 
 
 class RequiredConsecutiveZerosConstantTest(unittest.TestCase):
-    """Pin the 3-reading requirement per REQ-009-01 revised AC."""
+    """Pin the 3-reading requirement per REQ-012-01 revised AC."""
 
     def test_constant_is_three(self) -> None:
         self.assertEqual(wfz.REQUIRED_CONSECUTIVE_ZEROS, 3)

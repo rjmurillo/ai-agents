@@ -1,6 +1,6 @@
-"""Tests for compute_rework_warning and emit_rework_warning_lines (REQ-009-09).
+"""Tests for compute_rework_warning and emit_rework_warning_lines (REQ-012-09).
 
-Pins the REQ-009-07/08 contract for the rework-warning function inside
+Pins the REQ-012-07/08 contract for the rework-warning function inside
 `.claude/skills/session-end/scripts/complete_session_log.py`. The
 function counts files edited >= 6 times in the current branch's history
 against `origin/{base}` and excludes generated-artifact paths.
@@ -33,7 +33,7 @@ class ComputeReworkWarningTests(unittest.TestCase):
     """Threshold and exclusion contract for compute_rework_warning."""
 
     def test_threshold_six_separates_signal_from_noise(self) -> None:
-        """Files at 6+ edits surface; files at 3 do not. REQ-009-09 AC."""
+        """Files at 6+ edits surface; files at 3 do not. REQ-012-09 AC."""
         # Three files; counts after Counter: a.py=8, b.py=3, c.py=6.
         # `git log --name-status` outputs `<status>\t<path>` per line.
         stub_output = "\n".join(
@@ -47,14 +47,14 @@ class ComputeReworkWarningTests(unittest.TestCase):
         self.assertEqual(result, [("a.py", 8), ("c.py", 6)])
 
     def test_empty_branch_returns_empty_list(self) -> None:
-        """No commits ahead of base -> no rework. REQ-009-08 negative case."""
+        """No commits ahead of base -> no rework. REQ-012-08 negative case."""
         with mock.patch.object(
             csl.subprocess, "run", return_value=_stub_completed(""),
         ):
             self.assertEqual(csl.compute_rework_warning(branch_base="main"), [])
 
     def test_rename_collapsed_to_new_path(self) -> None:
-        """A file renamed mid-branch counts once, not twice. REQ-009-09 AC.
+        """A file renamed mid-branch counts once, not twice. REQ-012-09 AC.
 
         `git log --name-status -M` emits a rename line as:
             `R<score>\told_path\tnew_path`
@@ -224,14 +224,14 @@ class ComputeReworkWarningTests(unittest.TestCase):
 
 
 class EmitReworkWarningLinesTests(unittest.TestCase):
-    """REQ-009-08 positive-evidence contract for output rendering."""
+    """REQ-012-08 positive-evidence contract for output rendering."""
 
     def test_none_case_emits_explicit_marker(self) -> None:
         """Empty input -> single `rework-warning: none` line, never silence."""
         self.assertEqual(csl.emit_rework_warning_lines([]), ["rework-warning: none"])
 
     def test_positive_case_format(self) -> None:
-        """REQ-009-07 AC: per-file format is `rework-warning: {path} edited {n} times`."""
+        """REQ-012-07 AC: per-file format is `rework-warning: {path} edited {n} times`."""
         lines = csl.emit_rework_warning_lines([("a.py", 8), ("c.py", 6)])
         self.assertEqual(
             lines,
@@ -246,12 +246,12 @@ class ReworkThresholdConstantTest(unittest.TestCase):
     """Threshold value is pinned so silent calibration drift is caught."""
 
     def test_threshold_is_six(self) -> None:
-        """REQ-009-07: starter calibration is 6, per DESIGN-009."""
+        """REQ-012-07: starter calibration is 6, per DESIGN-012."""
         self.assertEqual(csl.REWORK_THRESHOLD, 6)
 
 
 class RunReworkWarningStepRuntimeFailureTests(unittest.TestCase):
-    """REQ-009-08: rework-warning step MUST NOT block session-end.
+    """REQ-012-08: rework-warning step MUST NOT block session-end.
 
     Pinned per PR #1989 review (cursor): a runtime exception inside
     compute_rework_warning or emit_rework_warning_lines must degrade to a

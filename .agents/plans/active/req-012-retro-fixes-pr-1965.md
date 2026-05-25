@@ -1,4 +1,4 @@
-# Execution Plan: REQ-009 Retro Fixes from PR #1965
+# Execution Plan: REQ-012 Retro Fixes from PR #1965
 
 ## Metadata
 
@@ -38,7 +38,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 - [ ] Subprocess call uses argv-vector (`shell=False`)
 - [ ] Pagination fixture proves wrapper rejects `fetched_pages_complete=false`
 
-**Acceptance criteria mapped:** REQ-009-01, REQ-009-02 (revised to 180s interval + 3 readings)
+**Acceptance criteria mapped:** REQ-012-01, REQ-012-02 (revised to 180s interval + 3 readings)
 **Estimated commits:** 4
 **Hours:** ~3.5h
 **Dependencies:** none. Parallel with M2-M5.
@@ -57,7 +57,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 - [ ] Test passes for both string and list shapes of applyTo
 - [ ] Test asserts `.claude/review-axes/analyst.md` matches AND `.github/prompts/pr-quality-gate-analyst.md` matches
 
-**Acceptance criteria mapped:** REQ-009-03
+**Acceptance criteria mapped:** REQ-012-03
 **Estimated commits:** 2
 **Hours:** ~1.25h
 **Dependencies:** none. Parallel with M1, M3-M5.
@@ -76,7 +76,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 - [ ] Auto-detect rule documented in spec.md (not enforced in code; documentation only at this milestone)
 - [ ] Structural test asserts template presence
 
-**Acceptance criteria mapped:** REQ-009-04, REQ-009-05
+**Acceptance criteria mapped:** REQ-012-04, REQ-012-05
 **Estimated commits:** 2
 **Hours:** ~1.5h
 **Dependencies:** none. Parallel with M1, M2, M4, M5.
@@ -88,7 +88,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 **Tasks:**
 - T4.1 (M, ~1h): extend `complete_session_log.py` to walk `git log --name-status -M` against branch base, count per-file edits collapsing renames (the shipped form drops the rejected `--diff-filter=R` which would have restricted output to renames only), exclude `*.session.json` + `src/claude/` generated patterns
 - T4.2 (M, ~45m): test `tests/skills/session-end/test_rework_warning.py` against stubbed git log fixtures (one file at 6 edits, one at 3, one renamed mid-branch)
-- T4.3 (S, ~15m): emit `rework-warning: none` line on no warnings (per REQ-009-08)
+- T4.3 (S, ~15m): emit `rework-warning: none` line on no warnings (per REQ-012-08)
 - T4.4 (S, ~30m): document threshold-6 as starter calibration with 30-invocation kill-criteria review (mirrors Step 0 gate kill criteria)
 
 **Exit criteria:**
@@ -97,7 +97,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 - [ ] Generated-pattern exclusion verified by test
 - [ ] `rework-warning: none` emitted when threshold not crossed
 
-**Acceptance criteria mapped:** REQ-009-07, REQ-009-08, REQ-009-09
+**Acceptance criteria mapped:** REQ-012-07, REQ-012-08, REQ-012-09
 **Estimated commits:** 3
 **Hours:** ~2.5h
 **Dependencies:** none. Parallel with M1-M3, M5.
@@ -116,7 +116,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 - [ ] Test covers 3 scenarios: open threads, no PR, fresh bot review
 - [ ] Hook output references the batch-fix pattern documented in pr-review-observations.md Session 14
 
-**Acceptance criteria mapped:** new REQ-009-10, REQ-009-11 (to be added to REQ-009 doc during /build)
+**Acceptance criteria mapped:** new REQ-012-10, REQ-012-11 (to be added to REQ-012 doc during /build)
 **Estimated commits:** 2
 **Hours:** ~2h
 **Dependencies:** none. Parallel with M1-M4.
@@ -135,7 +135,7 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 
 | Date | Update | Agent |
 |------|--------|-------|
-| 2026-05-10 | Plan created from REQ-009 + critic NEEDS-REVISION pass | Claude Opus 4.7 (1M context) |
+| 2026-05-10 | Plan created from REQ-012 + critic NEEDS-REVISION pass | Claude Opus 4.7 (1M context) |
 
 ## Risk Register
 
@@ -169,9 +169,9 @@ Five milestones derived from `.agents/retrospective/2026-05-10-pr-1965-review-ax
 
 ## Related
 
-- Source spec: `.agents/specs/requirements/REQ-009-retro-fixes-pr-1965.md`
-- Source design: `.agents/specs/design/DESIGN-009-retro-fixes-pr-1965.md`
-- Source tasks: `.agents/specs/tasks/TASK-009-retro-fixes-pr-1965.md`
+- Source spec: `.agents/specs/requirements/REQ-012-retro-fixes-pr-1965.md`
+- Source design: `.agents/specs/design/DESIGN-012-retro-fixes-pr-1965.md`
+- Source tasks: `.agents/specs/tasks/TASK-012-retro-fixes-pr-1965.md`
 - Retrospective: `.agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md`
 - Predecessor retro: `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` (canonical-source-mirror rule origin)
 - Memory: `.serena/memories/pr-review/pr-review-observations.md` Session 15 entries (HIGH-confidence learnings encoded 2026-05-10)

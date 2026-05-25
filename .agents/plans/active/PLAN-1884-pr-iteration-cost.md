@@ -5,9 +5,9 @@ title: PR iteration cost reduction, pre-push validation hooks
 status: active
 priority: P1
 related:
-  - REQ-005
-  - DESIGN-005
-  - TASK-005
+  - REQ-015
+  - DESIGN-015
+  - TASK-015
   - issue: 1884
   - issue: 1885
 author: milestone-planner
@@ -19,11 +19,11 @@ updated: 2026-05-04
 
 ## Overview
 
-Four milestones deliver three Claude Code PreToolUse hooks that block `git push` when markdown style violations, marketplace count drift, or session log placeholder values are present. M1 delivers the shared `push_guard_base.py` framework. M2, M3, M4 each deliver one hook. M2, M3, M4 ship sequentially in that order to avoid `hooks.json` merge conflicts (see Risk R-A). The plan is anchored to REQ-005, DESIGN-005, TASK-005; this document adds exit criteria, PR ergonomics, risk mitigations, and the revisions that the critic and pre-mortem flagged.
+Four milestones deliver three Claude Code PreToolUse hooks that block `git push` when markdown style violations, marketplace count drift, or session log placeholder values are present. M1 delivers the shared `push_guard_base.py` framework. M2, M3, M4 each deliver one hook. M2, M3, M4 ship sequentially in that order to avoid `hooks.json` merge conflicts (see Risk R-A). The plan is anchored to REQ-015, DESIGN-015, TASK-015; this document adds exit criteria, PR ergonomics, risk mitigations, and the revisions that the critic and pre-mortem flagged.
 
 ## Objectives
 
-- Reduce mechanical-error review iterations by at least 50% against the 14-day RCA window (REQ-005 success metric).
+- Reduce mechanical-error review iterations by at least 50% against the 14-day RCA window (REQ-015 success metric).
 - All four milestones merged within a single sprint cycle.
 - Zero regressions to existing `Bash(git push*)` hooks (branch context, branch protection, retrospective gate).
 
@@ -66,7 +66,7 @@ If parallel implementation is required for time pressure, the documented strateg
   - Final fallback (when neither command produces output) returns 0 (fail-open) rather than running validators.
 - [ ] `pytest tests/hooks/test_push_guard_base.py -v` passes with zero failures.
 - [ ] Line coverage on `push_guard_base.py` >= 80% (pytest-cov asserted).
-- [ ] `run_guard` callable signature matches DESIGN-005 (accepts `validator_fn`, `globs`, `name`).
+- [ ] `run_guard` callable signature matches DESIGN-015 (accepts `validator_fn`, `globs`, `name`).
 - [ ] Bootstrap block is verbatim copy from `invoke_session_log_guard.py` (currently lines 26-49 at HEAD; re-confirm before writing).
 - [ ] No modification to `hooks.json`.
 - [ ] `python3 scripts/validation/pre_pr.py` runs clean (no BLOCKING issues on this diff).
@@ -116,7 +116,7 @@ If parallel implementation is required for time pressure, the documented strateg
   - Violation blocks with non-zero exit and violation lines on stdout.
   - `markdownlint-cli2` absent: WARN to stderr, returns 0.
   - Empty changeset (no `.md` files): returns 0 without subprocess.
-  - **Timeout (revised)**: `subprocess.TimeoutExpired` causes the hook to print a prominent stderr warning, exit 0 (fail-open), so infrastructure latency does not block work. Pre-mortem flagged this; the change reverses DESIGN-005's original "timeout blocks" decision.
+  - **Timeout (revised)**: `subprocess.TimeoutExpired` causes the hook to print a prominent stderr warning, exit 0 (fail-open), so infrastructure latency does not block work. Pre-mortem flagged this; the change reverses DESIGN-015's original "timeout blocks" decision.
   - `OSError` on subprocess invocation (wrong-architecture binary) is caught and treated as fail-open with a stderr warning.
 - [ ] `pytest tests/hooks/test_markdownlint_guard.py -v` passes.
 - [ ] Line coverage on `invoke_markdownlint_guard.py` >= 80%.
@@ -261,7 +261,7 @@ If parallel implementation is required for time pressure, the documented strateg
 | R-E | `fnmatch` does not handle nested `.claude/skills/*/SKILL.md` paths | MED | LOW | Use prefix+suffix check (`startswith` + `endswith`) instead of `fnmatch` for that glob. Document the helper. | A new nested skill is silently excluded from manifest count |
 | R-F | `validate_marketplace_counts.py` `REPO_ROOT` module constant resolves to wrong path under hook import | HIGH | HIGH | Always pass `repo_root=project_dir` explicitly to `validate_known_marketplaces`. Test the parameter is threaded through, not shadowed. | M3 hook imports succeed but validator reads wrong filesystem |
 | R-G | Session log `Evidence` placeholder bypass via short or unusual strings | HIGH | MED | Add minimum-length check (>= 20 chars) plus expanded placeholder list (`""`, `"pending"`, `"TBD"`, `"n/a"`, `"none"`, `"done"`, `"."`). Compare after `strip().lower()`. | Agent writes `Evidence: "n/a "` or `"."` and bypasses |
-| R-H | Hook timeout under CI runner load | MED | MED | On `TimeoutExpired`, hook fail-opens with stderr warning. Reverses DESIGN-005's original block-on-timeout. | Push blocked with `[TIMEOUT]` line that is infrastructure noise |
+| R-H | Hook timeout under CI runner load | MED | MED | On `TimeoutExpired`, hook fail-opens with stderr warning. Reverses DESIGN-015's original block-on-timeout. | Push blocked with `[TIMEOUT]` line that is infrastructure noise |
 | R-I | Subprocess mock leakage between test files | LOW | MED | Use `unittest.mock.patch` per-test, never module-level. Each test isolates its own mocks. | Non-deterministic CI failures across test orderings |
 | R-J | Hook ordering: earlier hook in `Bash(git push*)` blocks before new hooks run | HIGH | MED | Documented design: branch-protection-first ordering is intentional. Aggregate-failure dispatcher is deferred. Note in PR descriptions. | Developer fixes branch issue, repushes, sees new violation, repeats |
 | R-K | `validate_known_marketplaces` signature changes before M3 | LOW | HIGH | At M3 implementation time, read the function signature and update the hook call accordingly. | M3 hook fails to import with `AttributeError` |
@@ -280,7 +280,7 @@ Explicitly NOT in this plan:
 - CI workflow changes.
 - Full-repo remediation of pre-existing markdownlint violations.
 - Refactor of existing PreToolUse hooks to use `push_guard_base.py`. Deferred until the framework proves stable across M2-M4.
-- Integration smoke test against a real temporary git repo (DESIGN-005 mentions as optional M5). Backlog item.
+- Integration smoke test against a real temporary git repo (DESIGN-015 mentions as optional M5). Backlog item.
 - `markdownlint-cli2` version pinning beyond AC-3a diagnostic logging.
 - Aggregate-failure dispatcher that surfaces all hook failures in one push (R-J mitigation candidate).
 - Runtime kill switch for individual hooks (per-hook enable/disable flag in `hooks.json`).
@@ -337,4 +337,4 @@ This plan applies all mitigations from the pre-mortem analysis:
 - **fnmatch limitations (4)**: replaced with prefix+suffix check for nested skill globs.
 - **`REPO_ROOT` module constant (5)**: M3 always passes `repo_root=project_dir` explicitly.
 - **Session log placeholder bypass (6)**: minimum-length check (>= 20 chars) plus expanded placeholder list.
-- **Timeout under CI load (7)**: fail-open on `TimeoutExpired` with prominent stderr warning. Reverses DESIGN-005's original block-on-timeout decision.
+- **Timeout under CI load (7)**: fail-open on `TimeoutExpired` with prominent stderr warning. Reverses DESIGN-015's original block-on-timeout decision.

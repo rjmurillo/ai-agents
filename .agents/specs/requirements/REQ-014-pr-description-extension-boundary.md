@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-004
+id: REQ-014
 category: unwanted-behavior
 status: draft
 priority: P1
@@ -8,7 +8,7 @@ created: 2026-05-03
 updated: 2026-05-03
 ---
 
-# REQ-004: PR description file-mention extraction must respect extension boundaries
+# REQ-014: PR description file-mention extraction must respect extension boundaries
 
 ## Problem statement
 

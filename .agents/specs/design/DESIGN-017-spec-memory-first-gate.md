@@ -1,6 +1,6 @@
 ---
 type: design
-id: DESIGN-008
+id: DESIGN-017
 title: Step 0.5 Memory-First Gate for spec pipeline
 status: draft
 priority: P1
@@ -18,7 +18,7 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
-# DESIGN-008: Step 0.5 Memory-First Gate for spec pipeline
+# DESIGN-017: Step 0.5 Memory-First Gate for spec pipeline
 
 ## Requirements Addressed
 

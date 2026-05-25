@@ -1,4 +1,4 @@
-"""Rework warning detection for session-end (REQ-009-07, REQ-009-08, REQ-009-09, REQ-010, REQ-010-02).
+"""Rework warning detection for session-end (REQ-012-07, REQ-012-08, REQ-012-09, REQ-010, REQ-010-02).
 
 Surfaces files edited >= ``REWORK_THRESHOLD`` times in the current branch's
 commit history. PR #1965 had scan.py touched 56 times before submission and
@@ -155,7 +155,7 @@ def compute_rework_warning(
 
     Degrades to ``[]`` when git is unavailable, the base is unreachable,
     or no commits are ahead. Threshold-6 is local-only starter calibration
-    documented in DESIGN-009; kill-criteria pattern mirrors REQ-006-13.
+    documented in DESIGN-012; kill-criteria pattern mirrors REQ-006-13.
     """
     stdout = _run_git_log(branch_base)
     if stdout is None:
@@ -164,7 +164,7 @@ def compute_rework_warning(
 
 
 def emit_rework_warning_lines(items: list[tuple[str, int]]) -> list[str]:
-    """Render rework-warning output lines (REQ-009-07, REQ-009-08).
+    """Render rework-warning output lines (REQ-012-07, REQ-012-08).
 
     Returns at least one line. Empty input yields ``["rework-warning: none"]``
     so absence of a warning is positive evidence the check ran, not silence.

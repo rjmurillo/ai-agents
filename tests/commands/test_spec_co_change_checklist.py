@@ -1,6 +1,6 @@
 """Tests for the Co-change checklist template in .claude/commands/spec.md.
 
-Pins REQ-009-04 and REQ-009-05: Step 6 of the /spec command must include
+Pins REQ-012-04 and REQ-012-05: Step 6 of the /spec command must include
 a `## Co-change checklist` template that the spec-generator emits when
 the requirement touches a shared token at more than one site. The
 template exists to prevent the PR #1965 verdict-token cascade (3 commits
@@ -50,14 +50,14 @@ def step_6_region(spec_text: str) -> str:
 
 
 def test_co_change_checklist_header_present(step_6_region: str) -> None:
-    """REQ-009-04 AC: Step 6 must contain `Co-change checklist` template header."""
+    """REQ-012-04 AC: Step 6 must contain `Co-change checklist` template header."""
     assert "## Co-change checklist" in step_6_region, (
         "Step 6 of spec.md missing the `## Co-change checklist` template header"
     )
 
 
 def test_co_change_checklist_placeholder_format(step_6_region: str) -> None:
-    """REQ-009-05 AC: the per-site placeholder format is documented verbatim."""
+    """REQ-012-05 AC: the per-site placeholder format is documented verbatim."""
     placeholder = "- [ ] {file_path}:{line_or_section} -- {what changes}"
     assert placeholder in step_6_region, (
         f"Step 6 missing the canonical placeholder format `{placeholder}`"
@@ -79,7 +79,7 @@ def test_co_change_checklist_documents_emit_conditions(step_6_region: str) -> No
 def test_co_change_checklist_placement_documented(step_6_region: str) -> None:
     """The template specifies where the section sits in the generated REQ file.
 
-    Per DESIGN-009: the section is inserted after the last
+    Per DESIGN-012: the section is inserted after the last
     `### Acceptance Criteria` subsection and before `### Rationale`.
     """
     assert "Acceptance Criteria" in step_6_region, (

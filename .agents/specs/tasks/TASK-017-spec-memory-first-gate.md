@@ -1,6 +1,6 @@
 ---
 type: task
-id: TASK-008
+id: TASK-017
 title: Implement Step 0.5 Memory-First Gate in spec pipeline
 status: todo
 priority: P1
@@ -19,7 +19,7 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
-# TASK-008: Implement Step 0.5 Memory-First Gate in spec pipeline
+# TASK-017: Implement Step 0.5 Memory-First Gate in spec pipeline
 
 ## Objective
 
@@ -44,7 +44,7 @@ Edit `.claude/commands/spec.md` to insert a Step 0.5 Memory-First Gate section b
 
 ---
 
-## TASK-008-1: Verify prerequisite skill files exist
+## TASK-017-1: Verify prerequisite skill files exist
 
 **Objective**: Confirm that chestertons-fence, memory, and exploring-knowledge-graph skills are present before inserting Step 0.5 prose that references them.
 
@@ -65,12 +65,12 @@ Edit `.claude/commands/spec.md` to insert a Step 0.5 Memory-First Gate section b
 | `.claude/skills/exploring-knowledge-graph/SKILL.md` | Read | Verify existence and note depth parameter interface |
 
 **Implementation Notes**:
-- If any skill is absent, halt and file a blocking comment on the PR before proceeding to TASK-008-2.
+- If any skill is absent, halt and file a blocking comment on the PR before proceeding to TASK-017-2.
 - Note the exact `Skill(skill="...")` invocation string for each skill as it appears in existing spec.md skill calls; use the same pattern in Step 0.5 prose.
 
 ---
 
-## TASK-008-2: Insert Step 0.5 block in `.claude/commands/spec.md`
+## TASK-017-2: Insert Step 0.5 block in `.claude/commands/spec.md`
 
 **Objective**: Add the Memory-First Gate as Step 0.5, positioned after the Step 0 closing delimiter and before the Step 1 heading.
 
@@ -105,14 +105,14 @@ Edit `.claude/commands/spec.md` to insert a Step 0.5 Memory-First Gate section b
 
 **Implementation Notes**:
 - Read the current `spec.md` before editing to identify the exact line numbers for insertion.
-- Do not modify Step 0, Step 1, or any other existing step in this task; changes to Step 9 are in TASK-008-3.
+- Do not modify Step 0, Step 1, or any other existing step in this task; changes to Step 9 are in TASK-017-3.
 - Use a horizontal rule or clear heading boundary to delimit Step 0.5 from Step 1.
 - The PriorArtBlock is embedded in the PRD artifact, not emitted inline during Step 0.5 prose. State this explicitly in the prose so implementers do not misread it as a console printout.
 - ProvisionalTier must be presented as a computation the model performs on the Q3+Q4 answers, not a question asked of the proposer.
 
 ---
 
-## TASK-008-3: Append check 9d to Step 9 pre-mortem in `.claude/commands/spec.md`
+## TASK-017-3: Append check 9d to Step 9 pre-mortem in `.claude/commands/spec.md`
 
 **Objective**: Add a fourth Step 9 check that confirms the PriorArtBlock is present and non-empty.
 
@@ -149,7 +149,7 @@ Edit `.claude/commands/spec.md` to insert a Step 0.5 Memory-First Gate section b
 
 ---
 
-## TASK-008-4: Add static validation tests
+## TASK-017-4: Add static validation tests
 
 **Objective**: Add parser-based pytest tests that verify the structural requirements of the Step 0.5 insertion without requiring a live `/spec` invocation.
 
@@ -183,7 +183,7 @@ Edit `.claude/commands/spec.md` to insert a Step 0.5 Memory-First Gate section b
 
 ---
 
-## TASK-008-5: Manual validation run
+## TASK-017-5: Manual validation run
 
 **Objective**: Prove the halt case, pass case, and degradation case work in practice before merging.
 
@@ -229,11 +229,11 @@ The ProvisionalTier reference implementation in `step0_5_parser.py` is tested wi
 
 | Task | Complexity | Hours |
 |---|---|---|
-| TASK-008-1 (Verify skill files exist) | XS | 0.5 |
-| TASK-008-2 (Insert Step 0.5 block) | M | 4-6 |
-| TASK-008-3 (Append check 9d) | XS | 1 |
-| TASK-008-4 (Static validation tests) | S | 2-4 |
-| TASK-008-5 (14 dynamic + 3 static validation) | S | 2-3 |
+| TASK-017-1 (Verify skill files exist) | XS | 0.5 |
+| TASK-017-2 (Insert Step 0.5 block) | M | 4-6 |
+| TASK-017-3 (Append check 9d) | XS | 1 |
+| TASK-017-4 (Static validation tests) | S | 2-4 |
+| TASK-017-5 (14 dynamic + 3 static validation) | S | 2-3 |
 | **Total** | **L** | **9.5-14.5** |
 
 ## Revision History

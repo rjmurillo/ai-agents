@@ -97,6 +97,24 @@ Specifically:
 - ADR-004: Pre-Commit Hook Architecture (existing foundation)
 - SESSION-PROTOCOL.md (defines what hooks enforce)
 
+## Implementation Status (2026)
+
+Implemented via Issue #1703. Five new Python hooks added:
+
+| Hook | File | Purpose |
+|------|------|---------|
+| SessionStart | `.claude/hooks/SessionStart/invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective |
+| PreToolUse | `.claude/hooks/PreToolUse/invoke_false_completion_gate.py` | Blocks false completion claims without test evidence |
+| PostToolUse | `.claude/hooks/PostToolUse/invoke_plan_state_sync.py` | Checkpoints plan/TODO state after edits |
+| PreCompact | `.claude/hooks/PreCompact/invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction |
+| Stop | `.claude/hooks/Stop/invoke_auto_retrospective.py` | Auto-generates session retrospective |
+
+All hooks follow ADR-042 (Python-first). Failure semantics are scoped:
+
+- **Runtime and I/O errors during hook execution are fail-open.** Network timeouts, transient filesystem errors, parse failures on optional artifacts, and similar runtime exceptions never block the triggering tool call — the hook logs and returns success so agent work proceeds.
+- **`invoke_false_completion_gate` is the intentional exception.** When an agent claims completion without test evidence, the gate exits non-zero (exit code 2) by design to block the false claim. This is a policy gate, not a runtime failure.
+- **Configuration and bootstrap failures can still terminate non-zero.** The standard hook import boilerplate exits with code 2 when the plugin lib directory is missing (per ADR-047 plugin lib resolution and ADR-035 exit-code conventions). This is a misconfiguration signal — the hook environment itself is broken — and is distinct from runtime fail-open behavior. Once bootstrap succeeds, runtime stays fail-open.
+
 ## References
 
 - Epic #183: Claude-Flow Inspired Enhancements
