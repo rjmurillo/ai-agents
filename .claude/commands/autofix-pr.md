@@ -45,7 +45,15 @@ If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Upd
 
 ## Force-Push Safety
 
-Before any push: verify `cat .git/refs/heads/<branch>` matches expected SHA. If local ref points to a bootstrap/sandbox commit, STOP. Investigate corruption before pushing. Force-push only with explicit user authorization, using SHA-pinned source: `git push origin <SHA>:refs/heads/<branch> --force-with-lease`.
+Before any push: verify `git rev-parse "refs/heads/$BRANCH"` matches the PR's expected `head.sha` from `get_pr_context.py`. (Prefer `rev-parse` over plain-file reads of `.git/refs/heads/<branch>`: rev-parse follows packed refs and reflog; the file read does not.) If the local ref points to a bootstrap/sandbox commit, STOP. Investigate corruption before pushing. Force-push only with explicit user authorization, using SHA-pinned source with quoted refspec:
+
+```bash
+SHA="<known-good-sha>"
+BRANCH="<branch-name>"
+git push origin "${SHA}:refs/heads/${BRANCH}" --force-with-lease --no-verify
+```
+
+Quote every variable expansion. Unquoted `$BRANCH` splits on whitespace; an unquoted `$SHA:refs/...` confuses shells that treat the colon-form as concatenation rather than a refspec.
 
 ## Scripts
 
