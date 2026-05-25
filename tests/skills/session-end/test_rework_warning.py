@@ -250,5 +250,34 @@ class ReworkThresholdConstantTest(unittest.TestCase):
         self.assertEqual(csl.REWORK_THRESHOLD, 6)
 
 
+class RunReworkWarningStepRuntimeFailureTests(unittest.TestCase):
+    """REQ-009-08: rework-warning step MUST NOT block session-end.
+
+    Pinned per PR #1989 cursor follow-up: a runtime exception inside
+    compute_rework_warning or emit_rework_warning_lines must degrade to a
+    notice line and return a non-crash summary string, never propagate.
+    Step 4b runs before validation, so a crash would also prevent the
+    validation step from running.
+    """
+
+    def test_runtime_exception_in_compute_degrades_to_notice(self) -> None:
+        """Exception inside compute_rework_warning returns the skip summary."""
+        with mock.patch.object(
+            csl, "compute_rework_warning", side_effect=RuntimeError("git boom"),
+        ):
+            result = csl._run_rework_warning_step()
+        self.assertEqual(result, "Rework warning: skipped (runtime error)")
+
+    def test_runtime_exception_in_emit_degrades_to_notice(self) -> None:
+        """Exception inside emit_rework_warning_lines returns the skip summary."""
+        with mock.patch.object(
+            csl, "compute_rework_warning", return_value=[("a.py", 9)],
+        ), mock.patch.object(
+            csl, "emit_rework_warning_lines", side_effect=ValueError("render boom"),
+        ):
+            result = csl._run_rework_warning_step()
+        self.assertEqual(result, "Rework warning: skipped (runtime error)")
+
+
 if __name__ == "__main__":
     unittest.main()

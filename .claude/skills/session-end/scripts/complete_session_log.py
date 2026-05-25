@@ -237,9 +237,21 @@ def _run_rework_warning_step() -> str:
     if compute_rework_warning is None or emit_rework_warning_lines is None:
         print("rework-warning: skipped (sibling module unavailable)")
         return "Rework warning: skipped (sibling unavailable)"
-    rework_items = compute_rework_warning()
-    for line in emit_rework_warning_lines(rework_items):
-        print(line)
+    # PR #1989 cursor follow-up: the rework-warning step is informational
+    # and MUST NOT block session-end under any circumstances (REQ-009-08).
+    # Wrap runtime calls so an unexpected git or subprocess failure inside
+    # compute_rework_warning or emit_rework_warning_lines degrades to a
+    # single notice line instead of crashing the driver. Step 4b runs
+    # before validation; a crash here would also prevent the validation
+    # step from running. Exception excludes KeyboardInterrupt and
+    # SystemExit so Ctrl+C still works.
+    try:
+        rework_items = compute_rework_warning()
+        for line in emit_rework_warning_lines(rework_items):
+            print(line)
+    except Exception as exc:  # noqa: BLE001 - informational; must never block
+        print(f"rework-warning: skipped (runtime error: {type(exc).__name__})")
+        return "Rework warning: skipped (runtime error)"
     if rework_items:
         return (
             f"[WARN] rework warning: {len(rework_items)} file(s) "
