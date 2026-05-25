@@ -35,7 +35,9 @@ python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request [number] --com
 # path that survives the session. Reply drafts have no enduring value once
 # posted; staging them under .agents/audit/pr-*-replies/ creates untracked
 # workspace clutter that future agents cannot tell apart from artifacts the
-# PR intentionally archived. .gitignore enforces this.
+# PR intentionally archived. Using a temp dir prevents the clutter from
+# being written in the first place; .gitignore is only a safety net that
+# keeps any stray drafts out of git history.
 REPLY_FILE="$(mktemp -t pr-reply-XXXXXX.md)"
 trap 'rm -f "$REPLY_FILE"' EXIT
 cat > "$REPLY_FILE" <<'EOF'
