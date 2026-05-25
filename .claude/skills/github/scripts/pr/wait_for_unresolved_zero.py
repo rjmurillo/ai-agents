@@ -358,15 +358,19 @@ def main(argv: list[str] | None = None) -> int:
     # stdout. Earlier code emitted the failure payload to stderr on
     # invalid args while emitting success payloads to stdout, which
     # broke stdout-parsing callers (they saw an empty body and treated
-    # the run as malformed). Every outcome now writes JSON to stdout;
-    # stderr is reserved for the short human-readable message.
+    # the run as malformed). Every outcome now writes JSON to stdout.
+    # Stderr carries a short human-readable message from this function
+    # on every failure path; on argparse parse-level failures (missing
+    # required args, unknown flags, bad types) argparse first writes
+    # its own usage and error text to stderr before raising SystemExit,
+    # so stderr on those paths is argparse usage plus our message. The
+    # single-channel contract is on stdout, not stderr; callers parse
+    # stdout and may ignore stderr entirely.
     #
-    # PR #2070 follow-up (Copilot review thread): argparse parse errors
-    # raise SystemExit and emit usage text to stderr before main() can
-    # build its own JSON payload. Catch SystemExit so even parse-level
-    # CLI failures (missing required args, unknown flags, bad types) emit
-    # a JSON failure payload on stdout, preserving the single-channel
-    # contract for every outcome.
+    # PR #2070 follow-up (Copilot review thread): catch SystemExit so
+    # even parse-level CLI failures emit a JSON failure payload on
+    # stdout, preserving the stdout single-channel contract for every
+    # outcome.
     parser = _build_parser()
     try:
         args = parser.parse_args(argv)
