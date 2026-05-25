@@ -35,9 +35,9 @@ class ComputeReworkWarningTests(unittest.TestCase):
     def test_threshold_six_separates_signal_from_noise(self) -> None:
         """Files at 6+ edits surface; files at 3 do not. REQ-009-09 AC."""
         # Three files; counts after Counter: a.py=8, b.py=3, c.py=6.
-        # `git log --name-only` repeats the path once per commit it touches.
+        # `git log --name-status` outputs `<status>\t<path>` per line.
         stub_output = "\n".join(
-            ["a.py"] * 8 + ["b.py"] * 3 + ["c.py"] * 6,
+            ["M\ta.py"] * 8 + ["M\tb.py"] * 3 + ["M\tc.py"] * 6,
         )
         with mock.patch.object(
             csl.subprocess, "run", return_value=_stub_completed(stub_output),
@@ -56,15 +56,17 @@ class ComputeReworkWarningTests(unittest.TestCase):
     def test_rename_collapsed_to_new_path(self) -> None:
         """A file renamed mid-branch counts once, not twice. REQ-009-09 AC.
 
-        `git log --name-only -M` emits a rename line in either of two
-        shapes depending on path overlap:
-            `old_path => new_path`
-            `{old_dir => new_dir}/filename`
-        Both must collapse to one logical file under the new name.
+        `git log --name-status -M` emits a rename line as:
+            `R<score>\told_path\tnew_path`
+        Edits to the old name before the rename are normalized to the
+        new name so total counts are correct.
         """
-        # 6 plain edits to scripts/foo.py + 1 rename event from old name.
-        # Total observable edits is 7; threshold 6 keeps it in.
-        lines = ["scripts/foo.py"] * 6 + ["scripts/old_foo.py => scripts/foo.py"]
+        # 4 edits to old name, 1 rename, 2 edits to new name = 7 total.
+        lines = (
+            ["M\tscripts/old_foo.py"] * 4
+            + ["R100\tscripts/old_foo.py\tscripts/foo.py"]
+            + ["M\tscripts/foo.py"] * 2
+        )
         with mock.patch.object(
             csl.subprocess, "run", return_value=_stub_completed("\n".join(lines)),
         ):
@@ -72,15 +74,18 @@ class ComputeReworkWarningTests(unittest.TestCase):
         self.assertEqual(result, [("scripts/foo.py", 7)])
 
     def test_dir_rename_form_collapses(self) -> None:
-        """`{old => new}/filename` rename form collapses to new path."""
-        lines = ["pkg/new/util.py"] * 5 + [
-            "{pkg/old => pkg/new}/util.py",
-        ]
+        """Rename from old dir to new dir counts correctly."""
+        # 3 edits to old path, 1 rename, 2 edits to new path = 6 total.
+        lines = (
+            ["M\tpkg/old/util.py"] * 3
+            + ["R100\tpkg/old/util.py\tpkg/new/util.py"]
+            + ["M\tpkg/new/util.py"] * 2
+        )
         with mock.patch.object(
             csl.subprocess, "run", return_value=_stub_completed("\n".join(lines)),
         ):
             result = csl.compute_rework_warning(branch_base="main")
-        # 5 + 1 = 6 edits on the new path; threshold met.
+        # 3 + 1 + 2 = 6 edits on the new path; threshold met.
         self.assertEqual(result, [("pkg/new/util.py", 6)])
 
     def test_generated_pattern_excluded(self) -> None:
@@ -90,9 +95,9 @@ class ComputeReworkWarningTests(unittest.TestCase):
         session. Counting it would drown real signal.
         """
         lines = (
-            ["2026-05-10-session-1.session.json"] * 10
-            + ["src/claude/agents/foo.md"] * 8
-            + ["scripts/real.py"] * 7
+            ["M\t2026-05-10-session-1.session.json"] * 10
+            + ["M\tsrc/claude/agents/foo.md"] * 8
+            + ["M\tscripts/real.py"] * 7
         )
         with mock.patch.object(
             csl.subprocess, "run", return_value=_stub_completed("\n".join(lines)),
@@ -132,7 +137,8 @@ class ComputeReworkWarningTests(unittest.TestCase):
         PR #1989 bot reviewers found the initial argv included
         ``--diff-filter=R`` which restricts output to renames only.
         Corrected argv keeps -M (rename detection) but drops the filter
-        so all edits (M/A/R) are reported.
+        so all edits (M/A/R) are reported. Uses --name-status for proper
+        rename tracking.
         """
         captured: dict[str, Any] = {}
 
@@ -143,10 +149,10 @@ class ComputeReworkWarningTests(unittest.TestCase):
         with mock.patch.object(csl.subprocess, "run", side_effect=_capture):
             csl.compute_rework_warning(branch_base="main")
         argv = captured["argv"]
-        # Canonical: git log --name-only -M origin/main..HEAD --pretty=format:
+        # Canonical: git log --name-status -M origin/main..HEAD --pretty=format:
         self.assertEqual(argv[0], "git")
         self.assertEqual(argv[1], "log")
-        self.assertIn("--name-only", argv)
+        self.assertIn("--name-status", argv)
         self.assertNotIn(
             "--diff-filter=R",
             argv,
@@ -156,75 +162,36 @@ class ComputeReworkWarningTests(unittest.TestCase):
         self.assertIn("origin/main..HEAD", argv)
         self.assertIn("--pretty=format:", argv)
 
-    def test_collapse_rename_handles_subdir_brace_form_positive(self) -> None:
-        """POSITIVE: every git rename form normalizes to the new path."""
-        # PR #1989 gemini finding: path/{old => new} form was mishandled.
-        self.assertEqual(
-            rw._collapse_rename("path/{old_file => new_file}"),
-            "path/new_file",
-        )
-        self.assertEqual(
-            rw._collapse_rename("path/{old_subdir => new_subdir}/filename.py"),
-            "path/new_subdir/filename.py",
-        )
-        self.assertEqual(
-            rw._collapse_rename("a/b/{old => new}/c.py"),
-            "a/b/new/c.py",
-        )
-        # Top-level brace form
-        self.assertEqual(
-            rw._collapse_rename("{old_dir => new_dir}/filename.py"),
-            "new_dir/filename.py",
-        )
-        # Bare form
-        self.assertEqual(rw._collapse_rename("old.py => new.py"), "new.py")
-        # Non-rename pass-through
-        self.assertEqual(rw._collapse_rename("foo.py"), "foo.py")
+    def test_count_paths_handles_name_status_format(self) -> None:
+        """POSITIVE: --name-status format is parsed correctly."""
+        # Various status codes
+        stdout = "M\tmodified.py\nA\tadded.py\nD\tdeleted.py\nM\tmodified.py"
+        counts = rw._count_paths(stdout)
+        self.assertEqual(counts["modified.py"], 2)
+        self.assertEqual(counts["added.py"], 1)
+        self.assertEqual(counts["deleted.py"], 1)
 
-    def test_collapse_rename_empty_inside_brace_form(self) -> None:
-        """Edge: brace form with empty new-side produces collapsed `//`.
+    def test_count_paths_handles_rename_tracking(self) -> None:
+        """Renames are tracked and old names normalized to new names."""
+        # 2 edits to old.py, 1 rename, 2 edits to new.py = 5 total under new.py
+        stdout = "M\told.py\nM\told.py\nR100\told.py\tnew.py\nM\tnew.py\nM\tnew.py"
+        counts = rw._count_paths(stdout)
+        self.assertEqual(counts["new.py"], 5)
+        self.assertNotIn("old.py", counts)
 
-        Covers the `while // in new_path:` slash-collapse loop body.
-        """
-        # `prefix/{old => }/suffix` -> empty new side -> would produce
-        # `prefix//suffix` -> collapse to `prefix/suffix`.
-        self.assertEqual(rw._collapse_rename("a/{b => }/c.py"), "a/c.py")
+    def test_count_paths_handles_transitive_renames(self) -> None:
+        """Transitive renames (a->b->c) resolve to final name."""
+        stdout = "M\ta.py\nR100\ta.py\tb.py\nM\tb.py\nR100\tb.py\tc.py\nM\tc.py"
+        counts = rw._count_paths(stdout)
+        self.assertEqual(counts["c.py"], 5)
+        self.assertNotIn("a.py", counts)
+        self.assertNotIn("b.py", counts)
 
-    def test_collapse_rename_braces_with_arrow_outside(self) -> None:
-        """REGRESSION (PR #1989 coderabbit t4C): braces present but `=>` outside.
-
-        `src{config} => src{config}_new` has literal braces with the `=>`
-        living between them (top-level), not inside. Without the new
-        inside-arrow guard, `inside.split("=>", 1)[1]` raised IndexError.
-        Now collapses via the bare-form path.
-        """
-        # Bare form wins because arrow is outside the brace span.
-        self.assertEqual(
-            rw._collapse_rename("src{config} => src{config}_new"),
-            "src{config}_new",
-        )
-
-    def test_collapse_rename_negative_cases(self) -> None:
-        """NEGATIVE: malformed inputs degrade gracefully (no exceptions)."""
-        # Empty string
-        self.assertEqual(rw._collapse_rename(""), "")
-        # Whitespace-only collapses to empty
-        self.assertEqual(rw._collapse_rename("   "), "")
-        # Brace without close: treat as bare form, take after =>
-        self.assertEqual(rw._collapse_rename("{old => new.py"), "new.py")
-        # `=>` inside path but no brace and no space-separated form
-        self.assertEqual(rw._collapse_rename("a=>b"), "b")
-        # Multiple `=>` arrows: takes first split's right side
-        # Then collapses inner braces
-        result = rw._collapse_rename("path/{a => b => c}")
-        self.assertTrue(
-            result.startswith("path/"),
-            f"multiple-arrow form should still produce a path-like result, got {result!r}",
-        )
-        # Trailing whitespace stripped
-        self.assertEqual(rw._collapse_rename("foo.py   \t"), "foo.py")
-        # Leading slash stripped (rare git form)
-        self.assertEqual(rw._collapse_rename("/abs.py => /abs_new.py"), "abs_new.py")
+    def test_count_paths_handles_empty_and_whitespace(self) -> None:
+        """NEGATIVE: empty lines and whitespace are skipped gracefully."""
+        stdout = "\n  \nM\tfoo.py\n\n  \nM\tfoo.py\n"
+        counts = rw._count_paths(stdout)
+        self.assertEqual(counts["foo.py"], 2)
 
     def test_excluded_paths_positive_and_negative(self) -> None:
         """POSITIVE: known generated patterns excluded.

@@ -15,9 +15,11 @@ This module is the implementation behind the rework-warning emit step in
 ``complete_session_log.py``. It is extracted into a sibling module so the
 parent script stays under the 500-line taste-lint threshold.
 
-Canonical source for the git argv: ``git log --name-only -M
+Canonical source for the git argv: ``git log --name-status -M
 origin/{base}..HEAD --pretty=format:``. The rename-detection flag (-M)
-is required so a file renamed mid-branch is counted once, not twice.
+combined with ``--name-status`` enables proper rename tracking: the
+status output includes ``R<score>\\told\\tnew`` lines that let us build
+a rename mapping so a file renamed mid-branch is counted once, not twice.
 NOTE: ``--diff-filter=R`` is deliberately omitted; it would restrict
 output to RENAMED files only and miss all ordinary edits (M/A). The
 fix landed after PR #1989 bot reviewers flagged the broken signal.
@@ -44,51 +46,10 @@ def _is_excluded_rework_path(path: str) -> bool:
     )
 
 
-def _collapse_rename(line: str) -> str:
-    """Normalize a git `--name-only -M` rename line to the new path.
-
-    git emits renames in four forms:
-        - ``old_path => new_path``                           (top-level rename)
-        - ``{old_dir => new_dir}/filename``                  (directory rename)
-        - ``path/{old_file => new_file}``                    (file rename in subdir)
-        - ``path/{old_subdir => new_subdir}/filename``       (subdir rename)
-    All collapse to the new path so the file is counted once.
-
-    Lines without `=>` are returned unchanged. The trailing whitespace is
-    stripped; a leading slash (rare) is removed for path consistency.
-    """
-    if "=>" not in line:
-        return line.rstrip()
-    brace_open = line.find("{")
-    brace_close = line.find("}", brace_open + 1) if brace_open != -1 else -1
-    inside = (
-        line[brace_open + 1 : brace_close]
-        if 0 <= brace_open < brace_close
-        else ""
-    )
-    # PR #1989 coderabbit t4C: only enter brace form when `=>` lives
-    # inside the braces. Paths like `src{config} => src{config}_new`
-    # have literal braces with the `=>` outside; without the guard,
-    # `inside.split("=>", 1)[1]` raises IndexError.
-    if brace_open != -1 and brace_close != -1 and "=>" in inside:
-        prefix = line[:brace_open]
-        suffix = line[brace_close + 1 :]
-        new_inside = inside.split("=>", 1)[1].strip()
-        new_path = f"{prefix}{new_inside}{suffix}"
-    else:
-        # Bare form: `old_path => new_path`. Take the side after `=>`.
-        new_path = line.split("=>", 1)[1].strip()
-    # Collapse repeated slashes that brace form may produce (e.g. when
-    # inside is empty), and strip leading/trailing slashes.
-    while "//" in new_path:
-        new_path = new_path.replace("//", "/")
-    return new_path.lstrip("/").rstrip()
-
-
 _GIT_LOG_ARGV = (
     "git",
     "log",
-    "--name-only",
+    "--name-status",
     "-M",
     "{base_ref}",
     "--pretty=format:",
@@ -96,12 +57,13 @@ _GIT_LOG_ARGV = (
 
 
 def _run_git_log(branch_base: str) -> str | None:
-    """Run canonical ``git log --name-only -M`` against base.
+    """Run canonical ``git log --name-status -M`` against base.
 
-    Reports ALL file edits (Modified, Added, Renamed). The ``-M`` flag
-    enables rename detection so a file renamed mid-branch is counted
-    once, not twice. ``--diff-filter=R`` is NOT used (would restrict to
-    renames only and miss ordinary edits; PR #1989 bot review found).
+    Reports ALL file edits (Modified, Added, Renamed) with status codes.
+    The ``-M`` flag enables rename detection; ``--name-status`` outputs
+    ``R<score>\\told\\tnew`` for renames, allowing proper rename mapping.
+    ``--diff-filter=R`` is NOT used (would restrict to renames only and
+    miss ordinary edits; PR #1989 bot review found).
     """
     argv = [a.format(base_ref=f"origin/{branch_base}..HEAD") for a in _GIT_LOG_ARGV]
     try:
@@ -114,12 +76,52 @@ def _run_git_log(branch_base: str) -> str | None:
 
 
 def _count_paths(stdout: str) -> Counter[str]:
-    """Tally per-path edit counts, collapsing renames, excluding generated."""
+    """Tally per-path edit counts, collapsing renames, excluding generated.
+
+    With ``--name-status -M``, git outputs tab-separated lines:
+        - ``M\\tpath`` for modifications
+        - ``A\\tpath`` for additions
+        - ``D\\tpath`` for deletions
+        - ``R<score>\\told_path\\tnew_path`` for renames
+
+    First pass builds a rename mapping (old→new), then second pass counts
+    paths normalized to their final name so a renamed file is counted once.
+    """
+    renames: dict[str, str] = {}
+    for raw in stdout.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 3 and parts[0].startswith("R"):
+            old_path, new_path = parts[1], parts[2]
+            renames[old_path] = new_path
+
+    def _resolve_final_name(path: str) -> str:
+        """Follow rename chain to final name, handling cycles."""
+        visited: set[str] = set()
+        while path in renames and path not in visited:
+            visited.add(path)
+            path = renames[path]
+        return path
+
     counts: Counter[str] = Counter()
     for raw in stdout.splitlines():
-        line = _collapse_rename(raw.strip())
-        if line and not _is_excluded_rework_path(line):
-            counts[line] += 1
+        line = raw.strip()
+        if not line:
+            continue
+        parts = line.split("\t")
+        if not parts:
+            continue
+        status = parts[0]
+        if status.startswith("R") and len(parts) >= 3:
+            path = _resolve_final_name(parts[2])
+        elif len(parts) >= 2:
+            path = _resolve_final_name(parts[1])
+        else:
+            continue
+        if path and not _is_excluded_rework_path(path):
+            counts[path] += 1
     return counts
 
 
