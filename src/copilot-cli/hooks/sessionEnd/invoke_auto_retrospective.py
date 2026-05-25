@@ -209,16 +209,18 @@ def _extract_work_outcomes(data) -> tuple[list, list]:
 
 
 def is_trivial_session(project_dir: Path) -> bool:
-    """Check if session is trivial (no meaningful work done today).
+    """Check if session is trivial (no meaningful work done in the active session).
 
-    Only considers today's session to avoid attributing yesterday's work to today.
+    Uses today-or-yesterday fallback so cross-midnight sessions (started
+    before UTC midnight, ending after) are evaluated against the still-active
+    session log rather than skipped as trivial.
     """
     sessions_dir = project_dir / ".agents" / "sessions"
     if not sessions_dir.is_dir():
         return True
 
-    # Only look at today's sessions to avoid misattributing yesterday's work
-    session_file = find_recent_session_file(sessions_dir, today_only=True)
+    # Use the shared cross-midnight helper: today preferred, yesterday fallback.
+    session_file = find_recent_session_file(sessions_dir, today_only=False)
     if not session_file:
         return True
 
@@ -244,11 +246,12 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
     filename = f"{today}-auto-retro.md"
     retro_path = retro_dir / filename
 
-    # Only pull context from today's session log to avoid misattributing yesterday's work
+    # Use today-or-yesterday fallback so cross-midnight sessions still
+    # contribute work/outcome context to the retrospective.
     session_context = ""
     sessions_dir = project_dir / ".agents" / "sessions"
     if sessions_dir.is_dir():
-        session_file = find_recent_session_file(sessions_dir, today_only=True)
+        session_file = find_recent_session_file(sessions_dir, today_only=False)
         if session_file:
             try:
                 data = json.loads(session_file.read_text(encoding="utf-8"))
