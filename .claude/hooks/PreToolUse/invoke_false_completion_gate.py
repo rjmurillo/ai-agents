@@ -128,17 +128,21 @@ def _read_stdin_json() -> dict | None:
 def _extract_command(hook_input: dict) -> str:
     """Extract the command string from hook input.
 
-    Defends against malformed input where ``hook_input`` or
-    ``tool_input`` is not a mapping. Returning an empty string lets the
-    caller fall through to the no-op path instead of raising and being
-    swallowed by the top-level fail-open handler.
+    Defends against malformed input where ``hook_input``, ``tool_input``,
+    or ``tool_input["command"]`` is not a string. Returning an empty
+    string lets the caller fall through to the no-op path instead of
+    raising a ``TypeError`` inside the regex search and being swallowed
+    by the top-level fail-open handler.
     """
     if not isinstance(hook_input, dict):
         return ""
     tool_input = hook_input.get("tool_input", {})
     if not isinstance(tool_input, dict):
         return ""
-    return tool_input.get("command", "")
+    command = tool_input.get("command", "")
+    if not isinstance(command, str):
+        return ""
+    return command
 
 
 def _is_completion_claim(command: str) -> bool:
@@ -259,17 +263,23 @@ def _is_documentation_only(is_pr_create: bool) -> bool:
 def _has_verification_evidence(session_log: Path) -> bool:
     """Check session log for test/build verification evidence.
 
+    Streams the log line-by-line and returns on first match so a large
+    session log does not balloon hook memory. This blocking PreToolUse
+    gate runs on every gated commit/PR-create, so the memory and I/O
+    cost matters in the hot path.
+
     Args:
-        session_log: Path to the session log file. Caller must ensure this is not None.
+        session_log: Path to the session log file. Caller must ensure
+            this is not None.
     """
     try:
-        content = session_log.read_text(encoding="utf-8", errors="replace")
+        with session_log.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                for pattern in VERIFICATION_PATTERNS:
+                    if pattern.search(line):
+                        return True
     except OSError:
         return False
-
-    for pattern in VERIFICATION_PATTERNS:
-        if pattern.search(content):
-            return True
     return False
 
 
