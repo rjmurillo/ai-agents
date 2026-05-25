@@ -258,6 +258,7 @@ class RunReworkWarningStepRuntimeFailureTests(unittest.TestCase):
     notice line and return a non-crash summary string, never propagate.
     Step 4b runs before validation, so a crash would also prevent the
     validation step from running.
+    ADR-060: function now returns (summary, evidence_lines) tuple.
     """
 
     def test_runtime_exception_in_compute_degrades_to_notice(self) -> None:
@@ -265,8 +266,10 @@ class RunReworkWarningStepRuntimeFailureTests(unittest.TestCase):
         with mock.patch.object(
             csl, "compute_rework_warning", side_effect=RuntimeError("git boom"),
         ):
-            result = csl._run_rework_warning_step()
-        self.assertEqual(result, "Rework warning: skipped (runtime error)")
+            summary, evidence = csl._run_rework_warning_step()
+        self.assertEqual(summary, "Rework warning: skipped (runtime error)")
+        self.assertEqual(len(evidence), 1)
+        self.assertIn("skipped", evidence[0])
 
     def test_runtime_exception_in_emit_degrades_to_notice(self) -> None:
         """Exception inside emit_rework_warning_lines returns the skip summary."""
@@ -275,8 +278,124 @@ class RunReworkWarningStepRuntimeFailureTests(unittest.TestCase):
         ), mock.patch.object(
             csl, "emit_rework_warning_lines", side_effect=ValueError("render boom"),
         ):
-            result = csl._run_rework_warning_step()
-        self.assertEqual(result, "Rework warning: skipped (runtime error)")
+            summary, evidence = csl._run_rework_warning_step()
+        self.assertEqual(summary, "Rework warning: skipped (runtime error)")
+        self.assertEqual(len(evidence), 1)
+        self.assertIn("skipped", evidence[0])
+
+
+class RunReworkWarningStepReturnShapeTests(unittest.TestCase):
+    """ADR-060: _run_rework_warning_step returns (summary, evidence_lines) tuple.
+
+    Pins the tuple shape and the content of evidence_lines for the
+    no-warning case and the warning case.
+    """
+
+    def test_no_items_returns_none_summary_and_evidence_list(self) -> None:
+        """Empty rework items -> summary 'Rework warning: none', evidence ['rework-warning: none']."""
+        with mock.patch.object(csl, "compute_rework_warning", return_value=[]):
+            summary, evidence = csl._run_rework_warning_step()
+        self.assertEqual(summary, "Rework warning: none")
+        self.assertEqual(evidence, ["rework-warning: none"])
+
+    def test_items_present_returns_warn_summary_and_evidence_lines(self) -> None:
+        """Files over threshold -> WARN summary and evidence lines per file."""
+        with mock.patch.object(
+            csl, "compute_rework_warning", return_value=[("a.py", 8), ("b.py", 6)],
+        ):
+            summary, evidence = csl._run_rework_warning_step()
+        self.assertIn("[WARN]", summary)
+        self.assertIn("2 file(s)", summary)
+        self.assertEqual(len(evidence), 2)
+        self.assertEqual(evidence[0], "rework-warning: a.py edited 8 times")
+        self.assertEqual(evidence[1], "rework-warning: b.py edited 6 times")
+
+    def test_sibling_unavailable_returns_skipped_tuple(self) -> None:
+        """When sibling module is missing, returns skipped summary + evidence list."""
+        orig_compute = csl.compute_rework_warning
+        orig_emit = csl.emit_rework_warning_lines
+        try:
+            csl.compute_rework_warning = None  # type: ignore[assignment]
+            csl.emit_rework_warning_lines = None  # type: ignore[assignment]
+            summary, evidence = csl._run_rework_warning_step()
+        finally:
+            csl.compute_rework_warning = orig_compute
+            csl.emit_rework_warning_lines = orig_emit
+        self.assertIn("skipped", summary.lower())
+        self.assertEqual(len(evidence), 1)
+        self.assertIn("skipped", evidence[0])
+
+
+class ReworkWarningSessionLogPersistenceTests(unittest.TestCase):
+    """ADR-060: reworkWarning.Evidence is persisted in the session log JSON.
+
+    Pins (a) presence of the field on new logs, and (b) tolerance on old
+    logs that do not carry the field.
+    """
+
+    @staticmethod
+    def _make_minimal_session_end() -> dict:
+        """Build a minimal sessionEnd dict with all required MUST items."""
+        required_items = [
+            "handoffPreserved", "serenaMemoryUpdated", "markdownLintRun",
+            "changesCommitted", "validationPassed", "checklistComplete",
+        ]
+        section: dict = {
+            name: {"Complete": True, "Evidence": "evidence", "level": "MUST"}
+            for name in required_items
+        }
+        return section
+
+    def test_rework_warning_evidence_persisted_on_new_log(self) -> None:
+        """After _run_rework_warning_step, session_end gains reworkWarning.Evidence."""
+        session_end = self._make_minimal_session_end()
+        with mock.patch.object(csl, "compute_rework_warning", return_value=[]):
+            _, evidence = csl._run_rework_warning_step()
+        # Simulate what main() does immediately after the step (ADR-060).
+        session_end["reworkWarning"] = {"Evidence": evidence}
+        self.assertIn("reworkWarning", session_end)
+        self.assertIn("Evidence", session_end["reworkWarning"])
+        self.assertEqual(session_end["reworkWarning"]["Evidence"], ["rework-warning: none"])
+
+    def test_rework_warning_evidence_contains_warning_lines(self) -> None:
+        """When rework files are found, Evidence carries their lines."""
+        session_end = self._make_minimal_session_end()
+        with mock.patch.object(
+            csl, "compute_rework_warning", return_value=[("scan.py", 9)],
+        ):
+            _, evidence = csl._run_rework_warning_step()
+        session_end["reworkWarning"] = {"Evidence": evidence}
+        self.assertEqual(
+            session_end["reworkWarning"]["Evidence"],
+            ["rework-warning: scan.py edited 9 times"],
+        )
+
+    def test_old_log_without_rework_warning_field_is_tolerated(self) -> None:
+        """An existing session_end dict without reworkWarning does not fail any check.
+
+        validate_session_json only validates items declared as MUST/MUST NOT;
+        an absent optional field is silently ignored (backward compatibility).
+        """
+        from scripts.validate_session_json import validate_session_end, ValidationResult
+
+        session_end = self._make_minimal_session_end()
+        # Confirm: no reworkWarning key present (simulates old log).
+        self.assertNotIn("reworkWarning", session_end)
+
+        result = ValidationResult()
+        validate_session_end(session_end, result)
+        self.assertEqual(result.errors, [], msg="Old log without reworkWarning must have no errors")
+
+    def test_new_log_with_rework_warning_field_passes_validation(self) -> None:
+        """A session_end dict WITH reworkWarning also passes validation."""
+        from scripts.validate_session_json import validate_session_end, ValidationResult
+
+        session_end = self._make_minimal_session_end()
+        session_end["reworkWarning"] = {"Evidence": ["rework-warning: none"]}
+
+        result = ValidationResult()
+        validate_session_end(session_end, result)
+        self.assertEqual(result.errors, [], msg="New log with reworkWarning must have no errors")
 
 
 if __name__ == "__main__":
