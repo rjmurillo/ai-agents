@@ -248,7 +248,7 @@ def format_frontmatter_yaml(frontmatter: dict[str, str | None]) -> str:
 
             result = [f"{key}:"]
             for item in items:
-                result.append(f"  - {item}")
+                result.append(f"  - {_yaml_quote_if_needed(str(item))}")
             return result
 
         return [f"{key}: {_yaml_quote_if_needed(value_str)}"]
@@ -283,11 +283,19 @@ def _yaml_quote_if_needed(value: str) -> str:
     _yaml_reserved_starts = (
         "?", "!", "|", ">", "&", "*", "@", "`", "%", "{", "[", "#", "-", "'", '"',
     )
+    # Bool/null word coercion (`true`, `null`, etc.) is intentionally NOT
+    # treated as needs_quoting: schema fields like ``user-invocable: true``
+    # are meant to be booleans, and the skill validator rejects them as
+    # strings. The downstream parsers in this repo round-trip unquoted bool
+    # words as Python booleans, which is the desired behavior. Only quote
+    # what would otherwise change parse meaning.
     needs_quoting = (
         ": " in value
+        or ":\t" in value
         or value.endswith(":")
         or " #" in value
         or value.startswith(_yaml_reserved_starts)
+        or value.strip() != value
     )
     if not needs_quoting:
         return value
