@@ -109,7 +109,7 @@ failure_handling:
   - type: "AI reviewer fails (code quality)"
     action: "Address findings or document acknowledgment"
   - type: "AI reviewer security finding (CWE, OWASP, CVE)"
-    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security bot threads without a code fix. Log a tracking issue. Ref: AGENTS.md security boundaries."
+    action: "BLOCKING. Fix the underlying code vulnerability before resolving the thread. Do NOT resolve security bot threads without a code fix. Log a tracking issue. Ref: .claude/rules/security.md (canonical security file rule), AGENTS.md NEVER list."
   - type: "Merge conflicts"
     action: "Resolve conflicts or merge base branch"
   - type: "Behind base branch"
