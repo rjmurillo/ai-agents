@@ -131,6 +131,43 @@ class TestAutoRetrospective(unittest.TestCase):
             content = index.read_text()
             self.assertEqual(content.count("2026-04-20-auto-retro.md"), 1)
 
+    def test_pick_same_day_retro_returns_none_when_empty(self):
+        """No same-day candidates yields None."""
+        with tempfile.TemporaryDirectory() as tmp:
+            retro_dir = Path(tmp)
+            result = invoke_auto_retrospective._pick_same_day_retro(retro_dir, "2026-04-20")
+            self.assertIsNone(result)
+
+    def test_pick_same_day_retro_picks_newest_by_mtime(self):
+        """Multiple same-day retros: newest mtime wins."""
+        with tempfile.TemporaryDirectory() as tmp:
+            retro_dir = Path(tmp)
+            today = "2026-04-20"
+            older = retro_dir / f"{today}-auto-retro.md"
+            newer = retro_dir / f"{today}-manual-retro.md"
+            older.write_text("old")
+            newer.write_text("new")
+            import os
+            os.utime(older, (1_000_000, 1_000_000))
+            os.utime(newer, (2_000_000, 2_000_000))
+
+            result = invoke_auto_retrospective._pick_same_day_retro(retro_dir, today)
+            self.assertEqual(result, newer)
+
+    def test_pick_same_day_retro_is_deterministic(self):
+        """Same directory contents pick the same file on every call."""
+        with tempfile.TemporaryDirectory() as tmp:
+            retro_dir = Path(tmp)
+            today = "2026-04-20"
+            for name in ("a", "b", "c"):
+                (retro_dir / f"{today}-{name}-retro.md").write_text(name)
+
+            first = invoke_auto_retrospective._pick_same_day_retro(retro_dir, today)
+            second = invoke_auto_retrospective._pick_same_day_retro(retro_dir, today)
+            third = invoke_auto_retrospective._pick_same_day_retro(retro_dir, today)
+            self.assertEqual(first, second)
+            self.assertEqual(second, third)
+
 
 if __name__ == "__main__":
     unittest.main()

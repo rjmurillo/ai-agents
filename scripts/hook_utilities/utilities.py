@@ -215,9 +215,12 @@ def get_today_session_logs(sessions_dir: str) -> list[Path]:
 def get_recent_session_log(sessions_dir: str) -> Path | None:
     """Find the most recent session log for the current session.
 
-    Only falls back to yesterday's session if NO today-prefixed session exists.
-    This prevents stale data from yesterday being used when a new session starts
-    today, while still supporting sessions that span midnight.
+    Returns the newest today-prefixed session log when any today candidate
+    stats successfully. Falls back to the newest yesterday-prefixed session
+    log in two cases: (1) no today-prefixed file exists at all, and (2) today
+    candidates exist but every one of them fails stat() (a transient FS error
+    or race). The fallback supports sessions that span midnight and prevents
+    a single transient stat failure from blinding hooks to the session.
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():

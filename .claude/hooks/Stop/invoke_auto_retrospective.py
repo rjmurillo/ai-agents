@@ -79,6 +79,38 @@ def has_retro_today(retro_dir: Path, today: str) -> bool:
     return any(retro_dir.glob(f"{today}*.md"))
 
 
+def _pick_same_day_retro(retro_dir: Path, today: str) -> Path | None:
+    """Pick a deterministic retro file when multiple exist for today.
+
+    Selection order:
+        1. Newest by mtime, ties broken by lexicographic filename.
+        2. If every candidate fails stat, the lexicographically last filename.
+        3. None when the directory yields no candidates.
+
+    A stable choice keeps index repair predictable across reruns: the same
+    file wins on every invocation when the directory has not changed.
+    """
+    candidates = list(retro_dir.glob(f"{today}*.md"))
+    if not candidates:
+        return None
+
+    best: Path | None = None
+    best_mtime = float("-inf")
+    for candidate in candidates:
+        try:
+            mtime = candidate.stat().st_mtime
+        except OSError:
+            continue
+        if mtime > best_mtime or (mtime == best_mtime and (best is None or candidate.name > best.name)):
+            best_mtime = mtime
+            best = candidate
+
+    if best is not None:
+        return best
+    # Every stat failed; fall back to a stable name-sorted pick.
+    return sorted(candidates, key=lambda p: p.name)[-1]
+
+
 def _find_recent_session_fallback(sessions_dir: Path, today_only: bool = False) -> Path | None:
     """Fallback session lookup when hook_utilities is unavailable.
 
@@ -390,9 +422,14 @@ def main() -> int:
     # the retro file but failed to write the index entry. The index update
     # is idempotent on the filename, so this is a no-op when the row is
     # already present.
+    #
+    # Multiple same-day retros (manual plus auto, reruns) can coexist. Pick
+    # deterministically: newest by mtime, with filename as a stable tiebreaker
+    # when mtimes match or stat fails. This keeps index repair predictable
+    # across runs.
     if has_retro_today(retro_dir, today):
         try:
-            existing = next(retro_dir.glob(f"{today}*.md"), None)
+            existing = _pick_same_day_retro(retro_dir, today)
             if existing is not None:
                 update_retro_index(project_dir, today, existing.name)
         except Exception as e:
