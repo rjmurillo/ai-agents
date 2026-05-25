@@ -137,8 +137,17 @@ class TestStructure:
 
     def test_context_retrieval_subagent_exists(self) -> None:
         """SKILL.md delegates to the context-retrieval subagent; verify the
-        subagent file exists so renaming/deleting it is caught immediately."""
-        repo_root = SKILL_DIR.parents[2]
+        subagent file exists so renaming/deleting it is caught immediately.
+
+        Walks up from SKILL_DIR to find the repo root via a stable marker
+        (.git directory). This keeps the test location-agnostic so the same
+        file works both in the canonical .claude/skills/ tree and in the
+        generated src/copilot-cli/skills/ mirror."""
+        repo_root = SKILL_DIR
+        for candidate in (SKILL_DIR, *SKILL_DIR.parents):
+            if (candidate / ".git").exists():
+                repo_root = candidate
+                break
         subagent = repo_root / ".claude" / "agents" / "context-retrieval.md"
         assert subagent.exists(), (
             f"SKILL.md delegates to context-retrieval subagent but {subagent} is missing"
