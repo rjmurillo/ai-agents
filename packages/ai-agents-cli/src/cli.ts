@@ -127,8 +127,17 @@ async function main(): Promise<number> {
 }
 
 // Only execute when run as a script, not when imported for testing.
-// `import.meta.main` is set by Bun and Node ≥20.6 when this is the entry module.
-if ((import.meta as { main?: boolean }).main) {
+// `import.meta.main` is Bun-specific. For Node.js compatibility, also compare the
+// resolved module URL to process.argv[1] (Node sets the latter to the entry script).
+function isEntryModule(): boolean {
+  const meta = import.meta as { main?: boolean };
+  if (meta.main === true) return true;
+  const entry = process.argv[1];
+  if (entry === undefined) return false;
+  return fileURLToPath(import.meta.url) === resolve(entry);
+}
+
+if (isEntryModule()) {
   main().then(
     (code) => process.exit(code),
     (err) => {
