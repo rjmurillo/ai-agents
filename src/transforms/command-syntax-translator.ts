@@ -11,14 +11,14 @@ const CLAUDE_DIRECTIVES: RegExp[] = [
 function translateContent(text: string): string {
   let result = text;
 
-  result = result.replace(CLAUDE_SLASH_CMD, (match, name) => {
-    return `\`/${name}\` (prompt: \`.github/prompts/${name}.md\`)`;
-  });
-
   for (const directive of CLAUDE_DIRECTIVES) {
     directive.lastIndex = 0;
     result = result.replace(directive, (match) => `<!-- ${match.trim()} -->`);
   }
+
+  result = result.replace(CLAUDE_SLASH_CMD, (match, name) => {
+    return `\`/${name}\` (prompt: \`.github/prompts/${name}.md\`)`;
+  });
 
   return result;
 }
