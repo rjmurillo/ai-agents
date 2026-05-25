@@ -123,6 +123,13 @@
         "type": "command"
       },
       {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_gh_pr_merge_ac4348.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_gh_pr_merge_ac4348.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
         "bash": "python3 -u \"./hooks/preToolUse/invoke_security_gate__Write_Edit_c39898.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_security_gate__Write_Edit_c39898.py\"",

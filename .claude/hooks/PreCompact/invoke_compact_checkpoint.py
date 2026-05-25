@@ -170,9 +170,9 @@ def _write_checkpoint(
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    timestamp = datetime.now(tz=UTC).strftime("%H%M%S")
+    timestamp = datetime.now(tz=UTC).strftime("%H%M%S-%f")
 
-    checkpoint_file = checkpoint_dir / f"pre-compact-{today}-{timestamp}.json"
+    checkpoint_file = checkpoint_dir / f"pre-compact-{today}-{timestamp}-{os.getpid()}.json"
     checkpoint_data = {
         "session_log": session_log_name,
         "session_mtime": session_mtime,

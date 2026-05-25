@@ -16,7 +16,7 @@ Behavior:
 Bypass conditions:
 - SKIP_AUTO_RETRO=true environment variable
 - Retrospective already exists for today
-- Trivial session (session log < 500 chars or missing)
+- Trivial session (empty work and outcomes, or missing session log)
 
 Hook Type: Stop (non-blocking, always exit 0)
 Exit Codes:
@@ -29,6 +29,7 @@ References:
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import sys
@@ -97,7 +98,6 @@ except ImportError:
 
 
 HOOK_NAME = "auto-retrospective"
-TRIVIAL_SESSION_THRESHOLD = 500  # chars
 
 
 def _retro_exists_today(retro_dir: Path, today: str) -> bool:
@@ -129,19 +129,41 @@ def _find_today_retro_filename(retro_dir: Path, today: str) -> str | None:
 
 
 def _is_trivial_session(session_log: Path | None) -> bool:
-    """Check if session was trivial (too short to warrant retrospective).
+    """Check if session was trivial (empty work and outcomes).
 
-    Streams only the bytes needed instead of loading the whole file, so
-    large session logs do not balloon hook memory.
+    A session is trivial only when both work and outcomes are empty after
+    normalization. File size alone does not reflect session substance: a
+    compact log with non-empty objective, work, or outcomes is not trivial.
     """
     if session_log is None:
         return True
     try:
-        with session_log.open(encoding="utf-8", errors="replace") as handle:
-            content = handle.read(TRIVIAL_SESSION_THRESHOLD)
-        return len(content) < TRIVIAL_SESSION_THRESHOLD
-    except OSError:
+        content = session_log.read_text(encoding="utf-8", errors="replace")
+        data = json.loads(content)
+    except (json.JSONDecodeError, OSError):
         return True
+
+    if not isinstance(data, dict):
+        return True
+
+    def _has_content(value: object) -> bool:
+        """Return True if value contains any non-empty strings."""
+        if isinstance(value, str):
+            return bool(value.strip())
+        if isinstance(value, list):
+            return any(_has_content(item) for item in value)
+        if isinstance(value, dict):
+            return any(_has_content(v) for v in value.values())
+        return False
+
+    work = data.get("work", [])
+    work_log = data.get("workLog", [])
+    outcomes = data.get("outcomes", [])
+
+    has_work = _has_content(work) or _has_content(work_log)
+    has_outcomes = _has_content(outcomes)
+
+    return not has_work and not has_outcomes
 
 
 def _extract_text_items(value: object) -> list[str]:
@@ -332,20 +354,6 @@ def _generate_retrospective(today: str, session_summary: dict[str, str]) -> str:
 """
 
 
-def _index_has_entry_for(index_path: Path, filename: str) -> bool:
-    """Return True when INDEX.md already references `filename`.
-
-    Used to make _update_retro_index idempotent so a previous index-write
-    failure can be retried on the next Stop hook invocation even after
-    the per-day retro markdown exists. The check is a plain substring
-    match because every row this hook writes embeds the exact filename.
-    """
-    try:
-        return filename in index_path.read_text(encoding="utf-8")
-    except OSError:
-        return False
-
-
 def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
     """Append entry to docs/retros/INDEX.md, creating it if needed.
 
@@ -353,35 +361,37 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
     no-op once the row is present. This lets the caller re-run on
     later sessions if a prior index-write failed after the retro
     markdown was already written.
+
+    Uses advisory file locking to prevent concurrent Stop hooks from
+    racing on the check-then-append operation.
     """
     index_path = Path(project_dir) / "docs" / "retros" / "INDEX.md"
 
     try:
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
+        header = (
+            "# Retrospective Index\n\n"
+            "> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).\n"
+            "> Manual entries are welcome; the hook only appends new rows.\n\n"
+            "| Date | File | Summary |\n"
+            "|------|------|---------|\n"
+        )
+
         if not index_path.exists():
-            # Mirror the title, callout, and table shape of the committed
-            # docs/retros/INDEX.md template so the bootstrapped file
-            # renders the same and stays semantically consistent with
-            # the canonical version. Small format drift (trailing
-            # whitespace, extra blank line) is tolerable; the structure
-            # is what matters for the table append loop below.
-            header = (
-                "# Retrospective Index\n\n"
-                "> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).\n"
-                "> Manual entries are welcome; the hook only appends new rows.\n\n"
-                "| Date | File | Summary |\n"
-                "|------|------|---------|\n"
-            )
             index_path.write_text(header, encoding="utf-8")
 
-        if _index_has_entry_for(index_path, filename):
-            return
-
-        # Append new row
-        with index_path.open("a", encoding="utf-8") as f:
-            f.write(f"| {today} | [{filename}](../../.agents/retrospective/{filename}) "
-                    f"| Auto-generated session retrospective |\n")
+        with index_path.open("r+", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                content = f.read()
+                if filename in content:
+                    return
+                f.seek(0, 2)
+                f.write(f"| {today} | [{filename}](../../.agents/retrospective/{filename}) "
+                        f"| Auto-generated session retrospective |\n")
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
     except OSError as exc:
         print(f"[WARNING] {HOOK_NAME}: Failed to update INDEX.md: {exc}", file=sys.stderr)
 
