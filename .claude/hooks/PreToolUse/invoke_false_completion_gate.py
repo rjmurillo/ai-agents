@@ -41,6 +41,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -171,31 +172,27 @@ def _allowed_temp_roots() -> tuple[Path, ...]:
 
     No intentional divergence: this list MUST stay character-for-character in
     sync with the canonical source so a body file accepted by the upstream
-    validator is also accepted by this read-only gate.
+    validator is also accepted by this read-only gate. Like the canonical, we
+    filter non-existent roots and deduplicate by resolved string.
     """
-    roots: list[Path] = []
-    tmp_env = os.environ.get("TMPDIR")
-    if tmp_env:
-        try:
-            roots.append(Path(tmp_env).resolve())
-        except OSError:
-            pass
-    try:
-        roots.append(Path(tempfile.gettempdir()).resolve())
-    except OSError:
-        pass
-    for fixed in ("/tmp", "/private/tmp"):
-        try:
-            roots.append(Path(fixed).resolve())
-        except OSError:
-            pass
-    # Deduplicate while preserving order.
-    seen: set[Path] = set()
+    seen: set[str] = set()
     unique: list[Path] = []
-    for root in roots:
-        if root not in seen:
-            seen.add(root)
-            unique.append(root)
+    for candidate in (
+        os.environ.get("TMPDIR"),
+        tempfile.gettempdir(),
+        "/tmp",
+        "/private/tmp",
+    ):
+        if not candidate:
+            continue
+        try:
+            resolved = Path(candidate).resolve()
+        except (OSError, ValueError):
+            continue
+        resolved_str = str(resolved)
+        if resolved_str not in seen and resolved.exists():
+            seen.add(resolved_str)
+            unique.append(resolved)
     return tuple(unique)
 
 
@@ -295,13 +292,39 @@ def _is_completion_claim_in_pr_body_file(command: str) -> bool:
 # outer budget so a single slow git invocation cannot starve the rest.
 _GIT_TIMEOUT_SECONDS = 2
 
+# Total wall-time budget across all git calls in one hook invocation.
+# Set below the 5s hook timeout in .claude/settings.json so we surface
+# a documented "deadline exceeded" before the harness kills the process.
+# Callers check ``_deadline_exceeded`` between probes and fall through
+# to the staged-diff path instead of stalling.
+_DEADLINE_BUDGET_SECONDS = 4.0
 
-def _run_git(args: list[str]) -> subprocess.CompletedProcess[str] | None:
+
+def _start_deadline() -> float:
+    """Return a monotonic deadline timestamp for the current invocation."""
+    return time.monotonic() + _DEADLINE_BUDGET_SECONDS
+
+
+def _deadline_exceeded(deadline: float | None) -> bool:
+    """Return True when the deadline has elapsed.
+
+    A ``None`` deadline means no budget is being enforced (callers that
+    do not propagate a deadline keep the original behavior).
+    """
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def _run_git(
+    args: list[str], deadline: float | None = None
+) -> subprocess.CompletedProcess[str] | None:
     """Run a git subcommand bound to the project directory with a timeout.
 
-    Returns ``None`` when git fails to launch or exceeds the timeout so
-    callers can choose how to fall back instead of stalling the gate.
+    Returns ``None`` when git fails to launch, exceeds the per-call timeout,
+    or the caller's deadline has elapsed. Callers can choose how to fall
+    back instead of stalling the gate.
     """
+    if _deadline_exceeded(deadline):
+        return None
     project_dir = get_project_directory()
     try:
         return subprocess.run(
@@ -315,41 +338,45 @@ def _run_git(args: list[str]) -> subprocess.CompletedProcess[str] | None:
         return None
 
 
-def _resolve_pr_base_branch() -> str | None:
+def _resolve_pr_base_branch(deadline: float | None = None) -> str | None:
     """Discover the base branch a ``gh pr create`` would target.
 
     Tries ``origin/HEAD`` symbolic ref first, then common default-branch
     names as a fallback. Returns ``None`` if nothing resolves so the
     caller can fall back to staged changes.
 
+    A timeout on the ``symbolic-ref`` probe is treated the same as a
+    missing ``origin/HEAD``: continue into the default-branch loop. That
+    keeps behavior consistent with a repo that simply lacks the symbolic
+    ref. The shared ``deadline`` bounds the total time across all probes,
+    so a failing remote cannot stall the gate even with the loop in play.
+
     Note: We intentionally skip ``@{u}`` (upstream tracking) because after
     ``git push -u origin feature-branch``, it resolves to ``origin/feature-branch``,
     which is the push target, not the PR merge target (e.g., ``main``).
     """
 
-    # If git itself is unhealthy (index lock, slow FS), `_run_git` returns
-    # None on timeout. Each call costs up to ``_GIT_TIMEOUT_SECONDS`` and the
-    # outer hook budget is 5s; treat a single timeout/error as a signal to
-    # stop probing and let the caller fall back to the staged diff.
-    head_ref = _run_git(["symbolic-ref", "refs/remotes/origin/HEAD"])
-    if head_ref is None:
-        return None
-    if head_ref.returncode == 0:
+    head_ref = _run_git(["symbolic-ref", "refs/remotes/origin/HEAD"], deadline)
+    if head_ref is not None and head_ref.returncode == 0:
         ref = head_ref.stdout.strip()
         if ref:
             return ref.removeprefix("refs/remotes/")
 
     for default_branch in ("origin/main", "origin/master", "origin/develop",
                            "main", "master", "develop"):
-        rev = _run_git(["rev-parse", "--verify", "--quiet", default_branch])
-        if rev is None:
+        if _deadline_exceeded(deadline):
             return None
+        rev = _run_git(["rev-parse", "--verify", "--quiet", default_branch], deadline)
+        if rev is None:
+            continue
         if rev.returncode == 0:
             return default_branch
     return None
 
 
-def _changed_files_for_pr(current_branch: str) -> list[str] | None:
+def _changed_files_for_pr(
+    current_branch: str, deadline: float | None = None
+) -> list[str] | None:
     """Return files changed against the resolved PR base, or None if unresolved.
 
     When the user is already on the default branch the merge-base degenerates
@@ -357,7 +384,7 @@ def _changed_files_for_pr(current_branch: str) -> list[str] | None:
     changes as non-documentation-only. The caller treats ``None`` as
     "fall through to staged diff."
     """
-    base_branch = _resolve_pr_base_branch()
+    base_branch = _resolve_pr_base_branch(deadline)
     if base_branch is None:
         return None
 
@@ -367,12 +394,12 @@ def _changed_files_for_pr(current_branch: str) -> list[str] | None:
     if current_branch and current_branch == base_short:
         return None
 
-    merge_base = _run_git(["merge-base", base_branch, "HEAD"])
+    merge_base = _run_git(["merge-base", base_branch, "HEAD"], deadline)
     if not merge_base or merge_base.returncode != 0:
         return None
 
     diff = _run_git(
-        ["diff", "--name-only", merge_base.stdout.strip(), "HEAD"]
+        ["diff", "--name-only", merge_base.stdout.strip(), "HEAD"], deadline
     )
     if not diff or diff.returncode != 0:
         return None
@@ -388,20 +415,21 @@ def _is_documentation_only(is_pr_create: bool) -> bool:
     can be resolved we fall back to the staged diff so docs-only PRs
     keep their bypass when possible.
     """
+    deadline = _start_deadline()
     if is_pr_create:
-        head_branch_result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+        head_branch_result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], deadline)
         if head_branch_result is None or head_branch_result.returncode != 0:
             return False
         current_branch = head_branch_result.stdout.strip()
 
-        files = _changed_files_for_pr(current_branch)
+        files = _changed_files_for_pr(current_branch, deadline)
         if files is None:
-            staged = _run_git(["diff", "--cached", "--name-only"])
+            staged = _run_git(["diff", "--cached", "--name-only"], deadline)
             if staged is None or staged.returncode != 0:
                 return False
             files = [f.strip() for f in staged.stdout.strip().split("\n") if f.strip()]
     else:
-        staged = _run_git(["diff", "--cached", "--name-only"])
+        staged = _run_git(["diff", "--cached", "--name-only"], deadline)
         if staged is None or staged.returncode != 0:
             return False
         files = [f.strip() for f in staged.stdout.strip().split("\n") if f.strip()]

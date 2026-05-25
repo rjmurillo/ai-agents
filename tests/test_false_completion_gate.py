@@ -324,3 +324,78 @@ class TestBodyFileFailClosed:
             )
             is False
         )
+
+
+class TestAllowedTempRoots:
+    """_allowed_temp_roots mirrors canonical _candidate_temp_roots semantics."""
+
+    def test_filters_nonexistent_roots(self, monkeypatch, tmp_path) -> None:
+        """Non-existent roots are filtered, matching canonical."""
+        bogus = tmp_path / "does-not-exist"
+        monkeypatch.setenv("TMPDIR", str(bogus))
+        roots = invoke_false_completion_gate._allowed_temp_roots()
+        assert all(p.exists() for p in roots)
+        assert bogus.resolve() not in roots
+
+    def test_deduplicates_by_resolved_string(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """When TMPDIR resolves to the same place as gettempdir, no dupes."""
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        monkeypatch.setattr(
+            invoke_false_completion_gate.tempfile,
+            "gettempdir",
+            lambda: str(tmp_path),
+        )
+        roots = invoke_false_completion_gate._allowed_temp_roots()
+        resolved = [str(p) for p in roots]
+        assert len(resolved) == len(set(resolved))
+
+
+class TestDeadlineBudget:
+    """Total wall-time budget protects the 5s hook timeout."""
+
+    def test_deadline_exceeded_short_circuits_run_git(
+        self, monkeypatch
+    ) -> None:
+        """When the deadline has passed, _run_git returns None without exec."""
+        call_count = {"n": 0}
+
+        def fake_run(*args, **kwargs):
+            call_count["n"] += 1
+            raise AssertionError("should not be called past deadline")
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate.subprocess, "run", fake_run
+        )
+        expired = invoke_false_completion_gate.time.monotonic() - 1.0
+        assert invoke_false_completion_gate._run_git(["status"], expired) is None
+        assert call_count["n"] == 0
+
+    def test_resolve_base_branch_falls_through_on_symbolic_ref_timeout(
+        self, monkeypatch
+    ) -> None:
+        """symbolic-ref timeout still tries the default-branch loop."""
+        sequence = iter(
+            [
+                None,
+                type(
+                    "R",
+                    (),
+                    {"returncode": 0, "stdout": "origin/main\n", "stderr": ""},
+                )(),
+            ]
+        )
+
+        def fake_run_git(args, deadline=None):
+            return next(sequence)
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate, "_run_git", fake_run_git
+        )
+        assert (
+            invoke_false_completion_gate._resolve_pr_base_branch(
+                deadline=None
+            )
+            == "origin/main"
+        )
