@@ -71,7 +71,9 @@ auditPolicy:
 # this block only after generate_agents.py is migrated to read those
 # values from the `artifacts.agents` stanza directly.
 legacy:
-  outputDir: "src/copilot-cli"
+  # Issue #2052: Copilot CLI plugin loader discovers agents under
+  # `agents/` only. Files at the plugin root are silently dropped.
+  outputDir: "src/copilot-cli/agents"
   fileExtension: ".agent.md"
   frontmatter:
     model: "claude-opus-4.6"

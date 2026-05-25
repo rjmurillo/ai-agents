@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -134,11 +133,11 @@ class TestInstalledArtifactReadability:
     """Sample agent and skill artifacts must be readable from the install."""
 
     def test_at_least_one_agent_file(self, installed_plugin: Path) -> None:
-        agents = list(installed_plugin.glob("*.agent.md"))
+        agents = list(installed_plugin.glob("agents/*.agent.md"))
         assert agents, "Install must contain at least one .agent.md file"
 
     def test_sample_agent_readable(self, installed_plugin: Path) -> None:
-        agents = sorted(installed_plugin.glob("*.agent.md"))
+        agents = sorted(installed_plugin.glob("agents/*.agent.md"))
         sample = agents[0]
         text = sample.read_text(encoding="utf-8")
         assert text.strip(), f"{sample.name} is empty"
