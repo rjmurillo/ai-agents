@@ -279,5 +279,83 @@ class RunReworkWarningStepRuntimeFailureTests(unittest.TestCase):
         self.assertEqual(result, "Rework warning: skipped (runtime error)")
 
 
+class LazyLoadTests(unittest.TestCase):
+    """Issue #2069 Finding B: sibling rework_warning module is loaded lazily.
+
+    The docstring at the top of complete_session_log.py claimed lazy
+    loading inside main(), but the implementation ran the load at module
+    import time. Either the comment or the code was wrong. We fix the
+    code: the sibling is not loaded until the first call to
+    _run_rework_warning_step().
+
+    Subprocess isolation ensures test ordering in the same pytest session
+    cannot mask the bug. A peer test in this file imports the sibling
+    directly (`import rework_warning as rw`), which warms sys.modules and
+    triggers attribute access on `csl.compute_rework_warning`. The check
+    that proves lazy loading is the value of `csl.compute_rework_warning`
+    BEFORE any access path triggers the load: it must be `None`.
+    """
+
+    def _run_probe(self, post_import: str) -> tuple[int, str, str]:
+        """Run a fresh-interpreter probe and return (rc, stdout, stderr)."""
+        import subprocess
+
+        script_dir = REPO_ROOT / ".claude" / "skills" / "session-end" / "scripts"
+        probe = (
+            "import sys;"
+            f"sys.path.insert(0, {str(script_dir)!r});"
+            "import complete_session_log as csl;"
+            + post_import
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        return completed.returncode, completed.stdout, completed.stderr
+
+    def test_compute_unbound_immediately_after_import(self) -> None:
+        """POSITIVE: compute_rework_warning is NOT in module globals at import time.
+
+        Use vars() to inspect the module dict directly, avoiding the
+        PEP 562 __getattr__ side effect that would trigger lazy loading.
+        Before the lazy fix, the name was bound to the real function at
+        import time; after the fix, the name is absent from globals
+        until first access.
+        """
+        rc, stdout, _ = self._run_probe(
+            "print('HAS=', 'compute_rework_warning' in vars(csl))"
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "HAS= False", stdout,
+            f"compute_rework_warning bound at import time. stdout={stdout!r}",
+        )
+
+    def test_threshold_unbound_immediately_after_import(self) -> None:
+        """POSITIVE: REWORK_THRESHOLD is the sentinel until first lazy load."""
+        # Use the sentinel-known value 6 only AFTER load; before load, the
+        # module dict should not have the real attribute bound.
+        rc, stdout, _ = self._run_probe(
+            "print('HAS=', 'REWORK_THRESHOLD' in vars(csl))"
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "HAS= False", stdout,
+            f"REWORK_THRESHOLD bound at import. stdout={stdout!r}",
+        )
+
+    def test_compute_bound_after_step_invocation(self) -> None:
+        """POSITIVE: first call to the step lazy-binds the sibling functions."""
+        rc, stdout, _ = self._run_probe(
+            "csl._run_rework_warning_step();"
+            "print('BOUND=', vars(csl).get('compute_rework_warning') is not None)"
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "BOUND= True", stdout,
+            f"Step did not lazy-load the sibling. stdout={stdout!r}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
