@@ -1,5 +1,5 @@
 ---
-applyTo: **/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**
+applyTo: '**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**'
 ---
 
 # Security File Rules

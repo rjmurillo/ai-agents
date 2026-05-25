@@ -1,15 +1,20 @@
-"""Rework warning detection for session-end (REQ-009-07, REQ-009-08, REQ-009-09).
+"""Rework warning detection for session-end (REQ-009-07, REQ-009-08, REQ-009-09, REQ-010, REQ-010-02).
 
 Surfaces files edited >= ``REWORK_THRESHOLD`` times in the current branch's
 commit history. PR #1965 had scan.py touched 56 times before submission and
-no tooling surfaced the rework signal. Threshold-6 is a starter calibration
-documented in DESIGN-009; kill-criteria pattern (review at 30 invocations)
+no tooling surfaced the rework signal. Threshold-6 is empirically correct per
+the REQ-010 calibration: real rework files cluster at 8-19 edits across observed
+branches; non-rework at 1-4. Kill-criteria pattern (review at 30 invocations)
 mirrors the Step 0 gate calibration from REQ-006-13.
 
 Excluded patterns are generated artifacts that legitimately turn over many
-times per session (the session log itself, agent-generated copies under
-``src/claude/``, and other session JSON files). Counting them as rework
-would drown the signal in noise.
+times per session and would swamp real signal otherwise:
+
+- ``.agents/sessions/`` session JSON logs
+- ``.agents/memory/episodes/`` episode logs (added per REQ-010-02 after
+  the orphan-ref-validator branch surfaced episode log churn at 19 edits)
+- ``src/claude/`` generated agent copies
+- ``*.session.json`` top-level session JSON files
 
 This module is the implementation behind the rework-warning emit step in
 ``complete_session_log.py``. It is extracted into a sibling module so the
@@ -35,8 +40,15 @@ import subprocess
 from collections import Counter
 
 REWORK_THRESHOLD = 6
+
+# REQ-010-02: episode logs added to exclusion list. PR #1995 calibration
+# showed episode.json files at 19 edits/branch swamping real signal.
 _REWORK_EXCLUDED_SUFFIXES = (".session.json",)
-_REWORK_EXCLUDED_PREFIXES = ("src/claude/", ".agents/sessions/")
+_REWORK_EXCLUDED_PREFIXES = (
+    "src/claude/",
+    ".agents/sessions/",
+    ".agents/memory/episodes/",
+)
 
 
 def _is_excluded_rework_path(path: str) -> bool:
@@ -84,7 +96,7 @@ def _count_paths(stdout: str) -> Counter[str]:
         - ``D\\tpath`` for deletions
         - ``R<score>\\told_path\\tnew_path`` for renames
 
-    First pass builds a rename mapping (old→new), then second pass counts
+    First pass builds a rename mapping (old to new), then second pass counts
     paths normalized to their final name so a renamed file is counted once.
     """
     renames: dict[str, str] = {}

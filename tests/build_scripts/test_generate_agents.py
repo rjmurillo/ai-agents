@@ -22,7 +22,6 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_agents  # noqa: E402
 
-
 # Helpers --------------------------------------------------------------------
 
 
@@ -57,7 +56,7 @@ def test_generate_writes_three_outputs_per_agent(staging: Path) -> None:
     assert rc == 0
     # Pick three representative agents and verify all three platform files exist.
     for agent in ("analyst", "implementer", "qa"):
-        assert (staging / "src" / "copilot-cli" / f"{agent}.agent.md").is_file()
+        assert (staging / "src" / "copilot-cli" / "agents" / f"{agent}.agent.md").is_file()
         assert (staging / "src" / "vs-code-agents" / f"{agent}.agent.md").is_file()
 
 
@@ -69,7 +68,7 @@ def test_copilot_cli_emits_path_style_tools(staging: Path) -> None:
         repo_root=staging,
     )
     assert rc == 0
-    fm = _read_frontmatter(staging / "src" / "copilot-cli" / "analyst.agent.md")
+    fm = _read_frontmatter(staging / "src" / "copilot-cli" / "agents" / "analyst.agent.md")
     # Path-style tool entries appear as bullet items like `- read` or `- perplexity/*`.
     assert "tools:" in fm
     assert "- " in fm  # bullet array
@@ -102,8 +101,10 @@ def test_handoff_syntax_differs_per_platform(staging: Path) -> None:
         repo_root=staging,
     )
     assert rc == 0
-    cc = (staging / "src" / "copilot-cli" / "orchestrator.agent.md").read_text(encoding="utf-8")
-    vs = (staging / "src" / "vs-code-agents" / "orchestrator.agent.md").read_text(encoding="utf-8")
+    cc_path = staging / "src" / "copilot-cli" / "agents" / "orchestrator.agent.md"
+    vs_path = staging / "src" / "vs-code-agents" / "orchestrator.agent.md"
+    cc = cc_path.read_text(encoding="utf-8")
+    vs = vs_path.read_text(encoding="utf-8")
     # The handoff transform fires on `Task(subagent_type="...")` patterns.
     # We assert that the two outputs differ AT LEAST in their handoff
     # representation — they share most of the body otherwise.

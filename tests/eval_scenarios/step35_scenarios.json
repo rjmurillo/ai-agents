@@ -1,7 +1,7 @@
 {
   "description": "Eval scenarios for orchestrator Step 3.5: Context-Retrieval Auto-Invocation decision gate",
   "version": "1.0.0",
-  "reference": "src/copilot-cli/orchestrator.agent.md Step 3.5",
+  "reference": "src/copilot-cli/agents/orchestrator.agent.md Step 3.5",
   "unit_scenarios": [
     {
       "id": "S01",

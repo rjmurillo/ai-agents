@@ -58,7 +58,7 @@ Identify security vulnerabilities, recommend mitigations, and ensure secure deve
 
 ## Security Review Scope
 
-**All PRs require security review.** Security scanning is not opt-in or label-triggered — it is a mandatory gate for any code change.
+**All PRs require security review.** Security scanning is not opt-in or label-triggered, it is a mandatory gate for any code change.
 
 ### Workflow File Changes (Highest Risk)
 

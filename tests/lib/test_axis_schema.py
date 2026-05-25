@@ -1,4 +1,4 @@
-"""Schema validation tests for `.claude/review-axes/{role}.md` canonical files.
+"""Schema validation tests for `.claude/skills/review/references/{role}.md` canonical files.
 
 Implements REQ-008-01 acceptance criteria 1, 2, 3, 4, 6: file presence,
 required frontmatter keys, exact level-2 section headings, and Output
@@ -17,7 +17,7 @@ import pytest
 from tests.lib.conftest import validate_axis_schema
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-REVIEW_AXES_DIR = REPO_ROOT / ".claude" / "review-axes"
+REVIEW_AXES_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 
 CANONICAL_ROLES: tuple[str, ...] = (
     "analyst",
@@ -42,7 +42,7 @@ def test_canonical_axis_file_passes_schema(role: str) -> None:
 
 
 def test_no_unexpected_axis_files() -> None:
-    """Every `.md` file under .claude/review-axes/ must be a known canonical role.
+    """Every `.md` file under .claude/skills/review/references/ must be a known canonical role.
 
     Prevents stray files from accumulating in the canonical directory and
     being silently ignored by the build script and `/review`.

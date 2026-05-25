@@ -361,6 +361,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - Tier 4 (Staff): Alternatives analysis mandatory. ADR required. Stakeholder alignment. Challenge: "can this be decomposed into a simpler tier?"
    - Tier 5 (Principal): Governance review. Multi-org consensus. Re-validate Step 0 Q4 (Narrowest Wedge) in the context of emerged complexity. If the wedge can be narrowed further without losing the unblocking value identified in Q3, narrow it before proceeding. Step 0 Q4 is the canonical wedge question for every tier.
 4. Search for existing solutions in the codebase (grep for related patterns). Use the PRD's Integrations and Data model sections to scope the search.
+4a. **Buy-vs-build gate (BLOCKING for new capabilities)**: If the PRD proposes a new capability classified as Context (per Wardley/Moore: undifferentiating support work) or introduces a new module, scanner, validator, or pipeline component, invoke Skill(skill="buy-vs-build-framework") at the **Quick tier** (Phase 1 + Phase 2 lite) before continuing to step 5. The skill must produce: (a) a one-line core-vs-context classification, (b) the existing tools/services evaluated (CodeQL, Dependabot, gh CLI, OSS Scorecard, vendor SaaS, etc.), and (c) an explicit build/buy/partner/defer recommendation. **Skip this step only for**: pure bug fixes, doc-only changes, refactors with no new capability surface, or work that extends an already-approved capability without adding a new tool/scanner/validator. Record the gate outcome in the PRD under a new `Buy-vs-build decision` section. If the recommendation is buy/partner/defer, halt the spec and route the user to the recommended path before generating REQ/DESIGN/TASK artifacts. Failure pattern this gate prevents: action-matching to implementation skills (e.g., `security-detection`) without challenging the build decision itself, as in #1843 where 9 hours were spent reimplementing a CWE-22 scanner CodeQL already provides. See `.agents/retrospective/2026-05-06-action-matching-over-decision-gating.md`.
 5. **CVA analysis (conditional)**: If the complexity tier is 3-5, or Tier 1-2 with multiple use cases, invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships. Otherwise (Tier 1-2 single-use-case), set `CVA summary: N/A (single-use-case Tier 1-2)` and proceed.
 6. **Formalize the PRD into durable artifacts**:
 
@@ -372,7 +373,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 
    Record the answer as `multi_site_opt_in` (boolean). The Co-change checklist subsection below reads this flag to decide whether to emit the checklist via the opt-in branch. The prompt is mandatory; do not skip it.
 
-   Then invoke Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3, the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs), and the `multi_site_opt_in` flag from this step. The spec-generator agent writes:
+   Then invoke Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3, the buy-vs-build decision from step 4a (which may be `N/A (bug fix / doc / refactor)` for skipped runs), the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs), and the `multi_site_opt_in` flag from this step. The spec-generator agent writes:
    - `.agents/specs/requirements/REQ-NNN-{slug}.md` (one per requirement, EARS syntax)
    - `.agents/specs/design/DESIGN-NNN-{slug}.md`
    - `.agents/specs/tasks/TASK-NNN-{slug}.md`
@@ -459,6 +460,8 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 - **YAGNI**: Only specify what is needed now. Speculative requirements create waste.
 - **Separation of Concerns**: Each requirement addresses one concern. Mixed concerns signal a missing decomposition.
 
+- **Output schema**: Include a `Buy-vs-build decision` section recording: core-vs-context classification, alternatives evaluated, recommendation (build/buy/partner/defer), and rationale. Required for any spec that introduces a new capability; mark `N/A (bug fix / doc / refactor)` otherwise.
+
 ## Output
 
 Structured requirements document. Mirror the PRD schema produced in step 2; do not collapse to acceptance criteria alone.
@@ -475,3 +478,4 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 - **Deferred** (decisions punted with owners)
 - **Open questions** (unresolved unknowns with owners)
 - **CVA summary** (what is common, what varies, what relationships exist)
+- **Buy-vs-build decision** (core-vs-context classification, alternatives evaluated, recommendation: build/buy/partner/defer, rationale; or `N/A (bug fix / doc / refactor)` when step 4a was skipped)

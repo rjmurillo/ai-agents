@@ -219,6 +219,20 @@ echo_info "Pre-push validation: $FILE_COUNT files in push range"
 # Filter changed files by type
 CHANGED_MD=$(echo "$CHANGED_FILES" | grep -E '\.md$' || true)
 CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
+# Issue #2045: scripts/sync_plugin_lib.py keeps three packages in sync across
+# three locations (scripts/, .claude/lib/, src/copilot-cli/lib/): ai_review_common,
+# hook_utilities, and github_core. CI gates each copy in isolation, but
+# mypy/pytest at workspace root reject duplicate module names. Filter all synced
+# copies out for tools that walk imports; canonical (scripts/<pkg>/) is still
+# type-checked + tested.
+# Issue #2052: build/scripts/generate_hooks.py mirrors .claude/hooks/<event>/
+# scripts under src/copilot-cli/hooks/<event_lowercase>/ for plugin
+# distribution. Same duplicate-module collision applies; drop the synced
+# copies and keep the canonical .claude/hooks copy in the mypy/pytest set.
+CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" \
+    | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' \
+    | grep -Ev '^src/copilot-cli/hooks/' \
+    || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
@@ -404,14 +418,18 @@ else
 fi
 
 # 7. Python type check (mypy) - BLOCKING
-if [ -n "$CHANGED_PY" ]; then
+# Issue #2045: use CHANGED_PY_CANONICAL to drop synced ai_review_common copies;
+# mypy at workspace root refuses duplicate module names. Canonical copy still
+# gets type-checked when its files change, and sync_plugin_lib.py guarantees
+# the synced copies are byte-identical.
+if [ -n "$CHANGED_PY_CANONICAL" ]; then
     if command -v mypy &> /dev/null; then
         PY_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
             [ -L "$file" ] && continue
             [ -f "$file" ] && PY_FILES+=("$file")
-        done <<< "$CHANGED_PY"
+        done <<< "$CHANGED_PY_CANONICAL"
 
         if [ ${#PY_FILES[@]} -gt 0 ]; then
             MYPY_OUTPUT=$(mktemp)
@@ -695,11 +713,36 @@ fi
     record_skip "Pester tests (retired, use pytest)"
 
     # 14. Python tests (pytest)
-    if [ -n "$CHANGED_PY" ]; then
+    # Issue #2045: gate on canonical changes and pass --ignore for all synced
+    # copies (ai_review_common, hook_utilities, github_core in .claude/lib/ and
+    # src/copilot-cli/lib/) so pytest collection doesn't trip duplicate-module errors.
+    # PR #2053: override Claude Code session env vars (CLAUDE_PLUGIN_ROOT,
+    # CLAUDE_PROJECT_DIR) for pytest's environment. When pre-push runs from
+    # inside a Claude Code session, those vars leak into the pytest subprocess:
+    #   * CLAUDE_PLUGIN_ROOT points at whichever plugin loaded the active tool
+    #     (e.g. context-mode). Several PreToolUse hooks trust it, look for a
+    #     sibling lib/ that does not exist there, and sys.exit(2) at module
+    #     import. That trips pytest collection on tests/hooks/test_*.py.
+    #     Issue #2052: set CLAUDE_PLUGIN_ROOT to src/copilot-cli (the canonical
+    #     plugin root with lib/) instead of unsetting it. The walk-up from
+    #     .claude/hooks never reaches src/copilot-cli/.claude-plugin/plugin.json.
+    #   * CLAUDE_PROJECT_DIR is honored by get_project_directory(); when tests
+    #     simulate a consumer repo via cwd=tmp_path, the inherited value
+    #     overrides the simulation and is_project_repo() returns True, so the
+    #     hook never prints [SKIP] and tests/test_hook_plugin_guards.py fails.
+    # CI runners do not export these variables, so behavior there is unchanged.
+    if [ -n "$CHANGED_PY_CANONICAL" ]; then
         if set_python_cmd; then
             if [ -d "$REPO_ROOT/tests" ]; then
                 TEST_OUTPUT=$(mktemp)
-                if "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" -v > "$TEST_OUTPUT" 2>&1; then
+                if env CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" -u CLAUDE_PROJECT_DIR "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
+                    --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \
+                    --ignore="$REPO_ROOT/.claude/lib/hook_utilities" \
+                    --ignore="$REPO_ROOT/.claude/lib/github_core" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/ai_review_common" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/hook_utilities" \
+                    --ignore="$REPO_ROOT/src/copilot-cli/lib/github_core" \
+                    -v > "$TEST_OUTPUT" 2>&1; then
                     rm -f "$TEST_OUTPUT"
                     record_pass "Python tests (pytest)"
                 else
@@ -960,7 +1003,7 @@ fi
 # ============================================================================
 echo_phase "Phase 5b: Review-axes drift detection"
 
-# Detect drift between .claude/review-axes/{role}.md (canonical) and
+# Detect drift between .claude/skills/review/references/{role}.md (canonical) and
 # .github/prompts/pr-quality-gate-{role}.md (generated). Bypassable via
 # --no-verify; the CI workflow drift-check job is the non-bypassable backstop.
 # Use set_python_cmd (uv-aware) for consistency with other phases. PR #1965
@@ -992,24 +1035,28 @@ else
 fi
 
 # ============================================================================
-# Phase 5c: Bot-cascade warning (REQ-009-10, M5)
+# Phase 5c: Bot-cascade warning (REQ-009-10, REQ-011, issue #1991)
 # ============================================================================
-# Warn (NOT block) when the current branch's PR has open bot threads. The
-# retrospective at .agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md
-# names bot-cascade as the highest-leverage gap (~20 commits saved): pushing
-# with open threads triggers another bot scan, which opens more threads, which
-# triggers another push, and so on. Batch-fix pattern documented in
-# .serena/memories/pr-review/pr-review-observations.md Session 14
-# (2026-04-26): "Wait for all /pr-review thread work to finish, THEN push one
-# empty commit."
+# Warn (NOT block) when the current branch's PR has open bot threads OR a
+# bot review submitted within the last 120 seconds (scan likely in flight).
+# Each push triggers fresh bot scans from Copilot, Cursor, Devin,
+# CodeRabbit. Without this warning, the developer often re-pushes before
+# bots settle and triggers another cascade. PR #1965 retrospective named
+# this as the highest-leverage retro intervention (~20 commits saved).
 #
-# Skip silently when:
-#   - `gh` is not available (developer may push without GitHub auth)
-#   - No PR is open for the current branch
-#   - The unresolved-thread query fails for any reason
+# Warn-only. Never calls record_fail. Bypass via `git push --no-verify`
+# (existing escape hatch).
 #
-# This is warn-only; never call record_fail here. Transient gh/network
-# failures must not block legitimate pushes.
+# Three contracts derived from PR #1989 M5 implementation defects:
+# 1. Require fetched_pages_complete=true before trusting unresolved_count
+#    (REQ-011-02). PR #1965 cb1bdf19 had this fix retroactively.
+# 2. Recent bot review under 120s emits warn (REQ-011-03). PR #1989's M5
+#    omitted this; REQ-009-11 was added after coderabbit caught it. The
+#    120-second threshold tracks Copilot/Devin webhook latencies observed
+#    during PR #1965 and PR #2004 (30 to 120 seconds); see DESIGN-011
+#    trade-off 2 and REQ-011 line 145 (which mandates this inline citation).
+# 3. No `|| true` fail-open on reviews query (REQ-011-04). PR #1989's M5
+#    had `gh api ... || true` that swallowed auth failures as false PASS.
 echo_phase "Phase 5c: Bot-cascade warning"
 
 if ! command -v gh >/dev/null 2>&1; then
@@ -1017,57 +1064,116 @@ if ! command -v gh >/dev/null 2>&1; then
 elif ! set_python_cmd; then
     record_skip "Bot-cascade check (no python interpreter found)"
 else
-    PR_NUMBER=$(gh pr view --json number --jq .number 2>/dev/null || true)
-    if [ -z "$PR_NUMBER" ]; then
+    # REQ-011-04 (generalized): distinguish "no PR for branch" (legitimate
+    # skip) from "gh pr view failed" (auth/network/transient). Capture
+    # stderr+exit. Empty PR_NUMBER with success means no PR; nonzero exit
+    # means we cannot trust the result.
+    PR_VIEW_STDERR=$(mktemp)
+    TEMP_FILES+=("$PR_VIEW_STDERR")
+    PR_NUMBER=$(gh pr view --json number --jq .number 2>"$PR_VIEW_STDERR")
+    PR_VIEW_EXIT=$?
+    if [ "$PR_VIEW_EXIT" -ne 0 ]; then
+        # gh pr view itself failed; do not silently treat as "no PR".
+        # gh emits an explicit "no pull requests found" message in this same
+        # error path, so check for that distinct case before falling back.
+        if grep -qi "no pull requests found" "$PR_VIEW_STDERR" 2>/dev/null; then
+            record_skip "Bot-cascade check (no PR open for branch)"
+        else
+            record_skip "Bot-cascade check (gh pr view failed, exit $PR_VIEW_EXIT)"
+        fi
+    elif [ -z "$PR_NUMBER" ]; then
         record_skip "Bot-cascade check (no PR open for branch)"
     else
         BOT_CHECK_OUTPUT=$(mktemp)
-        TEMP_FILES+=("$BOT_CHECK_OUTPUT")
-        if "${PYTHON_CMD[@]}" \
+        BOT_CHECK_STDERR=$(mktemp)
+        TEMP_FILES+=("$BOT_CHECK_OUTPUT" "$BOT_CHECK_STDERR")
+        # Capture the exit code immediately after the command, then branch
+        # on the saved variable (same robust pattern as PR_VIEW_EXIT and
+        # REVIEW_API_EXIT). A later edit that inserts a command before the
+        # `if` would otherwise clobber $? (cursor finding on PR #2011).
+        "${PYTHON_CMD[@]}" \
             .claude/skills/github/scripts/pr/get_unresolved_review_threads.py \
-            --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>/dev/null; then
-            # PR #1989 copilot ZX-: get_unresolved_review_threads.py exits 0
-            # even on an incomplete pagination snapshot. Require
-            # fetched_pages_complete=true before trusting unresolved_count;
-            # otherwise treat as a skip (not a pass) so an incomplete fetch
-            # does not produce false reassurance.
+            --pull-request "$PR_NUMBER" >"$BOT_CHECK_OUTPUT" 2>"$BOT_CHECK_STDERR"
+        BOT_QUERY_EXIT=$?
+        if [ "$BOT_QUERY_EXIT" -eq 0 ]; then
+            # REQ-011-02: require BOTH success=true AND fetched_pages_complete=true
+            # before trusting the count. Either failure produces SKIP, never PASS.
             UNRESOLVED_COUNT=$("${PYTHON_CMD[@]}" -c "
 import json, sys
 try:
     data = json.load(open(sys.argv[1]))
-    if not data.get('fetched_pages_complete', False):
+    if not data.get('success', False):
+        print('NOTSUCCESS')
+    elif not data.get('fetched_pages_complete', False):
         print('INCOMPLETE')
     else:
-        print(data.get('unresolved_count', 0))
+        count = data.get('unresolved_count', 0)
+        # Reject non-int, bool, or negative values. bool subclasses int in
+        # Python, so a corrupted True/False payload would pass a plain
+        # int-instance check (cursor finding on PR #2011). Any of these
+        # would otherwise fall through to the zero-unresolved branch and
+        # hide a bad payload as PASS (coderabbit P1 on PR #2011).
+        # NB: no backticks in this comment; this code is passed to python
+        # via bash -c inside a double-quoted string, where backticks would
+        # trigger command substitution.
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            print('ERROR')
+        else:
+            print(count)
 except Exception:
     print('ERROR')
 " "$BOT_CHECK_OUTPUT" 2>/dev/null || echo 'ERROR')
             if [ "$UNRESOLVED_COUNT" = "INCOMPLETE" ]; then
-                record_skip "Bot-cascade check (PR #$PR_NUMBER snapshot incomplete)"
+                record_skip "Bot-cascade check (PR #$PR_NUMBER snapshot incomplete: fetched_pages_complete=false)"
+            elif [ "$UNRESOLVED_COUNT" = "NOTSUCCESS" ]; then
+                record_skip "Bot-cascade check (PR #$PR_NUMBER thread query returned success=false)"
             elif [ "$UNRESOLVED_COUNT" = "ERROR" ]; then
                 record_skip "Bot-cascade check (PR #$PR_NUMBER JSON parse failed)"
             elif [ "${UNRESOLVED_COUNT:-0}" -gt 0 ] 2>/dev/null; then
-                record_warn "PR #$PR_NUMBER has $UNRESOLVED_COUNT unresolved bot thread(s)"
+                # REQ-011-01: unresolved threads emit warn (not block).
+                # NB: the unresolved count is total (not bot-filtered); the
+                # underlying GraphQL query does not return author for each
+                # thread. Labeled simply as "unresolved thread(s)" so the
+                # message is accurate. See Issue #2012 for shape work and
+                # downstream filtering proposals.
+                record_warn "PR #$PR_NUMBER has $UNRESOLVED_COUNT unresolved thread(s)"
                 echo_info "  Pushing now will trigger another bot scan and may"
-                echo_info "  open more threads. Batch-fix pattern (Session 14,"
-                echo_info "  pr-review-observations.md): resolve all open threads"
-                echo_info "  first, THEN push one empty commit to re-trigger CI."
+                echo_info "  open more threads. Batch-fix pattern: resolve all"
+                echo_info "  open threads first, then push one empty commit to"
+                echo_info "  re-trigger CI."
                 echo_info "  Bypass with: git push --no-verify"
             else
-                # PR #1989 coderabbit: REQ-009-11 also warns when the last
-                # bot review is newer than 120 seconds (bot scan still in
-                # flight even though threads currently show zero). Without
-                # this, a push that lands seconds after an automated review
-                # missed the bot-cascade gate.
-                # PR #1989 coderabbit/copilot: capture gh exit status. The
-                # original `|| true` masked auth/network failures, so an
-                # empty result fell through to `record_pass "no bot
-                # reviews"`. Treat a failed reviews query as a skip, not
-                # a pass, to avoid false reassurance during outages.
-                if LAST_REVIEW_AGE=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
-                    --jq '[.[] | select(.user.type == "Bot") | .submitted_at] | sort | last' \
-                    2>/dev/null); then
-                    if [ -n "$LAST_REVIEW_AGE" ] && [ "$LAST_REVIEW_AGE" != "null" ]; then
+                # REQ-011-03: zero unresolved AND fetched_pages_complete=true
+                # AND success=true. Check whether a bot review was submitted
+                # in the last 120s. If so, warn (scan likely still in flight).
+                # REQ-011-04: gh api failure is SKIP with explicit reason and
+                # captured exit code. No `|| true` fall-through.
+                REVIEW_STDERR=$(mktemp)
+                TEMP_FILES+=("$REVIEW_STDERR")
+                # The /reviews endpoint paginates at 30/page by default;
+                # without --paginate, a bot review on page 2+ would be
+                # missed and Phase 5c would report PASS while a scan is in
+                # flight (coderabbit P1 on PR #2011). gh's --slurp is
+                # incompatible with --jq, so instead use --paginate with a
+                # per-page --jq that emits each bot review's submitted_at
+                # (one timestamp per line across all pages), then sort and
+                # take the newest in a separate step so $? reflects the gh
+                # call, not the trailing sort/tail pipeline.
+                REVIEW_RAW=$(gh api "repos/{owner}/{repo}/pulls/$PR_NUMBER/reviews" \
+                    --paginate \
+                    --jq '.[] | select(.user.type == "Bot") | .submitted_at' \
+                    2>"$REVIEW_STDERR")
+                REVIEW_API_EXIT=$?
+                LAST_REVIEW_AGE_OUTPUT=$(printf '%s\n' "$REVIEW_RAW" | sort | tail -n 1)
+                # Defensive: trim stray whitespace and double quotes to
+                # harden against CLI version drift (gemini-code-assist
+                # finding on PR #2011).
+                LAST_REVIEW_AGE_OUTPUT=$(printf '%s' "$LAST_REVIEW_AGE_OUTPUT" | tr -d '"' | tr -d '[:space:]')
+                if [ "$REVIEW_API_EXIT" -eq 0 ]; then
+                    if [ -n "$LAST_REVIEW_AGE_OUTPUT" ] && [ "$LAST_REVIEW_AGE_OUTPUT" != "null" ]; then
+                        # Parse the timestamp. On parse failure emit a
+                        # distinguishable sentinel so we SKIP rather than
+                        # PASS with bad data (coderabbit P1 on PR #2011).
                         AGE_SECONDS=$("${PYTHON_CMD[@]}" -c "
 import sys
 from datetime import datetime, timezone
@@ -1076,9 +1182,11 @@ try:
     age = (datetime.now(timezone.utc) - ts).total_seconds()
     print(int(age))
 except Exception:
-    print(99999)
-" "$LAST_REVIEW_AGE" 2>/dev/null || echo 99999)
-                        if [ "${AGE_SECONDS:-99999}" -lt 120 ] 2>/dev/null; then
+    print('PARSE_ERROR')
+" "$LAST_REVIEW_AGE_OUTPUT" 2>/dev/null || echo 'PARSE_ERROR')
+                        if [ "$AGE_SECONDS" = "PARSE_ERROR" ]; then
+                            record_skip "Bot-cascade check (PR #$PR_NUMBER timestamp parse failed for '$LAST_REVIEW_AGE_OUTPUT')"
+                        elif [ "${AGE_SECONDS:-99999}" -lt 120 ] 2>/dev/null; then
                             record_warn "PR #$PR_NUMBER last bot review is ${AGE_SECONDS}s old (< 120s)"
                             echo_info "  A bot scan is likely still in flight. Threads"
                             echo_info "  may appear after this push. Wait at least 120s"
@@ -1091,11 +1199,36 @@ except Exception:
                         record_pass "Bot-cascade check (PR #$PR_NUMBER, 0 unresolved, no bot reviews)"
                     fi
                 else
-                    record_skip "Bot-cascade check (PR #$PR_NUMBER reviews query failed)"
+                    # REQ-011-04: gh api failed. SKIP and NAME THE FAILURE
+                    # MODE (REQ-011 line 164 requires the SKIP message to
+                    # classify the failure, with a special-case string for
+                    # auth). Classify from captured stderr; fall back to the
+                    # exit code. No `|| true` fall-through; auth/network/
+                    # rate-limit failures must not mask in-flight reviews
+                    # as PASS.
+                    REVIEW_FAIL_MODE="unclassified"
+                    if [ -s "$REVIEW_STDERR" ]; then
+                        # Specific auth signals only. A bare 'auth' alternative
+                        # would match 'author' as a substring and misclassify
+                        # unrelated errors (copilot finding on PR #2011). gh
+                        # emits 'HTTP 401'/'HTTP 403' for auth failures.
+                        if grep -qiE 'unauthorized|authentication|bad credentials|gh auth login|HTTP 401|HTTP 403' "$REVIEW_STDERR" 2>/dev/null; then
+                            REVIEW_FAIL_MODE="gh api auth failed"
+                        elif grep -qiE 'rate limit|429|secondary rate' "$REVIEW_STDERR" 2>/dev/null; then
+                            REVIEW_FAIL_MODE="gh api rate-limited"
+                        elif grep -qiE 'could not resolve|network|connection|timeout|temporary failure|dns' "$REVIEW_STDERR" 2>/dev/null; then
+                            REVIEW_FAIL_MODE="gh api network error"
+                        fi
+                    fi
+                    # Exit code appended once; REVIEW_FAIL_MODE never contains
+                    # the exit code itself (cursor finding on PR #2011: a prior
+                    # default of "exit $REVIEW_API_EXIT" produced "..., exit N,
+                    # exit N").
+                    record_skip "Bot-cascade check (PR #$PR_NUMBER gh api reviews failed: $REVIEW_FAIL_MODE, exit $REVIEW_API_EXIT)"
                 fi
             fi
         else
-            record_skip "Bot-cascade check (gh query failed)"
+            record_skip "Bot-cascade check (get_unresolved_review_threads.py failed for PR #$PR_NUMBER, exit $BOT_QUERY_EXIT)"
         fi
     fi
 fi

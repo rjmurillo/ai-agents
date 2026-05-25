@@ -1,6 +1,6 @@
 ---
 description: Baseline code quality rules merging Clean Code and Code Complete fundamentals. Apply on every code edit.
-applyTo: **
+applyTo: '**'
 ---
 
 # Code Quality
