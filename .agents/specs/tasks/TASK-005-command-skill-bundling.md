@@ -302,7 +302,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 **pre_pr.py check (advisory, per Q3 resolution)**:
 - Add a new validation function `validate_command_bundle_coverage()` that runs the same parse against the live command files.
 - On any missing invocation, emit an **advisory WARN** finding (not BLOCKING) with: `file`, `expected_skill`, `ac_reference`. Drift is surfaced to reviewers; PR review is the enforcement layer (matches PR #1894 pattern for prose-driven changes).
-- Function gated behind `BUNDLE_CHECK_ENFORCED` env var (default `0`, advisory). When set to `1`, findings escalate to BLOCKING — reserved for a future spec once the registry has stabilized.
+- Function gated behind `BUNDLE_CHECK_ENFORCED` env var (default `0`, advisory). When set to `1`, findings escalate to BLOCKING, reserved for a future spec once the registry has stabilized.
 - Integrate with existing `pre_pr.py` runner so it appears in the standard pre-PR output (under WARN category).
 - Exit codes follow AGENTS.md contract: 0=ok regardless of advisory findings (env var `0`); 1=logic if env var is `1` and any bundle is missing.
 

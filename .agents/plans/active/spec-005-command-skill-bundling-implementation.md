@@ -19,7 +19,7 @@
 - [ ] T5-0: Verify all 13 unique skill directories exist under `.claude/skills/`
 - [ ] Create `scripts/validation/bundle_registry.py` with 15 (file, skill) pairs
 - [ ] Create `tests/test_command_bundles.py` parametrized by registry
-- [ ] Add `check_command_bundle_coverage()` to `scripts/validation/pre_pr.py`, but **gated behind `BUNDLE_CHECK_ENFORCED=1` env var** (default `0`); when disabled, the function emits an INFO-level note and returns 0 findings
+- [ ] Add `validate_command_bundle_coverage()` to `scripts/validation/pre_pr.py`, but **gated behind `BUNDLE_CHECK_ENFORCED=1` env var** (default `0`); when disabled, the function emits an INFO-level note and returns 0 findings
 - [ ] Unit tests for the new pre_pr function (all-present / one-missing / empty-registry, all run with env var both `0` and `1`)
 - [ ] Verify `pytest tests/test_command_bundles.py` is **marked xfail** (or `@pytest.mark.skip` with a reason citing M2/M3 dependency); main stays GREEN throughout M1
 - [ ] M3 closing commit flips the xfail / skip and sets `BUNDLE_CHECK_ENFORCED=1` as the default once all 15 registry rows pass
@@ -97,7 +97,7 @@ TASK-005 lists T5-1 through T5-7 as fully parallel after T5-0 (TASK-005 §Sequen
 
 **Decision (2026-05-06, post-adversarial review)**: M1 no longer ships red. The earlier 5-business-day continuity rule was a social contract enforcing what a feature flag enforces mechanically. Replaced by:
 
-- `BUNDLE_CHECK_ENFORCED` env var (default `0`) gates the `check_command_bundle_coverage()` BLOCKING behavior.
+- `BUNDLE_CHECK_ENFORCED` env var (default `0`) gates the `validate_command_bundle_coverage()` BLOCKING behavior.
 - `tests/test_command_bundles.py` is marked `@pytest.mark.xfail(reason="awaits M2/M3 command edits")` for the registry rows that haven't been edited yet.
 - M2 turns each row's `xfail` into expected-pass as commands are edited.
 - M3 closing commit flips the env var default to `1` and removes the xfail marks.
@@ -108,15 +108,15 @@ TASK-005 lists T5-1 through T5-7 as fully parallel after T5-0 (TASK-005 §Sequen
 
 The independent-thinker agent challenged three premises that, if accepted, amend REQ-005 / DESIGN-005 / TASK-005 rather than just this plan. Surfaced for explicit user decision; no plan or spec edits applied.
 
-### Q1 (C1): Bundle-via-prose vs. routing-layer hook — **RESOLVED 2026-05-06**
+### Q1 (C1): Bundle-via-prose vs. routing-layer hook, RESOLVED 2026-05-06
 
 **Challenge raised**: Editing 7 markdown files is a workaround for missing skill-routing infrastructure. A SessionStart/PreToolUse hook + `commands.yaml` would replace markdown edits + parser + pre_pr check with one hook + one config file.
 
-**Resolution: ship as-spec'd. Independent-thinker C1 was wrong on premise.** PR #1894 (`feat(agents,github-skill): reviewer-stronger asymmetry + verifiable status claims`) is the matching precedent at the agent layer: it edits `templates/agents/{implementer,qa,critic}.shared.md` to ship behavior via prose framing (Reviewer Asymmetry note, fresh-context adversarial framing, Adversarial Coverage Checklist) — no skill-routing layer built, no "commands.yaml" abstraction introduced. Bundle-via-prose IS the house style for cross-cutting agent and command behavior. SPEC-005 is the same pattern at the command layer.
+**Resolution: ship as-spec'd. Independent-thinker C1 was wrong on premise.** PR #1894 (`feat(agents,github-skill): reviewer-stronger asymmetry + verifiable status claims`) is the matching precedent at the agent layer: it edits `templates/agents/{implementer,qa,critic}.shared.md` to ship behavior via prose framing (Reviewer Asymmetry note, fresh-context adversarial framing, Adversarial Coverage Checklist), no skill-routing layer built, no "commands.yaml" abstraction introduced. Bundle-via-prose IS the house style for cross-cutting agent and command behavior. SPEC-005 is the same pattern at the command layer.
 
 **Rejection rationale**: building a hook + YAML registry to do what 7 markdown edits already do would (a) duplicate the prose-driven convention used in PR #1894 and the seven existing `Skill(skill="...")` calls already in `.claude/commands/{spec,plan,test,review,ship,build}.md`, (b) require an ADR for an infrastructure layer that adds no behavioral capability, and (c) violate Chesterton's Fence on the established convention.
 
-### Q2 (C3): External-installer presence-gate complexity — **RESOLVED 2026-05-06**
+### Q2 (C3): External-installer presence-gate complexity, RESOLVED 2026-05-06
 
 **Resolution**: drop the **command-layer** presence-gate for external-infrastructure markers. Skills own their own missing-marker handling internally.
 
@@ -130,7 +130,7 @@ The independent-thinker agent challenged three premises that, if accepted, amend
 
 **Why**: PR #1894 establishes that prose-driven bundling at the agent layer ships universal behavior; skills own preconditions. Pushing the missing-marker case into the skill matches the convention and removes 30% of the parser surface that was defending a not-yet-existent external installer. When a real installer reports breakage, the skill (not the command) gets the fix.
 
-### Q3 (C4): Static parser — **RESOLVED 2026-05-06**
+### Q3 (C4): Static parser, RESOLVED 2026-05-06
 
 **Resolution**: scope T5-8 down from **BLOCKING** to **advisory WARN**, gated behind `BUNDLE_CHECK_ENFORCED` env var (default `0`). The parser is built; its findings are advisory; PR review is the enforcement layer (matches PR #1894's drift-detection + review pattern).
 
@@ -139,14 +139,14 @@ The independent-thinker agent challenged three premises that, if accepted, amend
 - DESIGN-005 Testing Strategy table: pre-PR layer changed from "blocks PRs" to "emits advisory WARN". Env-var gating documented.
 - TASK-005 T5-8 acceptance criteria: WARN findings are expected during M1/M2; `BUNDLE_CHECK_ENFORCED=0` is the default. Unit tests cover both env-var values.
 
-**Why**: PR #1894 ships its prose changes without a static parser asserting the framing phrases are present. SPEC-005 has the asymmetry that commands aren't generated from `templates/commands/`, so drift-detection doesn't apply directly — the parser fills that gap. But framing it as advisory rather than BLOCKING:
+**Why**: PR #1894 ships its prose changes without a static parser asserting the framing phrases are present. SPEC-005 has the asymmetry that commands aren't generated from `templates/commands/`, so drift-detection doesn't apply directly, so the parser fills that gap. But framing it as advisory rather than BLOCKING:
 1. Keeps the mechanical drift signal for ungenerated files (the asymmetry argument)
 2. Avoids the system-wide-contract framing that pushed Q4 toward Tier 3
 3. Matches PR 1894's enforcement model (drift surfaced, humans enforce)
 
 **Q4 auto-resolves**: with the advisory framing, no system-wide CI gate is created, so Tier 2 holds honestly.
 
-### Q4 (C2): Tier classification — **RESOLVED 2026-05-06 (auto)**
+### Q4 (C2): Tier classification, RESOLVED 2026-05-06 (auto)
 
 Resolved by Q3: with pre_pr.py emitting advisory WARN findings (not BLOCKING) gated behind an env var that defaults to off, no system-wide CI contract is created. Tier 2 classification holds honestly. No ADR required.
 
@@ -225,11 +225,11 @@ Total: 8 commits, 11 files. Within AGENTS.md (≤5 files/commit, ≤20 commits/P
 
 ## Deferred Items
 
-- `/audit` cadence command — separate spec
-- Cross-command Serena context handoff (analysis §9) — separate spec
-- `/test` Gate 4 `pipeline-validator` bundle — deferred per REQ-005; revisit after this spec lands
-- `reflect` hash-based dedupe — skill-author concern, not command-level
-- Behavioral integration test for ship.md min-delta reflect guard — out of scope for T5-8
+- `/audit` cadence command: separate spec
+- Cross-command Serena context handoff (analysis §9): separate spec
+- `/test` Gate 4 `pipeline-validator` bundle: deferred per REQ-005; revisit after this spec lands
+- `reflect` hash-based dedupe: skill-author concern, not command-level
+- Behavioral integration test for ship.md min-delta reflect guard: out of scope for T5-8
 
 ## Reversibility
 
@@ -243,5 +243,5 @@ Every milestone is a markdown edit (M2/M3) or a pure-additive Python module (M1)
 - Tasks: `.agents/specs/tasks/TASK-005-command-skill-bundling.md`
 - Session: `.agents/sessions/2026-05-06-session-1825-author-spec-005-command-skill-bundling-req.json`
 - Spec commit: `db9f24cb` on `docs/spec-005-command-skill-bundling`
-- Issue: (pending — track in next-step list)
+- Issue: (pending, track in next-step list)
 - ADR: none required (Tier 2)

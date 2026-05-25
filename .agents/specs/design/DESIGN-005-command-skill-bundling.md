@@ -63,7 +63,7 @@ Only **runtime conditionals** appear here. External-infrastructure presence chec
 
 | Skill | Command | Runtime gate | Check method |
 |---|---|---|---|
-| `chestertons-fence` | `build.md` | diff contains file with last commit > 6 months old | `Bash(git log --format=%at -1 -- "<file>")` — quote path to prevent CWE-78 |
+| `chestertons-fence` | `build.md` | diff contains file with last commit > 6 months old | `Bash(git log --format=%at -1 -- "<file>")`, quote path to prevent CWE-78 |
 | `chestertons-fence` | `review.md` | diff touches file with last commit > 6 months old | same as above |
 | `merge-resolver` | `pr-review.md` | `gh pr view --json mergeable -q '.mergeable'` returns `CONFLICTING` or `UNKNOWN` | `gh pr view $PR --json mergeable -q '.mergeable'` |
 | `threat-modeling` | `test.md` | complexity tier from Step 0 is 3 or higher | (read tier from prior step output) |
