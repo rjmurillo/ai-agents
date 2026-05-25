@@ -1,7 +1,7 @@
 import { mkdir, rename, writeFile, unlink } from "node:fs/promises";
-import { join, dirname } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import type { BundleEntry, TargetContext, TargetEmitter } from "../types.js";
-import { TargetWriteError } from "../io/errfmt.js";
+import { PathTraversalError, TargetWriteError } from "../io/errfmt.js";
 
 export class FsTargetEmitter implements TargetEmitter {
   canEmit(_target: TargetContext): boolean {
@@ -13,7 +13,13 @@ export class FsTargetEmitter implements TargetEmitter {
     content: Buffer,
     target: TargetContext,
   ): Promise<void> {
-    const destPath = join(target.targetDir, ".claude", entry.relativePath);
+    // CWE-22 path traversal guard: resolve under the canonical .claude root
+    // and reject any entry whose path escapes the root.
+    const claudeRoot = resolve(target.targetDir, ".claude");
+    const destPath = resolve(claudeRoot, entry.relativePath);
+    if (destPath !== claudeRoot && !destPath.startsWith(claudeRoot + sep)) {
+      throw new PathTraversalError(entry.relativePath, destPath);
+    }
     if (target.dryRun) {
       return;
     }

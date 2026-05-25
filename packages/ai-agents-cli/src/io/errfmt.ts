@@ -35,6 +35,16 @@ export class TargetNotEmptyError extends CliError {
   }
 }
 
+export class PathTraversalError extends CliError {
+  constructor(relativePath: string, resolvedPath: string) {
+    super({
+      error: `Path traversal detected: "${relativePath}" resolves outside the target .claude directory`,
+      cause: `Resolved destination "${resolvedPath}" escapes the .claude root`,
+      fix: `Inspect the bundle source for malformed or hostile entry paths and rebuild the bundle`,
+    });
+  }
+}
+
 export class TargetWriteError extends CliError {
   constructor(path: string, reason: string) {
     super({

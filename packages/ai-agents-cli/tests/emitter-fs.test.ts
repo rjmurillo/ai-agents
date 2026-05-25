@@ -31,6 +31,22 @@ describe("FsTargetEmitter", () => {
     expect(written).toBe("hello");
   });
 
+  test("rejects path traversal in relativePath (CWE-22)", async () => {
+    const entry = { relativePath: "../../outside.md", size: 4 };
+    const content = Buffer.from("evil");
+    await expect(
+      emitter.emit(entry, content, { targetDir: testDir, force: false, dryRun: false }),
+    ).rejects.toThrow(/Path traversal detected/);
+  });
+
+  test("rejects absolute relativePath (CWE-22)", async () => {
+    const entry = { relativePath: "/etc/passwd", size: 0 };
+    const content = Buffer.from("");
+    await expect(
+      emitter.emit(entry, content, { targetDir: testDir, force: false, dryRun: false }),
+    ).rejects.toThrow(/Path traversal detected/);
+  });
+
   test("dry run writes nothing", async () => {
     const entry = { relativePath: "agents/test.md", size: 4 };
     const content = Buffer.from("test");
