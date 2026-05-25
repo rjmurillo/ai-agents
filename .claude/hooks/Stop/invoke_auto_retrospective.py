@@ -35,11 +35,6 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-try:
-    import fcntl as _fcntl  # POSIX-only; absent on Windows
-except ImportError:  # pragma: no cover - exercised on Windows runners
-    _fcntl = None  # type: ignore[assignment]
-
 # --- Standard hook boilerplate ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
@@ -50,7 +45,13 @@ if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import get_project_directory, get_recent_session_log, get_today_session_log
+    from hook_utilities import (
+        get_project_directory,
+        get_recent_session_log,
+        get_today_session_log,
+        lock_file,
+        unlock_file,
+    )
     from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
     from datetime import timedelta
@@ -99,6 +100,39 @@ except ImportError:
             print(f"[SKIP] {hook_name}: .agents/ not found (consumer repo)", file=sys.stderr)
             return True
         return False
+
+    if sys.platform == "win32":
+        import msvcrt
+
+        _win_lock_positions: dict[int, int] = {}
+
+        def lock_file(f) -> None:
+            """Acquire an exclusive lock on a file (Windows implementation)."""
+            fd = f.fileno()
+            _win_lock_positions[fd] = f.tell()
+            f.seek(0)
+            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            pos = _win_lock_positions.get(fd, 0)
+            f.seek(pos)
+
+        def unlock_file(f) -> None:
+            """Release an exclusive lock on a file (Windows implementation)."""
+            fd = f.fileno()
+            write_pos = f.tell()
+            f.seek(0)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            _win_lock_positions.pop(fd, None)
+            f.seek(write_pos)
+    else:
+        import fcntl as _fcntl_fallback
+
+        def lock_file(f) -> None:
+            """Acquire an exclusive lock on a file (POSIX implementation)."""
+            _fcntl_fallback.flock(f.fileno(), _fcntl_fallback.LOCK_EX)
+
+        def unlock_file(f) -> None:
+            """Release an exclusive lock on a file (POSIX implementation)."""
+            _fcntl_fallback.flock(f.fileno(), _fcntl_fallback.LOCK_UN)
 
 
 HOOK_NAME = "auto-retrospective"
@@ -386,18 +420,18 @@ def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
             index_path.write_text(header, encoding="utf-8")
 
         with index_path.open("r+", encoding="utf-8") as f:
-            if _fcntl is not None:
-                _fcntl.flock(f.fileno(), _fcntl.LOCK_EX)
+            lock_file(f)
             try:
                 content = f.read()
                 if filename in content:
                     return
                 f.seek(0, 2)
+                if content and not content.endswith("\n"):
+                    f.write("\n")
                 f.write(f"| {today} | [{filename}](../../.agents/retrospective/{filename}) "
                         f"| Auto-generated session retrospective |\n")
             finally:
-                if _fcntl is not None:
-                    _fcntl.flock(f.fileno(), _fcntl.LOCK_UN)
+                unlock_file(f)
     except OSError as exc:
         print(f"[WARNING] {HOOK_NAME}: Failed to update INDEX.md: {exc}", file=sys.stderr)
 
