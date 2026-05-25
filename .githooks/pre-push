@@ -1035,7 +1035,7 @@ else
 fi
 
 # ============================================================================
-# Phase 5c: Bot-cascade warning (REQ-011, issue #1991)
+# Phase 5c: Bot-cascade warning (REQ-009-10, REQ-011, issue #1991)
 # ============================================================================
 # Warn (NOT block) when the current branch's PR has open bot threads OR a
 # bot review submitted within the last 120 seconds (scan likely in flight).
