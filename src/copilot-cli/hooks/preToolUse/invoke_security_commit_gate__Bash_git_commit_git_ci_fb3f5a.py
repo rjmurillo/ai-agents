@@ -188,7 +188,7 @@ def _original_main(stdin_bytes):
     if _lib_dir not in sys.path:
         sys.path.insert(0, _lib_dir)
 
-    from hook_utilities import get_project_directory  # noqa: E402
+    from hook_utilities import get_project_directory, is_git_commit_command  # noqa: E402
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
     # Security-sensitive file path patterns
@@ -303,7 +303,7 @@ def _original_main(stdin_bytes):
                 return 0
 
             command = tool_input.get("command", "")
-            if "git commit" not in command:
+            if not is_git_commit_command(command):
                 return 0
 
             staged = get_staged_files()
