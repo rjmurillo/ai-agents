@@ -486,7 +486,7 @@ def test_outputDirs_writes_to_every_target(tmp_path: Path) -> None:
         target = tmp_path / sub / "demo.instructions.md"
         assert target.is_file(), f"missing: {target}"
         content = target.read_text(encoding="utf-8")
-        assert "applyTo: **/*.py" in content
+        assert "applyTo: '**/*.py'" in content
         assert "paths:" not in content
 
 
