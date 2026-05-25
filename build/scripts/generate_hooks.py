@@ -688,12 +688,6 @@ def _extract_original_body(after_shim: list[str]) -> str:
         j += 1
 
     body_text = "".join(body_lines)
-    if had_main_epilogue:
-        if body_text and not body_text.endswith("\n"):
-            body_text += "\n"
-        if body_text and not body_text.endswith("\n\n"):
-            body_text += "\n"
-        body_text += 'if __name__ == "__main__":\n    sys.exit(main())\n'
     tail = "".join(after_shim[j:])
     if body_text and not body_text.endswith("\n"):
         body_text += "\n"

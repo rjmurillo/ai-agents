@@ -118,10 +118,15 @@ def _extract_open_items(session_log: Path) -> list[str]:
                 status = str(entry.get("status", "")).lower()
                 if status in ("done", "complete", "completed"):
                     continue
-                # Prefer description, then task. Skip entries whose values
-                # are missing or empty rather than appending "None" / blank
-                # strings that pollute the resume context.
-                desc = entry.get("description") or entry.get("task")
+                # Prefer description, then task, then action, then step.
+                # Skip entries whose values are missing or empty rather than
+                # appending "None" / blank strings that pollute the resume context.
+                desc = (
+                    entry.get("description")
+                    or entry.get("task")
+                    or entry.get("action")
+                    or entry.get("step")
+                )
                 if isinstance(desc, str):
                     stripped = desc.strip()
                     if stripped:
