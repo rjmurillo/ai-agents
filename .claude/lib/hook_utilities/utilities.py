@@ -264,7 +264,7 @@ def coerce_to_list(value) -> list:
         return value
     if isinstance(value, dict):
         if not value:
-            # Empty dict (e.g., outcomes: {}) is "no items" — not one item.
+            # Empty dict (e.g., outcomes: {}) is "no items", not one item.
             # Fixes is_trivial_session false-negative on empty schema objects.
             return []
         for key in ("tasks", "items", "log", "entries"):

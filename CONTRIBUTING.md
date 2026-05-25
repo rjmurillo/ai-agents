@@ -584,7 +584,6 @@ Related:
 - ADR-008 (lifecycle hooks)
 """
 
-import fcntl  # only if appending to JSONL/INDEX
 import json
 import os
 import sys
@@ -594,7 +593,7 @@ from pathlib import Path
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _lib_dir = str(Path(_plugin_root).resolve() / "lib") if _plugin_root \
            else str(Path(__file__).resolve().parents[2] / "lib")
-if _lib_dir not in sys.path:
+if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
@@ -641,7 +640,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-**4. Audit every terminal.** If your hook makes a decision (allow/block/bypass), log it. Use the `write_audit_log` pattern from `invoke_false_completion_gate.py`. Include `decision`, `reason`, `session_id`, `tool_use_id`, `schema: 1`. Wrap append-mode opens in `fcntl.flock(LOCK_EX)` to survive parallel sessions. Silent fail-open is a bug.
+**4. Audit every terminal.** If your hook makes a decision (allow/block/bypass), log it. Use the `write_audit_log` pattern from `invoke_false_completion_gate.py`. Include `decision`, `reason`, `session_id`, `tool_use_id`, `schema: 1`. Wrap append-mode opens with `hook_utilities.lock_file`/`unlock_file` to survive parallel sessions (cross-platform, Windows + POSIX). Silent fail-open is a bug.
 
 **5. UTC dates only.** Use `datetime.now(tz=UTC).strftime("%Y-%m-%d")` for any date-derived path or timestamp. Naive `datetime.now()` will mismatch hooks running at UTC and split audit/session files across days.
 

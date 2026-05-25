@@ -78,13 +78,11 @@ def _is_consumer_repo(project_dir: Path | None) -> bool:
 
 # Regex for false-completion signals in commands.
 #
-# The matched verbs include "merge" so that a `gh pr merge` command that also
-# names the merged state ("done", "shipped", etc.) is detected. The earlier
-# spelling only matched "merged" (past tense), which produced an inconsistency
-# with COMPLETION_COMMANDS that lists `gh pr merge` (present tense) as a
-# completion-relevant command.
+# Only past-tense "merged" is a completion signal. Present-tense "merge"
+# overlaps with the `gh pr merge` command keyword in COMPLETION_COMMANDS,
+# causing a tautological match on every merge invocation.
 COMPLETION_SIGNALS = re.compile(
-    r"\b(done|fixed|complete[d]?|finished|resolved|merge[d]?|shipped|closes?\s+#\d+)\b",
+    r"\b(done|fixed|complete[d]?|finished|resolved|merged|shipped|closes?\s+#\d+)\b",
     re.IGNORECASE,
 )
 
@@ -246,9 +244,9 @@ def main() -> int:
     session_id = ""
     tool_use_id = ""
 
-    # Consumer-repo guard: if .agents/ does not exist, skip silently so the
-    # gate does not block commits in repos that install the plugin but do not
-    # follow the ai-agents session protocol.
+    # Consumer-repo guard: if .agents/ does not exist, skip with a diagnostic
+    # so the gate does not block commits in repos that install the plugin but
+    # do not follow the ai-agents session protocol.
     if _is_consumer_repo(project_dir):
         print(
             "[SKIP] invoke_false_completion_gate: .agents/ not found (consumer repo)",
