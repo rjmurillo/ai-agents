@@ -233,13 +233,21 @@ def _read_commit_message_file(filepath: str) -> str | None:
 
 
 def _is_completion_claim_in_message_file(command: str) -> bool:
-    """Check if a git commit -F file contains completion signals."""
+    """Check if a git commit -F file contains completion signals.
+
+    Returns True (fail-closed) when a message file is specified but cannot
+    be read. This prevents bypassing the gate by pointing -F at a file
+    outside trusted paths that might contain completion language.
+    """
     message_file = _extract_commit_message_file(command)
     if message_file is None:
         return False
     message_content = _read_commit_message_file(message_file)
     if message_content is None:
-        return False
+        # Fail-closed: file was specified but couldn't be read (outside
+        # trusted paths or I/O error). Treat as containing completion claims
+        # so verification evidence is required.
+        return True
     return COMPLETION_SIGNALS.search(message_content) is not None
 
 
@@ -258,13 +266,18 @@ def _is_completion_claim_in_pr_body_file(command: str) -> bool:
     """Check if a gh pr create --body-file contains completion signals.
 
     Uses the same path containment as commit message files (CWE-22).
+    Returns True (fail-closed) when a body file is specified but cannot
+    be read.
     """
     body_file = _extract_pr_body_file(command)
     if body_file is None:
         return False
     body_content = _read_commit_message_file(body_file)
     if body_content is None:
-        return False
+        # Fail-closed: file was specified but couldn't be read (outside
+        # trusted paths or I/O error). Treat as containing completion claims
+        # so verification evidence is required.
+        return True
     return COMPLETION_SIGNALS.search(body_content) is not None
 
 

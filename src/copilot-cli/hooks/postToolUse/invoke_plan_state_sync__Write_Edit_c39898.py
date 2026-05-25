@@ -380,14 +380,6 @@ def _original_main(stdin_bytes):
         _write_checkpoint(project_dir, recorded_path, summary)
 
         print(f"[INFO] {HOOK_NAME}: Checkpointed state for {recorded_path}", file=sys.stderr)
-
-
-    if __name__ == "__main__":
-        try:
-            main()
-        except Exception as exc:
-            print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
-            sys.exit(0)
     return main()
 
 _shim_dispatch()

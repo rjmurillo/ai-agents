@@ -273,10 +273,6 @@ def _original_main(stdin_bytes):
 
     def main() -> int:
         return run_guard(_validate, ["*.md"], GUARD_NAME)
-
-
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()

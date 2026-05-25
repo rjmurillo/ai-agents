@@ -249,10 +249,6 @@ def _original_main(stdin_bytes):
             print(msg, file=sys.stderr)
             write_block_response(msg)
             return 2
-
-
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()

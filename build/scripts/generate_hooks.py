@@ -380,11 +380,19 @@ _MAIN_EPILOGUE_RE = _re.compile(
 
 # Matches the try/except pattern: if __name__ == "__main__": try: main() ...
 # Used by fail-open hooks that wrap main() in exception handling.
+# Captures the entire block including exception handling to the end of file.
 _MAIN_EPILOGUE_TRY_RE = _re.compile(
     r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
     r"\s+try:\s*\n"
     r"\s+main\(\)",
     _re.MULTILINE,
+)
+
+# Full epilogue pattern for stripping: matches from `if __name__` to end of file.
+# Used by _strip_main_epilogue to remove the entire block before wrapping.
+_MAIN_EPILOGUE_FULL_RE = _re.compile(
+    r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:.*",
+    _re.MULTILINE | _re.DOTALL,
 )
 
 
@@ -408,6 +416,23 @@ def _has_main_function_and_epilogue(body: str) -> bool:
     return _MAIN_EPILOGUE_RE.search(body) is not None or _MAIN_EPILOGUE_TRY_RE.search(body) is not None
 
 
+def _strip_main_epilogue(body: str) -> str:
+    """Remove the ``if __name__ == '__main__'`` block from the script body.
+
+    When the shim wraps a script that has a main epilogue, the original block
+    must be stripped to prevent double execution. The shim already invokes
+    ``main()`` via the synthetic ``return main()`` trailer; leaving the
+    original epilogue causes ``main()`` to run twice when ``__name__`` is
+    ``'__main__'`` (which it always is when Copilot executes the shim).
+
+    Returns the body with the epilogue removed, preserving all content before it.
+    """
+    match = _MAIN_EPILOGUE_FULL_RE.search(body)
+    if match:
+        return body[:match.start()].rstrip() + "\n"
+    return body
+
+
 def _wrap_body_in_function(body: str) -> str:
     """Indent ``body`` and wrap it in ``def _original_main(stdin_bytes):``.
 
@@ -422,9 +447,17 @@ def _wrap_body_in_function(body: str) -> str:
 
     The wrapper preserves the original script's line numbers for
     debugging by emitting a leading ``# original script begins`` marker.
+
+    IMPORTANT: When the script has a main epilogue, we strip it before
+    wrapping to prevent double execution. The synthetic ``return main()``
+    is the ONLY path that invokes main; leaving the original ``if __name__``
+    block would cause main() to run twice when Copilot executes the shim.
     """
+    has_epilogue = _has_main_function_and_epilogue(body)
+    if has_epilogue:
+        body = _strip_main_epilogue(body)
     indented = "\n".join("    " + line if line else "" for line in body.splitlines())
-    trailer = "    return main()\n" if _has_main_function_and_epilogue(body) else "    return 0\n"
+    trailer = "    return main()\n" if has_epilogue else "    return 0\n"
     return (
         "def _original_main(stdin_bytes):\n"
         + "    # original script body begins below\n"
@@ -524,9 +557,14 @@ def _extract_original_body(after_shim: list[str]) -> str:
     Expects the layout :func:`inject_shim` writes:
     optional blank lines, ``def _original_main(stdin_bytes):``, an
     optional ``# original script body begins below`` marker, the
-    indented body, a synthetic trailing ``return 0``, and the final
-    ``_shim_dispatch()`` invocation. Anything past the dispatch call is
-    returned verbatim as the tail.
+    indented body, a synthetic trailing ``return 0`` or ``return main()``,
+    and the final ``_shim_dispatch()`` invocation. Anything past the
+    dispatch call is returned verbatim as the tail.
+
+    When the trailer is ``return main()``, the original script had a
+    ``if __name__ == '__main__'`` epilogue that was stripped during
+    injection. We restore a canonical epilogue so the round-trip is
+    stable (re-injection sees the same pattern and re-strips it).
 
     When no wrapper is detected (shim block was present but the
     function wrapper is not), the lines are returned as-is so callers
@@ -564,7 +602,13 @@ def _extract_original_body(after_shim: list[str]) -> str:
     # script had a canonical main() epilogue at generation time.
     while body_lines and body_lines[-1].strip() == "":
         body_lines.pop()
-    if body_lines and body_lines[-1].rstrip() in ("return 0", "return main()"):
+    had_main_epilogue = False
+    if body_lines and body_lines[-1].rstrip() == "return main()":
+        had_main_epilogue = True
+        body_lines.pop()
+        while body_lines and body_lines[-1].strip() == "":
+            body_lines.pop()
+    elif body_lines and body_lines[-1].rstrip() == "return 0":
         body_lines.pop()
         while body_lines and body_lines[-1].strip() == "":
             body_lines.pop()
@@ -579,6 +623,12 @@ def _extract_original_body(after_shim: list[str]) -> str:
     tail = "".join(after_shim[j:])
     if body_text and not body_text.endswith("\n"):
         body_text += "\n"
+
+    # Restore a canonical epilogue when the trailer was ``return main()``.
+    # This ensures re-injection produces the same output (idempotent).
+    if had_main_epilogue:
+        body_text += '\nif __name__ == "__main__":\n    sys.exit(main())\n'
+
     return body_text + tail
 
 

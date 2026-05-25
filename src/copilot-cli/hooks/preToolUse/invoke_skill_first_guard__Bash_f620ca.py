@@ -411,10 +411,6 @@ def _original_main(stdin_bytes):
             # Fail-open on errors (don't block on infrastructure issues)
             print(f"Skill-first guard error: {type(exc).__name__} - {exc}", file=sys.stderr)
             return 0
-
-
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()

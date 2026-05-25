@@ -369,10 +369,6 @@ def _original_main(stdin_bytes):
             print(error_msg, file=sys.stderr)
             write_audit_log(error_msg)
             return 0
-
-
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()

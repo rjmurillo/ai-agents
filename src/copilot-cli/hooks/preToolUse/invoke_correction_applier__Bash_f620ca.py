@@ -372,10 +372,6 @@ def _original_main(stdin_bytes):
         except Exception as exc:
             print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
         return 0
-
-
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()
