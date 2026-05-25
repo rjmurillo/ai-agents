@@ -1,13 +1,13 @@
 ---
 type: task
-id: TASK-009
+id: TASK-012
 title: Retro fixes from PR #1965 (rework + contract drift)
 status: todo
 priority: P1
 complexity: M
 related:
-  - REQ-009
-  - DESIGN-009
+  - REQ-012
+  - DESIGN-012
 blocked_by: []
 blocks: []
 assignee: ~
@@ -15,17 +15,17 @@ created: 2026-05-10
 updated: 2026-05-10
 ---
 
-# TASK-009: Retro fixes from PR #1965 (rework + contract drift)
+# TASK-012: Retro fixes from PR #1965 (rework + contract drift)
 
-All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptance criteria. Tasks are ordered by dependency. Each task is atomic (5 files or fewer per commit, per AGENTS.md). Total estimated effort: 5.5h.
+All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptance criteria. Tasks are ordered by dependency. Each task is atomic (5 files or fewer per commit, per AGENTS.md). Total estimated effort: 5.5h.
 
 ---
 
-## TASK-009-01: Pagination Contract Test for get_unresolved_review_threads.py
+## TASK-012-01: Pagination Contract Test for get_unresolved_review_threads.py
 
 **Complexity:** M (2h)
 
-**Objective:** Add a pytest contract test that stubs the GitHub GraphQL endpoint and asserts `get_unresolved_review_threads.py` returns all threads across pagination boundaries. Pins REQ-009-01 and REQ-009-02.
+**Objective:** Add a pytest contract test that stubs the GitHub GraphQL endpoint and asserts `get_unresolved_review_threads.py` returns all threads across pagination boundaries. Pins REQ-012-01 and REQ-012-02.
 
 **In scope:**
 - Create `tests/skills/github/test_get_unresolved_review_threads.py`.
@@ -39,8 +39,8 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 - Testing other scripts in the same directory.
 
 **Acceptance Criteria:**
-- [ ] REQ-009-01: test asserts all 101 thread IDs returned for multi-page stub.
-- [ ] REQ-009-02: test asserts exactly one HTTP call for single-page stub.
+- [ ] REQ-012-01: test asserts all 101 thread IDs returned for multi-page stub.
+- [ ] REQ-012-02: test asserts exactly one HTTP call for single-page stub.
 - [ ] No live network calls; all HTTP interactions are stubbed.
 - [ ] `pytest tests/skills/github/test_get_unresolved_review_threads.py` exits 0.
 - [ ] Test file imports follow ADR-042 (Python, standard library mock only).
@@ -67,11 +67,11 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 
 ---
 
-## TASK-009-02: Extend canonical-source-mirror.md applyTo Glob + Contract Test
+## TASK-012-02: Extend canonical-source-mirror.md applyTo Glob + Contract Test
 
 **Complexity:** S (30min)
 
-**Objective:** Extend the `applyTo` field in `.claude/rules/canonical-source-mirror.md` to cover `.claude/review-axes/**` and `.github/prompts/**`, and add a contract test that asserts coverage. Pins REQ-009-03.
+**Objective:** Extend the `applyTo` field in `.claude/rules/canonical-source-mirror.md` to cover `.claude/review-axes/**` and `.github/prompts/**`, and add a contract test that asserts coverage. Pins REQ-012-03.
 
 **In scope:**
 - Edit `.claude/rules/canonical-source-mirror.md`: add or extend `applyTo` frontmatter field.
@@ -83,8 +83,8 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 - Migrating existing axis files to comply with the rule (separate concern).
 
 **Acceptance Criteria:**
-- [ ] REQ-009-03: `applyTo` glob matches `.claude/review-axes/analyst.md` via Python `fnmatch`.
-- [ ] REQ-009-03: `applyTo` glob matches `.github/prompts/pr-quality-gate-analyst.md` via Python `fnmatch`.
+- [ ] REQ-012-03: `applyTo` glob matches `.claude/review-axes/analyst.md` via Python `fnmatch`.
+- [ ] REQ-012-03: `applyTo` glob matches `.github/prompts/pr-quality-gate-analyst.md` via Python `fnmatch`.
 - [ ] Rule prose unchanged (diff shows only frontmatter changes).
 - [ ] `pytest tests/build_scripts/test_canonical_source_mirror.py` exits 0.
 - [ ] Test fails if `applyTo` is removed or narrowed to exclude either path.
@@ -112,11 +112,11 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 
 ---
 
-## TASK-009-03: Add co-change-checklist Section Template to /spec Step 6
+## TASK-012-03: Add co-change-checklist Section Template to /spec Step 6
 
 **Complexity:** S (1h)
 
-**Objective:** Add a conditional Step 6 prompt and `## Co-change checklist` section template to `.claude/commands/spec.md`. Pins REQ-009-04 and REQ-009-05.
+**Objective:** Add a conditional Step 6 prompt and `## Co-change checklist` section template to `.claude/commands/spec.md`. Pins REQ-012-04 and REQ-012-05.
 
 **In scope:**
 - Edit `.claude/commands/spec.md`.
@@ -131,10 +131,10 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 - Adding a linter for the checklist format.
 
 **Acceptance Criteria:**
-- [ ] REQ-009-04: Step 6 contains a conditional prompt "Is this a multi-site contract change? (y/n)".
-- [ ] REQ-009-04: Instruction to emit `## Co-change checklist` section is present when answer is "yes".
-- [ ] REQ-009-05: Placeholder format `- [ ] {file_path}:{line_or_section} -- {what changes}` is documented.
-- [ ] REQ-009-05: Section placement rule is documented (after last AC, before Rationale).
+- [ ] REQ-012-04: Step 6 contains a conditional prompt "Is this a multi-site contract change? (y/n)".
+- [ ] REQ-012-04: Instruction to emit `## Co-change checklist` section is present when answer is "yes".
+- [ ] REQ-012-05: Placeholder format `- [ ] {file_path}:{line_or_section} -- {what changes}` is documented.
+- [ ] REQ-012-05: Section placement rule is documented (after last AC, before Rationale).
 - [ ] Section header is exactly `## Co-change checklist` (level-2, case-sensitive).
 - [ ] All other spec steps are unchanged.
 
@@ -165,11 +165,11 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 
 ---
 
-## TASK-009-04: Rework Warning in session-end Skill + Contract Test
+## TASK-012-04: Rework Warning in session-end Skill + Contract Test
 
 **Complexity:** M (2h)
 
-**Objective:** Add `check_rework_warning` function to the session-end skill's script layer, wire it into the session log append, and add a contract test pinning the 6-commit threshold. Pins REQ-009-07, REQ-009-08, REQ-009-09.
+**Objective:** Add `check_rework_warning` function to the session-end skill's script layer, wire it into the session log append, and add a contract test pinning the 6-commit threshold. Pins REQ-012-07, REQ-012-08, REQ-012-09.
 
 **In scope:**
 - Edit `.claude/skills/session-end/scripts/complete_session_log.py` (or equivalent session-end script).
@@ -185,12 +185,12 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 - Supporting non-git version control.
 
 **Acceptance Criteria:**
-- [ ] REQ-009-07: `check_rework_warning` returns files with 6+ commits; warning lines emitted to stdout.
-- [ ] REQ-009-07: `## Rework Warning` section appended to session log.
-- [ ] REQ-009-08: When no file exceeds threshold, output is exactly `rework-warning: none`.
-- [ ] REQ-009-08: Section still present in session log (containing `rework-warning: none`).
-- [ ] REQ-009-09: Test asserts 6-commit file appears; 3-commit file does not.
-- [ ] REQ-009-09: Test asserts format `rework-warning: {file_path} edited {n} times`.
+- [ ] REQ-012-07: `check_rework_warning` returns files with 6+ commits; warning lines emitted to stdout.
+- [ ] REQ-012-07: `## Rework Warning` section appended to session log.
+- [ ] REQ-012-08: When no file exceeds threshold, output is exactly `rework-warning: none`.
+- [ ] REQ-012-08: Section still present in session log (containing `rework-warning: none`).
+- [ ] REQ-012-09: Test asserts 6-commit file appears; 3-commit file does not.
+- [ ] REQ-012-09: Test asserts format `rework-warning: {file_path} edited {n} times`.
 - [ ] `pytest tests/skills/session-end/test_rework_warning.py` exits 0.
 - [ ] Git unavailability degrades gracefully: emits `rework-warning: git unavailable`, returns empty list.
 
@@ -236,7 +236,7 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 - `pytest tests/skills/session-end/test_rework_warning.py -v` must pass.
 - Run `python3 scripts/validation/pre_pr.py` to confirm no pre-PR gate failures.
 
-**Dependencies:** TASK-009-01, TASK-009-02, TASK-009-03 are independent. TASK-009-04 is independent of all three. All four tasks can proceed in parallel.
+**Dependencies:** TASK-012-01, TASK-012-02, TASK-012-03 are independent. TASK-012-04 is independent of all three. All four tasks can proceed in parallel.
 
 **Done Definition:** `complete_session_log.py` edited with `check_rework_warning` and session log wiring. Contract test passes. Session-end integration verified manually by running the skill against the current branch.
 
@@ -246,10 +246,10 @@ All tasks reference DESIGN-009 for interface contracts and REQ-009 for acceptanc
 
 | Task | REQ ACs covered | Hours |
 |------|----------------|-------|
-| TASK-009-01 | REQ-009-01, REQ-009-02, REQ-009-06 | 2h |
-| TASK-009-02 | REQ-009-03, REQ-009-06 | 0.5h |
-| TASK-009-03 | REQ-009-04, REQ-009-05 | 1h |
-| TASK-009-04 | REQ-009-07, REQ-009-08, REQ-009-09, REQ-009-06 | 2h |
-| **Total** | REQ-009-01 through REQ-009-09 | **5.5h** |
+| TASK-012-01 | REQ-012-01, REQ-012-02, REQ-012-06 | 2h |
+| TASK-012-02 | REQ-012-03, REQ-012-06 | 0.5h |
+| TASK-012-03 | REQ-012-04, REQ-012-05 | 1h |
+| TASK-012-04 | REQ-012-07, REQ-012-08, REQ-012-09, REQ-012-06 | 2h |
+| **Total** | REQ-012-01 through REQ-012-09 | **5.5h** |
 
-REQ-009-06 (CI gate enforcement) is satisfied by placement of all test files under `tests/` and is not an implementation task.
+REQ-012-06 (CI gate enforcement) is satisfied by placement of all test files under `tests/` and is not an implementation task.

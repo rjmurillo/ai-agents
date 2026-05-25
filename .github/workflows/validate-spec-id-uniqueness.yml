@@ -1,0 +1,98 @@
+# Validate Spec ID Uniqueness (Issue #2068)
+#
+# Ensures REQ/DESIGN/TASK IDs are unique within each spec category.
+# Duplicate `id:` values in `.agents/specs/{requirements,design,tasks}/`
+# break traceability and any spec-graph tooling that joins by ID.
+#
+# Uses dorny/paths-filter (Issue #103): fires on all PRs to satisfy the
+# required-check contract, skips with a passing status when no spec files
+# changed.
+
+name: Validate Spec ID Uniqueness
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'copilot/**'
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  check-changes:
+    name: Check for Spec Changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.specs }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Check path filters
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            specs:
+              - '.agents/specs/requirements/**'
+              - '.agents/specs/design/**'
+              - '.agents/specs/tasks/**'
+              - 'scripts/validation/check_spec_id_uniqueness.py'
+              - '.github/workflows/validate-spec-id-uniqueness.yml'
+
+  validate-spec-ids:
+    name: Validate Spec ID Uniqueness
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Verify unique spec IDs
+        run: python3 scripts/validation/check_spec_id_uniqueness.py
+
+      - name: Show remediation on failure
+        if: failure()
+        run: |
+          echo ""
+          echo "=== Spec ID Uniqueness Validation Failed ==="
+          echo ""
+          echo "One or more files under .agents/specs/{requirements,design,tasks}/"
+          echo "share the same \`id:\` frontmatter value."
+          echo ""
+          echo "To fix:"
+          echo "  1. Pick the next free NNN in the affected category."
+          echo "  2. Rename the duplicate file: git mv <prefix>-<old>-<slug>.md <prefix>-<new>-<slug>.md"
+          echo "  3. Update the file's frontmatter \`id:\` to match."
+          echo "  4. Sweep references in active code/tests/docstrings."
+          echo "  5. Run: python3 scripts/validation/check_spec_id_uniqueness.py"
+          echo ""
+          echo "See issue #2068 for context."
+
+  skip-validation:
+    name: Skip Validation (No Spec Changes)
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    steps:
+      - name: Skip message
+        run: |
+          echo "Spec ID uniqueness validation skipped - no spec files changed"

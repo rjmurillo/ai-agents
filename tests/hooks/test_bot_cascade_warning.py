@@ -1,4 +1,4 @@
-"""Tests for the bot-cascade warning Phase 5c in .githooks/pre-push (REQ-011).
+"""Tests for the bot-cascade warning Phase 5c in .githooks/pre-push (REQ-013).
 
 Pattern: structural verification of the bash hook (string-presence and
 syntax). Same pattern as test_drift_check.py for Phase 5b. Bash hooks are
@@ -6,17 +6,17 @@ thin delegates; static verification is sufficient.
 
 Acceptance criteria pinned:
 
-- REQ-011-01: unresolved threads emit warn (not block).
-- REQ-011-02: incomplete pagination emits skip, not pass.
-- REQ-011-03: recent bot review under 120s emits warn.
-- REQ-011-04: gh api auth failures emit skip, not swallow as pass.
-- REQ-011-05: each recorder outcome (skip/warn/pass) has a call site;
+- REQ-013-01: unresolved threads emit warn (not block).
+- REQ-013-02: incomplete pagination emits skip, not pass.
+- REQ-013-03: recent bot review under 120s emits warn.
+- REQ-013-04: gh api auth failures emit skip, not swallow as pass.
+- REQ-013-05: each recorder outcome (skip/warn/pass) has a call site;
   reviews query and bot filter are matched on non-comment lines so a
   test cannot pass on comment text alone.
 
 Refs:
-- REQ-011 (acceptance criteria)
-- DESIGN-011 (architecture, test strategy)
+- REQ-013 (acceptance criteria)
+- DESIGN-013 (architecture, test strategy)
 - PR #1989 retrospective (highest-leverage bot-cascade intervention)
 """
 
@@ -69,16 +69,16 @@ def _phase_5c_code_lines() -> list[str]:
 
 
 def test_phase_5c_header_present() -> None:
-    """REQ-011-01: Phase 5c block exists after Phase 5b.
+    """REQ-013-01: Phase 5c block exists after Phase 5b.
 
-    Guards the ordering invariant from DESIGN-011: Phase 5c must follow
+    Guards the ordering invariant from DESIGN-013: Phase 5c must follow
     Phase 5b. The `find` calls return -1 on miss; assert non-negative
     positions explicitly so a missing Phase 5b cannot satisfy the
     "5b < 5c" check by accident (copilot finding on PR #2011).
     """
     text = _hook_text()
     assert "Phase 5c" in text, (
-        "REQ-011-01: pre-push hook must include a Phase 5c block"
+        "REQ-013-01: pre-push hook must include a Phase 5c block"
     )
     phase_5b_pos = text.find("Phase 5b")
     phase_5c_pos = text.find("Phase 5c")
@@ -88,24 +88,24 @@ def test_phase_5c_header_present() -> None:
 
 
 def test_phase_5c_calls_unresolved_threads_script() -> None:
-    """REQ-011-01: hook queries unresolved threads via canonical script."""
+    """REQ-013-01: hook queries unresolved threads via canonical script."""
     block = _phase_5c_block()
     assert "get_unresolved_review_threads.py" in block, (
-        "REQ-011-01: hook must invoke get_unresolved_review_threads.py"
+        "REQ-013-01: hook must invoke get_unresolved_review_threads.py"
     )
 
 
 def test_phase_5c_parses_fetched_pages_complete() -> None:
-    """REQ-011-02: hook parses fetched_pages_complete BEFORE trusting count."""
+    """REQ-013-02: hook parses fetched_pages_complete BEFORE trusting count."""
     block = _phase_5c_block()
     assert "fetched_pages_complete" in block, (
-        "REQ-011-02: hook must check fetched_pages_complete; "
+        "REQ-013-02: hook must check fetched_pages_complete; "
         "incomplete pagination cannot be trusted"
     )
 
 
 def test_phase_5c_emits_warn_on_unresolved() -> None:
-    """REQ-011-01: a non-comment record_warn line names unresolved threads.
+    """REQ-013-01: a non-comment record_warn line names unresolved threads.
 
     Bare `record_warn` is too weak (the recent-bot-review path also calls
     it) and bare `unresolved` is too weak (comments say "zero unresolved").
@@ -117,13 +117,13 @@ def test_phase_5c_emits_warn_on_unresolved() -> None:
     assert any(
         "record_warn" in line and "unresolved thread" in line for line in code
     ), (
-        "REQ-011-01: a non-comment line must call `record_warn` with a "
+        "REQ-013-01: a non-comment line must call `record_warn` with a "
         "message referencing 'unresolved thread(s)'"
     )
 
 
 def test_phase_5c_emits_skip_on_incomplete() -> None:
-    """REQ-011-02: a non-comment record_skip line names the incomplete snapshot.
+    """REQ-013-02: a non-comment record_skip line names the incomplete snapshot.
 
     Bare `record_skip` is too weak (many branches call it: gh missing, no
     PR, JSON parse failed). Assert a non-comment line invokes `record_skip`
@@ -136,14 +136,14 @@ def test_phase_5c_emits_skip_on_incomplete() -> None:
         "record_skip" in line and "fetched_pages_complete" in line
         for line in code
     ), (
-        "REQ-011-02: a non-comment line must call `record_skip` with a "
+        "REQ-013-02: a non-comment line must call `record_skip` with a "
         "message naming the incomplete-snapshot condition "
         "('fetched_pages_complete=false')"
     )
 
 
 def test_phase_5c_queries_reviews_endpoint() -> None:
-    """REQ-011-03: hook actually invokes gh api on the /reviews endpoint.
+    """REQ-013-03: hook actually invokes gh api on the /reviews endpoint.
 
     Asserts on a non-comment line so a stray `/reviews` mention in a
     comment cannot satisfy this test if the real call were removed
@@ -154,13 +154,13 @@ def test_phase_5c_queries_reviews_endpoint() -> None:
         "gh api" in line and "pulls/" in line and "/reviews" in line
         for line in code
     ), (
-        "REQ-011-03: a non-comment line must invoke `gh api ... pulls/.../reviews` "
+        "REQ-013-03: a non-comment line must invoke `gh api ... pulls/.../reviews` "
         "to find bot review timestamps"
     )
 
 
 def test_phase_5c_filters_bot_reviews() -> None:
-    """REQ-011-03: hook filters reviews to user.type == "Bot".
+    """REQ-013-03: hook filters reviews to user.type == "Bot".
 
     Asserts the literal jq filter expression appears on a non-comment
     line; the substring "Bot" alone is too weak (it also appears in the
@@ -169,21 +169,21 @@ def test_phase_5c_filters_bot_reviews() -> None:
     """
     code = _phase_5c_code_lines()
     assert any('.user.type == "Bot"' in line for line in code), (
-        'REQ-011-03: a non-comment line must contain the jq filter '
+        'REQ-013-03: a non-comment line must contain the jq filter '
         '`.user.type == "Bot"`'
     )
 
 
 def test_phase_5c_120_second_threshold() -> None:
-    """REQ-011-03: hook uses 120-second threshold for recent bot reviews."""
+    """REQ-013-03: hook uses 120-second threshold for recent bot reviews."""
     block = _phase_5c_block()
     assert "120" in block, (
-        "REQ-011-03: hook must reference the 120-second threshold from DESIGN-011"
+        "REQ-013-03: hook must reference the 120-second threshold from DESIGN-013"
     )
 
 
 def test_phase_5c_no_fail_open_on_reviews() -> None:
-    """REQ-011-04: no `|| true` fail-open in Phase 5c executable code.
+    """REQ-013-04: no `|| true` fail-open in Phase 5c executable code.
 
     PR #1989's M5 had `gh api ... || true` that swallowed auth failures
     as a false PASS. Asserts `|| true` does not appear on any non-comment
@@ -196,16 +196,16 @@ def test_phase_5c_no_fail_open_on_reviews() -> None:
     """
     for line in _phase_5c_code_lines():
         assert "|| true" not in line, (
-            "REQ-011-04: Phase 5c must not use `|| true`; it swallows "
+            "REQ-013-04: Phase 5c must not use `|| true`; it swallows "
             "external-call failures as PASS. Use `|| echo '<sentinel>'` and "
             f"route the sentinel to record_skip. Offending line: {line.strip()}"
         )
 
 
 def test_phase_5c_classifies_review_api_failure() -> None:
-    """REQ-011-04: SKIP message names the failure mode, not just the exit code.
+    """REQ-013-04: SKIP message names the failure mode, not just the exit code.
 
-    REQ-011 line 164 requires the SKIP message to classify the failure
+    REQ-013 line 164 requires the SKIP message to classify the failure
     (auth / rate-limit / network) and use the literal string "gh api auth
     failed" for the auth case. Asserts the hook contains the classifier
     strings and greps stderr for the auth signals (copilot finding on
@@ -213,24 +213,24 @@ def test_phase_5c_classifies_review_api_failure() -> None:
     """
     block = _phase_5c_block()
     assert "gh api auth failed" in block, (
-        "REQ-011-04: SKIP message must use the literal 'gh api auth failed' "
+        "REQ-013-04: SKIP message must use the literal 'gh api auth failed' "
         "for auth-class failures"
     )
     assert "gh api rate-limited" in block, (
-        "REQ-011-04: SKIP message must classify rate-limit failures"
+        "REQ-013-04: SKIP message must classify rate-limit failures"
     )
     assert "gh api network error" in block, (
-        "REQ-011-04: SKIP message must classify network failures"
+        "REQ-013-04: SKIP message must classify network failures"
     )
     # The classifier must inspect captured stderr, not guess.
     code = _phase_5c_code_lines()
     assert any("REVIEW_STDERR" in line and "grep" in line for line in code), (
-        "REQ-011-04: failure classification must grep the captured stderr"
+        "REQ-013-04: failure classification must grep the captured stderr"
     )
 
 
 def test_phase_5c_warn_only_never_fails() -> None:
-    """REQ-011-01..04: Phase 5c is warn-only; never INVOKES record_fail.
+    """REQ-013-01..04: Phase 5c is warn-only; never INVOKES record_fail.
 
     Strips comment lines before matching so the design comment that says
     "Never calls record_fail" does not register as a call site.
@@ -263,15 +263,15 @@ def test_pre_push_hook_bash_syntax_valid() -> None:
 
 
 def test_phase_5c_emits_recorded_outcome_token() -> None:
-    """REQ-011-05: Phase 5c contains a call site for every recorder outcome.
+    """REQ-013-05: Phase 5c contains a call site for every recorder outcome.
 
     Structural verification that the three recorder functions used by the
     contract (`record_skip`, `record_warn`, `record_pass`) each have at
     least one call site inside the Phase 5c block. If any of the three is
-    absent, the corresponding REQ-011-01..04 acceptance branch is
+    absent, the corresponding REQ-013-01..04 acceptance branch is
     unreachable.
 
-    End-to-end runtime evidence belongs to REQ-011-06 (self-apply gate),
+    End-to-end runtime evidence belongs to REQ-013-06 (self-apply gate),
     not this test. Invoking the full hook here would execute Phase 4 (the
     whole pytest suite, ~3 minutes per case), so the self-apply runtime
     evidence is captured in the PR description against the live PR.
@@ -282,6 +282,6 @@ def test_phase_5c_emits_recorded_outcome_token() -> None:
         # mere mention in a comment does not satisfy the assertion.
         pattern = re.compile(rf'(?m)^\s*{fn}\s+"', re.MULTILINE)
         assert pattern.search(block), (
-            f"REQ-011-05: Phase 5c must contain at least one {fn} call site. "
-            "If a branch is removed, document the deferral in DESIGN-011 first."
+            f"REQ-013-05: Phase 5c must contain at least one {fn} call site. "
+            "If a branch is removed, document the deferral in DESIGN-013 first."
         )

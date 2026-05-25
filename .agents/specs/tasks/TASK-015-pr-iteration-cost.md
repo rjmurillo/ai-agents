@@ -1,6 +1,6 @@
 ---
 type: task
-id: TASK-005
+id: TASK-015
 title: Implement pre-push validation hooks for PR iteration cost reduction
 status: todo
 priority: P1
@@ -17,7 +17,7 @@ created: 2026-05-03
 updated: 2026-05-04
 ---
 
-# TASK-005: Implement pre-push validation hooks for PR iteration cost reduction
+# TASK-015: Implement pre-push validation hooks for PR iteration cost reduction
 
 ## Objective
 
@@ -51,7 +51,7 @@ that this task list inherits, see `.agents/plans/active/PLAN-1884-pr-iteration-c
 
 ## Milestone M1: Shared hook framework
 
-### TASK-005-1: Implement `push_guard_base.py` and its tests
+### TASK-015-1: Implement `push_guard_base.py` and its tests
 
 **Objective**: Deliver the shared Strategy framework used by all three push guards.
 
@@ -112,7 +112,7 @@ multi-segment limitation as `fnmatch`.
 
 ## Milestone M2: Markdownlint guard
 
-### TASK-005-2: Implement `invoke_markdownlint_guard.py` and its tests
+### TASK-015-2: Implement `invoke_markdownlint_guard.py` and its tests
 
 **Objective**: Ship US-1. Block `git push` when changed `.md` files violate markdownlint.
 
@@ -158,7 +158,7 @@ returncode=1 and sample stdout.
 
 ## Milestone M3: Manifest count guard (wires existing validator)
 
-### TASK-005-3: Implement `invoke_manifest_count_guard.py` and its tests
+### TASK-015-3: Implement `invoke_manifest_count_guard.py` and its tests
 
 **Objective**: Ship US-2. Block `git push` when marketplace.json description counts disagree
 with filesystem. Reuses existing `build/scripts/validate_marketplace_counts.py` (no new script).
@@ -202,7 +202,7 @@ function, translate exit codes. No `pre_pr.py` extension needed (CI already runs
 
 ## Milestone M4: Session log field guard
 
-### TASK-005-4: Implement `invoke_session_log_field_guard.py` and its tests
+### TASK-015-4: Implement `invoke_session_log_field_guard.py` and its tests
 
 **Objective**: Ship US-3. Block `git push` when session logs have placeholder values.
 

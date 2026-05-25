@@ -1,6 +1,6 @@
 ---
 type: design
-id: DESIGN-006
+id: DESIGN-016
 title: Step 0 First Principles Gate for spec pipeline
 status: draft
 priority: P1
@@ -15,7 +15,7 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
-# DESIGN-006: Step 0 First Principles Gate for spec pipeline
+# DESIGN-016: Step 0 First Principles Gate for spec pipeline
 
 ## Requirements Addressed
 

@@ -1,23 +1,23 @@
 ---
 type: requirement
-id: REQ-011
+id: REQ-013
 title: M5 bot-cascade pre-push warning
 status: draft
 priority: P1
 category: non-functional
 related:
-  - DESIGN-011
-  - TASK-011
+  - DESIGN-013
+  - TASK-013
 issues:
   - 1991
-predecessor: REQ-009
+predecessor: REQ-012
 retrospective: .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md
 author: Richard Murillo
 created: 2026-05-10
 updated: 2026-05-10
 ---
 
-# REQ-011: M5 Bot-Cascade Pre-Push Warning
+# REQ-013: M5 Bot-Cascade Pre-Push Warning
 
 ## Step 0 First Principles
 
