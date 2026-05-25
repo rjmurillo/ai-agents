@@ -119,11 +119,13 @@ def test_co_change_checklist_concrete_example_present(step_6_region: str) -> Non
         # The worked example introduces the NEEDS_REVISION token by name.
         "NEEDS_REVISION",
         # The canonical first checklist entry pinning the `--` separator,
-        # the bare `file:line` form, and the imperative phrase shape.
-        "scripts/lib/verdict.py:42 -- add NEEDS_REVISION to VERDICT_TOKENS set",
-        # A second entry that exercises the quoted-section variant of
-        # `{line_or_section}` so both branches of the format are pinned.
-        'scripts/lib/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation',
+        # the section-name form of `{line_or_section}`, and the imperative
+        # phrase shape. Points at the real verdict module so the worked
+        # example does not push spec authors toward nonexistent paths.
+        'scripts/ai_review_common/verdict.py:"_KNOWN_VERDICT_TOKENS" -- add NEEDS_REVISION to the frozenset',
+        # A second entry that exercises a second section-name variant of
+        # `{line_or_section}` so both fragments pin distinct symbols.
+        'scripts/ai_review_common/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation',
     ]
     for fragment in distinctive_fragments:
         assert fragment in step_6_region, (
