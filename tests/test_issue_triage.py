@@ -289,10 +289,9 @@ class TestFetchOpenIssues:
         assert run.called
 
     def test_raises_on_nonzero_exit(self):
-        completed = type(
-            "Completed", (), {"returncode": 1, "stdout": "", "stderr": "boom"},
-        )
-        with patch("scripts.issue_triage.subprocess.run", return_value=completed):
+        import subprocess as _sp
+        exc = _sp.CalledProcessError(1, ["gh"], output="", stderr="boom")
+        with patch("scripts.issue_triage.subprocess.run", side_effect=exc):
             with pytest.raises(RuntimeError, match="boom"):
                 fetch_open_issues("o", "r", limit=10)
 

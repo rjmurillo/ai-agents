@@ -227,12 +227,13 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
         "--limit", str(limit),
         "--json", "number,title,updatedAt,labels",
     ]
-    result = subprocess.run(
-        cmd, capture_output=True, text=True, timeout=30, check=False,
-    )
-    if result.returncode != 0:
-        stderr = result.stderr.strip() or result.stdout.strip()
-        raise RuntimeError(f"gh issue list failed: {stderr}")
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30, check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip() or (exc.stdout or "").strip()
+        raise RuntimeError(f"gh issue list failed: {stderr}") from exc
     try:
         data = json.loads(result.stdout or "[]")
     except json.JSONDecodeError as err:
