@@ -388,6 +388,15 @@ _MAIN_EPILOGUE_TRY_RE = _re.compile(
     _re.MULTILINE,
 )
 
+# Matches fail-open pattern: try/except in __main__ that exits 0 on exception.
+# Used to preserve fail-open behavior when stripping the main epilogue.
+_FAIL_OPEN_HANDLER_RE = _re.compile(
+    r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
+    r"\s+try:.*?"
+    r"except.*?sys\.exit\(0\)",
+    _re.MULTILINE | _re.DOTALL,
+)
+
 # Full epilogue pattern for stripping: matches from `if __name__` to end of file.
 # Used by _strip_main_epilogue to remove the entire block before wrapping.
 _MAIN_EPILOGUE_FULL_RE = _re.compile(
@@ -414,6 +423,19 @@ def _has_main_function_and_epilogue(body: str) -> bool:
     if not has_main:
         return False
     return _MAIN_EPILOGUE_RE.search(body) is not None or _MAIN_EPILOGUE_TRY_RE.search(body) is not None
+
+
+def _has_fail_open_handler(body: str) -> bool:
+    """Detect scripts with fail-open exception handlers in their ``__main__`` block.
+
+    A fail-open handler catches exceptions from ``main()`` and exits 0 so the
+    hook allows the operation to proceed on unexpected errors. When the shim
+    strips the ``__main__`` block, this behavior must be preserved in the
+    generated ``_original_main`` wrapper.
+
+    Pattern: ``if __name__ == "__main__": try: main() except: ... sys.exit(0)``
+    """
+    return _FAIL_OPEN_HANDLER_RE.search(body) is not None
 
 
 def _strip_main_epilogue(body: str) -> str:
@@ -452,12 +474,31 @@ def _wrap_body_in_function(body: str) -> str:
     wrapping to prevent double execution. The synthetic ``return main()``
     is the ONLY path that invokes main; leaving the original ``if __name__``
     block would cause main() to run twice when Copilot executes the shim.
+
+    FAIL-OPEN PRESERVATION: When the original script had a fail-open
+    handler (try/except with sys.exit(0)), the wrapper preserves that
+    behavior by wrapping the ``return main()`` in a try/except that
+    catches exceptions and returns 0. This ensures hooks like
+    ``invoke_false_completion_gate`` maintain their fail-open contract.
     """
     has_epilogue = _has_main_function_and_epilogue(body)
+    has_fail_open = _has_fail_open_handler(body) if has_epilogue else False
     if has_epilogue:
         body = _strip_main_epilogue(body)
     indented = "\n".join("    " + line if line else "" for line in body.splitlines())
-    trailer = "    return main()\n" if has_epilogue else "    return 0\n"
+    if has_epilogue:
+        if has_fail_open:
+            trailer = (
+                "    try:\n"
+                "        return main()\n"
+                "    except Exception as _exc:\n"
+                "        sys.stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\\n')\n"
+                "        return 0\n"
+            )
+        else:
+            trailer = "    return main()\n"
+    else:
+        trailer = "    return 0\n"
     return (
         "def _original_main(stdin_bytes):\n"
         + "    # original script body begins below\n"
@@ -597,18 +638,43 @@ def _extract_original_body(after_shim: list[str]) -> str:
             continue
         break  # Non-indented line ends the function body.
 
-    # Trim the synthetic trailing ``return 0`` or ``return main()``
-    # we appended. The exact trailer depends on whether the original
-    # script had a canonical main() epilogue at generation time.
+    # Trim the synthetic trailing ``return 0``, ``return main()``, or the
+    # fail-open try/except block we appended. The exact trailer depends on
+    # whether the original script had a canonical main() epilogue and
+    # whether it had a fail-open handler at generation time.
     while body_lines and body_lines[-1].strip() == "":
         body_lines.pop()
     had_main_epilogue = False
-    if body_lines and body_lines[-1].rstrip() == "return main()":
+    had_fail_open = False
+
+    # Check for fail-open trailer pattern (multi-line try/except block).
+    # The trailer structure after de-indentation is:
+    #   body_lines[-5]: "try:"
+    #   body_lines[-4]: "    return main()"
+    #   body_lines[-3]: "except Exception as _exc:"
+    #   body_lines[-2]: "    sys.stderr.write(...)"
+    #   body_lines[-1]: "    return 0"
+    if (
+        len(body_lines) >= 5
+        and body_lines[-1].strip() == "return 0"
+        and "stderr.write" in body_lines[-2]
+        and "except" in body_lines[-3]
+        and body_lines[-4].strip() == "return main()"
+        and body_lines[-5].strip() == "try:"
+    ):
+        had_main_epilogue = True
+        had_fail_open = True
+        # Remove the 5-line try/except block
+        for _ in range(5):
+            body_lines.pop()
+        while body_lines and body_lines[-1].strip() == "":
+            body_lines.pop()
+    elif body_lines and body_lines[-1].strip() == "return main()":
         had_main_epilogue = True
         body_lines.pop()
         while body_lines and body_lines[-1].strip() == "":
             body_lines.pop()
-    elif body_lines and body_lines[-1].rstrip() == "return 0":
+    elif body_lines and body_lines[-1].strip() == "return 0":
         body_lines.pop()
         while body_lines and body_lines[-1].strip() == "":
             body_lines.pop()
@@ -624,10 +690,20 @@ def _extract_original_body(after_shim: list[str]) -> str:
     if body_text and not body_text.endswith("\n"):
         body_text += "\n"
 
-    # Restore a canonical epilogue when the trailer was ``return main()``.
-    # This ensures re-injection produces the same output (idempotent).
+    # Restore a canonical epilogue when the trailer was ``return main()``
+    # (with or without fail-open). This ensures re-injection produces the
+    # same output (idempotent).
     if had_main_epilogue:
-        body_text += '\nif __name__ == "__main__":\n    sys.exit(main())\n'
+        if had_fail_open:
+            body_text += (
+                '\nif __name__ == "__main__":\n'
+                "    try:\n"
+                "        main()\n"
+                "    except Exception:\n"
+                "        sys.exit(0)\n"
+            )
+        else:
+            body_text += '\nif __name__ == "__main__":\n    sys.exit(main())\n'
 
     return body_text + tail
 
