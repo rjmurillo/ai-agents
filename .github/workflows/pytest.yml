@@ -110,6 +110,13 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         run: pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=98
 
+      # Issue #2063 (revised): module-name form is the canonical form for this
+      # repository. The file-path form (--cov=.claude/skills/.../*.py) was
+      # tested in PR #2078 and produces "Module never imported" + 0% coverage
+      # with pytest-cov 7.x on Python 3.14, tripping --cov-fail-under=100. The
+      # module-name form resolves correctly via conftest.py sys.path setup and
+      # reports the actual 100%. Do not switch forms without re-verifying both
+      # locally and in CI.
       - name: Pin REQ-009 module coverage at 100% (PR #1989 user requirement)
         if: steps.should-run.outputs.skip != 'true'
         run: |
