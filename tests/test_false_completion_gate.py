@@ -151,6 +151,11 @@ class TestMain:
         hook_input = {
             "tool_input": {"command": 'git commit -m "feat: done with implementation"'},
         }
+        # main() reads logs via the plural helper get_today_session_logs and
+        # loops _has_verification_evidence over each one. Patch the plural
+        # helper directly; patching only the singular form leaves main() with
+        # no today's logs (the fixture is dated 2026-01-01) and the gate
+        # fail-opens before reaching the block branch.
         with patch.object(
             invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
         ), patch.object(
@@ -162,7 +167,7 @@ class TestMain:
         ), patch.object(
             invoke_false_completion_gate, "_is_documentation_only", return_value=False,
         ), patch.object(
-            invoke_false_completion_gate, "get_today_session_log", return_value=log,
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[log],
         ), patch.object(
             invoke_false_completion_gate,
             "_has_verification_evidence",
@@ -184,6 +189,8 @@ class TestMain:
         hook_input = {
             "tool_input": {"command": 'git commit -m "feat: done with implementation"'},
         }
+        # See note on test_blocks_completion_without_evidence for why this
+        # patches the plural get_today_session_logs.
         with patch.object(
             invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
         ), patch.object(
@@ -195,7 +202,7 @@ class TestMain:
         ), patch.object(
             invoke_false_completion_gate, "_is_documentation_only", return_value=False,
         ), patch.object(
-            invoke_false_completion_gate, "get_today_session_log", return_value=log,
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[log],
         ), patch.object(
             invoke_false_completion_gate,
             "_has_verification_evidence",
