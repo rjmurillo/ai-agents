@@ -225,7 +225,14 @@ CHANGED_PY=$(echo "$CHANGED_FILES" | grep -E '\.py$' || true)
 # mypy/pytest at workspace root reject duplicate module names. Filter all synced
 # copies out for tools that walk imports; canonical (scripts/<pkg>/) is still
 # type-checked + tested.
-CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' || true)
+# Issue #2052: build/scripts/generate_hooks.py mirrors .claude/hooks/<event>/
+# scripts under src/copilot-cli/hooks/<event_lowercase>/ for plugin
+# distribution. Same duplicate-module collision applies; drop the synced
+# copies and keep the canonical .claude/hooks copy in the mypy/pytest set.
+CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" \
+    | grep -Ev '^(\.claude/lib|src/copilot-cli/lib)/(ai_review_common|hook_utilities|github_core)/' \
+    | grep -Ev '^src/copilot-cli/hooks/' \
+    || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
 CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
@@ -709,11 +716,26 @@ fi
     # Issue #2045: gate on canonical changes and pass --ignore for all synced
     # copies (ai_review_common, hook_utilities, github_core in .claude/lib/ and
     # src/copilot-cli/lib/) so pytest collection doesn't trip duplicate-module errors.
+    # PR #2053: override Claude Code session env vars (CLAUDE_PLUGIN_ROOT,
+    # CLAUDE_PROJECT_DIR) for pytest's environment. When pre-push runs from
+    # inside a Claude Code session, those vars leak into the pytest subprocess:
+    #   * CLAUDE_PLUGIN_ROOT points at whichever plugin loaded the active tool
+    #     (e.g. context-mode). Several PreToolUse hooks trust it, look for a
+    #     sibling lib/ that does not exist there, and sys.exit(2) at module
+    #     import. That trips pytest collection on tests/hooks/test_*.py.
+    #     Issue #2052: set CLAUDE_PLUGIN_ROOT to src/copilot-cli (the canonical
+    #     plugin root with lib/) instead of unsetting it. The walk-up from
+    #     .claude/hooks never reaches src/copilot-cli/.claude-plugin/plugin.json.
+    #   * CLAUDE_PROJECT_DIR is honored by get_project_directory(); when tests
+    #     simulate a consumer repo via cwd=tmp_path, the inherited value
+    #     overrides the simulation and is_project_repo() returns True, so the
+    #     hook never prints [SKIP] and tests/test_hook_plugin_guards.py fails.
+    # CI runners do not export these variables, so behavior there is unchanged.
     if [ -n "$CHANGED_PY_CANONICAL" ]; then
         if set_python_cmd; then
             if [ -d "$REPO_ROOT/tests" ]; then
                 TEST_OUTPUT=$(mktemp)
-                if "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
+                if env CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" -u CLAUDE_PROJECT_DIR "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
                     --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \
                     --ignore="$REPO_ROOT/.claude/lib/hook_utilities" \
                     --ignore="$REPO_ROOT/.claude/lib/github_core" \
@@ -981,7 +1003,7 @@ fi
 # ============================================================================
 echo_phase "Phase 5b: Review-axes drift detection"
 
-# Detect drift between .claude/review-axes/{role}.md (canonical) and
+# Detect drift between .claude/skills/review/references/{role}.md (canonical) and
 # .github/prompts/pr-quality-gate-{role}.md (generated). Bypassable via
 # --no-verify; the CI workflow drift-check job is the non-bypassable backstop.
 # Use set_python_cmd (uv-aware) for consistency with other phases. PR #1965

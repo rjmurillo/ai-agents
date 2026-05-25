@@ -1,5 +1,5 @@
 ---
-applyTo: **
+applyTo: '**'
 ---
 
 # Universal Rules

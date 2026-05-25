@@ -171,7 +171,7 @@ Always commit the template AND generated files together:
 ```bash
 git add templates/agents/analyst.shared.md
 git add src/vs-code-agents/analyst.agent.md
-git add src/copilot-cli/analyst.agent.md
+git add src/copilot-cli/agents/analyst.agent.md
 git commit -m "feat(analyst): add new research capability"
 ```
 
@@ -468,7 +468,7 @@ The `agent-drift-detection.yml` workflow runs on every PR that touches agent-rel
 
 ### What counts as drift?
 
-Drift is detected when any generated file (`src/vs-code-agents/*.agent.md`, `src/copilot-cli/*.agent.md`) differs from what `generate_agents.py` would produce from the current templates. This includes both:
+Drift is detected when any generated file (`src/vs-code-agents/*.agent.md`, `src/copilot-cli/agents/*.agent.md`) differs from what `generate_agents.py` would produce from the current templates. This includes both:
 
 - **Content drift**, body text changed directly in a generated file
 - **Frontmatter drift**, YAML frontmatter edited outside the generation pipeline

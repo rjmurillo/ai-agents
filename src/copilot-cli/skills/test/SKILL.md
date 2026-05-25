@@ -130,7 +130,7 @@ Each gate MUST produce a verdict line and findings array:
 GATE: [name]
 VERDICT: PASS|WARN|CRITICAL_FAIL
 FINDINGS:
-- [SEVERITY] (file:line) description — recommendation
+- [SEVERITY] (file:line) description: recommendation
 ```
 
 Synthesize into overall report:

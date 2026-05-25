@@ -144,7 +144,7 @@ flowchart TD
     subgraph Sources["Source Files"]
         SC[src/claude/*.md]
         SV[src/vs-code-agents/*.agent.md]
-        SCP[src/copilot-cli/*.agent.md]
+        SCP[src/copilot-cli/agents/*.agent.md]
         MCP[.mcp.json]
     end
 

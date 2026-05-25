@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/rjmurillo/ai-agents/schemas/tension.schema.json",
+  "title": "Skillbook Tension Table",
+  "description": "Validates .agents/skillbook/tensions.json: pairs of policies that contradict, with a per-context preferred resolution. See .agents/skillbook/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tensions"],
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Tension table schema version."
+    },
+    "tensions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/tension" }
+    }
+  },
+  "$defs": {
+    "tension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "policy_a",
+        "policy_b",
+        "preferred_in_context",
+        "status",
+        "detected_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^ten-[a-z0-9-]+$",
+          "description": "Stable tension identifier."
+        },
+        "policy_a": {
+          "type": "string",
+          "pattern": "^pol-[a-z0-9-]+$",
+          "description": "First policy in the tension."
+        },
+        "policy_b": {
+          "type": "string",
+          "pattern": "^pol-[a-z0-9-]+$",
+          "description": "Second policy in the tension."
+        },
+        "preferred_in_context": {
+          "type": "object",
+          "description": "Map of context name to the resolution that wins in that context.",
+          "additionalProperties": { "$ref": "#/$defs/contextResolution" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["holding", "resolved"],
+          "description": "holding = still being arbitrated per context. resolved = a stable resolution exists."
+        },
+        "detected_at": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix epoch seconds when the tension was recorded."
+        }
+      }
+    },
+    "contextResolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preferred", "confirmed_count", "evidence"],
+      "properties": {
+        "preferred": {
+          "type": "string",
+          "pattern": "^pol-[a-z0-9-]+$",
+          "description": "The policy id that wins in this context."
+        },
+        "confirmed_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of eval-grounded confirmations of this resolution."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Eval run identifiers supporting this resolution."
+        }
+      }
+    }
+  }
+}

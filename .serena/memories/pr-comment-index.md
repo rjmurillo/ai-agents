@@ -5,3 +5,4 @@
 | path containment traversal CWE-22 normalization separator case-insensitive validation | [pr-review/pr-comment-003-path-containment-layers](pr-review/pr-comment-003-path-containment-layers.md) |
 | response template reply commit fix won't-fix rationale bot comment | [pr-review/pr-comment-004-bot-response-templates](pr-review/pr-comment-004-bot-response-templates.md) |
 | branch checkout verification state git current uncommitted silent fail | [pr-review/pr-comment-005-branch-state-verification](pr-review/pr-comment-005-branch-state-verification.md) |
+| scratch artifacts mktemp TMPDIR reply draft body-file working tree clutter audit pr-replies | [pr-review/pr-comment-006-stage-scratch-outside-tree](pr-review/pr-comment-006-stage-scratch-outside-tree.md) |

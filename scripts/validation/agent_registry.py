@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Parse and validate agent definitions from src/claude/*.md against AGENTS.md.
+"""Parse and validate agent definitions from src/claude/*.md.
 
-Parses YAML frontmatter from agent markdown files and validates
-each definition against the canonical agent catalog in AGENTS.md.
+Parses YAML frontmatter from agent markdown files and validates each
+definition (required fields, allowed model, no duplicate names).
 
 Exit codes follow ADR-035:
     0 - Success: all agents valid
@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,16 +33,6 @@ _REQUIRED_FIELDS = ("name", "description", "model")
 # Allowed model values
 _VALID_MODELS = frozenset({"opus", "sonnet", "haiku"})
 
-# Pattern for extracting agent rows from AGENTS.md markdown table
-_AGENT_TABLE_ROW = re.compile(
-    r"^\|\s*(?P<name>[\w-]+)\s*\|[^|]*\|\s*(?P<model>opus|sonnet|haiku)\s*\|",
-)
-
-# Pattern for pipe-delimited agent entries: |name: purpose (model)
-_AGENT_PIPE_ENTRY = re.compile(
-    r"(?P<name>[\w-]+):\s*[^(|]+(?:\((?P<model>opus|sonnet|haiku)\))?"
-)
-
 
 @dataclass(frozen=True)
 class AgentDefinition:
@@ -54,14 +43,6 @@ class AgentDefinition:
     model: str
     argument_hint: str
     file_path: Path
-
-
-@dataclass
-class CatalogEntry:
-    """Expected agent from AGENTS.md catalog."""
-
-    name: str
-    model: str
 
 
 @dataclass
@@ -124,84 +105,16 @@ def parse_agent_files(agent_dir: Path) -> tuple[list[AgentDefinition], list[str]
     return agents, errors
 
 
-def parse_catalog(agents_md_path: Path) -> list[CatalogEntry]:
-    """Parse the agent catalog from AGENTS.md.
-
-    Supports both markdown table format and pipe-delimited format.
-    Table format: | name | purpose | model |
-    Pipe format: |name: purpose (model)|name2: purpose2
-    """
-    content = agents_md_path.read_text(encoding="utf-8")
-    entries: list[CatalogEntry] = []
-    seen_names: set[str] = set()
-    in_agents_section = False
-
-    for line in content.splitlines():
-        # Track when we enter/leave the Agents section
-        if line.startswith("## Agents"):
-            in_agents_section = True
-            continue
-        if in_agents_section and line.startswith("## "):
-            in_agents_section = False
-            continue
-
-        # Try table row format first
-        m = _AGENT_TABLE_ROW.match(line)
-        if m:
-            name = m.group("name")
-            if name not in seen_names:
-                seen_names.add(name)
-                entries.append(CatalogEntry(name=name, model=m.group("model")))
-            else:
-                logger.debug(
-                    "Skipping duplicate agent %r (model=%s, format=table)",
-                    name,
-                    m.group("model"),
-                )
-            continue
-
-        # Try pipe-delimited format (only in Agents section)
-        if in_agents_section and line.startswith("|"):
-            for m in _AGENT_PIPE_ENTRY.finditer(line):
-                name = m.group("name")
-                model = m.group("model") or "sonnet"
-                if name not in seen_names:
-                    seen_names.add(name)
-                    entries.append(CatalogEntry(name=name, model=model))
-                else:
-                    logger.debug(
-                        "Skipping duplicate agent %r (model=%s, format=pipe)",
-                        name,
-                        model,
-                    )
-
-    return entries
-
-
-def validate(
-    agents: list[AgentDefinition],
-    catalog: list[CatalogEntry],
-) -> ValidationResult:
-    """Validate parsed agents against the canonical catalog.
+def validate(agents: list[AgentDefinition]) -> ValidationResult:
+    """Validate parsed agents.
 
     Checks:
     - Required frontmatter fields present
     - Model value is valid (opus, sonnet, haiku)
-    - Every catalog agent has a corresponding file
-    - Model assignments match between file and catalog
-    - No duplicate agent names in parsed files
-    - Catalog is not empty when agents exist (prevents silent skip of catalog validation)
+    - No duplicate agent names across parsed files
     """
     result = ValidationResult()
-    catalog_by_name = {e.name: e for e in catalog}
     agents_by_name: dict[str, AgentDefinition] = {}
-
-    if len(catalog) == 0 and len(agents) > 0:
-        result.errors.append(
-            f"Catalog is empty but {len(agents)} agent(s) found; "
-            "catalog validation would be silently skipped. "
-            "Ensure the catalog file contains a '## Agents' section with agent entries."
-        )
 
     for agent in agents:
         # Duplicate check
@@ -227,48 +140,19 @@ def validate(
                 f"invalid model '{agent.model}', expected one of {sorted(_VALID_MODELS)}"
             )
 
-        # Model match against catalog
-        if agent.name in catalog_by_name:
-            expected_model = catalog_by_name[agent.name].model
-            if agent.model and agent.model != expected_model:
-                result.errors.append(
-                    f"Agent '{agent.name}' ({agent.file_path.name}): "
-                    f"model '{agent.model}' does not match catalog '{expected_model}'"
-                )
-
-    # Missing agents: in catalog but no file
-    for entry in catalog:
-        if entry.name not in agents_by_name:
-            result.warnings.append(
-                f"Catalog agent '{entry.name}' has no definition file in src/claude/"
-            )
-
-    # Extra agents: file exists but not in catalog
-    for name in agents_by_name:
-        if name not in catalog_by_name:
-            result.warnings.append(
-                f"Agent '{name}' has a definition file but is not in the AGENTS.md catalog"
-            )
-
     return result
 
 
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point for agent registry validation."""
     parser = argparse.ArgumentParser(
-        description="Parse and validate agent registry against AGENTS.md catalog.",
+        description="Parse and validate agent definitions in src/claude/.",
     )
     parser.add_argument(
         "--agent-dir",
         type=Path,
         default=Path("src/claude"),
         help="Directory containing agent markdown files (default: src/claude)",
-    )
-    parser.add_argument(
-        "--catalog",
-        type=Path,
-        default=Path("AGENTS.md"),
-        help="Path to AGENTS.md with canonical agent catalog (default: AGENTS.md)",
     )
     parser.add_argument(
         "--json",
@@ -281,19 +165,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: agent directory not found: {args.agent_dir}", file=sys.stderr)
         return 2
 
-    if not args.catalog.is_file():
-        print(f"Error: catalog file not found: {args.catalog}", file=sys.stderr)
-        return 2
-
     agents, parsing_errors = parse_agent_files(args.agent_dir)
-
-    try:
-        catalog = parse_catalog(args.catalog)
-    except OSError as e:
-        print(f"Error reading catalog file {args.catalog}: {e}", file=sys.stderr)
-        return 2
-
-    result = validate(agents, catalog)
+    result = validate(agents)
     result.errors.extend(parsing_errors)
 
     if args.json:
@@ -303,7 +176,6 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(
                 {
                     "agents_parsed": len(agents),
-                    "catalog_entries": len(catalog),
                     "errors": result.errors,
                     "warnings": result.warnings,
                     "ok": result.ok,
@@ -312,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     else:
-        print(f"Parsed {len(agents)} agents, {len(catalog)} catalog entries")
+        print(f"Parsed {len(agents)} agents")
         for err in result.errors:
             print(f"  ERROR: {err}")
         for warn in result.warnings:
