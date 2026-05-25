@@ -20,7 +20,7 @@ import pytest
 # Add hooks directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "SessionStart"))
 
-import invoke_context_loader
+import invoke_context_loader  # noqa: E402
 
 
 @pytest.fixture

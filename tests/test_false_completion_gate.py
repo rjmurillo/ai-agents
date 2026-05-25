@@ -21,7 +21,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "PreToolUse"))
 
-import invoke_false_completion_gate
+import invoke_false_completion_gate  # noqa: E402
 
 
 class TestCompletionSignalDetection:

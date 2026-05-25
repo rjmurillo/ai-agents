@@ -20,7 +20,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "PostToolUse"))
 
-import invoke_plan_state_sync
+import invoke_plan_state_sync  # noqa: E402
 
 
 class TestIsCheckpointableFile:

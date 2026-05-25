@@ -53,7 +53,7 @@ if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import get_project_directory, get_today_session_log, get_today_session_logs
+    from hook_utilities import get_project_directory, get_today_session_logs
     from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
 
@@ -62,22 +62,6 @@ except ImportError:
         if env_dir:
             return str(Path(env_dir).resolve())
         return str(Path.cwd())
-
-    def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | None:
-        if date is None:
-            date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        sessions_path = Path(sessions_dir)
-        if not sessions_path.is_dir():
-            return None
-        try:
-            logs = sorted(
-                sessions_path.glob(f"{date}-session-*.json"),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True,
-            )
-        except OSError:
-            return None
-        return logs[0] if logs else None
 
     def get_today_session_logs(sessions_dir: str) -> list[Path]:
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")

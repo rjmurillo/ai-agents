@@ -21,7 +21,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "PreCompact"))
 
-import invoke_compact_checkpoint
+import invoke_compact_checkpoint  # noqa: E402
 
 
 @pytest.fixture
