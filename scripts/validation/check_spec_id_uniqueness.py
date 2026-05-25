@@ -24,7 +24,12 @@ from collections import defaultdict
 from pathlib import Path
 
 CATEGORIES = ("requirements", "design", "tasks")
-ID_RE = re.compile(r"^id:\s*(\S+)\s*$", re.MULTILINE)
+# Anchored top-level `id:` key with optional single or double quotes and an
+# optional trailing `# comment`. Captures bare token, drops quotes and comment.
+ID_RE = re.compile(
+    r"^id:\s*[\"']?([^\"'#\s]+)[\"']?\s*(?:#.*)?$",
+    re.MULTILINE,
+)
 
 
 def _read_id(path: Path) -> str | None:
