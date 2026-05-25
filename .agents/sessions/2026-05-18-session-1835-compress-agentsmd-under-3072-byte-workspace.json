@@ -1,0 +1,135 @@
+{
+  "session": {
+    "number": 1835,
+    "date": "2026-05-18",
+    "branch": "fix/agents-md-workspace-budget",
+    "startingCommit": "1d131430",
+    "objective": "compress AGENTS.md under 3072-byte workspace per-file budget (issue #2034)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md loaded at session start via system-reminder hook; Serena fallback path per AGENTS.md (.serena/memories/); Forgetful unavailable, Serena memory context active with 11 cross-session entries"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md initial_instructions loaded via @import in CLAUDE.md system context; session gates, boundaries, skill-first routing all present in context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read: READ-ONLY reference, status ACTIVE, session context goes to session logs and Serena memory (protocol change 2025-12-22)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "50+ skills listed in session-start system-reminder; used caveman-compress, github-url-intercept, github skill scripts, session-init throughout session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md auto-loaded at session start; CLAUDE.md @imports AGENTS.md; all session gates, boundaries, and skill-routing rules in context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS.md read: canonical source of truth, RFC 2119, language constraints (Python/PowerShell), indexed to authoritative sources; last updated 2025-12-18"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md loaded at session start: 11 entries covering security findings, scratch artifact policy, canonical-source-first, paginate PR APIs, bot reviewer, generator isolation, PR description CI, skill sidecars naming, pre-draft research, bot thread clustering"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/agents-md-workspace-budget"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/agents-md-workspace-budget"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status: AGENTS.md modified, AGENTS.original.md deleted (backup removed); clean after session work"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "1d131430"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/workspace/agents-md-workspace-budget.md written and committed in 37803f7a"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 ran via pre-commit hook (AGENTS.md, 0 errors) and pre-push (2 files, 0 errors)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md committed df7c8489; Serena memory committed 37803f7a; session log committed as final step"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py PASS"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Ran caveman-compress on AGENTS.md; file already terse, minimal gain (3228 to 3221 B, still over 3072 cap)",
+      "outcome": "compression insufficient; test still fails"
+    },
+    {
+      "action": "Analyzed test_workspace_limits.py; identified 3072 B hard cap; measured candidate with lossless rewording + Agents roster removal",
+      "outcome": "candidate at 2791 B (281 B headroom); review PASS"
+    },
+    {
+      "action": "Applied changes to AGENTS.md: dropped Agents roster (user-approved), lossless rewording, restored Autonomy Guardrail label after review caught terminology drift",
+      "outcome": "AGENTS.md 2791 B; test_workspace_limits 3/3 pass; markdownlint 0 errors"
+    },
+    {
+      "action": "Created issue #2034; verified 7 open PRs CI-red on test_per_file_limit[AGENTS.md]; posted evidence comment to #2034",
+      "outcome": "issue #2034 created; evidence posted; 7 PRs cross-linked"
+    }
+  ],
+  "endingCommit": "37803f7a",
+  "nextSteps": []
+}

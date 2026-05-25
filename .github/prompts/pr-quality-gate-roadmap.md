@@ -1,5 +1,5 @@
 <!-- GENERATED -- DO NOT EDIT -->
-<!-- Source: .claude/review-axes/roadmap.md -->
+<!-- Source: .claude/skills/review/references/roadmap.md -->
 <!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
 
 # Roadmap Review Task

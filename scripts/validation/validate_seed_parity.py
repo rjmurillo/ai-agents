@@ -4,7 +4,7 @@
 This is a FORENSIC TOOL, not a regression gate. Do NOT add it to CI.
 
 Background. REQ-008-01 mandated that each canonical
-``.claude/review-axes/{role}.md`` was seeded verbatim from the matching
+``.claude/skills/review/references/{role}.md`` was seeded verbatim from the matching
 ``.github/prompts/pr-quality-gate-{role}.md`` at the seeding commit on
 the main branch. The seed transform adds YAML frontmatter, balances any
 unclosed code fence, and appends an ``## Output Schema`` section. The
@@ -45,11 +45,11 @@ import argparse
 import hashlib
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CANONICAL_DIR = REPO_ROOT / ".claude" / "review-axes"
+CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 CI_PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
 
 ALL_ROLES: tuple[str, ...] = (
