@@ -2,7 +2,7 @@
   "id": "episode-2026-05-26-session-1837",
   "session": "2026-05-26-session-1837",
   "timestamp": "2026-05-26T03:49:24.739379+00:00",
-  "outcome": "success",
+  "outcome": "partial",
   "task": "",
   "decisions": [],
   "events": [
@@ -10,7 +10,7 @@
       "id": "e001",
       "timestamp": "2026-05-26T03:49:24.736920+00:00",
       "type": "commit",
-      "content": "Commit: a0e1d8bd",
+      "content": "Commit: e33d08f4",
       "caused_by": [],
       "leads_to": []
     },
@@ -36,8 +36,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 0
+    "commits": 1,
+    "files_changed": 2
   },
   "lessons": []
 }

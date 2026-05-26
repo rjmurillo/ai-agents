@@ -71,7 +71,7 @@ Phase 3 is now active. Decisions from the four open questions are answered below
 
 **Answered decisions:**
 
-1. **Scope.** Rewrite the top-10 priority list (D/F filers plus top-3 leverage templates). B-tier-to-A pass across all 73 files deferred to Phase 4.
+1. **Scope.** Rewrite the top-10 priority list (top-7 leverage templates plus D/F files). B-tier-to-A pass across all 73 files deferred to Phase 4.
 2. **Sequencing.** Template-first (auto-cascades via `python3 build/generate_agents.py`). Quick wins (pr-quality clones, default-ai-review) in the same pass since they share the A2/A6 deficit pattern.
 3. **Verification.** Offline rubric rescore (target 32+/35 for agent/template files, 27+/30 for prompt files) plus `python3 scripts/validation/pre_pr.py` plus `python3 build/generate_agents.py` round-trip per PR. CI gate (skill discriminator) deferred; not implemented.
 4. **Owner.** Autonomous subagent (one PR per target). Human review via PR before merge. Templates touch the call graph and must go through full PR review.
