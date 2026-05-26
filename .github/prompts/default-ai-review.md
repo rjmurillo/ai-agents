@@ -1,6 +1,6 @@
 # Default AI Review
 
-Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation. Follow the communication style in [src/STYLE-GUIDE.md](src/STYLE-GUIDE.md).
+Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation. Follow the communication style in [src/STYLE-GUIDE.md](/src/STYLE-GUIDE.md).
 
 ## Reasoning Protocol
 
@@ -14,7 +14,7 @@ Do not include a finding without working through all three steps. Quote the exac
 
 ## Output Shape
 
-Emit four sections in this exact order. No preamble. No closing remarks.
+Emit four sections in this exact order, followed by the required verdict block (see Verdict Line section). No preamble. No prose between the four sections and the verdict block. No content after the verdict block.
 
 **Summary** (3 sentences max): What the diff does. The single most significant finding. Whether the change is safe to merge as-is.
 
@@ -60,11 +60,13 @@ Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with a loc
 
 ## Skip / Ask First
 
-Skip this prompt if no diff is provided. Emit `VERDICT: WARN` and `MESSAGE: No diff supplied` as the complete output.
+The harness runs non-interactively, so the model cannot ask a follow-up question. Every degraded-context path below ("ask first" cases included) produces the four required sections plus the verdict block as the deterministic output. Treat "ask first" as "emit WARN with the missing context named in MESSAGE", never as a no-op.
 
-If the `## Changes` section begins with markers like `[Large PR -` indicating summary-only or partial context (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` unless the available evidence justifies escalation to `CRITICAL_FAIL` or `REJECTED`.
+No diff supplied: emit `VERDICT: WARN` with `MESSAGE: No diff supplied`. Summary and Findings sections may be empty placeholders; Recommendation is `CONDITIONAL APPROVE: re-run with a diff`.
 
-Ask first if you cannot infer the repository context (language, framework, test strategy) from the diff alone.
+Summary-only or partial context: if the `## Changes` section begins with markers like `[Large PR -` (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` unless the available evidence justifies escalation to `CRITICAL_FAIL` or `REJECTED`.
+
+Repository context unclear (cannot infer language, framework, or test strategy from the diff): emit `VERDICT: WARN` with `MESSAGE: Insufficient repository context; state the missing pieces.` Do not assume; state in `MESSAGE` which context elements were missing.
 
 ## Verdict Line (REQUIRED by harness)
 
@@ -75,9 +77,9 @@ VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]
 MESSAGE: [Brief explanation, one sentence]
 ```
 
-Optional follow-on lines. Append immediately after `MESSAGE:` when applicable. Use a real label name and a real milestone name; do not emit the literal strings `label-name` or `milestone-name`. Omit each line when no value applies:
+Optional follow-on lines. Each is independent: append a line only when that specific value applies, omit it otherwise. Use a real label name and a real milestone name; do not emit the literal strings `label-name` or `milestone-name`:
 
-- `LABEL: <existing GitHub label>`: apply this label to the PR.
-- `MILESTONE: <existing GitHub milestone>`: assign this milestone to the PR.
+- `LABEL: <existing GitHub label>`: apply this label to the PR. Append only when a real label applies.
+- `MILESTONE: <existing GitHub milestone>`: assign this milestone to the PR. Append only when a real milestone applies.
 
-The harness parses each field on its own line; do not merge or reorder them.
+The harness parses each field on its own line and accepts label-only, milestone-only, both, or neither. Do not merge or reorder the fields.
