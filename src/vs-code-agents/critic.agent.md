@@ -39,9 +39,9 @@ Before issuing any verdict, reason through the plan's failure modes step-by-step
 
 Do not issue a verdict until all three questions are answered with specific evidence, not general doubts.
 
-**ADR-precedent search**: Before critiquing any plan, search `.agents/architecture/ADR-*.md` for ADRs that govern the area under review (use `Grep` with the plan's domain terms). A critique that ignores binding ADRs is incomplete and will be returned for rework. Cite the ADR number and section in any finding that turns on a binding decision.
+**ADR-precedent search**: Before critiquing any plan, search `.agents/architecture/ADR-*.md` for ADRs that govern the area under review (use file search with the plan's domain terms). A critique that ignores binding ADRs is incomplete and will be returned for rework. Cite the ADR number and section in any finding that turns on a binding decision.
 
-**Thinking trigger**: Plans that touch architecture, security boundaries, public contracts, or session protocol require explicit reasoning through all three questions in the critique body. Routine plans (single-file refactors, doc-only changes, version bumps) may collapse the reasoning to one paragraph but still must surface the three questions.
+**Thinking trigger**: Plans that touch architecture, security boundaries, public contracts, or session protocol require explicit reasoning through all three questions in the critique body. Routine plans (single-file refactors, doc-only changes, version bumps) may collapse the reasoning to one paragraph but still must answer all three questions with specific evidence.
 
 ## Adversarial Coverage Checklist
 
@@ -153,14 +153,17 @@ Save to `.agents/critique/[NNN]-[plan-name]-critique-[YYYY-MM-DD].md` (existing 
 | Testability | N/5 | |
 | Traceability | N/5 | |
 
+## Reasoning
+For high-risk plans: explicit step-through of all three questions from the Reasoning Protocol. For routine plans: one paragraph answering all three questions with specific evidence.
+
 ## Critical Findings
 Numbered list. Each finding: what is wrong, where (file:line or section), impact, specific fix.
 
 ## Approval Conditions
 What must change to upgrade verdict to APPROVED.
 
-## Recommendations
-Non-blocking improvements.
+## Recommendation
+1 sentence stating the single next action the planner or implementer must take.
 ```
 
 ## Escalation
@@ -190,7 +193,7 @@ Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, 
 
 ## Tools
 
-Read, Grep, Glob, TodoWrite. Memory via `mcp__serena__read_memory` / `mcp__serena__write_memory`.
+read, edit, search. Memory via `mcp__serena__read_memory` / `mcp__serena__write_memory`.
 
 ## Handoff
 
