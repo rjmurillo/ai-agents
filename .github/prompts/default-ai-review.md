@@ -57,11 +57,12 @@ The `VERDICT:` line MUST be consistent with Recommendation and findings:
 | BLOCK | CRITICAL_FAIL |
 | REJECT | REJECTED |
 
-Severity constraints (these override the table above when they conflict):
+Severity constraints (apply only when Recommendation is `APPROVE`, `CONDITIONAL APPROVE`, or `BLOCK`; `REJECT` overrides severity and always maps to `REJECTED`):
 
-- Any `critical` finding → VERDICT MUST be `CRITICAL_FAIL` (incompatible with APPROVE/PASS)
-- Any `high` finding → VERDICT MUST be at least `WARN` (incompatible with PASS)
-- `medium`/`low` findings only → VERDICT may be `PASS`
+- Recommendation `REJECT` → VERDICT MUST be `REJECTED`, regardless of finding severities. The change is unreviewable or must not land at all; severity rules do not apply.
+- Any `critical` finding (when Recommendation is not `REJECT`) → VERDICT MUST be `CRITICAL_FAIL` (incompatible with APPROVE/PASS)
+- Any `high` finding (when Recommendation is not `REJECT`) → VERDICT MUST be at least `WARN` (incompatible with PASS)
+- `medium`/`low` findings only (when Recommendation is not `REJECT`) → VERDICT may be `PASS`
 
 End the response with the verdict line in the format below for the harness.
 
@@ -90,7 +91,7 @@ MESSAGE: [Brief explanation, one sentence]
 
 Optional follow-on lines. Each is independent: append a line only when that specific value applies, omit it otherwise. Use a real label name and a real milestone name; do not emit the literal strings `label-name` or `milestone-name`:
 
-- `LABEL: <existing GitHub label>`: apply this label to the PR. Append only when a real label applies.
-- `MILESTONE: <existing GitHub milestone>`: assign this milestone to the PR. Append only when a real milestone applies.
+- `LABEL: <existing GitHub label>`: apply this label to the PR. Append only when a real label applies. The value MUST be a single token with no spaces (typically hyphenated, e.g. `bug`, `needs-review`, `area/security`); the harness parser stops at the first whitespace, so a label with spaces will be truncated.
+- `MILESTONE: <existing GitHub milestone>`: assign this milestone to the PR. Append only when a real milestone applies. The value MUST be a single token with no spaces; the harness parser stops at the first whitespace, so a milestone name with spaces will be truncated.
 
 The harness parses each field on its own line and accepts label-only, milestone-only, both, or neither. Do not merge or reorder the fields.
