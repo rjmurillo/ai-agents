@@ -60,7 +60,7 @@ Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with file:
 
 Skip this prompt if no diff is provided. Emit `VERDICT: WARN` and `MESSAGE: No diff supplied` as the complete output.
 
-If the context contains markers like `[Large PR -` indicating summary-only or partial context (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` over `PASS` unless every required check is backed by evidence in the provided context.
+If the `## Changes` section begins with markers like `[Large PR -` indicating summary-only or partial context (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` over `PASS` unless every required check is backed by evidence in the provided context.
 
 Ask first if you cannot infer the repository context (language, framework, test strategy) from the diff alone.
 
