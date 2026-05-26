@@ -231,7 +231,7 @@ if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
     """)
 ```
 
-**No PR Until PIV Approved**: Orchestrator MUST NOT proceed to PR creation until security agent returns APPROVED status.
+**PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict cites a follow-up issue number for the remaining MEDIUM findings, per the Completion Trigger Taxonomy.
 
 #### Security-Relevant Change Triggers
 
