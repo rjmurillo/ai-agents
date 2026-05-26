@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 1844,
     "date": "2026-05-26",
@@ -93,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "feat(#2003): improve architect.shared.md prompt discipline to A tier on feat/2003-phase3-pr7-architect"
+        "Evidence": "feat(#2003): improve architect.shared.md prompt discipline to A tier on feat/2003-phase3-pr7-architect (commits c1b9bd80, 3ba1bd63, 821bfbbb)"
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,7 +143,7 @@
       "evidence": "A1=5 A2=5 A3=4 A4=4 A5=5 A6=5 A7=4 = 32; A7 carried at 4 = 32; rounded estimate 32-33; was 25/35 C tier"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "821bfbbb",
   "nextSteps": [
     "Merge PR 7/10",
     "PR 8/10: pr-quality.*.prompt.md template fix (7 clones)",
