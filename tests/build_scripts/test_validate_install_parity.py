@@ -287,6 +287,94 @@ def test_diff_with_path_prefix_normalization(fake_repo: Path) -> None:
     assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
+def test_template_deletion_still_requires_siblings(fake_repo: Path) -> None:
+    """A delete of templates/agents/X.shared.md plus partial siblings is drift.
+
+    Without this check, ``_is_shared_agent_group`` would consult the on-disk
+    template, find it absent (because the PR deletes it), and treat the
+    group as freestanding. That makes a partial-delete pass clean and
+    leaves orphaned install copies. The fix: when the template path is in
+    the touched set, the parity contract still binds.
+    """
+    # Simulate the PR by removing the template from disk. The touched set
+    # still includes it (git diff --name-only reports deletes with ACMRD).
+    (fake_repo / "templates" / "agents" / "alpha.shared.md").unlink()
+    touched = [
+        "templates/agents/alpha.shared.md",  # deleted in this PR
+        ".claude/agents/alpha.md",
+        # Missing: .github/agents, src/claude, src/copilot-cli, src/vs-code-agents
+    ]
+    violations = vip.find_violations(touched, repo_root=fake_repo)
+    assert len(violations) == 1
+    v = violations[0]
+    assert v.kind == "SHARED_AGENT"
+    assert v.name == "alpha"
+    assert ".github/agents/alpha.agent.md" in v.missing
+    assert "src/claude/alpha.md" in v.missing
+
+
+def test_template_deletion_with_full_siblings_is_clean(fake_repo: Path) -> None:
+    """Deleting templates/agents/X.shared.md together with every install
+    sibling is a coordinated removal: no drift."""
+    (fake_repo / "templates" / "agents" / "alpha.shared.md").unlink()
+    touched = [
+        "templates/agents/alpha.shared.md",
+        ".claude/agents/alpha.md",
+        ".github/agents/alpha.agent.md",
+        "src/claude/alpha.md",
+        "src/copilot-cli/agents/alpha.agent.md",
+        "src/vs-code-agents/alpha.agent.md",
+    ]
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
+
+
+def test_explicit_base_no_silent_fallback(monkeypatch, tmp_path: Path) -> None:
+    """When --base is explicitly passed (non-default), the validator must
+    not fall back to origin/main. A caller-supplied base failure is a
+    config error, not a signal to validate against a different range.
+    """
+    calls: list[str] = []
+
+    def fake_diff(base: str, repo_root: Path) -> tuple[list[str], int, str]:
+        calls.append(base)
+        return [], 2, f"unknown ref {base}"
+
+    monkeypatch.setattr(vip, "_git_diff_files", fake_diff)
+
+    # Pass an explicit (non-default) --base. The validator should attempt
+    # ONLY that ref and exit 2 without retrying origin/main.
+    rc = vip.main([
+        "--repo-root",
+        str(tmp_path),
+        "--base",
+        "some/explicit/base",
+    ])
+    assert rc == 2
+    assert calls == ["some/explicit/base"]
+
+
+def test_default_base_falls_back_to_origin_main(monkeypatch, tmp_path: Path) -> None:
+    """When no --base is passed (default @{push}), the validator may
+    fall back to origin/main once. This preserves the documented help
+    behavior."""
+    calls: list[str] = []
+
+    def fake_diff(base: str, repo_root: Path) -> tuple[list[str], int, str]:
+        calls.append(base)
+        if base == "origin/main":
+            return [], 0, ""
+        return [], 2, f"unknown ref {base}"
+
+    monkeypatch.setattr(vip, "_git_diff_files", fake_diff)
+
+    rc = vip.main([
+        "--repo-root",
+        str(tmp_path),
+    ])
+    assert rc == 0
+    assert calls == ["@{push}", "origin/main"]
+
+
 # --- CLI -----------------------------------------------------------------
 
 

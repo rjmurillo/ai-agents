@@ -257,29 +257,46 @@ def group_for_anchor(kind: str, name: str) -> ParityGroup:
 # --- Group-existence shaping --------------------------------------------
 
 
-def _is_shared_agent_group(repo_root: Path, name: str) -> bool:
-    """Heuristic: a name is a SHARED_AGENT group iff the template anchor exists.
+def _is_shared_agent_group(
+    repo_root: Path,
+    name: str,
+    touched_set: frozenset[str] | None = None,
+) -> bool:
+    """Heuristic: a name is a SHARED_AGENT group iff the template anchor is
+    present on disk OR the template path is in the touched set.
 
     Used when a hand-maintained install path (e.g. ``.github/agents/code-reviewer.agent.md``)
-    is touched. If the template anchor is absent, treat the file as a
-    freestanding one-member group rather than enforcing missing siblings.
+    is touched. If the template anchor is absent on disk, treat the file as a
+    freestanding one-member group rather than enforcing missing siblings,
+    UNLESS the diff itself touches the template (delete or rename), in which
+    case the parity contract still binds: a template deletion must move its
+    install siblings together.
     """
-    return (repo_root / "templates" / "agents" / f"{name}.shared.md").is_file()
+    anchor_path = f"templates/agents/{name}.shared.md"
+    if (repo_root / "templates" / "agents" / f"{name}.shared.md").is_file():
+        return True
+    if touched_set is not None and anchor_path in touched_set:
+        return True
+    return False
 
 
-def _expected_members(repo_root: Path, group: ParityGroup) -> tuple[str, ...]:
+def _expected_members(
+    repo_root: Path,
+    group: ParityGroup,
+    touched_set: frozenset[str] | None = None,
+) -> tuple[str, ...]:
     """Filter a parity group's members to the ones we expect on this PR.
 
     For SHARED_AGENT, all six members are required when the template
-    anchor exists (the canonical signal that ``name`` is a shared agent).
-    When the anchor does not exist, only the freestanding install file is
-    expected; the rest are skipped.
+    anchor exists (or the diff touches the template path, e.g. a deletion).
+    When neither is true, only the freestanding install file is expected;
+    the rest are skipped.
 
     For RULE, every member is expected unconditionally; the generator
     produces both install paths from the canonical rule.
     """
     if group.kind == "SHARED_AGENT":
-        if _is_shared_agent_group(repo_root, group.name):
+        if _is_shared_agent_group(repo_root, group.name, touched_set):
             return group.members
         # Freestanding: only the github install path is required.
         github_path = f".github/agents/{group.name}.agent.md"
@@ -310,20 +327,26 @@ def find_violations(
             continue
         by_group.setdefault(cls, set()).add(path)
 
+    touched_frozen = frozenset(touched_set)
     violations: list[Violation] = []
     for (kind, name), members_touched in sorted(by_group.items()):
         group = group_for_anchor(kind, name)
 
-        # Special case: freestanding agents (no template anchor).
+        # Special case: freestanding agents (no template anchor and the
+        # template path is not in the touched set).
         # When no shared template exists, .claude/agents/ and .github/agents/
         # paths are independent one-member groups. Solo edits to either are
         # valid and should not require siblings. Without this check, editing
         # a Claude-only agent like context-retrieval falsely requires
         # .github/agents/context-retrieval.agent.md which does not exist.
-        if kind == "SHARED_AGENT" and not _is_shared_agent_group(root, name):
+        # However, when the diff itself touches the template (delete or
+        # rename), the parity contract still binds.
+        if kind == "SHARED_AGENT" and not _is_shared_agent_group(
+            root, name, touched_frozen
+        ):
             continue
 
-        expected = _expected_members(root, group)
+        expected = _expected_members(root, group, touched_frozen)
         missing = tuple(sorted(m for m in expected if m not in touched_set))
         if not missing:
             continue
@@ -356,12 +379,15 @@ def find_violations(
 # --- Diff source ---------------------------------------------------------
 
 
-def _git_diff_files(base: str, repo_root: Path) -> tuple[list[str], int]:
+def _git_diff_files(base: str, repo_root: Path) -> tuple[list[str], int, str]:
     """Return changed paths from ``git diff --name-only base..HEAD``.
 
-    The second return value is an exit code: 0 on success, 2 when git is
-    unavailable or the base ref cannot be resolved. The caller maps that
-    to the validator's exit policy.
+    Returns ``(files, exit_code, error_message)``. Exit codes: 0 on
+    success, 2 when git is unavailable or the base ref cannot be resolved.
+    The error_message is the captured stderr (or exception text) so the
+    caller can decide whether to print it (e.g. only when all bases fail).
+    Callers that fall through to a backup base should suppress the
+    intermediate error to avoid noisy stderr output.
     """
     try:
         proc = subprocess.run(
@@ -372,16 +398,14 @@ def _git_diff_files(base: str, repo_root: Path) -> tuple[list[str], int]:
             timeout=30,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        print(f"error: git diff failed: {exc}", file=sys.stderr)
-        return [], 2
+        return [], 2, f"git diff failed: {exc}"
     if proc.returncode != 0:
-        print(
-            f"error: git diff --name-only {base}..HEAD exit {proc.returncode}: "
-            f"{proc.stderr.strip()}",
-            file=sys.stderr,
+        msg = (
+            f"git diff --name-only {base}..HEAD exit {proc.returncode}: "
+            f"{proc.stderr.strip()}"
         )
-        return [], 2
-    return [ln for ln in proc.stdout.splitlines() if ln.strip()], 0
+        return [], 2, msg
+    return [ln for ln in proc.stdout.splitlines() if ln.strip()], 0, ""
 
 
 # --- Output --------------------------------------------------------------
@@ -471,17 +495,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.files is not None:
         touched = list(args.files)
     else:
-        bases = [args.base, "origin/main"] if args.base != "origin/main" else ["origin/main"]
+        # Only fall back to origin/main when the caller did NOT supply an
+        # explicit --base (i.e. they accepted the default @{push}).
+        # Falling back from a caller-supplied base would silently validate
+        # the wrong diff and turn a config error into a false clean result.
+        parser_default = _build_parser().get_default("base")
+        if args.base == parser_default:
+            bases = [args.base, "origin/main"]
+        else:
+            bases = [args.base]
+
         touched: list[str] = []
-        last_rc = 0
+        errors: list[str] = []
+        success = False
         for base in bases:
-            files, rc = _git_diff_files(base, repo_root)
+            files, rc, err = _git_diff_files(base, repo_root)
             if rc == 0:
                 touched = files
-                last_rc = 0
+                success = True
                 break
-            last_rc = rc
-        if last_rc != 0 and not touched:
+            errors.append(err)
+
+        if not success:
+            # All attempted bases failed: surface every captured error so
+            # operators can see the full chain. A fallback that succeeds
+            # should not pollute stderr with the primary's error.
+            for err in errors:
+                print(f"error: {err}", file=sys.stderr)
             return 2
 
     violations = find_violations(touched, repo_root=repo_root)
