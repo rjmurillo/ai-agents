@@ -138,7 +138,7 @@
       "evidence": "72 files generated; qa updated in copilot-cli and vs-code-agents"
     },
     {
-      "action": "Rubric rescore: 33/35 (A tier)",
+      "action": "Rubric rescore: 32/35 (A tier)",
       "evidence": "A1=4 A2=5 A3=4 A4=4 A5=5 A6=5 A7=5 = 32; was 25/35 C tier"
     }
   ],
