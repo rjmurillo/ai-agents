@@ -565,6 +565,10 @@ def _write_audit_log(project_dir: str, command: str, decision: str, reason: str)
 
 def main() -> None:
     """Check for false completion claims without verification."""
+    # Read stdin first to ensure it's drained before any early exit,
+    # maintaining the fail-open drain contract with the harness.
+    hook_input = _read_stdin_json()
+
     if skip_if_consumer_repo(HOOK_NAME):
         sys.exit(0)
 
@@ -572,7 +576,6 @@ def main() -> None:
     if os.environ.get("SKIP_COMPLETION_GATE", "").lower() == "true":
         sys.exit(0)
 
-    hook_input = _read_stdin_json()
     if hook_input is None:
         sys.exit(0)
 

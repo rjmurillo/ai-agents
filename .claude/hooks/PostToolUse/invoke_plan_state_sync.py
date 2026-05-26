@@ -247,10 +247,13 @@ def _write_checkpoint(project_dir: str, file_path: str, summary: str) -> None:
 
 def main() -> None:
     """Checkpoint plan/TODO state after relevant file writes."""
+    # Read stdin first to ensure it's drained before any early exit,
+    # maintaining the fail-open drain contract with the harness.
+    hook_input = _read_stdin_json()
+
     if skip_if_consumer_repo(HOOK_NAME):
         sys.exit(0)
 
-    hook_input = _read_stdin_json()
     if hook_input is None:
         sys.exit(0)
 
