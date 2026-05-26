@@ -1,0 +1,147 @@
+{
+  "session": {
+    "number": 1837,
+    "date": "2026-05-26",
+    "branch": "feat/2003-phase3-audit-plan",
+    "startingCommit": "a0e1d8bd",
+    "objective": "Phase 3 prompt discipline audit cycle: rewrite 10 priority targets per PR #2076 audit, one PR per target, rubric rescore + pre_pr.py + generate round-trip eval each cycle"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions called; project ai-agents3 at /home/richard/src/GitHub/rjmurillo/ai-agents3 activated"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned Serena Instructions Manual; languages: bash, yaml, python, markdown, powershell, typescript, json, toml"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by context_loader hook at session start; latest retro 2026-05-25-auto-retro.md also auto-loaded"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file: .agents/sessions/2026-05-26-session-1837-phase-prompt-discipline-audit-cycle.json"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/ executed; github, session-init, security-scan, analyze, adr-generator, etc. present"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS.md read; Skill Usage Constraints: MUST NOT use raw gh when skill exists; check .claude/skills/github/scripts/"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read; Python-first (ADR-042), no bash scripts, skill-first for GitHub ops"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories called; returned index of 400+ memories; agent-prompt-optimization-observations noted as relevant"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feature/1703-lifecycle-hooks"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feature/1703-lifecycle-hooks"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "M uv.lock; ?? .agents/retrospective/2026-05-25-auto-retro.md; ?? docs/retros/"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a0e1d8bd fix(generated): sync copilot-cli auto-retro caller comment"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart MUST items complete; sessionEnd items populated with evidence below"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified this session; ADR-014 read-only invariant maintained"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__write_memory: prompting/phase3-prompt-discipline-audit-status written with Phase 3 decisions, priority list, and progress tracking"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 ran via pre-commit hook; .agents/ excluded from lint scope; 0 errors in staged files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "docs(#2003): answer Phase 3 decisions + fix stale generator command on feat/2003-phase3-audit-plan"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py: 2 pre-existing failures (merge-resolver drift 20.9%, lint on other files); 0 new failures from this change"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tasks #1-5 completed; tasks #6-15 pending (PR 1/10 through 10/10 rewrite cycle)"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred; retrospective at cycle completion"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Fetched PR #2076 via github skill",
+      "evidence": "PR merged 2026-05-25; +650/-0: .agents/analysis/2003-claude-47-prompt-discipline-audit.md"
+    },
+    {
+      "action": "Read full audit doc from origin/main",
+      "evidence": "650 lines; 7-axis rubric; 73 files audited; zero A-tier"
+    },
+    {
+      "action": "Read rubric source from corpus",
+      "evidence": "/home/richard/Documents/Mobile/wiki/concepts/Prompting/Claude 4.7 Prompting Model.md"
+    },
+    {
+      "action": "Branched feat/2003-phase3-audit-plan from origin/main",
+      "evidence": "git checkout -b feat/2003-phase3-audit-plan origin/main; head 157737a0"
+    },
+    {
+      "action": "Updated audit doc Phase 3 decision points + fixed 3 stale pwsh references",
+      "evidence": "mcp__serena__replace_content applied; 4 decisions answered; python3 build/generate_agents.py replaces pwsh"
+    },
+    {
+      "action": "Wrote Serena memory: prompting/phase3-prompt-discipline-audit-status",
+      "evidence": "Phase 3 decisions, priority list, progress, generator correction"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "PR 0 merge",
+    "PR 1/10: orchestrator.shared.md rewrite",
+    "PR 2-10: remaining cycle"
+  ]
+}

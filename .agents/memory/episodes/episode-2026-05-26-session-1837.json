@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-05-26-session-1837",
+  "session": "2026-05-26-session-1837",
+  "timestamp": "2026-05-26T03:49:24.739379+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-26T03:49:24.736920+00:00",
+      "type": "commit",
+      "content": "Commit: a0e1d8bd",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-26T03:49:24.736920+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"markdownlint-cli2 ran via pre-commit hook; .agents/ excluded from lint scope; 0 errors in staged files\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-26T03:49:24.736920+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"pre_pr.py: 2 pre-existing failures (merge-resolver drift 20.9%, lint on other files); 0 new failures from this change\"",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 2,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 0
+  },
+  "lessons": []
+}
