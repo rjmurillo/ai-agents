@@ -75,7 +75,7 @@ VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]
 MESSAGE: [Brief explanation, one sentence]
 ```
 
-Optional follow-on lines. Append immediately after `MESSAGE:` only when both apply. Use a real label name and a real milestone name; do not emit the literal strings `label-name` or `milestone-name`. Omit the line entirely when no value applies:
+Optional follow-on lines. Append immediately after `MESSAGE:` when applicable. Use a real label name and a real milestone name; do not emit the literal strings `label-name` or `milestone-name`. Omit each line when no value applies:
 
 - `LABEL: <existing GitHub label>`: apply this label to the PR.
 - `MILESTONE: <existing GitHub milestone>`: assign this milestone to the PR.
