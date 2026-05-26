@@ -8,6 +8,32 @@ allowed-tools: Bash, Read, Edit, Write, Skill
 Autonomous PR monitor and fixer. Implements the protocol from
 `docs/autonomous-pr-monitor.md`.
 
+## Triggers
+
+| Trigger phrase | Operation |
+|----------------|-----------|
+| `autofix-pr` | Triage all open PRs by tier and act |
+| `autofix this pr` | Single-PR mode on the current branch's open PR |
+| `monitor open prs` | Periodic triage without merging |
+| `auto-merge ready prs` | Tier 1 only: enable auto-merge on land-ready PRs |
+| `address pr feedback` | Tier 3/4 only: walk thread lifecycle |
+
+## Process
+
+Three phases. Tier-based dispatch decides which actions apply per PR.
+
+### Phase 1: Triage
+
+Run `test_pr_merge_ready.py` for every open PR. Classify each into a tier (T1-T5) using the table below. Sort the queue by tier ascending.
+
+### Phase 2: Act per tier
+
+Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads), then T5 (bot).
+
+### Phase 3: Verify and gate
+
+After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable auto-merge only when all four conditions hold.
+
 ## Workflow
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
@@ -78,3 +104,15 @@ python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
   --config .claude/commands/pr-review-config.yaml \
   --pull-request {pr} --json
 ```
+
+## Verification
+
+Per PR processed:
+
+- [ ] Tier classification recorded (T1-T5).
+- [ ] All required CI checks pass (T2/T4 only).
+- [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
+- [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).
+- [ ] Branch is up to date with `main` (`mergeStateStatus` not `BEHIND`).
+- [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
+- [ ] Auto-merge enabled only when all four Ready-to-Merge conditions hold (CanMerge=True is insufficient alone).

@@ -82,7 +82,7 @@ Each milestone delivers a vertical slice with measurable exit criteria. Not a ph
 
 After defining milestones, draw the dependency graph:
 
-```
+```text
 M1 ──┬──> M2 ──┬──> M4 (ships to prod)
      │         │
      └──> M3 ──┘

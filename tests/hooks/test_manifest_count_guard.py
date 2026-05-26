@@ -1,6 +1,6 @@
 """Tests for invoke_manifest_count_guard.
 
-Covers acceptance criteria from issue #1884 TASK-005-3: counts agree pass,
+Covers acceptance criteria from issue #1884 TASK-015-3: counts agree pass,
 mismatch blocks with hint, config error blocks, empty changeset short-
 circuits, and the explicit ``repo_root`` parameter is forwarded to the
 validator (pre-mortem R-F mitigation).

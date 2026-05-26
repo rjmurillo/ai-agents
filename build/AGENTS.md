@@ -113,7 +113,7 @@ Two automated checks enforce these rules:
 | Attribute | Value |
 |-----------|-------|
 | **Input** | `templates/agents/*.shared.md`, `templates/platforms/*.yaml` |
-| **Output** | `src/vs-code-agents/*.agent.md`, `src/copilot-cli/*.agent.md` |
+| **Output** | `src/vs-code-agents/*.agent.md`, `src/copilot-cli/agents/*.agent.md` |
 | **Trigger** | Manual, CI validation |
 | **Dependencies** | `Generate-Agents.Common.psm1`, PowerShell 7.5.4+ |
 

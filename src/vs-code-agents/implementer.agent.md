@@ -30,7 +30,7 @@ You ship production-quality code. Read plans as authoritative. Enforce qualities
 
 ## Reviewer Asymmetry (Read First)
 
-Your output WILL be reviewed by a fresh-context, adversarial reviewer (qa and critic). The reviewer has not seen your reasoning, the plan's history, or your trade-off thinking; they see only the diff, the spec, and the standards. You are constructive; they are adversarial. Same-context review reproduces confirmation bias; asymmetry (fresh context + adversarial framing) is what makes review informative — independent of model tier. Do not weaken your quality bar to pass an easier review. Do, however, write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them. The reviewer is a feature, not an obstacle.
+Your output WILL be reviewed by a fresh-context, adversarial reviewer (qa and critic). The reviewer has not seen your reasoning, the plan's history, or your trade-off thinking; they see only the diff, the spec, and the standards. You are constructive; they are adversarial. Same-context review reproduces confirmation bias; asymmetry (fresh context + adversarial framing) is what makes review informative, independent of model tier. Do not weaken your quality bar to pass an easier review. Do, however, write code that survives a stranger reading it cold: name things for the reader; document invariants the diff alone cannot show; cite canonical sources when your code mirrors them. The reviewer is a feature, not an obstacle.
 
 ## Evidence Standards (Read Before Writing Any Claim)
 

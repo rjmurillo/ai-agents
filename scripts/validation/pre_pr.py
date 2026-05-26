@@ -707,6 +707,28 @@ def validate_build_gates(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_spec_id_uniqueness(repo_root: Path) -> bool:
+    """Enforce unique `id:` frontmatter across spec catalog (Issue #2068).
+
+    Duplicate REQ/DESIGN/TASK IDs break traceability and any spec-graph
+    tooling that joins by ID. The README under each category already
+    documents uniqueness; this gate enforces it.
+    """
+    script = repo_root / "scripts" / "validation" / "check_spec_id_uniqueness.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_spec_id_uniqueness.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_canonical_citations(repo_root: Path) -> bool:
     """Heuristic check for uncited mirror-claims.
 
@@ -770,6 +792,63 @@ def validate_agent_drift(repo_root: Path) -> bool:
         ["pwsh", "-NoProfile", "-File", str(legacy)]
     )
     return exit_code == 0
+
+
+def validate_command_bundle_coverage(repo_root: Path) -> bool:
+    """SPEC-005 advisory check: each lifecycle command invokes its bundled skills.
+
+    Reads the canonical BUNDLE_REGISTRY from
+    ``scripts/validation/bundle_registry.py`` and verifies that each
+    ``.claude/commands/<file>`` contains the expected
+    ``Skill(skill="...")`` invocation.
+
+    Default behavior is **advisory** (returns True regardless of missing
+    invocations; emits WARN findings). Set
+    ``BUNDLE_CHECK_ENFORCED=1`` to escalate to BLOCKING (returns False
+    on any missing invocation). Per SPEC-005 AC-14 and Q3 resolution.
+    """
+    enforced = os.environ.get("BUNDLE_CHECK_ENFORCED", "").lower() in ("1", "true")
+
+    # Lazy import; sibling module under scripts/validation/.
+    sys.path.insert(0, str(repo_root / "scripts" / "validation"))
+    try:
+        from bundle_registry import BUNDLE_REGISTRY, expected_skill_invocation
+    except ImportError as exc:
+        # Per SPEC-005 Q3: default is advisory. An import failure in advisory
+        # mode must not block pre_pr; in enforced mode it is a hard fail.
+        if enforced:
+            print(f"[FAIL] Could not import bundle_registry: {exc}")
+            return False
+        print(f"[WARN] Could not import bundle_registry (advisory skip): {exc}")
+        return True
+
+    commands_dir = repo_root / ".claude" / "commands"
+
+    missing: list[tuple[str, str]] = []
+    for command_file, skill in BUNDLE_REGISTRY:
+        path = commands_dir / command_file
+        if not path.exists():
+            missing.append((command_file, skill))
+            continue
+        text = path.read_text(encoding="utf-8")
+        if expected_skill_invocation(skill) not in text:
+            missing.append((command_file, skill))
+
+    if not missing:
+        print(f"[PASS] All {len(BUNDLE_REGISTRY)} bundle invocations present")
+        return True
+
+    label = "FAIL" if enforced else "WARN"
+    mode = "blocking" if enforced else "advisory"
+    print(f"[{label}] {len(missing)} bundle invocation(s) missing ({mode}):")
+    for cmd, skill in missing:
+        print(f"  - {cmd}: missing Skill(skill=\"{skill}\")")
+    if not enforced:
+        print(
+            "  Note: advisory only (default). Set BUNDLE_CHECK_ENFORCED=1 "
+            "to make this BLOCKING. See SPEC-005 AC-14."
+        )
+    return not enforced
 
 
 # ---------------------------------------------------------------------------
@@ -874,6 +953,13 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_build_gates(repo_root),
     )
 
+    # 3.75 Spec ID Uniqueness (Issue #2068)
+    run_validation(
+        "Spec ID Uniqueness",
+        state,
+        lambda: validate_spec_id_uniqueness(repo_root),
+    )
+
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
     # STRICT_CANONICAL_CHECK=1; PR #1887 retrospective Layer 4)
     run_validation(
@@ -919,6 +1005,13 @@ def main(argv: list[str] | None = None) -> int:
         state,
         lambda: validate_agent_drift(repo_root),
         skip=quick,
+    )
+
+    # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)
+    run_validation(
+        "Command-Skill Bundle Coverage",
+        state,
+        lambda: validate_command_bundle_coverage(repo_root),
     )
 
     total_duration = time.monotonic() - start_time

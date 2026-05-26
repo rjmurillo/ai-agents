@@ -1,0 +1,85 @@
+name: Auto-Approve and Auto-Merge Bot PRs
+
+# Auto-approves and enables auto-merge on non-major dependency updates from
+# Dependabot and Renovate so dependency PR debt does not accumulate.
+#
+# Major version bumps are excluded from auto-approval and require manual
+# review. Uses the GH_ACTIONS_PR_WRITE PAT so approvals come from a real
+# user identity that satisfies branch ruleset requirements.
+#
+# Security: all PR-supplied values (html_url, title) are passed via env and
+# referenced as quoted shell variables, never interpolated into run blocks.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  dependabot:
+    name: Dependabot (GitHub Actions and Python)
+    # All approval and merge calls use the GH_ACTIONS_PR_WRITE PAT. The job
+    # GITHUB_TOKEN keeps the workflow-level read-only stance for least
+    # privilege under pull_request_target.
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-arm
+    if: github.actor == 'dependabot[bot]' || github.actor == 'dependabot-preview[bot]'
+    steps:
+      - name: Fetch metadata
+        id: dependabot-metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: "${{ secrets.GH_ACTIONS_PR_WRITE }}"
+
+      - name: Approve PR
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+
+      - name: Enable auto-merge for non-major updates
+        if: steps.dependabot-metadata.outputs.update-type != '' && steps.dependabot-metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+
+  renovate:
+    name: Renovate
+    # Approval uses the GH_ACTIONS_PR_WRITE PAT. The job GITHUB_TOKEN keeps
+    # the workflow-level read-only stance for least privilege under
+    # pull_request_target.
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-arm
+    if: github.actor == 'renovate[bot]'
+    # Renovate handles auto-merge decisions via platformAutomerge and
+    # per-package automerge rules in renovate.json. This workflow only
+    # provides the required approval for non-major updates. Major-version
+    # bumps are excluded from auto-approval and require manual review.
+    # Major detection reads the 'renovate-major' label that renovate.json
+    # 'major.addLabels' applies on major PRs. Label-based detection is
+    # reliable; PR title regex was not (no marker configured upstream).
+    steps:
+      - name: Detect major update
+        id: detect-major
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          labels=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name] | join(",")')
+          if printf '%s' "$labels" | grep -q '\brenovate-major\b'; then
+            echo "is_major=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_major=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Approve PR
+        if: steps.detect-major.outputs.is_major != 'true'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          PR_URL: ${{ github.event.pull_request.html_url }}

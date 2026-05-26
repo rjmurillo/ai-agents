@@ -113,7 +113,7 @@ flowchart TD
 
     subgraph Generated["Generated (DO NOT EDIT)"]
         VS[src/vs-code-agents/*.agent.md]
-        CP[src/copilot-cli/*.agent.md]
+        CP[src/copilot-cli/agents/*.agent.md]
     end
 
     Claude -.->|Manual sync when<br>universal changes| Templates

@@ -1,6 +1,6 @@
 """Tests for the shared pre-push guard framework.
 
-Covers the 12 acceptance criteria from issue #1884 TASK-005-1: skip
+Covers the 12 acceptance criteria from issue #1884 TASK-015-1: skip
 short-circuits, stdin shapes, git diff fallback, glob filtering
 (including the multi-segment R-E case), validator dispatch, the
 structured BLOCKED output, fail-open exception handling, and the

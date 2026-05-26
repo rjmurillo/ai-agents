@@ -1,6 +1,6 @@
 """Tests for Step 0 First Principles Gate in /spec command.
 
-Refs #1926, REQ-006, DESIGN-006, TASK-006, PLAN-1926.
+Refs #1926, REQ-016, DESIGN-016, TASK-016, PLAN-1926.
 
 Verifies the static structure and parser-checkable behavior of Step 0
 instructions in `.claude/commands/spec.md` and its Copilot CLI mirror at
@@ -87,7 +87,7 @@ def test_tier5_replaces_why_not_simpler(spec_text: str) -> None:
     Round-4 update (Copilot PR #1931 comments 3213975201/3213975231/
     3213975270/3213975277): the meta-reference to v1 text was removed
     from the spec.md and SKILL.md Tier 5 bullets so the grep check is
-    strict (REQ-006 AC-8: the phrase must be absent).
+    strict (REQ-016 AC-8: the phrase must be absent).
     """
     tier5_text = extract_tier5_bullet(spec_text)
     assert "Re-validate Step 0 Q4" in tier5_text
@@ -140,7 +140,7 @@ def test_ac6_q1_to_q6_subhead_directive_in_spec_md(spec_text: str) -> None:
 
 
 def test_halt_emission_format_present(spec_text: str) -> None:
-    """REQ-006-12 + Gate 5 #2: spec.md MUST define the machine-readable
+    """REQ-016-12 + Gate 5 #2: spec.md MUST define the machine-readable
     `step0-halt` fenced-block format (info-string + 5 keys). Free-form
     halt prose is non-conforming."""
     assert "step0-halt" in spec_text, "halt emission info-string missing"
@@ -248,7 +248,7 @@ def test_hedge_phrase_list_parsed(spec_text: str) -> None:
 
 
 def test_no_standalone_should_might_could(spec_text: str) -> None:
-    """REQ-006-02: standalone 'should'/'might'/'could' MUST NOT be hedge phrases."""
+    """REQ-016-02: standalone 'should'/'might'/'could' MUST NOT be hedge phrases."""
     phrases = parse_hedge_phrases(spec_text)
     for forbidden in ["should", "might", "could"]:
         assert forbidden not in phrases
@@ -339,7 +339,7 @@ def test_rfc_2119_should_in_q5_does_not_trigger_h1(hedge_phrases: list[str]) -> 
 
 def test_quoted_hedge_in_q5_triggers_h1_parser_side(hedge_phrases: list[str]) -> None:
     """Documented limitation: parser cannot distinguish authored hedge from
-    quoted-counter-example hedge. Spec REQ-006-02 says the boundary is
+    quoted-counter-example hedge. Spec REQ-016-02 says the boundary is
     instruction-level (the LLM is told to apply the hedge check only to
     author-supplied answers, not to quoted instruction text); the parser
     pins the false-positive shape.
@@ -350,7 +350,7 @@ def test_quoted_hedge_in_q5_triggers_h1_parser_side(hedge_phrases: list[str]) ->
     behavior is acceptable for v1 because:
       1. The instruction-level rule already guards the runtime path.
       2. The parser is a CI safety net, not the enforcement layer.
-      3. REQ-006-13 kill criteria provide an operational rollback if
+      3. REQ-016-13 kill criteria provide an operational rollback if
          the false-positive rate exceeds 30%.
     """
     answers = baseline_answers()
@@ -423,7 +423,7 @@ class TestQ1Aspirational:
         assert not q1_aspirational("Three teams reported issues in #1700, #1820, #1850.")
 
     def test_bare_team_word_fails(self) -> None:
-        """REQ-006: 'the team' is a generic category, must fire H3."""
+        """REQ-016: 'the team' is a generic category, must fire H3."""
         assert q1_aspirational("the team would benefit from this")
 
     def test_generic_users_fails(self) -> None:

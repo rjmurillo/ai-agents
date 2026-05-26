@@ -11,7 +11,10 @@ from .guards import (
     skip_if_consumer_repo,
 )
 from .utilities import (
+    coerce_to_list,
+    format_work_item,
     get_project_directory,
+    get_recent_session_log,
     get_today_session_log,
     get_today_session_logs,
     is_git_commit_command,
@@ -19,10 +22,15 @@ from .utilities import (
     is_git_push_command,
     is_pr_create_command,
     is_session_logged_command,
+    lock_file,
+    unlock_file,
 )
 
 __all__ = [
+    "coerce_to_list",
+    "format_work_item",
     "get_project_directory",
+    "get_recent_session_log",
     "get_today_session_log",
     "get_today_session_logs",
     "is_git_commit_command",
@@ -31,5 +39,7 @@ __all__ = [
     "is_pr_create_command",
     "is_project_repo",
     "is_session_logged_command",
+    "lock_file",
     "skip_if_consumer_repo",
+    "unlock_file",
 ]

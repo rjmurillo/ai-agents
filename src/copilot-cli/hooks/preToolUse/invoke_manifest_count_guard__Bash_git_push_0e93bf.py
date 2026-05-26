@@ -166,8 +166,8 @@ def _original_main(stdin_bytes):
 
     ensure_plugin_paths()
 
-    from push_guard_base import run_guard  # noqa: E402
     from hook_utilities import get_project_directory  # noqa: E402
+    from push_guard_base import run_guard  # noqa: E402
 
     GUARD_NAME = "manifest-count"
     # Globs cover every source directory the marketplace counter walks per
@@ -182,7 +182,7 @@ def _original_main(stdin_bytes):
         ".claude/hooks/*.py",
         ".claude/hooks/**/*.py",
         ".claude/skills/*/SKILL.md",
-        "src/copilot-cli/*.agent.md",
+        "src/copilot-cli/agents/*.agent.md",
         "src/copilot-cli/hooks/*.py",
         "src/copilot-cli/hooks/**/*.py",
         "src/copilot-cli/skills/*/SKILL.md",
@@ -251,8 +251,6 @@ def _original_main(stdin_bytes):
         return run_guard(_validate, GLOBS, GUARD_NAME, include_deletions=True)
 
 
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()

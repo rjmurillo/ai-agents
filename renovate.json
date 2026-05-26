@@ -9,5 +9,8 @@
   "patch": {
     "automerge": true
   },
+  "major": {
+    "addLabels": ["renovate-major"]
+  },
   "platformAutomerge": true
 }

@@ -107,9 +107,26 @@ class SchemaChecker:
         )
 
     def _load_ref_file(self, ref: str) -> dict[str, Any]:
-        """Load and cache an external schema file referenced by $ref."""
+        """Load and cache an external schema file referenced by $ref.
+
+        Guards against path traversal (CWE-22): the resolved path must stay
+        inside ``self._schema_dir``. Although ``ref`` values come from
+        in-repo schema files rather than untrusted input, anchoring the
+        resolution defends against accidental or malicious ``..`` segments
+        and absolute paths that would escape the schema directory.
+        """
         if ref not in self._file_cache:
-            text = (self._schema_dir / ref).read_text(encoding="utf-8")
+            schema_root = self._schema_dir.resolve()
+            candidate = (self._schema_dir / ref).resolve()
+            try:
+                candidate.relative_to(schema_root)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Path traversal detected in $ref {ref!r}: "
+                    f"resolved path {candidate} escapes schema directory "
+                    f"{schema_root}"
+                ) from exc
+            text = candidate.read_text(encoding="utf-8")
             self._file_cache[ref] = json.loads(text)
         return self._file_cache[ref]
 
@@ -342,6 +359,17 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_CONFIG
     except json.JSONDecodeError as exc:
         print(f"Error: invalid JSON: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    except ValueError as exc:
+        # Path-traversal guard in SchemaChecker._load_ref_file raises
+        # ValueError when a $ref escapes the schema directory. ADR-035
+        # classifies this as a configuration error (EXIT_CONFIG=2).
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    except OSError as exc:
+        # IsADirectoryError, PermissionError, and other I/O failures while
+        # reading a $ref target. ADR-035: configuration error (2).
+        print(f"Error: failed to read referenced schema: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
     if errors:
