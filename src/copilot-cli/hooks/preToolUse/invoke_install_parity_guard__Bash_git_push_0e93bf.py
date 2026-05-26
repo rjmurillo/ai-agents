@@ -265,7 +265,10 @@ def _original_main(stdin_bytes):
 
 
     def main() -> int:
-        return run_guard(_validate, list(_GLOBS), GUARD_NAME)
+        # include_deletions=True so a deletion-only parity break (deleting a
+        # template or one install sibling without staging the rest) still
+        # reaches the validator.
+        return run_guard(_validate, list(_GLOBS), GUARD_NAME, include_deletions=True)
 
 
     return main()
