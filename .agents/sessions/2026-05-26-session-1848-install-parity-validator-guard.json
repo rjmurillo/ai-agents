@@ -173,9 +173,22 @@
       "timestamp": "2026-05-26T15:40:00Z",
       "action": "Created issue #2094 documenting the drift class, evidence, root cause, and the defenses introduced here. Referenced from the upcoming PR.",
       "files": []
+    },
+    {
+      "timestamp": "2026-05-26T19:45:00Z",
+      "action": "PR #2095 feedback cycle: addressed 16 bot threads. Clusters: (A) hook include_deletions=True so deletion-only parity breaks reach the validator; (B) _is_shared_agent_group accepts touched_set so template deletions still bind the parity contract (added 2 regression tests); (C) explicit --base no longer falls back to origin/main (added 2 tests asserting explicit/default behavior); (D) pre_pr.py passes --base from _resolve_branch_base_ref and fails closed when validator missing; (E) extracted CI bash logic into scripts/validation/run_install_parity_ci.py per ADR-006, fetch-depth=0 in checkout, PUSH_BEFORE_SHA fallback for push runs; (F) install-parity guard emits EVENT lines for every fail-open path (no silent degradation); (G) marketplace.json hook count 39 -> 37 to match src/copilot-cli/hooks/hooks.json. Tests: pytest tests/build_scripts tests/hooks tests/validation: 1251 passed in 5.0s.",
+      "files": [
+        "build/scripts/validate_install_parity.py",
+        ".claude/hooks/PreToolUse/invoke_install_parity_guard.py",
+        "scripts/validation/pre_pr.py",
+        "scripts/validation/run_install_parity_ci.py",
+        ".github/workflows/validate-generated-agents.yml",
+        ".github/plugin/marketplace.json",
+        "tests/build_scripts/test_validate_install_parity.py"
+      ]
     }
   ],
-  "endingCommit": "PENDING",
+  "endingCommit": "c6e235e6",
   "nextSteps": [
     "Open the PR for #2094 referencing this session log.",
     "Follow-up PR: regenerate .claude/agents/qa.md and .claude/agents/orchestrator.md from templates/ to fix the landed drift in main.",
