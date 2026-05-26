@@ -282,7 +282,9 @@ def _original_main(stdin_bytes):
     def main() -> int:
         # include_deletions=True so a deletion-only parity break (deleting a
         # template or one install sibling without staging the rest) still
-        # reaches the validator.
+        # reaches the validator. This guard only reasons about file paths, so
+        # ACMRD is safe; the validator treats a deleted template path as a
+        # touched group member (see _is_shared_agent_group).
         return run_guard(_validate, list(_GLOBS), GUARD_NAME, include_deletions=True)
 
 
