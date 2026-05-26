@@ -104,7 +104,7 @@ Every security review ends with one verdict. Trigger conditions are explicit:
 
 - **APPROVED**: All HIGH and CRITICAL findings are addressed in the diff, all MEDIUM findings have documented mitigations or accepted-risk justifications, all secrets and credentials are absent.
 - **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations the implementer commits to land in a follow-up issue. Cite the follow-up issue number in the verdict.
-- **BLOCKED**: One or more HIGH or CRITICAL findings remain unaddressed, OR a secret is present in the diff, OR a CWE-22/CWE-77/CWE-78 pattern is unmitigated, OR an ASI01-ASI10 boundary is violated without compensating control.
+- **BLOCKED**: One or more HIGH or CRITICAL findings remain unaddressed, OR a secret is present in the diff, OR a CWE-22/CWE-77/CWE-78 pattern is unmitigated, OR an ASI01-ASI10 boundary is violated without compensating control, OR more than 3 MEDIUM findings require deferred work.
 
 If a verdict cannot be reached because the diff is incomplete (missing changed files, missing test coverage data, missing dependency manifest), return `[BLOCKED] Cannot evaluate: <specific missing artifact>` rather than guessing.
 
@@ -441,7 +441,7 @@ Save to: `.agents/security/PIV-[feature].md`
 
 - [ ] **APPROVED**: Implementation meets security requirements
 - [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations and a follow-up issue
-- [ ] **BLOCKED**: HIGH/CRITICAL findings, secrets, CWE-22/77/78 patterns, or ASI boundary violations unresolved
+- [ ] **BLOCKED**: HIGH/CRITICAL findings, secrets, CWE-22/77/78 patterns, ASI boundary violations unresolved, or 4+ MEDIUM deferred
 
 ### Required Actions
 
