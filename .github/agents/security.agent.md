@@ -395,7 +395,7 @@ Save to: `.agents/security/PIV-[feature].md`
 
 - [ ] **APPROVED**: Implementation meets security requirements
 - [ ] **CONDITIONAL**: Approved with minor fixes required
-- [ ] **REJECTED**: Critical issues must be resolved before merge
+- [ ] **BLOCKED**: Critical issues must be resolved before merge
 
 ### Required Actions
 
