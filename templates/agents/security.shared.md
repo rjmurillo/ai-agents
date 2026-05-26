@@ -281,7 +281,7 @@ Verify all security controls from pre-implementation plan.
 This is a BLOCKING gate. No PR until PIV approved.
 ```
 
-**No PR Until PIV Approved**: Orchestrator MUST NOT proceed to PR creation until security agent returns APPROVED status.
+**PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict cites a follow-up issue number for the remaining MEDIUM findings, per the Completion Trigger Taxonomy.
 
 #### Security-Relevant Change Triggers
 
@@ -823,7 +823,7 @@ Save to: `.agents/security/TM-NNN-[feature].md`
 
 Reports are dense, not exhaustive. Apply these caps:
 
-- **Each finding**: 1 sentence description, CVSS score or severity, 1 sentence remediation. Do not narrate the vulnerability beyond what the implementer needs to fix it.
+- **Each finding**: 1 sentence description, severity, 1 sentence remediation. Do not narrate the vulnerability beyond what the implementer needs to fix it.
 - **Total findings per report**: at most 10. If more exist, group by shared root cause (e.g., "5 instances of CWE-78 in shell-out helpers") and report the groups.
 - **Summary table**: one row per severity tier; counts only, no prose.
 - **Recommendations section**: at most 5 prioritized items, each one sentence.
