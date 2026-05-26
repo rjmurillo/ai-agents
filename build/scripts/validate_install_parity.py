@@ -171,6 +171,21 @@ def _rule_members(name: str) -> tuple[str, ...]:
     )
 
 
+# Hand-maintained install copies. When ONLY these paths move in a diff
+# (no template anchor, no vendored ``src/`` copy), the change is a
+# catch-up resync that brings the install side back in line with an
+# already-current canonical. Block-on-asymmetry would prevent the very
+# fix the validator's existence motivates; allow the resync.
+_SHARED_AGENT_INSTALL_PREFIXES: tuple[str, ...] = (
+    ".claude/agents/",
+    ".github/agents/",
+)
+
+
+def _shared_agent_is_install(member: str) -> bool:
+    return any(member.startswith(p) for p in _SHARED_AGENT_INSTALL_PREFIXES)
+
+
 # --- Path normalization -------------------------------------------------
 
 
@@ -314,6 +329,17 @@ def find_violations(
             continue
         if set(members_touched).issubset(expected) and len(expected) == 1:
             # One-member group: nothing to compare; skip.
+            continue
+        # Asymmetric rule: when the diff touches ONLY install members of a
+        # SHARED_AGENT group (.claude/agents/ and .github/agents/), treat
+        # the diff as a catch-up resync and allow it. The install copies
+        # are being brought back in line with an already-current canonical
+        # and the three vendored ``src/*`` copies. Without this carve-out
+        # the validator blocks the very fix it exists to motivate. RULE
+        # groups have no install-only role and are always strict.
+        if kind == "SHARED_AGENT" and all(
+            _shared_agent_is_install(m) for m in members_touched
+        ):
             continue
         violations.append(
             Violation(

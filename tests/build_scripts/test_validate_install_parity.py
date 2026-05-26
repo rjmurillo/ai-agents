@@ -180,6 +180,56 @@ def test_freestanding_claude_agent_is_not_flagged(fake_repo: Path) -> None:
     assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
+def test_pure_install_resync_is_allowed_both_sides(fake_repo: Path) -> None:
+    """Catch-up resync: install copies updated, canonical untouched. Allow."""
+    touched = [
+        ".claude/agents/alpha.md",
+        ".github/agents/alpha.agent.md",
+    ]
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
+
+
+def test_pure_install_resync_is_allowed_claude_only(fake_repo: Path) -> None:
+    """Partial resync (only Claude install) is still allowed."""
+    touched = [".claude/agents/alpha.md"]
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
+
+
+def test_pure_install_resync_is_allowed_github_only(fake_repo: Path) -> None:
+    """Partial resync (only GitHub install) is still allowed."""
+    touched = [".github/agents/alpha.agent.md"]
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
+
+
+def test_install_plus_canonical_partial_is_still_drift(fake_repo: Path) -> None:
+    """Carve-out applies only when touched set is ENTIRELY install members.
+
+    The moment canonical (template) or a vendored copy enters the diff,
+    every sibling must be present.
+    """
+    touched = [
+        "templates/agents/alpha.shared.md",
+        ".claude/agents/alpha.md",
+    ]
+    violations = vip.find_violations(touched, repo_root=fake_repo)
+    assert len(violations) == 1
+    v = violations[0]
+    assert ".github/agents/alpha.agent.md" in v.missing
+    assert "src/claude/alpha.md" in v.missing
+
+
+def test_install_plus_src_partial_is_still_drift(fake_repo: Path) -> None:
+    """src/ is vendored, not install; carve-out does not apply."""
+    touched = [
+        "src/claude/alpha.md",
+        ".claude/agents/alpha.md",
+    ]
+    violations = vip.find_violations(touched, repo_root=fake_repo)
+    assert len(violations) == 1
+    v = violations[0]
+    assert "templates/agents/alpha.shared.md" in v.missing
+
+
 def test_rule_clean_diff(fake_repo: Path) -> None:
     touched = [
         ".claude/rules/beta.md",
