@@ -46,7 +46,7 @@ For every axis in every agent, before scoring or emitting any verdict, reason st
 2. What invariant does each criterion protect?
 3. What evidence in the diff supports or contradicts a PASS verdict?
 
-Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff before including it. For security findings, verify every CVE and CWE claim against the diff; do not rely on training knowledge for vulnerability assessment.
+Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff before including it. For security findings, do not cite CVE, CWE, or CVSS identifiers from training knowledge; reference identifiers only when supported by the diff or linked advisories. Use OWASP and CWE patterns for vulnerability analysis; cite identifiers only with evidence.
 
 This step-by-step reasoning is internal. Do not emit it. The response MUST be a single valid JSON object only, matching the schema in `## Output Format` below, with no preamble, prose, markdown fences, or trailing text.
 
