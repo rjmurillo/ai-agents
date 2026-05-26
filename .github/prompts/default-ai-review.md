@@ -1,7 +1,5 @@
 # Default AI Review
 
-CONTEXT_MODE: full
-
 Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation. Follow the communication style in [src/STYLE-GUIDE.md](src/STYLE-GUIDE.md).
 
 ## Reasoning Protocol
@@ -16,7 +14,7 @@ Do not include a finding without working through all three steps. Quote the exac
 
 ## Output Shape
 
-Emit three sections in this exact order. No preamble. No closing remarks.
+Emit four sections in this exact order. No preamble. No closing remarks.
 
 **Summary** (3 sentences max): What the diff does. The single most significant finding. Whether the change is safe to merge as-is.
 
@@ -56,13 +54,13 @@ End the response with the verdict line in the format below for the harness.
 
 ## Output Bounds
 
-Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with file:line. Recommendation: 1 sentence.
+Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with file:line. Recommendation: 1 sentence. Confidence: 1 numeric score (0-100) on its own line.
 
 ## Skip / Ask First
 
 Skip this prompt if no diff is provided. Emit `VERDICT: WARN` and `MESSAGE: No diff supplied` as the complete output.
 
-If `CONTEXT_MODE` in this prompt is not `full` (that is, `summary` or `partial`), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` over `PASS` unless every required check is backed by evidence in the provided context. This prompt declares `CONTEXT_MODE: full`; downstream forks that lower the mode MUST also revise the Recommendation table.
+If the context contains markers like `[Large PR -` indicating summary-only or partial context (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` over `PASS` unless every required check is backed by evidence in the provided context.
 
 Ask first if you cannot infer the repository context (language, framework, test strategy) from the diff alone.
 
