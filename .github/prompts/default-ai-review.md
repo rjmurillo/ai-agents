@@ -14,7 +14,7 @@ Do not include a finding without working through all three steps. Quote the exac
 
 ## Output Shape
 
-Emit four sections in this exact order, followed by the required verdict block (see Verdict Line section). The verdict block includes `VERDICT:`, `MESSAGE:`, and the optional `LABEL:` and `MILESTONE:` follow-on lines as one unit. No preamble. No prose between the four sections and the verdict block. No content after the last line of the verdict block.
+Emit four sections in this exact order, followed by the required verdict block (see Verdict Line section). No preamble. No prose between the four sections and the verdict block. No content after the verdict block and its optional follow-on lines.
 
 **Summary** (3 sentences max): What the diff does. The single most significant finding. Whether the change is safe to merge as-is.
 
