@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 1840,
     "date": "2026-05-26",
@@ -93,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "feat(#2003): improve critic.shared.md prompt discipline to A tier on feat/2003-phase3-pr3-critic"
+        "Evidence": "feat(#2003): improve critic.shared.md prompt discipline to A tier on feat/2003-phase3-pr3-critic (commit eeff6068); follow-up alignment commits 9ec669fe and 6d83b19c"
       },
       "validationPassed": {
         "level": "MUST",
@@ -138,7 +139,7 @@
       "evidence": "A1=4 A2=5 A3=4 A4=5 A5=5 A6=5 A7=5 = 33/35; was 26/35 B tier"
     }
   ],
-  "endingCommit": "eeff6068",
+  "endingCommit": "6d83b19c",
   "nextSteps": [
     "Merge PR 3/10",
     "PR 4/10: security.shared.md (A6 threat-model think-first + A2 + A7)"
