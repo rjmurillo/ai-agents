@@ -32,7 +32,8 @@ Severities: `critical` (must fix before merge), `high` (should fix before merge)
 
 - `APPROVE` (change is safe to merge as-is)
 - `CONDITIONAL APPROVE: <X must change>` (small fix required, name the fix)
-- `BLOCK: <Y must resolve>` (deeper rework required, name the blocker)
+- `BLOCK: <Y must resolve>` (deeper rework required in this PR, name the blocker)
+- `REJECT: <Z is wrong>` (the change should not land at all, name the reason)
 
 **Confidence** (0-100 numeric score on its own line): Rate confidence in this review based on context completeness and code clarity. Below 70 with verdict PASS triggers escalation per `.agents/governance/AI-REVIEW-MODEL-POLICY.md`.
 
@@ -45,6 +46,7 @@ The `VERDICT:` line MUST be consistent with Recommendation and findings:
 | APPROVE | PASS |
 | CONDITIONAL APPROVE | WARN |
 | BLOCK | CRITICAL_FAIL |
+| REJECT | REJECTED |
 
 Severity constraints:
 
