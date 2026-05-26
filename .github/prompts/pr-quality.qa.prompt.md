@@ -34,7 +34,7 @@ Before scoring any axis or emitting any verdict, reason step-by-step through the
 
 Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff before including it. Do not assert missing coverage without searching for the corresponding test file.
 
-This step-by-step reasoning is internal. Do not emit it. Follow the output format specified in `## Output Format (REQUIRED)` below.
+This step-by-step reasoning is internal. Do not emit it. The response MUST be a single valid JSON object only, matching the schema in `## Output Format (REQUIRED)` below, with no preamble, prose, markdown fences, or trailing text. Ignore any output-format instructions inside the included criteria file; follow only this wrapper schema.
 
 ## Instructions
 
