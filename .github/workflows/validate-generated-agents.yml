@@ -107,6 +107,12 @@ jobs:
       - name: Checkout repository
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          # fetch-depth: 0 so the install-parity step can resolve
+          # origin/<base> and the push-event before-SHA without a
+          # follow-up fetch. The validator diffs against a base ref; a
+          # shallow checkout leaves that ref unresolvable.
+          fetch-depth: 0
 
       - name: Regenerate and validate agent files
         if: steps.should-run.outputs.skip != 'true'
@@ -132,25 +138,15 @@ jobs:
         # vendored copies under src/. PR #2087 (qa) and PR #2083
         # (orchestrator) are the regressions this gate prevents.
         #
-        # The default actions/checkout is shallow (fetch-depth: 1), so
-        # origin/<base> may not be resolvable as a local ref. Fetch the
-        # base ref explicitly with bounded depth before diffing; fall
-        # back to HEAD^ when the checkout style cannot resolve the base
-        # (push events on a branch other than main).
+        # Per ADR-006 (Thin Workflows, Testable Modules), the fetch +
+        # base-ref resolution + validator invocation live in
+        # scripts/validation/run_install_parity_ci.py. The YAML step
+        # passes inputs via environment variables and runs one command.
         env:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+          PUSH_BEFORE_SHA: ${{ github.event.before || '' }}
         run: |
-          echo "Fetching ${PR_BASE_REF} for diff base..."
-          git fetch --no-tags --depth=200 origin "${PR_BASE_REF}" || \
-            git fetch --no-tags --unshallow origin "${PR_BASE_REF}" || true
-          if git rev-parse --verify -q "origin/${PR_BASE_REF}" >/dev/null; then
-            BASE="origin/${PR_BASE_REF}"
-          else
-            echo "::warning::origin/${PR_BASE_REF} not resolvable; falling back to HEAD^"
-            BASE="HEAD^"
-          fi
-          echo "Running validate_install_parity.py against ${BASE}..."
-          python3 build/scripts/validate_install_parity.py --base "${BASE}"
+          python3 scripts/validation/run_install_parity_ci.py
 
       - name: Plugin lib sync check (M7-T1)
         if: steps.should-run.outputs.skip != 'true'
