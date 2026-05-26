@@ -28,11 +28,46 @@ Any error during step 1-3 returns 2 with a stderr message.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Allowlist for env-supplied refs. Branch names: letters, digits, slash,
+# hyphen, underscore, dot. SHA: 7-40 hex chars. Anything outside these
+# shapes is refused before it reaches subprocess. This is defense in
+# depth: subprocess already uses argv (no shell), but a malformed ref
+# could still confuse git or trigger unexpected behavior, and CWE-78
+# remediation in this repo prefers an allowlist over shlex.quote.
+_BRANCH_RE = re.compile(r"^[A-Za-z0-9_./-]{1,200}$")
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,40}$")
+
+
+def _validate_branch(name: str) -> str | None:
+    """Return ``name`` when it matches the branch allowlist, else None."""
+    name = name.strip()
+    if not name:
+        return None
+    if not _BRANCH_RE.match(name):
+        return None
+    # Disallow refs that try to escape via .. or leading -.
+    if ".." in name or name.startswith("-"):
+        return None
+    return name
+
+
+def _validate_sha(value: str) -> str | None:
+    """Return ``value`` when it matches the SHA allowlist, else None."""
+    value = value.strip()
+    if not value:
+        return None
+    if not _SHA_RE.match(value):
+        return None
+    if value == "0" * len(value):
+        return None
+    return value
 
 
 def _run(cmd: list[str], *, check: bool = False, timeout: int = 60) -> tuple[int, str, str]:
@@ -86,8 +121,8 @@ def _resolve_base(base_ref: str) -> str | None:
     if rc == 0:
         return f"origin/{base_ref}"
 
-    push_before = os.environ.get("PUSH_BEFORE_SHA", "").strip()
-    if push_before and push_before != "0" * 40:
+    push_before = _validate_sha(os.environ.get("PUSH_BEFORE_SHA", ""))
+    if push_before is not None:
         rc, _, _ = _run(
             ["git", "rev-parse", "--verify", "--quiet", push_before],
             timeout=10,
@@ -105,7 +140,14 @@ def _resolve_base(base_ref: str) -> str | None:
 
 
 def main() -> int:
-    base_ref = os.environ.get("PR_BASE_REF", "main").strip() or "main"
+    raw_base_ref = os.environ.get("PR_BASE_REF", "main")
+    base_ref = _validate_branch(raw_base_ref) or "main"
+    if base_ref != raw_base_ref.strip():
+        print(
+            f"warning: PR_BASE_REF={raw_base_ref!r} failed branch-name "
+            f"allowlist; falling back to 'main'",
+            file=sys.stderr,
+        )
     print(f"Fetching {base_ref} for diff base...", flush=True)
     _fetch_base_ref(base_ref)
 
