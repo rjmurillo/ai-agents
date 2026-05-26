@@ -52,12 +52,16 @@ jobs:
               - 'templates/**'
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
+              - 'src/claude/**'
               - 'build/generate_agents.py'
               - 'build/scripts/**'
               - '.claude/agents/**'
               - '.claude/skills/**'
               - '.claude/hooks/**'
               - '.claude/settings.json'
+              - '.claude/rules/**'
+              - '.github/agents/**'
+              - '.github/instructions/**'
               - '.github/workflows/validate-generated-agents.yml'
 
       - name: Determine if validation should run
@@ -103,6 +107,12 @@ jobs:
       - name: Checkout repository
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          # fetch-depth: 0 so the install-parity step can resolve
+          # origin/<base> and the push-event before-SHA without a
+          # follow-up fetch. The validator diffs against a base ref; a
+          # shallow checkout leaves that ref unresolvable.
+          fetch-depth: 0
 
       - name: Regenerate and validate agent files
         if: steps.should-run.outputs.skip != 'true'
@@ -118,6 +128,25 @@ jobs:
         run: |
           echo "Running build_all.py --check..."
           python3 build/scripts/build_all.py --check
+
+      - name: Install-parity check (changed-together siblings)
+        if: steps.should-run.outputs.skip != 'true'
+        # Catches the class of drift the build-all generator cannot:
+        # the install copies under .claude/agents/ and .github/agents/
+        # are hand-maintained self-host copies and must move together
+        # with the shared template under templates/agents/ and the three
+        # vendored copies under src/. PR #2087 (qa) and PR #2083
+        # (orchestrator) are the regressions this gate prevents.
+        #
+        # Per ADR-006 (Thin Workflows, Testable Modules), the fetch +
+        # base-ref resolution + validator invocation live in
+        # scripts/validation/run_install_parity_ci.py. The YAML step
+        # passes inputs via environment variables and runs one command.
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+          PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
+        run: |
+          python3 scripts/validation/run_install_parity_ci.py
 
       - name: Plugin lib sync check (M7-T1)
         if: steps.should-run.outputs.skip != 'true'
