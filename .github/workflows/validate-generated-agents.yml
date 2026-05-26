@@ -122,16 +122,31 @@ jobs:
       - name: Install-parity check (changed-together siblings)
         if: steps.should-run.outputs.skip != 'true'
         # Catches the class of drift the build-all generator cannot:
-        # ``.claude/agents/X.md`` and ``.github/agents/X.agent.md`` are
-        # hand-maintained self-host install copies and must move together
-        # with ``templates/agents/X.shared.md`` and the three ``src/*``
-        # vendored copies. PR #2087 (qa) and PR #2083 (orchestrator) are
-        # the regressions this gate prevents.
+        # the install copies under .claude/agents/ and .github/agents/
+        # are hand-maintained self-host copies and must move together
+        # with the shared template under templates/agents/ and the three
+        # vendored copies under src/. PR #2087 (qa) and PR #2083
+        # (orchestrator) are the regressions this gate prevents.
+        #
+        # The default actions/checkout is shallow (fetch-depth: 1), so
+        # origin/<base> may not be resolvable as a local ref. Fetch the
+        # base ref explicitly with bounded depth before diffing; fall
+        # back to HEAD^ when the checkout style cannot resolve the base
+        # (push events on a branch other than main).
         env:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
         run: |
-          echo "Running validate_install_parity.py..."
-          python3 build/scripts/validate_install_parity.py --base "origin/${PR_BASE_REF}"
+          echo "Fetching ${PR_BASE_REF} for diff base..."
+          git fetch --no-tags --depth=200 origin "${PR_BASE_REF}" || \
+            git fetch --no-tags --unshallow origin "${PR_BASE_REF}" || true
+          if git rev-parse --verify -q "origin/${PR_BASE_REF}" >/dev/null; then
+            BASE="origin/${PR_BASE_REF}"
+          else
+            echo "::warning::origin/${PR_BASE_REF} not resolvable; falling back to HEAD^"
+            BASE="HEAD^"
+          fi
+          echo "Running validate_install_parity.py against ${BASE}..."
+          python3 build/scripts/validate_install_parity.py --base "${BASE}"
 
       - name: Plugin lib sync check (M7-T1)
         if: steps.should-run.outputs.skip != 'true'
