@@ -160,10 +160,10 @@ def test_resolve_base_ignores_malformed_push_before_sha(monkeypatch) -> None:
 # --- main ----------------------------------------------------------------
 
 
-def test_main_with_malformed_pr_base_ref_falls_back_to_main(
+def test_main_with_malformed_pr_base_ref_fails_closed(
     monkeypatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An attacker-controlled PR_BASE_REF must not reach git."""
+    """An attacker-controlled PR_BASE_REF must fail closed, not fall back to main."""
     monkeypatch.setenv("PR_BASE_REF", "main; rm -rf /")
     monkeypatch.setenv("PUSH_BEFORE_SHA", "")
 
@@ -185,8 +185,9 @@ def test_main_with_malformed_pr_base_ref_falls_back_to_main(
     monkeypatch.setattr(runner, "_run", fake_run)
 
     rc = runner.main()
-    assert rc == 0
-    # The malformed ref must not have reached the fetch.
-    assert fetch_calls == ["main"]
+    assert rc == 2
+    # The malformed ref must not have reached the fetch at all.
+    assert fetch_calls == []
     err = capsys.readouterr().err
     assert "failed branch-name allowlist" in err
+    assert "refusing to fall back" in err

@@ -143,13 +143,16 @@ def _resolve_base(base_ref: str) -> str | None:
 
 def main() -> int:
     raw_base_ref = os.environ.get("PR_BASE_REF", "main")
-    base_ref = _validate_branch(raw_base_ref) or "main"
-    if base_ref != raw_base_ref.strip():
+    validated = _validate_branch(raw_base_ref)
+    if validated is None:
         print(
-            f"warning: PR_BASE_REF={raw_base_ref!r} failed branch-name "
-            f"allowlist; falling back to 'main'",
+            f"error: PR_BASE_REF={raw_base_ref!r} failed branch-name "
+            f"allowlist; refusing to fall back. Set a valid PR_BASE_REF or "
+            "unset to use the default 'main'.",
             file=sys.stderr,
         )
+        return 2
+    base_ref = validated
     print(f"Fetching {base_ref} for diff base...", flush=True)
     _fetch_base_ref(base_ref)
 

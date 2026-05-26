@@ -807,9 +807,10 @@ def validate_install_parity(repo_root: Path) -> bool:
     instead of raising MissingScriptSkip; a silent skip would defeat the
     point of registering the gate.
 
-    Passes an explicit ``--base`` resolved by ``_resolve_branch_base_ref``
-    so the validator does not retry its own @{push} default (which is not
-    reliably set in CI or fresh local checkouts).
+    Passes an explicit ``--base`` resolved by ``_resolve_branch_base_ref``.
+    Fails closed when the base cannot be resolved, so the validator never
+    falls back to its own @{push} default (which is not reliably set in CI
+    or fresh local checkouts) and never validates against an unknown base.
     """
     script = repo_root / "build" / "scripts" / "validate_install_parity.py"
     if not script.exists():
@@ -821,9 +822,14 @@ def validate_install_parity(repo_root: Path) -> bool:
         )
         return False
     base_ref = _resolve_branch_base_ref(repo_root)
-    cmd = [sys.executable, str(script)]
-    if base_ref:
-        cmd.extend(["--base", base_ref])
+    if not base_ref:
+        print(
+            "[ERROR] install-parity gate: base ref could not be resolved; "
+            "refusing to invoke validator without an explicit --base.",
+            file=sys.stderr,
+        )
+        return False
+    cmd = [sys.executable, str(script), "--base", base_ref]
     exit_code, stdout, stderr = _run_subprocess(cmd)
     output = (stdout or "") + (stderr or "")
     if output.strip():
