@@ -72,8 +72,8 @@
     "sessionEnd": {
       "checklistComplete": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "All sessionStart MUST items complete; sessionEnd items populated with evidence below"
+        "Complete": false,
+        "Evidence": "All sessionStart MUST items complete; sessionEnd validationPassed MUST item incomplete due to pre_pr.py exit code 1"
       },
       "handoffPreserved": {
         "level": "MUST",
