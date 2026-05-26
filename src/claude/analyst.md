@@ -82,7 +82,7 @@ Start cheap to verify. "Check if dependency updated" before "rewrite module."
 **mcp__deepwiki__***: repository documentation lookup
 **Memory via Serena**: `mcp__serena__read_memory`, `mcp__serena__write_memory`
 
-Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer Context7/DeepWiki over web scraping for library docs.
+Prefer existing skill scripts (`.claude/skills/github/scripts/`) over raw `gh` commands. Prefer `mcp__context7__*` and `mcp__deepwiki__*` over web scraping for library docs.
 
 ## Read-Only Constraint
 
