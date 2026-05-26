@@ -144,9 +144,21 @@
       "timestamp": "2026-05-26T17:55:00Z",
       "action": "Verified Claude addenda survived merge: Step 5 present in qa, Degraded Mode in architect, Test rigor checklist in implementer. Validator allows the diff under the asymmetric resync rule (touched set is entirely install members of SHARED_AGENT groups).",
       "files": []
+    },
+    {
+      "timestamp": "2026-05-26T19:30:00Z",
+      "action": "PR feedback cycle: addressed 4 unresolved threads (gemini false-positive on generated-file edit; copilot regex bracket placeholder in architect; copilot endingCommit PENDING; copilot duplicated coverage commands in qa). Fixed via template edit + regenerate. Ran pytest tests/build_scripts/: 361 passed in 1.32s. Ran detect_agent_drift.py: 22 OK, 1 pre-existing (merge-resolver), 3 no-counterpart.",
+      "files": [
+        "templates/agents/architect.shared.md",
+        "templates/agents/qa.shared.md",
+        "src/claude/architect.md",
+        "src/claude/qa.md",
+        ".claude/agents/architect.md",
+        ".claude/agents/qa.md"
+      ]
     }
   ],
-  "endingCommit": "PENDING",
+  "endingCommit": "0f81a522",
   "nextSteps": [
     "Open PR for this resync referencing #2094.",
     "Follow-up PR for orchestrator: PR #2083 also missed src/claude/orchestrator.md so the resync needs to apply the template's Reasoning Protocol additions to both src/claude/ and .claude/agents/ together. Outside the scope of this single-side install resync.",
