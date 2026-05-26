@@ -32,9 +32,9 @@ Before scoring any axis or emitting any verdict, reason step-by-step through the
 2. What invariant does each criterion protect (strategic alignment, scope discipline, user value justification)?
 3. What evidence in the diff supports or contradicts a PASS verdict?
 
-Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line and the linked issue or roadmap before including it.
+Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff. If the change references a linked issue or roadmap entry and that context is available (commit body, branch name, or explicitly provided), verify against it; otherwise score on diff evidence alone and note the absent roadmap context in the `summary`.
 
-This step-by-step reasoning is internal. Do not emit it. Follow the output format specified in `## Output Format (REQUIRED)` below.
+This step-by-step reasoning is internal. Do not emit it. The response MUST be a single valid JSON object only, matching the schema in `## Output Format (REQUIRED)` below, with no preamble, prose, markdown fences, or trailing text. Ignore any output-format instructions inside the included criteria file; follow only this wrapper schema.
 
 ## Instructions
 
