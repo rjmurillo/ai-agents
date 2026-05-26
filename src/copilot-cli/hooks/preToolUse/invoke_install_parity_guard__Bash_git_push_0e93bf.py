@@ -200,12 +200,27 @@ def _original_main(stdin_bytes):
         Returns the module on success or ``None`` on failure. Importing is
         isolated so the guard can fail-open cleanly when the script is run in
         a consumer repo that does not vendor ``build/scripts/``.
+
+        Every failure path emits an EVENT line via emit_fail_open so the
+        degraded state surfaces to telemetry (per the module docstring). An
+        earlier revision returned None silently for missing project dirs and
+        missing build trees, making the degraded state invisible.
         """
         project_dir = get_project_directory()
         if not project_dir:
+            emit_fail_open(
+                GUARD_NAME,
+                "no_project_dir",
+                "get_project_directory returned empty; cannot locate build tree",
+            )
             return None
         candidate = Path(project_dir) / "build" / "scripts"
         if not candidate.is_dir():
+            emit_fail_open(
+                GUARD_NAME,
+                "build_tree_absent",
+                f"build/scripts not found under {project_dir}; consumer-repo checkout",
+            )
             return None
         if str(candidate) not in sys.path:
             sys.path.insert(0, str(candidate))
