@@ -48,7 +48,7 @@ The `VERDICT:` line MUST be consistent with Recommendation and findings:
 | BLOCK | CRITICAL_FAIL |
 | REJECT | REJECTED |
 
-Severity constraints:
+Severity constraints (these override the table above when they conflict):
 
 - Any `critical` finding → VERDICT MUST be `CRITICAL_FAIL` (incompatible with APPROVE/PASS)
 - Any `high` finding → VERDICT MUST be at least `WARN` (incompatible with PASS)
