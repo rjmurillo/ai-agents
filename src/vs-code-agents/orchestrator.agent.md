@@ -159,7 +159,7 @@ Your output is not "analyst said X, architect said Y." It is "based on investiga
 | Synthesis | 400 words or 4 paragraphs, whichever comes first |
 | Session log entry | 2 sentences per work item: action then result or rationale |
 
-When a synthesis exceeds the cap, cut the weakest finding, not the strongest recommendation.
+When a synthesis exceeds the cap, cut the weakest finding, not the strongest recommendation. Keep the final output actionable and concise so the user can act without re-reading.
 
 ## Session Gate (Blocking)
 
