@@ -60,12 +60,24 @@ Bound the response by count, not characters, so the JSON object always closes. C
 {
   "overall_verdict": "PASS|WARN|CRITICAL_FAIL",
   "agent_results": {
-    "security": { "verdict": "...", "findings": [...] },
-    "qa": { "verdict": "...", "findings": [...] },
-    "analyst": { "verdict": "...", "findings": [...] },
-    "architect": { "verdict": "...", "findings": [...] },
-    "devops": { "verdict": "...", "findings": [...] },
-    "roadmap": { "verdict": "...", "findings": [...] }
+    "security": {
+      "verdict": "PASS|WARN|CRITICAL_FAIL",
+      "findings": [
+        {
+          "severity": "critical|high|medium|low",
+          "category": "string",
+          "file": "path/to/file",
+          "line": 123,
+          "description": "One sentence describing the issue.",
+          "recommendation": "One sentence fix."
+        }
+      ]
+    },
+    "qa": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "analyst": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "architect": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "devops": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "roadmap": { "verdict": "...", "findings": ["<same structure as above>"] }
   },
   "summary": "string"
 }
