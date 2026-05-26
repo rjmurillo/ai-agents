@@ -30,12 +30,12 @@ Emit four sections in this exact order, followed by the required verdict block (
 **Findings** (10 items max, one per line, format below):
 
 ```text
-<location>: [SEVERITY] one-sentence description. Evidence: [quoted diff line or hunk text].
+<location>: [critical|high|medium|low] one-sentence description. Evidence: [quoted diff line or hunk text].
 ```
 
 `<location>` is `file:line` when the provided context contains explicit line numbers. When the context only contains hunk headers (for example `file @@ -a,b +c,d @@`), use `file @@hunk@@` instead and do not invent line numbers.
 
-Severities: `critical` (must fix before merge), `high` (should fix before merge), `medium` (fix in follow-up), `low` (nit, optional).
+Use lowercase severity tokens exactly: `critical` (must fix before merge), `high` (should fix before merge), `medium` (fix in follow-up), `low` (nit, optional). Do not uppercase or abbreviate.
 
 **Recommendation** (1 action sentence): one of:
 
@@ -44,7 +44,7 @@ Severities: `critical` (must fix before merge), `high` (should fix before merge)
 - `BLOCK: <Y must resolve>` (deeper rework required in this PR, name the blocker)
 - `REJECT: <Z is wrong>` (the change should not land at all, name the reason)
 
-**Confidence** (0-100 numeric score on its own line): Rate confidence in this review based on context completeness and code clarity. Below 70 with verdict PASS triggers escalation per `.agents/governance/AI-REVIEW-MODEL-POLICY.md`.
+**Confidence** (0-100 numeric score on its own line): Rate confidence in this review honestly based on context completeness and code clarity. Report the value you genuinely hold; do not inflate. Per `.agents/governance/AI-REVIEW-MODEL-POLICY.md`, downstream tooling may use a low confidence score with verdict PASS as a signal to escalate. Score independently of verdict considerations.
 
 ## Verdict Mapping (REQUIRED)
 
@@ -74,7 +74,7 @@ Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with a loc
 
 The harness runs non-interactively, so the model cannot ask a follow-up question. Every degraded-context path below ("ask first" cases included) produces the four required sections plus the verdict block as the deterministic output. Treat "ask first" as "emit WARN with the missing context named in MESSAGE", never as a no-op.
 
-No diff supplied: emit `VERDICT: WARN` with `MESSAGE: No diff supplied`. Summary and Findings sections may be empty placeholders; Recommendation is `CONDITIONAL APPROVE: re-run with a diff`.
+No diff supplied: emit `VERDICT: WARN` with `MESSAGE: No diff supplied`. Use these exact deterministic placeholders, do not invent content: Summary is `No diff supplied; nothing to review.`; Findings is a single line `n/a: [low] No diff supplied. Evidence: input contained no diff.`; Recommendation is `CONDITIONAL APPROVE: re-run with a diff`; Confidence is `100`.
 
 Summary-only or partial context: if the `## Changes` section begins with markers like `[Large PR -` (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` unless the available evidence justifies escalation to `CRITICAL_FAIL` or `REJECTED`.
 
