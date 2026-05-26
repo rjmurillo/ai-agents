@@ -2,14 +2,14 @@
   "id": "episode-2026-05-26-session-1838",
   "session": "2026-05-26-session-1838",
   "timestamp": "2026-05-26T03:58:03.203026+00:00",
-  "outcome": "failure",
+  "outcome": "success",
   "task": "",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "error",
+      "type": "observation",
       "content": "\"Evidence\": \"markdownlint-cli2: 0 errors on templates/agents/orchestrator.shared.md and 2 generated files\"",
       "caused_by": [],
       "leads_to": []
@@ -17,7 +17,7 @@
     {
       "id": "e002",
       "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "error",
+      "type": "observation",
       "content": "\"Evidence\": \"pre_pr.py: 2 pre-existing failures (merge-resolver drift, lint on other files); 0 new failures from this change; lint 0 errors on changed files\"",
       "caused_by": [],
       "leads_to": []
@@ -25,7 +25,7 @@
     {
       "id": "e003",
       "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "error",
+      "type": "observation",
       "content": "\"evidence\": \"mcp__serena__replace_content: inserted before Core Behavior; think-before-routing directive with thinking trigger and failure-mode guidance\"",
       "caused_by": [],
       "leads_to": []
@@ -33,7 +33,7 @@
     {
       "id": "e004",
       "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "error",
+      "type": "observation",
       "content": "\"evidence\": \"2 pre-existing failures (merge-resolver drift 20.9%, lint on non-changed files); 0 new failures; lint 0 errors on changed files\"",
       "caused_by": [],
       "leads_to": []
@@ -42,7 +42,7 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 4,
+    "errors": 0,
     "recoveries": 0,
     "commits": 2,
     "files_changed": 0
