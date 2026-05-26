@@ -57,12 +57,27 @@ def _import_validator():
     Returns the module on success or ``None`` on failure. Importing is
     isolated so the guard can fail-open cleanly when the script is run in
     a consumer repo that does not vendor ``build/scripts/``.
+
+    Every failure path emits an EVENT line via emit_fail_open so the
+    degraded state surfaces to telemetry (per the module docstring). An
+    earlier revision returned None silently for missing project dirs and
+    missing build trees, making the degraded state invisible.
     """
     project_dir = get_project_directory()
     if not project_dir:
+        emit_fail_open(
+            GUARD_NAME,
+            "no_project_dir",
+            "get_project_directory returned empty; cannot locate build tree",
+        )
         return None
     candidate = Path(project_dir) / "build" / "scripts"
     if not candidate.is_dir():
+        emit_fail_open(
+            GUARD_NAME,
+            "build_tree_absent",
+            f"build/scripts not found under {project_dir}; consumer-repo checkout",
+        )
         return None
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
@@ -122,7 +137,12 @@ def _validate(_matching: list[str], all_changed: list[str]) -> list[str]:
 
 
 def main() -> int:
-    return run_guard(_validate, list(_GLOBS), GUARD_NAME)
+    # include_deletions=True so a deletion-only parity break (deleting a
+    # template or one install sibling without staging the rest) still
+    # reaches the validator. This guard only reasons about file paths, so
+    # ACMRD is safe; the validator treats a deleted template path as a
+    # touched group member (see _is_shared_agent_group).
+    return run_guard(_validate, list(_GLOBS), GUARD_NAME, include_deletions=True)
 
 
 if __name__ == "__main__":

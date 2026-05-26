@@ -801,15 +801,30 @@ def validate_install_parity(repo_root: Path) -> bool:
     when the diff is clean, 1 when one or more parity groups have missing
     siblings, and 2 on configuration errors. We treat exit 1 as a hard
     failure; exit 2 is also a failure because the validator could not run.
+
+    This is the new gate being wired in, not a legacy script. If the
+    validator is missing from build/scripts/, fail closed (return False)
+    instead of raising MissingScriptSkip; a silent skip would defeat the
+    point of registering the gate.
+
+    Passes an explicit ``--base`` resolved by ``_resolve_branch_base_ref``
+    so the validator does not retry its own @{push} default (which is not
+    reliably set in CI or fresh local checkouts).
     """
     script = repo_root / "build" / "scripts" / "validate_install_parity.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "validate_install_parity.py absent; skipping install-parity check"
+        print(
+            "[ERROR] validate_install_parity.py absent; the install-parity "
+            "gate cannot run. This is a hard failure: the gate is the "
+            "point of registering this validator.",
+            file=sys.stderr,
         )
-    exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script)]
-    )
+        return False
+    base_ref = _resolve_branch_base_ref(repo_root)
+    cmd = [sys.executable, str(script)]
+    if base_ref:
+        cmd.extend(["--base", base_ref])
+    exit_code, stdout, stderr = _run_subprocess(cmd)
     output = (stdout or "") + (stderr or "")
     if output.strip():
         for line in output.strip().splitlines()[:80]:
