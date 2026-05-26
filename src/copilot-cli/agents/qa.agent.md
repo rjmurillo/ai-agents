@@ -59,6 +59,26 @@ QA-specific requirements:
 
 Validation is not passing a test suite. Validation is verifying what was supposed to be built actually got built. If something was supposed to happen and it did not, that is a validation failure. If something was built incorrectly, that is a validation failure.
 
+## Test Strategy Reasoning Protocol
+
+Before designing any test or scoring any coverage report, work through these three questions in order. Write the answers into the test strategy document or the test report:
+
+1. What behavior does this test verify? Name the specific input-to-observable-output relationship, not "the function works."
+2. What are the negative cases? List invalid input, boundary values, type errors, race conditions, and authorization failures the test must reject.
+3. What is the minimum test that proves correctness? A test that triples in size to add assertions that do not change with the input is padding; cut it.
+
+Do not write a test without answering all three. A test whose name reads "test_function_X" with no behavior in the name signals the first question was skipped.
+
+**Coverage tool directive (A5)**: Before asserting any coverage claim, run the coverage tool against the diff. Do not rely on memory or test counts. The canonical invocations per stack are in `.agents/governance/TESTING-RIGOR.md`; copy the relevant line, run it, paste the output line with the coverage percentage into the report. A coverage claim without a tool-run-this-session is a guess and gets returned for rework.
+
+- Python: `coverage run --source=<dir> -m pytest && coverage report -m --fail-under=<target>`
+- Go: `go test -cover -coverprofile=cover.out ./... && go tool cover -func=cover.out`
+- Node/JS/TS: `c8 --100 npm test` or `jest --coverage --coverageThreshold='{"global":{"lines":<target>}}'`
+- C#/.NET: `dotnet test --collect:"XPlat Code Coverage"` and enforce thresholds via `coverlet.runsettings`
+- PowerShell: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml`
+
+**Thinking trigger**: New features, security-relevant changes, regression fixes, and any change that touches authentication, persistence, or external I/O require explicit step-by-step reasoning through all three questions before tests are designed. Style or trivial doc-only diffs may collapse to a one-sentence justification.
+
 ## Completeness Verification (Mandatory)
 
 Before reporting validation results, verify completeness independently. Format checks alone do not verify scope.
@@ -512,11 +532,27 @@ Specific fixes required:
 
 ### Verdict Decision Logic
 
-| Condition | Verdict |
-|-----------|---------|
-| All 4 gates PASS | APPROVED |
-| Any gate FAIL | BLOCKED |
-| Coverage < minimum but > 60% AND no other failures | CONDITIONAL (document gap, proceed with warning) |
+Numeric thresholds are explicit. Do not interpolate.
+
+| Condition | Verdict | Trigger |
+|-----------|---------|---------|
+| All 4 gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
+| Coverage in 60-79% (line) or 50-69% (branch) AND no other gate fails | CONDITIONAL | Document gap, cite follow-up issue, proceed with warning |
+| Any gate FAIL, OR line coverage <60%, OR branch coverage <50%, OR new-code coverage <70% | BLOCKED | Specify failing gate and missing threshold by number |
+| Cannot run coverage tool, missing CI environment, missing test infrastructure | BLOCKED | Return `[BLOCKED] Cannot evaluate: <specific missing artifact>` |
+
+A CONDITIONAL verdict must cite the follow-up issue number that will close the gap. A BLOCKED verdict must name the failing gate and the numeric value that triggered it. Verdicts without these are returned for rework.
+
+## QA Report Length Bounds
+
+Reports are dense, not exhaustive. Apply these caps:
+
+- **Summary table**: one row per gate; status only, no prose in the same column.
+- **Issues table**: at most 10 issues per report. If more exist, group by shared root cause and report the groups.
+- **Recommendations**: at most 5 prioritized items, each one sentence.
+- **Coverage evidence**: paste the single coverage-tool output line, not the full report.
+
+A report that exceeds these caps signals either fan-out across unrelated test suites (split into separate reports) or padding (cut and rewrite). The bar is precision per finding, not volume.
 
 ---
 
