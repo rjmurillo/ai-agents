@@ -52,12 +52,16 @@ jobs:
               - 'templates/**'
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
+              - 'src/claude/**'
               - 'build/generate_agents.py'
               - 'build/scripts/**'
               - '.claude/agents/**'
               - '.claude/skills/**'
               - '.claude/hooks/**'
               - '.claude/settings.json'
+              - '.claude/rules/**'
+              - '.github/agents/**'
+              - '.github/instructions/**'
               - '.github/workflows/validate-generated-agents.yml'
 
       - name: Determine if validation should run

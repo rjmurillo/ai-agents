@@ -166,6 +166,20 @@ def test_freestanding_copilot_agent_is_not_flagged(fake_repo: Path) -> None:
     assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
+def test_freestanding_claude_agent_is_not_flagged(fake_repo: Path) -> None:
+    """A .claude/agents/X.md without a template anchor is its own group.
+
+    Regression test for agents like context-retrieval, adr-generator, and
+    quality-auditor that exist only under .claude/agents/ without a shared
+    template or .github/agents/ sibling. Solo edits should not trigger
+    missing-sibling violations.
+    """
+    # Create a Claude-only agent with no template or GitHub sibling.
+    (fake_repo / ".claude" / "agents" / "delta.md").write_text("# delta\n")
+    touched = [".claude/agents/delta.md"]
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
+
+
 def test_rule_clean_diff(fake_repo: Path) -> None:
     touched = [
         ".claude/rules/beta.md",

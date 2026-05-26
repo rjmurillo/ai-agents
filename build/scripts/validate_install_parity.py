@@ -298,6 +298,16 @@ def find_violations(
     violations: list[Violation] = []
     for (kind, name), members_touched in sorted(by_group.items()):
         group = group_for_anchor(kind, name)
+
+        # Special case: freestanding agents (no template anchor).
+        # When no shared template exists, .claude/agents/ and .github/agents/
+        # paths are independent one-member groups. Solo edits to either are
+        # valid and should not require siblings. Without this check, editing
+        # a Claude-only agent like context-retrieval falsely requires
+        # .github/agents/context-retrieval.agent.md which does not exist.
+        if kind == "SHARED_AGENT" and not _is_shared_agent_group(root, name):
+            continue
+
         expected = _expected_members(root, group)
         missing = tuple(sorted(m for m in expected if m not in touched_set))
         if not missing:
