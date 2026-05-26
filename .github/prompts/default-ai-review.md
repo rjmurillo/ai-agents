@@ -1,5 +1,7 @@
 # Default AI Review
 
+CONTEXT_MODE: full
+
 Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation. Follow the communication style in [src/STYLE-GUIDE.md](src/STYLE-GUIDE.md).
 
 ## Reasoning Protocol
@@ -32,6 +34,8 @@ Severities: `critical` (must fix before merge), `high` (should fix before merge)
 - `CONDITIONAL APPROVE: <X must change>` (small fix required, name the fix)
 - `BLOCK: <Y must resolve>` (deeper rework required, name the blocker)
 
+**Confidence** (0-100 numeric score on its own line): Rate confidence in this review based on context completeness and code clarity. Below 70 with verdict PASS triggers escalation per `.agents/governance/AI-REVIEW-MODEL-POLICY.md`.
+
 ## Verdict Mapping (REQUIRED)
 
 The `VERDICT:` line MUST be consistent with Recommendation and findings:
@@ -56,7 +60,11 @@ Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with file:
 
 ## Skip / Ask First
 
-Skip this prompt if no diff is provided. Emit `VERDICT: WARN` and `MESSAGE: No diff supplied` as the complete output. Ask first if you cannot infer the repository context (language, framework, test strategy) from the diff alone.
+Skip this prompt if no diff is provided. Emit `VERDICT: WARN` and `MESSAGE: No diff supplied` as the complete output.
+
+If `CONTEXT_MODE` in this prompt is not `full` (that is, `summary` or `partial`), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` over `PASS` unless every required check is backed by evidence in the provided context. This prompt declares `CONTEXT_MODE: full`; downstream forks that lower the mode MUST also revise the Recommendation table.
+
+Ask first if you cannot infer the repository context (language, framework, test strategy) from the diff alone.
 
 ## Verdict Line (REQUIRED by harness)
 
