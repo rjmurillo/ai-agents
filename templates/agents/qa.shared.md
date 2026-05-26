@@ -70,10 +70,10 @@ Do not write a test without answering all three. A test whose name reads "test_f
 
 **Coverage tool directive (A5)**: Before asserting any coverage claim, run the coverage tool against the diff. Do not rely on memory or test counts. The canonical invocations per stack are in `.agents/governance/TESTING-RIGOR.md`; copy the relevant line, run it, paste the output line with the coverage percentage into the report. A coverage claim without a tool-run-this-session is a guess and gets returned for rework.
 
-- Python: `coverage run --source=<dir> -m pytest && coverage report -m --fail-under=<target>`
+- Python: `python3 -m coverage run --source=<dir> -m pytest && python3 -m coverage report -m --include='<file>' --fail-under=<target>`
 - Go: `go test -cover -coverprofile=cover.out ./... && go tool cover -func=cover.out`
 - Node/JS/TS: `c8 --100 npm test` or `jest --coverage --coverageThreshold='{"global":{"lines":<target>}}'`
-- C#/.NET: `dotnet test --collect:"XPlat Code Coverage"` and enforce thresholds via `coverlet.runsettings`
+- C#/.NET: `dotnet test --collect:"XPlat Code Coverage"` with `coverlet.runsettings` thresholds
 - PowerShell: `Invoke-Pester -CodeCoverage <files> -CodeCoverageOutputFile cov.xml`
 
 **Thinking trigger**: New features, security-relevant changes, regression fixes, and any change that touches authentication, persistence, or external I/O require explicit step-by-step reasoning through all three questions before tests are designed. Style or trivial doc-only diffs may collapse to a one-sentence justification.
