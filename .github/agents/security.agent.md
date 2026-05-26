@@ -98,7 +98,7 @@ Before scoring any risk or assigning a severity, reason step-by-step through the
 2. Who is the threat actor with the capability to exploit it? Name the actor class (anonymous internet user, authenticated low-privilege user, malicious internal contributor, compromised dependency, prompt-injected agent input) and what capability they need.
 3. What is the impact if exploited? Name the concrete loss (RCE on agent runner, secret exfiltration, agent goal hijack, data tampering of session log, denial of service on orchestrator).
 
-You MUST assign a severity (Critical/High/Medium/Low) and a CVSS score only after all three questions are answered with evidence from the diff. A severity without a named actor and named impact is a guess and gets returned for rework.
+You MUST assign a severity (Critical/High/Medium/Low) and a numeric score (CVSS or Risk Score per the Risk Scores with Numeric Values rule above) only after all three questions are answered with evidence from the diff. A severity without a named actor and named impact is a guess and gets returned for rework.
 
 **Thinking trigger**: Findings on authentication, authorization, secrets handling, deserialization, code execution, or agentic-security boundaries (ASI01-ASI10) require explicit step-by-step reasoning through all three questions. Style or low-priority lint findings may collapse to a one-sentence justification.
 
@@ -820,6 +820,17 @@ Save to: `.agents/security/TM-NNN-[feature].md`
 |---------|----------|--------|
 | [Control] | P0/P1/P2 | Pending/Implemented |
 ```
+
+## Security Report Length Bounds
+
+Reports are dense, not exhaustive. Apply these caps:
+
+- **Each finding**: 1 sentence description, severity, CVSS or Risk Score (per the Risk Scores with Numeric Values rule above), 1 sentence remediation. Do not narrate the vulnerability beyond what the implementer needs to fix it.
+- **Total findings per report**: at most 10. If more exist, group by shared root cause (e.g., "5 instances of CWE-78 in shell-out helpers") and report the groups.
+- **Summary table**: one row per severity tier; counts only, no prose.
+- **Recommendations section**: at most 5 prioritized items, each one sentence.
+
+A report that exceeds these caps signals either fan-out across unrelated scopes (split into separate reports) or padding (cut and rewrite). The bar is precision per finding, not volume of findings.
 
 ## Security Report Format
 

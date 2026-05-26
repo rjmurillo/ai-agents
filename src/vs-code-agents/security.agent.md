@@ -100,7 +100,7 @@ Before scoring any risk or assigning a severity, reason step-by-step through the
 2. Who is the threat actor with the capability to exploit it? Name the actor class (anonymous internet user, authenticated low-privilege user, malicious internal contributor, compromised dependency, prompt-injected agent input) and what capability they need.
 3. What is the impact if exploited? Name the concrete loss (RCE on agent runner, secret exfiltration, agent goal hijack, data tampering of session log, denial of service on orchestrator).
 
-You MUST assign a severity (Critical/High/Medium/Low) and a CVSS score only after all three questions are answered with evidence from the diff. A severity without a named actor and named impact is a guess and gets returned for rework.
+You MUST assign a severity (Critical/High/Medium/Low) and a numeric score (CVSS or Risk Score per the Risk Scores with Numeric Values rule above) only after all three questions are answered with evidence from the diff. A severity without a named actor and named impact is a guess and gets returned for rework.
 
 **Thinking trigger**: Findings on authentication, authorization, secrets handling, deserialization, code execution, or agentic-security boundaries (ASI01-ASI10) require explicit step-by-step reasoning through all three questions. Style or low-priority lint findings may collapse to a one-sentence justification.
 
