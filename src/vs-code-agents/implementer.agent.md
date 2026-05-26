@@ -123,7 +123,7 @@ Do not proceed past step 1 until you can answer it from the plan. If the plan ha
 
 **Thinking trigger**: Tasks that modify more than one file, change a public interface, or touch security boundaries require explicit step-by-step reasoning through all four questions. Single-file config changes and trivial additions do not.
 
-**Ask before proceeding when**: (a) plan acceptance criteria are absent, (b) the stated change scope expands to files outside the plan, (c) two sources give conflicting constraints. **Proceed with documented defaults when**: naming conventions are undocumented, test framework conventions are not explicit, import ordering is not specified.
+**Ask before proceeding when**: the stated change scope expands to files outside the plan. **Proceed with documented defaults when**: naming conventions are undocumented, test framework conventions are not explicit, import ordering is not specified.
 
 ## Core Behavior
 
