@@ -21,8 +21,10 @@ Emit four sections in this exact order. No preamble. No closing remarks.
 **Findings** (10 items max, one per line, format below):
 
 ```text
-file:line: [SEVERITY] one-sentence description. Evidence: [quote from diff or file:line reference].
+<location>: [SEVERITY] one-sentence description. Evidence: [quoted diff line or hunk text].
 ```
+
+`<location>` is `file:line` when the provided context contains explicit line numbers. When the context only contains hunk headers (for example `file @@ -a,b +c,d @@`), use `file @@hunk@@` instead and do not invent line numbers.
 
 Severities: `critical` (must fix before merge), `high` (should fix before merge), `medium` (fix in follow-up), `low` (nit, optional).
 
@@ -54,25 +56,28 @@ End the response with the verdict line in the format below for the harness.
 
 ## Output Bounds
 
-Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with file:line. Recommendation: 1 sentence. Confidence: 1 numeric score (0-100) on its own line.
+Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with a location (`file:line` when context has line numbers, otherwise `file @@hunk@@`). Recommendation: 1 sentence. Confidence: 1 numeric score (0-100) on its own line.
 
 ## Skip / Ask First
 
 Skip this prompt if no diff is provided. Emit `VERDICT: WARN` and `MESSAGE: No diff supplied` as the complete output.
 
-If the `## Changes` section begins with markers like `[Large PR -` indicating summary-only or partial context (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` over `PASS` unless every required check is backed by evidence in the provided context.
+If the `## Changes` section begins with markers like `[Large PR -` indicating summary-only or partial context (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` unless the available evidence justifies escalation to `CRITICAL_FAIL` or `REJECTED`.
 
 Ask first if you cannot infer the repository context (language, framework, test strategy) from the diff alone.
 
 ## Verdict Line (REQUIRED by harness)
 
-End your response with the following block in this exact order. Place optional fields after MESSAGE and before the end:
+End your response with the following required block, replacing the bracketed placeholders with real values:
 
 ```text
 VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]
 MESSAGE: [Brief explanation, one sentence]
-LABEL: label-name
-MILESTONE: milestone-name
 ```
 
-Omit `LABEL:` and `MILESTONE:` lines when not applicable. The harness parses each field on its own line; do not merge or reorder them.
+Optional follow-on lines. Append immediately after `MESSAGE:` only when both apply. Use a real label name and a real milestone name; do not emit the literal strings `label-name` or `milestone-name`. Omit the line entirely when no value applies:
+
+- `LABEL: <existing GitHub label>`: apply this label to the PR.
+- `MILESTONE: <existing GitHub milestone>`: assign this milestone to the PR.
+
+The harness parses each field on its own line; do not merge or reorder them.
