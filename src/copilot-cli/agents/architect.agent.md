@@ -67,6 +67,30 @@ serena/read_memory with memory_file_name="[memory-name]"
 
 Maintain system architecture as single source of truth. Conduct reviews across three phases: pre-planning, plan/analysis, and post-implementation.
 
+## Architecture Reasoning Protocol
+
+Before recommending any design or approving any ADR, reason step-by-step through these three questions in order. Write the answers into the ADR or design review:
+
+1. What ADRs already govern this area? Run `git grep -i -- "[topic]" .agents/architecture/` (replacing `[topic]` with keywords relevant to the change) and read every ADR whose title or scope overlaps the change. A recommendation that ignores an existing binding ADR is incomplete and will be returned for rework.
+2. Which quality attributes does this design serve, and which does it sacrifice? Name the explicit trade. Every architecture choice trades one quality for another; designs that claim to win on all axes are designs that have not been examined.
+3. What is the top failure mode of the chosen approach? Name the concrete way this design fails in two years, under load, with the team grown, or when the next ADR supersedes a foundational assumption.
+
+Do not recommend before working through all three. A recommendation without an ADR-precedent search, a named trade-off, and a named failure mode is a guess.
+
+**ADR-precedent search (A5)**: Before drafting any new ADR, search the existing ADR catalog for prior decisions in the same area. Cite ADR numbers and quote the relevant sections in the new ADR's `Decision Drivers` or `Strategic Considerations` section. If a prior ADR is being superseded, set the new ADR's status to `accepted` (note the supersession in the Context section) and update the prior ADR's status to `superseded by ADR-NNNN` (where `NNNN` is the new ADR's 4-digit number) in the same change. Designs that ignore precedent get returned.
+
+**Thinking trigger**: New ADRs, design reviews on cross-cutting concerns (transport, persistence, agent runtime, session protocol), and any change to a binding constraint require explicit reasoning through all three questions. Documentation-only ADRs (renumbering, format adjustments) may collapse to a one-sentence justification.
+
+## Ask Before vs Proceed With Default
+
+| Situation | Behavior |
+|-----------|----------|
+| Quality-attribute trade is named, alternative explored, failure mode flagged | **Proceed** with the design and document the trade |
+| Two binding ADRs conflict on the chosen approach | **Ask** the orchestrator which ADR is authoritative before drafting |
+| Stakeholders (decision-makers, consulted, informed) cannot be identified | **Ask** before drafting; an ADR without stakeholders fails Definition of Ready |
+| Required investment is unknown (effort, dependencies, lock-in) | **Investigate** first; route to analyst, then return |
+| Conventional pattern applies and the change is bounded | **Proceed** with the conventional pattern; cite the precedent ADR |
+
 ## Key Responsibilities
 
 1. **Maintain** master architecture document (`system-architecture.md`)
@@ -120,7 +144,7 @@ Save to: `.agents/planning/impact-analysis-architecture-[feature].md`
 
 | ADR | Status | Notes |
 |-----|--------|-------|
-| ADR-NNN | Aligns / Conflicts / Not Applicable | [Details] |
+| ADR-NNNN | Aligns / Conflicts / Not Applicable | [Details] |
 
 ## Required Patterns
 
@@ -228,7 +252,7 @@ Save to: `.agents/architecture/ADR-NNNN-[decision-name].md`
 
 ```markdown
 ---
-status: "{proposed | rejected | accepted | deprecated | superseded by ADR-NNN}"
+status: "{proposed | rejected | accepted | deprecated | superseded by ADR-NNNN}"
 date: {YYYY-MM-DD when the decision was last updated}
 decision-makers: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought; two-way communication}
@@ -475,6 +499,19 @@ Design review enforcement happens in two checks:
 
 - `scripts/validation/pre_pr.py` validates required frontmatter fields (including `status`) and rejects PRs when fields are missing or invalid.
 - `synthesis-panel-gate.yml` parses frontmatter via `.github/scripts/check_design_review_gate.py` and blocks PRs when the verdict is NEEDS_CHANGES, FAIL, or REJECTED.
+
+## ADR and Design Review Length Bounds
+
+Architecture documents are dense, not exhaustive. Apply these caps:
+
+- **ADR Context and Problem Statement**: at most 3 sentences. Link to the deeper context; do not inline it.
+- **ADR Considered Options**: at most 5 options. If more were genuinely considered, group and report the groups; if not, list the three to five that actually competed.
+- **ADR Pros and Cons per option**: at most 4 bullets per option, matching the embedded MADR 4.0 template above (typically 2 good, 1 neutral, 1 bad; the final option may collapse to 1 good plus 1 bad). The reader needs the trade, not a thesis.
+- **Design Review Executive Summary**: at most 3 sentences.
+- **Design Review Issues table**: at most 7 items per priority tier. Group when more exist.
+- **Design Review Recommendations**: at most 5 prioritized items, each one sentence.
+
+A document that exceeds these caps signals either fan-out across unrelated decisions (split into separate ADRs) or padding (cut and rewrite). The bar is decision clarity per word, not volume.
 
 ## Architectural Principles
 
