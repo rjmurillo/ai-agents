@@ -23,7 +23,7 @@ Do not include a finding without working through all three steps. Quote the exac
 
 ## Output Shape
 
-Emit four sections in this exact order, followed by the required verdict block (see Verdict Line section). No preamble. No prose between the four sections and the verdict block. No content after the verdict block and its optional follow-on lines.
+Emit four sections in this exact order, followed by the required verdict block (see Verdict Line section). Each section MUST begin with its literal markdown header on its own line, exactly as shown below (`**Summary**`, `**Findings**`, `**Recommendation**`, `**Confidence**`). Do not paraphrase, drop, or merge headers; downstream tooling parses on them. No preamble. No prose between the four sections and the verdict block. No content after the verdict block and its optional follow-on lines.
 
 **Summary** (3 sentences max): What the diff does. The single highest-impact finding. Whether the change is safe to merge as-is.
 
