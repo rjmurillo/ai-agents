@@ -191,7 +191,7 @@ Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, 
 
 ## Tools
 
-read, edit, search. Memory via `mcp__serena__read_memory` / `mcp__serena__write_memory`.
+read, search. Memory via `mcp__serena__read_memory` / `mcp__serena__write_memory`.
 
 ## Handoff
 
