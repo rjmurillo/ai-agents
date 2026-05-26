@@ -144,7 +144,7 @@ jobs:
         # passes inputs via environment variables and runs one command.
         env:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
-          PUSH_BEFORE_SHA: ${{ github.event.before || '' }}
+          PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
         run: |
           python3 scripts/validation/run_install_parity_ci.py
 
