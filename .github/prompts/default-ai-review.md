@@ -25,7 +25,7 @@ Do not include a finding without working through all three steps. Quote the exac
 
 Emit four sections in this exact order, followed by the required verdict block (see Verdict Line section). No preamble. No prose between the four sections and the verdict block. No content after the verdict block and its optional follow-on lines.
 
-**Summary** (3 sentences max): What the diff does. The single most significant finding. Whether the change is safe to merge as-is.
+**Summary** (3 sentences max): What the diff does. The single highest-impact finding. Whether the change is safe to merge as-is.
 
 **Findings** (10 items max, one per line, format below):
 
@@ -64,7 +64,7 @@ Severity constraints (apply only when Recommendation is `APPROVE`, `CONDITIONAL 
 - Any `high` finding (when Recommendation is not `REJECT`) → VERDICT MUST be at least `WARN` (incompatible with PASS)
 - `medium`/`low` findings only (when Recommendation is not `REJECT`) → VERDICT may be `PASS`
 
-End the response with the verdict line in the format below for the harness.
+End the response with the verdict block in the format below (the required `VERDICT:` and `MESSAGE:` lines, plus any applicable `LABEL:` and `MILESTONE:` follow-on lines per the Verdict Line section). No content after the verdict block or its follow-on lines.
 
 ## Output Bounds
 
