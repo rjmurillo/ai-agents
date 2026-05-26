@@ -34,6 +34,8 @@ Before scoring any axis or emitting any verdict, reason step-by-step through the
 
 Do not emit a verdict without working through all three. Verify every CVE and CWE claim against the diff, not from memory. Do not rely on training knowledge for vulnerability assessment. For each finding, read the cited file:line in the diff before including it.
 
+This step-by-step reasoning is internal. Do not emit it. The response MUST be valid JSON only, matching the schema in `## Output Format` below, with no preamble, prose, markdown fences, or trailing text.
+
 ## Instructions
 
 1. Analyze the diff for security vulnerabilities per OWASP Top 10
@@ -43,7 +45,7 @@ Do not emit a verdict without working through all three. Verify every CVE and CW
 
 ## Output Bounds
 
-Cap findings: at most 10 items per severity. Cap total output: 800 words or the JSON schema below, whichever ends first. Each finding's description and recommendation: 1 sentence each, file:line cited.
+Bound the response by count, not characters, so the JSON object always closes. Cap findings at 10 items per severity. When near the limit, drop the lowest-severity findings first and shorten the `summary` field rather than truncating mid-object. Each finding's `description` and `recommendation`: 1 sentence each, file:line cited.
 
 ## Output Format (REQUIRED)
 
