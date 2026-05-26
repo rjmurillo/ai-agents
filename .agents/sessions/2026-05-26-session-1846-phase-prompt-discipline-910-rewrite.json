@@ -1,0 +1,133 @@
+{
+  "session": {
+    "number": 1846,
+    "date": "2026-05-26",
+    "branch": "feat/2003-phase3-pr9-default-ai-review",
+    "startingCommit": "157737a0",
+    "objective": "Phase 3 prompt discipline PR 9/10: rewrite default-ai-review.md stub (11/30 F) into full structured prompt (target 27+/30 A)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree active; mcp__serena tools available"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Initial instructions loaded at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/session-init/scripts/ inspected"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded as project rules"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project-constraints applied: no em-dash, no banned vocab"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Phase 3 audit context in task brief; PRs 0-8 complete; PR 9 is F-tier full rewrite"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/2003-phase3-pr9-default-ai-review"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/2003-phase3-pr9-default-ai-review"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status confirmed before branch creation"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "157737a0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items satisfied; default-ai-review.md fully rewritten"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory prompting/phase3-prompt-discipline-audit-status updated to reflect PR 9/10 status"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 .github/prompts/default-ai-review.md returned 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed as feat(#2003) on branch feat/2003-phase3-pr9-default-ai-review"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py returned PASS"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task list updated: PR 9 marked complete"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Phase 3 retrospective deferred to PR 10 close-out"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-05-26T00:10:00Z",
+      "action": "Read F-tier default-ai-review.md (28-line stub). Full rewrite added Reasoning Protocol, structured Output Shape with Summary/Findings/Recommendation, Output Bounds, Skip/Ask First section, and preserved the harness-required Verdict Line at the end.",
+      "files": [
+        ".github/prompts/default-ai-review.md"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T00:12:00Z",
+      "action": "Ran markdownlint-cli2: 0 errors. Scanned for em-dash and banned vocab: 0 hits.",
+      "files": []
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "PR 10/10: rewrite D-tier freestanding agents (code-simplifier, comment-analyzer, pr-test-analyzer)"
+  ]
+}
