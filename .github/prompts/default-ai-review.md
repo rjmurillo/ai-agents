@@ -74,7 +74,7 @@ Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with a loc
 
 The harness runs non-interactively, so the model cannot ask a follow-up question. Every degraded-context path below ("ask first" cases included) produces the four required sections plus the verdict block as the deterministic output. Treat "ask first" as "emit WARN with the missing context named in MESSAGE", never as a no-op.
 
-No diff supplied: emit `VERDICT: WARN` with `MESSAGE: No diff supplied`. Use these exact deterministic placeholders, do not invent content: Summary is `No diff supplied; nothing to review.`; Findings is a single line `n/a: [low] No diff supplied. Evidence: input contained no diff.`; Recommendation is `CONDITIONAL APPROVE: re-run with a diff`; Confidence is `100`.
+No diff supplied: emit `VERDICT: WARN` with `MESSAGE: No diff supplied`. Use these exact deterministic placeholders, do not invent content: `**Summary**` followed by `No diff supplied; nothing to review.`; `**Findings**` followed by a single line `n/a: [low] No diff supplied. Evidence: input contained no diff.`; `**Recommendation**` followed by `CONDITIONAL APPROVE: re-run with a diff`; `**Confidence**` followed by `100`.
 
 Summary-only or partial context: if the `## Changes` section begins with markers like `[Large PR -` (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` unless the available evidence justifies escalation to `CRITICAL_FAIL` or `REJECTED`.
 
