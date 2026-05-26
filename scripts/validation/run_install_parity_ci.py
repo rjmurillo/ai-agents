@@ -14,10 +14,10 @@ Behavior:
 1. Read ``PR_BASE_REF`` from the environment (falls back to ``main``).
 2. Run ``git fetch --no-tags --depth=200`` then ``--unshallow`` to make
    ``origin/<base>`` resolvable when the workflow checkout is shallow.
-3. Resolve the base ref: ``origin/<base>`` if it now exists, otherwise
-   the push-event diff range (``${{ github.event.before }}..HEAD``)
-   passed via ``PUSH_BEFORE_SHA`` so multi-commit pushes cover every
-   landed commit. ``HEAD^`` is the last resort and only covers the most
+3. Resolve the base ref: ``PUSH_BEFORE_SHA`` first when set (push
+   events), which ensures the full push range is validated even when
+   ``origin/<base>`` equals ``HEAD``. Otherwise ``origin/<base>`` if
+   it resolves. ``HEAD^`` is the last resort and only covers the most
    recent commit.
 4. Invoke the validator with the resolved base and forward its exit code.
 
@@ -109,18 +109,13 @@ def _resolve_base(base_ref: str) -> str | None:
     """Return the diff base, or None if no usable ref is reachable.
 
     Order:
-      1. ``origin/<base_ref>`` if it resolves after the fetch.
-      2. ``PUSH_BEFORE_SHA..HEAD`` for push events: covers every commit
-         in the push, not just the last one.
+      1. ``PUSH_BEFORE_SHA`` for push events: covers every commit
+         in the push, not just the last one. Checked first because
+         on push events ``origin/<base_ref>`` may equal ``HEAD``,
+         yielding an empty diff.
+      2. ``origin/<base_ref>`` if it resolves after the fetch.
       3. ``HEAD^`` as a last resort. Single-commit fallback only.
     """
-    rc, _, _ = _run(
-        ["git", "rev-parse", "--verify", "--quiet", f"origin/{base_ref}"],
-        timeout=10,
-    )
-    if rc == 0:
-        return f"origin/{base_ref}"
-
     push_before = _validate_sha(os.environ.get("PUSH_BEFORE_SHA", ""))
     if push_before is not None:
         rc, _, _ = _run(
@@ -129,6 +124,13 @@ def _resolve_base(base_ref: str) -> str | None:
         )
         if rc == 0:
             return push_before
+
+    rc, _, _ = _run(
+        ["git", "rev-parse", "--verify", "--quiet", f"origin/{base_ref}"],
+        timeout=10,
+    )
+    if rc == 0:
+        return f"origin/{base_ref}"
 
     rc, _, _ = _run(
         ["git", "rev-parse", "--verify", "--quiet", "HEAD^"],
