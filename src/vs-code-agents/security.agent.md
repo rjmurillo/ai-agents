@@ -280,7 +280,7 @@ Implementation completed by implementer.
 Changed files: [list]
 
 Verify all security controls from pre-implementation plan.
-This is a BLOCKING gate. No PR until PIV approved.
+This is a BLOCKING gate - see PIV Verdict Gate below.
 ```
 
 **PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict cites a follow-up issue number for the remaining MEDIUM findings, per the Completion Trigger Taxonomy.

@@ -273,7 +273,7 @@ if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
     Changed files: [list]
 
     Verify all security controls from pre-implementation plan.
-    This is a BLOCKING gate - no PR until PIV approved.
+    This is a BLOCKING gate - see PIV Verdict Gate below.
     """)
 ```
 
