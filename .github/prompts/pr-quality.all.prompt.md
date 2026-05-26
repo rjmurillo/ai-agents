@@ -44,9 +44,11 @@ For every axis in every agent, before scoring or emitting any verdict, reason st
 
 Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff before including it. For security findings, verify every CVE and CWE claim against the diff; do not rely on training knowledge for vulnerability assessment.
 
+This step-by-step reasoning is internal. Do not emit it. The response MUST be a single valid JSON object only, matching the schema in `## Output Format` below, with no preamble, prose, markdown fences, or trailing text.
+
 ## Output Bounds
 
-Cap findings: at most 10 items per severity per agent. Cap total output: 4800 words across all 6 agents (800 per agent) or the JSON schema below, whichever ends first. Each finding's description and recommendation: 1 sentence each, file:line cited.
+Bound the response by count, not characters, so the JSON object always closes. Cap findings at 10 items per severity per agent. When near the limit, drop the lowest-severity findings first and shorten each agent's `summary` rather than truncating mid-object. Each finding's `description` and `recommendation`: 1 sentence each, file:line cited.
 
 ## Output Format
 
