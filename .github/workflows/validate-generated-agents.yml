@@ -119,6 +119,20 @@ jobs:
           echo "Running build_all.py --check..."
           python3 build/scripts/build_all.py --check
 
+      - name: Install-parity check (changed-together siblings)
+        if: steps.should-run.outputs.skip != 'true'
+        # Catches the class of drift the build-all generator cannot:
+        # ``.claude/agents/X.md`` and ``.github/agents/X.agent.md`` are
+        # hand-maintained self-host install copies and must move together
+        # with ``templates/agents/X.shared.md`` and the three ``src/*``
+        # vendored copies. PR #2087 (qa) and PR #2083 (orchestrator) are
+        # the regressions this gate prevents.
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+        run: |
+          echo "Running validate_install_parity.py..."
+          python3 build/scripts/validate_install_parity.py --base "origin/${PR_BASE_REF}"
+
       - name: Plugin lib sync check (M7-T1)
         if: steps.should-run.outputs.skip != 'true'
         # `scripts/hook_utilities/` and `scripts/github_core/` are the

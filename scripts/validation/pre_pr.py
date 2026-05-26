@@ -794,6 +794,29 @@ def validate_agent_drift(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_install_parity(repo_root: Path) -> bool:
+    """Detect install-copy drift across SHARED_AGENT and RULE parity groups.
+
+    Wraps ``build/scripts/validate_install_parity.py``. The script exits 0
+    when the diff is clean, 1 when one or more parity groups have missing
+    siblings, and 2 on configuration errors. We treat exit 1 as a hard
+    failure; exit 2 is also a failure because the validator could not run.
+    """
+    script = repo_root / "build" / "scripts" / "validate_install_parity.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "validate_install_parity.py absent; skipping install-parity check"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:80]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_command_bundle_coverage(repo_root: Path) -> bool:
     """SPEC-005 advisory check: each lifecycle command invokes its bundled skills.
 
@@ -1005,6 +1028,13 @@ def main(argv: list[str] | None = None) -> int:
         state,
         lambda: validate_agent_drift(repo_root),
         skip=quick,
+    )
+
+    # 6b. Install Parity (changed-together sibling check; cheap, always on)
+    run_validation(
+        "Install Parity (agents and rules)",
+        state,
+        lambda: validate_install_parity(repo_root),
     )
 
     # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)
