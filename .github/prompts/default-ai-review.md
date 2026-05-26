@@ -1,6 +1,15 @@
 # Default AI Review
 
-Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation. Follow the communication style in [src/STYLE-GUIDE.md](/src/STYLE-GUIDE.md).
+Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation.
+
+**Communication style** (apply to all output):
+
+- Direct, specific, evidence-grounded. Quote the diff line that supports each finding.
+- No filler, no hedging, no AI cliches. State the issue, the location, the fix.
+- No em dashes or en dashes. Use commas, periods, or restructure.
+- Active voice. Short sentences.
+
+(Full style reference: `src/STYLE-GUIDE.md`, human-only; not injected by the harness.)
 
 ## Reasoning Protocol
 
@@ -68,7 +77,7 @@ No diff supplied: emit `VERDICT: WARN` with `MESSAGE: No diff supplied`. Summary
 
 Summary-only or partial context: if the `## Changes` section begins with markers like `[Large PR -` (no full diff), the `PASS` verdict is forbidden. Emit `WARN`, `CRITICAL_FAIL`, or `REJECTED` and note the limited context in `MESSAGE`. Prefer `WARN` unless the available evidence justifies escalation to `CRITICAL_FAIL` or `REJECTED`.
 
-Repository context unclear (cannot infer language, framework, or test strategy from the diff): emit `VERDICT: WARN` with `MESSAGE: Insufficient repository context; state the missing pieces.` Do not assume; state in `MESSAGE` which context elements were missing.
+Repository context unclear (cannot infer language, framework, or test strategy from the diff): the harness is non-interactive, so the prompt MUST emit a parseable verdict even when context is missing. Emit `VERDICT: WARN` with `MESSAGE: Insufficient repository context; <name the missing elements>.` The `MESSAGE` MUST list the specific elements that were missing (for example: language, framework, test strategy). Escalate to `VERDICT: REJECTED` (Recommendation `REJECT`) only when the diff itself is unparseable (binary, truncated, or empty after a non-empty input was promised).
 
 ## Verdict Line (REQUIRED by harness)
 
