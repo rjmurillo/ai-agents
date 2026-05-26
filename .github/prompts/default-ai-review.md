@@ -1,6 +1,6 @@
 # Default AI Review
 
-Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation.
+Extract findings from the provided diff. Rank by severity. Produce a structured review. Emit one recommendation. Follow the communication style in [src/STYLE-GUIDE.md](src/STYLE-GUIDE.md).
 
 ## Reasoning Protocol
 
@@ -10,7 +10,7 @@ Before producing any finding, work through three steps in order:
 2. What invariant does this finding protect (correctness, security, performance, contract, test integrity)?
 3. What evidence in the diff supports or contradicts the finding?
 
-Do not include a finding without working through all three steps. Verify each finding by reading the cited file:line. Do not assert a vulnerability or bug without reading the code at the cited location.
+Do not include a finding without working through all three steps. Quote the exact diff line or hunk as evidence. Do not assert a vulnerability or bug without citing the diff text that supports it.
 
 ## Output Shape
 
@@ -56,25 +56,17 @@ Summary: 3 sentences max. Findings: at most 10 items, 1 sentence each with file:
 
 ## Skip / Ask First
 
-Skip this prompt if no diff is provided. Ask first if the repository context (language, framework, test strategy) is not inferrable from the diff alone.
+Skip this prompt if no diff is provided. Emit `VERDICT: WARN` and `MESSAGE: No diff supplied` as the complete output. Ask first if you cannot infer the repository context (language, framework, test strategy) from the diff alone.
 
 ## Verdict Line (REQUIRED by harness)
 
-End your response with a verdict line in this exact format:
+End your response with the following block in this exact order. Place optional fields after MESSAGE and before the end:
 
 ```text
 VERDICT: [PASS|WARN|CRITICAL_FAIL|REJECTED]
 MESSAGE: [Brief explanation, one sentence]
-```
-
-If labels should be applied, include lines like:
-
-```text
 LABEL: label-name
-```
-
-If a milestone should be assigned, include:
-
-```text
 MILESTONE: milestone-name
 ```
+
+Omit `LABEL:` and `MILESTONE:` lines when not applicable. The harness parses each field on its own line; do not merge or reorder them.
