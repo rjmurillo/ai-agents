@@ -32,7 +32,6 @@ Phase 3 is the rewrite cycle. Each improvement ships as its own PR off main.
 
 - Generator: `python3 build/generate_agents.py` (NOT pwsh; ADR-042 migrated)
 - Each template fix cascades to `src/vs-code-agents/` + `src/copilot-cli/` (2x generated)
-- Rubric source: `~/Documents/Mobile/wiki/concepts/Prompting/Claude 4.7 Prompting Model.md`
-- Audit doc: `.agents/analysis/2003-claude-47-prompt-discipline-audit.md`
+- Audit doc (canonical, repo-relative): `.agents/analysis/2003-claude-47-prompt-discipline-audit.md` (Section 1 is the rubric, operationalized in-repo). Off-repo wiki source notes are paraphrased in Section 1; do not cite home-directory paths in shared artifacts.
 - Pre-existing pre_pr.py failures: merge-resolver agent drift (20.9%) + lint on non-.agents/ files
 - Session logs: sessions 1837-1844 cover PR 0-7 work
