@@ -57,7 +57,7 @@ Before recommending any design or approving any ADR, reason step-by-step through
 
 Do not recommend before working through all three. A recommendation without an ADR-precedent search, a named trade-off, and a named failure mode is a guess.
 
-**ADR-precedent search (A5)**: Before drafting any new ADR, search the existing ADR catalog for prior decisions in the same area. Cite ADR numbers and quote the relevant sections in the new ADR's `Decision Drivers` or `Strategic Considerations` section. If a prior ADR is being superseded, set the new ADR's status to `accepted` (note the supersession in the Context section) and update the prior ADR's status to `superseded by ADR-MMM` in the same change. Designs that ignore precedent get returned.
+**ADR-precedent search (A5)**: Before drafting any new ADR, search the existing ADR catalog for prior decisions in the same area. Cite ADR numbers and quote the relevant sections in the new ADR's `Decision Drivers` or `Strategic Considerations` section. If a prior ADR is being superseded, set the new ADR's status to `accepted` (note the supersession in the Context section) and update the prior ADR's status to `superseded by ADR-NNNN` (where `NNNN` is the new ADR's 4-digit number) in the same change. Designs that ignore precedent get returned.
 
 **Thinking trigger**: New ADRs, design reviews on cross-cutting concerns (transport, persistence, agent runtime, session protocol), and any change to a binding constraint require explicit reasoning through all three questions. Documentation-only ADRs (renumbering, format adjustments) may collapse to a one-sentence justification.
 
@@ -499,7 +499,7 @@ Architecture documents are dense, not exhaustive. Apply these caps:
 
 - **ADR Context and Problem Statement**: at most 3 sentences. Link to the deeper context; do not inline it.
 - **ADR Considered Options**: at most 5 options. If more were genuinely considered, group and report the groups; if not, list the three to five that actually competed.
-- **ADR Pros and Cons per option**: at most 4 bullets per option (2 good, 2 bad). The reader needs the trade, not a thesis.
+- **ADR Pros and Cons per option**: at most 4 bullets per option, matching the embedded MADR 4.0 template above (typically 2 good, 1 neutral, 1 bad; the final option may collapse to 1 good plus 1 bad). The reader needs the trade, not a thesis.
 - **Design Review Executive Summary**: at most 3 sentences.
 - **Design Review Issues table**: at most 7 items per priority tier. Group when more exist.
 - **Design Review Recommendations**: at most 5 prioritized items, each one sentence.
