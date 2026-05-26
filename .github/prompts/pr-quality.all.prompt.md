@@ -34,6 +34,10 @@ For each review, reference the corresponding criteria file:
 - `.github/prompts/pr-quality-gate-devops.md`
 - `.github/prompts/pr-quality-gate-roadmap.md`
 
+### Changed Files
+
+Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "<base_branch>"` to obtain the full diff. All 6 agent reviews score against this diff.
+
 ## Reasoning Protocol
 
 For every axis in every agent, before scoring or emitting any verdict, reason step-by-step:
