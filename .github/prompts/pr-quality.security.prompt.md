@@ -34,7 +34,7 @@ Before scoring any axis or emitting any verdict, reason step-by-step through the
 
 Do not emit a verdict without working through all three. Verify every CVE and CWE claim against the diff, not from memory. Do not rely on training knowledge for vulnerability assessment. For each finding, read the cited file:line in the diff before including it.
 
-This step-by-step reasoning is internal. Do not emit it. Follow the output format specified in the included criteria file above.
+This step-by-step reasoning is internal. Do not emit it. Follow the output format specified in `## Output Format (REQUIRED)` below.
 
 ## Instructions
 

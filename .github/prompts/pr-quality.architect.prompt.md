@@ -34,7 +34,7 @@ Before scoring any axis or emitting any verdict, reason step-by-step through the
 
 Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line and the referenced ADR before including it.
 
-This step-by-step reasoning is internal. Do not emit it. Follow the output format specified in the included criteria file above.
+This step-by-step reasoning is internal. Do not emit it. Follow the output format specified in `## Output Format (REQUIRED)` below.
 
 ## Instructions
 
