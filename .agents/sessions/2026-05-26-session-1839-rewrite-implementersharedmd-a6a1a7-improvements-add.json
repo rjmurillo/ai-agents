@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "markdownlint-cli2: 0 errors on templates/agents/implementer.shared.md and 2 generated files"
+        "Evidence": "markdownlint-cli2: 0 errors on templates/agents/implementer.shared.md and 3 generated files (src/claude/implementer.md, src/copilot-cli/agents/implementer.agent.md, src/vs-code-agents/implementer.agent.md)"
       },
       "changesCommitted": {
         "level": "MUST",
