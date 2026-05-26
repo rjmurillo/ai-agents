@@ -51,12 +51,12 @@
       "branchVerified": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "feature/1703-lifecycle-hooks"
+        "Evidence": "feat/2003-phase3-audit-plan"
       },
       "notOnMain": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "On feature/1703-lifecycle-hooks"
+        "Evidence": "On feat/2003-phase3-audit-plan"
       },
       "gitStatusVerified": {
         "level": "SHOULD",
@@ -97,8 +97,8 @@
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": true,
-        "Evidence": "pre_pr.py: 2 pre-existing failures (merge-resolver drift 20.9%, lint on other files); 0 new failures from this change"
+        "Complete": false,
+        "Evidence": "pre_pr.py: 2 pre-existing failures (merge-resolver drift 20.9%, lint on other files); 0 new failures from this change; exit code 1"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -138,7 +138,7 @@
       "evidence": "Phase 3 decisions, priority list, progress, generator correction"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "e33d08f4",
   "nextSteps": [
     "PR 0 merge",
     "PR 1/10: orchestrator.shared.md rewrite",
