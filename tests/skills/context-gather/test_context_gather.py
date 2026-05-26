@@ -1,4 +1,16 @@
-"""Smoke tests for context-gather skill SKILL.md structure and frontmatter."""
+"""Smoke tests for context-gather skill SKILL.md structure and frontmatter.
+
+Issue #2069 Finding D: relocated from the misplaced
+`.claude/skills/context-gather/tests/` and
+`src/copilot-cli/skills/context-gather/tests/` directories (neither was
+in `pyproject.toml::[tool.pytest.ini_options].testpaths`, so neither
+file was discovered by default pytest). Now lives under the canonical
+`tests/skills/<skill>/` location so the project's standard pytest
+invocation discovers it.
+
+Parametrized over both the canonical and the copilot-cli mirror SKILL.md
+so a single test asserts both copies satisfy the structural contract.
+"""
 
 from __future__ import annotations
 
@@ -7,18 +19,30 @@ from pathlib import Path
 
 import pytest
 
-SKILL_DIR = Path(__file__).resolve().parent.parent
-SKILL_MD = SKILL_DIR / "SKILL.md"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CANONICAL_SKILL_MD = REPO_ROOT / ".claude" / "skills" / "context-gather" / "SKILL.md"
+MIRROR_SKILL_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "context-gather" / "SKILL.md"
+
+SKILL_MD_PATHS = [
+    pytest.param(CANONICAL_SKILL_MD, id="canonical"),
+    pytest.param(MIRROR_SKILL_MD, id="copilot-cli-mirror"),
+]
 
 
-@pytest.fixture(scope="session")
-def skill_content() -> str:
-    """Read SKILL.md content once per test session."""
-    assert SKILL_MD.exists(), f"SKILL.md not found at {SKILL_MD}"
-    return SKILL_MD.read_text(encoding="utf-8")
+@pytest.fixture(params=SKILL_MD_PATHS)
+def skill_md_path(request: pytest.FixtureRequest) -> Path:
+    """Yield each SKILL.md location (canonical and mirror) per test."""
+    return request.param
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
+def skill_content(skill_md_path: Path) -> str:
+    """Read SKILL.md content for the current parametrized location."""
+    assert skill_md_path.exists(), f"SKILL.md not found at {skill_md_path}"
+    return skill_md_path.read_text(encoding="utf-8")
+
+
+@pytest.fixture
 def frontmatter(skill_content: str) -> dict[str, str]:
     """Extract YAML frontmatter as a flat dict of string values."""
     lines = skill_content.splitlines()
@@ -137,18 +161,8 @@ class TestStructure:
 
     def test_context_retrieval_subagent_exists(self) -> None:
         """SKILL.md delegates to the context-retrieval subagent; verify the
-        subagent file exists so renaming/deleting it is caught immediately.
-
-        Walks up from SKILL_DIR to find the repo root via a stable marker
-        (.git directory). This keeps the test location-agnostic so the same
-        file works both in the canonical .claude/skills/ tree and in the
-        generated src/copilot-cli/skills/ mirror."""
-        repo_root = SKILL_DIR
-        for candidate in (SKILL_DIR, *SKILL_DIR.parents):
-            if (candidate / ".git").exists():
-                repo_root = candidate
-                break
-        subagent = repo_root / ".claude" / "agents" / "context-retrieval.md"
+        subagent file exists so renaming/deleting it is caught immediately."""
+        subagent = REPO_ROOT / ".claude" / "agents" / "context-retrieval.md"
         assert subagent.exists(), (
             f"SKILL.md delegates to context-retrieval subagent but {subagent} is missing"
         )

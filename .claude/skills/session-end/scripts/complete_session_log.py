@@ -201,24 +201,35 @@ def _load_rework_module():
 # PR #1989 coderabbit: load lazily and tolerate failure. The rework-warning
 # step is informational, not a gate; a missing or broken sibling module
 # must not crash module import (which would block session-end entirely).
-_rework = None
-REWORK_THRESHOLD = 6
-compute_rework_warning = None
-emit_rework_warning_lines = None
-try:
-    _rework = _load_rework_module()
-    REWORK_THRESHOLD = _rework.REWORK_THRESHOLD
-    compute_rework_warning = _rework.compute_rework_warning
-    emit_rework_warning_lines = _rework.emit_rework_warning_lines
-except Exception:  # noqa: BLE001 - informational; must never block import
-    # Sibling missing, syntax error, runtime error at import time, or
-    # wrong shape. Skip silently; the rework step at runtime will detect
-    # None and emit a degraded line. PR #1989 copilot follow-up: the
-    # previous narrow `(OSError, ImportError, AttributeError, SyntaxError)`
-    # clause still let arbitrary top-level exceptions from
-    # `exec_module(rework_warning.py)` crash session-end import. `Exception`
-    # excludes KeyboardInterrupt and SystemExit so Ctrl+C still works.
-    pass
+# Issue #2069 Finding B: use PEP 562 __getattr__ for true lazy loading so
+# compute_rework_warning, emit_rework_warning_lines, and REWORK_THRESHOLD
+# are not bound in module __dict__ until first access.
+_rework_cache: dict[str, object] = {}
+_LAZY_NAMES = frozenset({"compute_rework_warning", "emit_rework_warning_lines", "REWORK_THRESHOLD"})
+
+
+def _ensure_rework_loaded() -> None:
+    """Lazy-load the rework_warning sibling module on first access."""
+    if _rework_cache:
+        return
+    try:
+        _mod = _load_rework_module()
+        _rework_cache["REWORK_THRESHOLD"] = _mod.REWORK_THRESHOLD
+        _rework_cache["compute_rework_warning"] = _mod.compute_rework_warning
+        _rework_cache["emit_rework_warning_lines"] = _mod.emit_rework_warning_lines
+    except Exception:  # noqa: BLE001 - informational; must never block
+        _rework_cache["REWORK_THRESHOLD"] = 6
+        _rework_cache["compute_rework_warning"] = None
+        _rework_cache["emit_rework_warning_lines"] = None
+    globals().update(_rework_cache)
+
+
+def __getattr__(name: str) -> object:
+    """PEP 562 lazy attribute access for rework_warning sibling exports."""
+    if name in _LAZY_NAMES:
+        _ensure_rework_loaded()
+        return _rework_cache[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _run_rework_warning_step() -> tuple[str, list[str]]:
@@ -239,7 +250,12 @@ def _run_rework_warning_step() -> tuple[str, list[str]]:
     same shape as a clean no-warning run, so callers do not have to
     special-case the import failure.
     """
-    if compute_rework_warning is None or emit_rework_warning_lines is None:
+    _ensure_rework_loaded()
+    _g = globals()
+    _compute = _g.get("compute_rework_warning")
+    _emit = _g.get("emit_rework_warning_lines")
+    _threshold = _g.get("REWORK_THRESHOLD", 6)
+    if _compute is None or _emit is None:
         notice = "rework-warning: skipped (sibling module unavailable)"
         print(notice)
         return "Rework warning: skipped (sibling unavailable)", [notice]
@@ -252,8 +268,8 @@ def _run_rework_warning_step() -> tuple[str, list[str]]:
     # step from running. Exception excludes KeyboardInterrupt and
     # SystemExit so Ctrl+C still works.
     try:
-        rework_items = compute_rework_warning()
-        lines = list(emit_rework_warning_lines(rework_items))
+        rework_items = _compute()
+        lines = list(_emit(rework_items))
         for line in lines:
             print(line)
     except Exception as exc:  # noqa: BLE001 - informational; must never block
@@ -263,7 +279,7 @@ def _run_rework_warning_step() -> tuple[str, list[str]]:
     if rework_items:
         summary = (
             f"[WARN] rework warning: {len(rework_items)} file(s) "
-            f"at {REWORK_THRESHOLD}+ edits"
+            f"at {_threshold}+ edits"
         )
     else:
         summary = "Rework warning: none"
