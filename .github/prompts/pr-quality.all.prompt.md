@@ -34,6 +34,20 @@ For each review, reference the corresponding criteria file:
 - `.github/prompts/pr-quality-gate-devops.md`
 - `.github/prompts/pr-quality-gate-roadmap.md`
 
+## Reasoning Protocol
+
+For every axis in every agent, before scoring or emitting any verdict, reason step-by-step:
+
+1. What does the diff change? Read the diff, not the description.
+2. What invariant does each criterion protect?
+3. What evidence in the diff supports or contradicts a PASS verdict?
+
+Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff before including it. For security findings, verify every CVE and CWE claim against the diff; do not rely on training knowledge for vulnerability assessment.
+
+## Output Bounds
+
+Cap findings: at most 10 items per severity per agent. Cap total output: 4800 words across all 6 agents (800 per agent) or the JSON schema below, whichever ends first. Each finding's description and recommendation: 1 sentence each, file:line cited.
+
 ## Output Format
 
 ```json

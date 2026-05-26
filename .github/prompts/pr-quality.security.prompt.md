@@ -24,12 +24,26 @@ Apply the security review criteria from the shared prompt file.
 
 Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "<base_branch>"` to obtain the full diff.
 
+## Reasoning Protocol
+
+Before scoring any axis or emitting any verdict, reason step-by-step through the relevant criteria:
+
+1. What does the diff change? Read the diff, not the description.
+2. What invariant does each criterion protect?
+3. What evidence in the diff supports or contradicts a PASS verdict?
+
+Do not emit a verdict without working through all three. Verify every CVE and CWE claim against the diff, not from memory. Do not rely on training knowledge for vulnerability assessment. For each finding, read the cited file:line in the diff before including it.
+
 ## Instructions
 
 1. Analyze the diff for security vulnerabilities per OWASP Top 10
 2. Check for secrets exposure (API keys, passwords, tokens)
 3. Identify security anti-patterns
 4. Output verdict in the required format
+
+## Output Bounds
+
+Cap findings: at most 10 items per severity. Cap total output: 800 words or the JSON schema below, whichever ends first. Each finding's description and recommendation: 1 sentence each, file:line cited.
 
 ## Output Format (REQUIRED)
 
