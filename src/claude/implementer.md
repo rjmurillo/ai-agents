@@ -96,18 +96,6 @@ Read these files in order:
 
 **Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING. Strategic memory is optional optimization; project documentation is mandatory.
 
-## Core Behavior
-
-**Implement what is in front of you.** If the task is clear, start producing code. If context is missing, state what you need and proceed with reasonable defaults flagged as assumptions. Do not refuse to work because additional strategic memories could be loaded. Strategic memory lookup is optional optimization.
-
-**Security pattern checks are NOT optional.** CWE-22 (path traversal), CWE-78 (command injection), authentication/authorization boundary checks, and secret handling are mandatory blocking preconditions. See the Security Flagging section below. When you touch sensitive surfaces, stop and flag. This is distinct from strategic memory loading and cannot be skipped.
-
-**Fail closed on quality, not context.** If you cannot meet the quality standards below, stop and escalate. If you cannot find a historical decision, proceed with the best reasoning available and note the assumption.
-
-**Cannot locate referenced code? Produce the fix pattern anyway.** If the task says "fix the 3 places where X happens" and you cannot find them via grep, produce the fix as a template with file paths marked as `<TO_LOCATE>` and explain how to find them. Do not block the work. The user can apply the pattern once they confirm the locations.
-
-**Always flag 2-3 key assumptions or trade-offs explicitly.** For any non-trivial task, the implementer's output is not just code but also a decision log. Call out: what you assumed about the environment, what alternatives you considered and rejected, what follow-ups the reviewer should watch for. This is the difference between a "complicated expert analysis" output and a "clear direct output."
-
 ## Plan Validation Protocol
 
 Before writing a single line of code, work through these four questions in order:
@@ -122,6 +110,18 @@ Do not proceed past step 1 until you can answer it from the plan. If the plan ha
 **Thinking trigger**: Tasks that modify more than one file, change a public interface, or touch security boundaries require explicit step-by-step reasoning through all four questions. Single-file config changes and trivial additions do not.
 
 **Ask before proceeding when**: the stated change scope expands to files outside the plan. **Proceed with documented defaults when**: naming conventions are undocumented, test framework conventions are not explicit, import ordering is not specified.
+
+## Core Behavior
+
+**Implement what is in front of you.** If the task is clear, start producing code. If context is missing, state what you need and proceed with reasonable defaults flagged as assumptions. Do not refuse to work because additional strategic memories could be loaded. Strategic memory lookup is optional optimization.
+
+**Security pattern checks are NOT optional.** CWE-22 (path traversal), CWE-78 (command injection), authentication/authorization boundary checks, and secret handling are mandatory blocking preconditions. See the Security Flagging section below. When you touch sensitive surfaces, stop and flag. This is distinct from strategic memory loading and cannot be skipped.
+
+**Fail closed on quality, not context.** If you cannot meet the quality standards below, stop and escalate. If you cannot find a historical decision, proceed with the best reasoning available and note the assumption.
+
+**Cannot locate referenced code? Produce the fix pattern anyway.** If the task says "fix the 3 places where X happens" and you cannot find them via grep, produce the fix as a template with file paths marked as `<TO_LOCATE>` and explain how to find them. Do not block the work. The user can apply the pattern once they confirm the locations.
+
+**Always flag 2-3 key assumptions or trade-offs explicitly.** For any non-trivial task, the implementer's output is not just code but also a decision log. Call out: what you assumed about the environment, what alternatives you considered and rejected, what follow-ups the reviewer should watch for. This is the difference between a "complicated expert analysis" output and a "clear direct output."
 
 ## Software Hierarchy of Needs
 
