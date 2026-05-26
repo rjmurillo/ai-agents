@@ -1,0 +1,67 @@
+{
+  "id": "episode-2026-05-26-session-1839",
+  "session": "2026-05-26-session-1839",
+  "timestamp": "2026-05-26T04:03:03.420856+00:00",
+  "outcome": "failure",
+  "task": "",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-26T04:03:03.418525+00:00",
+      "type": "error",
+      "content": "\"objective\": \"Rewrite implementer.shared.md A6+A1+A7 improvements: add Plan Validation Protocol section and failure-mode trigger conditions\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-26T04:03:03.418525+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"markdownlint-cli2: 0 errors on templates/agents/implementer.shared.md and 2 generated files\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-26T04:03:03.418525+00:00",
+      "type": "error",
+      "content": "\"Evidence\": \"0 new failures from this change; 2 pre-existing failures (merge-resolver drift, lint on other files)\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-26T04:03:03.418525+00:00",
+      "type": "error",
+      "content": "\"evidence\": \"0 em-dashes; A6=3 (no think-before-edit directive), A1=4 (no skip/ask conditions), A7=4 (no failure-mode triggers)\"",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-26T04:03:03.418525+00:00",
+      "type": "error",
+      "content": "\"action\": \"Added failure-mode trigger conditions to Handoff (A7: 4 to 5)\",",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-26T04:03:03.418525+00:00",
+      "type": "error",
+      "content": "\"action\": \"Fixed MD032/MD012 lint errors in new list block\",",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 6,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}
