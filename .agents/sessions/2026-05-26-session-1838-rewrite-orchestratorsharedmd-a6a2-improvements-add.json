@@ -1,0 +1,150 @@
+{
+  "session": {
+    "number": 1838,
+    "date": "2026-05-26",
+    "branch": "feat/2003-phase3-pr1-orchestrator",
+    "startingCommit": "157737a0",
+    "objective": "Rewrite orchestrator.shared.md A6+A2 improvements: add Reasoning Protocol section and Output Bounds table to reach 33/35 (A tier)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions called; project ai-agents3 activated; reusing Serena context from session 1837"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions returned Serena Instructions Manual this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded at session start by context_loader hook"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/ run; github, session-init, session-end, etc. present"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS.md read in session 1837; still current: Python-first, no bash scripts, skill-first GitHub ops"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read; ADR-042 Python-first applies"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__list_memories called; prompting/phase3-prompt-discipline-audit-status read for current state"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/2003-phase3-pr1-orchestrator"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/2003-phase3-pr1-orchestrator"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status: feat/2003-phase3-pr1-orchestrator branched from main; uv.lock dirty (pre-existing, not staged)"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "157737a0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart MUST items populated; sessionEnd items populated with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified; ADR-014 read-only invariant maintained"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory prompting/phase3-prompt-discipline-audit-status updated to reflect PR 1/10 in flight"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2: 0 errors on templates/agents/orchestrator.shared.md and 2 generated files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat(#2003): improve orchestrator.shared.md A6+A2 discipline on feat/2003-phase3-pr1-orchestrator"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py: 2 pre-existing failures (merge-resolver drift, lint on other files); 0 new failures from this change; lint 0 errors on changed files"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task #6 in_progress; task list tracks 10-PR audit cycle"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred to end of 10-PR cycle"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read templates/agents/orchestrator.shared.md (244 LOC)",
+      "evidence": "0 em-dashes present; no Summon block; A6=3 (no reasoning directive), A2=3 (no length bounds); current score 27/35"
+    },
+    {
+      "action": "Added Reasoning Protocol section (A6: 3 to 5)",
+      "evidence": "mcp__serena__replace_content: inserted before Core Behavior; think-before-routing directive with thinking trigger and failure-mode guidance"
+    },
+    {
+      "action": "Added Output Bounds table (A2: 3 to 5)",
+      "evidence": "mcp__serena__replace_content: inserted after Synthesis Protocol; 5 phases capped with explicit word/item limits"
+    },
+    {
+      "action": "Added skip/ask boundary to Never delegate blind (A1: 4 to 5)",
+      "evidence": "mcp__serena__replace_content: appended skip and ask-first conditions"
+    },
+    {
+      "action": "Ran python3 build/generate_agents.py",
+      "evidence": "72 files generated; src/copilot-cli/agents/orchestrator.agent.md and src/vs-code-agents/orchestrator.agent.md updated"
+    },
+    {
+      "action": "Rubric rescore: 33/35 (A tier)",
+      "evidence": "A1=5 A2=5 A3=4 A4=5 A5=4 A6=5 A7=5 = 33/35; was 27/35 B tier"
+    },
+    {
+      "action": "Ran pre_pr.py validation",
+      "evidence": "2 pre-existing failures (merge-resolver drift 20.9%, lint on non-changed files); 0 new failures; lint 0 errors on changed files"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Merge PR 1/10",
+    "PR 2/10: implementer.shared.md rewrite (A6 think-before-edit)"
+  ]
+}

@@ -1,7 +1,7 @@
-"""Parser-side implementation of REQ-008 Step 0.5 Memory-First Gate.
+"""Parser-side implementation of REQ-017 Step 0.5 Memory-First Gate.
 
 Refs #1951. Used by `tests/commands/test_spec_step0_5.py`. Implements the
-ProvisionalTier computation defined in REQ-008 AC-02 as Python so the
+ProvisionalTier computation defined in REQ-017 AC-02 as Python so the
 gate can be exercised deterministically without an LLM session.
 
 The parser reads spec.md to extract Step 0.5 sections by stable heading
@@ -70,7 +70,7 @@ def _extract_first_hours_estimate(q4_text: str) -> float | None:
 def _hours_to_tier(hours: float) -> int:
     """Map an hours estimate to a tier 1-5 with strict less-than upper bounds.
 
-    Matches REQ-008 AC-02 hours mapping. Upper bounds are strict: Tier 2
+    Matches REQ-017 AC-02 hours mapping. Upper bounds are strict: Tier 2
     range is `2 to less than 8 hours`, so 8h falls in Tier 3 (range
     `8 to less than 40 hours`), NOT Tier 2. The mapping table is the
     canonical source.
@@ -89,7 +89,7 @@ def _hours_to_tier(hours: float) -> int:
 def _entity_count_to_tier(entity_count: int) -> int:
     """Map an entity count to a tier 1-5.
 
-    Matches REQ-008 AC-02 entity mapping. 0 maps to Tier 1 because no
+    Matches REQ-017 AC-02 entity mapping. 0 maps to Tier 1 because no
     other tier can absorb it; the proposer should always have at least
     one named entity in Q3+Q4.
     """
@@ -107,7 +107,7 @@ def _entity_count_to_tier(entity_count: int) -> int:
 def phases_needed(tier: int) -> int:
     """Return the number of exploring-knowledge-graph phases required at a tier.
 
-    Per REQ-008 AC-05/AC-10: Tier 1-2 runs Phases 1-2 (shallow);
+    Per REQ-017 AC-05/AC-10: Tier 1-2 runs Phases 1-2 (shallow);
     Tier 3 runs Phases 1-4 (medium); Tier 4-5 runs all 5 phases (deep).
     Used by AC-10 supplemental trigger logic.
     """
@@ -123,7 +123,7 @@ def supplemental_traversal_warranted(
 ) -> bool:
     """Return True when Step 3 tier upgrade requires supplemental traversal.
 
-    Per REQ-008 AC-10: supplemental traversal runs when actual_tier
+    Per REQ-017 AC-10: supplemental traversal runs when actual_tier
     classified by Step 3 exceeds the ProvisionalTier set at Step 0.5
     AND the additional phases required for actual_tier exceed those
     already run at provisional_tier. The trigger fires for any tier
@@ -138,7 +138,7 @@ def supplemental_traversal_warranted(
 
 
 def compute_provisional_tier(q4_text: str, entity_count: int) -> int:
-    """Compute ProvisionalTier per REQ-008 AC-02.
+    """Compute ProvisionalTier per REQ-017 AC-02.
 
     Returns max(hours_tier, entity_tier). If Q4 contains no numeric
     hours estimate, hours_tier defaults to Tier 2.
@@ -283,7 +283,7 @@ def parse_halt_block(text: str) -> dict[str, str]:
     - Body contains EXACTLY 5 non-empty lines.
     - Each line matches `key: value` exactly (no continuation, no
       duplicate keys).
-    - Field set is exactly the 5 names documented in REQ-008 AC-09:
+    - Field set is exactly the 5 names documented in REQ-017 AC-09:
       trigger, check, evidence, test_failed, deferral.
     - `trigger` is one of the canonical H6-H11 IDs.
 

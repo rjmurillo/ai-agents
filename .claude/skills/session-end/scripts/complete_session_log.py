@@ -180,6 +180,96 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
         return None
 
 
+# Rework warning (REQ-012-07, REQ-012-08, REQ-012-09 / M4) is extracted
+# to a sibling module so this file stays under the 500-line taste-lint
+# threshold. See rework_warning.py for the implementation. The sibling
+# import is loaded via importlib so it works whether the script is run
+# directly (sys.path[0] is the script dir) or imported by tests via
+# importlib.util.spec_from_file_location (which does NOT add the dir).
+def _load_rework_module():
+    """Load the rework_warning sibling module without depending on sys.path."""
+    import importlib.util as _il
+    _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rework_warning.py")
+    _spec = _il.spec_from_file_location("rework_warning", _path)
+    if _spec is None or _spec.loader is None:
+        raise ImportError(f"cannot load rework_warning from {_path}")
+    _mod = _il.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    return _mod
+
+
+# PR #1989 coderabbit: load lazily and tolerate failure. The rework-warning
+# step is informational, not a gate; a missing or broken sibling module
+# must not crash module import (which would block session-end entirely).
+_rework = None
+REWORK_THRESHOLD = 6
+compute_rework_warning = None
+emit_rework_warning_lines = None
+try:
+    _rework = _load_rework_module()
+    REWORK_THRESHOLD = _rework.REWORK_THRESHOLD
+    compute_rework_warning = _rework.compute_rework_warning
+    emit_rework_warning_lines = _rework.emit_rework_warning_lines
+except Exception:  # noqa: BLE001 - informational; must never block import
+    # Sibling missing, syntax error, runtime error at import time, or
+    # wrong shape. Skip silently; the rework step at runtime will detect
+    # None and emit a degraded line. PR #1989 copilot follow-up: the
+    # previous narrow `(OSError, ImportError, AttributeError, SyntaxError)`
+    # clause still let arbitrary top-level exceptions from
+    # `exec_module(rework_warning.py)` crash session-end import. `Exception`
+    # excludes KeyboardInterrupt and SystemExit so Ctrl+C still works.
+    pass
+
+
+def _run_rework_warning_step() -> tuple[str, list[str]]:
+    """Run the rework-warning check and emit lines to stdout.
+
+    Returns a tuple of:
+    - summary: one-line string suitable for the session-end ``changes`` log.
+    - evidence_lines: list of strings emitted to stdout (REQ-012-08).
+      Persisted under ``protocolCompliance.sessionEnd.reworkWarning.Evidence``
+      in the session log JSON (ADR-060).
+
+    Output to stdout is at least one line, never silent (REQ-012-08). The
+    function is extracted so the main() driver does not absorb its branching
+    into its own cyclomatic complexity.
+
+    Degrades gracefully when the sibling rework_warning module is missing or
+    broken (PR #1989 coderabbit): emits a single notice line and returns the
+    same shape as a clean no-warning run, so callers do not have to
+    special-case the import failure.
+    """
+    if compute_rework_warning is None or emit_rework_warning_lines is None:
+        notice = "rework-warning: skipped (sibling module unavailable)"
+        print(notice)
+        return "Rework warning: skipped (sibling unavailable)", [notice]
+    # PR #1989 cursor follow-up: the rework-warning step is informational
+    # and MUST NOT block session-end under any circumstances (REQ-012-08).
+    # Wrap runtime calls so an unexpected git or subprocess failure inside
+    # compute_rework_warning or emit_rework_warning_lines degrades to a
+    # single notice line instead of crashing the driver. Step 4b runs
+    # before validation; a crash here would also prevent the validation
+    # step from running. Exception excludes KeyboardInterrupt and
+    # SystemExit so Ctrl+C still works.
+    try:
+        rework_items = compute_rework_warning()
+        lines = list(emit_rework_warning_lines(rework_items))
+        for line in lines:
+            print(line)
+    except Exception as exc:  # noqa: BLE001 - informational; must never block
+        notice = f"rework-warning: skipped (runtime error: {type(exc).__name__})"
+        print(notice)
+        return "Rework warning: skipped (runtime error)", [notice]
+    if rework_items:
+        summary = (
+            f"[WARN] rework warning: {len(rework_items)} file(s) "
+            f"at {REWORK_THRESHOLD}+ edits"
+        )
+    else:
+        summary = "Rework warning: none"
+    return summary, lines
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = _get_repo_root()
@@ -285,6 +375,17 @@ def main(argv: list[str] | None = None) -> int:
         check["Evidence"] = lint_output
         changes.append(f"Markdown lint: {lint_output}")
 
+    # 4b. Rework warning (REQ-012-07, REQ-012-08). Emitted as informational
+    # stdout lines after lint; never blocks completion.
+    # ADR-060: evidence lines are also persisted in the session log JSON under
+    # protocolCompliance.sessionEnd.reworkWarning.Evidence. Pre-existing
+    # reworkWarning keys (set by other tooling) are preserved.
+    rework_summary, rework_evidence = _run_rework_warning_step()
+    changes.append(rework_summary)
+    if "reworkWarning" not in session_end:
+        session_end["reworkWarning"] = {}
+    session_end["reworkWarning"]["Evidence"] = rework_evidence
+
     # 5. changesCommitted
     has_uncommitted = _test_uncommitted_changes()
     if "changesCommitted" in session_end:
@@ -370,33 +471,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(f"WARNING: Validation script not found: {validate_script}", file=sys.stderr)
 
-    # Rework warning (REQ-010-01..04). Informational only; MUST NOT block
-    # session-end under any circumstances. Sibling-module loader degrades
-    # gracefully on any failure (missing file, SyntaxError, runtime errors
-    # in compute_rework_warning, etc.). PR #1989 had this bug with a narrow
-    # `(OSError, ImportError, AttributeError)` clause; PR #2004 bot review
-    # caught that exec_module can raise SyntaxError and arbitrary exceptions
-    # from module top-level code. `Exception` is the correct breadth: it
-    # excludes KeyboardInterrupt and SystemExit (BaseException subclasses)
-    # so Ctrl+C still works, but catches every other failure mode.
-    print("", file=sys.stderr)
-    try:
-        import importlib.util as _il
-        _path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "rework_warning.py"
-        )
-        _spec = _il.spec_from_file_location("rework_warning", _path)
-        if _spec is not None and _spec.loader is not None:
-            _rw = _il.module_from_spec(_spec)
-            _spec.loader.exec_module(_rw)
-            _items = _rw.compute_rework_warning()
-            for _line in _rw.emit_rework_warning_lines(_items):
-                print(_line, file=sys.stderr)
-    except Exception:  # noqa: BLE001 — informational; must never block session-end
-        print(
-            "rework-warning: skipped (sibling module unavailable)",
-            file=sys.stderr,
-        )
+    # Rework warning (REQ-010-01..04) is emitted earlier via
+    # `_run_rework_warning_step()` at the lint/changes step; do not
+    # duplicate the emission here. PR #1989 copilot review caught the
+    # double-emit. The single emission point keeps session-end output
+    # predictable and avoids running `git log` twice per run.
 
     print("", file=sys.stderr)
     print("[PASS] Session log completed and validated", file=sys.stderr)

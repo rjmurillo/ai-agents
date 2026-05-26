@@ -68,6 +68,7 @@ COMMANDS_KEYS = {
 RULES_KEYS = {
     "sourceDir",
     "outputDir",
+    "outputDirs",
     "sourceSuffix",
     "outputSuffix",
     "frontmatterRemap",
@@ -156,6 +157,26 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
         if path_field in stanza:
             errors.extend(
                 _validate_path_value(f"artifacts.{name}.{path_field}", stanza[path_field])
+            )
+    # outputDirs (list of relative paths) is the multi-target form for the
+    # rules generator. Validate each entry as a relative path.
+    if name == "rules" and "outputDirs" in stanza:
+        dirs = stanza.get("outputDirs")
+        if not isinstance(dirs, list) or not dirs:
+            errors.append(
+                f"`artifacts.{name}.outputDirs`: must be a non-empty list of paths"
+            )
+        else:
+            for idx, item in enumerate(dirs):
+                errors.extend(
+                    _validate_path_value(
+                        f"artifacts.{name}.outputDirs[{idx}]", item
+                    )
+                )
+        if "outputDir" in stanza:
+            errors.append(
+                f"`artifacts.{name}`: `outputDir` and `outputDirs` are "
+                f"mutually exclusive"
             )
     return errors
 

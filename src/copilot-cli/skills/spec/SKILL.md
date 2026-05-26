@@ -136,9 +136,9 @@ Downstream callers (orchestrators, review skills, CI gates) parse this block by 
 
 If any criterion fires, the gate is loosened or removed in a follow-up PR.
 
-**Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/metrics/STEP-0-METRICS.md`. Create the parent directory `.agents/metrics/` lazily if absent (the directory is project-only and may not exist on a fresh checkout or vendored install), then create the file lazily with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line uses UTC ISO-8601 with the literal trailing `Z` (`YYYY-MM-DDTHH:MM:SSZ`) so drift/kill-criteria tooling parses records deterministically (PR #1965 coderabbit Y10): `<UTC YYYY-MM-DDTHH:MM:SSZ> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
+**Tally instruction**: after each Step 0 evaluation (whether pass or halt), append one line to `.agents/metrics/STEP-0-METRICS.md`. Create the parent directory `.agents/metrics/` lazily if absent (the directory is project-only and may not exist on a fresh checkout or vendored install), then create the file lazily with header line `# Step 0 Metrics (one line per /spec invocation)`. Each tally line uses UTC ISO-8601 with the literal trailing `Z` (`YYYY-MM-DDTHH:MM:SSZ`) so drift/kill-criteria tooling parses records deterministically (observability traceability): `<UTC YYYY-MM-DDTHH:MM:SSZ> | <pass|fail> | <halt-trigger-or-none> | <halt-question-or-none>`. Absence of the file does not block `/spec`; the tally is review-only data for the kill criteria above.
 
-**Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.agents/metrics/STEP-0-METRICS.md` to `.agents/metrics/STEP-0-METRICS-YYYYMMDDTHHMMSSZ.md` (using the rotation timestamp in UTC) and start a fresh file with the same header. The timestamped suffix prevents same-day collisions when two rotations land in the same calendar day (PR #1965 coderabbit Y11). The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
+**Archival policy**: after each kill-criteria review (every 30 invocations or when a kill criterion fires, whichever comes first), rotate the tally file: rename `.agents/metrics/STEP-0-METRICS.md` to `.agents/metrics/STEP-0-METRICS-YYYYMMDDTHHMMSSZ.md` (using the rotation timestamp in UTC) and start a fresh file with the same header. The timestamped suffix prevents same-day collisions when two rotations land in the same calendar day (collision safety). The rotated file is the audit trail for that review window. The active file SHALL NOT exceed 100 entries before rotation.
 
 ---
 
@@ -366,11 +366,71 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 4. Search for existing solutions in the codebase (grep for related patterns). Use the PRD's Integrations and Data model sections to scope the search.
 4a. **Buy-vs-build gate (BLOCKING for new capabilities)**: If the PRD proposes a new capability classified as Context (per Wardley/Moore: undifferentiating support work) or introduces a new module, scanner, validator, or pipeline component, invoke Skill(skill="buy-vs-build-framework") at the **Quick tier** (Phase 1 + Phase 2 lite) before continuing to step 5. The skill must produce: (a) a one-line core-vs-context classification, (b) the existing tools/services evaluated (CodeQL, Dependabot, gh CLI, OSS Scorecard, vendor SaaS, etc.), and (c) an explicit build/buy/partner/defer recommendation. **Skip this step only for**: pure bug fixes, doc-only changes, refactors with no new capability surface, or work that extends an already-approved capability without adding a new tool/scanner/validator. Record the gate outcome in the PRD under a new `Buy-vs-build decision` section. If the recommendation is buy/partner/defer, halt the spec and route the user to the recommended path before generating REQ/DESIGN/TASK artifacts. Failure pattern this gate prevents: action-matching to implementation skills (e.g., `security-detection`) without challenging the build decision itself, as in #1843 where 9 hours were spent reimplementing a CWE-22 scanner CodeQL already provides. See `.agents/retrospective/2026-05-06-action-matching-over-decision-gating.md`.
 5. **CVA analysis (conditional)**: If the complexity tier is 3-5, or Tier 1-2 with multiple use cases, invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships. Otherwise (Tier 1-2 single-use-case), set `CVA summary: N/A (single-use-case Tier 1-2)` and proceed.
-6. **Formalize the PRD into durable artifacts**: Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3, the buy-vs-build decision from step 4a (which may be `N/A (bug fix / doc / refactor)` for skipped runs), and the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs). The spec-generator agent writes:
+6. **Formalize the PRD into durable artifacts**:
+
+   **First ask the multi-site opt-in prompt (PR #1989 coderabbit t3_).** Before invoking spec-generator, ask the user verbatim:
+
+   ```text
+   Is this a multi-site contract change? (y/n)
+   ```
+
+   Record the answer as `multi_site_opt_in` (boolean). The Co-change checklist subsection below reads this flag to decide whether to emit the checklist via the opt-in branch. The prompt is mandatory; do not skip it.
+
+   Then invoke Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3, the buy-vs-build decision from step 4a (which may be `N/A (bug fix / doc / refactor)` for skipped runs), the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs), and the `multi_site_opt_in` flag from this step. The spec-generator agent writes:
    - `.agents/specs/requirements/REQ-NNN-{slug}.md` (one per requirement, EARS syntax)
    - `.agents/specs/design/DESIGN-NNN-{slug}.md`
    - `.agents/specs/tasks/TASK-NNN-{slug}.md`
    The full PRD must be passed as input so spec-generator does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
+
+   #### Co-change checklist (REQ-012-04, REQ-012-05)
+
+   When the requirement touches a shared token (a regex pattern, an enum value, an exit-code table, a status string) that appears at more than one site, the generated `REQ-NNN-{slug}.md` MUST include a `## Co-change checklist` section listing every site. Verdict-token cascade is the canonical failure mode: a single-token addition can require three or more commits when the implementer discovers missing sites one at a time through bot review. The checklist forces discovery at spec time, not review time.
+
+   Emit the section when EITHER condition holds:
+
+   1. **Opt-in (proposer flag)**: the user answered "yes" to a Step 6 prompt "Is this a multi-site contract change?" earlier in the run.
+   2. **Auto-detect (documentation only at this milestone; not enforced in code)**: the PRD scope touches both `scripts/validation/**` AND `.claude/hooks/**` simultaneously, OR Step 0 Q4 mentions a token literal (a regex pattern in backticks, an enum value in ALL_CAPS, a quoted status string). Enforcement of this rule is deferred; the spec author is responsible for emitting the section when the heuristic applies.
+
+   Section placement: after the last `### Acceptance Criteria` subsection and before `### Rationale`. Header is exactly `## Co-change checklist` (level-2, case-sensitive).
+
+   Each entry follows this format, one line per site:
+
+   ```text
+   - [ ] {file_path}:{line_or_section} -- {what changes}
+   ```
+
+   - `{file_path}` is repo-relative (no leading `/`).
+   - `{line_or_section}` is a line number when known, otherwise a section name in quotes.
+   - `{what changes}` is a single phrase, not a full sentence.
+   - The `-- ` separator is distinct from standard markdown list conventions in this repo and is machine-parseable for future linting.
+
+   Concrete example, from a verdict-token cascade. Adding a new verdict token (for example `NEEDS_REVISION`) to the quality-gate vocabulary requires edits at every site that pattern-matches the existing tokens:
+
+   ```markdown
+   ## Co-change checklist
+
+   - [ ] scripts/ai_review_common/verdict.py:"_KNOWN_VERDICT_TOKENS" -- add NEEDS_REVISION to the frozenset
+   - [ ] scripts/ai_review_common/verdict.py:"_EXTRACT_VERDICT_PATTERN" -- extend regex alternation
+   - [ ] .github/actions/pr-quality-gate/action.yml:"validity" -- add to valid input list
+   - [ ] .github/workflows/pr-quality-gate.yml:"blockingVerdicts" -- decide whether to block
+   - [ ] .github/workflows/pr-quality-gate.yml:"exit_code" -- map to exit code per ADR-035
+   - [ ] .claude/review-axes/analyst.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/architect.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/qa.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/security.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/devops.md -- document new verdict in axis prose
+   - [ ] .claude/review-axes/roadmap.md -- document new verdict in axis prose
+   - [ ] .github/prompts/pr-quality-gate-analyst.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-architect.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-qa.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-security.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-devops.md -- mirror axis prose
+   - [ ] .github/prompts/pr-quality-gate-roadmap.md -- mirror axis prose
+   ```
+
+   Each entry follows the documented contract literally: bare `{file_path}:{line_or_section}` with no backticks. When `{line_or_section}` is not a line number, quote it (for example, `"validity"`). `{what changes}` is a single phrase. The worked example pins the exact byte-level shape that future checklist linters will pattern-match against; do not paraphrase the separator or drop `--`.
+
+   The checklist surfaces 17 sites for a single token. Without it, the implementer discovers each one through a separate bot-review round trip.
 7. Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague.
 8. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
 9. Task(subagent_type="critic"): You are a skeptical reviewer. Run a pre-mortem: assume this spec ships and fails. What broke first? What was missing? Then run four binary checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c/9d is FAIL. Checks 9a/9b/9c validate Step 0 (forward-looking demand) drift. Check 9d validates Step 0.5 (backward-looking prior art) elicitation.

@@ -1,7 +1,7 @@
-"""Parser-side implementation of REQ-006 Step 0 First Principles Gate.
+"""Parser-side implementation of REQ-016 Step 0 First Principles Gate.
 
 Refs #1926. Used by `tests/commands/test_spec_step0.py`. Implements the
-operational tests defined in REQ-006-02 through REQ-006-05 and REQ-006-11
+operational tests defined in REQ-016-02 through REQ-016-05 and REQ-016-11
 as Python so the gate can be exercised deterministically without an LLM
 session.
 
@@ -102,7 +102,7 @@ def hedge_match(answer: str, phrases: list[str]) -> str | None:
 
 
 def q1_aspirational(answer: str) -> bool:
-    """REQ-006-04 operational test: any one of three conditions makes Q1 aspirational.
+    """REQ-016-04 operational test: any one of three conditions makes Q1 aspirational.
 
     Three conditions; any one fires:
     1. Fewer than three specific named entities (person, team name, system, ticket, file).
@@ -137,7 +137,7 @@ def q1_aspirational(answer: str) -> bool:
     entity_matches = re.findall(entity_pattern, answer)
     named_entity_count = len(entity_matches)
     has_named_entity = named_entity_count > 0
-    # Q1 aspirational condition 1 per spec.md and REQ-006-04: "fewer
+    # Q1 aspirational condition 1 per spec.md and REQ-016-04: "fewer
     # than three specific requesters". A single named requester is not
     # enough (Copilot PR #1931 comments 3214013611, 3214013621; devin
     # 3214020363).
@@ -170,7 +170,7 @@ def q1_aspirational(answer: str) -> bool:
 
 
 def q3_specific(answer: str) -> bool:
-    """REQ-006-05 operational test: must satisfy at least one specificity branch.
+    """REQ-016-05 operational test: must satisfy at least one specificity branch.
 
     Three branches; any one passes:
     1. Named individual: `Alice on the Payments team`.
@@ -224,7 +224,7 @@ def q3_specific(answer: str) -> bool:
 
 
 def q5_speculative(answer: str) -> bool:
-    """REQ-006-03 operational test: speculative if all three branches absent.
+    """REQ-016-03 operational test: speculative if all three branches absent.
 
     Q5 passes if any one of:
     1. Answer contains a direct quote (text in `"..."` or fenced block).

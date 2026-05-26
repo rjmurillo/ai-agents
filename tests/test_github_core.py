@@ -199,6 +199,55 @@ class TestAssertValidBodyFile:
         finally:
             f.unlink(missing_ok=True)
 
+    def test_accepts_tmpdir_file_when_base_is_none(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """File under TMPDIR accepted when allowed_base is None (mktemp staging)."""
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        body = tmp_path / "pr-reply.md"
+        body.write_text("draft")
+        assert_valid_body_file(str(body), None)
+
+    def test_accepts_system_tempfile_when_base_is_none(self, monkeypatch):
+        """File under tempfile.gettempdir() accepted when allowed_base is None."""
+        import tempfile
+
+        monkeypatch.delenv("TMPDIR", raising=False)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False
+        ) as f:
+            f.write("draft")
+            tmp_file = f.name
+        try:
+            assert_valid_body_file(tmp_file, None)
+        finally:
+            Path(tmp_file).unlink(missing_ok=True)
+
+    def test_rejects_file_outside_repo_and_all_tempdirs(
+        self, tmp_path: Path, monkeypatch
+    ):
+        """File outside both repo and every candidate temp root is rejected."""
+        outside_dir = tmp_path / "not-a-temp-dir"
+        outside_dir.mkdir()
+        outside_file = outside_dir / "body.md"
+        outside_file.write_text("hello")
+
+        unrelated_tmp = tmp_path / "unrelated-tmp"
+        unrelated_tmp.mkdir()
+        monkeypatch.setenv("TMPDIR", str(unrelated_tmp))
+
+        from scripts.github_core import validation as _validation
+
+        monkeypatch.setattr(
+            _validation,
+            "_candidate_temp_roots",
+            lambda: [str(unrelated_tmp.resolve())],
+        )
+
+        with pytest.raises(SystemExit) as exc:
+            assert_valid_body_file(str(outside_file), None)
+        assert exc.value.code == 2
+
 
 # ---------------------------------------------------------------------------
 # Error handling

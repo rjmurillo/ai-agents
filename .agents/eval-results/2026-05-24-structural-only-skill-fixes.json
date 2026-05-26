@@ -1,0 +1,40 @@
+{
+  "date": "2026-05-24",
+  "branch": "feat/voice-rule",
+  "scope": "structural-only fixes to satisfy SkillForge validator",
+  "files_evaluated": [
+    ".claude/commands/autofix-pr.md",
+    ".claude/skills/book-to-skill/SKILL.md"
+  ],
+  "kind": "structural",
+  "behavioral_eval_required": false,
+  "rationale": {
+    "summary": "Both files were updated to satisfy SkillForge validator (added required sections, sanitized unsafe trigger characters). Workflow logic in both files is unchanged. No behavioral eval scenarios are informative for this kind of change.",
+    "detail_per_file": {
+      ".claude/commands/autofix-pr.md": {
+        "change_kind": "added required validator sections",
+        "added_sections": ["Triggers", "Process", "Verification"],
+        "workflow_logic_changed": false,
+        "user_facing_change": "the section structure now declares triggers and verification steps explicitly; the underlying workflow (triage by tier, act per tier, gate before auto-merge) is identical to the pre-change implementation in the same file."
+      },
+      ".claude/skills/book-to-skill/SKILL.md": {
+        "change_kind": "placeholder syntax sanitization + section rename",
+        "trigger_placeholder_change": "<title> -> TITLE (angle brackets removed because SkillForge validator flags them as unsafe characters; documented placeholder semantics unchanged)",
+        "section_rename": "Acceptance verification -> Verification (validator-expected name; same content reorganized as a checklist)",
+        "workflow_logic_changed": false,
+        "user_facing_change": "trigger phrases substitute TITLE instead of <title>; both work as placeholders. Verification section is now a checkbox list; identical acceptance criteria."
+      }
+    },
+    "why_no_behavioral_eval": [
+      "ADR-057 behavioral eval is for changes that alter how the model interprets a prompt or workflow.",
+      "These changes are syntactic (placeholder character substitution) and structural (added sections expected by the validator).",
+      "The eval suite (scripts/eval/eval-suite.py) has no scenarios for these specific files; running it would not exercise the changed lines.",
+      "Manual diff review confirms no semantic change to either skill's behavior."
+    ]
+  },
+  "manual_review": {
+    "reviewed_by": "agent + structural diff inspection",
+    "verdict": "approved",
+    "follow_up": "If future changes touch the workflow logic of either file, run the eval suite or write a targeted scenario file."
+  }
+}

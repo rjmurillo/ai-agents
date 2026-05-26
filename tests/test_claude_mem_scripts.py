@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 from pathlib import Path
+
+import pytest
 
 # Import modules under test by file path since they live outside scripts/
 
@@ -41,6 +44,7 @@ class TestExportDirectValidateOutputPath:
 
 
 class TestExportDirectGetCount:
+    @pytest.mark.skipif(shutil.which("sqlite3") is None, reason="sqlite3 binary not installed")
     def test_returns_negative_on_error(self) -> None:
         result = _export_direct.get_count("/nonexistent.db", "SELECT 1;")
         assert result == -1

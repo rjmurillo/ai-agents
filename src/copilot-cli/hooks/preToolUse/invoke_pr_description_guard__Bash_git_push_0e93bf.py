@@ -380,8 +380,6 @@ def _original_main(stdin_bytes):
         return run_guard(_validate, GLOBS, GUARD_NAME, include_deletions=True)
 
 
-    if __name__ == "__main__":
-        sys.exit(main())
     return main()
 
 _shim_dispatch()
