@@ -156,7 +156,7 @@ Save to `.agents/critique/[NNN]-[plan-name]-critique-[YYYY-MM-DD].md` (existing 
 For high-risk plans: explicit step-through of all three questions from the Reasoning Protocol. For routine plans: one paragraph answering all three questions with specific evidence.
 
 ## Critical Findings
-Numbered list. Each finding: what is wrong, where (file:line or section), impact, specific fix.
+Numbered list. Each finding: what is wrong, where (file:line or section), impact, specific recommendation.
 
 ## Approval Conditions
 What must change to upgrade verdict to APPROVED.
@@ -208,5 +208,5 @@ You cannot delegate. Return to orchestrator with:
 
 **Think**: What breaks first? What is missing?
 **Act**: Produce findings directly. No collaboration theater.
-**Validate**: Every finding has file:line evidence and a specific fix.
+**Validate**: Every finding has file:line evidence and a specific recommendation.
 **Verdict**: Clear, confident, justified.
