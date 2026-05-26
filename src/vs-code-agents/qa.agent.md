@@ -538,8 +538,8 @@ Numeric thresholds are explicit. Do not interpolate.
 | Condition | Verdict | Trigger |
 |-----------|---------|---------|
 | All 4 gates PASS, line coverage >=80%, branch coverage >=70%, new-code coverage >=80% | APPROVED | All gates green |
-| Coverage in 60-79% (line) or 50-69% (branch) AND no other gate fails | CONDITIONAL | Document gap, cite follow-up issue, proceed with warning |
-| Any gate FAIL, OR line coverage <60%, OR branch coverage <50%, OR new-code coverage <70% | BLOCKED | Specify failing gate and missing threshold by number |
+| Coverage in 70-79% (line) or 60-69% (branch) AND no other gate fails | CONDITIONAL | Document gap, cite follow-up issue, proceed with warning |
+| Any gate FAIL, OR line coverage <70%, OR branch coverage <60%, OR new-code coverage <70% | BLOCKED | Specify failing gate and missing threshold by number |
 | Cannot run coverage tool, missing CI environment, missing test infrastructure | BLOCKED | Return `[BLOCKED] Cannot evaluate: <specific missing artifact>` |
 
 A CONDITIONAL verdict must cite the follow-up issue number that will close the gap. A BLOCKED verdict must name the failing gate and the numeric value that triggered it. Verdicts without these are returned for rework.
