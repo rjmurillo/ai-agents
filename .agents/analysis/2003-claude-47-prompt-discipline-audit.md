@@ -74,6 +74,30 @@ The audit identifies the rewrite priority list. Before any rewrite work begins, 
 3. **Verification.** Add the rubric as a CI gate via the Phase 3 "skill discriminator" CI check referenced in the original Phase 1 follow-up thread, or run as an offline review tool?
 4. **Owner.** Subagent batch rewrite versus human-driven? Templates touch the call graph and merit human review; D/F freestanding agents could be subagent-rewritten safely.
 
+## Phase 3 PR Cycle Summary (2026-05-26)
+
+Phase 3 rewrites completed as 11 PRs, all open for review as of 2026-05-26.
+
+| PR | Target | Score Before | Score After | GitHub PR |
+|---|---|---|---|---|
+| PR 0 | Audit doc Phase 3 decisions + stale cmd fix | docs | docs | #2082 |
+| PR 1 | `templates/agents/orchestrator.shared.md` | 27/35 B | 33/35 A | #2083 |
+| PR 2 | `templates/agents/implementer.shared.md` | 27/35 B | 32/35 A | #2084 |
+| PR 3 | `templates/agents/critic.shared.md` | 26/35 B | 33/35 A | #2085 |
+| PR 4 | `templates/agents/security.shared.md` | 26/35 B | 31-33/35 A | #2086 |
+| PR 5 | `templates/agents/qa.shared.md` | 25/35 C | 32/35 A | #2087 |
+| PR 6 | `templates/agents/analyst.shared.md` | 25/35 C | 32/35 A | #2088 |
+| PR 7 | `templates/agents/architect.shared.md` | 25/35 C | 32/35 A | #2089 |
+| PR 8 | `.github/prompts/pr-quality.*.prompt.md` (7 clones) | 21/30 C | 29/30 A | #2090 |
+| PR 9 | `.github/prompts/default-ai-review.md` | 11/30 F | 29/30 A | #2091 |
+| PR 10 | `.github/agents/code-simplifier`, `comment-analyzer`, `pr-test-analyzer` | 15-18/35 D | 33-34/35 A | #2092 |
+
+**Dominant axes improved across the cycle**: A6 Reasoning depth (1-2 to 5 on 10 of 11 targets), A2 Length calibration (2-3 to 4-5 on 9 of 11 targets), A1 Output spec (skip/ask boundaries added to 8 of 11 targets).
+
+**Generator cascade (PRs 1-7)**: Each template fix regenerated `src/vs-code-agents/` and `src/copilot-cli/` via `python3 build/generate_agents.py`. Total downstream files updated: approximately 14 generated files across 7 templates.
+
+**Note**: PR #2082 also corrects the stale `pwsh build/Generate-Agents.ps1` references to `python3 build/generate_agents.py` and answers the four Phase 3 decision points. Merge PR #2082 before PR cycle completion PRs if possible.
+
 ## Discipline self-check (this document)
 
 - Zero em-dashes in the executive summary above (period, comma, colon, semicolon, parenthesis used instead). Source reports in sections 1-4 preserve their original em-dash usage where authors chose it.
