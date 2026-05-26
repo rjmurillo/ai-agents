@@ -20,7 +20,7 @@ Do not flag missing coverage without working through all three. A gap that no re
 
 Before asserting that a behavior is untested:
 
-- Use Grep for the function name in `tests/`, `*_test.py`, `*.spec.ts`, and any project-specific test path.
+- Use Grep for the function name in `tests/` and `test/` (both are pytest-discoverable in this repo), `*_test.py`, `*.spec.ts`, and any project-specific test path.
 - Read at least one matching test file end-to-end if a match exists.
 - Check the project test rigor floor (`.agents/governance/TESTING-RIGOR.md` and the project's testing rules) for the language at hand: positive, negative, edge, every branch, mocked I/O.
 
