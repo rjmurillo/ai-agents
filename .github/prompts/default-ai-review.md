@@ -32,6 +32,22 @@ Severities: `critical` (must fix before merge), `high` (should fix before merge)
 - `CONDITIONAL APPROVE: <X must change>` (small fix required, name the fix)
 - `BLOCK: <Y must resolve>` (deeper rework required, name the blocker)
 
+## Verdict Mapping (REQUIRED)
+
+The `VERDICT:` line MUST be consistent with Recommendation and findings:
+
+| Recommendation | Required VERDICT |
+|----------------|------------------|
+| APPROVE | PASS |
+| CONDITIONAL APPROVE | WARN |
+| BLOCK | CRITICAL_FAIL |
+
+Severity constraints:
+
+- Any `critical` finding → VERDICT MUST be `CRITICAL_FAIL` (incompatible with APPROVE/PASS)
+- Any `high` finding → VERDICT MUST be at least `WARN` (incompatible with PASS)
+- `medium`/`low` findings only → VERDICT may be `PASS`
+
 End the response with the verdict line in the format below for the harness.
 
 ## Output Bounds
