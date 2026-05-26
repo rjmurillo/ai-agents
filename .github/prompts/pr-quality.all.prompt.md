@@ -48,7 +48,7 @@ This step-by-step reasoning is internal. Do not emit it. The response MUST be a 
 
 ## Output Bounds
 
-Bound the response by count, not characters, so the JSON object always closes. Cap findings at 10 items per severity per agent. When near the limit, drop the lowest-severity findings first and shorten each agent's `summary` rather than truncating mid-object. Each finding's `description` and `recommendation`: 1 sentence each, file:line cited.
+Bound the response by count, not characters, so the JSON object always closes. Cap findings at 10 items per severity per agent. When near the limit, drop the lowest-severity findings first and shorten the top-level `summary` rather than truncating mid-object. Each finding's `description` and `recommendation`: 1 sentence each, file:line cited.
 
 ## Output Format
 
