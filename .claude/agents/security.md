@@ -440,7 +440,7 @@ Save to: `.agents/security/PIV-[feature].md`
 
 - [ ] **APPROVED**: Implementation meets security requirements
 - [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations and a follow-up issue
-- [ ] **BLOCKED**: Critical issues must be resolved before merge
+- [ ] **BLOCKED**: HIGH/CRITICAL findings, secrets, CWE-22/77/78 patterns, or ASI boundary violations unresolved
 
 ### Required Actions
 
