@@ -251,6 +251,14 @@ Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github
 You cannot delegate. Return to orchestrator with:
 
 1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION] / [NEEDS_DESIGN_REVIEW]
+
+**Failure-mode trigger conditions:**
+
+- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown.
+- `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
+
 2. **Confidence**: HIGH / MEDIUM / LOW with reasoning
 3. **Files changed** (with brief description)
 4. **Tests added** (count + coverage delta)
@@ -259,13 +267,6 @@ You cannot delegate. Return to orchestrator with:
    - critic for pre-merge review
    - security for sensitive changes
    - architect for design review if patterns emerged
-
-**Failure-mode trigger conditions:**
-
-- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
-- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
-- `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown.
-- `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
 
 **Think**: What is the smallest change that meets the acceptance criteria?
 **Act**: Test first when possible. Atomic commits always.
