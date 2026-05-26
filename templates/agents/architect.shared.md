@@ -142,7 +142,7 @@ Save to: `.agents/planning/impact-analysis-architecture-[feature].md`
 
 | ADR | Status | Notes |
 |-----|--------|-------|
-| ADR-NNN | Aligns / Conflicts / Not Applicable | [Details] |
+| ADR-NNNN | Aligns / Conflicts / Not Applicable | [Details] |
 
 ## Required Patterns
 
@@ -250,7 +250,7 @@ Save to: `.agents/architecture/ADR-NNNN-[decision-name].md`
 
 ```markdown
 ---
-status: "{proposed | rejected | accepted | deprecated | superseded by ADR-NNN}"
+status: "{proposed | rejected | accepted | deprecated | superseded by ADR-NNNN}"
 date: {YYYY-MM-DD when the decision was last updated}
 decision-makers: {list everyone involved in the decision}
 consulted: {list everyone whose opinions are sought; two-way communication}
