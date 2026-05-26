@@ -102,6 +102,8 @@ Do not assign a severity (Critical/High/Medium/Low) or a CVSS score until all th
 
 **Thinking trigger**: Findings on authentication, authorization, secrets handling, deserialization, code execution, or agentic-security boundaries (ASI01-ASI10) require explicit step-by-step reasoning through all three questions. Style or low-priority lint findings may collapse to a one-sentence justification.
 
+**Output format**: The reasoning protocol is for internal analysis. The final report finding still follows Security Report Length Bounds (1 sentence description + severity + 1 sentence remediation). Capture the actor, surface, and impact in the description sentence; do not expand beyond the length cap.
+
 ## Completion Trigger Taxonomy
 
 Every security review ends with one verdict. Trigger conditions are explicit:
@@ -442,8 +444,8 @@ Save to: `.agents/security/PIV-[feature].md`
 ## Recommendation
 
 - [ ] **APPROVED**: Implementation meets security requirements
-- [ ] **CONDITIONAL**: Approved with minor fixes required
-- [ ] **REJECTED**: Critical issues must be resolved before merge
+- [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations and a follow-up issue
+- [ ] **BLOCKED**: Critical issues must be resolved before merge
 
 ### Required Actions
 
