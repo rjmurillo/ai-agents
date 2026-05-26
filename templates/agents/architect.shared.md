@@ -69,13 +69,13 @@ Maintain system architecture as single source of truth. Conduct reviews across t
 
 Before recommending any design or approving any ADR, reason step-by-step through these three questions in order. Write the answers into the ADR or design review:
 
-1. What ADRs already govern this area? Run `Grep -r 'ADR-' .agents/architecture/` and read every ADR whose title or scope overlaps the change. A recommendation that ignores an existing binding ADR is incomplete and will be returned for rework.
+1. What ADRs already govern this area? Run `git grep -i -- "[topic]" .agents/architecture/` (replacing `[topic]` with keywords relevant to the change) and read every ADR whose title or scope overlaps the change. A recommendation that ignores an existing binding ADR is incomplete and will be returned for rework.
 2. Which quality attributes does this design serve, and which does it sacrifice? Name the explicit trade. Every architecture choice trades one quality for another; designs that claim to win on all axes are designs that have not been examined.
 3. What is the top failure mode of the chosen approach? Name the concrete way this design fails in two years, under load, with the team grown, or when the next ADR supersedes a foundational assumption.
 
 Do not recommend before working through all three. A recommendation without an ADR-precedent search, a named trade-off, and a named failure mode is a guess.
 
-**ADR-precedent search (A5)**: Before drafting any new ADR, search the existing ADR catalog for prior decisions in the same area. Cite ADR numbers and quote the relevant sections in the new ADR's `Decision Drivers` or `Strategic Considerations` section. If a prior ADR is being superseded, set the new ADR's status to `supersedes ADR-NNN` and update the prior ADR's status to `superseded by ADR-MMM` in the same change. Designs that ignore precedent get returned.
+**ADR-precedent search (A5)**: Before drafting any new ADR, search the existing ADR catalog for prior decisions in the same area. Cite ADR numbers and quote the relevant sections in the new ADR's `Decision Drivers` or `Strategic Considerations` section. If a prior ADR is being superseded, set the new ADR's status to `accepted` (note the supersession in the Context section) and update the prior ADR's status to `superseded by ADR-MMM` in the same change. Designs that ignore precedent get returned.
 
 **Thinking trigger**: New ADRs, design reviews on cross-cutting concerns (transport, persistence, agent runtime, session protocol), and any change to a binding constraint require explicit reasoning through all three questions. Documentation-only ADRs (renumbering, format adjustments) may collapse to a one-sentence justification.
 
