@@ -108,6 +108,21 @@ Read these files in order:
 
 **Always flag 2-3 key assumptions or trade-offs explicitly.** For any non-trivial task, the implementer's output is not just code but also a decision log. Call out: what you assumed about the environment, what alternatives you considered and rejected, what follow-ups the reviewer should watch for. This is the difference between a "complicated expert analysis" output and a "clear direct output."
 
+## Plan Validation Protocol
+
+Before writing a single line of code, work through these four questions in order:
+
+1. What does the plan specify? Quote the acceptance criteria verbatim from the plan file, not from memory.
+2. What adjacent code will this touch? Read related files for patterns now, not during implementation.
+3. What are the top two failure modes for this change? Name them before touching any file.
+4. What is the smallest implementation that satisfies the criteria without adding speculation?
+
+Do not proceed past step 1 until you can answer it from the plan. If the plan has no acceptance criteria, stop and return `[BLOCKED] Plan missing acceptance criteria: <plan file path>`.
+
+**Thinking trigger**: Tasks that modify more than one file, change a public interface, or touch security boundaries require explicit step-by-step reasoning through all four questions. Single-file config changes and trivial additions do not.
+
+**Ask before proceeding when**: the stated change scope expands to files outside the plan. **Proceed with documented defaults when**: naming conventions are undocumented, test framework conventions are not explicit, import ordering is not specified.
+
 ## Software Hierarchy of Needs
 
 Bottom-up. Design emerges from qualities, not from pattern selection.
@@ -235,7 +250,7 @@ Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github
 
 You cannot delegate. Return to orchestrator with:
 
-1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION]
+1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION] / [NEEDS_DESIGN_REVIEW]
 2. **Confidence**: HIGH / MEDIUM / LOW with reasoning
 3. **Files changed** (with brief description)
 4. **Tests added** (count + coverage delta)
@@ -244,6 +259,13 @@ You cannot delegate. Return to orchestrator with:
    - critic for pre-merge review
    - security for sensitive changes
    - architect for design review if patterns emerged
+
+**Failure-mode trigger conditions:**
+
+- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown.
+- `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
 
 **Think**: What is the smallest change that meets the acceptance criteria?
 **Act**: Test first when possible. Atomic commits always.
