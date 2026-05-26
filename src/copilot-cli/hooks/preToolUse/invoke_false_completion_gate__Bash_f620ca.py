@@ -154,6 +154,7 @@ def _original_main(stdin_bytes):
     Gate triggers on:
     - git commit messages containing completion signals
     - gh pr create commands with completion language
+    - gh pr merge commands (inherently completion actions)
 
     Evidence requirements (any one satisfies):
     1. Test run in session log (pytest, npm test, etc.)
@@ -165,7 +166,7 @@ def _original_main(stdin_bytes):
     - Documentation-only changes (*.md files only)
     - No session log present (fail-open), unless the completion claim was
       inferred from an unreadable -F / --body-file (fail-closed)
-    - Non-commit/non-PR commands
+    - Non-commit/non-PR/non-merge commands
 
     Hook Type: PreToolUse (blocking on match)
     Exit Codes (Claude Hook Semantics):
@@ -186,7 +187,7 @@ def _original_main(stdin_bytes):
     import sys
     import tempfile
     import time
-    from datetime import UTC, datetime
+    from datetime import UTC, datetime, timedelta
     from pathlib import Path
 
     # --- Standard hook boilerplate ---
@@ -273,21 +274,20 @@ def _original_main(stdin_bytes):
         re.compile(r"make\s+test", re.IGNORECASE),
     ]
 
-    # Result patterns that indicate actual test execution (pass/fail counts, exit codes)
-    # Required in addition to command patterns to prevent narrative mentions from
-    # satisfying the gate (e.g., "need to run pytest" should not count as evidence).
+    # Result patterns that indicate SUCCESSFUL test/check execution. A pytest run
+    # that ended with failures proves the command ran, but does not prove the work
+    # is complete; the gate must reject a completion claim backed only by failing
+    # evidence. Patterns here MUST match success signals only. Failure signals
+    # (FAILED, "\d+ failed", "checks failed", "exit code: 1") are intentionally
+    # excluded; commits claiming completion after a failing run must be blocked.
     VERIFICATION_RESULT_PATTERNS = [
         re.compile(r"\d+\s+passed", re.IGNORECASE),
-        re.compile(r"\d+\s+failed", re.IGNORECASE),
         re.compile(r"\bPASSED\b"),
-        re.compile(r"\bFAILED\b"),
-        re.compile(r"exit[_ ]code[:\s]+\d+", re.IGNORECASE),
-        re.compile(r"exited with \d+", re.IGNORECASE),
-        re.compile(r"tests?[:\s]+\d+", re.IGNORECASE),
-        re.compile(r"errors?[:\s]+\d+", re.IGNORECASE),
-        re.compile(r"✓|✔|✗|✘"),
+        re.compile(r"exit[_ ]code[:\s]+0\b", re.IGNORECASE),
+        re.compile(r"exited with 0\b", re.IGNORECASE),
+        re.compile(r"✓|✔"),
         re.compile(r"All checks have passed", re.IGNORECASE),
-        re.compile(r"checks? (passed|failed)", re.IGNORECASE),
+        re.compile(r"checks? passed", re.IGNORECASE),
     ]
 
 
@@ -588,17 +588,17 @@ def _original_main(stdin_bytes):
         return [f.strip() for f in diff.stdout.strip().split("\n") if f.strip()]
 
 
-    def _is_documentation_only(is_pr_create: bool) -> bool:
+    def _is_documentation_only(is_branch_operation: bool) -> bool:
         """Check if the relevant changed files are documentation-only.
 
-        For ``git commit`` we look at the index. For ``gh pr create`` we
-        resolve the actual base branch (upstream / origin/HEAD / common
-        defaults) and diff the branch against the merge base. If no base
-        can be resolved we fall back to the staged diff so docs-only PRs
-        keep their bypass when possible.
+        For ``git commit`` we look at the index. For ``gh pr create`` and
+        ``gh pr merge`` we resolve the actual base branch (upstream /
+        origin/HEAD / common defaults) and diff the branch against the
+        merge base. If no base can be resolved we fall back to the staged
+        diff so docs-only PRs keep their bypass when possible.
         """
         deadline = _start_deadline()
-        if is_pr_create:
+        if is_branch_operation:
             head_branch_result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], deadline)
             if head_branch_result is None or head_branch_result.returncode != 0:
                 return False
@@ -723,21 +723,24 @@ def _original_main(stdin_bytes):
         if not command:
             sys.exit(0)
 
-        # Only gate on `git commit`/`git ci` and `gh pr create` commands.
+        # Only gate on `git commit`/`git ci`, `gh pr create`, and `gh pr merge` commands.
         # The trailing boundary keeps neighbours like `git commit-tree` or
         # `gh pr create-checkout` from accidentally matching.
         is_commit = re.search(r"(?:^|\s)git\s+(commit|ci)(?:\s|$)", command)
         is_pr_create = re.search(r"(?:^|\s)gh\s+pr\s+create(?:\s|$)", command)
-        if not is_commit and not is_pr_create:
+        is_pr_merge = re.search(r"(?:^|\s)gh\s+pr\s+merge(?:\s|$)", command)
+        if not is_commit and not is_pr_create and not is_pr_merge:
             sys.exit(0)
 
         # Check if the command/message contains completion signals.
         # For `git commit -F <file>`, also check the message file contents.
         # For `gh pr create --body-file <file>`, also check the body file contents.
+        # `gh pr merge` is always treated as a completion claim since merging is
+        # an inherent "done" action that requires verification evidence.
         msg_claim, msg_unreadable = _is_completion_claim_in_message_file(command)
         body_claim, body_unreadable = _is_completion_claim_in_pr_body_file(command)
         has_completion_claim = (
-            _is_completion_claim(command) or msg_claim or body_claim
+            _is_completion_claim(command) or msg_claim or body_claim or bool(is_pr_merge)
         )
         if not has_completion_claim:
             sys.exit(0)
@@ -752,34 +755,55 @@ def _original_main(stdin_bytes):
         project_dir = get_project_directory()
 
         # Bypass for documentation-only changes
-        if _is_documentation_only(is_pr_create=bool(is_pr_create)):
+        if _is_documentation_only(is_branch_operation=bool(is_pr_create or is_pr_merge)):
             _write_audit_log(project_dir, command, "ALLOW", "documentation-only changes")
             sys.exit(0)
 
-        # Check for verification evidence in all of today's session logs.
-        # Verification may exist in an earlier session file from the same day.
-        # Falls back to get_recent_session_log for sessions spanning midnight.
+        # Check for verification evidence in session logs from today first.
+        # Only fall back to yesterday's logs when today's logs lack evidence,
+        # to prevent stale verification from a prior day from satisfying a
+        # fresh session's claim.
         sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
         session_logs = get_today_session_logs(sessions_dir)
-
-        # Midnight fallback: if no today logs exist, check for a recent session
-        # (yesterday's log) to support sessions spanning midnight.
-        if not session_logs:
-            recent_log = get_recent_session_log(sessions_dir)
-            if recent_log:
-                session_logs = [recent_log]
 
         # Fail-open when no session logs exist, EXCEPT when the completion
         # claim was inferred from an unreadable body file. In that case we
         # honor the fail-closed contract on the body-file helpers and require
         # verification before allowing the command through.
         if not session_logs and not body_inferred:
-            _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
-            sys.exit(0)
-
-        if _has_verification_evidence_across_logs(session_logs):
-            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
-            sys.exit(0)
+            # No today logs: check yesterday (cross-midnight continuation).
+            sessions_path = Path(sessions_dir)
+            if sessions_path.is_dir():
+                yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+                try:
+                    yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
+                    if yesterday_logs:
+                        if _has_verification_evidence_across_logs(yesterday_logs):
+                            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found (yesterday)")
+                            sys.exit(0)
+                        # Yesterday logs exist but lack evidence; fall through to block.
+                    else:
+                        # No yesterday logs either; fail-open.
+                        _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+                        sys.exit(0)
+                except OSError:
+                    # Can't read yesterday logs; fail-open.
+                    _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+                    sys.exit(0)
+            else:
+                # No sessions directory; fail-open.
+                _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+                sys.exit(0)
+        elif session_logs:
+            # Today's logs exist (a fresh session started today): verification
+            # MUST come from today. Stale evidence from a prior day cannot satisfy
+            # a fresh session's claim. No yesterday fallback in this branch;
+            # cross-midnight continuation is only meaningful when today has no
+            # session log at all (the no-today-logs branch above).
+            if _has_verification_evidence_across_logs(session_logs):
+                _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
+                sys.exit(0)
+            # Fall through to block.
 
         # Block: completion claim without verification
         _write_audit_log(project_dir, command, "BLOCK", "completion claim without verification")

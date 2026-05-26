@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -58,18 +59,28 @@ class TestCompletionSignalDetection:
 
 
 class TestVerificationEvidence:
-    """Test _has_verification_evidence checking."""
+    """Test _has_verification_evidence_across_logs checking.
+
+    The gate requires BOTH a command pattern (pytest, npm test) AND a
+    successful result pattern (passed count, exit code 0). A failing run
+    (FAILED, "N failed") MUST NOT satisfy the gate; failing tests prove the
+    run happened but do not prove completion.
+    """
 
     def test_finds_pytest_evidence(self, tmp_path: Path) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
         log = sessions_dir / "2026-01-01-session-001.json"
         log.write_text(
-            json.dumps({"work": [{"task": "ran uv run pytest"}]}),
+            json.dumps({
+                "work": [{"task": "ran uv run pytest"}, {"output": "42 passed"}]
+            }),
             encoding="utf-8",
         )
 
-        assert invoke_false_completion_gate._has_verification_evidence(log) is True
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [log]
+        ) is True
 
     def test_no_evidence_without_tests(self, tmp_path: Path) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
@@ -80,11 +91,94 @@ class TestVerificationEvidence:
             encoding="utf-8",
         )
 
-        assert invoke_false_completion_gate._has_verification_evidence(log) is False
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [log]
+        ) is False
 
     def test_no_evidence_when_log_missing(self, tmp_path: Path) -> None:
         nonexistent_log = tmp_path / "nonexistent-session.json"
-        assert invoke_false_completion_gate._has_verification_evidence(nonexistent_log) is False
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [nonexistent_log]
+        ) is False
+
+    def test_failing_pytest_does_not_satisfy_gate(self, tmp_path: Path) -> None:
+        """Refs cursor thread PRRT_kwDOQoWRls6EnEK7.
+
+        A pytest run that reports failures (FAILED, "3 failed") matches a
+        command pattern but does not satisfy the result-pattern requirement,
+        because only successful result patterns count as verification.
+        """
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log = sessions_dir / "2026-01-01-session-001.json"
+        log.write_text(
+            json.dumps({
+                "work": [
+                    {"task": "ran uv run pytest"},
+                    {"output": "FAILED tests/test_foo.py::test_bar - 3 failed"},
+                ]
+            }),
+            encoding="utf-8",
+        )
+
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [log]
+        ) is False
+
+    def test_yesterday_evidence_does_not_satisfy_today_logs(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Refs cursor thread PRRT_kwDOQoWRls6EnEK4.
+
+        When today's session log exists (a fresh session started today),
+        verification MUST come from today. Stale evidence from yesterday's
+        log MUST NOT satisfy today's completion claim. Cross-midnight
+        fallback only applies when today has no session log at all.
+        """
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        # Today's log lacks verification.
+        today_str = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today_log = sessions_dir / f"{today_str}-session-001.json"
+        today_log.write_text(
+            json.dumps({"work": [{"task": "edited"}]}), encoding="utf-8"
+        )
+        # Yesterday's log has verification.
+        yesterday_str = (
+            datetime.now(tz=UTC) - timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+        yesterday_log = sessions_dir / f"{yesterday_str}-session-001.json"
+        yesterday_log.write_text(
+            json.dumps({
+                "work": [{"task": "ran pytest"}, {"output": "5 passed"}]
+            }),
+            encoding="utf-8",
+        )
+
+        hook_input = {
+            "tool_input": {"command": 'git commit -m "feat: done with task"'},
+        }
+        with patch.object(
+            invoke_false_completion_gate,
+            "skip_if_consumer_repo",
+            return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_read_stdin_json",
+            return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_is_documentation_only",
+            return_value=False,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            # Today has logs without evidence: must block, no yesterday fallback.
+            assert exc_info.value.code == 2
 
 
 class TestMain:
@@ -152,10 +246,9 @@ class TestMain:
             "tool_input": {"command": 'git commit -m "feat: done with implementation"'},
         }
         # main() reads logs via the plural helper get_today_session_logs and
-        # loops _has_verification_evidence over each one. Patch the plural
-        # helper directly; patching only the singular form leaves main() with
-        # no today's logs (the fixture is dated 2026-01-01) and the gate
-        # fail-opens before reaching the block branch.
+        # passes the list to _has_verification_evidence_across_logs. Patch
+        # both so the fixture (dated 2026-01-01) is treated as today and the
+        # evidence check returns False, driving the block branch.
         with patch.object(
             invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
         ), patch.object(
@@ -170,7 +263,7 @@ class TestMain:
             invoke_false_completion_gate, "get_today_session_logs", return_value=[log],
         ), patch.object(
             invoke_false_completion_gate,
-            "_has_verification_evidence",
+            "_has_verification_evidence_across_logs",
             return_value=False,
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -205,7 +298,7 @@ class TestMain:
             invoke_false_completion_gate, "get_today_session_logs", return_value=[log],
         ), patch.object(
             invoke_false_completion_gate,
-            "_has_verification_evidence",
+            "_has_verification_evidence_across_logs",
             return_value=True,
         ):
             with pytest.raises(SystemExit) as exc_info:

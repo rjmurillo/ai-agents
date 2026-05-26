@@ -131,24 +131,20 @@ VERIFICATION_PATTERNS = [
     re.compile(r"make\s+test", re.IGNORECASE),
 ]
 
-# Result patterns that indicate actual test execution (pass/fail counts, exit codes)
-# Required in addition to command patterns to prevent narrative mentions from
-# satisfying the gate (e.g., "need to run pytest" should not count as evidence).
+# Result patterns that indicate SUCCESSFUL test/check execution. A pytest run
+# that ended with failures proves the command ran, but does not prove the work
+# is complete; the gate must reject a completion claim backed only by failing
+# evidence. Patterns here MUST match success signals only. Failure signals
+# (FAILED, "\d+ failed", "checks failed", "exit code: 1") are intentionally
+# excluded; commits claiming completion after a failing run must be blocked.
 VERIFICATION_RESULT_PATTERNS = [
     re.compile(r"\d+\s+passed", re.IGNORECASE),
-    re.compile(r"\d+\s+failed", re.IGNORECASE),
     re.compile(r"\bPASSED\b"),
-    re.compile(r"\bFAILED\b"),
-    # Only successful exits count as verification evidence. A failing exit
-    # (exit code: 1) alongside a pytest mention proves the run happened but
-    # does not prove completion; the gate must reject the commit claim.
     re.compile(r"exit[_ ]code[:\s]+0\b", re.IGNORECASE),
     re.compile(r"exited with 0\b", re.IGNORECASE),
-    re.compile(r"tests?[:\s]+\d+", re.IGNORECASE),
-    re.compile(r"errors?[:\s]+\d+", re.IGNORECASE),
-    re.compile(r"✓|✔|✗|✘"),
+    re.compile(r"✓|✔"),
     re.compile(r"All checks have passed", re.IGNORECASE),
-    re.compile(r"checks? (passed|failed)", re.IGNORECASE),
+    re.compile(r"checks? passed", re.IGNORECASE),
 ]
 
 
@@ -656,23 +652,14 @@ def main() -> None:
             _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
             sys.exit(0)
     elif session_logs:
-        # Today's logs exist: check them first, only fall back to yesterday
-        # if today's logs lack evidence (cross-midnight continuation).
+        # Today's logs exist (a fresh session started today): verification
+        # MUST come from today. Stale evidence from a prior day cannot satisfy
+        # a fresh session's claim. No yesterday fallback in this branch;
+        # cross-midnight continuation is only meaningful when today has no
+        # session log at all (the no-today-logs branch above).
         if _has_verification_evidence_across_logs(session_logs):
             _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
             sys.exit(0)
-
-        # Today's logs lack evidence; try yesterday as fallback.
-        sessions_path = Path(sessions_dir)
-        if sessions_path.is_dir():
-            yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
-            try:
-                yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
-                if yesterday_logs and _has_verification_evidence_across_logs(yesterday_logs):
-                    _write_audit_log(project_dir, command, "ALLOW", "verification evidence found (yesterday)")
-                    sys.exit(0)
-            except OSError:
-                pass
         # Fall through to block.
 
     # Block: completion claim without verification
