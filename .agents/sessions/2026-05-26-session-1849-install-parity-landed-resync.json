@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1849,
+    "date": "2026-05-26",
+    "branch": "fix/install-parity-resync-landed-drift",
+    "startingCommit": "cb285ebe",
+    "objective": "Resync the .claude/agents/ install copies of qa, architect, and implementer with the canonical Claude variant in src/claude/. PR #2087, PR #2089, and PR #2084 updated templates and src/* but left the Claude Code self-host install copies stale. Preserves Claude-specific addenda (Step 5 in qa, ADR Exception/Degraded Mode in architect, Test rigor checklist in implementer) via a 3-way merge against the pre-template-change base. Refs #2094."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena tools available; memory architecture/install-parity already on disk from session 1848"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Initial instructions loaded; ADR-007 enforcer hook ran on session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md auto-loaded by context_loader hook"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Inspected .claude/skills/github/scripts/pr/ before invoking PR scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, and build/AGENTS.md loaded; clarified canonical-vs-install model"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "REQ-003-010 read inline; ADR-035 exit codes; em-dash prohibition observed in merge resolutions"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused architecture/install-parity memory from session 1848"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -b fix/install-parity-resync-landed-drift from main"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/install-parity-resync-landed-drift"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified clean main state before branching"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "cb285ebe (current main HEAD)"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items satisfied; resync landed for qa, architect, implementer"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reused existing architecture/install-parity memory from session 1848; the resync execution applies the same model documented there"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on each modified .claude/agents/*.md produced 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See endingCommit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_install_parity.py --files .claude/agents/{qa,architect,implementer}.md returned OK (asymmetric resync rule applies)"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task 5 moved to in_progress then completed at session end"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Retrospective deferred; resync rationale captured in PR body and issue #2094"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-05-26T17:00:00Z",
+      "action": "Investigated landed drift. PR #2087 (qa), PR #2089 (architect), PR #2084 (implementer) all updated templates and src/* but skipped .claude/agents/. PR #2083 (orchestrator) is broader: it also missed src/claude/orchestrator.md, so the resync there needs a manual template-content-application step, deferred to a follow-up.",
+      "files": []
+    },
+    {
+      "timestamp": "2026-05-26T17:15:00Z",
+      "action": "Initial attempt was a flat overwrite (cp src/claude/X.md .claude/agents/X.md). Aborted because the diff showed substantive Claude-specific addenda would be lost: Step 5 (PR Description Validation) in qa, ADR Exception/Degraded Mode in architect, Test rigor checklist in implementer.",
+      "files": []
+    },
+    {
+      "timestamp": "2026-05-26T17:30:00Z",
+      "action": "Switched to a 3-way merge approach: base = src/claude/X.md from the commit before the template PR, theirs = src/claude/X.md current, ours = .claude/agents/X.md current. git merge-file --diff3 applied the template's new content while preserving the install copy's local addenda.",
+      "files": [
+        ".claude/agents/qa.md",
+        ".claude/agents/architect.md",
+        ".claude/agents/implementer.md"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T17:45:00Z",
+      "action": "qa.md had two conflict regions (new template sections inserted at the same location, gate count change from 4 to 5). Resolved by taking theirs for the new sections and integrating the 5-gates phrasing into the new threshold table.",
+      "files": [
+        ".claude/agents/qa.md"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T17:55:00Z",
+      "action": "Verified Claude addenda survived merge: Step 5 present in qa, Degraded Mode in architect, Test rigor checklist in implementer. Validator allows the diff under the asymmetric resync rule (touched set is entirely install members of SHARED_AGENT groups).",
+      "files": []
+    }
+  ],
+  "endingCommit": "PENDING",
+  "nextSteps": [
+    "Open PR for this resync referencing #2094.",
+    "Follow-up PR for orchestrator: PR #2083 also missed src/claude/orchestrator.md so the resync needs to apply the template's Reasoning Protocol additions to both src/claude/ and .claude/agents/ together. Outside the scope of this single-side install resync.",
+    "Follow-up issue for .github/agents/ structural divergence (different format, model field, tool naming). Separate from this PR.",
+    "Once PR #2095 lands, this resync is the first real exercise of the asymmetric carve-out; treat its CI run as a validation of the validator."
+  ]
+}
