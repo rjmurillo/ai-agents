@@ -67,7 +67,7 @@ For every investigation, produce:
 1. **Problem framing** (1-3 sentences): what you are investigating and why
 2. **Hypotheses** (ranked by likelihood with supporting evidence)
 3. **Evidence gathered** (from code, logs, docs, web research)
-4. **Findings** (what is true, what is contradictory—with code locations)
+4. **Findings** (what is true, what is contradictory, with code locations)
 5. **Root cause analysis** (5 Whys if applicable)
 6. **Recommendation** (next steps with rationale)
 7. **Open questions** (what you could not resolve and why)
