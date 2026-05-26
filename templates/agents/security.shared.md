@@ -102,7 +102,7 @@ Do not assign a severity (Critical/High/Medium/Low) or a CVSS score until all th
 
 **Thinking trigger**: Findings on authentication, authorization, secrets handling, deserialization, code execution, or agentic-security boundaries (ASI01-ASI10) require explicit step-by-step reasoning through all three questions. Style or low-priority lint findings may collapse to a one-sentence justification.
 
-**Output format**: The reasoning protocol is for internal analysis. The final report finding still follows Security Report Length Bounds (1 sentence description + severity + 1 sentence remediation). Capture the actor, surface, and impact in the description sentence; do not expand beyond the length cap.
+**Output format**: The reasoning protocol is for internal analysis. The final report finding still follows Security Report Length Bounds (1 sentence description + severity + CVSS or Risk Score + 1 sentence remediation). Capture the actor, surface, and impact in the description sentence; do not expand beyond the length cap.
 
 ## Completion Trigger Taxonomy
 
@@ -823,7 +823,7 @@ Save to: `.agents/security/TM-NNN-[feature].md`
 
 Reports are dense, not exhaustive. Apply these caps:
 
-- **Each finding**: 1 sentence description, severity, 1 sentence remediation. Do not narrate the vulnerability beyond what the implementer needs to fix it.
+- **Each finding**: 1 sentence description, severity, CVSS or Risk Score (per the Risk Scores with Numeric Values rule above), 1 sentence remediation. Do not narrate the vulnerability beyond what the implementer needs to fix it.
 - **Total findings per report**: at most 10. If more exist, group by shared root cause (e.g., "5 instances of CWE-78 in shell-out helpers") and report the groups.
 - **Summary table**: one row per severity tier; counts only, no prose.
 - **Recommendations section**: at most 5 prioritized items, each one sentence.
