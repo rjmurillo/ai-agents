@@ -20,7 +20,7 @@ Scaffold only. Fixtures, runs, and reports are owned by the operator who lands t
 
 ## Layout
 
-```
+```text
 evals/code-qualities-assessment-spike/
   fixtures/           # F001.json .. FNNN.json + README.md (TBA)
   runs/<RUN_ID>/      # runs.jsonl (per-trial outcomes; created on first live run)
@@ -33,7 +33,7 @@ evals/code-qualities-assessment-spike/
 
 1. Read the skill's SKILL.md and identify the bounded judgment it produces (verdict, finding, score, recommendation, design).
 2. Choose 3 verdict bands minimum (e.g., `IDENTIFY`/`OK`/`ESCALATE`, `KEEP`/`PRUNE`/`INVESTIGATE`, `A`/`B`/`C`/`D`/`F`).
-3. Write 6-10 fixtures spanning every band. At least 30% should be **agent-discriminating**: cases where the naive baseline ("here is the input; respond with one of <bands>") cannot answer correctly without knowledge encoded in the skill.
+3. Write 6-10 fixtures spanning every band. At least 30% should be **agent-discriminating**: cases where the naive baseline ("here is the input; respond with one of `<bands>`") cannot answer correctly without knowledge encoded in the skill.
 4. Each fixture: `schemaVersion`, `id`, `provenance` (`synthetic` | `paraphrased-from-public`), `expected_verdict`, `verdict_options`, `rationale`, `tags`.
 5. Update `fixtures/README.md` with the per-fixture provenance table and verdict distribution. Mirror the shape used in `evals/security-spike/fixtures/README.md`.
 

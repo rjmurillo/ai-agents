@@ -25,7 +25,7 @@ differences in critic, qa, and implementer agents vs the origin/main control?
 
 ## Layout
 
-```
+```text
 evals/reviewer-asymmetry-spike/
   fixtures/
     F001-critic-planted-issues.json     - regex-token-boundary checklist vocab
