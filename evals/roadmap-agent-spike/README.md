@@ -6,7 +6,7 @@ A/B eval spike for the `roadmap` agent. Default framing is **prompt-change contr
 
 `.claude/agents/roadmap.md`
 
-> CEO of the product—strategic product owner who defines what to build and why with outcome-focused vision. Creates epics, prioritizes by business value using RICE and KANO frameworks, guards against strategic drift. Use when you need direction, outcomes over outputs, sequencing by
+> CEO of the product—strategic product owner who defines what to build and why with outcome-focused vision. Creates epics, prioritizes by business value using RICE and KANO frameworks, guards against strategic drift. Use when you need direction, outcomes over outputs, sequencing by dependencies, or user-value validation.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/roadmap-agent-spike/
   "id": "F001",
   "agent": "roadmap",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent roadmap
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent roadmap \
     --trials 10 \
-    --output evals/roadmap-agent-spike/runs/"<run-id>".json
+    --output evals/roadmap-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

@@ -6,7 +6,7 @@ A/B eval spike for the `explainer` agent. Default framing is **prompt-change con
 
 `.claude/agents/explainer.md`
 
-> Documentation specialist who writes PRDs, explainers, and technical specifications that junior developers understand without questions. Uses explicit language, INVEST criteria for user stories, and unambiguous acceptance criteria. Use when you need clarity, accessible documentati
+> Documentation specialist who writes PRDs, explainers, and technical specifications that junior developers understand without questions. Uses explicit language, INVEST criteria for user stories, and unambiguous acceptance criteria. Use when you need clarity, accessible documentation, templates, or requirements that define scope and boundaries.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/explainer-agent-spike/
   "id": "F001",
   "agent": "explainer",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent explainer
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent explainer \
     --trials 10 \
-    --output evals/explainer-agent-spike/runs/"<run-id>".json
+    --output evals/explainer-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

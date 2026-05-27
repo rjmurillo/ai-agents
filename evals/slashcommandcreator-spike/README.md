@@ -34,7 +34,7 @@ evals/slashcommandcreator-spike/
 1. Read the skill's SKILL.md and identify the bounded judgment it produces (verdict, finding, score, recommendation, design).
 2. Choose 3 verdict bands minimum (e.g., `IDENTIFY`/`OK`/`ESCALATE`, `KEEP`/`PRUNE`/`INVESTIGATE`, `A`/`B`/`C`/`D`/`F`).
 3. Write 6-10 fixtures spanning every band. At least 30% should be **agent-discriminating**: cases where the naive baseline ("here is the input; respond with one of `<bands>`") cannot answer correctly without knowledge encoded in the skill.
-4. Each fixture: `schemaVersion`, `id`, `provenance` (`synthetic` | `paraphrased-from-public`), `expected_verdict`, `verdict_options`, `rationale`, `tags`.
+4. Each fixture: `schemaVersion`, `id`, `policy_id`, `input`, `provenance` (`synthetic` | `paraphrased-from-public`), `assertions[]` (each `{kind, expected_value | pattern}`), `tags`. Mirror `evals/security-spike/fixtures/F001.json` for the canonical shape.
 5. Update `fixtures/README.md` with the per-fixture provenance table and verdict distribution. Mirror the shape used in `evals/security-spike/fixtures/README.md`.
 
 ## Cross-references

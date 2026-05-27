@@ -6,7 +6,7 @@ A/B eval spike for the `spec-generator` agent. Default framing is **prompt-chang
 
 `.claude/agents/spec-generator.md`
 
-> Spec generation specialist who transforms vibe-level feature descriptions into structured 3-tier specifications using EARS requirements format. Guides users through clarifying questions, then produces requirements.md, design.md, and tasks.md with full traceability. Use when a fea
+> Spec generation specialist who transforms vibe-level feature descriptions into structured 3-tier specifications using EARS requirements format. Guides users through clarifying questions, then produces requirements.md, design.md, and tasks.md with full traceability. Use when a feature idea needs to become an implementable specification.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/spec-generator-agent-spike/
   "id": "F001",
   "agent": "spec-generator",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent spec-generator
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent spec-generator \
     --trials 10 \
-    --output evals/spec-generator-agent-spike/runs/"<run-id>".json
+    --output evals/spec-generator-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

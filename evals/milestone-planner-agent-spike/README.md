@@ -6,7 +6,7 @@ A/B eval spike for the `milestone-planner` agent. Default framing is **prompt-ch
 
 `.claude/agents/milestone-planner.md`
 
-> High-rigor planning assistant who translates roadmap epics into implementation-ready work packages with clear milestones, dependencies, and acceptance criteria. Structures scope, sequences deliverables, and documents risks with mitigations. Use for structured breakdown, impact an
+> High-rigor planning assistant who translates roadmap epics into implementation-ready work packages with clear milestones, dependencies, and acceptance criteria. Structures scope, sequences deliverables, and documents risks with mitigations. Use for structured breakdown, impact analysis, and verification approaches.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/milestone-planner-agent-spike/
   "id": "F001",
   "agent": "milestone-planner",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent milestone-plan
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent milestone-planner \
     --trials 10 \
-    --output evals/milestone-planner-agent-spike/runs/"<run-id>".json
+    --output evals/milestone-planner-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

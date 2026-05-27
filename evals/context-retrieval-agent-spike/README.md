@@ -6,7 +6,7 @@ A/B eval spike for the `context-retrieval` agent. Default framing is **prompt-ch
 
 `.claude/agents/context-retrieval.md`
 
-> Context retrieval specialist for gathering relevant memories, code patterns, and framework documentation before planning or implementation. Use PROACTIVELY when about to plan or implement code - searches memories across all projects, reads linked artifacts/documents, and queries
+> Context retrieval specialist for gathering relevant memories, code patterns, and framework documentation before planning or implementation. Use PROACTIVELY when about to plan or implement code - searches memories across all projects, reads linked artifacts/documents, and queries Context7 for framework-specific guidance.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/context-retrieval-agent-spike/
   "id": "F001",
   "agent": "context-retrieval",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent context-retrie
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent context-retrieval \
     --trials 10 \
-    --output evals/context-retrieval-agent-spike/runs/"<run-id>".json
+    --output evals/context-retrieval-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

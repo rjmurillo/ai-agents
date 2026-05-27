@@ -6,7 +6,7 @@ A/B eval spike for the `architect` agent. Default framing is **prompt-change con
 
 `.claude/agents/architect.md`
 
-> Technical authority on system design who guards architectural coherence, enforces patterns, and maintains boundaries. Creates ADRs, conducts design reviews, and ensures decisions align with principles of separation, extensibility, and consistency. Use for governance, trade-off an
+> Technical authority on system design who guards architectural coherence, enforces patterns, and maintains boundaries. Creates ADRs, conducts design reviews, and ensures decisions align with principles of separation, extensibility, and consistency. Use for governance, trade-off analysis, and blueprints that protect long-term system health.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/architect-agent-spike/
   "id": "F001",
   "agent": "architect",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent architect
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent architect \
     --trials 10 \
-    --output evals/architect-agent-spike/runs/"<run-id>".json
+    --output evals/architect-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

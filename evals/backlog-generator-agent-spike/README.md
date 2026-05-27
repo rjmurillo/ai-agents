@@ -6,7 +6,7 @@ A/B eval spike for the `backlog-generator` agent. Default framing is **prompt-ch
 
 `.claude/agents/backlog-generator.md`
 
-> Autonomous backlog generator that analyzes project state (open issues, PRs, code health) when agent slots are idle and creates 3-5 sized, actionable tasks. Unlike task-decomposer (which decomposes existing PRDs into atomic work items), backlog-generator proactively identifies wha
+> Autonomous backlog generator that analyzes project state (open issues, PRs, code health) when agent slots are idle and creates 3-5 sized, actionable tasks. Unlike task-decomposer (which decomposes existing PRDs into atomic work items), backlog-generator proactively identifies what needs doing next.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/backlog-generator-agent-spike/
   "id": "F001",
   "agent": "backlog-generator",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent backlog-genera
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent backlog-generator \
     --trials 10 \
-    --output evals/backlog-generator-agent-spike/runs/"<run-id>".json
+    --output evals/backlog-generator-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

@@ -6,7 +6,7 @@ A/B eval spike for the `task-decomposer` agent. Default framing is **prompt-chan
 
 `.claude/agents/task-decomposer.md`
 
-> Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when tasks need to be discrete enough that someone can pick t
+> Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when tasks need to be discrete enough that someone can pick them up and know exactly what to do.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/task-decomposer-agent-spike/
   "id": "F001",
   "agent": "task-decomposer",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent task-decompose
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent task-decomposer \
     --trials 10 \
-    --output evals/task-decomposer-agent-spike/runs/"<run-id>".json
+    --output evals/task-decomposer-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

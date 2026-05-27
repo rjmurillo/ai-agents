@@ -6,7 +6,7 @@ A/B eval spike for the `retrospective` agent. Default framing is **prompt-change
 
 `.claude/agents/retrospective.md`
 
-> Reflective analyst who extracts learnings through structured retrospective frameworks—diagnosing agent performance, identifying error patterns, and documenting success strategies. Uses Five Whys, timeline analysis, and learning matrices. Use when you need root-cause analysis, ato
+> Reflective analyst who extracts learnings through structured retrospective frameworks—diagnosing agent performance, identifying error patterns, and documenting success strategies. Uses Five Whys, timeline analysis, and learning matrices. Use when you need root-cause analysis, atomicity scoring, or to transform experience into institutional knowledge.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/retrospective-agent-spike/
   "id": "F001",
   "agent": "retrospective",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent retrospective
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent retrospective \
     --trials 10 \
-    --output evals/retrospective-agent-spike/runs/"<run-id>".json
+    --output evals/retrospective-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

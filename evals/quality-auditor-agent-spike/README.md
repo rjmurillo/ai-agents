@@ -6,7 +6,7 @@ A/B eval spike for the `quality-auditor` agent. Default framing is **prompt-chan
 
 `.claude/agents/quality-auditor.md`
 
-> Periodically scans and grades product domains across architectural layers (agents, skills, scripts, tests, docs, workflows). Produces quality reports with gap tracking and trend analysis. Use when you need a systematic quality audit across the entire repository or specific domain
+> Periodically scans and grades product domains across architectural layers (agents, skills, scripts, tests, docs, workflows). Produces quality reports with gap tracking and trend analysis. Use when you need a systematic quality audit across the entire repository or specific domains.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/quality-auditor-agent-spike/
   "id": "F001",
   "agent": "quality-auditor",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent quality-audito
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent quality-auditor \
     --trials 10 \
-    --output evals/quality-auditor-agent-spike/runs/"<run-id>".json
+    --output evals/quality-auditor-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

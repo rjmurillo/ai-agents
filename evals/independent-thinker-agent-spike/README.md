@@ -6,7 +6,7 @@ A/B eval spike for the `independent-thinker` agent. Default framing is **prompt-
 
 `.claude/agents/independent-thinker.md`
 
-> Contrarian analyst who challenges assumptions with evidence, presents alternative viewpoints, and declares uncertainty rather than guessing. Intellectually rigorous, respectfully skeptical, cites sources. Use as devil's advocate when you need opposing critique, trade-off analysis
+> Contrarian analyst who challenges assumptions with evidence, presents alternative viewpoints, and declares uncertainty rather than guessing. Intellectually rigorous, respectfully skeptical, cites sources. Use as devil's advocate when you need opposing critique, trade-off analysis, or verification rather than validation.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/independent-thinker-agent-spike/
   "id": "F001",
   "agent": "independent-thinker",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent independent-th
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent independent-thinker \
     --trials 10 \
-    --output evals/independent-thinker-agent-spike/runs/"<run-id>".json
+    --output evals/independent-thinker-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

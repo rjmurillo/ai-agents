@@ -6,7 +6,7 @@ A/B eval spike for the `skillbook` agent. Default framing is **prompt-change con
 
 `.claude/agents/skillbook.md`
 
-> Skill manager who transforms reflections into high-quality atomic skillbook updates—guarding strategy quality, preventing duplicates, and maintaining learned patterns. Scores atomicity, runs deduplication checks, rejects vague learnings. Use for skill persistence, validation, or
+> Skill manager who transforms reflections into high-quality atomic skillbook updates—guarding strategy quality, preventing duplicates, and maintaining learned patterns. Scores atomicity, runs deduplication checks, rejects vague learnings. Use for skill persistence, validation, or keeping institutional knowledge clean and actionable.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/skillbook-agent-spike/
   "id": "F001",
   "agent": "skillbook",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent skillbook
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent skillbook \
     --trials 10 \
-    --output evals/skillbook-agent-spike/runs/"<run-id>".json
+    --output evals/skillbook-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.

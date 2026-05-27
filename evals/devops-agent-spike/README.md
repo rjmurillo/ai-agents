@@ -6,7 +6,7 @@ A/B eval spike for the `devops` agent. Default framing is **prompt-change contro
 
 `.claude/agents/devops.md`
 
-> DevOps specialist fluent in CI/CD pipelines, build automation, and deployment workflows. Thinks in reliability, security, and developer experience. Designs GitHub Actions, configures build systems, manages secrets. Use for pipeline configuration, infrastructure automation, and an
+> DevOps specialist fluent in CI/CD pipelines, build automation, and deployment workflows. Thinks in reliability, security, and developer experience. Designs GitHub Actions, configures build systems, manages secrets. Use for pipeline configuration, infrastructure automation, and anything involving environments, artifacts, caching, or runners.
 
 ## Eval target
 
@@ -52,7 +52,7 @@ evals/devops-agent-spike/
   "id": "F001",
   "agent": "devops",
   "input": "<scenario shown to the agent>",
-  "provenance": "synthetic|public|paraphrased-from-public",
+  "provenance": "synthetic | paraphrased-from-public",
   "planted_issues": ["<one per planted finding>"],
   "scoring_rubric": {
     "kind": "<behavior under test>",
@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent devops
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent devops \
     --trials 10 \
-    --output evals/devops-agent-spike/runs/"<run-id>".json
+    --output evals/devops-agent-spike/runs/"<RUN_ID>"/runs.jsonl
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.
