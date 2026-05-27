@@ -131,6 +131,12 @@
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_install_parity_guard.py",
             "timeout": 30,
             "statusMessage": "Checking install-copy parity for agents and rules (BLOCKING)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_hook_drift_guard.py",
+            "timeout": 30,
+            "statusMessage": "Checking hook generator drift in src/copilot-cli/hooks/ (BLOCKING)"
           }
         ]
       },
