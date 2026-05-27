@@ -43,4 +43,4 @@ evals/cynefin-classifier-spike/
 - `evals/skill-triage.md`. Classification matrix.
 - `evals/security-spike/`. Reference implementation.
 - `scripts/eval/eval-agent-vs-baseline.py`. Runner.
-- ADR-057. Prompt behavioral evaluation.
+- [ADR-057](.agents/architecture/ADR-057-prompt-behavioral-evaluation.md). Prompt behavioral evaluation.

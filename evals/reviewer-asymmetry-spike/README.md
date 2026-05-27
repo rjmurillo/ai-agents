@@ -73,7 +73,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run
 # Live run (10 trials × 6 fixtures × 2 conditions = 120 API calls)
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --trials 10 \
-    --output evals/reviewer-asymmetry-spike/runs/<run-id>.json
+    --output evals/reviewer-asymmetry-spike/runs/"<run-id>".json
 ```
 
 Exit codes:

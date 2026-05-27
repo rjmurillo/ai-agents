@@ -79,7 +79,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run --agent milestone-plan
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --agent milestone-planner \
     --trials 10 \
-    --output evals/milestone-planner-agent-spike/runs/<run-id>.json
+    --output evals/milestone-planner-agent-spike/runs/"<run-id>".json
 ```
 
 Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a small extension to take `--agent` as a parameter. If extending it costs more than authoring a per-spike runner, document the choice in the first fixture-authoring PR.
@@ -90,4 +90,4 @@ Note: `eval-reviewer-asymmetry.py` is the closest existing runner; it may need a
 - `evals/reviewer-asymmetry-spike/`. Template for multi-agent A/B (covers critic, qa, implementer).
 - `evals/security-spike/`. Template for agent-vs-baseline (covers security).
 - `scripts/eval/eval-reviewer-asymmetry.py`. A/B runner.
-- ADR-057. Prompt behavioral evaluation.
+- [ADR-057](.agents/architecture/ADR-057-prompt-behavioral-evaluation.md). Prompt behavioral evaluation.
