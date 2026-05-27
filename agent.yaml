@@ -1,0 +1,44 @@
+spec_version: "0.1.0"
+name: ai-agents
+version: 1.0.0
+description: >
+  A coordinated multi-agent system for software development on Claude Code and
+  GitHub Copilot CLI. Ships 23+ specialized AI agents covering every phase of
+  the development lifecycle — research, architecture, implementation, QA,
+  security, DevOps, and retrospectives — with explicit handoff protocols,
+  ADR-steered governance, session review gates, and cross-session memory via
+  Serena. The orchestrator agent coordinates sub-agents, keeps context clean,
+  and drives work from "shower thought" to shipped feature with full audit trail.
+license: MIT
+model:
+  preferred: anthropic:claude-sonnet-4-6
+skills:
+  - name: orchestrator
+    description: Central coordinator; delegates to specialized sub-agents and manages session state.
+  - name: analyst
+    description: Research, spike, and requirements-gathering agent.
+  - name: architect
+    description: System design, ADR authoring, and tech-debt triage.
+  - name: implementer
+    description: Code generation guided by spec and ADRs.
+  - name: qa
+    description: Testing strategy, Pester/pytest authoring, and coverage analysis.
+  - name: security
+    description: Vulnerability detection, CWE/OWASP scanning, and security advisory.
+  - name: devops
+    description: CI/CD pipeline design, deployment automation, and operational concerns.
+  - name: critic
+    description: Adversarial review agent that pokes holes in other agents' outputs.
+  - name: reflect
+    description: Weekly retrospective and self-improvement tracking.
+  - name: session-init
+    description: Session gate that verifies memory, branch state, and picks up from HANDOFF.md.
+  - name: session-end
+    description: Closes out a session with commit, handoff, and memory persistence.
+runtime:
+  max_turns: 50
+  platform: claude-code
+compliance:
+  risk_tier: standard
+  supervision:
+    human_in_the_loop: destructive
