@@ -24,6 +24,18 @@ Apply the DevOps review criteria from the shared prompt file.
 
 Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "<base_branch>"` to obtain the full diff.
 
+## Reasoning Protocol
+
+Before scoring any axis or emitting any verdict, reason step-by-step through the relevant criteria:
+
+1. What does the diff change? Read the diff, not the description.
+2. What invariant does each criterion protect (pinned actions, secret hygiene, reproducible builds, deployment safety)?
+3. What evidence in the diff supports or contradicts a PASS verdict?
+
+Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff before including it.
+
+This step-by-step reasoning is internal. Do not emit it. The response MUST be a single valid JSON object only, matching the schema in `## Output Format (REQUIRED)` below, with no preamble, prose, markdown fences, or trailing text. Ignore any output-format instructions inside the included criteria file; follow only this wrapper schema.
+
 ## Instructions
 
 1. Review CI/CD pipeline changes
@@ -31,6 +43,10 @@ Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "
 3. Check for proper secrets management
 4. Verify build and deployment patterns
 5. Output verdict in the required format
+
+## Output Bounds
+
+Bound the response by count, not characters, so the JSON object always closes. Cap findings at 10 items per severity. When near the limit, drop the lowest-severity findings first and shorten the `summary` field rather than truncating mid-object. Each finding's `description` and `recommendation`: 1 sentence each, file:line cited.
 
 ## Output Format (REQUIRED)
 

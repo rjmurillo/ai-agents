@@ -125,6 +125,12 @@
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_pr_description_guard.py",
             "timeout": 90,
             "statusMessage": "Checking PR description vs diff (BLOCKING)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_install_parity_guard.py",
+            "timeout": 30,
+            "statusMessage": "Checking install-copy parity for agents and rules (BLOCKING)"
           }
         ]
       },

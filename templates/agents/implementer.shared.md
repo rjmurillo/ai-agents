@@ -102,6 +102,21 @@ Read these files in order:
 
 **Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING. Strategic memory is optional optimization; project documentation is mandatory.
 
+## Plan Validation Protocol
+
+Before writing a single line of code, work through these four questions in order:
+
+1. What does the plan specify? Quote the acceptance criteria verbatim from the plan file, not from memory.
+2. What adjacent code will this touch? Read related files for patterns now, not during implementation.
+3. What are the top two failure modes for this change? Name them before touching any file.
+4. What is the smallest implementation that satisfies the criteria without adding speculation?
+
+Do not proceed past step 1 until you can answer it from the plan. If the plan has no acceptance criteria, stop and return `[BLOCKED] Plan missing acceptance criteria: <plan file path>`.
+
+**Thinking trigger**: Tasks that modify more than one file, change a public interface, or touch security boundaries require explicit step-by-step reasoning through all four questions. Single-file config changes and trivial additions do not.
+
+**Ask before proceeding when**: the stated change scope expands to files outside the plan. **Proceed with documented defaults when**: naming conventions are undocumented, test framework conventions are not explicit, import ordering is not specified.
+
 ## Core Behavior
 
 **Implement what is in front of you.** If the task is clear, start producing code. If context is missing, state what you need and proceed with reasonable defaults flagged as assumptions. Do not refuse to work because additional strategic memories could be loaded. Strategic memory lookup is optional optimization.
@@ -241,7 +256,15 @@ Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github
 
 You cannot delegate. Return to orchestrator with:
 
-1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION]
+1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION] / [NEEDS_DESIGN_REVIEW]
+
+**Failure-mode trigger conditions:**
+
+- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown.
+- `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
+
 2. **Confidence**: HIGH / MEDIUM / LOW with reasoning
 3. **Files changed** (with brief description)
 4. **Tests added** (count + coverage delta)
