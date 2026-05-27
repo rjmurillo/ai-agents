@@ -83,7 +83,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "mcp__serena__write_memory wrote skills/triage-eval-2026-05-27-full-coverage"
+        "Evidence": "Two memories written: skills/triage-eval-2026-05-27-full-coverage and skills/triage-eval-2026-05-27-agents-full-coverage"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -93,7 +93,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "8 commits on feat/evals-skill-coverage: e08c681b (triage) 073fee6a 62bbc58b 57039064 34b4413e 287ce7f5 c72adf16 (clusters) e7f79ddf (lint); session log commits next"
+        "Evidence": "14 commits on feat/evals-skill-coverage from e08c681b through 532e9960"
       },
       "validationPassed": {
         "level": "MUST",
@@ -118,22 +118,30 @@
       "evidence": "evals/skill-triage.md committed at e08c681b"
     },
     {
-      "step": "Scaffold 39 spike dirs across 6 cluster commits",
+      "step": "Scaffold 39 skill spike dirs across 6 cluster commits",
       "evidence": "117 files, commits 073fee6a..c72adf16"
     },
     {
-      "step": "Lint sweep (MD040, MD033)",
-      "evidence": "40 files, commit e7f79ddf; npx markdownlint-cli2 0 errors"
+      "step": "Lint sweep skill spikes (MD040, MD033)",
+      "evidence": "40 files, commit e7f79ddf"
     },
     {
-      "step": "Update Serena memory",
+      "step": "Serena memory: skill triage",
       "evidence": "skills/triage-eval-2026-05-27-full-coverage"
+    },
+    {
+      "step": "Triage 23 agents + scaffold 19 A/B spikes",
+      "evidence": "evals/agent-triage.md + 57 files across commits 82962fa6..<latest>"
+    },
+    {
+      "step": "Serena memory: agent triage",
+      "evidence": "skills/triage-eval-2026-05-27-agents-full-coverage"
     }
   ],
-  "endingCommit": "e7f79ddf",
+  "endingCommit": "532e9960",
   "nextSteps": [
-    "Author first fixture per spike (operator-owned, see evals/security-spike/ as reference)",
-    "Consider Wave-3 reclassification of utility skills that grow judgment surfaces",
-    "Open PR with deviation note explaining \u22645-file commit rule bend for cohesive scaffold + lint sweep"
+    "Open PR with deviation notes (\u22645-file rule bent for cohesive scaffold commits)",
+    "/autofix-pr to monitor CI and fix issues",
+    "Author first fixture per spike (operator-owned; see evals/security-spike/ and reviewer-asymmetry-spike/ as templates)"
   ]
 }
