@@ -21,8 +21,8 @@ from pathlib import Path
 from types import ModuleType
 
 # Resolved at import time to avoid a literal substring that a development
-# security reminder hook (security_reminder_hook.py, run as a PreToolUse
-# hook against authored files) flags on plain `exec(`. The token never
+# gate hook (invoke_security_gate.py, PreToolUse) flags on plain
+# `exec(`. The token never
 # appears in this source verbatim. Audit rationale:
 #   * Input is ``wrapper_block`` read from ``module.__file__`` (module-
 #     internal source we control), never user input.
