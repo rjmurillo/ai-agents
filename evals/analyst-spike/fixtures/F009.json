@@ -1,0 +1,24 @@
+{
+  "id": "F009",
+  "policy_id": "pol-analyst-multi-gap-triage",
+  "input": "moq.analyzers issue #1040 (closes #991): Five confirmed error handling gaps in the PerfDiff tool need triage and prioritization:\n(1) BenchmarkFileReader catches only JsonSerializationException; misses IOException, UnauthorizedAccessException, JsonReaderException, and drops the exception object from the log.\n(2) Program.cs SetupLogging uses GetService<ILogger<Program>>() which returns null silently on misconfiguration.\n(3) Program.cs swallows OperationCanceledException without logging the cancellation source.\n(4) PerfDiff scripts have unbounded retry on transient network failures.\n(5) GitHub Actions workflow does not propagate exit codes correctly when the diff step fails.\n\nRank these by user-visible impact and propose the cheapest first fix.",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(rank|prioriti|impact|user|silent|NRE|null.*ref|swallow|fail.*fast|GetRequired)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-1040",
+    "triage",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

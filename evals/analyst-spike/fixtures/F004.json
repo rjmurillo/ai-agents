@@ -1,23 +1,23 @@
 {
   "id": "F004",
-  "policy_id": "pol-analyst-no-action-needed",
-  "input": "We already root-caused the outage: a typo in the Helm chart's resources.memory field caused OOM kills under load. Fix landed in PR #2031 and the regression test in tests/test_helm_values.py asserts memory >= 512Mi. Anything to add before we close the incident?",
-  "provenance": "synthetic",
+  "policy_id": "pol-analyst-symbol-vs-string",
+  "input": "Bug report (moq.analyzers issue #981): Three locations in a Roslyn analyzer codebase use string-based name matching instead of symbol-based detection. Example:\n\n```csharp\nprivate static bool IsActionDelegate(INamedTypeSymbol namedType)\n{\n    return string.Equals(namedType.Name, \"Action\", StringComparison.Ordinal);\n}\n```\n\nFiles: EventSyntaxExtensions.cs:266-273, LinqToMocksExpressionShouldBeValidAnalyzer (string.Equals on method name 'Of'), SetupShouldNotIncludeAsyncResultAnalyzer (string scan of ReferencedAssemblyNames). The project mandate is symbol-based detection. What is the concrete failure mode and the fix shape?",
+  "provenance": "paraphrased-from-public",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "OK"
+      "expected_value": "IDENTIFY"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(close|nothing|sufficient|covered|complete|test asserts|regression)"
+      "pattern": "(?i)(KnownSymbol|SymbolEqualit|namespace.*collision|user.*type|same.*name|false.*match|MockOf|IsInstanceOf)"
     }
   ],
   "tags": [
     "analyst-investigation",
-    "post-incident",
-    "no-action",
-    "verdict-ok"
+    "moq-analyzer-981",
+    "correctness",
+    "verdict-identify"
   ],
   "schemaVersion": 1
 }

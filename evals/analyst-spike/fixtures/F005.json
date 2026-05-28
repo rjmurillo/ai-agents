@@ -1,7 +1,7 @@
 {
   "id": "F005",
-  "policy_id": "pol-analyst-discrim-evidence-level",
-  "input": "What does the Python stdlib's `secrets.token_urlsafe()` use under the hood for entropy, and is it suitable for generating session cookie IDs in a multi-process gunicorn deploy on Linux?",
+  "policy_id": "pol-analyst-error-handling-gaps",
+  "input": "Bug report (moq.analyzers issue #991): Error handling gaps in the PerfDiff tool. Specific case in src/tools/PerfDiff/BDN/BenchmarkFileReader.cs:26-34:\n\n```csharp\ncatch (JsonSerializationException)\n{\n    logger.LogError(\"Exception while reading the {ResultFilePath} file.\", resultFilePath);\n    return null;\n}\n```\n\nWhat is wrong, what other exception types should this catch, and what is wrong with the log call itself?",
   "provenance": "paraphrased-from-public",
   "assertions": [
     {
@@ -10,13 +10,13 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(os\\.urandom|getrandom|/dev/urandom|secret|suitable|yes)"
+      "pattern": "(?i)(IOException|UnauthorizedAccess|JsonReader|malformed|exception.*object|stack.*trace|preserve|swallow)"
     }
   ],
   "tags": [
-    "analyst-research",
-    "agent-discriminating",
-    "evidence-level",
+    "analyst-investigation",
+    "moq-analyzer-991",
+    "error-handling",
     "verdict-identify"
   ],
   "schemaVersion": 1

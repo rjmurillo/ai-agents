@@ -1,23 +1,24 @@
 {
   "id": "F006",
-  "policy_id": "pol-analyst-discrim-search-before-claim",
-  "input": "Quick question: which version of Django first introduced async ORM querysets? Don't speculate; either name the version and cite where you got it, or say the source is unavailable to you.",
+  "policy_id": "pol-analyst-extension-method-fluent",
+  "input": "Bug report (moq.analyzers issue #1086 / #1067): Moq1203 false-positive diagnostic fires when Returns/ReturnsAsync is called inside an extension method that wraps Moq Setup configuration. The extension method returns a Moq fluent interface type (IReturns, ICallback, ISetup, etc.). Where in the analyzer pipeline is the most likely bug, and what is the smallest fix shape?",
   "provenance": "paraphrased-from-public",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "ESCALATE"
+      "expected_value": "IDENTIFY"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(verify|cannot.*verify|no source|cite|search|docs|cannot confirm|require.*source|unavailable)"
+      "pattern": "(?i)(invocation.*chain|fluent.*interface|return.*type|IReturns|ICallback|ISetup|walk|symbol|chain)"
     }
   ],
   "tags": [
-    "analyst-research",
-    "agent-discriminating",
-    "search-before-claim",
-    "verdict-escalate"
+    "analyst-investigation",
+    "moq-analyzer-1086",
+    "false-positive",
+    "verdict-identify",
+    "agent-discriminating"
   ],
   "schemaVersion": 1
 }

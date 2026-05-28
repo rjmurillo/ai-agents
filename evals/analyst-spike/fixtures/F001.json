@@ -1,8 +1,8 @@
 {
   "id": "F001",
-  "policy_id": "pol-analyst-evidence-level",
-  "input": "Bug report: our login endpoint returns 500 for ~3% of requests since the Tuesday deploy. The deploy bumped the auth library from 2.4.1 to 2.5.0. Logs show 'KeyError: nonce' on the failing requests. What is the most likely root cause and what specific evidence would confirm or rule it out?",
-  "provenance": "synthetic",
+  "policy_id": "pol-analyst-false-positive-investigation",
+  "input": "Bug report from a downstream C# project (moq.analyzers issue #1010): Moq1302 ('Invalid member ... in LINQ to Mocks expression') fires false-positive on this code:\n\n```csharp\nvar blobClient = new Mock<BlobClient>();\nblobClient.Setup(static c => c.ExistsAsync(It.IsAny<CancellationToken>()))\n          .ReturnsAsync(Response.FromValue(false, Mock.Of<Response>(static r => r.Status == StatusCodes.Status200OK)));\n```\n\nWarning says 'Invalid member StatusCodes.Status202Accepted'. The user reports the analyzer is wrong. What is the most likely root cause and what specific evidence would confirm it?",
+  "provenance": "paraphrased-from-public",
   "assertions": [
     {
       "kind": "verdict",
@@ -10,14 +10,15 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(auth|libra|2\\.5\\.0|nonce|changelog)"
+      "pattern": "(?i)(LINQ.*Mock|member.*detect|static.*const|StatusCodes|expression.*walk|symbol.*resolution|literal)"
     }
   ],
   "tags": [
     "analyst-investigation",
-    "bug-incident",
-    "hypothesis-ranking",
-    "verdict-identify"
+    "moq-analyzer-1010",
+    "false-positive",
+    "verdict-identify",
+    "agent-discriminating"
   ],
   "schemaVersion": 1
 }

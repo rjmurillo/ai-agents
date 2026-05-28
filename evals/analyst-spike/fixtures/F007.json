@@ -1,23 +1,22 @@
 {
   "id": "F007",
-  "policy_id": "pol-analyst-discrim-hypothesis-ranking",
-  "input": "Symptom: integration tests for the payment flow pass locally and fail in CI with 'connection refused' on port 5432. CI runs on GitHub Actions ubuntu-latest. Postgres is supposed to be a service container. List the most likely causes in order of probability and the cheapest check for each.",
+  "policy_id": "pol-analyst-escalate-incomplete",
+  "input": "User report: 'Moq analyzer is broken on my project.' No code sample, no error message, no project structure, no version of moq.analyzers, no target framework. Decide and respond.",
   "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "IDENTIFY"
+      "expected_value": "ESCALATE"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(service.*container|health.*check|wait|readiness|port.*forward|--health|depends_on|order|probabilit|likeli)"
+      "pattern": "(?i)(reprod|specific|sample|version|target.*framework|warning|error.*code|MoqXXXX|repo link|clarif)"
     }
   ],
   "tags": [
     "analyst-investigation",
-    "agent-discriminating",
-    "hypothesis-ranking",
-    "verdict-identify"
+    "incomplete-report",
+    "verdict-escalate"
   ],
   "schemaVersion": 1
 }

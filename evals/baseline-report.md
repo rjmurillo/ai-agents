@@ -21,7 +21,8 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 | Spike | Variant A | Variant B | Delta | 95% CI | Significant? | Verdict |
 |---|---|---|---|---|---|---|
 | security | agent recall 0.786 | baseline recall 0.405 | **+0.381** | [0.111, 0.643] | YES | Agent beats naive baseline. |
-| analyst | agent recall 0.833 | baseline recall 0.917 | **-0.083** | [-0.250, 0.000] | NO | **Agent under-performs naive baseline.** |
+| analyst (synthetic) | agent recall 0.833 | baseline recall 0.917 | -0.083 | [-0.250, 0.000] | NO | Synthetic corpus too easy; baseline solves it. |
+| analyst (real issues) | agent recall 0.875 | baseline recall 0.750 | **+0.125** | [0.000, 0.3125] | BORDERLINE | Real moq.analyzers issues. Agent beats baseline on mean; CI lower bound at zero. |
 | reviewer-asymmetry | treatment overall 1.000 | control overall 1.000 | **0.000** | (Fisher exact p=1.0) | NO | All three agents saturated. Today's templates between `main` and `HEAD` are effectively equivalent OR the corpus is too easy to detect difference. Earlier May-9 final.json (kept in repo) showed +0.45 from a stage when templates diverged. |
 
 ## Per-spike detail
@@ -37,15 +38,29 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 
 ### analyst-spike (NEW)
 
-- Run ID: `20260528T040743Z-643d1793`
-- 8 fixtures across IDENTIFY (4), OK (1), ESCALATE (3) verdicts. 4 agent-discriminating per REQ-004 AC-5.
-- Agent recall **0.833**, baseline recall **0.917**, delta **-0.083**.
-- Bootstrap 95% CI: [-0.250, 0.000]. Upper bound at zero means **agent at best matches baseline, at worst loses 25pp**.
-- Flaky fixtures excluded: F003, F006 (intra-run variance + low sample). Remaining 6 fixtures drive the recall.
-- Cost: $0.36 USD.
-- **Action**: analyst prompt does not justify itself against the corpus as designed. Two follow-up paths:
-  1. Tighten the corpus. Several fixtures (F001, F004, F005) tie at 1.0/1.0 or 0.5/0.5 because the verdict is obvious from the scenario alone. Replace with harder, more agent-discriminating cases.
-  2. Audit the prompt. If a tightened corpus still shows null or negative delta, the analyst template carries cost (tokens, latency) without behavioral lift. Either remove specialization or refactor.
+Two runs landed on this branch:
+
+**Run A: 8 synthetic fixtures** (`20260528T040743Z-643d1793`)
+
+- Agent recall 0.833, baseline recall 0.917, delta -0.083.
+- 95% CI [-0.250, 0.000]. Agent underperformed baseline.
+- 2 flaky fixtures excluded (F003, F006).
+- Cost: $0.36.
+- Diagnosis: synthetic verdicts were too obvious from the input. Most fixtures tied 1.0/1.0 or 0.5/0.5 between variants. Naive baseline could solve them without the analyst's specialization.
+
+**Run B: 10 fixtures grounded in rjmurillo/moq.analyzers issues** (`20260528T043356Z-ee538fef`)
+
+- Agent recall **0.875**, baseline recall **0.750**, delta **+0.125**.
+- 95% CI [0.000, 0.3125]. Lower bound touches zero -> not strictly significant; the agent does measurably outperform the baseline on the mean but the CI does not exclude null.
+- 2 flaky fixtures excluded: F003 (.git/config corruption), F010 (System.CommandLine migration).
+- Cost: $0.43.
+- Per-fixture: agent wins on F008 (+0.50, post-fix "anything to investigate"), F009 (+0.50, multi-gap triage), F003 (+0.17, excluded as flaky), F010 (+0.17, excluded as flaky). Eight fixtures tie or near-tie because the IDENTIFY verdict is solvable by both variants once the bug body is concrete enough.
+- Provenance: 9 paraphrased-from-public moq.analyzers issues (#1010, #1081, #1080, #981, #991, #1086, #1057, #1040, #1043), 1 synthetic ESCALATE for vague-report coverage. Resolution text from each PR/commit is NOT included in the input; the agent has to reach the root cause on its own.
+
+**Action**: re-running on real-issue fixtures moved analyst from -0.083 to +0.125. The signal is now positive but borderline. Two paths:
+
+1. Author more agent-discriminating fixtures (cases where the analyst's evidence-level tagging or hypothesis ranking is required for the verdict, not just the verdict-vocab match). Re-run at ~$0.50 per round.
+2. Accept the small delta as honest. The analyst prompt adds modest value over baseline on real bug reports; the verdict vocabulary is the harness's binding constraint, not the analyst's free expression.
 
 ### reviewer-asymmetry-spike
 
