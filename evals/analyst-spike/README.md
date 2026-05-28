@@ -19,7 +19,7 @@ by the runner contract: `IDENTIFY | OK | ESCALATE`.
 
 ```text
 evals/analyst-spike/
-  fixtures/          F001.json .. F008.json + README.md (provenance, distribution, rationale)
+  fixtures/          F001.json .. F018.json + README.md (provenance, distribution, rationale)
   runs/<RUN_ID>/     runs.jsonl per live run
   reports/<RUN_ID>/  REPORT.md + report.json per live run
 ```
@@ -33,7 +33,7 @@ python3 scripts/eval/eval-agent-vs-baseline.py \
     --fixtures evals/analyst-spike/fixtures \
     --dry-run
 
-# Live (default 3 runs/variant; 8 * 3 * 2 = 48 calls)
+# Live (default 3 runs/variant; 18 * 3 * 2 = 108 calls)
 python3 scripts/eval/eval-agent-vs-baseline.py \
     --agent analyst \
     --fixtures evals/analyst-spike/fixtures

@@ -26,7 +26,7 @@ Agents differ from skills: every agent is a judgment-bearing role. No utility-sk
 | Category | Count | Action |
 |---|---|---|
 | Already covered | 4 | Cross-referenced below. No new artifact. |
-| Scaffold-needed | 19 | New `evals/<agent>-agent-spike/` per agent. |
+| Scaffold-needed (deferred) | 19 | Original plan was to scaffold per-agent spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
 | **Total** | **23** | |
 
 ### Naming

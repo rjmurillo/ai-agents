@@ -24,7 +24,7 @@ A skill can carry both kinds of eval. Adding an `evals/<skill>-spike/` does not 
 | Category | Count | Action |
 |---|---|---|
 | Already covered | 12 | No new artifact. Cross-referenced below. |
-| Eval-worthy | 39 | Scaffold `evals/<skill>-spike/` with README + fixtures/README placeholders. |
+| Eval-worthy (deferred) | 39 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
 | Utility-skip | 20 | No scaffold. Mechanical or deterministic skill; agent-vs-baseline shape is wrong. |
 | **Total** | **71** | |
 

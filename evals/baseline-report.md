@@ -4,7 +4,7 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 
 ## Date
 
-2026-05-27
+2026-05-28
 
 ## Scope
 
@@ -12,10 +12,11 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 |---|---|---|---|---|---|---|
 | security | `eval-agent-vs-baseline.py` | 10 | agent vs baseline | 3 | 60 | $0.89 |
 | analyst (synthetic, superseded) | `eval-agent-vs-baseline.py` | 8 | agent vs baseline | 3 | 48 | $0.36 |
-| analyst (moq.analyzers issues) | `eval-agent-vs-baseline.py` | 10 | agent vs baseline | 3 | 60 | $0.43 |
+| analyst (moq.analyzers issues, 10 fixtures) | `eval-agent-vs-baseline.py` | 10 | agent vs baseline | 3 | 60 | $0.43 |
+| analyst (18 fixtures: moq + dotnet/runtime + ai-agents hard PRs) | `eval-agent-vs-baseline.py` | 18 | agent vs baseline | 3 | 108 | $0.76 |
 | reviewer-asymmetry | `eval-reviewer-asymmetry.py` | 6 | treatment vs control | 5 | 60 | ~$1.50 |
 
-**Aggregate live spend (per report.json + reviewer-asymmetry estimate)**: ~$3.18 USD across 228 trials.
+**Aggregate live spend (per report.json + reviewer-asymmetry estimate)**: ~$3.94 USD across 336 trials.
 
 ## Critical caveat: security-spike scoring is partial
 
@@ -31,7 +32,8 @@ Fix is one of: align `security.shared.md` to the harness vocabulary, extend `OUT
 |---|---|---|---|---|---|---|
 | security | agent recall 0.786 | baseline recall 0.405 | **+0.381** | [0.111, 0.643] | YES | Agent beats naive baseline. |
 | analyst (synthetic) | agent recall 0.833 | baseline recall 0.917 | -0.083 | [-0.250, 0.000] | NO | Synthetic corpus too easy; baseline solves it. |
-| analyst (real issues) | agent recall 0.875 | baseline recall 0.750 | **+0.125** | [0.000, 0.3125] | BORDERLINE | Real moq.analyzers issues. Agent beats baseline on mean; CI lower bound at zero. |
+| analyst (real issues, 10 fixtures) | agent recall 0.875 | baseline recall 0.750 | **+0.125** | [0.000, 0.3125] | BORDERLINE | Real moq.analyzers issues. Agent beats baseline on mean; CI lower bound at zero. |
+| analyst (18 fixtures, mixed sources) | agent recall 0.900 | baseline recall 0.867 | +0.033 | [-0.067, 0.133] | NO | Adding 8 fixtures from dotnet/runtime + ai-agents hard PRs SHRANK the delta. The analyst over-IDENTIFIES on ESCALATE cases (F014 -0.50, F016 -0.33 flaky). See per-spike detail. |
 | reviewer-asymmetry | treatment overall 1.000 | control overall 1.000 | **0.000** | (Fisher exact p=1.0) | NO | All three agents saturated. Today's templates between `main` and `HEAD` are effectively equivalent OR the corpus is too easy to detect difference. Earlier May-9 final.json (kept in repo) showed +0.45 from a stage when templates diverged. |
 
 ## Per-spike detail
@@ -70,6 +72,26 @@ Two runs landed on this branch:
 
 1. Author more agent-discriminating fixtures (cases where the analyst's evidence-level tagging or hypothesis ranking is required for the verdict, not just the verdict-vocab match). Re-run at ~$0.50 per round.
 2. Accept the small delta as honest. The analyst prompt adds modest value over baseline on real bug reports; the verdict vocabulary is the harness's binding constraint, not the analyst's free expression.
+
+**Run C: 18 fixtures across three sources** (`20260528T045032Z-d5b2eeb5`)
+
+- Agent recall **0.900**, baseline recall **0.867**, delta **+0.033**.
+- 95% CI [-0.067, 0.133]. **Crosses zero**; the delta is not distinguishable from noise at this sample size.
+- 3 flaky fixtures excluded (F003 .git/config, F008 post-fix-OK, F016 scope-explosion).
+- Cost: $0.76.
+- 8 new fixtures added on top of moq.analyzers set: F011-F014 from dotnet/runtime (#46057 ASCII equality, #46745 socket regression, #40772 exception shape, #84917 CS1591 cascade), F015-F018 from ai-agents (#1795 plugin schema P0, #830 session-protocol scope, #760 validator drift, #402 bundled features).
+
+**Real finding: analyst over-IDENTIFIES on ESCALATE cases.** Three of four ESCALATE fixtures (F007, F014, F016) tie or lose to baseline:
+
+| Fixture | Verdict | Agent | Baseline | Delta | Why baseline beats agent |
+|---|---|---|---|---|---|
+| F014 (CS1591 cascade, unknown blast radius) | ESCALATE | 0.50 | 1.00 | -0.50 | Naive baseline says "I do not know, ask for scope." Analyst's diagnostic confidence overrides ESCALATE bias; it IDENTIFIES a fix shape when "ESCALATE for more scope" was correct. |
+| F016 (session-protocol scope explosion, flaky) | ESCALATE | 0.67 | 1.00 | -0.33 | Same pattern as F014. Five features in one PR; analyst tries to triage instead of pushing back. |
+| F007 (vague "Moq analyzer is broken") | ESCALATE | 0.50 | 0.50 | 0.00 | Both variants correctly ask for clarification. No discrimination. |
+
+The analyst prompt's "Investigate what you have" / "Unknown is a finding" tension biases toward IDENTIFY over ESCALATE on hard-to-scope requests. The prompt teaches "do not stall when context is missing"; the eval reveals this can over-rotate to confident-but-wrong diagnoses.
+
+**Action**: tighten the analyst prompt's ESCALATE trigger for unknown-scope requests, or accept that the prompt's bias is intentional and adjust fixture expectations. Either change is testable at ~$0.50 per round.
 
 ### reviewer-asymmetry-spike
 
