@@ -1,22 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "D005",
-  "policy_id": "pol-devops-ci-script-shell-injection",
-  "input": "Review this composite action step:\n```yaml\nrun: echo \"PR title: $TITLE\"\nenv:\n  TITLE: ${{ github.event.pull_request.title }}\n```\nPR titles are user-controlled. Verdict?",
-  "provenance": "synthetic",
+  "policy_id": "pol-devops-ok-correct",
+  "input": "Workflow review: third-party actions pinned to SHA, secrets scoped to environment with required-reviewers, concurrency block cancels in-progress on same PR ref, conditional path filter. Cited policy: 'per ADR-006 thin-workflows' (file exists in .agents/architecture/). Approve?",
+  "provenance": "paraphrased-from-public",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "IDENTIFY"
+      "expected_value": "OK"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(injection|untrusted|user.*controlled|escape|GITHUB_ENV|env.*variable.*safe|safe.*pattern|no.*direct.*expansion|already.*safe|env.*var.*pattern)"
+      "pattern": "(?i)(approve|OK|clean|ship|all.*check.*pass|nothing.*block|verified)"
     }
   ],
   "tags": [
     "agent-devops",
-    "synthetic-pinned-from-public",
-    "verdict-identify"
+    "triad-aware",
+    "verdict-ok",
+    "agent-discriminating"
   ]
 }

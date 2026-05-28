@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "A002",
-  "policy_id": "pol-architect-boundary-conformist",
-  "input": "From dotnet/runtime PR #84917 (CS1591 cascade, intellisense.targets). Enabling CS1591 for projects that do not consume the intellisense XML package will trigger missing-xmldoc errors across an unknown number of projects. The proposed change is a one-line targets edit. Decide: ship and fix downstream, or scope first?",
-  "provenance": "paraphrased-from-public",
+  "policy_id": "pol-architect-fake-file-path",
+  "input": "Design review: 'Move the orchestration pattern from src/orchestrator/dispatch.py:147 into a shared module per the convention in src/lib/agent_routing.py.' Plan refers to those files. Recommend.",
+  "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
@@ -11,12 +11,12 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(scope|inventory|blast.*radius|pilot|opt.*in|gradual|count.*affected|measure.*first|enumerate)"
+      "pattern": "(?i)(does not exist|MISSING|cannot find|verify.*file|grep.*not|no such file|fabric|check.*before)"
     }
   ],
   "tags": [
     "agent-architect",
-    "dotnet-runtime-84917",
+    "triad-aware",
     "verdict-escalate",
     "agent-discriminating"
   ]

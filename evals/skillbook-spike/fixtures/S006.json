@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "S006",
+  "policy_id": "pol-skillbook-high-evidence-accept",
+  "input": "Reflection from 5-session pattern: 'In every session that touched the orchestrator, the first thing I did was forget to update the session log. Five out of five sessions hit this.' Pattern is HIGH confidence, atomic, actionable. Add?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(accept|approve|high.*confidence|five.*of.*five|pattern|add.*skill|measurable|ship)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

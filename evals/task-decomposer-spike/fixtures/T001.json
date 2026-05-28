@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "T001",
+  "policy_id": "pol-task-decomposer-atomic-task-shape",
+  "input": "PRD: 'Add idempotent webhook handler.' Decompose into atomic tasks.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(idempotency.*key|dedup.*table|retry.*test|signature.*verify|test.*duplicate|store.*key|atomic)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

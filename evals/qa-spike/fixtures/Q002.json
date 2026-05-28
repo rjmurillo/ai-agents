@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "Q002",
-  "policy_id": "pol-qa-status-claim-verify",
-  "input": "PR description says 'Tests added: 12 new test cases for the auth flow. Coverage now 95 percent on auth.py.' Diff under tests/ shows 4 new test cases. Verdict?",
-  "provenance": "paraphrased-from-public",
+  "policy_id": "pol-qa-status-claim-evidence",
+  "input": "PR description: 'Coverage now 95.2%.' Diff has +120 src lines, +0 test lines. Verdict (and what evidence specifically would prove or refute the claim)?",
+  "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
@@ -11,12 +11,13 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(claim.*mismatch|12.*vs.*4|not.*supported|verify.*coverage|run.*coverage|status.*untrue|discrepancy|inflate)"
+      "pattern": "(?i)(coverage.*tool.*output|pytest.*--cov|specific.*report|prove|refute|no.*test.*lines|cannot.*verify|specific.*tool|measure)"
     }
   ],
   "tags": [
     "agent-qa",
-    "ai-agents-pattern",
-    "verdict-identify"
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
   ]
 }

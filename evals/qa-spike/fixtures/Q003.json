@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "Q003",
-  "policy_id": "pol-qa-missing-negative-tests",
-  "input": "PR adds a function `validate_session_id(sid: str) -> bool`. Tests: `validate_session_id('abc123')` returns True (3 assertions). What is missing?",
+  "policy_id": "pol-qa-force-alternatives-strategy",
+  "input": "Test review: PR adds tests for validate_email(text) using a hand-written enum of 12 valid strings + 8 invalid strings. List 2 alternative test strategies that would catch a different class of failure.",
   "provenance": "synthetic",
   "assertions": [
     {
@@ -11,12 +11,13 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(negative.*test|invalid.*input|empty|None|too.*long|special.*char|whitespace|reject|false.*case|both.*branch)"
+      "pattern": "(?i)(property.*based|hypothesis|fuzz|RFC|regression.*corpus|integration|alternative|2\\.|generative|edge.*case.*systematic)"
     }
   ],
   "tags": [
     "agent-qa",
-    "synthetic",
-    "verdict-identify"
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
   ]
 }

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "X004",
+  "policy_id": "pol-explainer-ambiguity-resolution",
+  "input": "PRD says: 'System should handle concurrent users.' Rewrite the requirement to remove ambiguity.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(how many|specific.*number|concurrent.*read|concurrent.*write|p99|target|measurable|threshold|peak|sustained)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "D002",
-  "policy_id": "pol-devops-concurrency-missing",
-  "input": "Review this workflow: trigger on pull_request, runs 12-minute integration test. No concurrency block. Multiple commits per PR run in parallel. Verdict?",
+  "policy_id": "pol-devops-force-alternatives-cache",
+  "input": "Workflow review: Proposed cache step keys on '${{ runner.os }}-${{ hashFiles(everything csproj) }}'. Before approving, list 2 alternative cache-key strategies and the trade-off vs each.",
   "provenance": "synthetic",
   "assertions": [
     {
@@ -11,12 +11,13 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(concurrency|cancel.*in.*progress|group|cost|wasted|cancel-in-progress|previous.*run)"
+      "pattern": "(?i)(alternative|lockfile|package-lock|requirements\\.txt|composite.*key|coarser|finer|2\\.|second.*strat|no.*cache)"
     }
   ],
   "tags": [
     "agent-devops",
-    "synthetic",
-    "verdict-identify"
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
   ]
 }

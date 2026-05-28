@@ -1,22 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "A007",
-  "policy_id": "pol-architect-ok-no-architectural-change",
-  "input": "Code review request: a 3-line patch that renames a private helper from `_get` to `_fetch` inside one module. No callers outside the module. No public API change. Does this need architectural review?",
+  "policy_id": "pol-architect-fake-issue-number",
+  "input": "Design review: 'Closes #9999. Adds new caching layer.' Repo has issues numbered 1-2100 currently. Recommend.",
   "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "OK"
+      "expected_value": "ESCALATE"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(private|internal|no.*architectural|rename.*local|safe|no.*review.*needed|nothing.*to.*decide|local.*change)"
+      "pattern": "(?i)(does not exist|9999.*not|MISSING|verify.*issue|no.*such.*issue|out.*of.*range|gh.*api|check)"
     }
   ],
   "tags": [
     "agent-architect",
-    "synthetic",
-    "verdict-ok"
+    "triad-aware",
+    "verdict-escalate",
+    "agent-discriminating"
   ]
 }

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "E003",
+  "policy_id": "pol-memory-stale-detection",
+  "input": "Memory entry from 2024-01: 'Use Get-PrCheckLogs.ps1 to fetch CI logs.' The repo migrated to Python in 2026-03 (ADR-042). What is the right action on this memory?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(stale|outdated|update|reverify|migrate|mark.*obsolete|supersed|invalidate)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "ai-agents-pattern",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

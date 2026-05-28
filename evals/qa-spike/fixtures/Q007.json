@@ -1,22 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "Q007",
-  "policy_id": "pol-qa-escalate-vague-pr-test-plan",
-  "input": "PR test plan says: 'Tests added'. Diff has 200 lines of new code; tests/ adds 2 lines. Verdict?",
+  "policy_id": "pol-qa-no-affect-tests-pass",
+  "input": "Test review (the team is moving fast and this is mostly LGTM): PR removes 4 tests and adds 2. New tests both pass. Removed tests are described as 'flaky'. Critique.",
   "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "ESCALATE"
+      "expected_value": "IDENTIFY"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(scope|specific.*tests|what.*tested|missing.*detail|return.*for.*more|verify|insufficient.*evidence)"
+      "pattern": "(?i)(why.*removed|flaky.*not.*proof|investigate.*flak|root.*cause|skip.*not.*delete|coverage.*decrease|verify.*intentional|net.*negative)"
     }
   ],
   "tags": [
     "agent-qa",
-    "synthetic",
-    "verdict-escalate"
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
   ]
 }

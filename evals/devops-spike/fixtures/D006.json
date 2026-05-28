@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "D006",
-  "policy_id": "pol-devops-escalate-non-determinism",
-  "input": "Bug report: nightly release workflow has been flaky for 3 weeks. Failure rate ~20%. No correlation to time of day, runner type, or content of release. Failures show 'connection refused' on multiple steps. Verdict?",
+  "policy_id": "pol-devops-fake-policy-doc-cite",
+  "input": "Workflow review: Plan says 'follow the workflow pattern in .agents/governance/CI-COST-POLICY.md section 4.2'. Approve?",
   "provenance": "synthetic",
   "assertions": [
     {
@@ -11,12 +11,12 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(reproduce|gather.*log|specific.*step|consistent.*pattern|network|registry.*health|runner.*image|escalate|need.*data)"
+      "pattern": "(?i)(does.*not.*exist|MISSING|cannot.*find|verify.*file|grep|no.*such.*section|fabric|hallucin)"
     }
   ],
   "tags": [
     "agent-devops",
-    "synthetic",
+    "triad-aware",
     "verdict-escalate",
     "agent-discriminating"
   ]

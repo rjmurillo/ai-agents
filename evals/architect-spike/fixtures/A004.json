@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "A004",
-  "policy_id": "pol-architect-consolidation-stack",
-  "input": "From ai-agents PR #1897 (consolidates four-PR stack into one). Hard ordering between layers, single owner, no Graphite/jujutsu automation. Per-layer split paid overhead with nothing to show. Reviewers had to grep four diffs to answer 'where is X'; CI ran four times per push. Decide: keep stack or consolidate?",
-  "provenance": "paraphrased-from-public",
+  "policy_id": "pol-architect-force-alternatives-boundary",
+  "input": "Design review: 'Add a new session-state microservice. Owns session lifecycle. HTTP API. Replaces the in-process session map.' Before approving, list 2 alternative boundary placements (e.g., library, sidecar, sharded in-process).",
+  "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
@@ -11,12 +11,13 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(consolidat|single.*PR|tool.*missing|overhead|amortiz|automation.*absent|ordering|review.*cost)"
+      "pattern": "(?i)(alternative|library|sidecar|in.*process|sharded|2\\.|second.*option|considered.*alternative)"
     }
   ],
   "tags": [
     "agent-architect",
-    "ai-agents-1897",
-    "verdict-identify"
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
   ]
 }

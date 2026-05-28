@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "A005",
-  "policy_id": "pol-architect-boundary-leak-validator",
-  "input": "From ai-agents PR #760 (53 commits). The local pre-commit hook runs a deprecated Generate-Skills.ps1 that is permissive; CI runs the upstream validate-skill.py which is strict. Skills pass locally then fail in CI. What is the architectural smell, and what is the right boundary to draw?",
-  "provenance": "paraphrased-from-public",
+  "policy_id": "pol-architect-kill-criteria-required",
+  "input": "Design review: APPROVED for extracting shared.md template across 11 agent prompts. Before sealing the APPROVED verdict, list 3 specific falsifiable observations that would flip the verdict to BLOCKED in the first week post-merge.",
+  "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
@@ -11,12 +11,13 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(canonical|single.*source|drift|validator.*author|upstream|align|deduplicat|one.*place|truth)"
+      "pattern": "(?i)(kill|flip|would.*block|drift|generator.*fail|downstream.*break|specific.*observation|falsifi|1\\..*2\\..*3)"
     }
   ],
   "tags": [
     "agent-architect",
-    "ai-agents-760",
-    "verdict-identify"
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
   ]
 }

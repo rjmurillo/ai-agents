@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "Q008",
   "policy_id": "pol-qa-status-claim-completion",
-  "input": "From ai-agents retro #1724: PR description claims 'fixes 44 false completion mentions'. Diff is +5 -3 in one Python file. Verify the claim.",
-  "provenance": "paraphrased-from-public",
+  "input": "PR description: 'Fixes the 44 false-completion mentions catalogued in ai-agents retrospective #1724 retro.' Diff is +5/-3 in a single Python file. Verify the claim.",
+  "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
@@ -11,12 +11,12 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(verify|measure|baseline.*44|cannot.*verify.*from.*diff|test.*evidence|claim.*unsupport|prove)"
+      "pattern": "(?i)(cannot.*verify|44.*from.*diff|baseline.*measur|need.*evidence|insufficient|prove.*before|claim.*unsupport)"
     }
   ],
   "tags": [
     "agent-qa",
-    "ai-agents-1724",
+    "triad-aware",
     "verdict-identify",
     "agent-discriminating"
   ]

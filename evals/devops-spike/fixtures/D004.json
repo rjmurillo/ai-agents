@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "id": "D004",
-  "policy_id": "pol-devops-secret-leak-risk",
-  "input": "Review: pull_request_target workflow checks out PR head commit (not base) and runs `npm install` + `npm test`. Repo has access tokens in `secrets.NPM_TOKEN`. PR author is external contributor. Verdict?",
-  "provenance": "paraphrased-from-public",
+  "policy_id": "pol-devops-kill-criteria-release",
+  "input": "Workflow review: APPROVED for new release-on-merge workflow. Before sealing the verdict, list 3 specific failures in production that would flip APPROVED to ROLLBACK within the first 24 hours.",
+  "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
@@ -11,12 +11,12 @@
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(pull_request_target|external.*PR|untrusted.*code|secret.*leak|exfiltration|do.*not.*checkout|fork|npm.*install.*attack)"
+      "pattern": "(?i)(rollback|kill|flip|deploy.*fail|error.*rate|p99|specific.*observation|metric|threshold|alert.*fire)"
     }
   ],
   "tags": [
     "agent-devops",
-    "dotnet-policy",
+    "triad-aware",
     "verdict-identify",
     "agent-discriminating"
   ]

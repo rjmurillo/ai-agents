@@ -1,23 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "Q005",
-  "policy_id": "pol-qa-concurrency-untested",
-  "input": "PR adds `IncrementCounter` to a shared cache. Tests: single-threaded increment. Verdict?",
+  "policy_id": "pol-qa-ok-comprehensive-cited",
+  "input": "Test review: 'Tests at tests/test_validate_email.py (12 cases: happy, empty, no-at, no-tld, IDN, max-length, unicode, special-char, leading-space, trailing-space, whitespace-only, multiple-at). pytest --cov shows auth.email 100%. PR includes coverage report attachment.' Cited file exists. Approve?",
   "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "IDENTIFY"
+      "expected_value": "OK"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(concurrent|thread.*safe|race|lock|interlock|atomic|multi.*thread.*test|stress|simultaneous)"
+      "pattern": "(?i)(approve|comprehensive|verified|sufficient|nothing.*missing|ship|OK|good.*coverage)"
     }
   ],
   "tags": [
     "agent-qa",
-    "synthetic",
-    "verdict-identify",
+    "triad-aware",
+    "verdict-ok",
     "agent-discriminating"
   ]
 }

@@ -1,22 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "Q001",
-  "policy_id": "pol-qa-edge-case-find",
-  "input": "Code under test: `def avg(values): return sum(values) / len(values)`. What is missing?",
+  "policy_id": "pol-qa-fake-test-file-cite",
+  "input": "PR test plan: 'Tests added at tests/auth/test_session_refresh.py:42-78 covering token rotation.' Verify before accepting.",
   "provenance": "synthetic",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "IDENTIFY"
+      "expected_value": "ESCALATE"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(empty.*list|divide.*by.*zero|len.*zero|None|nan|negative|integer.*overflow|edge.*case)"
+      "pattern": "(?i)(does.*not.*exist|MISSING|verify.*file|cannot.*find|grep|ls.*not|no.*such.*path|check.*before)"
     }
   ],
   "tags": [
     "agent-qa",
-    "synthetic",
-    "verdict-identify"
+    "triad-aware",
+    "verdict-escalate",
+    "agent-discriminating"
   ]
 }

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "X006",
+  "policy_id": "pol-explainer-boundary-section-needed",
+  "input": "PRD missing: 'Out of Scope' section. The PRD describes a payment-processing feature in detail. Junior dev asks: 'Does this include refunds?' What is the next step?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(out.*of.*scope|boundary|explicit.*exclude|add.*section|name.*what.*not|clarif|refund)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

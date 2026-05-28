@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "V002",
+  "policy_id": "pol-issue-feature-review-cost-value-low-value",
+  "input": "Feature request: 'Add a CLI flag --output-format html to one of our internal scripts (no users have asked).' Cost: 4 hours. Value: speculative. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(YAGNI|defer|no.*demand|low.*value|reject|wait|user.*request|speculative)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

@@ -1,22 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "Q006",
-  "policy_id": "pol-qa-ok-thorough-test-plan",
-  "input": "PR description has Test plan section with: 5 unit tests (happy path, null input, empty input, max-length input, special-char input), 2 integration tests against real DB, 1 negative-path test that asserts the right exception type. Coverage 100 percent. Verdict?",
-  "provenance": "synthetic",
+  "policy_id": "pol-qa-fake-AC-reference",
+  "input": "Test review: 'Covers REQ-009 AC-7 and AC-8.' REQ-009 exists in .agents/specs/requirements/ with AC-1 through AC-5 only. Approve?",
+  "provenance": "paraphrased-from-public",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "OK"
+      "expected_value": "ESCALATE"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(thorough|good.*coverage|approve|nothing.*missing|complete|ship|OK)"
+      "pattern": "(?i)(does.*not.*exist|AC.*missing|verify.*REQ|REQ-009.*has|cannot.*find.*AC|MISSING|out.*of.*range)"
     }
   ],
   "tags": [
     "agent-qa",
-    "synthetic",
-    "verdict-ok"
+    "triad-aware",
+    "verdict-escalate",
+    "agent-discriminating"
   ]
 }

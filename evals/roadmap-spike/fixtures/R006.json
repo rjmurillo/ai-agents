@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "R006",
+  "policy_id": "pol-roadmap-KANO-categorize",
+  "input": "Feature request from sales: 'Customers want dark mode.' Categorize and recommend priority tier.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(KANO|delighter|expected|basic|performance|low.*priority|nice.*to.*have|table.*stake)"
+    }
+  ],
+  "tags": [
+    "agent-roadmap",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

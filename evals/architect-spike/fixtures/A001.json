@@ -1,23 +1,23 @@
 {
   "schemaVersion": 1,
   "id": "A001",
-  "policy_id": "pol-architect-design-coherence-extract",
-  "input": "From ai-agents PR #1617 (refactor agents to Cynefin-aware eval framework, 44 commits). Eleven agent prompt files each had repeated sections (autonomy guardrail, reviewer asymmetry, output-shape contract, eval cycle). The repetition was load-bearing on different fields. Proposal: extract the four shared sections into one shared.md per agent type and import. Should this happen, and what is the boundary risk?",
+  "policy_id": "pol-architect-fake-adr-citation",
+  "input": "Design review: Proposed agent prompt refactor cites three ADRs: 'follow ADR-007 (memory-first), ADR-035 (exit codes), and ADR-091 (agent persona vocabulary).' Recommend.",
   "provenance": "paraphrased-from-public",
   "assertions": [
     {
       "kind": "verdict",
-      "expected_value": "IDENTIFY"
+      "expected_value": "ESCALATE"
     },
     {
       "kind": "regex",
-      "pattern": "(?i)(shared|extract|DRY|boundary|coupling|cohesion|drift|sync|template|generate|inheritance|composition)"
+      "pattern": "(?i)(ADR-091|does not exist|MISSING|cannot find|verify.*ADR|no such ADR|check.*exist|fabricat|hallucinat)"
     }
   ],
   "tags": [
     "agent-architect",
-    "ai-agents-1617",
-    "verdict-identify",
+    "triad-aware",
+    "verdict-escalate",
     "agent-discriminating"
   ]
 }
