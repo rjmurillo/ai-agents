@@ -1,0 +1,23 @@
+{
+  "id": "F001",
+  "policy_id": "pol-analyst-evidence-level",
+  "input": "Bug report: our login endpoint returns 500 for ~3% of requests since the Tuesday deploy. The deploy bumped the auth library from 2.4.1 to 2.5.0. Logs show 'KeyError: nonce' on the failing requests. What is the most likely root cause and what specific evidence would confirm or rule it out?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(auth|libra|2\\.5\\.0|nonce|changelog)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "bug-incident",
+    "hypothesis-ranking",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

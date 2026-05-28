@@ -1,0 +1,23 @@
+{
+  "id": "F008",
+  "policy_id": "pol-analyst-discrim-open-questions",
+  "input": "Question: 'Should we move our auth service to a different region?' Decide and respond.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(latency|cost|compliance|user.*location|baseline|why|measure|data.*residency|which region|open question|unknown)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "agent-discriminating",
+    "open-questions",
+    "verdict-escalate"
+  ],
+  "schemaVersion": 1
+}

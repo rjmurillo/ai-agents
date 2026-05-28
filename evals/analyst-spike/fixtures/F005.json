@@ -1,0 +1,23 @@
+{
+  "id": "F005",
+  "policy_id": "pol-analyst-discrim-evidence-level",
+  "input": "What does the Python stdlib's `secrets.token_urlsafe()` use under the hood for entropy, and is it suitable for generating session cookie IDs in a multi-process gunicorn deploy on Linux?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(os\\.urandom|getrandom|/dev/urandom|secret|suitable|yes)"
+    }
+  ],
+  "tags": [
+    "analyst-research",
+    "agent-discriminating",
+    "evidence-level",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

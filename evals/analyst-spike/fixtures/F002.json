@@ -1,0 +1,23 @@
+{
+  "id": "F002",
+  "policy_id": "pol-analyst-pushback-vague",
+  "input": "Hi, can you look into the database for us? Something feels off.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(clarif|specific|symptom|reproduce|which|what|scope)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "vague-request",
+    "pushback",
+    "verdict-escalate"
+  ],
+  "schemaVersion": 1
+}

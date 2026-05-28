@@ -1,0 +1,23 @@
+{
+  "id": "F004",
+  "policy_id": "pol-analyst-no-action-needed",
+  "input": "We already root-caused the outage: a typo in the Helm chart's resources.memory field caused OOM kills under load. Fix landed in PR #2031 and the regression test in tests/test_helm_values.py asserts memory >= 512Mi. Anything to add before we close the incident?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(close|nothing|sufficient|covered|complete|test asserts|regression)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "post-incident",
+    "no-action",
+    "verdict-ok"
+  ],
+  "schemaVersion": 1
+}

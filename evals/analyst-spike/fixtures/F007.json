@@ -1,0 +1,23 @@
+{
+  "id": "F007",
+  "policy_id": "pol-analyst-discrim-hypothesis-ranking",
+  "input": "Symptom: integration tests for the payment flow pass locally and fail in CI with 'connection refused' on port 5432. CI runs on GitHub Actions ubuntu-latest. Postgres is supposed to be a service container. List the most likely causes in order of probability and the cheapest check for each.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(service.*container|health.*check|wait|readiness|port.*forward|--health|depends_on|order|probabilit|likeli)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "agent-discriminating",
+    "hypothesis-ranking",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

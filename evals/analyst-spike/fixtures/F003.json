@@ -1,0 +1,23 @@
+{
+  "id": "F003",
+  "policy_id": "pol-analyst-comparison-research",
+  "input": "We need to pick a queue for handling delayed background jobs. Constraints: Python codebase, single-region deploy, expect ~50 jobs/sec peak, jobs must survive worker restarts, no existing infra. Compare three options and recommend one with a one-line rationale.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(redis|sqs|rabbit|celery|sidekiq|kafka|nats|recommend)"
+    }
+  ],
+  "tags": [
+    "analyst-comparison",
+    "research",
+    "trade-offs",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}
