@@ -98,7 +98,7 @@ See `reports/final-report.md` for the full breakdown.
 
 ## Cross-references
 
-- Plan: PR #1894 — `feat(agents,github-skill): reviewer-stronger asymmetry + verifiable status claims`
+- Plan: PR #1894 - `feat(agents,github-skill): reviewer-stronger asymmetry + verifiable status claims`
 - Retrospective: `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`
 - Eval framework: ADR-057 (prompt-behavioral evaluation)
 - Sister eval: `evals/security-spike/` (agent-vs-baseline corpus)

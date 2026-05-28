@@ -11,10 +11,19 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 | Spike | Runner | Fixtures | Variants | Trials/variant | Total calls | Cost |
 |---|---|---|---|---|---|---|
 | security | `eval-agent-vs-baseline.py` | 10 | agent vs baseline | 3 | 60 | $0.89 |
-| analyst | `eval-agent-vs-baseline.py` | 8 | agent vs baseline | 3 | 48 | $0.36 |
-| reviewer-asymmetry | `eval-reviewer-asymmetry.py` | 6 | treatment (HEAD) vs control (origin/main) | 5 | 60 | ~1.50 |
+| analyst (synthetic, superseded) | `eval-agent-vs-baseline.py` | 8 | agent vs baseline | 3 | 48 | $0.36 |
+| analyst (moq.analyzers issues) | `eval-agent-vs-baseline.py` | 10 | agent vs baseline | 3 | 60 | $0.43 |
+| reviewer-asymmetry | `eval-reviewer-asymmetry.py` | 6 | treatment vs control | 5 | 60 | ~$1.50 |
 
-**Aggregate**: 24 fixtures, 168 trials, ~$2.74 USD.
+**Aggregate live spend (per report.json + reviewer-asymmetry estimate)**: ~$3.18 USD across 228 trials.
+
+## Critical caveat: security-spike scoring is partial
+
+Cursor Bugbot flagged this on the run committed to this PR (run id `20260528T035241Z-45e0c2f3`). The security agent's `templates/agents/security.shared.md` defines `BLOCKED` as the correct verdict for CWE findings. The runner's `_VERDICT_RE` only recognizes `IDENTIFY | OK | ESCALATE` (the harness-enforced output shape suffix). So when the agent correctly outputs `BLOCKED`, the verdict assertion extracts null and is scored as failure. The `+0.381` delta below is driven by the regex assertions (CWE-code matching) passing for the agent while the verdict assertions universally fail for the agent variant.
+
+What this means for the headline: the agent **is** specialized (it knows the CWE codes the baseline does not) AND its verdict vocabulary disagrees with the harness contract. Treat `+0.381` as a partial signal for "knows CWE codes," not a complete agent-vs-baseline verdict.
+
+Fix is one of: align `security.shared.md` to the harness vocabulary, extend `OUTPUT_SHAPE_SUFFIX` to accept `BLOCKED`, or make the runner vocabulary-agnostic. Out of scope for this PR; tracked as a followup.
 
 ## Headline results
 

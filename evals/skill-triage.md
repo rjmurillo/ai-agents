@@ -139,5 +139,5 @@ A utility skill that grows a judgment surface (e.g., a future scoring or ranking
 - `evals/README.md`. Eval directory scope.
 - `evals/security-spike/`. First production agent-vs-baseline spike.
 - `evals/reviewer-asymmetry-spike/`. Second production spike (prompt-change).
-- [ADR-057](.agents/architecture/ADR-057-prompt-behavioral-evaluation.md). Prompt behavioral evaluation.
-- REQ-004 / DESIGN-004 / [PLAN-1854](.agents/plans/active/PLAN-1854-agent-eval-harness-spike.md). Agent-vs-baseline harness origin.
+- [ADR-057](../.agents/architecture/ADR-057-prompt-behavioral-evaluation.md). Prompt behavioral evaluation.
+- REQ-004 / DESIGN-004 / [PLAN-1854](../.agents/plans/active/PLAN-1854-agent-eval-harness-spike.md). Agent-vs-baseline harness origin.

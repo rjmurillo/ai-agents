@@ -1,6 +1,6 @@
 # Analyst Eval Spike
 
-Agent-vs-baseline eval for the `analyst` agent. New spike (no prior runs).
+Agent-vs-baseline eval for the `analyst` agent. Two runs landed in this PR: synthetic-corpus run (20260528T040743Z-643d1793; analyst -0.083) and real-issue corpus run (20260528T043356Z-ee538fef; analyst +0.125).
 
 ## Question
 
