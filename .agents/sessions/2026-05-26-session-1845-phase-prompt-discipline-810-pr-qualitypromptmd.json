@@ -1,0 +1,140 @@
+{
+  "session": {
+    "number": 1845,
+    "date": "2026-05-26",
+    "branch": "feat/2003-phase3-pr8-pr-quality-clones",
+    "startingCommit": "157737a0",
+    "objective": "Phase 3 prompt discipline PR 8/10: pr-quality.*.prompt.md clones (7 files) raise A2 (length cap) and A6 (reasoning depth) from 2 to 5, lifting score 21/30 to 27/30 (A tier)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree active; mcp__serena tools available"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Initial instructions loaded at session start"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/skills/session-init/scripts/ inspected"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded as project rules"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project-constraints applied: no em-dash, no banned vocab"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Phase 3 audit context provided in task brief; PRs 0-7 done"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/2003-phase3-pr8-pr-quality-clones"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/2003-phase3-pr8-pr-quality-clones"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status confirmed clean except untracked uv.lock and notes"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "157737a0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items satisfied; 7 prompt files updated"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory prompting/phase3-prompt-discipline-audit-status updated to reflect PR 8/10 status"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 .github/prompts/pr-quality.*.prompt.md returned 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "7 files committed as feat(#2003)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "python3 scripts/validate_session_json.py returned PASS"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task list updated: PR 8 marked complete"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Phase 3 retrospective deferred to PR 10 close-out"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-05-26T00:00:00Z",
+      "action": "Edited 7 pr-quality.*.prompt.md files: added Reasoning Protocol section, Output Bounds section, tool-verify directive (CVE/CWE for security; cited file:line for others)",
+      "files": [
+        ".github/prompts/pr-quality.all.prompt.md",
+        ".github/prompts/pr-quality.analyst.prompt.md",
+        ".github/prompts/pr-quality.architect.prompt.md",
+        ".github/prompts/pr-quality.devops.prompt.md",
+        ".github/prompts/pr-quality.qa.prompt.md",
+        ".github/prompts/pr-quality.roadmap.prompt.md",
+        ".github/prompts/pr-quality.security.prompt.md"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T00:05:00Z",
+      "action": "Ran markdownlint-cli2 on 7 files; 0 errors. Scanned for em-dash, en-dash, banned vocab; 0 hits.",
+      "files": []
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "PR 9/10: rewrite default-ai-review.md",
+    "PR 10/10: rewrite D-tier freestanding agents"
+  ]
+}

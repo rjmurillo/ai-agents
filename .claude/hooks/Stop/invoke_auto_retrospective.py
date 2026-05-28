@@ -1,539 +1,600 @@
 #!/usr/bin/env python3
-"""Auto-generate retrospective on session stop.
-
-Claude Code Stop hook that creates a structured retrospective template
-when one doesn't already exist for today. Updates docs/retros/INDEX.md
-for tracking.
-
-Addresses inconsistent retrospective generation where the manual process
-is often skipped.
-
-Behavior:
-1. Check if retrospective exists for today (idempotent)
-2. If none: create structured template from session log data
-3. Update docs/retros/INDEX.md with new entry
-
-Bypass conditions:
-- SKIP_AUTO_RETRO=true environment variable
-- Retrospective already exists for today
-- Trivial session (empty work and outcomes, or missing session log)
-
-Hook Type: Stop (non-blocking, always exit 0)
-Exit Codes:
-    0 = Always (never blocks session stop)
-
-References:
-    - Issue #1703 (lifecycle hook infrastructure)
-    - ADR-008 (protocol automation)
 """
+Stop hook: Auto-generates retrospective on session end.
 
-from __future__ import annotations
+Creates a structured retrospective template in .agents/retrospective/ and
+updates docs/retros/INDEX.md with a new entry.
+
+Hook Type: Stop (non-blocking, always exits 0)
+Exit Codes: Always 0 (fail-open, never blocks session stop)
+
+Bypass: SKIP_AUTO_RETRO=true environment variable
+
+Related:
+- Issue #1703 (lifecycle hook infrastructure)
+- ADR-008 (protocol automation lifecycle hooks)
+"""
 
 import json
 import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
-# --- Standard hook boilerplate ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = os.path.join(_plugin_root, "lib")
+    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
 if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import (
-        get_project_directory,
-        get_recent_session_log,
-        get_today_session_log,
-        lock_file,
-        unlock_file,
-    )
+    from hook_utilities import coerce_to_list as _coerce_to_list
+    from hook_utilities import format_work_item as _format_work_item
+    from hook_utilities import get_project_directory as _get_project_directory
+    from hook_utilities import get_recent_session_log as _get_recent_session_log
+    from hook_utilities import lock_file as _lock_file
+    from hook_utilities import unlock_file as _unlock_file
     from hook_utilities.guards import skip_if_consumer_repo
+
+    def get_project_directory() -> Path | None:
+        """Wrap shared utility returning Path for backward compat."""
+        result = _get_project_directory()
+        return Path(result) if result else None
+
 except ImportError:
-    from datetime import timedelta
-
-    def get_project_directory() -> str:
-        env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+    # Fallback if hook_utilities not available
+    def get_project_directory() -> Path | None:
+        """Resolve project root from env or git."""
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
         if env_dir:
-            return str(Path(env_dir).resolve())
-        return str(Path.cwd())
-
-    def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | None:
-        if date is None:
-            date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        sessions_path = Path(sessions_dir)
-        if not sessions_path.is_dir():
-            return None
-        try:
-            logs = sorted(
-                sessions_path.glob(f"{date}-session-*.json"),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True,
-            )
-        except OSError:
-            return None
-        return logs[0] if logs else None
-
-    def get_recent_session_log(sessions_dir: str) -> Path | None:
-        """Return newest today or yesterday session log for cross-midnight support."""
-        sessions_path = Path(sessions_dir)
-        if not sessions_path.is_dir():
-            return None
-        now = datetime.now(tz=UTC)
-        for offset in (0, 1):
-            date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
-            try:
-                candidates = list(sessions_path.glob(f"{date}-session-*.json"))
-                if candidates:
-                    return max(candidates, key=lambda p: p.stat().st_mtime)
-            except OSError:
-                continue
+            return Path(env_dir)
+        current = Path.cwd()
+        while current != current.parent:
+            if (current / ".git").exists():
+                return current
+            current = current.parent
         return None
 
-    def skip_if_consumer_repo(hook_name: str) -> bool:
-        agents_path = Path(get_project_directory()) / ".agents"
-        if not agents_path.is_dir():
+    def skip_if_consumer_repo(hook_name: str) -> bool:  # type: ignore[misc]
+        """Fallback guard when hook_utilities is unavailable."""
+        project_dir = get_project_directory()
+        if not project_dir or not (project_dir / ".agents").is_dir():
             print(f"[SKIP] {hook_name}: .agents/ not found (consumer repo)", file=sys.stderr)
             return True
         return False
 
-    if sys.platform == "win32":
-        import msvcrt
-
-        _win_lock_positions: dict[int, int] = {}
-
-        def lock_file(f) -> None:
-            """Acquire an exclusive lock on a file (Windows implementation)."""
-            fd = f.fileno()
-            _win_lock_positions[fd] = f.tell()
-            f.seek(0)
-            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
-            pos = _win_lock_positions.get(fd, 0)
-            f.seek(pos)
-
-        def unlock_file(f) -> None:
-            """Release an exclusive lock on a file (Windows implementation)."""
-            fd = f.fileno()
-            write_pos = f.tell()
-            f.seek(0)
-            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-            _win_lock_positions.pop(fd, None)
-            f.seek(write_pos)
-    else:
-        import fcntl as _fcntl_fallback
-
-        def lock_file(f) -> None:
-            """Acquire an exclusive lock on a file (POSIX implementation)."""
-            _fcntl_fallback.flock(f.fileno(), _fcntl_fallback.LOCK_EX)
-
-        def unlock_file(f) -> None:
-            """Release an exclusive lock on a file (POSIX implementation)."""
-            _fcntl_fallback.flock(f.fileno(), _fcntl_fallback.LOCK_UN)
+    _get_recent_session_log = None  # type: ignore[assignment]
+    _coerce_to_list = None  # type: ignore[assignment]
+    _format_work_item = None  # type: ignore[assignment]
+    _lock_file = None  # type: ignore[assignment]
+    _unlock_file = None  # type: ignore[assignment]
 
 
-HOOK_NAME = "auto-retrospective"
-
-
-def _retro_exists_today(retro_dir: Path, today: str) -> bool:
-    """Check if any retrospective exists for today."""
+def has_retro_today(retro_dir: Path, today: str) -> bool:
+    """Check if a retrospective already exists for today."""
     if not retro_dir.is_dir():
         return False
-    try:
-        return any(retro_dir.glob(f"{today}*.md"))
-    except OSError:
-        return False
+    return any(retro_dir.glob(f"{today}*.md"))
 
 
-def _find_today_retro_filename(retro_dir: Path, today: str) -> str | None:
-    """Return the basename of today's retro markdown, or None.
+def _pick_same_day_retro(retro_dir: Path, today: str) -> Path | None:
+    """Pick a deterministic retro file when multiple exist for today.
 
-    Used by main() to repair a missing INDEX.md row when the per-day
-    retro file already exists. Returns the lexically-first match so the
-    result is deterministic when multiple files exist for the same day.
+    Selection order:
+        1. Newest by mtime, ties broken by lexicographic filename.
+        2. If every candidate fails stat, the lexicographically last filename.
+        3. None when the directory yields no candidates.
+
+    A stable choice keeps index repair predictable across reruns: the same
+    file wins on every invocation when the directory has not changed.
     """
-    if not retro_dir.is_dir():
+    candidates = list(retro_dir.glob(f"{today}*.md"))
+    if not candidates:
         return None
-    try:
-        matches = sorted(retro_dir.glob(f"{today}*.md"))
-    except OSError:
+
+    best: Path | None = None
+    best_mtime = float("-inf")
+    for candidate in candidates:
+        try:
+            mtime = candidate.stat().st_mtime
+        except OSError:
+            continue
+        if mtime > best_mtime or (
+            mtime == best_mtime and (best is None or candidate.name > best.name)
+        ):
+            best_mtime = mtime
+            best = candidate
+
+    if best is not None:
+        return best
+    # Every stat failed; fall back to a stable name-sorted pick.
+    return sorted(candidates, key=lambda p: p.name)[-1]
+
+
+def _find_recent_session_fallback(sessions_dir: Path, today_only: bool = False) -> Path | None:
+    """Fallback session lookup when hook_utilities is unavailable.
+
+    Args:
+        sessions_dir: Directory containing session logs.
+        today_only: If True, only return today's sessions (no yesterday fallback).
+    """
+    from datetime import timedelta
+
+    now = datetime.now(tz=UTC)
+    today = now.strftime("%Y-%m-%d")
+
+    # First, check for today's sessions
+    today_candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
+    if today_candidates:
+        try:
+            return max(today_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
+
+    if today_only:
         return None
-    if not matches:
-        return None
-    return matches[0].name
 
+    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday_candidates = list(sessions_dir.glob(f"{yesterday}-session-*.json"))
+    if yesterday_candidates:
+        try:
+            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
+        except OSError:
+            return None
 
-def _is_trivial_session(session_log: Path | None) -> bool:
-    """Check if session was trivial (empty work and outcomes).
-
-    A session is trivial only when both work and outcomes are empty after
-    normalization. File size alone does not reflect session substance: a
-    compact log with non-empty objective, work, or outcomes is not trivial.
-    """
-    if session_log is None:
-        return True
-    try:
-        content = session_log.read_text(encoding="utf-8", errors="replace")
-        data = json.loads(content)
-    except (json.JSONDecodeError, OSError):
-        return True
-
-    if not isinstance(data, dict):
-        return True
-
-    def _has_content(value: object) -> bool:
-        """Return True if value contains any non-empty strings."""
-        if isinstance(value, str):
-            return bool(value.strip())
-        if isinstance(value, list):
-            return any(_has_content(item) for item in value)
-        if isinstance(value, dict):
-            return any(_has_content(v) for v in value.values())
-        return False
-
-    work = data.get("work", [])
-    work_log = data.get("workLog", [])
-    outcomes = data.get("outcomes", [])
-
-    has_work = _has_content(work) or _has_content(work_log)
-    has_outcomes = _has_content(outcomes)
-
-    return not has_work and not has_outcomes
-
-
-def _extract_text_items(value: object) -> list[str]:
-    """Pull human-readable strings from a JSON value of any supported shape.
-
-    Supports the legacy ``outcomes: [str, ...]`` shape, the current
-    ``outcomes: { ... }`` shape, and the observed ``work: { tasks: [...] }``
-    shape (see ``.agents/sessions/2026-02-08-session-1194.json``). Returns
-    an ordered list with empty strings filtered out.
-    """
-    items: list[str] = []
-    if isinstance(value, str):
-        if value.strip():
-            items.append(value)
-    elif isinstance(value, list):
-        for entry in value:
-            items.extend(_extract_text_items(entry))
-    elif isinstance(value, dict):
-        # ``status`` is a state token ("done", "in_progress"), not a
-        # description; including it would produce bullets like ``- done``
-        # when an entry has only ``status`` set. Outcome/result keys carry
-        # narrative content and stay.
-        preferred_keys = (
-            "description",
-            "task",
-            "summary",
-            "result",
-            "outcome",
-            "title",
-            "name",
-            "detail",
-            "details",
-        )
-        for key in preferred_keys:
-            text = value.get(key)
-            if isinstance(text, str) and text.strip():
-                items.append(text)
-                break
-    return items
-
-
-def _extract_session_summary(session_log: Path) -> dict[str, str]:
-    """Extract summary info from session log JSON.
-
-    Tolerates non-dict roots, the legacy list shapes for ``outcomes`` and
-    ``work``, and the current schema where ``outcomes`` is an object and
-    work is recorded under ``workLog`` or ``work.tasks``/``work.filesChanged``.
-    """
-    result = {"objective": "", "outcomes": "", "work_items": ""}
-    try:
-        content = session_log.read_text(encoding="utf-8", errors="replace")
-        data = json.loads(content)
-    except (json.JSONDecodeError, OSError):
-        return result
-
-    if not isinstance(data, dict):
-        return result
-
-    objective = data.get("objective", "")
-    result["objective"] = objective if isinstance(objective, str) else ""
-
-    def _as_bullets(values: list[str]) -> str:
-        return "\n".join(
-            f"- {value}" for value in values if isinstance(value, str) and value.strip()
-        )
-
-    # Outcomes: support legacy list shape and current object shape.
-    outcomes = data.get("outcomes", [])
-    outcome_items: list[str] = []
-    if isinstance(outcomes, list):
-        outcome_items.extend(_extract_text_items(outcomes))
-    elif isinstance(outcomes, dict):
-        for key in ("completed", "achieved", "results", "items", "summary"):
-            if key in outcomes:
-                outcome_items.extend(_extract_text_items(outcomes[key]))
-        if not outcome_items:
-            for value in outcomes.values():
-                outcome_items.extend(_extract_text_items(value))
-    elif isinstance(outcomes, str):
-        outcome_items.extend(_extract_text_items(outcomes))
-    result["outcomes"] = _as_bullets(outcome_items)
-
-    # Work: legacy list, current ``workLog``, and observed object-shaped
-    # ``work`` with ``tasks``/``filesChanged`` keys.
-    work_items: list[str] = []
-    work_log = data.get("workLog", [])
-    work = data.get("work", [])
-
-    if isinstance(work_log, (str, list, dict)):
-        work_items.extend(_extract_text_items(work_log))
-
-    if isinstance(work, list):
-        work_items.extend(_extract_text_items(work))
-    elif isinstance(work, dict):
-        if "tasks" in work:
-            work_items.extend(_extract_text_items(work.get("tasks")))
-        if "filesChanged" in work:
-            files_changed = work.get("filesChanged")
-            if isinstance(files_changed, list):
-                for file_path in files_changed:
-                    if isinstance(file_path, str) and file_path.strip():
-                        work_items.append(f"Changed {file_path}")
-            else:
-                work_items.extend(_extract_text_items(files_changed))
-        remaining_work = {
-            key: value
-            for key, value in work.items()
-            if key not in {"tasks", "filesChanged"}
-        }
-        if remaining_work:
-            work_items.extend(_extract_text_items(remaining_work))
-    elif isinstance(work, str):
-        work_items.extend(_extract_text_items(work))
-
-    result["work_items"] = _as_bullets(work_items)
-
-    return result
-
-
-def _generate_retrospective(today: str, session_summary: dict[str, str]) -> str:
-    """Generate a structured retrospective template."""
-    objective = session_summary.get("objective") or "(no objective recorded)"
-    outcomes = session_summary.get("outcomes") or "(no outcomes recorded)"
-    work_items = session_summary.get("work_items") or "(no work items recorded)"
-
-    return f"""# Auto-Retrospective: {today}
-
-> Generated automatically by the auto-retrospective Stop hook.
-> Review and refine this template with actual observations.
-> Per `.claude/rules/retros.md`: fill in Failure Mode Classification,
-> Evidence, and Remediation before this entry can be considered complete.
-
-## Session Objective
-
-{objective}
-
-## What Went Well
-
-<!-- List things that worked effectively this session -->
-- (review session log and add observations)
-
-## What Could Improve
-
-<!-- List things that could be done better -->
-- (review session log and add observations)
-
-## Key Learnings
-
-<!-- Specific learnings that should persist across sessions -->
-- (review session log and add observations)
-
-## Failure Mode Classification
-
-<!-- Required by .claude/rules/retros.md MUST #2.
-     Map each failure to a class in .agents/governance/FAILURE-MODES.md.
-     If no existing class matches, propose a new class in a linked ADR. -->
-- (classify against FAILURE-MODES.md)
-
-## Failure Patterns
-
-<!-- Recurring patterns that led to issues -->
-- (review session log and add observations)
-
-## Evidence
-
-<!-- Required by .claude/rules/retros.md MUST #3.
-     Links to offending commits, PRs, issues, or CI runs. No hand-waving. -->
-- (link commits, PRs, issues, CI runs)
-
-## Remediation
-
-<!-- Required by .claude/rules/retros.md MUST #4.
-     Concrete follow-up actions (governance change, ADR, instruction
-     update, skill change) with owners or issues. -->
-- (list concrete remediations with owners)
-
-## Work Completed
-
-{work_items}
-
-## Outcomes
-
-{outcomes}
-
----
-
-*Auto-generated by invoke_auto_retrospective.py (Issue #1703)*
-"""
-
-
-def _update_retro_index(project_dir: str, today: str, filename: str) -> None:
-    """Append entry to docs/retros/INDEX.md, creating it if needed.
-
-    Idempotent: a second call with the same (today, filename) is a
-    no-op once the row is present. This lets the caller re-run on
-    later sessions if a prior index-write failed after the retro
-    markdown was already written.
-
-    Uses advisory file locking to prevent concurrent Stop hooks from
-    racing on the check-then-append operation.
-    """
-    index_path = Path(project_dir) / "docs" / "retros" / "INDEX.md"
-
-    try:
-        index_path.parent.mkdir(parents=True, exist_ok=True)
-
-        header = (
-            "# Retrospective Index\n\n"
-            "> Auto-maintained by the auto-retrospective Stop hook (Issue #1703).\n"
-            "> Manual entries are welcome; the hook only appends new rows.\n\n"
-            "| Date | File | Summary |\n"
-            "|------|------|---------|\n"
-        )
-
-        if not index_path.exists():
-            index_path.write_text(header, encoding="utf-8")
-
-        with index_path.open("r+", encoding="utf-8") as f:
-            lock_file(f)
-            try:
-                content = f.read()
-                if filename in content:
-                    return
-                f.seek(0, 2)
-                if content and not content.endswith("\n"):
-                    f.write("\n")
-                f.write(f"| {today} | [{filename}](../../.agents/retrospective/{filename}) "
-                        f"| Auto-generated session retrospective |\n")
-            finally:
-                unlock_file(f)
-    except OSError as exc:
-        print(f"[WARNING] {HOOK_NAME}: Failed to update INDEX.md: {exc}", file=sys.stderr)
-
-
-def _resolve_safe_project_path() -> Path | None:
-    """Resolve the project directory and require it to look like a repo root.
-
-    Defends against a misconfigured ``CLAUDE_PROJECT_DIR`` pointing outside
-    the repository, which would otherwise let this hook write retro files
-    anywhere on disk. Validates via repo signals (``.agents/`` or ``.git/``)
-    instead of comparing against ``__file__.parents[3]``: when this hook
-    runs from an installed plugin location, the script's parent chain has
-    nothing to do with the user's repo, so a path-prefix check would
-    spuriously reject valid project directories.
-    """
-    candidate = Path(get_project_directory()).resolve()
-    if (candidate / ".agents").is_dir() or (candidate / ".git").is_dir():
-        return candidate
-    print(
-        f"[WARNING] {HOOK_NAME}: project_dir lacks .agents/ or .git/ "
-        f"signal, refusing to write under: {candidate}",
-        file=sys.stderr,
-    )
     return None
 
 
-def _drain_stdin() -> None:
-    """Drain stdin to prevent pipe buffer blocking on the harness side.
+def find_recent_session_file(sessions_dir: Path, today_only: bool = False) -> Path | None:
+    """Find the most recent session file for the current session.
 
-    Even when this hook does not need input data, consuming stdin keeps
-    the fail-open contract with the harness: an unconsumed pipe can leave
-    the producer blocked or trigger EPIPE/SIGPIPE when the hook exits.
+    Only falls back to yesterday's session if NO today-prefixed session exists,
+    preventing stale data from yesterday being attributed to today.
+
+    Args:
+        sessions_dir: Directory containing session logs.
+        today_only: If True, only return today's sessions (no yesterday fallback).
     """
-    if not sys.stdin.isatty():
-        try:
-            sys.stdin.read()
-        except OSError:
-            pass
+    # The shared utility doesn't support today_only, so use fallback for that case
+    if today_only or _get_recent_session_log is None:
+        return _find_recent_session_fallback(sessions_dir, today_only=today_only)
+
+    # Use shared utility for standard "prefer today, fall back to yesterday" logic
+    return cast(Path | None, _get_recent_session_log(str(sessions_dir)))
 
 
-def main() -> None:
-    """Generate retrospective if one doesn't exist for today."""
-    _drain_stdin()
+def _coerce_to_list_fallback(value: object) -> list[Any]:
+    """Fallback normalizer when hook_utilities is unavailable."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, dict):
+        if not value:
+            return []  # Empty dict: no items (matches canonical coerce_to_list)
+        for key in ("tasks", "items", "log", "entries"):
+            inner = value.get(key)
+            if isinstance(inner, list):
+                return inner
+        for v in value.values():
+            if isinstance(v, list):
+                return v
+        return [value]
+    if isinstance(value, str):
+        return [value] if value.strip() else []
+    return []
 
-    if skip_if_consumer_repo(HOOK_NAME):
-        sys.exit(0)
 
-    if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
-        sys.exit(0)
+def coerce_to_list(value: object) -> list[Any]:
+    """Normalize work/outcomes to a list, regardless of session schema shape.
 
-    project_path = _resolve_safe_project_path()
-    if project_path is None:
-        sys.exit(0)
-    project_dir = str(project_path)
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    Session logs in this repo have used several shapes over time:
+    - ``work: [...]`` (legacy flat list)
+    - ``work: {tasks: [...]}`` / ``{items: [...]}`` (dict wrapper)
+    - ``workLog: [...]`` (current schema)
+    - bare strings (rare)
+    """
+    if _coerce_to_list is not None:
+        return cast(list[Any], _coerce_to_list(value))
+    return _coerce_to_list_fallback(value)
 
-    retro_dir = project_path / ".agents" / "retrospective"
 
-    # Idempotent: skip retro generation if one already exists today, but
-    # still retry the INDEX.md update so a previous index-write failure
-    # is recoverable on the next Stop hook invocation. _update_retro_index
-    # short-circuits when the row is already present.
-    if _retro_exists_today(retro_dir, today):
-        existing = _find_today_retro_filename(retro_dir, today)
-        if existing is not None:
-            _update_retro_index(project_dir, today, existing)
-        print(f"[INFO] {HOOK_NAME}: Retrospective already exists for {today}", file=sys.stderr)
-        sys.exit(0)
+def _format_work_item_fallback(item: dict[str, Any]) -> str:
+    """Fallback formatter when hook_utilities is unavailable."""
+    if "action" in item:
+        parts = []
+        if "step" in item:
+            parts.append(f"Step {item['step']}:")
+        parts.append(str(item["action"]))
+        if "outcome" in item:
+            parts.append(f"→ {item['outcome']}")
+        return " ".join(parts)
+    if "description" in item:
+        return str(item["description"])
+    if "task" in item:
+        return str(item["task"])
+    return str(item)
 
-    # Check for trivial session using get_recent_session_log to support
-    # sessions spanning midnight (falls back to yesterday's log if today's
-    # is missing or trivial).
-    sessions_dir = str(project_path / ".agents" / "sessions")
-    session_log = get_recent_session_log(sessions_dir)
 
-    if _is_trivial_session(session_log):
-        print(f"[INFO] {HOOK_NAME}: Trivial session, skipping retro generation", file=sys.stderr)
-        sys.exit(0)
+def format_work_item(item: dict[str, Any]) -> str:
+    """Format a work item dict into a human-readable string.
 
-    # Extract session data and generate retrospective
-    session_summary = _extract_session_summary(session_log) if session_log else {}
-    retro_content = _generate_retrospective(today, session_summary)
+    Supports multiple session schemas:
+    - Current: {'step': N, 'action': '...', 'outcome': '...'}
+    - Legacy: {'description': '...'} or {'task': '...'}
+    """
+    if _format_work_item is not None:
+        return cast(str, _format_work_item(item))
+    return _format_work_item_fallback(item)
 
-    # Write retrospective file
+
+def _extract_work_outcomes(data: object) -> tuple[list[Any], list[Any]]:
+    """Pull work and outcomes from session data, supporting workLog and work shapes."""
+    if not isinstance(data, dict):
+        return [], []
+    work_raw = data.get("workLog")
+    if not work_raw:
+        work_raw = data.get("work", [])
+    outcomes_raw = data.get("outcomes", [])
+    return coerce_to_list(work_raw), coerce_to_list(outcomes_raw)
+
+
+def is_trivial_session(project_dir: Path) -> bool:
+    """Check if session is trivial (no meaningful work done in the active session).
+
+    Uses today-or-yesterday fallback so cross-midnight sessions (started
+    before UTC midnight, ending after) are evaluated against the still-active
+    session log rather than skipped as trivial.
+    """
+    sessions_dir = project_dir / ".agents" / "sessions"
+    if not sessions_dir.is_dir():
+        return True
+
+    # Use the shared cross-midnight helper: today preferred, yesterday fallback.
+    session_file = find_recent_session_file(sessions_dir, today_only=False)
+    if not session_file:
+        return True
+
+    try:
+        content = session_file.read_text(encoding="utf-8")
+        data = json.loads(content)
+        work, outcomes = _extract_work_outcomes(data)
+        return len(work) == 0 and len(outcomes) == 0
+    except Exception as e:
+        # Fail-open on any parse/IO error; surface to stderr for diagnosability.
+        print(
+            f"[hook-error] invoke_auto_retrospective is_trivial_session: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+        return True
+
+
+def generate_retrospective(project_dir: Path, today: str) -> Path | None:
+    """Generate a structured retrospective file."""
+    retro_dir = project_dir / ".agents" / "retrospective"
     retro_dir.mkdir(parents=True, exist_ok=True)
+
     filename = f"{today}-auto-retro.md"
     retro_path = retro_dir / filename
 
-    try:
-        retro_path.write_text(retro_content, encoding="utf-8")
-        print(f"📝 Auto-retrospective generated: .agents/retrospective/{filename}")
-    except OSError as exc:
-        print(f"[WARNING] {HOOK_NAME}: Failed to write retro: {exc}", file=sys.stderr)
-        sys.exit(0)
+    # Use today-or-yesterday fallback so cross-midnight sessions still
+    # contribute work/outcome context to the retrospective.
+    session_context = ""
+    sessions_dir = project_dir / ".agents" / "sessions"
+    if sessions_dir.is_dir():
+        session_file = find_recent_session_file(sessions_dir, today_only=False)
+        if session_file:
+            try:
+                data = json.loads(session_file.read_text(encoding="utf-8"))
+                work_items, outcomes = _extract_work_outcomes(data)
+                if work_items:
+                    session_context += "### Work Items\n"
+                    for item in work_items[:10]:
+                        if isinstance(item, str):
+                            session_context += f"- {item}\n"
+                        elif isinstance(item, dict):
+                            session_context += f"- {format_work_item(item)}\n"
+                if outcomes:
+                    session_context += "\n### Outcomes\n"
+                    for outcome in outcomes[:10]:
+                        if isinstance(outcome, str):
+                            session_context += f"- {outcome}\n"
+                        elif isinstance(outcome, dict):
+                            session_context += f"- {outcome.get('result', str(outcome))}\n"
+            except Exception as e:
+                print(
+                    "[hook-error] invoke_auto_retrospective generate_retrospective: "
+                    f"{type(e).__name__}: {e}",
+                    file=sys.stderr,
+                )
 
-    # Update index
-    _update_retro_index(project_dir, today, filename)
+    content = f"""# Retrospective: {today}
+
+> Auto-generated by invoke_auto_retrospective.py (Stop hook)
+
+## Session Context
+
+{session_context if session_context else "_No session log data available._"}
+
+## What Went Well
+
+- _[To be filled by reviewing agent or human]_
+
+## What Could Improve
+
+- _[To be filled by reviewing agent or human]_
+
+## Key Learnings
+
+- _[To be filled by reviewing agent or human]_
+
+## Failure Patterns
+
+- _[To be filled: check against known patterns in .agents/failure-modes/]_
+"""
+
+    retro_path.write_text(content, encoding="utf-8")
+    return retro_path
+
+
+def write_audit_log(
+    project_dir: Path,
+    status: str,
+    retro_filename: str = "",
+    skip_reason: str = "",
+) -> None:
+    """Append a per-hook JSONL audit record for this run.
+
+    Canonical source: ``.claude/hooks/PreToolUse/invoke_false_completion_gate.py``
+    (function ``write_audit_log``, lines 191-234). Quoted contract:
+
+    - Audit root is ``project_dir / ".agents" / ".hook-state"``.
+    - Skip silently when ``.agents/`` does not exist (consumer-repo guard).
+    - JSONL line carries ``schema=1``, ``timestamp`` (ISO-8601 UTC),
+      ``hook`` (function-local hook id), and per-hook payload fields.
+    - File handle is taken with ``open(audit_file, "a", encoding="utf-8")``
+      and serialized through the shared ``_lock_file`` / ``_unlock_file``
+      helpers when available.
+    - Errors writing the audit log are swallowed and surfaced to stderr
+      to preserve fail-open behavior.
+
+    Per Issue #2062 acceptance, records land at::
+
+        .agents/.hook-state/auto-retrospective/{YYYY-MM-DD}.jsonl
+
+    Schema (forward-compat ``schema: 1``):
+
+    - ``timestamp``: ISO-8601 UTC of the record.
+    - ``hook``: always ``"invoke_auto_retrospective"`` for cross-hook joins.
+    - ``status``: ``created`` | ``skipped`` | ``failed``.
+    - ``retro_filename``: basename of the retro file when known (created or
+      re-discovered on the skip-because-exists path), else empty string.
+    - ``skip_reason``: human-readable explanation when status is ``skipped``
+      or ``failed``; empty string for ``created``.
+
+    Stricter/looser/different than canonical:
+
+    - Subdirectory: writes under ``.hook-state/auto-retrospective/`` instead
+      of the canonical's flat ``.hook-state/`` so retro audit files do not
+      collide with completion-gate audit files. The canonical writes a
+      single ``audit-{date}.jsonl`` per day; this hook namespaces by hook.
+    - Exception scope: catches ``Exception`` rather than the canonical's
+      ``OSError``. The Stop-hook fail-open contract requires resilience
+      against unexpected runtime errors (``TypeError``, ``ValueError``,
+      JSON-serialization edge cases) in addition to disk errors, while
+      still letting ``BaseException`` (``KeyboardInterrupt``,
+      ``SystemExit``) propagate. Refs PR #2077 gemini-code-assist review.
+    - Payload shape: ``status`` / ``retro_filename`` / ``skip_reason``
+      fields replace the canonical's ``command`` / ``decision`` / ``reason``
+      / ``session_id`` / ``tool_use_id``; the two hooks log different
+      events and the field names track each event's domain.
+    """
+    try:
+        agents_dir = project_dir / ".agents"
+        if not agents_dir.is_dir():
+            return  # Consumer repo: skip silently to avoid creating .agents/
+        audit_dir = agents_dir / ".hook-state" / "auto-retrospective"
+        audit_dir.mkdir(parents=True, exist_ok=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        audit_file = audit_dir / f"{today}.jsonl"
+        entry = json.dumps({
+            "schema": 1,
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+            "hook": "invoke_auto_retrospective",
+            "status": status,
+            "retro_filename": retro_filename,
+            "skip_reason": skip_reason,
+        })
+        with open(audit_file, "a", encoding="utf-8") as f:
+            if _lock_file is not None:
+                _lock_file(f)
+            try:
+                f.write(entry + "\n")
+            finally:
+                if _unlock_file is not None:
+                    _unlock_file(f)
+    except Exception as e:
+        # Broader than canonical's OSError: see docstring "Stricter/looser/
+        # different than canonical". Preserves Stop hook's fail-open contract
+        # against unexpected runtime errors (e.g. TypeError, ValueError) while
+        # still letting BaseException (KeyboardInterrupt, SystemExit) escape.
+        print(
+            f"[hook-error] invoke_auto_retrospective audit: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+
+
+def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
+    """Append entry to docs/retros/INDEX.md, creating if needed.
+
+    Idempotent: if a row already references `filename`, no new row is added.
+    This protects the index from a partial-failure path where the retro file
+    was written on a prior call but the index append failed (or this run
+    re-attempted index recovery after the retro file already existed).
+    """
+    index_dir = project_dir / "docs" / "retros"
+    index_dir.mkdir(parents=True, exist_ok=True)
+    index_path = index_dir / "INDEX.md"
+
+    header = "# Retrospective Index\n\n| Date | File | Summary |\n|------|------|---------|"
+
+    # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
+    # Open with "a+b" to atomically create if missing, then lock before any read/write
+    row = f"| {today} | {filename} | Auto-generated session retro |"
+    with open(index_path, "a+b") as f:
+        if _lock_file is not None:
+            _lock_file(f)
+        try:
+            f.seek(0, os.SEEK_END)
+            file_size = f.tell()
+            if file_size == 0:
+                # File was just created, write header
+                f.write((header + "\n").encode("utf-8"))
+            else:
+                # Idempotency check: skip if this filename is already indexed.
+                # Read existing content to detect a prior write that produced
+                # the same row, even if a later index update was lost.
+                f.seek(0)
+                existing = f.read().decode("utf-8", errors="replace")
+                if filename in existing:
+                    return
+                # Ensure file ends with a newline before appending the row
+                # so a previous write that lacked trailing '\n' does not
+                # corrupt the markdown table.
+                if not existing.endswith("\n"):
+                    f.seek(0, os.SEEK_END)
+                    f.write(b"\n")
+                else:
+                    f.seek(0, os.SEEK_END)
+            f.write((row + "\n").encode("utf-8"))
+        finally:
+            if _unlock_file is not None:
+                _unlock_file(f)
+
+
+def main() -> int:
+    """Generate retrospective on session stop."""
+    # Drain stdin FIRST, before any early-exit branches. Sibling hook
+    # invoke_false_completion_gate.py documents the same constraint: leaving
+    # stdin unread can surface as EPIPE or SIGPIPE on the harness side if its
+    # pipe buffer is full. The other lifecycle hooks introduced in this PR
+    # (invoke_context_loader, invoke_compact_checkpoint, invoke_plan_state_sync)
+    # all drain immediately after the TTY check.
+    if not sys.stdin.isatty():
+        try:
+            sys.stdin.read()
+        except Exception as e:
+            print(
+                f"[hook-error] invoke_auto_retrospective stdin: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
+
+    # Skip for consumer repos (avoid creating directories outside .agents/)
+    if skip_if_consumer_repo("auto-retrospective"):
+        return 0
+
+    # Bypass
+    if os.environ.get("SKIP_AUTO_RETRO", "").lower() == "true":
+        project_dir = get_project_directory()
+        if project_dir:
+            write_audit_log(
+                project_dir,
+                "skipped",
+                skip_reason="SKIP_AUTO_RETRO=true",
+            )
+        return 0
+
+    project_dir = get_project_directory()
+    if not project_dir:
+        return 0
+
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    retro_dir = project_dir / ".agents" / "retrospective"
+
+    # If a retro file already exists today, do not regenerate it, but still
+    # call update_retro_index to repair the case where a prior run created
+    # the retro file but failed to write the index entry. The index update
+    # is idempotent on the filename, so this is a no-op when the row is
+    # already present.
+    #
+    # Multiple same-day retros (manual plus auto, reruns) can coexist. Pick
+    # deterministically: newest by mtime, with filename as a stable tiebreaker
+    # when mtimes match or stat fails. This keeps index repair predictable
+    # across runs.
+    if has_retro_today(retro_dir, today):
+        existing_name = ""
+        try:
+            existing = _pick_same_day_retro(retro_dir, today)
+            if existing is not None:
+                existing_name = existing.name
+                update_retro_index(project_dir, today, existing.name)
+        except Exception as e:
+            print(
+                f"[hook-error] invoke_auto_retrospective index-repair: {type(e).__name__}: {e}",
+                file=sys.stderr,
+            )
+        write_audit_log(
+            project_dir,
+            "skipped",
+            retro_filename=existing_name,
+            skip_reason="retro already exists today",
+        )
+        return 0
+
+    # Skip trivial sessions. is_trivial_session() prefers today's session log
+    # to avoid misattributing yesterday's work, but falls back to yesterday
+    # when no today-prefixed session exists (cross-midnight continuation).
+    # Mirrors the same precedence used by hook_utilities.get_recent_session_log.
+    if is_trivial_session(project_dir):
+        write_audit_log(
+            project_dir,
+            "skipped",
+            skip_reason="trivial session",
+        )
+        return 0
+
+    try:
+        retro_path = generate_retrospective(project_dir, today)
+    except Exception as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective generate: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+        write_audit_log(
+            project_dir,
+            "failed",
+            skip_reason=f"{type(e).__name__}: {e}",
+        )
+        return 0
+
+    if not retro_path:
+        write_audit_log(
+            project_dir,
+            "failed",
+            skip_reason="generate_retrospective returned None",
+        )
+        return 0
+
+    write_audit_log(
+        project_dir,
+        "created",
+        retro_filename=retro_path.name,
+    )
+
+    try:
+        update_retro_index(project_dir, today, retro_path.name)
+    except Exception as e:
+        print(
+            f"[hook-error] invoke_auto_retrospective index: {type(e).__name__}: {e}",
+            file=sys.stderr,
+        )
+
+    return 0
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
-        sys.exit(0)
+    sys.exit(main())

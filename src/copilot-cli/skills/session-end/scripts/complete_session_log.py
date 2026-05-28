@@ -180,7 +180,7 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
         return None
 
 
-# Rework warning (REQ-009-07, REQ-009-08, REQ-009-09 / M4) is extracted
+# Rework warning (REQ-012-07, REQ-012-08, REQ-012-09 / M4) is extracted
 # to a sibling module so this file stays under the 500-line taste-lint
 # threshold. See rework_warning.py for the implementation. The sibling
 # import is loaded via importlib so it works whether the script is run
@@ -201,44 +201,66 @@ def _load_rework_module():
 # PR #1989 coderabbit: load lazily and tolerate failure. The rework-warning
 # step is informational, not a gate; a missing or broken sibling module
 # must not crash module import (which would block session-end entirely).
-_rework = None
-REWORK_THRESHOLD = 6
-compute_rework_warning = None
-emit_rework_warning_lines = None
-try:
-    _rework = _load_rework_module()
-    REWORK_THRESHOLD = _rework.REWORK_THRESHOLD
-    compute_rework_warning = _rework.compute_rework_warning
-    emit_rework_warning_lines = _rework.emit_rework_warning_lines
-except Exception:  # noqa: BLE001 - informational; must never block import
-    # Sibling missing, syntax error, runtime error at import time, or
-    # wrong shape. Skip silently; the rework step at runtime will detect
-    # None and emit a degraded line. PR #1989 copilot follow-up: the
-    # previous narrow `(OSError, ImportError, AttributeError, SyntaxError)`
-    # clause still let arbitrary top-level exceptions from
-    # `exec_module(rework_warning.py)` crash session-end import. `Exception`
-    # excludes KeyboardInterrupt and SystemExit so Ctrl+C still works.
-    pass
+# Issue #2069 Finding B: use PEP 562 __getattr__ for true lazy loading so
+# compute_rework_warning, emit_rework_warning_lines, and REWORK_THRESHOLD
+# are not bound in module __dict__ until first access.
+_rework_cache: dict[str, object] = {}
+_LAZY_NAMES = frozenset({"compute_rework_warning", "emit_rework_warning_lines", "REWORK_THRESHOLD"})
 
 
-def _run_rework_warning_step() -> str:
+def _ensure_rework_loaded() -> None:
+    """Lazy-load the rework_warning sibling module on first access."""
+    if _rework_cache:
+        return
+    try:
+        _mod = _load_rework_module()
+        _rework_cache["REWORK_THRESHOLD"] = _mod.REWORK_THRESHOLD
+        _rework_cache["compute_rework_warning"] = _mod.compute_rework_warning
+        _rework_cache["emit_rework_warning_lines"] = _mod.emit_rework_warning_lines
+    except Exception:  # noqa: BLE001 - informational; must never block
+        _rework_cache["REWORK_THRESHOLD"] = 6
+        _rework_cache["compute_rework_warning"] = None
+        _rework_cache["emit_rework_warning_lines"] = None
+    globals().update(_rework_cache)
+
+
+def __getattr__(name: str) -> object:
+    """PEP 562 lazy attribute access for rework_warning sibling exports."""
+    if name in _LAZY_NAMES:
+        _ensure_rework_loaded()
+        return _rework_cache[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _run_rework_warning_step() -> tuple[str, list[str]]:
     """Run the rework-warning check and emit lines to stdout.
 
-    Returns a one-line summary suitable for the session-end `changes`
-    log. Output to stdout is at least one line, never silent
-    (REQ-009-08). The function is extracted so the main() driver does
-    not absorb its branching into its own cyclomatic complexity.
+    Returns a tuple of:
+    - summary: one-line string suitable for the session-end ``changes`` log.
+    - evidence_lines: list of strings emitted to stdout (REQ-012-08).
+      Persisted under ``protocolCompliance.sessionEnd.reworkWarning.Evidence``
+      in the session log JSON (ADR-060).
 
-    Degrades gracefully when the sibling rework_warning module is
-    missing or broken (PR #1989 coderabbit): emits a single notice line
-    and returns the same shape as a clean no-warning run, so callers do
-    not have to special-case the import failure.
+    Output to stdout is at least one line, never silent (REQ-012-08). The
+    function is extracted so the main() driver does not absorb its branching
+    into its own cyclomatic complexity.
+
+    Degrades gracefully when the sibling rework_warning module is missing or
+    broken (PR #1989 coderabbit): emits a single notice line and returns the
+    same shape as a clean no-warning run, so callers do not have to
+    special-case the import failure.
     """
-    if compute_rework_warning is None or emit_rework_warning_lines is None:
-        print("rework-warning: skipped (sibling module unavailable)")
-        return "Rework warning: skipped (sibling unavailable)"
+    _ensure_rework_loaded()
+    _g = globals()
+    _compute = _g.get("compute_rework_warning")
+    _emit = _g.get("emit_rework_warning_lines")
+    _threshold = _g.get("REWORK_THRESHOLD", 6)
+    if _compute is None or _emit is None:
+        notice = "rework-warning: skipped (sibling module unavailable)"
+        print(notice)
+        return "Rework warning: skipped (sibling unavailable)", [notice]
     # PR #1989 cursor follow-up: the rework-warning step is informational
-    # and MUST NOT block session-end under any circumstances (REQ-009-08).
+    # and MUST NOT block session-end under any circumstances (REQ-012-08).
     # Wrap runtime calls so an unexpected git or subprocess failure inside
     # compute_rework_warning or emit_rework_warning_lines degrades to a
     # single notice line instead of crashing the driver. Step 4b runs
@@ -246,18 +268,22 @@ def _run_rework_warning_step() -> str:
     # step from running. Exception excludes KeyboardInterrupt and
     # SystemExit so Ctrl+C still works.
     try:
-        rework_items = compute_rework_warning()
-        for line in emit_rework_warning_lines(rework_items):
+        rework_items = _compute()
+        lines = list(_emit(rework_items))
+        for line in lines:
             print(line)
     except Exception as exc:  # noqa: BLE001 - informational; must never block
-        print(f"rework-warning: skipped (runtime error: {type(exc).__name__})")
-        return "Rework warning: skipped (runtime error)"
+        notice = f"rework-warning: skipped (runtime error: {type(exc).__name__})"
+        print(notice)
+        return "Rework warning: skipped (runtime error)", [notice]
     if rework_items:
-        return (
+        summary = (
             f"[WARN] rework warning: {len(rework_items)} file(s) "
-            f"at {REWORK_THRESHOLD}+ edits"
+            f"at {_threshold}+ edits"
         )
-    return "Rework warning: none"
+    else:
+        summary = "Rework warning: none"
+    return summary, lines
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -365,9 +391,16 @@ def main(argv: list[str] | None = None) -> int:
         check["Evidence"] = lint_output
         changes.append(f"Markdown lint: {lint_output}")
 
-    # 4b. Rework warning (REQ-009-07, REQ-009-08). Emitted as informational
+    # 4b. Rework warning (REQ-012-07, REQ-012-08). Emitted as informational
     # stdout lines after lint; never blocks completion.
-    changes.append(_run_rework_warning_step())
+    # ADR-060: evidence lines are also persisted in the session log JSON under
+    # protocolCompliance.sessionEnd.reworkWarning.Evidence. Pre-existing
+    # reworkWarning keys (set by other tooling) are preserved.
+    rework_summary, rework_evidence = _run_rework_warning_step()
+    changes.append(rework_summary)
+    if "reworkWarning" not in session_end:
+        session_end["reworkWarning"] = {}
+    session_end["reworkWarning"]["Evidence"] = rework_evidence
 
     # 5. changesCommitted
     has_uncommitted = _test_uncommitted_changes()

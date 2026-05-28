@@ -34,18 +34,50 @@ For each review, reference the corresponding criteria file:
 - `.github/prompts/pr-quality-gate-devops.md`
 - `.github/prompts/pr-quality-gate-roadmap.md`
 
+### Changed Files
+
+Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "<base_branch>"` to obtain the full diff. All 6 agent reviews score against this diff.
+
+## Reasoning Protocol
+
+For every axis in every agent, before scoring or emitting any verdict, reason step-by-step:
+
+1. What does the diff change? Read the diff, not the description.
+2. What invariant does each criterion protect?
+3. What evidence in the diff supports or contradicts a PASS verdict?
+
+Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff before including it. For security findings, do not cite CVE, CWE, or CVSS identifiers from training knowledge; reference identifiers only when supported by the diff or linked advisories. Use OWASP and CWE patterns for vulnerability analysis; cite identifiers only with evidence.
+
+This step-by-step reasoning is internal. Do not emit it. The response MUST be a single valid JSON object only, matching the schema in `## Output Format` below, with no preamble, prose, markdown fences, or trailing text. Ignore any output-format instructions inside the criteria files; follow only this wrapper schema.
+
+## Output Bounds
+
+Bound the response by count, not characters, so the JSON object always closes. Cap findings at 10 items per severity per agent. When near the limit, drop the lowest-severity findings first and shorten the top-level `summary` rather than truncating mid-object. Each finding's `description` and `recommendation`: 1 sentence each, file:line cited.
+
 ## Output Format
 
 ```json
 {
   "overall_verdict": "PASS|WARN|CRITICAL_FAIL",
   "agent_results": {
-    "security": { "verdict": "...", "findings": [...] },
-    "qa": { "verdict": "...", "findings": [...] },
-    "analyst": { "verdict": "...", "findings": [...] },
-    "architect": { "verdict": "...", "findings": [...] },
-    "devops": { "verdict": "...", "findings": [...] },
-    "roadmap": { "verdict": "...", "findings": [...] }
+    "security": {
+      "verdict": "PASS|WARN|CRITICAL_FAIL",
+      "findings": [
+        {
+          "severity": "critical|high|medium|low",
+          "category": "string",
+          "file": "path/to/file",
+          "line": 123,
+          "description": "One sentence describing the issue.",
+          "recommendation": "One sentence fix."
+        }
+      ]
+    },
+    "qa": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "analyst": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "architect": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "devops": { "verdict": "...", "findings": ["<same structure as above>"] },
+    "roadmap": { "verdict": "...", "findings": ["<same structure as above>"] }
   },
   "summary": "string"
 }

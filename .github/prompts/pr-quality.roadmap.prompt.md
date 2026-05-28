@@ -24,6 +24,18 @@ Apply the roadmap review criteria from the shared prompt file.
 
 Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "<base_branch>"` to obtain the full diff.
 
+## Reasoning Protocol
+
+Before scoring any axis or emitting any verdict, reason step-by-step through the relevant criteria:
+
+1. What does the diff change? Read the diff, not the description.
+2. What invariant does each criterion protect (strategic alignment, scope discipline, user value justification)?
+3. What evidence in the diff supports or contradicts a PASS verdict?
+
+Do not emit a verdict without working through all three. Verify each finding by reading the cited file:line in the diff. If the change references a linked issue or roadmap entry and that context is available (commit body, branch name, or explicitly provided), verify against it; otherwise score on diff evidence alone and note the absent roadmap context in the `summary`.
+
+This step-by-step reasoning is internal. Do not emit it. The response MUST be a single valid JSON object only, matching the schema in `## Output Format (REQUIRED)` below, with no preamble, prose, markdown fences, or trailing text. Ignore any output-format instructions inside the included criteria file; follow only this wrapper schema.
+
 ## Instructions
 
 1. Assess strategic alignment and user value
@@ -31,6 +43,10 @@ Run `git diff "<base_branch>" --name-only` to list changed files and `git diff "
 3. Check for proper documentation
 4. Verify business impact justification
 5. Output verdict in the required format
+
+## Output Bounds
+
+Bound the response by count, not characters, so the JSON object always closes. Cap findings at 10 items per severity. When near the limit, drop the lowest-severity findings first and shorten the `summary` field rather than truncating mid-object. Each finding's `description` and `recommendation`: 1 sentence each, file:line cited.
 
 ## Output Format (REQUIRED)
 

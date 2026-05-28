@@ -20,7 +20,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "bandit>=1.9.4",
     "pip-audit>=2.10.0",
-    "ruff>=0.15.13",
+    "ruff>=0.15.14",
     "mypy>=2.1.0",
 ]
 
@@ -117,6 +117,14 @@ disallow_any_generics = false
 [[tool.mypy.overrides]]
 module = "semantic_hooks.*"
 disallow_any_generics = false
+
+[[tool.mypy.overrides]]
+# Pre-existing: mock.patch.object(csl.subprocess, ...) triggers spurious
+# "None not callable [misc]" when complete_session_log is type-checked
+# alongside the test file. The module name has no dotted prefix because
+# tests/skills/session-end/ is not a valid Python package (hyphenated).
+module = "test_rework_warning"
+disable_error_code = ["misc"]
 
 [dependency-groups]
 dev = [

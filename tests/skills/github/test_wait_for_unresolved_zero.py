@@ -1,6 +1,6 @@
-"""Tests for wait_for_unresolved_zero.py (REQ-009-01, REQ-009-02 revised).
+"""Tests for wait_for_unresolved_zero.py (REQ-012-01, REQ-012-02 revised).
 
-Pins the four AC scenarios from REQ-009-02 (revised per /plan ceremony):
+Pins the four AC scenarios from REQ-012-02 (revised per /plan ceremony):
 
 1. Bot-settle: stubbed sequence [0, 3, 0, 0, 0] does not settle until
    the third consecutive zero is observed.
@@ -79,7 +79,7 @@ def _make_clock_and_sleeper(interval_seconds: int):
 
 
 class BotSettleScenarioTest(unittest.TestCase):
-    """REQ-009-02 AC 1: bot-settle detection."""
+    """REQ-012-02 AC 1: bot-settle detection."""
 
     def test_does_not_settle_until_third_consecutive_zero(self) -> None:
         """Sequence [0, 3, 0, 0, 0] settles only after the third zero.
@@ -117,7 +117,7 @@ class BotSettleScenarioTest(unittest.TestCase):
 
 
 class FetchedPagesCompleteRejectionTest(unittest.TestCase):
-    """REQ-009-02 AC 2: incomplete pagination is not a valid zero observation."""
+    """REQ-012-02 AC 2: incomplete pagination is not a valid zero observation."""
 
     def test_incomplete_pagination_does_not_count(self) -> None:
         """First reading is (0, false); must not count toward streak.
@@ -154,7 +154,7 @@ class FetchedPagesCompleteRejectionTest(unittest.TestCase):
 
 
 class MaxWaitTimeoutTest(unittest.TestCase):
-    """REQ-009-02 AC 3: max-wait timeout exits with settled=false."""
+    """REQ-012-02 AC 3: max-wait timeout exits with settled=false."""
 
     def test_timeout_exits_not_settled(self) -> None:
         """When readings stay non-zero, max_wait_seconds elapses and exits 1.
@@ -186,7 +186,7 @@ class MaxWaitTimeoutTest(unittest.TestCase):
 
 
 class IntervalFloorEnforcementTest(unittest.TestCase):
-    """REQ-009-02 AC 4 (revised): two zeros inside the interval count as one.
+    """REQ-012-02 AC 4 (revised): two zeros inside the interval count as one.
 
     The interval-floor requirement is symmetric to the 3-reading requirement:
     a streak only advances when the previous counted reading was at least
@@ -310,7 +310,7 @@ class ArgvContractTest(unittest.TestCase):
 
 
 class ConfigValidationTest(unittest.TestCase):
-    """REQ-009-01 AC: invalid CLI args return exit code 2 (config error)."""
+    """REQ-012-01 AC: invalid CLI args return exit code 2 (config error)."""
 
     def test_negative_pull_request_exits_two(self) -> None:
         self.assertEqual(wfz.main(["--pull-request", "-1"]), 2)
@@ -324,6 +324,90 @@ class ConfigValidationTest(unittest.TestCase):
                 ["--pull-request", "1", "--interval-seconds", "0"],
             ),
             2,
+        )
+
+
+class JsonContractStdoutTest(unittest.TestCase):
+    """Issue #2069 Finding A: invalid-arg JSON payloads emit to stdout.
+
+    Stdout-parsing callers expect every outcome (success, timeout, config
+    error) to surface a JSON object on stdout. The earlier behavior
+    routed invalid-arg failures to stderr only, breaking parsers that
+    consumed `subprocess.run(..., capture_output=True).stdout`. The
+    canonical CLI contract is "JSON to stdout, human noise to stderr."
+    """
+
+    def _capture(self, argv: list[str]) -> tuple[int, str, str]:
+        """Run main(argv) and return (exit_code, stdout, stderr)."""
+        import io
+        import contextlib
+
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            rc = wfz.main(argv)
+        return rc, out_buf.getvalue(), err_buf.getvalue()
+
+    def test_negative_pull_request_emits_json_to_stdout(self) -> None:
+        """POSITIVE: invalid pull_request yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(["--pull-request", "-1"])
+        self.assertEqual(rc, 2)
+        # Stdout MUST contain a parseable JSON object with settled=false.
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+        self.assertIn("positive", (payload.get("reason") or "").lower())
+
+    def test_zero_pull_request_emits_json_to_stdout(self) -> None:
+        """POSITIVE: pull_request=0 yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(["--pull-request", "0"])
+        self.assertEqual(rc, 2)
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+
+    def test_zero_interval_emits_json_to_stdout(self) -> None:
+        """POSITIVE: interval=0 yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(
+            ["--pull-request", "1", "--interval-seconds", "0"],
+        )
+        self.assertEqual(rc, 2)
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+        self.assertIn("interval", (payload.get("reason") or "").lower())
+
+    def test_zero_max_wait_emits_json_to_stdout(self) -> None:
+        """POSITIVE: max-wait=0 yields JSON failure payload on stdout."""
+        rc, stdout, _ = self._capture(
+            ["--pull-request", "1", "--max-wait-seconds", "0"],
+        )
+        self.assertEqual(rc, 2)
+        payload = json.loads(stdout)
+        self.assertFalse(payload.get("settled", True))
+
+    def test_negative_pull_request_stderr_has_no_json(self) -> None:
+        """NEGATIVE: stderr MUST NOT carry the JSON payload (single channel)."""
+        _, _, stderr = self._capture(["--pull-request", "-1"])
+        # A short human notice on stderr is allowed; a JSON object is not.
+        # Look for the JSON braces; their absence is the load-bearing claim.
+        self.assertNotIn('"settled":', stderr)
+        self.assertNotIn('"observations":', stderr)
+
+    def test_help_flag_exits_zero_without_json_payload(self) -> None:
+        """POSITIVE: --help is the documented exception; exits 0, no JSON.
+
+        Pins the docstring claim at wait_for_unresolved_zero.main() that
+        argparse's --help path writes help text to stdout, exits 0, and
+        deliberately does NOT emit a JSON failure payload. Without this
+        test the `if code == 0: return 0` branch (line 388) is uncovered.
+        """
+        rc, stdout, _ = self._capture(["--help"])
+        self.assertEqual(rc, 0)
+        # Argparse-formatted help text is on stdout; no JSON object.
+        self.assertNotIn('"settled":', stdout)
+        self.assertNotIn('"observations":', stdout)
+        # Help text should mention the program description or one of its flags.
+        self.assertTrue(
+            "--pull-request" in stdout or "usage:" in stdout.lower(),
+            f"expected argparse help text on stdout; got: {stdout!r}",
         )
 
 
@@ -348,7 +432,7 @@ class AuthErrorPropagationTest(unittest.TestCase):
 
 
 class RequiredConsecutiveZerosConstantTest(unittest.TestCase):
-    """Pin the 3-reading requirement per REQ-009-01 revised AC."""
+    """Pin the 3-reading requirement per REQ-012-01 revised AC."""
 
     def test_constant_is_three(self) -> None:
         self.assertEqual(wfz.REQUIRED_CONSECUTIVE_ZEROS, 3)
@@ -457,7 +541,7 @@ class CoverageCompleterTests(unittest.TestCase):
     def test_wait_for_settled_zero_handles_missing_underlying_script(self) -> None:
         """When _resolve_underlying_script returns a non-file path, fail clean.
 
-        PR #1989 copilot follow-up: the synthetic observation MUST honor the
+        Pinned per PR #1989 review (copilot): the synthetic observation MUST honor the
         documented schema (`timestamp: float`). Record the resolved clock
         value, never None, so downstream consumers never special-case the type.
         """
@@ -503,9 +587,52 @@ class CoverageCompleterTests(unittest.TestCase):
         self.assertFalse(result["success"])
 
     def test_main_invalid_pull_request_argv_value(self) -> None:
-        """argparse rejects non-integer pull_request before main logic runs."""
-        with self.assertRaises(SystemExit):
-            wfz.main(["--pull-request", "abc"])
+        """argparse rejects non-integer pull_request; main catches SystemExit
+        and returns exit code 2 instead of propagating.
+
+        PR #2070 follow-up: parse-level argparse failures (bad type, missing
+        required arg, unknown flag) now emit JSON to stdout and return 2,
+        preserving the single-channel JSON stdout contract for every outcome.
+        """
+        import contextlib
+        import io
+        out_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(io.StringIO()):
+            rc = wfz.main(["--pull-request", "abc"])
+        self.assertEqual(rc, 2)
+        payload = json.loads(out_buf.getvalue())
+        self.assertFalse(payload["settled"])
+        self.assertEqual(payload["reason"], "invalid CLI arguments")
+
+    def test_main_missing_required_arg_emits_json_to_stdout(self) -> None:
+        """argparse missing-required-arg failure produces JSON on stdout.
+
+        PR #2070 Copilot review thread: stdout-parsing callers must see a
+        parseable JSON payload even when argparse rejects the invocation
+        before main() can run its own validation.
+        """
+        import contextlib
+        import io
+        out_buf = io.StringIO()
+        err_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(err_buf):
+            rc = wfz.main([])
+        self.assertEqual(rc, 2)
+        payload = json.loads(out_buf.getvalue())
+        self.assertFalse(payload["settled"])
+        # stderr carries a short human message, not the JSON payload.
+        self.assertNotIn('"settled":', err_buf.getvalue())
+
+    def test_main_unknown_flag_emits_json_to_stdout(self) -> None:
+        """argparse unknown-flag failure produces JSON on stdout (exit 2)."""
+        import contextlib
+        import io
+        out_buf = io.StringIO()
+        with contextlib.redirect_stdout(out_buf), contextlib.redirect_stderr(io.StringIO()):
+            rc = wfz.main(["--bogus-flag"])
+        self.assertEqual(rc, 2)
+        payload = json.loads(out_buf.getvalue())
+        self.assertFalse(payload["settled"])
 
     def test_main_returns_zero_when_settled(self) -> None:
         """POSITIVE: main returns 0 when wait_for_settled_zero settles."""

@@ -1,0 +1,67 @@
+{
+  "scenarios": [
+    {
+      "id": "D1",
+      "desc": "Step 0 PASS triggers Step 0.5 before Step 1",
+      "input": "Run /spec for a demanded change. Step 0 answers pass: Q1 Demand Reality names three requesters (Alice on Payments, Bleu rotation, SRE on-call), Q2 Status Quo names the current workaround step by step, Q3 Desperate Specificity names the single most blocked person and what they are blocked on, Q4 Narrowest Wedge scopes a 4-6 hour deliverable, Q5 Observation cites a direct production signal (a metric or ticket quote), and Q6 Future-fit confirms the feature still makes sense at 10x. No Step 0 halt applies. Decide the next action before drafting Step 1 requirements.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "Step 0.5",
+      "rationale": "AC-01 requires Step 0.5 to run only after Step 0 passes and before Step 1 begins. Q1-Q6 follow the labels defined in spec.md Step 0."
+    },
+    {
+      "id": "D6",
+      "desc": "Forgetful unavailable degrades to Serena-only search",
+      "input": "Run /spec after Step 0 PASS. The Forgetful MCP/tool call for memory search fails with service unavailable. Serena memories are available and return relevant prior-art notes. Decide whether Step 0.5 halts or continues.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "coverage notes",
+      "rationale": "AC-07 says memory-source failures do not halt Step 0.5; the agent must record the failed source and continue with available sources."
+    },
+    {
+      "id": "D7",
+      "desc": "Knowledge graph traversal discovers entity absent from Q1/Q3/Q4",
+      "input": "Run /spec after Step 0 PASS with ProvisionalTier 3 (Phases 1-4). Q1/Q3/Q4 mention spec.md and session logs only. exploring-knowledge-graph Phase 3 (entity discovery) surfaces ADR-057 as a connected entity relevant to prompt-eval behavior. ADR-057 does not appear in Q1, Q3, or Q4. Decide how Step 0.5 handles the discovered entity.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "connected context",
+      "rationale": "AC-08 requires graph traversal to surface connected entities not already named by Step 0 Q1/Q3/Q4. Per spec.md Step 0.5 skill invocation table and the exploring-knowledge-graph skill, entity discovery starts at Phase 3 and runs at ProvisionalTier 3 or higher."
+    },
+    {
+      "id": "D9",
+      "desc": "One blast-radius entity remains below halt threshold",
+      "input": "Run /spec in auto-mode after Step 0 PASS. Entity adjudication finds one unmatched entity marked blast-radius. No other Step 0.5 halt trigger from H6-H10 applies (no ADR removal, no protocol bypass, no large deletion, no complex refactor, no validator/linter/hook behavior change). Decide whether to emit a step0_5-halt block.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "HALT", "SKIP", "OTHER"],
+      "expected_reason_contains": "threshold",
+      "rationale": "AC-09 halts in auto-mode at three or more blast-radius entities (H11); one entity must not halt. Step 0.5 defines triggers H6-H11 only; H12/H13 do not exist."
+    },
+    {
+      "id": "D12",
+      "desc": "Step 9 check 9d passes when PriorArtBlock is populated",
+      "input": "Run the Step 9 critic after a PRD includes a PriorArtBlock with non-empty Direct prior art from memory, Connected context from exploring-knowledge-graph, and Coverage notes subsections. Decide the 9d result.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "FAIL", "OTHER"],
+      "expected_reason_contains": "PriorArtBlock",
+      "rationale": "AC-12 requires 9d to pass when the PriorArtBlock schema is present and populated."
+    },
+    {
+      "id": "D13",
+      "desc": "Step 9 check 9d fails when PriorArtBlock is removed",
+      "input": "Run the Step 9 critic after a PRD has Step 0 answers and requirements but the entire PriorArtBlock section has been removed. Decide the 9d result.",
+      "expected_verdict": "FAIL",
+      "verdict_options": ["PASS", "FAIL", "OTHER"],
+      "expected_reason_contains": "PriorArtBlock",
+      "rationale": "AC-12 requires 9d to fail when the PriorArtBlock section is absent."
+    },
+    {
+      "id": "D14",
+      "desc": "Step 3 tier upgrade triggers supplemental Phase 5 traversal that appends without replacing original subsections",
+      "input": "Run /spec where Step 0.5 classified ProvisionalTier as 3 and Phases 1-4 already ran, emitting the original PriorArtBlock with three subsections: Direct prior art from memory, Connected context from exploring-knowledge-graph, and Coverage notes. Step 3 later classifies actual tier as 4, so Phase 5 is needed. Decide whether Step 0.5 re-enters for supplemental traversal, what gets appended, AND confirm the three original subsections must be preserved unchanged.",
+      "expected_verdict": "PASS",
+      "verdict_options": ["PASS", "SKIP", "HALT", "OTHER"],
+      "expected_reason_contains": "Supplemental",
+      "rationale": "AC-10 requires a tier upgrade that needs more graph phases to run the missing phase and append a Supplemental Phase 5 block. Per spec.md Step 0.5 supplemental traversal hook, the original subsections MUST be preserved; the supplemental sub-block sits beneath them, never replaces them."
+    }
+  ]
+}

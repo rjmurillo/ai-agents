@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wait for a PR's unresolved thread count to settle at zero (REQ-009-01).
+"""Wait for a PR's unresolved thread count to settle at zero (REQ-012-01).
 
 Polls ``get_unresolved_review_threads.py`` and exits 0 only after observing
 THREE consecutive readings of ``unresolved_count == 0 AND
@@ -50,7 +50,7 @@ import time
 from pathlib import Path
 
 # How many consecutive complete-and-zero readings we require to declare
-# the PR settled. Documented in REQ-009-01 revised AC. Pinned in tests.
+# the PR settled. Documented in REQ-012-01 revised AC. Pinned in tests.
 REQUIRED_CONSECUTIVE_ZEROS = 3
 
 
@@ -248,7 +248,7 @@ def wait_for_settled_zero(
         # error per ADR-035. Surface as exit_code=2 via a synthetic
         # observation so main() returns 2, not 1.
         #
-        # PR #1989 copilot follow-up: record a real timestamp from the
+        # Pinned per PR #1989 review (copilot): record a real timestamp from the
         # resolved clock seam so the observation honors the documented
         # schema (`{"timestamp": float, ...}`). A null timestamp forced
         # every downstream consumer to handle a special case.
@@ -354,23 +354,58 @@ def _failure(reason: str, pull_request: int, observations: list[dict]) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _build_parser().parse_args(argv)
-
+    # Issue #2069 Finding A: the CLI contract is single-channel JSON on
+    # stdout for every RUN outcome (success or failure). Earlier code
+    # emitted the failure payload to stderr on invalid args while
+    # emitting success payloads to stdout, which broke stdout-parsing
+    # callers (they saw an empty body and treated the run as malformed).
+    # Every run outcome now writes JSON to stdout. Stderr carries a
+    # short human-readable message from this function on every failure
+    # path; on argparse parse-level failures (missing required args,
+    # unknown flags, bad types) argparse first writes its own usage and
+    # error text to stderr before raising SystemExit, so stderr on
+    # those paths is argparse usage plus our message. The single-channel
+    # contract is on stdout, not stderr; callers parse stdout and may
+    # ignore stderr entirely.
+    #
+    # Documented exception: `--help` (and `--version`-style argparse
+    # exits with code 0) writes argparse-formatted help text to stdout
+    # and exits 0 without emitting a JSON payload. Callers parsing
+    # stdout MUST invoke the script with real arguments, not `--help`.
+    #
+    # PR #2070 follow-up (Copilot review thread): catch SystemExit so
+    # even parse-level CLI failures emit a JSON failure payload on
+    # stdout, preserving the stdout single-channel contract for every
+    # run outcome.
+    parser = _build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+        if code == 0:
+            # argparse exits 0 for --help; honor it without emitting a
+            # failure payload (help text is already on stdout).
+            return 0
+        failure = _failure("invalid CLI arguments", 0, [])
+        print(json.dumps(failure))
+        print("error: invalid CLI arguments", file=sys.stderr)
+        return 2
     if args.pull_request <= 0:
-        print(
-            json.dumps(_failure("pull_request must be positive", args.pull_request, [])),
-            file=sys.stderr,
+        failure = _failure(
+            "pull_request must be positive", args.pull_request, [],
         )
+        print(json.dumps(failure))
+        print("error: pull_request must be positive", file=sys.stderr)
         return 2
     if args.interval_seconds <= 0 or args.max_wait_seconds <= 0:
+        failure = _failure(
+            "interval-seconds and max-wait-seconds must be positive",
+            args.pull_request,
+            [],
+        )
+        print(json.dumps(failure))
         print(
-            json.dumps(
-                _failure(
-                    "interval-seconds and max-wait-seconds must be positive",
-                    args.pull_request,
-                    [],
-                ),
-            ),
+            "error: interval-seconds and max-wait-seconds must be positive",
             file=sys.stderr,
         )
         return 2

@@ -1,0 +1,198 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1848,
+    "date": "2026-05-26",
+    "branch": "feat/install-parity-guard",
+    "startingCommit": "bca6f2d7",
+    "objective": "Build defensive infrastructure that prevents template/agent edits from drifting away from hand-maintained install copies under .claude/agents/ and .github/agents/. Add validator, tests, pre-push guard, and CI gate. Refs #2094."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena tools available in this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded at session start (handoff hook)"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (auto-loaded by context_loader hook; read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Inspected .claude/skills/github/scripts/pr/ and .claude/skills/github/scripts/issue/ before invoking PR and issue scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, and .claude/rules/* loaded as system context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS via .agents/governance referenced in AGENTS.md; ADR-035 (exit codes), REQ-003-010 (.claude no-write invariant) read inline"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded build pipeline architecture from build/scripts/build_all.py and templates/platforms/copilot-cli.yaml directly (Serena symbol search not required for this scope)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git checkout -b feat/install-parity-guard from main"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/install-parity-guard"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status confirmed before branch creation; only an unrelated session log was untracked"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "bca6f2d7"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items satisfied; validator, guard, tests, CI step, pre_pr.py wiring landed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory architecture/install-parity documenting the canonical/install split, the drift class, the validator design, and how the gate wires into pre-push, CI, and pre_pr.py"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 not invoked on .py files (correct, .py are not markdown); pre_pr.py markdown step covers all repo .md and only pre-existing issues in src/copilot-cli/skills/* fail, unrelated to this change"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See endingCommit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/build_scripts/test_validate_install_parity.py: 22 passed; python3 build/scripts/validate_install_parity.py --base main: install-parity: OK on this PR"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "TaskCreate/TaskUpdate used to track six investigation and build tasks across the session"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Retrospective deferred; the root-cause analysis is captured in the issue #2094 body which is the canonical document for this drift class"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-05-26T14:00:00Z",
+      "action": "Mapped the canonical-vs-install architecture. templates/agents/*.shared.md drives src/claude/, src/copilot-cli/agents/, src/vs-code-agents/ via build/generate_agents.py. .claude/agents/ and .github/agents/ are hand-maintained self-host copies; REQ-003-010 in build_all.py forbids the generator from writing under .claude/.",
+      "files": [
+        "build/scripts/build_all.py",
+        "build/scripts/detect_agent_drift.py",
+        "templates/platforms/copilot-cli.yaml"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T14:15:00Z",
+      "action": "Catalogued landed and open drift. Landed in main: PR #2087 (qa) and PR #2083 (orchestrator) skipped .claude/agents/ updates; analyst and critic earlier rewrites missed .github/agents/ siblings. Open: PR #2089 (architect) and PR #2084 (implementer) currently only touch templates+src.",
+      "files": []
+    },
+    {
+      "timestamp": "2026-05-26T14:30:00Z",
+      "action": "Implemented validate_install_parity.py with two parity groups: SHARED_AGENT (6 siblings) and RULE (3 siblings). Skills/commands/hooks/lib intentionally excluded; they are auto-generated by build_all and covered by build_all --check.",
+      "files": [
+        "build/scripts/validate_install_parity.py"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T14:45:00Z",
+      "action": "Wrote 22 unit tests. First run surfaced two bugs: lstrip(\"./\") was stripping the leading dot in .claude/ and .github/ paths, and the AGENTS_BLOCKLIST did not contain the bare stem captured by the regex group. Fixed both, all tests green.",
+      "files": [
+        "tests/build_scripts/test_validate_install_parity.py"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T15:00:00Z",
+      "action": "Built pre-push guard on push_guard_base; lazy imports the validator from build/scripts/ so the guard fails open on consumer-repo checkouts without the build tree. Wired into .claude/settings.json under the git push matcher.",
+      "files": [
+        ".claude/hooks/PreToolUse/invoke_install_parity_guard.py",
+        ".claude/settings.json"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T15:10:00Z",
+      "action": "Added an Install-parity check step to validate-generated-agents.yml so every PR that touches the relevant trees gates on the validator. Used env: PR_BASE_REF rather than direct ${{ }} interpolation in run: per workflow security guidance.",
+      "files": [
+        ".github/workflows/validate-generated-agents.yml"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T15:20:00Z",
+      "action": "Registered the validator in scripts/validation/pre_pr.py so contributors get the same gate locally. Always-on (not quick-skip) because the run cost is 50 ms.",
+      "files": [
+        "scripts/validation/pre_pr.py"
+      ]
+    },
+    {
+      "timestamp": "2026-05-26T15:30:00Z",
+      "action": "Verified validator catches real drift: python3 build/scripts/validate_install_parity.py --base main~10 flags analyst, critic (missing .github/agents/), orchestrator (missing .claude/, .github/, src/claude/), and qa (missing .claude/, .github/). Verified branch-local run is clean.",
+      "files": []
+    },
+    {
+      "timestamp": "2026-05-26T15:40:00Z",
+      "action": "Created issue #2094 documenting the drift class, evidence, root cause, and the defenses introduced here. Referenced from the upcoming PR.",
+      "files": []
+    },
+    {
+      "timestamp": "2026-05-26T19:45:00Z",
+      "action": "PR #2095 feedback cycle: addressed 16 bot threads. Clusters: (A) hook include_deletions=True so deletion-only parity breaks reach the validator; (B) _is_shared_agent_group accepts touched_set so template deletions still bind the parity contract (added 2 regression tests); (C) explicit --base no longer falls back to origin/main (added 2 tests asserting explicit/default behavior); (D) pre_pr.py passes --base from _resolve_branch_base_ref and fails closed when validator missing; (E) extracted CI bash logic into scripts/validation/run_install_parity_ci.py per ADR-006, fetch-depth=0 in checkout, PUSH_BEFORE_SHA fallback for push runs; (F) install-parity guard emits EVENT lines for every fail-open path (no silent degradation); (G) marketplace.json hook count 39 -> 37 to match src/copilot-cli/hooks/hooks.json. Tests: pytest tests/build_scripts tests/hooks tests/validation: 1251 passed in 5.0s.",
+      "files": [
+        "build/scripts/validate_install_parity.py",
+        ".claude/hooks/PreToolUse/invoke_install_parity_guard.py",
+        "scripts/validation/pre_pr.py",
+        "scripts/validation/run_install_parity_ci.py",
+        ".github/workflows/validate-generated-agents.yml",
+        ".github/plugin/marketplace.json",
+        "tests/build_scripts/test_validate_install_parity.py"
+      ]
+    }
+  ],
+  "endingCommit": "c6e235e6",
+  "nextSteps": [
+    "Open the PR for #2094 referencing this session log.",
+    "Follow-up PR: regenerate .claude/agents/qa.md and .claude/agents/orchestrator.md from templates/ to fix the landed drift in main.",
+    "Post review comments on open PRs #2089 (architect) and #2084 (implementer) asking the authors to include the missing .claude/agents/ and .github/agents/ siblings.",
+    "Consider an ADR amendment for REQ-003-010 that explicitly documents the install-parity boundary so the rule is not re-discovered next time."
+  ]
+}

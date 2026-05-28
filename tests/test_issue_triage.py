@@ -7,6 +7,7 @@ stale detection, missing priority label, and missing area label.
 from __future__ import annotations
 
 import json
+import subprocess
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -289,11 +290,21 @@ class TestFetchOpenIssues:
         assert run.called
 
     def test_raises_on_nonzero_exit(self):
-        completed = type(
-            "Completed", (), {"returncode": 1, "stdout": "", "stderr": "boom"},
-        )
-        with patch("scripts.issue_triage.subprocess.run", return_value=completed):
+        err = subprocess.CalledProcessError(1, ["gh"], output="", stderr="boom")
+        with patch("scripts.issue_triage.subprocess.run", side_effect=err):
             with pytest.raises(RuntimeError, match="boom"):
+                fetch_open_issues("o", "r", limit=10)
+
+    def test_raises_on_timeout(self):
+        err = subprocess.TimeoutExpired(cmd=["gh"], timeout=30)
+        with patch("scripts.issue_triage.subprocess.run", side_effect=err):
+            with pytest.raises(RuntimeError, match="timed out"):
+                fetch_open_issues("o", "r", limit=10)
+
+    def test_raises_on_missing_gh_binary(self):
+        err = FileNotFoundError(2, "No such file or directory", "gh")
+        with patch("scripts.issue_triage.subprocess.run", side_effect=err):
+            with pytest.raises(RuntimeError, match="failed to execute"):
                 fetch_open_issues("o", "r", limit=10)
 
     def test_raises_on_invalid_json(self):
@@ -301,7 +312,7 @@ class TestFetchOpenIssues:
             "Completed", (), {"returncode": 0, "stdout": "not json", "stderr": ""},
         )
         with patch("scripts.issue_triage.subprocess.run", return_value=completed):
-            with pytest.raises(RuntimeError, match="invalid JSON"):
+            with pytest.raises(RuntimeError, match="parse gh output"):
                 fetch_open_issues("o", "r", limit=10)
 
     def test_raises_on_non_list_payload(self):

@@ -379,7 +379,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - `.agents/specs/tasks/TASK-NNN-{slug}.md`
    The full PRD must be passed as input so spec-generator does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
 
-   #### Co-change checklist (REQ-009-04, REQ-009-05)
+   #### Co-change checklist (REQ-012-04, REQ-012-05)
 
    When the requirement touches a shared token (a regex pattern, an enum value, an exit-code table, a status string) that appears at more than one site, the generated `REQ-NNN-{slug}.md` MUST include a `## Co-change checklist` section listing every site. Verdict-token cascade is the canonical failure mode: a single-token addition can require three or more commits when the implementer discovers missing sites one at a time through bot review. The checklist forces discovery at spec time, not review time.
 

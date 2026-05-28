@@ -707,6 +707,28 @@ def validate_build_gates(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_spec_id_uniqueness(repo_root: Path) -> bool:
+    """Enforce unique `id:` frontmatter across spec catalog (Issue #2068).
+
+    Duplicate REQ/DESIGN/TASK IDs break traceability and any spec-graph
+    tooling that joins by ID. The README under each category already
+    documents uniqueness; this gate enforces it.
+    """
+    script = repo_root / "scripts" / "validation" / "check_spec_id_uniqueness.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_spec_id_uniqueness.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_canonical_citations(repo_root: Path) -> bool:
     """Heuristic check for uncited mirror-claims.
 
@@ -769,6 +791,50 @@ def validate_agent_drift(repo_root: Path) -> bool:
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(legacy)]
     )
+    return exit_code == 0
+
+
+def validate_install_parity(repo_root: Path) -> bool:
+    """Detect install-copy drift across SHARED_AGENT and RULE parity groups.
+
+    Wraps ``build/scripts/validate_install_parity.py``. The script exits 0
+    when the diff is clean, 1 when one or more parity groups have missing
+    siblings, and 2 on configuration errors. We treat exit 1 as a hard
+    failure; exit 2 is also a failure because the validator could not run.
+
+    This is the new gate being wired in, not a legacy script. If the
+    validator is missing from build/scripts/, fail closed (return False)
+    instead of raising MissingScriptSkip; a silent skip would defeat the
+    point of registering the gate.
+
+    Passes an explicit ``--base`` resolved by ``_resolve_branch_base_ref``.
+    Fails closed when the base cannot be resolved, so the validator never
+    falls back to its own @{push} default (which is not reliably set in CI
+    or fresh local checkouts) and never validates against an unknown base.
+    """
+    script = repo_root / "build" / "scripts" / "validate_install_parity.py"
+    if not script.exists():
+        print(
+            "[ERROR] validate_install_parity.py absent; the install-parity "
+            "gate cannot run. This is a hard failure: the gate is the "
+            "point of registering this validator.",
+            file=sys.stderr,
+        )
+        return False
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if not base_ref:
+        print(
+            "[ERROR] install-parity gate: base ref could not be resolved; "
+            "refusing to invoke validator without an explicit --base.",
+            file=sys.stderr,
+        )
+        return False
+    cmd = [sys.executable, str(script), "--base", base_ref]
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:80]:
+            print(line)
     return exit_code == 0
 
 
@@ -931,6 +997,13 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_build_gates(repo_root),
     )
 
+    # 3.75 Spec ID Uniqueness (Issue #2068)
+    run_validation(
+        "Spec ID Uniqueness",
+        state,
+        lambda: validate_spec_id_uniqueness(repo_root),
+    )
+
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
     # STRICT_CANONICAL_CHECK=1; PR #1887 retrospective Layer 4)
     run_validation(
@@ -976,6 +1049,13 @@ def main(argv: list[str] | None = None) -> int:
         state,
         lambda: validate_agent_drift(repo_root),
         skip=quick,
+    )
+
+    # 6b. Install Parity (changed-together sibling check; cheap, always on)
+    run_validation(
+        "Install Parity (agents and rules)",
+        state,
+        lambda: validate_install_parity(repo_root),
     )
 
     # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)
