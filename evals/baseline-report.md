@@ -22,7 +22,7 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 |---|---|---|---|---|---|---|
 | security | agent recall 0.786 | baseline recall 0.405 | **+0.381** | [0.111, 0.643] | YES | Agent beats naive baseline. |
 | analyst | agent recall 0.833 | baseline recall 0.917 | **-0.083** | [-0.250, 0.000] | NO | **Agent under-performs naive baseline.** |
-| reviewer-asymmetry | treatment overall 1.000 | control overall 0.550 | **+0.450** | (Fisher exact p=0.0) | YES | Treatment beats control. Driven by `critic`; `qa` and `implementer` had identical templates. |
+| reviewer-asymmetry | treatment overall 1.000 | control overall 1.000 | **0.000** | (Fisher exact p=1.0) | NO | All three agents saturated. Today's templates between `main` and `HEAD` are effectively equivalent OR the corpus is too easy to detect difference. Earlier May-9 final.json (kept in repo) showed +0.45 from a stage when templates diverged. |
 
 ## Per-spike detail
 
@@ -54,11 +54,13 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 
 | Agent | Control pass | Treatment pass | Delta | p (Fisher exact) | Significant? |
 |---|---|---|---|---|---|
-| critic | 0.500 | 1.000 | +0.500 | 0.000218 | YES |
-| implementer | 0.150 | 1.000 | **+0.850** | 0.0 | YES (largest delta in the run) |
-| qa | 1.000 | 1.000 | 0.000 | 1.0 | NO (corpus saturated; both variants always pass) |
+| critic | 1.000 | 1.000 | 0.000 | 1.0 | NO |
+| implementer | 1.000 | 1.000 | 0.000 | 1.0 | NO |
+| qa | 1.000 | 1.000 | 0.000 | 1.0 | NO |
 
-- Overall: control 0.550 vs treatment 1.000, delta **+0.450**, p < 0.05. The reviewer-asymmetry framing produces real behavioral lift on `critic` and very large lift on `implementer`. `qa` is null because the corpus is too easy for the metric, not because the prompt change had no effect.
+- **Today's overall**: control 1.000 vs treatment 1.000, delta **0.000**, p = 1.0. All three agents fully saturated. The runner's dry-run warning that "templates for qa and implementer are identical" applies to today's branch; the corpus was authored against an older template divergence and no longer discriminates.
+- **For historical context only**: the repo also contains `evals/reviewer-asymmetry-spike/runs/final.json` from 2026-05-09, which captured control 0.550 vs treatment 1.000 (delta +0.450, driven by critic +0.50 and implementer +0.85). That run reflects a template state that has since merged or converged. It is NOT today's baseline; do not cite it as such.
+- findings_count_stats (qa): control_mean 6.4 vs treatment_mean 6.6 (Mann-Whitney U, p=0.362). Qualitative findings count also shows no significant difference today.
 
 ## What this means
 
@@ -66,7 +68,7 @@ Baseline measurement: do current agent prompts beat a naive baseline on a held-o
 |---|---|---|
 | security | Yes. | The agent prompt clearly adds value. Use it; consider further specialization on the false-positive-resistance fixtures where delta is smaller. |
 | analyst | **No, not as-is.** | Agent loses to baseline. Tighten the corpus OR audit the prompt. Either change is cheap (<$1 to re-run) and required before claiming analyst evaluation is "covered". |
-| reviewer-asymmetry | Yes, for `critic` and `implementer`. | Treatment template is the change shipped in #1894; this run confirms real behavioral lift on both (critic +0.50, implementer +0.85). `qa` is null because the corpus is saturated (both variants 100%); replace fixtures with harder cases the control can plausibly fail before re-running. |
+| reviewer-asymmetry | **No, not as-is.** | Today's run: all three agents saturated (1.000 / 1.000). No detectable delta. The corpus was authored against a template divergence (May-9) that has since converged or merged. Either re-establish a control template (capture pre-merge `main` SHA) or author harder fixtures that today's saturated variants can still fail on. |
 
 ## Methodology
 
