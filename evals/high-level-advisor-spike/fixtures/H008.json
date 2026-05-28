@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "H008",
+  "policy_id": "pol-high-level-advisor-trade-off-articulation",
+  "input": "We have $200K and 3 months. Choice A: rewrite the queue layer (eliminates 3 recurring outages, takes full budget). Choice B: pay vendor X $50K to manage queue (eliminates 2 of 3 outages, frees $150K for other work). Recommend.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(B|vendor|opportunity.*cost|cheaper|freed.*capital|buy.*not.*build|focus.*differentiat|residual.*risk|operating.*cost)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

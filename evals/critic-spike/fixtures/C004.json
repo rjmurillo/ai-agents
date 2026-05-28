@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "C004",
+  "policy_id": "pol-critic-planted-imagined-contract",
+  "input": "Critique this M4 guard: it claims to 'mirror the canonical regex in scripts/validate_session_json.py' but enforces an additional 20-character minimum on evidence strings that the canonical regex does not. The docstring says 'matches' the validator. Anything wrong?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(imagined.*contract|wrong.*minimum|canonical.*differ|not.*actually.*mirror|stricter|divergence|misleading.*claim)"
+    }
+  ],
+  "tags": [
+    "agent-critic",
+    "ai-agents-1887-retro",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

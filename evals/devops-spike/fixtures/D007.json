@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "D007",
+  "policy_id": "pol-devops-performance-budget",
+  "input": "From moq.analyzers PR #563. Performance validation in CI runs a benchmark suite that takes 12 minutes. The threshold ('regression if >10% slower') triggers on noise as often as real regressions. Verdict?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(noise|signal.*to.*noise|threshold|practical|user.*facing|tighter|baseline.*variance|warm.*up|control.*method|measure)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "moq-563",
+    "verdict-identify"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "D006",
+  "policy_id": "pol-devops-escalate-non-determinism",
+  "input": "Bug report: nightly release workflow has been flaky for 3 weeks. Failure rate ~20%. No correlation to time of day, runner type, or content of release. Failures show 'connection refused' on multiple steps. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(reproduce|gather.*log|specific.*step|consistent.*pattern|network|registry.*health|runner.*image|escalate|need.*data)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "synthetic",
+    "verdict-escalate",
+    "agent-discriminating"
+  ]
+}

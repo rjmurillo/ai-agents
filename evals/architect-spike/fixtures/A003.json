@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "A003",
+  "policy_id": "pol-architect-pattern-violation-string",
+  "input": "From moq.analyzers issue #981. Three locations use string-based name matching (Name == 'Action') instead of symbol-based comparison (SymbolEqualityComparer + KnownSymbols.Action). The project mandate says symbol-based; the string approach silently misfires when user code shadows a system name. What is the architectural failure mode and the smallest fix shape?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(symbol.*equal|KnownSymbol|name.*collision|shadow|namespace|SymbolEqualityComparer|IsInstanceOf|identity|reference)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "moq-981",
+    "verdict-identify"
+  ]
+}

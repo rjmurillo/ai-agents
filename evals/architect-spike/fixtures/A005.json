@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "A005",
+  "policy_id": "pol-architect-boundary-leak-validator",
+  "input": "From ai-agents PR #760 (53 commits). The local pre-commit hook runs a deprecated Generate-Skills.ps1 that is permissive; CI runs the upstream validate-skill.py which is strict. Skills pass locally then fail in CI. What is the architectural smell, and what is the right boundary to draw?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(canonical|single.*source|drift|validator.*author|upstream|align|deduplicat|one.*place|truth)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "ai-agents-760",
+    "verdict-identify"
+  ]
+}

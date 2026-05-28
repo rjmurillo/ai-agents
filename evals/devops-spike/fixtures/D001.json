@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "D001",
+  "policy_id": "pol-devops-action-pin-floating",
+  "input": "Review this workflow change: adds a new step `uses: actions/checkout@v4`. Project policy pins all third-party actions to commit SHA. Verdict?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(pin.*SHA|commit.*SHA|float|tag.*mutable|security|supply.*chain|@v4)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "ai-agents-policy",
+    "verdict-identify"
+  ]
+}

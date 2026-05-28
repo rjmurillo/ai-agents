@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "A008",
+  "policy_id": "pol-architect-abstraction-premature",
+  "input": "Proposed change: extract a Strategy pattern for handling one current implementation of a configuration parser, in anticipation of supporting more formats later. There is no second implementation yet and no concrete request for one. Pattern would add an interface, two type registrations, and a factory. Decide: extract now or defer?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(YAGNI|premature|second.*case|Rule of Three|wait.*until.*needed|speculative|defer|over.*engineer|one.*implementation)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

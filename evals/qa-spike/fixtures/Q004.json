@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "Q004",
+  "policy_id": "pol-qa-boundary-test-gap",
+  "input": "PR caps max retries at 5: `for attempt in range(max_retries):` where `max_retries = 5`. Tests cover 0 retries and 5 retries (both pass). Anything missing?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(boundary|off.*by.*one|6.*retries|negative.*retries|max.*plus.*one|range.*exclusive|edge|fence)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "H002",
+  "policy_id": "pol-high-level-advisor-blind-spot-survey",
+  "input": "We just shipped a major refactor of the auth subsystem. All tests pass, CI green, deployment successful. CTO asks: what could still bite us in the next 30 days?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(monitor|observability|edge.*case|production.*traffic|gradual.*rollout|canary|feature.*flag|rollback|unknown.*unknown|blast)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

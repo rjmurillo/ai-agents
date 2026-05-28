@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "Q002",
+  "policy_id": "pol-qa-status-claim-verify",
+  "input": "PR description says 'Tests added: 12 new test cases for the auth flow. Coverage now 95 percent on auth.py.' Diff under tests/ shows 4 new test cases. Verdict?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(claim.*mismatch|12.*vs.*4|not.*supported|verify.*coverage|run.*coverage|status.*untrue|discrepancy|inflate)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "ai-agents-pattern",
+    "verdict-identify"
+  ]
+}

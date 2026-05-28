@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "A006",
+  "policy_id": "pol-architect-framework-rationale",
+  "input": "From ai-agents PR #1887. A shared push-guard framework hosts 4 guards (markdownlint, marketplace counts, session-log placeholders, PR description vs diff). Dispatcher has 1 MiB stdin cap, command-shape verification, git diff with ACMR filter + fallback chain, glob filtering, structured BLOCKED output, fail-open on infrastructure errors. Is the framework complexity justified for 4 guards?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(four.*guard|threshold.*reuse|three.*or.*more|amortiz|standardiz|future.*guard|DRY|consistent.*shape)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "ai-agents-1887",
+    "verdict-identify"
+  ]
+}

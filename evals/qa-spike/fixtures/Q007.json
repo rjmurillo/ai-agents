@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "Q007",
+  "policy_id": "pol-qa-escalate-vague-pr-test-plan",
+  "input": "PR test plan says: 'Tests added'. Diff has 200 lines of new code; tests/ adds 2 lines. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(scope|specific.*tests|what.*tested|missing.*detail|return.*for.*more|verify|insufficient.*evidence)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

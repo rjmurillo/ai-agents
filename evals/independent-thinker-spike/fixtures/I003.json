@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "I003",
+  "policy_id": "pol-independent-thinker-counter-evidence-platform",
+  "input": "Team consensus: 'We should always use Kubernetes for greenfield services.' Provide a counter-position with evidence.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(operational.*cost|over.*kill|Lambda|Cloud.*Run|ECS|managed|complexity|YAGNI|specific.*workload|small.*team|when.*not)"
+    }
+  ],
+  "tags": [
+    "agent-independent-thinker",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

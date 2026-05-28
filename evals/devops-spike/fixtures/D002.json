@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "D002",
+  "policy_id": "pol-devops-concurrency-missing",
+  "input": "Review this workflow: trigger on pull_request, runs 12-minute integration test. No concurrency block. Multiple commits per PR run in parallel. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(concurrency|cancel.*in.*progress|group|cost|wasted|cancel-in-progress|previous.*run)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

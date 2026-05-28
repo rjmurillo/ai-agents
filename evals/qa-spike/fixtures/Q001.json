@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "Q001",
+  "policy_id": "pol-qa-edge-case-find",
+  "input": "Code under test: `def avg(values): return sum(values) / len(values)`. What is missing?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(empty.*list|divide.*by.*zero|len.*zero|None|nan|negative|integer.*overflow|edge.*case)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

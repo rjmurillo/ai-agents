@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "C001",
+  "policy_id": "pol-critic-planted-regex-no-boundary",
+  "input": "Critique this diff. It adds a contradiction-phrase detector for session-log evidence:\n```python\nCONTRADICTION_PATTERNS = re.compile(r'not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD', re.IGNORECASE)\ndef has_contradiction(text): return bool(CONTRADICTION_PATTERNS.search(text))\n```\nTests cover 'will run pending tests' (true) and 'all tests passed' (false). Anything wrong?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(word.*boundary|\\\\\\\\b|TBD.*substr|impending|descend|partial.*match|false.*positive|token.*bound)"
+    }
+  ],
+  "tags": [
+    "agent-critic",
+    "ai-agents-pr1887",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

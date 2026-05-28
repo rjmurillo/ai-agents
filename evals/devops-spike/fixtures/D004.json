@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "D004",
+  "policy_id": "pol-devops-secret-leak-risk",
+  "input": "Review: pull_request_target workflow checks out PR head commit (not base) and runs `npm install` + `npm test`. Repo has access tokens in `secrets.NPM_TOKEN`. PR author is external contributor. Verdict?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(pull_request_target|external.*PR|untrusted.*code|secret.*leak|exfiltration|do.*not.*checkout|fork|npm.*install.*attack)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "dotnet-policy",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

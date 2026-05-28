@@ -1,0 +1,23 @@
+{
+  "id": "F019",
+  "policy_id": "pol-analyst-escalate-cross-cutting",
+  "input": "Request from ai-agents PR #1724 (paraphrased). 'Issue #1703 documents 80+ retrospectives with recurring failure patterns. I want to add 5 Python lifecycle hooks at once to address them all:\n(1) SessionStart hook to auto-load HANDOFF.md (fixes 95.8% context reading failure),\n(2) PreToolUse hook to block false completion claims without test evidence (fixes 44 false completion mentions),\n(3) PostToolUse hook to checkpoint plan/TODO state after edits (fixes continuation reset after compaction),\n(4) PreCompact hook to snapshot WIP before context compaction,\n(5) Stop hook to auto-generate session retrospective.\nAll five share a hook_utilities/ module. Should I land this as one PR?'",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(land.*incrementally|stack.*per.*hook|risk.*blast|split|five.*hook|one.*at.*time|land.*M1|integration.*risk|harder.*review)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-1724",
+    "cross-cutting",
+    "verdict-escalate"
+  ],
+  "schemaVersion": 1
+}

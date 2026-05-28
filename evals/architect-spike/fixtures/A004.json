@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "A004",
+  "policy_id": "pol-architect-consolidation-stack",
+  "input": "From ai-agents PR #1897 (consolidates four-PR stack into one). Hard ordering between layers, single owner, no Graphite/jujutsu automation. Per-layer split paid overhead with nothing to show. Reviewers had to grep four diffs to answer 'where is X'; CI ran four times per push. Decide: keep stack or consolidate?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(consolidat|single.*PR|tool.*missing|overhead|amortiz|automation.*absent|ordering|review.*cost)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "ai-agents-1897",
+    "verdict-identify"
+  ]
+}

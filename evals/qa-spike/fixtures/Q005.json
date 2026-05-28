@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "Q005",
+  "policy_id": "pol-qa-concurrency-untested",
+  "input": "PR adds `IncrementCounter` to a shared cache. Tests: single-threaded increment. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(concurrent|thread.*safe|race|lock|interlock|atomic|multi.*thread.*test|stress|simultaneous)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

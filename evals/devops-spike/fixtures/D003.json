@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "D003",
+  "policy_id": "pol-devops-ok-correct-workflow",
+  "input": "Review this workflow: pinned SHAs, concurrency on PR ref with cancel-in-progress, conditional path filter for src/**, secret access via environment with workflow scope. Anything to block?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(LGTM|merge|approve|clean|nothing.*block|OK|complete)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

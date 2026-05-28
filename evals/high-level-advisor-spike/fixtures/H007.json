@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "H007",
+  "policy_id": "pol-high-level-advisor-blind-spot-success-story",
+  "input": "We hit 99.9% uptime for two consecutive quarters. Engineering proposes celebrating with a team offsite. CTO wants the strategic read. What does the streak hide that we should look at?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(survivor.*bias|lucky|hidden.*risk|drift|complacency|incident.*muscle|exercise.*recovery|game.*day|chaos|untested)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

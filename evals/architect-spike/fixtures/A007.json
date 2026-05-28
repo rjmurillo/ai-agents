@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "A007",
+  "policy_id": "pol-architect-ok-no-architectural-change",
+  "input": "Code review request: a 3-line patch that renames a private helper from `_get` to `_fetch` inside one module. No callers outside the module. No public API change. Does this need architectural review?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(private|internal|no.*architectural|rename.*local|safe|no.*review.*needed|nothing.*to.*decide|local.*change)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "synthetic",
+    "verdict-ok"
+  ]
+}
