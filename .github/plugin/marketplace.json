@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "project-toolkit",
-      "description": "24 agent definitions, 82 reusable skills, 46 lifecycle hooks for GitHub Copilot CLI - generated from Claude canonical sources",
+      "description": "24 agent definitions, 82 reusable skills, 48 lifecycle hooks for GitHub Copilot CLI - generated from Claude canonical sources",
       "source": "./src/copilot-cli"
     }
   ]
