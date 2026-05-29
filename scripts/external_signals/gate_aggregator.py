@@ -81,8 +81,11 @@ def aggregate(signals: Iterable[Signal]) -> tuple[str, str]:
        passing/warning**. If every signal is an ``llm`` judgment, the result
        is forced to ``NEEDS_REVIEW`` with reason ``closed-loop``. This is the
        core rule from issue #1855.
-    3. Any WARN/NEEDS_REVIEW downgrades a clean PASS to WARN.
-    4. Otherwise PASS.
+    3. Any UNKNOWN verdict from any signal is treated as NEEDS_REVIEW. An
+       UNKNOWN verdict means the tool could not determine a result; allowing it
+       to silently resolve to PASS is a correctness and security risk.
+    4. Any WARN/NEEDS_REVIEW downgrades a clean PASS to WARN.
+    5. Otherwise PASS.
     """
 
     sigs = list(signals)
@@ -106,6 +109,14 @@ def aggregate(signals: Iterable[Signal]) -> tuple[str, str]:
     ]
     if not external_known:
         return "NEEDS_REVIEW", "closed-loop:external-signal-inconclusive"
+
+    # Any UNKNOWN verdict (from any signal kind) is treated as NEEDS_REVIEW.
+    # An UNKNOWN means the tool could not produce a definitive result; silently
+    # ignoring it would allow a gate to PASS when a validator failed to run.
+    unknown_sigs = [s for s in sigs if s.verdict == "UNKNOWN"]
+    if unknown_sigs:
+        who = ",".join(f"{s.kind}:{s.name}" for s in unknown_sigs)
+        return "NEEDS_REVIEW", f"unknown-verdict-from:{who}"
 
     if any(s.verdict in _WARNING for s in sigs):
         return "WARN", "warnings-present"

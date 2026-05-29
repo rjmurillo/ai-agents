@@ -87,3 +87,35 @@ def test_cli_bad_signal_returns_two(capsys: pytest.CaptureFixture[str]):
     assert rc == 2
     err = capsys.readouterr().err
     assert "signal must be" in err
+
+
+def test_unknown_llm_verdict_triggers_needs_review():
+    """An LLM UNKNOWN verdict must not silently resolve to PASS."""
+    sigs = _parse("external:pytest=PASS", "llm:security=UNKNOWN")
+    verdict, reason = ga.aggregate(sigs)
+    assert verdict == "NEEDS_REVIEW"
+    assert "llm:security" in reason
+
+
+def test_unknown_external_verdict_with_no_other_external_triggers_needs_review():
+    """An external UNKNOWN and only LLM PASS -> closed-loop path."""
+    sigs = _parse("external:codeql=UNKNOWN", "llm:qa=PASS")
+    verdict, reason = ga.aggregate(sigs)
+    assert verdict == "NEEDS_REVIEW"
+
+
+def test_unknown_external_alongside_passing_external_triggers_needs_review():
+    """Even when one external passes, any UNKNOWN signal blocks PASS."""
+    sigs = _parse("external:pytest=PASS", "external:codeql=UNKNOWN", "llm:qa=PASS")
+    verdict, reason = ga.aggregate(sigs)
+    assert verdict == "NEEDS_REVIEW"
+    assert "codeql" in reason
+
+
+def test_multiple_unknown_signals_all_named_in_reason():
+    """All UNKNOWN signals are named in the reason string."""
+    sigs = _parse("external:pytest=PASS", "llm:critic=UNKNOWN", "llm:qa=UNKNOWN")
+    verdict, reason = ga.aggregate(sigs)
+    assert verdict == "NEEDS_REVIEW"
+    assert "llm:critic" in reason
+    assert "llm:qa" in reason
