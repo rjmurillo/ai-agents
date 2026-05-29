@@ -697,11 +697,27 @@ class TestExtensionBoundary:
         result = extract_mentioned_files(desc)
         assert result == []
 
+    def test_underscore_segment_does_not_extract_py(self) -> None:
+        """`file.py._bak` has a dotted-underscore segment after the extension.
+
+        The `_` character in `\\.[A-Za-z0-9_]` rejects this case so that
+        `file.py._bak` does not produce `file.py` as a false positive
+        (issue #1881 review feedback, thread 3324919533).
+        """
+        desc = "- file.py._bak"
+        result = extract_mentioned_files(desc)
+        assert result == []
+
     def test_double_extension_example_does_not_extract_json(self) -> None:
-        """`config.json.example` is a template, not the `.json` file."""
+        """`config.json.example` is a template, not the `.json` file.
+
+        Assert the full result is empty so any spurious token from the same
+        input is caught, not just the specific shorter form (issue #1881
+        review feedback).
+        """
         desc = "See `config.json.example` for the shape."
         result = extract_mentioned_files(desc)
-        assert "config.json" not in result
+        assert result == []
 
     @pytest.mark.parametrize(
         "desc",

@@ -57,16 +57,17 @@ _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
 #   - path separators (`/`, `\`): `path/to/file.py/extra` -> `path/to/file.py`
 # A bare period (`.`) is intentionally NOT rejected so sentence-ending
 # periods (`Updated foo.json. Some comment.`) still match. But a period
-# followed by an alphanumeric is a further dotted segment (a real longer
-# filename), so it IS rejected via the `\.[A-Za-z0-9]` alternative
-# (issue #1881):
+# followed by an alphanumeric or underscore is a further dotted segment (a
+# real longer filename), so it IS rejected via the `\.[A-Za-z0-9_]`
+# alternative (issue #1881; `_` added per review feedback):
 #   - double extension: `runs.json.bak` -> [] (file is `.bak`, not `.json`)
 #   - double extension: `module.py.orig` -> [] (file is `.orig`)
+#   - underscore segment: `file.py._bak` -> [] (file is `._bak`)
 # This preserves the sentence-period carve-out because `.` followed by a
-# space or end-of-string does not match `\.[A-Za-z0-9]`. A genuine longer
+# space or end-of-string does not match `\.[A-Za-z0-9_]`. A genuine longer
 # filename whose LAST segment is a recognized extension still matches via
 # the greedy body group (`tsconfig.spec.json` -> `tsconfig.spec.json`).
-_EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\]|\.[A-Za-z0-9])"
+_EXT_BOUNDARY = r"(?![A-Za-z0-9_/\\]|\.[A-Za-z0-9_])"
 
 # Default label name that bypasses CRITICAL description-validation failures.
 # Mirrors the existing 'commit-limit-bypass' pattern in pr-validation.yml.
