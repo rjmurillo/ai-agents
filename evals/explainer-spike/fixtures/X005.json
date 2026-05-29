@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "X005",
+  "policy_id": "pol-explainer-escalate-no-audience",
+  "input": "Explainer request: 'Write the docs.' Decide.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(audience|who.*read|topic|scope|where.*publish|format|clarif|what.*docs)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

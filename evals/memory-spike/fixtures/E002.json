@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "E002",
+  "policy_id": "pol-memory-tier-1-retrieval-first",
+  "input": "About to research how this repo handles ARM runners. First action: search the web, query Forgetful, ask the user, or read .agents/architecture?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(memory.*first|search.*existing|tier 1|semantic|memory.*before|read.*memories|Serena|prior.*decision)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "ai-agents-pattern",
+    "verdict-identify"
+  ]
+}

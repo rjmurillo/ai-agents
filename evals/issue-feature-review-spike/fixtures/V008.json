@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "V008",
+  "policy_id": "pol-issue-feature-review-from-ai-agents-2080",
+  "input": "Feature: 'Convert .claude/agents/retrospective.md to .claude/skills/retrospective/' (ai-agents issue #2080). Body says: 'This is the shape of a skill, not an autonomous agent.' Cost: medium (workflow migration). Value: lifecycle hooks gain access to retrospective via Skill tool. Verdict?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(approve|skill.*shape|right.*conversion|lifecycle.*hook|invoke|migration|ship|good.*fit)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "ai-agents-2080",
+    "verdict-identify"
+  ]
+}

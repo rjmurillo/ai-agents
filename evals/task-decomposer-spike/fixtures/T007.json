@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "T007",
+  "policy_id": "pol-task-decomposer-complexity-sizing",
+  "input": "Task: 'Add a new GraphQL query field `recentLogins`.' First-glance size: small (1 day). What hidden complexity might bump this to 3-5 days?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(N\\\\+1|schema.*change|auth|cache.*invalidat|breaking.*change|deprecation|backward|test.*ground|client.*migrate)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

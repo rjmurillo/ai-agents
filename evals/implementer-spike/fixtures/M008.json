@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "M008",
+  "policy_id": "pol-implementer-atomic-commits",
+  "input": "Implementation request: 'Refactor the queue module to use the new bounded buffer pattern; add 5 new tests for backpressure; update the README.' Plan commit shape?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(atomic|separate.*commit|refactor.*commit|test.*commit|docs.*commit|<=5.*files|split|stage)"
+    }
+  ],
+  "tags": [
+    "agent-implementer",
+    "ai-agents-pattern",
+    "verdict-identify"
+  ]
+}

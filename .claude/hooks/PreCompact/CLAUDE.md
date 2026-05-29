@@ -1,28 +1,29 @@
-# PreCompact Hook
+# PreCompact Hooks
 
-## Purpose
+Hooks in this directory run before Claude Code compacts the conversation context.
 
-Checkpoints work-in-progress state before context compaction occurs, enabling
-seamless session resumption after context is compressed.
+## invoke_compact_checkpoint.py
 
-## Hooks
+Snapshots work-in-progress state before context is lost to compaction.
 
-### invoke_compact_checkpoint.py
+**Captures**: Session log path, open TODO items, current branch, resume context.
 
-- **Type**: PreCompact (non-blocking)
-- **Exit Codes**: Always 0 (fail-open)
-- **Bypass**: N/A (always runs, always succeeds)
+**Output**: Resume context string printed to stdout (injected into post-compaction context).
 
-### Behavior
+**Exit Codes**: Always 0 (fail-open, never blocks compaction).
 
-1. Captures current branch, session log path, and open work items
-2. Writes checkpoint to `.agents/.hook-state/pre-compact-{date}-{time}.json`
-3. Prints resume context string to stdout (injected into compacted context)
+**Bypass**:
 
-### Output (stdout)
+- Skips with exit 0 when `skip_if_consumer_repo()` returns true (the
+  downstream `ai-agents` install bundles this hook but consumer repos that
+  vendor the install do not need to checkpoint our internal state).
+- On checkpoint write failure (full disk, read-only mount, permission error),
+  logs a `[WARNING]` to stderr and continues. Resume context is still printed
+  to stdout for the post-compaction session.
+- On any unhandled exception, logs a `[WARNING]` to stderr and exits 0
+  (fail-open; never blocks compaction).
 
-A single-line resume context string, e.g.:
+## References
 
-```text
-Compaction occurred at 14:32:15. Branch: feature/1703-hooks. Session: 2026-04-20-session-01.json. Open items: 3
-```
+- Issue #1703 (lifecycle hook infrastructure)
+- ADR-008 (protocol automation via lifecycle hooks)

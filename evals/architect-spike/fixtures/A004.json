@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "A004",
+  "policy_id": "pol-architect-force-alternatives-boundary",
+  "input": "Design review: 'Add a new session-state microservice. Owns session lifecycle. HTTP API. Replaces the in-process session map.' Before approving, list 2 alternative boundary placements (e.g., library, sidecar, sharded in-process).",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(alternative|library|sidecar|in.*process|sharded|2\\.|second.*option|considered.*alternative)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

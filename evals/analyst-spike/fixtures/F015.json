@@ -1,0 +1,24 @@
+{
+  "id": "F015",
+  "policy_id": "pol-analyst-schema-regression-p0",
+  "input": "Bug report from ai-agents PR #1795 (paraphrased). P0 customer impact: plugin install fails for every consumer with:\n\n```\nValidation errors: hooks: Invalid input, agents: Invalid input\n```\n\nPR #1773 introduced three plugin manifest files with invalid schema. The manifests passed local pre-commit but failed in the consumer plugin framework. What is the most likely root cause of the validator gap, and what deterministic CI gate would prevent this regression class from shipping again?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(schema|JSON.*Schema|validator|missing.*field|drift|version|test.*against.*consumer|round.*trip|CI.*gate|deterministic)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-1795",
+    "schema-regression",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

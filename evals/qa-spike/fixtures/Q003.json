@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "Q003",
+  "policy_id": "pol-qa-force-alternatives-strategy",
+  "input": "Test review: PR adds tests for validate_email(text) using a hand-written enum of 12 valid strings + 8 invalid strings. List 2 alternative test strategies that would catch a different class of failure.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(property.*based|hypothesis|fuzz|RFC|regression.*corpus|integration|alternative|2\\.|generative|edge.*case.*systematic)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

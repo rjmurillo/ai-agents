@@ -25,7 +25,7 @@ differences in critic, qa, and implementer agents vs the origin/main control?
 
 ## Layout
 
-```
+```text
 evals/reviewer-asymmetry-spike/
   fixtures/
     F001-critic-planted-issues.json     - regex-token-boundary checklist vocab
@@ -73,7 +73,7 @@ python3 scripts/eval/eval-reviewer-asymmetry.py --dry-run
 # Live run (10 trials × 6 fixtures × 2 conditions = 120 API calls)
 python3 scripts/eval/eval-reviewer-asymmetry.py \
     --trials 10 \
-    --output evals/reviewer-asymmetry-spike/runs/<run-id>.json
+    --output evals/reviewer-asymmetry-spike/runs/"<run-id>".json
 ```
 
 Exit codes:
@@ -98,7 +98,7 @@ See `reports/final-report.md` for the full breakdown.
 
 ## Cross-references
 
-- Plan: PR #1894 — `feat(agents,github-skill): reviewer-stronger asymmetry + verifiable status claims`
+- Plan: PR #1894 - `feat(agents,github-skill): reviewer-stronger asymmetry + verifiable status claims`
 - Retrospective: `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`
 - Eval framework: ADR-057 (prompt-behavioral evaluation)
 - Sister eval: `evals/security-spike/` (agent-vs-baseline corpus)

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "R001",
+  "policy_id": "pol-roadmap-outcome-not-output",
+  "input": "Roadmap item: 'Q1: launch new admin dashboard.' Reframe as outcome.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(outcome|reduce.*time|self.*serve|operation.*KPI|tickets.*decrease|admin.*efficien|measurable.*goal)"
+    }
+  ],
+  "tags": [
+    "agent-roadmap",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

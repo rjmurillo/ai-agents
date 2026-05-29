@@ -1,100 +1,228 @@
 #!/usr/bin/env python3
-"""Tests for invoke_compact_checkpoint.py (PreCompact hook)."""
+"""Tests for PreCompact/invoke_compact_checkpoint.py.
+
+Covers:
+- Checkpoint file creation with correct structure
+- Resume context stdout output
+- Open item extraction from session logs
+- Git branch detection
+- Fail-open on git errors
+- Consumer repo skip
+"""
+
+from __future__ import annotations
 
 import json
 import sys
-import tempfile
-import unittest
-from datetime import UTC, datetime
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "PreCompact"))
 
-import invoke_compact_checkpoint
+import invoke_compact_checkpoint  # noqa: E402
 
 
-class TestCompactCheckpoint(unittest.TestCase):
-    """Test PreCompact checkpoint hook."""
+@pytest.fixture
+def project_tree(tmp_path: Path) -> Path:
+    """Create a minimal project directory tree with session log."""
+    agents = tmp_path / ".agents"
+    agents.mkdir()
+    sessions = agents / "sessions"
+    sessions.mkdir()
 
-    def test_tty_stdin_exits_zero(self):
-        with patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            result = invoke_compact_checkpoint.main()
-            self.assertEqual(result, 0)
-
-    def test_creates_checkpoint_file(self):
-        """Should create checkpoint JSON in .hook-state."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            sessions_dir = tmp_path / ".agents" / "sessions"
-            sessions_dir.mkdir(parents=True)
-            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-            session = sessions_dir / f"{today}-session-01.json"
-            session.write_text(json.dumps({"work": ["task A", "task B"]}))
-
-            with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_compact_checkpoint, "get_project_directory", return_value=tmp_path):
-                    with patch.object(invoke_compact_checkpoint, "get_current_branch", return_value="feature/1703"):
-                        with patch("sys.stdout", new_callable=StringIO) as mock_out:
-                            result = invoke_compact_checkpoint.main()
-                            self.assertEqual(result, 0)
-
-                            # Checkpoint file exists
-                            hook_state = tmp_path / ".agents" / ".hook-state"
-                            checkpoints = list(hook_state.glob("pre-compact-*.json"))
-                            self.assertEqual(len(checkpoints), 1)
-
-                            # Content is valid
-                            data = json.loads(checkpoints[0].read_text())
-                            self.assertEqual(data["branch"], "feature/1703")
-                            self.assertIn("session", data)
-
-                            # Resume context printed to stdout
-                            output = mock_out.getvalue()
-                            self.assertIn("feature/1703", output)
-                            self.assertIn("Compaction occurred", output)
-
-    def test_fail_open_on_git_error(self):
-        """Should not crash if git is unavailable."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-
-            with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_compact_checkpoint, "get_project_directory", return_value=tmp_path):
-                    with patch("subprocess.run", side_effect=FileNotFoundError):
-                        with patch("sys.stdout", new_callable=StringIO):
-                            result = invoke_compact_checkpoint.main()
-                            self.assertEqual(result, 0)
-
-    def test_no_project_dir_exits_zero(self):
-        with patch("sys.stdin", StringIO("")):
-            with patch.object(invoke_compact_checkpoint, "get_project_directory", return_value=None):
-                result = invoke_compact_checkpoint.main()
-                self.assertEqual(result, 0)
-
-    def test_detached_head_returns_sentinel(self):
-        """git branch --show-current is empty in detached HEAD; must not be ''."""
-        from subprocess import CompletedProcess
-
-        fake = CompletedProcess(args=[], returncode=0, stdout="\n", stderr="")
-        with patch("subprocess.run", return_value=fake):
-            self.assertEqual(invoke_compact_checkpoint.get_current_branch(), "detached")
-
-    def test_branch_name_returned_when_present(self):
-        from subprocess import CompletedProcess
-
-        fake = CompletedProcess(args=[], returncode=0, stdout="feature/1703\n", stderr="")
-        with patch("subprocess.run", return_value=fake):
-            self.assertEqual(invoke_compact_checkpoint.get_current_branch(), "feature/1703")
-
-    def test_subprocess_error_returns_unknown(self):
-        with patch("subprocess.run", side_effect=FileNotFoundError("no git")):
-            self.assertEqual(invoke_compact_checkpoint.get_current_branch(), "unknown")
+    session_log = sessions / "2026-01-01-session-001.json"
+    session_data = {
+        "objective": "Implement feature X",
+        "work": [
+            {"description": "Write implementation", "status": "in_progress"},
+            {"description": "Add tests", "status": "pending"},
+            {"description": "Update docs", "status": "done"},
+        ],
+    }
+    session_log.write_text(json.dumps(session_data, indent=2), encoding="utf-8")
+    return tmp_path
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestExtractOpenItems:
+    """Test _extract_open_items helper."""
+
+    def test_extracts_non_done_items(self, tmp_path: Path) -> None:
+        log = tmp_path / "session.json"
+        log.write_text(
+            json.dumps({
+                "work": [
+                    {"description": "Task A", "status": "in_progress"},
+                    {"description": "Task B", "status": "done"},
+                    {"description": "Task C", "status": "pending"},
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        items = invoke_compact_checkpoint._extract_open_items(log)
+        assert len(items) == 2
+        assert "Task A" in items
+        assert "Task C" in items
+
+    def test_handles_string_work_items(self, tmp_path: Path) -> None:
+        log = tmp_path / "session.json"
+        log.write_text(
+            json.dumps({"work": ["string item 1", "string item 2"]}),
+            encoding="utf-8",
+        )
+
+        items = invoke_compact_checkpoint._extract_open_items(log)
+        assert len(items) == 2
+
+    def test_handles_invalid_json(self, tmp_path: Path) -> None:
+        log = tmp_path / "bad.json"
+        log.write_text("not json", encoding="utf-8")
+
+        items = invoke_compact_checkpoint._extract_open_items(log)
+        assert items == []
+
+    def test_handles_missing_file(self, tmp_path: Path) -> None:
+        items = invoke_compact_checkpoint._extract_open_items(
+            tmp_path / "nonexistent.json"
+        )
+        assert items == []
+
+
+class TestGetCurrentBranch:
+    """Test _get_current_branch helper."""
+
+    def test_returns_branch_name(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 0
+            mock_run.return_value.stdout = "feature/test-branch\n"
+
+            result = invoke_compact_checkpoint._get_current_branch()
+            assert result == "feature/test-branch"
+
+    def test_returns_unknown_on_error(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            mock_run.return_value.stdout = ""
+
+            result = invoke_compact_checkpoint._get_current_branch()
+            assert result == "(unknown)"
+
+    def test_returns_unknown_on_os_error(self) -> None:
+        with patch("subprocess.run", side_effect=OSError("no git")):
+            result = invoke_compact_checkpoint._get_current_branch()
+            assert result == "(unknown)"
+
+
+class TestWriteCheckpoint:
+    """Test _write_checkpoint function."""
+
+    def test_creates_checkpoint_file(self, tmp_path: Path) -> None:
+        (tmp_path / ".agents").mkdir()
+        invoke_compact_checkpoint._write_checkpoint(
+            str(tmp_path),
+            "2026-01-01-session-001.json",
+            "2026-01-01T10:00:00+00:00",
+            "feature/test",
+            ["Task A", "Task B"],
+            "Resume context here",
+        )
+
+        checkpoint_dir = tmp_path / ".agents" / ".hook-state"
+        assert checkpoint_dir.exists()
+        files = list(checkpoint_dir.glob("pre-compact-*.json"))
+        assert len(files) == 1
+
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+        assert data["session_log"] == "2026-01-01-session-001.json"
+        assert data["branch"] == "feature/test"
+        assert len(data["open_items"]) == 2
+
+
+class TestMain:
+    """Test main() function."""
+
+    def test_skip_consumer_repo(self) -> None:
+        with patch.object(
+            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=True
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_compact_checkpoint.main()
+            assert exc_info.value.code == 0
+
+    def test_outputs_resume_context(
+        self, project_tree: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        session_log = list(
+            (project_tree / ".agents" / "sessions").glob("*.json")
+        )[0]
+
+        with patch.object(
+            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "get_project_directory",
+            return_value=str(project_tree),
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "get_recent_session_log",
+            return_value=session_log,
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "_get_current_branch",
+            return_value="feature/test",
+        ):
+            invoke_compact_checkpoint.main()
+
+        captured = capsys.readouterr()
+        assert "Pre-Compaction Checkpoint" in captured.out
+        assert "feature/test" in captured.out
+
+    def test_handles_no_session_log(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        (tmp_path / ".agents").mkdir()
+
+        with patch.object(
+            invoke_compact_checkpoint, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "get_recent_session_log",
+            return_value=None,
+        ), patch.object(
+            invoke_compact_checkpoint,
+            "_get_current_branch",
+            return_value="main",
+        ):
+            invoke_compact_checkpoint.main()
+
+        captured = capsys.readouterr()
+        assert "Pre-Compaction Checkpoint" in captured.out
+
+
+class TestFailOpen:
+    """Test fail-open behavior of the script wrapper."""
+
+    def test_exception_exits_zero(self) -> None:
+        """The wrapper must swallow internal errors and exit 0.
+
+        Patching ``main()`` to raise lets us assert the ``__main__`` block
+        catches the exception, prints a warning, and exits 0. Testing
+        ``main()`` directly would only validate ``main`` itself, not the
+        fail-open contract Claude Code relies on.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_compact_checkpoint, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr

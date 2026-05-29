@@ -1,0 +1,22 @@
+{
+  "id": "F007",
+  "policy_id": "pol-analyst-escalate-incomplete",
+  "input": "User report: 'Moq analyzer is broken on my project.' No code sample, no error message, no project structure, no version of moq.analyzers, no target framework. Decide and respond.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(reprod|specific|sample|version|target.*framework|warning|error.*code|MoqXXXX|repo link|clarif)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "incomplete-report",
+    "verdict-escalate"
+  ],
+  "schemaVersion": 1
+}

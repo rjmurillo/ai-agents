@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "M002",
+  "policy_id": "pol-implementer-test-first",
+  "input": "Implementation request: 'Add a function `parse_csv(text)` that returns rows.' Plan: write tests first then implement?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(test.*first|TDD|red.*green|write.*failing.*test|fixture|edge.*case.*test|before.*implement)"
+    }
+  ],
+  "tags": [
+    "agent-implementer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

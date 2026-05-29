@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "V001",
+  "policy_id": "pol-issue-feature-review-cost-value-low-cost-high-value",
+  "input": "Feature request: 'Add a Python script that caches Anthropic API responses for replay during eval runs.' Cost: 2 days. Value: ~$10/eval-run saved at current spend. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(low.*cost|high.*value|approve|ship|payback|implement|good.*ROI|build)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

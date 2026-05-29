@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "S005",
+  "policy_id": "pol-skillbook-scope-narrow-reject",
+  "input": "Reflection: 'When working on the auth.py file in branch feat/xyz on 2026-05-15, I learned that null checks should come before the await.' Add to skillbook?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(too.*narrow|file.*specific|branch.*specific|date.*specific|not.*generaliz|reject|widen|abstract)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

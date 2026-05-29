@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "M007",
+  "policy_id": "pol-implementer-verify-claim",
+  "input": "Implementation request: 'Add error handling for the network call.' User reports network call is failing 'all the time'. What is the first action?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(verify|reproduce|measure|baseline|how.*often|specific.*error|log|catch.*specific)"
+    }
+  ],
+  "tags": [
+    "agent-implementer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

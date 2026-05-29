@@ -215,8 +215,17 @@ def main() -> int:
         for source, text in shown:
             lines.append(f"- [{source}] {text}")
 
-        # Output to stderr (advisory), not stdout (which must be valid JSON or empty)
-        print("\n".join(lines), file=sys.stderr)
+        # Match the {decision, reason} envelope used by every other
+        # PreToolUse hook in this repo (invoke_branch_protection_guard,
+        # invoke_branch_context_guard, invoke_false_completion_gate,
+        # invoke_security_commit_gate, invoke_prompt_eval_gate). Claude
+        # Code surfaces the `reason` field; `message` was silently dropped.
+        advisory = "\n".join(lines)
+        output = {"decision": "allow", "reason": advisory}
+        print(json.dumps(output))
+        # Mirror advisory text to stderr for human visibility in logs
+        # (stdout must remain valid JSON for the hook protocol).
+        print(advisory, file=sys.stderr)
     except Exception as exc:
         print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
     return 0

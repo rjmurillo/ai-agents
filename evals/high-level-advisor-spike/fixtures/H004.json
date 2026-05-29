@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "H004",
+  "policy_id": "pol-high-level-advisor-escalate-stakeholder-missing",
+  "input": "Question: 'Should we move our auth service to a different cloud region?' Decide.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(who.*ask|stakeholder|latency.*baseline|cost|compliance|user.*location|missing.*input|talk.*to|need.*data)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

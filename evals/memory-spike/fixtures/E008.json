@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "E008",
+  "policy_id": "pol-memory-from-pattern-extraction",
+  "input": "Across 3 sessions, the agent kept forgetting to update the session log after each work item. Pattern observed 3 times. Worth a memory write?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(HIGH.*confidence|pattern|atomic|specific.*remedy|write|memory|three.*times|reproducib)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "ai-agents-pattern",
+    "verdict-identify"
+  ]
+}

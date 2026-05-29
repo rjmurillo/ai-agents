@@ -1,121 +1,200 @@
 #!/usr/bin/env python3
-"""Tests for invoke_context_loader.py (SessionStart hook)."""
+"""Tests for SessionStart/invoke_context_loader.py.
 
-import json
+Covers:
+- HANDOFF.md loading and truncation
+- Latest retrospective detection and loading
+- Fail-open on missing files
+- Consumer repo skip
+- Audit trail creation
+"""
+
+from __future__ import annotations
+
 import sys
-import tempfile
-import unittest
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+# Add hooks directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "SessionStart"))
 
-import invoke_context_loader
+import invoke_context_loader  # noqa: E402
 
 
-class TestContextLoader(unittest.TestCase):
-    """Test SessionStart context loader hook."""
+@pytest.fixture
+def project_tree(tmp_path: Path) -> Path:
+    """Create a minimal project directory tree."""
+    agents = tmp_path / ".agents"
+    agents.mkdir()
+    (agents / "sessions").mkdir()
+    (agents / "retrospective").mkdir()
 
-    def test_tty_stdin_exits_zero(self):
-        """TTY stdin should exit 0 immediately."""
-        with patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            result = invoke_context_loader.main()
-            self.assertEqual(result, 0)
-
-    def test_no_project_dir_exits_zero(self):
-        """Missing project dir should fail-open."""
-        with patch("sys.stdin", StringIO("")):
-            with patch.object(invoke_context_loader, "get_project_directory", return_value=None):
-                result = invoke_context_loader.main()
-                self.assertEqual(result, 0)
-
-    def test_loads_handoff_md(self):
-        """HANDOFF.md content should be printed to stdout."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            agents_dir = tmp_path / ".agents"
-            agents_dir.mkdir()
-            handoff = agents_dir / "HANDOFF.md"
-            handoff.write_text("# Handoff\nCurrent work: feature X")
-
-            with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_context_loader, "get_project_directory", return_value=tmp_path):
-                    with patch("sys.stdout", new_callable=StringIO) as mock_out:
-                        result = invoke_context_loader.main()
-                        self.assertEqual(result, 0)
-                        self.assertIn("HANDOFF.md", mock_out.getvalue())
-                        self.assertIn("feature X", mock_out.getvalue())
-
-    def test_loads_latest_retro(self):
-        """Latest retrospective should be printed to stdout."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            retro_dir = tmp_path / ".agents" / "retrospective"
-            retro_dir.mkdir(parents=True)
-            retro = retro_dir / "2026-04-20-retro.md"
-            retro.write_text("# Retro\nLearning: test first")
-
-            with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_context_loader, "get_project_directory", return_value=tmp_path):
-                    with patch("sys.stdout", new_callable=StringIO) as mock_out:
-                        result = invoke_context_loader.main()
-                        self.assertEqual(result, 0)
-                        self.assertIn("test first", mock_out.getvalue())
-
-    def test_truncates_large_files(self):
-        """Files exceeding MAX_CHARS_PER_FILE should be truncated."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            agents_dir = tmp_path / ".agents"
-            agents_dir.mkdir()
-            handoff = agents_dir / "HANDOFF.md"
-            handoff.write_text("X" * 10000)
-
-            with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_context_loader, "get_project_directory", return_value=tmp_path):
-                    with patch("sys.stdout", new_callable=StringIO) as mock_out:
-                        invoke_context_loader.main()
-                        # Should be truncated to MAX_CHARS_PER_FILE + header
-                        output = mock_out.getvalue()
-                        x_count = output.count("X")
-                        self.assertLessEqual(x_count, invoke_context_loader.MAX_CHARS_PER_FILE)
-
-    def test_fail_open_on_missing_files(self):
-        """Missing HANDOFF.md and retro dir should not error."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            # No .agents dir at all
-
-            with patch("sys.stdin", StringIO("")):
-                with patch.object(invoke_context_loader, "get_project_directory", return_value=tmp_path):
-                    result = invoke_context_loader.main()
-                    self.assertEqual(result, 0)
+    # Create HANDOFF.md
+    (agents / "HANDOFF.md").write_text(
+        "# Handoff\n\nProject state dashboard.\n", encoding="utf-8"
+    )
+    return tmp_path
 
 
-class TestGetLatestRetrospective(unittest.TestCase):
-    """Test retrospective file discovery."""
+class TestReadFileTruncated:
+    """Test _read_file_truncated helper."""
 
-    def test_returns_none_for_missing_dir(self):
-        result = invoke_context_loader.get_latest_retrospective(Path("/nonexistent"))
-        self.assertIsNone(result)
+    def test_reads_small_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "small.md"
+        f.write_text("hello world", encoding="utf-8")
+        result = invoke_context_loader._read_file_truncated(f, 1000)
+        assert result == "hello world"
 
-    def test_returns_most_recent(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            old = tmp_path / "2026-01-01-retro.md"
-            new = tmp_path / "2026-04-20-retro.md"
-            old.write_text("old")
-            new.write_text("new")
-            # Set mtimes explicitly so ordering is deterministic across filesystems
-            import os
-            os.utime(old, (1_000_000_000, 1_000_000_000))
-            os.utime(new, (1_000_000_100, 1_000_000_100))
+    def test_truncates_large_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "large.md"
+        f.write_text("x" * 5000, encoding="utf-8")
+        result = invoke_context_loader._read_file_truncated(f, 100)
+        assert result is not None
+        assert len(result) < 200  # 100 chars + truncation message
+        assert "truncated" in result
 
-            result = invoke_context_loader.get_latest_retrospective(tmp_path)
-            self.assertEqual(result, new)
+    def test_returns_none_on_missing_file(self, tmp_path: Path) -> None:
+        result = invoke_context_loader._read_file_truncated(
+            tmp_path / "nonexistent.md", 1000
+        )
+        assert result is None
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestFindLatestRetrospective:
+    """Test _find_latest_retrospective helper."""
+
+    def test_finds_most_recent(self, tmp_path: Path) -> None:
+        """Sort retros by mtime and pick the newest.
+
+        Use ``os.utime`` instead of ``time.sleep`` to set mtimes
+        explicitly; coarse-grained file system timestamp resolution
+        (e.g. 1s on some FAT/NTFS variants) makes sleep-based ordering
+        flaky.
+        """
+        import os
+
+        retro_dir = tmp_path / "retros"
+        retro_dir.mkdir()
+        old = retro_dir / "2025-01-01-retro.md"
+        old.write_text("old retro", encoding="utf-8")
+        new = retro_dir / "2025-06-15-retro.md"
+        new.write_text("new retro updated", encoding="utf-8")
+
+        # Set mtimes deterministically: old at t=1000s, new at t=2000s.
+        os.utime(old, (1000, 1000))
+        os.utime(new, (2000, 2000))
+
+        result = invoke_context_loader._find_latest_retrospective(retro_dir)
+        assert result is not None
+        assert result.name == "2025-06-15-retro.md"
+
+    def test_returns_none_on_empty_dir(self, tmp_path: Path) -> None:
+        retro_dir = tmp_path / "retros"
+        retro_dir.mkdir()
+        result = invoke_context_loader._find_latest_retrospective(retro_dir)
+        assert result is None
+
+    def test_returns_none_on_missing_dir(self, tmp_path: Path) -> None:
+        result = invoke_context_loader._find_latest_retrospective(
+            tmp_path / "nonexistent"
+        )
+        assert result is None
+
+
+class TestMain:
+    """Test main() function."""
+
+    def test_skip_consumer_repo(self, capsys: pytest.CaptureFixture) -> None:
+        with patch.object(
+            invoke_context_loader, "skip_if_consumer_repo", return_value=True
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_context_loader.main()
+            assert exc_info.value.code == 0
+
+    def test_loads_handoff_and_retro(
+        self, project_tree: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        # Add a retrospective
+        retro = project_tree / ".agents" / "retrospective" / "2025-06-15-retro.md"
+        retro.write_text("# Retro\n\nLearnings here.", encoding="utf-8")
+
+        with patch.object(
+            invoke_context_loader, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+        ):
+            invoke_context_loader.main()
+
+        captured = capsys.readouterr()
+        assert "HANDOFF.md" in captured.out
+        assert "Retrospective" in captured.out
+
+    def test_handles_no_retros(
+        self, project_tree: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        with patch.object(
+            invoke_context_loader, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+        ):
+            invoke_context_loader.main()
+
+        captured = capsys.readouterr()
+        assert "HANDOFF.md" in captured.out
+        # Should still output something (handoff only)
+        assert "Loaded" in captured.out
+
+    def test_handles_missing_handoff(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        agents = tmp_path / ".agents"
+        agents.mkdir()
+
+        with patch.object(
+            invoke_context_loader, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_context_loader, "get_project_directory", return_value=str(tmp_path)
+        ):
+            invoke_context_loader.main()
+
+        captured = capsys.readouterr()
+        assert "No context files found" in captured.out
+
+    def test_writes_audit_log(self, project_tree: Path) -> None:
+        with patch.object(
+            invoke_context_loader, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_context_loader, "get_project_directory", return_value=str(project_tree)
+        ):
+            invoke_context_loader.main()
+
+        audit_dir = project_tree / ".agents" / ".hook-state"
+        assert audit_dir.exists()
+        log_files = list(audit_dir.glob("context-loader-*.log"))
+        assert len(log_files) >= 1
+
+
+class TestFailOpen:
+    """Test that the script wrapper fails open on all errors."""
+
+    def test_exception_in_main_exits_zero(self) -> None:
+        """The ``__main__`` wrapper must catch internal errors and exit 0.
+
+        Calling ``main()`` directly only proves the function raises; it
+        cannot prove the wrapper around it is fail-open. We exercise the
+        wrapper with a patched ``main`` to verify the contract Claude Code
+        depends on.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_context_loader, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr

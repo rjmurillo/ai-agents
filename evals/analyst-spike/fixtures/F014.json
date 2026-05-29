@@ -1,0 +1,24 @@
+{
+  "id": "F014",
+  "policy_id": "pol-analyst-escalate-wip-cascade",
+  "input": "Request from dotnet/runtime PR #84917 (paraphrased). The intellisense.targets file currently sets `NoWarn += CS1591` for all projects, including those that do not use the Microsoft.Private.Intellisense package's XML file. Author proposes enabling CS1591 ('Missing XML comment for publicly visible type or member') for projects that do not consume that XML.\n\nAuthor note: 'WIP - this will probably result in some projects raising errors that we need to fix.' Decide what to do next.",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(scope|blast.*radius|how many|enumerate|inventory|pilot|opt.*in|gradual|per.*project|count.*affected|baseline)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "dotnet-runtime-84917",
+    "unknown-blast-radius",
+    "verdict-escalate",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

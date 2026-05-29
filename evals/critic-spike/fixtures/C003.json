@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "C003",
+  "policy_id": "pol-critic-ok-complete-coverage",
+  "input": "Critique this PR: adds null check at session_state.py:47 for `cookie` parameter. Returns 401 on null with body `{\"error\":\"missing session cookie\"}`. Tests added: cookie present (200), cookie null (401 with body match), cookie empty string (401 with body match). Anything to block on?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(ship|approve|covered|complete|nothing.*block|sufficient|merge|OK)"
+    }
+  ],
+  "tags": [
+    "agent-critic",
+    "synthetic",
+    "verdict-ok"
+  ]
+}
