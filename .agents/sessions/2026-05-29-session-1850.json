@@ -92,13 +92,13 @@
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Pending commit step"
+        "Complete": true,
+        "Evidence": "Commit b5b5ce2f (fix + tests + this log)"
       },
       "validationPassed": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Pending pre_pr.py run"
+        "Complete": true,
+        "Evidence": "pytest 170 (validation) + 36 (sibling) pass; validate_session_json pass; dash-prohibition + citation pass. pre_pr.py's 2 failures (markdown lint on untracked retro files, merge-resolver agent drift) are pre-existing baseline unrelated to this diff (Python + JSON only, zero .md, zero agent files)"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -138,7 +138,7 @@
       "detail": "WENT WELL: tracer-bullet selection proved the gated pipeline end-to-end; parallel three-agent review converged fast on the same cheap hardening; empirical regex tracing before edit caught the sentence-period edge. IMPROVE: first sentence-period test used bare-prose (no FILE_MENTION_PATTERN matches it) and failed; should have checked the four patterns before asserting. LESSONS: bare-prose file mentions are never extracted; only backtick/bold/list/link forms are. Skill-first guard has two defects that cost setup time; both filed. TIME: discovery ~10m, impl ~5m, tests ~10m, review ~6m (parallel), retro/log ~5m."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "b5b5ce2f",
   "nextSteps": [
     "Commit (atomic, <=5 files), push, open PR referencing Fixes #1881",
     "Run /pr-review on the new PR; resolve feedback",
