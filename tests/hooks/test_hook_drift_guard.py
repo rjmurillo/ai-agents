@@ -255,7 +255,7 @@ class TestHookDiffPaths:
 
     def test_returns_empty_when_git_not_on_path(self):
         # shutil.which("git") returns None when git is not on PATH.
-        # The guard must fail-closed (return []) without calling subprocess.
+        # The guard must fail-open (return []) without calling subprocess.
         with patch.object(guard.shutil, "which", return_value=None):
             assert guard._hook_diff_paths(Path("/repo")) == []
 
