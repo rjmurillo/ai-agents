@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "X002",
+  "policy_id": "pol-explainer-INVEST-criteria",
+  "input": "User story to write: 'Users can reset password.' Apply INVEST. What is missing?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(independ|negotiable|valuable|estimable|small|testable|acceptance.*criteria|measur|edge)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

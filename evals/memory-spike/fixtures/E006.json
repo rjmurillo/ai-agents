@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "E006",
+  "policy_id": "pol-memory-escalate-unknown-source",
+  "input": "Memory entry: 'Always use feature flags for ML model changes.' No source link. No date. No team attribution. Decide.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(source|cite|attribut|origin|verify|investigate|cannot.*trust|provenance|need.*evidence)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "B008",
+  "policy_id": "pol-backlog-generator-from-ai-agents-pattern",
+  "input": "Generator notices: 5 retrospectives in .agents/retrospective/ from the last week reference issue 'verdict-vocabulary mismatch'. Generate task.",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(verdict.*vocabulary|OUTPUT_SHAPE|harness|normalize|extend|recurring|pattern.*observed|five.*retro)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "ai-agents-pattern",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

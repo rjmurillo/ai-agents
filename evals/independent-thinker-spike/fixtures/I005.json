@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "I005",
+  "policy_id": "pol-independent-thinker-ok-position-is-supported",
+  "input": "Claim: 'JWT tokens should not store sensitive information in the payload because the payload is base64-encoded, not encrypted.' Counter or confirm?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(confirm|true|correct|base64|not.*encrypted|reader.*can.*decode|standard.*warning|RFC|no.*counter)"
+    }
+  ],
+  "tags": [
+    "agent-independent-thinker",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

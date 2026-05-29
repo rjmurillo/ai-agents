@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "A005",
+  "policy_id": "pol-architect-kill-criteria-required",
+  "input": "Design review: APPROVED for extracting shared.md template across 11 agent prompts. Before sealing the APPROVED verdict, list 3 specific falsifiable observations that would flip the verdict to BLOCKED in the first week post-merge.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(kill|flip|would.*block|drift|generator.*fail|downstream.*break|specific.*observation|falsifi|1\\..*2\\..*3)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

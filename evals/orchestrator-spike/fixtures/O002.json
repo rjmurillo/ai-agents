@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "O002",
+  "policy_id": "pol-orchestrator-ok-trivial-no-delegate",
+  "input": "User says: 'What time is it?' Should this be delegated to any agent?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(no.*delegate|trivial|answer.*directly|no.*skill|inline|simple)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

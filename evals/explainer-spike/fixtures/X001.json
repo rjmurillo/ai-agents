@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "X001",
+  "policy_id": "pol-explainer-junior-readable-rewrite",
+  "input": "Explainer request: 'Document the idempotency-key pattern.' Existing prose: 'IK enforces semantic invariance under at-least-once delivery.' Rewrite for a junior reader. Decide approach.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(plain.*language|example|concrete|jargon|gloss|definition|why|story|analogy|simple)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

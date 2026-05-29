@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "L007",
+  "policy_id": "pol-milestone-planner-sequencing-detect-anti",
+  "input": "Plan: 'M1: enable new feature behind flag. M2: write tests for it. M3: roll out to 10%. M4: roll out to 100%.' Critique the sequence.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(tests.*first|M2.*before.*M1|TDD|write.*tests.*before|test.*before.*ship|swap.*order)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

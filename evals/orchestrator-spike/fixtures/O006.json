@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "O006",
+  "policy_id": "pol-orchestrator-parallel-vs-sequential",
+  "input": "Need: (A) read 3 PR bodies, (B) run lint, (C) check git status. Sequence or parallel?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(parallel|independent|same.*message|concurrent|no.*dependency|batch|all.*at.*once)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

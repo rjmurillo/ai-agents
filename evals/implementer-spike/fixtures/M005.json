@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "M005",
+  "policy_id": "pol-implementer-verbatim-patch-mode",
+  "input": "Implementation request: 'In session_state.py, rename `_get_cookie` to `_fetch_cookie` and update all internal callers. Do not add comments or refactor.' Plan?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(verbatim|exactly.*asked|no.*extra|rename.*only|do.*not.*refactor|literal|narrow)"
+    }
+  ],
+  "tags": [
+    "agent-implementer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

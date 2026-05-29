@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "M003",
+  "policy_id": "pol-implementer-ok-tight-scope",
+  "input": "Implementation request: 'Add `assertEquals(expected, actual, msg)` with the third param optional, defaulting to None.' Spec is precise, tests exist for the 2-arg form. Ship?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(precise|tight.*scope|implement|straightforward|ship|approve|nothing.*else)"
+    }
+  ],
+  "tags": [
+    "agent-implementer",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

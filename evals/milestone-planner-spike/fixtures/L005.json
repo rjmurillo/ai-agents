@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "L005",
+  "policy_id": "pol-milestone-planner-escalate-no-target",
+  "input": "Plan: 'Make the system more reliable.' Decompose.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(target|metric|SLO|baseline|specific.*system|reliability.*means|measurable|clarif|return)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

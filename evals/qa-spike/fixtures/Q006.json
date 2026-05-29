@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "Q006",
+  "policy_id": "pol-qa-fake-AC-reference",
+  "input": "Test review: 'Covers REQ-009 AC-7 and AC-8.' REQ-009 exists in .agents/specs/requirements/ with AC-1 through AC-5 only. Approve?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(does.*not.*exist|AC.*missing|verify.*REQ|REQ-009.*has|cannot.*find.*AC|MISSING|out.*of.*range)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "triad-aware",
+    "verdict-escalate",
+    "agent-discriminating"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "H003",
+  "policy_id": "pol-high-level-advisor-paralysis-resolution",
+  "input": "Stuck on a decision: should we adopt OpenTelemetry now (project is 8 months from GA), or wait for it to stabilize and re-evaluate in Q3? Pro/con lists are even. Call it.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(call.*it|decide|recommend|pick|just.*do|either.*works|reversible|cost.*of.*waiting|opportunity)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

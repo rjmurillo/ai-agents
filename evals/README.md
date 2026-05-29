@@ -27,7 +27,7 @@ A fixture in `evals/security-spike/fixtures/` MUST NOT duplicate a scenario in `
 
 ## Layout
 
-```
+```text
 evals/
   security-spike/
     fixtures/        # F001.json .. F010.json + README.md

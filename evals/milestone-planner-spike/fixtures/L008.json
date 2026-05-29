@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "L008",
+  "policy_id": "pol-milestone-planner-size-by-complexity",
+  "input": "Three milestones competing for the same engineer-week: A (boilerplate, 1 day), B (refactor + tests, 4 days), C (architecture spike, 3 days). Recommend a sequence.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(A.*first|smallest.*first|risk.*reduction|spike.*first|de.*risk|sequence|reorder|earliest)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

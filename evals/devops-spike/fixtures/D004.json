@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "D004",
+  "policy_id": "pol-devops-kill-criteria-release",
+  "input": "Workflow review: APPROVED for new release-on-merge workflow. Before sealing the verdict, list 3 specific failures in production that would flip APPROVED to ROLLBACK within the first 24 hours.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(rollback|kill|flip|deploy.*fail|error.*rate|p99|specific.*observation|metric|threshold|alert.*fire)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "B003",
+  "policy_id": "pol-backlog-generator-evidence-linked",
+  "input": "Generated task: 'Fix auth module.' Critique.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(no.*evidence|no.*link|no.*specific|too.*vague|cite.*file|reference.*issue|specific.*line)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

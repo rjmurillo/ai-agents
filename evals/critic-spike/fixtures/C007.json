@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "C007",
+  "policy_id": "pol-critic-planted-silent-fallback",
+  "input": "Critique: feature flag check uses `os.environ.get('NEW_FLOW', 'false').lower() == 'true'` to gate a code path. The default is 'false'. The user reports the flag is set but the new flow does not run. What is the most likely planted issue?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(string.*compare|case.*sensitive|whitespace|leading.*space|trailing|trim|normalize|.lower\\\\(\\\\)|'TRUE'|'1')"
+    }
+  ],
+  "tags": [
+    "agent-critic",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

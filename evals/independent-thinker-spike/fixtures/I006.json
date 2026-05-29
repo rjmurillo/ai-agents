@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "I006",
+  "policy_id": "pol-independent-thinker-verify-before-claim",
+  "input": "Engineer says: 'Per the docs, Python 3.13 has free-threaded mode that removes the GIL.' Verify.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(PEP 703|opt.*in|build.*flag|experimental|not.*default|conditional|some.*build|verify.*docs|nuance)"
+    }
+  ],
+  "tags": [
+    "agent-independent-thinker",
+    "synthetic",
+    "verdict-identify"
+  ]
+}
