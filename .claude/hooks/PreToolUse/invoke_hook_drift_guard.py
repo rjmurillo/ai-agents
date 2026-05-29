@@ -37,6 +37,7 @@ Refs: ADR-061 (Withdrawn 2026-05-27); .agents/critique/ADR-061-debate-log.md
 from __future__ import annotations
 
 import io
+import shutil
 import subprocess
 import sys
 from contextlib import redirect_stderr, redirect_stdout
@@ -127,17 +128,20 @@ def _hook_diff_paths(repo_root: Path) -> list[str]:
     the calling shell will report on its own.
     """
     hook_prefix = "src/copilot-cli/hooks/"
+    git_executable = shutil.which("git")
+    if not git_executable:
+        return []
     try:
         diff_result = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-only"],
+            [git_executable, "-C", str(repo_root), "diff", "--name-only"],
             capture_output=True,
             text=True,
             check=False,
-            timeout=10,
+            timeout=5,
         )
         untracked_result = subprocess.run(
             [
-                "git",
+                git_executable,
                 "-C",
                 str(repo_root),
                 "ls-files",
@@ -148,7 +152,7 @@ def _hook_diff_paths(repo_root: Path) -> list[str]:
             capture_output=True,
             text=True,
             check=False,
-            timeout=10,
+            timeout=5,
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return []

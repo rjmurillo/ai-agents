@@ -180,6 +180,7 @@ def _original_main(stdin_bytes):
 
 
     import io
+    import shutil
     import subprocess
     import sys
     from contextlib import redirect_stderr, redirect_stdout
@@ -270,17 +271,20 @@ def _original_main(stdin_bytes):
         the calling shell will report on its own.
         """
         hook_prefix = "src/copilot-cli/hooks/"
+        git_executable = shutil.which("git")
+        if not git_executable:
+            return []
         try:
             diff_result = subprocess.run(
-                ["git", "-C", str(repo_root), "diff", "--name-only"],
+                [git_executable, "-C", str(repo_root), "diff", "--name-only"],
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=10,
+                timeout=5,
             )
             untracked_result = subprocess.run(
                 [
-                    "git",
+                    git_executable,
                     "-C",
                     str(repo_root),
                     "ls-files",
@@ -291,7 +295,7 @@ def _original_main(stdin_bytes):
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=10,
+                timeout=5,
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return []

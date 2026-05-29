@@ -249,8 +249,14 @@ class TestHookDiffPaths:
         with patch.object(
             guard.subprocess,
             "run",
-            side_effect=_sp.TimeoutExpired(cmd="git", timeout=10),
+            side_effect=_sp.TimeoutExpired(cmd="git", timeout=5),
         ):
+            assert guard._hook_diff_paths(Path("/repo")) == []
+
+    def test_returns_empty_when_git_not_on_path(self):
+        # shutil.which("git") returns None when git is not on PATH.
+        # The guard must fail-closed (return []) without calling subprocess.
+        with patch.object(guard.shutil, "which", return_value=None):
             assert guard._hook_diff_paths(Path("/repo")) == []
 
 
