@@ -286,8 +286,6 @@ def _original_main(stdin_bytes):
         # ACMRD is safe; the validator treats a deleted template path as a
         # touched group member (see _is_shared_agent_group).
         return run_guard(_validate, list(_GLOBS), GUARD_NAME, include_deletions=True)
-
-
     return main()
 
 _shim_dispatch()
