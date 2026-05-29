@@ -387,8 +387,6 @@ def _original_main(stdin_bytes):
 
     def main() -> int:
         return run_guard(_validate, list(_GLOBS), GUARD_NAME, include_deletions=False)
-
-
     return main()
 
 _shim_dispatch()
