@@ -154,8 +154,8 @@ def _original_main(stdin_bytes):
     This guard adds the same check at git-push time so the feedback loop
     moves from CI (minutes) to local terminal (seconds). Activates when
     the push touches a canonical hook source, the Claude settings.json, or
-    a generated shim file. Then invokes the generator's --check mode and
-    fails the push if drift is detected on hook paths.
+    a generated shim file. Then runs the generator and compares the
+    resulting file-system state to detect drift on hook paths.
 
     Why not call build_all.py --check directly?
         build_all.py --check runs all generators (rules, agents, skills,
@@ -254,16 +254,39 @@ def _original_main(stdin_bytes):
 
 
     def _hook_diff_paths(repo_root: Path) -> list[str]:
-        """Return git-diff paths under src/copilot-cli/hooks/ after generator run.
+        """Return changed paths under src/copilot-cli/hooks/ since the last commit.
 
-        A failure to run git is treated as no-diff. This matches the
-        behavior of build_all.py::_git_diff_paths: git always works in CI,
-        and a missing git binary at push time is an environmental error
-        that the calling shell will report on its own.
+        Combines two sources so that both modified tracked files and new
+        untracked files (e.g. freshly generated shims) are included:
+
+        1. ``git diff --name-only`` (no HEAD): staged and unstaged changes
+           against the index; does not mix in committed state.
+        2. ``git ls-files --others --exclude-standard src/copilot-cli/hooks/``:
+           untracked files that the generator may have created.
+
+        A failure to run git is treated as no-diff. Git always works in CI,
+        and a missing git binary at push time is an environmental error that
+        the calling shell will report on its own.
         """
+        hook_prefix = "src/copilot-cli/hooks/"
         try:
-            result = subprocess.run(
-                ["git", "-C", str(repo_root), "diff", "--name-only", "HEAD"],
+            diff_result = subprocess.run(
+                ["git", "-C", str(repo_root), "diff", "--name-only"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+            untracked_result = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo_root),
+                    "ls-files",
+                    "--others",
+                    "--exclude-standard",
+                    hook_prefix,
+                ],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -271,23 +294,32 @@ def _original_main(stdin_bytes):
             )
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return []
-        if result.returncode != 0:
-            return []
-        return [
-            line
-            for line in result.stdout.splitlines()
-            if line.startswith("src/copilot-cli/hooks/")
-        ]
+        paths: list[str] = []
+        if diff_result.returncode == 0:
+            paths.extend(
+                line
+                for line in diff_result.stdout.splitlines()
+                if line.startswith(hook_prefix)
+            )
+        if untracked_result.returncode == 0:
+            paths.extend(
+                line
+                for line in untracked_result.stdout.splitlines()
+                if line.startswith(hook_prefix)
+            )
+        return paths
 
 
     def _validate(_matching: list[str], _all_changed: list[str]) -> list[str]:
         """Run the hook generator and report any drift on hook paths.
 
-        Approach: invoke generate_hooks.generate_hooks() against the
-        current canonical sources. The generator writes shim files to
-        src/copilot-cli/hooks/ from canonical .claude/hooks/. If the
-        push would land HEAD content that diverges from canonical, the
-        generator's write produces a non-empty git diff on hook paths.
+        Approach: snapshot the hook-path diff before running the generator,
+        then run generate_hooks.generate_hooks() and snapshot again. Only
+        paths that appear in the post-generator snapshot but not the
+        pre-existing snapshot are reported. This isolates generator-introduced
+        drift from any pre-existing local modifications and prevents false
+        positives from unrelated uncommitted changes under src/copilot-cli/hooks/.
+
         Captures generator stdout/stderr to suppress its verbose audit
         output from the hook's user-facing message.
         """
@@ -296,8 +328,12 @@ def _original_main(stdin_bytes):
             return []
         gh, config_path, repo_root = imported
 
+        # Snapshot pre-existing hook-path changes so they are not attributed
+        # to this generator run (false-positive prevention).
+        pre_existing = set(_hook_diff_paths(repo_root))
+
         # Run the generator. Suppress its stdout/stderr; we only care about
-        # the resulting file-system state and the subsequent git diff.
+        # the resulting file-system state and the subsequent diff.
         try:
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 rc, _run_result = gh.generate_hooks(config_path, repo_root)
@@ -317,7 +353,8 @@ def _original_main(stdin_bytes):
             )
             return []
 
-        drifted = _hook_diff_paths(repo_root)
+        post_run = set(_hook_diff_paths(repo_root))
+        drifted = sorted(post_run - pre_existing)
         if not drifted:
             return []
 
