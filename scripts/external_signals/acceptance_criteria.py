@@ -101,25 +101,51 @@ def parse_criteria(body: str) -> list[Criterion]:
     return out
 
 
-def _keywords(text: str) -> list[str]:
-    """Cheap keyword extraction: alphanumeric tokens >=4 chars, lowercased."""
+_STOP_WORDS: frozenset[str] = frozenset(
+    {
+        "the", "and", "for", "are", "but", "not", "you", "all", "can", "her",
+        "was", "one", "our", "out", "day", "get", "has", "him", "his", "how",
+        "its", "let", "may", "new", "now", "old", "see", "two", "use", "way",
+        "who", "why", "yet", "did", "its", "per", "set", "via", "any", "had",
+        "top", "try", "put", "too", "off", "own", "big", "far", "few", "got",
+        "end", "due", "run", "nit", "nor", "nor", "isn", "was", "are",
+    }
+)
 
-    return [t.lower() for t in re.findall(r"[A-Za-z0-9_]{4,}", text)]
+
+def _keywords(text: str) -> list[str]:
+    """Cheap keyword extraction: alphanumeric tokens >=3 chars, lowercased.
+
+    Tokens of exactly 3 chars that appear in the common-English stop-word set
+    are excluded to avoid matching noise words like 'the', 'and', 'for'.
+    Technical 3-char terms (api, cli, git, etc.) are kept because they are not
+    in the stop-word set.
+    """
+
+    tokens = [t.lower() for t in re.findall(r"[A-Za-z0-9_]{3,}", text)]
+    return [t for t in tokens if len(t) > 3 or t not in _STOP_WORDS]
 
 
 def diff_misses(criteria: Iterable[Criterion], diff: str) -> list[str]:
-    """Return criterion texts whose keywords do not appear anywhere in diff.
+    """Return criterion texts whose keywords do not appear in added diff lines.
 
-    A criterion "hits" the diff if ANY of its >=4-char tokens shows up.
-    Coarse on purpose: this is a smoke-grep that flags criteria with zero
-    apparent evidence in the change. False positives are acceptable; false
-    negatives (criteria that look implemented but aren't) are the LLM
-    reviewer's job to surface.
+    Only added lines (those starting with '+' but not '+++') are searched.
+    This avoids false positives from deleted lines or unmodified context where
+    a keyword may appear in code that the PR removes, not adds.
+
+    A criterion "hits" the diff if ANY of its keyword tokens shows up in any
+    added line. Coarse on purpose: flags criteria with zero apparent evidence
+    in the actual change. False positives are acceptable; false negatives
+    (criteria that look implemented but aren't) are the LLM reviewer's job.
     """
 
     if not diff:
         return []
-    hay = diff.lower()
+    added_lines = [
+        line[1:] for line in diff.splitlines()
+        if line.startswith("+") and not line.startswith("+++")
+    ]
+    hay = "\n".join(added_lines).lower()
     misses: list[str] = []
     for c in criteria:
         tokens = _keywords(c.text)
