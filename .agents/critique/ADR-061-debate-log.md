@@ -29,10 +29,10 @@ User decision (session 1837): Withdraw ADR-061, ship Alternative B today.
 
 Prior art investigation surfaced during ADR drafting:
 
-- REQ-003-007 step 5 (`.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md:281-305`) — current inline-body mandate.
-- Plan M5-T2 + M7-T3 (`.agents/plans/active/req-003-multi-tool-artifact-build.md:79,114`) — M7-T3 explicitly anticipates the "one-body-many-matchers" alternative.
-- Install-parity validator (PR 2095, merged 2026-05-26) — analogous canonical-plus-thin pattern at the agent layer.
-- `architecture/install-parity` Serena memory — confirms hooks are intentionally out of scope for install-parity (build-all check covers them).
+- REQ-003-007 step 5 (`.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md:281-305`) : current inline-body mandate.
+- Plan M5-T2 + M7-T3 (`.agents/plans/active/req-003-multi-tool-artifact-build.md:79,114`) ; M7-T3 explicitly anticipates the "one-body-many-matchers" alternative.
+- Install-parity validator (PR 2095, merged 2026-05-26) ; analogous canonical-plus-thin pattern at the agent layer.
+- `architecture/install-parity` Serena memory : confirms hooks are intentionally out of scope for install-parity (build-all check covers them).
 
 ## Phase 1: Independent Review
 
@@ -52,13 +52,13 @@ P2 weaknesses:
 
 Question: has Copilot CLI runtime team confirmed subdirectory preservation during install?
 
-Position: **ACCEPT** — weaknesses are P1/P2 documentation gaps, not design flaws.
+Position: **ACCEPT**: weaknesses are P1/P2 documentation gaps, not design flaws.
 
 ### Security: ACCEPT
 
 Findings:
 
-- **MEDIUM (CWE-426 Untrusted Search Path)**: Attack surface widens from 1 file per hook to 3 files per hook. `_shim_runtime.py` is shared across all matchers in an event dir — single-file-compromise-all vector. Trust boundary (filesystem permissions) unchanged, but file-level attack surface 3x. ADR's "no new attack surface" claim is imprecise; should read "same trust boundary, wider file-level attack surface, no new privilege escalation."
+- **MEDIUM (CWE-426 Untrusted Search Path)**: Attack surface widens from 1 file per hook to 3 files per hook. `_shim_runtime.py` is shared across all matchers in an event dir, a single-file-compromise-all vector. Trust boundary (filesystem permissions) unchanged, but file-level attack surface 3x. ADR's "no new attack surface" claim is imprecise; should read "same trust boundary, wider file-level attack surface, no new privilege escalation."
 - **LOW (CWE-400 stdin cap)**: Preserved if delegate sequences `cap → import → call` correctly. ADR should add MUST: "stdin MUST be fully consumed and capped before any `_impl/` import executes."
 - **LOW (CWE-94 code injection)**: Same risk as modifying any inline shim today; generator is sole writer.
 - **INFO (rollback flag confusion)**: `--legacy-inline-body` flag is build-time, not runtime; install-parity validator detects layout mismatch.
@@ -81,11 +81,11 @@ P1 weaknesses:
 P2 weaknesses:
 
 - Security section understates the change (shared `_shim_runtime.py` is single-point-of-compromise vs. N independent targets).
-- Confirmation Rule 2 misspecified (thin shims do not contain body bytes after refactor — rule becomes a tautology).
+- Confirmation Rule 2 misspecified (thin shims do not contain body bytes after refactor , rule becomes a tautology).
 
 Recommendations: demote to Draft until Phase 1 spike completes; add math; strengthen alt B rejection with data; correct security wording; fix Rule 2.
 
-Position: **DISAGREE_AND_COMMIT** — structural direction sound, but uninvestigated blocker + unverifiable motivating claim + incorrect quantitative claim are fixable without changing decision. Complete the spike, verify the math, resubmit. If Alt B is sufficient near-term while spike runs, say so.
+Position: **DISAGREE_AND_COMMIT**: structural direction sound, but uninvestigated blocker + unverifiable motivating claim + incorrect quantitative claim are fixable without changing decision. Complete the spike, verify the math, resubmit. If Alt B is sufficient near-term while spike runs, say so.
 
 ### Independent-Thinker: DISAGREE_AND_COMMIT
 
@@ -93,13 +93,13 @@ Contrarian arguments:
 
 - **Problem does not exist on main today.** Diffed every multi-matcher hook pair on main. Zero body drift. The drift evidence is from PR 1763, unmerged. ADR presents PR-workflow failure as structural deficiency.
 - **Alternative B dismissed too quickly.** The cause is non-atomic regeneration. A CI gate that diffs all shim bodies catches this class of bug in seconds. Cost: one validator function. ADR rejects a 2-hour fix for a multi-day refactor.
-- **`_impl/` import creates a genuine NEW failure mode.** Today each shim is self-contained — missing-file impossible. With delegate shims, missing `_impl/` directory or broken `sys.path` fails every hook in event dir simultaneously. Writing an ADR for a design with an untested binary blocker is premature.
+- **`_impl/` import creates a genuine NEW failure mode.** Today each shim is self-contained; missing-file impossible. With delegate shims, missing `_impl/` directory or broken `sys.path` fails every hook in event dir simultaneously. Writing an ADR for a design with an untested binary blocker is premature.
 - **"88% byte reduction" is a vanity metric.** Install tree is generated artifacts. Disk is cheap. Real cost is behavioral drift, zero on main.
 - **Only 3 hooks with 2 matchers each on main.** No evidence growth is imminent. Premature abstraction.
 
 Alternative proposal: **Deterministic full-tree regeneration + `git diff --exit-code` CI gate.** Zero structural change. Zero import surface. Zero spec amendment. Completeness: 8/10. Revisit delegate when multi-matcher count exceeds 8.
 
-Position: **DISAGREE_AND_COMMIT** — solves projected problem not current one; deterministic-regen achieves same safety at 10% cost.
+Position: **DISAGREE_AND_COMMIT**: solves projected problem not current one; deterministic-regen achieves same safety at 10% cost.
 
 ### Analyst: DISAGREE_AND_COMMIT
 
@@ -112,7 +112,7 @@ Evidence assessment:
 - **Confirmation Rule 2 becomes tautology** post-refactor (body bytes live only in `_impl/`, thin shims have no body to diverge).
 - **Gap**: validator does not check `_impl/invoke_X.py` matches canonical `.claude/hooks/<Event>/<hook>.py`. New failure mode: direct `_impl/` edit passes all 3 rules while drifting from canonical.
 
-Required addition before implementation: **Rule 4 — `_impl/invoke_X.py` MUST be byte-equal to `.claude/hooks/<Event>/<hook>.py`.** Without this, the refactor eliminates the old drift vector but introduces a new one the validator cannot catch.
+Required addition before implementation: **Rule 4: `_impl/invoke_X.py` MUST be byte-equal to `.claude/hooks/<Event>/<hook>.py`.** Without this, the refactor eliminates the old drift vector but introduces a new one the validator cannot catch.
 
 Position: **DISAGREE_AND_COMMIT** with required addition (Rule 4).
 
@@ -123,7 +123,7 @@ Position: **DISAGREE_AND_COMMIT** with required addition (Rule 4).
 > The math kills it:
 >
 > - Alt B: 2 hours. Deterministic regen + `git diff --exit-code` CI gate. Addresses root cause (drift detection) at the source.
-> - ADR-061: 3-5 days. PR 1763 held. Opportunity cost on 2029. New attack surface (security: 3x file count). New drift vector (analyst's Rule 4 — shims must byte-match originals, which is the same problem one layer deeper).
+> - ADR-061: 3-5 days. PR 1763 held. Opportunity cost on 2029. New attack surface (security: 3x file count). New drift vector (analyst's Rule 4, shims must byte-match originals, which is the same problem one layer deeper).
 > - Multi-matcher hooks today: under 8. Threshold for structural fix not crossed.
 >
 > Critic is right that "88% drift reduction" is wrong math against a zero baseline. Independent-thinker is right that this is premature abstraction (philosophy-of-software-design.md: "speculative generality"). Analyst's Rule 4 requirement proves the shim pattern reintroduces drift it claims to solve.
@@ -159,7 +159,7 @@ Surfaced to user with the convergent recommendation. User chose option 1: withdr
 Consensus achieved in one round:
 
 - 2 ACCEPT (architect, security)
-- 3 DISAGREE_AND_COMMIT (critic, independent-thinker, analyst) — willing to commit to delegate-shim direction long-term but not now
+- 3 DISAGREE_AND_COMMIT (critic, independent-thinker, analyst), willing to commit to delegate-shim direction long-term but not now
 - 1 WITHDRAW recommendation (high-level-advisor)
 - 1 USER decision: WITHDRAW + alt B
 

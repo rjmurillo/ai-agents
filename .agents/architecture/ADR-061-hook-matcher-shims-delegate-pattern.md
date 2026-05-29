@@ -18,7 +18,7 @@ This ADR was withdrawn before acceptance after a 6-agent debate (architect, crit
 4. **Premature abstraction.** On `main`, only three hooks have two matchers each. The ADR projected toward "all hooks multi-matcher" without growth evidence. Per `.claude/rules/philosophy-of-software-design.md`, this is a speculative-generality smell.
 5. **Opportunity cost.** Holding PR 1763 for a multi-day structural refactor while alternative B unblocks it in 2 hours has negative ROI against the projected (not observed) failure rate.
 
-This ADR is preserved (not deleted) as institutional knowledge. The debate log at `.agents/critique/ADR-061-debate-log.md` records the full positions. The follow-up issue (TBD link) tracks when the structural refactor should be revisited: when multi-matcher hook count exceeds 8, OR when the alternative B CI drift gate fires three or more times in a quarter (signal that the procedural fix is failing).
+This ADR is preserved (not deleted) as institutional knowledge. The debate log at `.agents/critique/ADR-061-debate-log.md` records the full positions. The follow-up issue (#2112) tracks when the structural refactor should be revisited: when multi-matcher hook count exceeds 8, OR when the alternative B CI drift gate fires three or more times in a quarter (signal that the procedural fix is failing).
 
 The two valid criticisms that survive into the alternative-B implementation:
 
@@ -234,4 +234,4 @@ The `_impl/` subdirectory is an additional import surface inside the install tre
 *Created: 2026-05-27*
 *Author: Richard Murillo (drafted via session 1837)*
 *Architect review: session 1837 (REVISE_BEFORE_SAVE → R1-R7 applied)*
-*GitHub Issue: (to be linked when filed)*
+*GitHub Issue: https://github.com/rjmurillo/ai-agents/issues/2112*
