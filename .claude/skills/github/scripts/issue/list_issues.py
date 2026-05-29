@@ -109,8 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         # --assignee. Only pass --search to avoid misleading behavior.
         list_args.extend(["--search", args.search])
     else:
-        if args.state != "all":
-            list_args.extend(["--state", args.state])
+        list_args.extend(["--state", args.state])
 
         if args.label:
             labels = [lbl.strip() for lbl in args.label.split(",") if lbl.strip()]
