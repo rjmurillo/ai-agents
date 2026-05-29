@@ -260,9 +260,9 @@ def _original_main(stdin_bytes):
         Combines two sources so that both modified tracked files and new
         untracked files (e.g. freshly generated shims) are included:
 
-        1. ``git diff --name-only`` (no HEAD): staged and unstaged changes
-           in the working tree relative to the index; does not mix in
-           committed state.
+        1. ``git diff --name-only`` (no HEAD): unstaged working-tree changes
+           relative to the index (modified tracked files not yet staged);
+           does not mix in committed state.
         2. ``git ls-files --others --exclude-standard src/copilot-cli/hooks/``:
            untracked files that the generator may have created.
 
