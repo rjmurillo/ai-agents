@@ -266,9 +266,9 @@ def _original_main(stdin_bytes):
         2. ``git ls-files --others --exclude-standard src/copilot-cli/hooks/``:
            untracked files that the generator may have created.
 
-        A failure to run git is treated as no-diff. Git always works in CI,
-        and a missing git binary at push time is an environmental error that
-        the calling shell will report on its own.
+        A failure to run git (binary not found, timeout) is treated as
+        no-diff and the guard fails open. The calling hook returns 0 so
+        that a broken environment does not block every push.
         """
         hook_prefix = "src/copilot-cli/hooks/"
         git_executable = shutil.which("git")

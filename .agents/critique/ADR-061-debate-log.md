@@ -4,7 +4,7 @@
 
 **Status**: Withdrawn before acceptance (2026-05-27, session 1837)
 
-**Session**: 1837 (`.agents/sessions/2026-05-27-session-1837-delegate-shim-refactor-req-003-007-spec-amendment.json`)
+**Session**: 1837 (session log not persisted for this decision; outcome recorded in this file)
 
 **Branch**: `feat/req-003-007-delegate-shim`
 
