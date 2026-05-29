@@ -18,17 +18,40 @@ suite stays fast and deterministic.
 
 from __future__ import annotations
 
+import importlib
+import importlib.util
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-HOOK_DIR = str(
-    Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
-)
-sys.path.insert(0, HOOK_DIR)
+_HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse"
 
-import invoke_hook_drift_guard as guard  # noqa: E402
+
+def _load_guard_module():
+    """Import invoke_hook_drift_guard without polluting sys.path globally."""
+    module_path = _HOOK_DIR / "invoke_hook_drift_guard.py"
+    # Temporarily add the hook dir to sys.path for the import, then remove it.
+    hook_dir_str = str(_HOOK_DIR)
+    already_present = hook_dir_str in sys.path
+    if not already_present:
+        sys.path.insert(0, hook_dir_str)
+    try:
+        if "invoke_hook_drift_guard" in sys.modules:
+            return sys.modules["invoke_hook_drift_guard"]
+        spec = importlib.util.spec_from_file_location(
+            "invoke_hook_drift_guard", module_path
+        )
+        mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        sys.modules["invoke_hook_drift_guard"] = mod
+        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        return mod
+    finally:
+        if not already_present and hook_dir_str in sys.path:
+            sys.path.remove(hook_dir_str)
+
+
+guard = _load_guard_module()
 
 
 class TestValidate:
@@ -66,7 +89,14 @@ class TestValidate:
             "_import_generator",
             lambda: (gh, Path("/repo/cfg.yaml"), Path("/repo")),
         )
-        monkeypatch.setattr(guard, "_hook_diff_paths", lambda _root: [])
+        # _hook_diff_paths is called twice: pre-existing snapshot then post-run.
+        diff_calls: list[int] = []
+
+        def no_diff(_root):
+            diff_calls.append(1)
+            return []
+
+        monkeypatch.setattr(guard, "_hook_diff_paths", no_diff)
         assert guard._validate([], []) == []
 
     def test_returns_empty_when_no_diff(self, monkeypatch):
@@ -78,13 +108,21 @@ class TestValidate:
             "_import_generator",
             lambda: (gh, Path("/repo/cfg.yaml"), Path("/repo")),
         )
-        monkeypatch.setattr(guard, "_hook_diff_paths", lambda _root: [])
+        # _hook_diff_paths called twice: both return empty (no pre-existing, no drift).
+        diff_calls: list[int] = []
+
+        def no_diff(_root):
+            diff_calls.append(1)
+            return []
+
+        monkeypatch.setattr(guard, "_hook_diff_paths", no_diff)
         assert guard._validate([], []) == []
+        assert len(diff_calls) == 2, "expected pre+post snapshot calls"
 
     def test_returns_block_message_on_hook_path_drift(self, monkeypatch):
-        # Real drift: generator wrote new content on disk and git diff
-        # reports two src/copilot-cli/hooks/ paths changed. The block
-        # message must name the paths and offer a remediation hint.
+        # Real drift: generator wrote new content on disk. First call
+        # returns empty (no pre-existing changes); second call returns the
+        # drifted paths introduced by the generator run.
         gh = SimpleNamespace()
         gh.generate_hooks = MagicMock(return_value=(0, SimpleNamespace(written=37)))
         monkeypatch.setattr(
@@ -92,14 +130,20 @@ class TestValidate:
             "_import_generator",
             lambda: (gh, Path("/repo/cfg.yaml"), Path("/repo")),
         )
-        monkeypatch.setattr(
-            guard,
-            "_hook_diff_paths",
-            lambda _root: [
-                "src/copilot-cli/hooks/preToolUse/invoke_x__Bash_abc.py",
-                "src/copilot-cli/hooks/postToolUse/invoke_y__Edit_def.py",
-            ],
-        )
+        drifted_paths = [
+            "src/copilot-cli/hooks/preToolUse/invoke_x__Bash_abc.py",
+            "src/copilot-cli/hooks/postToolUse/invoke_y__Edit_def.py",
+        ]
+        diff_calls: list[int] = []
+
+        def staged_diff(_root):
+            diff_calls.append(1)
+            if len(diff_calls) == 1:
+                # Pre-existing snapshot: no prior changes.
+                return []
+            return drifted_paths
+
+        monkeypatch.setattr(guard, "_hook_diff_paths", staged_diff)
         out = guard._validate([], [])
         assert out
         # First line names the failure mode.
@@ -116,31 +160,82 @@ class TestValidate:
         # ADR-061 reference points the reader at the institutional record.
         assert any("ADR-061" in line for line in out)
 
+    def test_pre_existing_changes_do_not_cause_false_positive(self, monkeypatch):
+        # If hook paths already have local modifications before the generator
+        # runs, those must not be reported as generator-introduced drift.
+        gh = SimpleNamespace()
+        gh.generate_hooks = MagicMock(return_value=(0, SimpleNamespace(written=37)))
+        monkeypatch.setattr(
+            guard,
+            "_import_generator",
+            lambda: (gh, Path("/repo/cfg.yaml"), Path("/repo")),
+        )
+        pre_existing = ["src/copilot-cli/hooks/preToolUse/unrelated.py"]
+        diff_calls: list[int] = []
+
+        def same_diff(_root):
+            diff_calls.append(1)
+            # Both pre and post snapshots return the same pre-existing path.
+            return pre_existing
+
+        monkeypatch.setattr(guard, "_hook_diff_paths", same_diff)
+        assert guard._validate([], []) == []
+
 
 class TestHookDiffPaths:
     """Tests for _hook_diff_paths (subprocess git-diff parsing)."""
 
+    def _make_run_side_effect(self, diff_stdout: str, untracked_stdout: str):
+        """Return a side_effect callable that dispatches by command args."""
+        def run_side_effect(cmd, **kwargs):
+            fake = MagicMock()
+            fake.returncode = 0
+            if "ls-files" in cmd:
+                fake.stdout = untracked_stdout
+            else:
+                fake.stdout = diff_stdout
+            return fake
+
+        return run_side_effect
+
     def test_filters_only_hook_paths(self):
-        fake = MagicMock()
-        fake.returncode = 0
-        fake.stdout = (
-            "src/copilot-cli/hooks/preToolUse/invoke_x__Bash_abc.py\n"
-            "src/copilot-cli/agents/architect.agent.md\n"
-            ".github/workflows/test.yml\n"
-            "src/copilot-cli/hooks/postToolUse/invoke_y__Edit_def.py\n"
+        side_effect = self._make_run_side_effect(
+            diff_stdout=(
+                "src/copilot-cli/hooks/preToolUse/invoke_x__Bash_abc.py\n"
+                "src/copilot-cli/agents/architect.agent.md\n"
+                ".github/workflows/test.yml\n"
+                "src/copilot-cli/hooks/postToolUse/invoke_y__Edit_def.py\n"
+            ),
+            untracked_stdout="",
         )
-        with patch.object(guard.subprocess, "run", return_value=fake):
+        with patch.object(guard.subprocess, "run", side_effect=side_effect):
             paths = guard._hook_diff_paths(Path("/repo"))
-        assert paths == [
-            "src/copilot-cli/hooks/preToolUse/invoke_x__Bash_abc.py",
-            "src/copilot-cli/hooks/postToolUse/invoke_y__Edit_def.py",
-        ]
+        assert "src/copilot-cli/hooks/preToolUse/invoke_x__Bash_abc.py" in paths
+        assert "src/copilot-cli/hooks/postToolUse/invoke_y__Edit_def.py" in paths
+        assert "src/copilot-cli/agents/architect.agent.md" not in paths
+        assert ".github/workflows/test.yml" not in paths
+
+    def test_includes_untracked_shim_files(self):
+        # generate_hooks may create new shim files that are untracked.
+        # _hook_diff_paths must include them so drift is not missed.
+        side_effect = self._make_run_side_effect(
+            diff_stdout="",
+            untracked_stdout=(
+                "src/copilot-cli/hooks/preToolUse/invoke_new__Bash_xyz.py\n"
+            ),
+        )
+        with patch.object(guard.subprocess, "run", side_effect=side_effect):
+            paths = guard._hook_diff_paths(Path("/repo"))
+        assert "src/copilot-cli/hooks/preToolUse/invoke_new__Bash_xyz.py" in paths
 
     def test_returns_empty_on_git_failure(self):
-        fake = MagicMock()
-        fake.returncode = 128
-        fake.stdout = ""
-        with patch.object(guard.subprocess, "run", return_value=fake):
+        def failing_run(cmd, **kwargs):
+            fake = MagicMock()
+            fake.returncode = 128
+            fake.stdout = ""
+            return fake
+
+        with patch.object(guard.subprocess, "run", side_effect=failing_run):
             assert guard._hook_diff_paths(Path("/repo")) == []
 
     def test_returns_empty_on_missing_git_binary(self):
