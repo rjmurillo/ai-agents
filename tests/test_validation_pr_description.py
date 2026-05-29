@@ -676,6 +676,136 @@ class TestExtensionBoundary:
         result = extract_mentioned_files(desc)
         assert "packages/orders/processor.py" in result
 
+    # Boundary widening: double-extension continuation (issue #1881). A
+    # period followed by an alphanumeric is a further dotted segment, so the
+    # real file is the longer form. Extracting the shorter recognized
+    # extension is a false positive.
+    def test_double_extension_bak_does_not_extract_json(self) -> None:
+        """`runs.json.bak` is a `.bak` file, not a `.json` file.
+
+        Assert the full result is empty so a future regex change that
+        emits any spurious token (`runs.json`, `runs`, `runs.json.ba`)
+        is caught, not just the one shorter form.
+        """
+        desc = "- runs.json.bak  next line"
+        result = extract_mentioned_files(desc)
+        assert result == []
+
+    def test_double_extension_orig_does_not_extract_py(self) -> None:
+        """`module.py.orig` is a `.orig` file, not a `.py` file."""
+        desc = "- module.py.orig"
+        result = extract_mentioned_files(desc)
+        assert result == []
+
+    def test_underscore_segment_does_not_extract_py(self) -> None:
+        """`file.py._bak` has a dotted-underscore segment after the extension.
+
+        The `_` character in `\\.[A-Za-z0-9_]` rejects this case so that
+        `file.py._bak` does not produce `file.py` as a false positive
+        (issue #1881 review feedback, thread 3324919533).
+        """
+        desc = "- file.py._bak"
+        result = extract_mentioned_files(desc)
+        assert result == []
+
+    def test_double_extension_example_does_not_extract_json(self) -> None:
+        """`config.json.example` is a template, not the `.json` file.
+
+        Assert the full result is empty so any spurious token from the same
+        input is caught, not just the specific shorter form (issue #1881
+        review feedback).
+        """
+        desc = "See `config.json.example` for the shape."
+        result = extract_mentioned_files(desc)
+        assert result == []
+
+    @pytest.mark.parametrize(
+        "desc",
+        [
+            "- archive.tar.gz",
+            "Built `data.tar.gz` artifact.",
+            "- **module.py.gz**",
+        ],
+        ids=["tar-gz-list", "tar-gz-inline", "py-gz-bold"],
+    )
+    def test_unrecognized_trailing_extension_extracts_nothing(
+        self, desc: str
+    ) -> None:
+        """`.tar.gz` / `.py.gz`: the trailing segment is not in
+        `_EXT_GROUP`, and the mid segment is rejected as a double
+        extension, so nothing is extracted (issue #1881)."""
+        result = extract_mentioned_files(desc)
+        assert result == []
+
+    @pytest.mark.parametrize(
+        "desc",
+        [
+            "Inline form: `runs.json.bak` here",
+            "Bold form: **runs.json.bak** here",
+            "- `runs.json.bak` list item",
+            "- runs.json.bak bare list item",
+            "Link form: [runs.json.bak] here",
+        ],
+        ids=["inline", "bold", "list-backtick", "list-bare", "link"],
+    )
+    def test_double_extension_rejected_across_all_patterns(
+        self, desc: str
+    ) -> None:
+        """The double-extension rule must hold uniformly across all four
+        FILE_MENTION_PATTERNS variants (issue #1881)."""
+        result = extract_mentioned_files(desc)
+        assert "runs.json" not in result, (
+            f"expected boundary to reject 'runs.json' from input: {desc!r}; "
+            f"got result={result!r}"
+        )
+
+    # Regression guard: the sentence-ending-period carve-out from #1874
+    # MUST survive the #1881 boundary widening.
+    def test_sentence_ending_period_still_extracts(self) -> None:
+        """`foo.json.` at a sentence boundary still extracts `foo.json`.
+
+        A period followed by a space (or end-of-string) is a sentence
+        terminator, not a further dotted segment, so the carve-out from
+        #1874 survives the #1881 widening. Uses the list-item form because
+        bare-prose mentions are not matched by any FILE_MENTION_PATTERN.
+        """
+        desc = "- foo.json. Some comment follows."
+        result = extract_mentioned_files(desc)
+        assert "foo.json" in result
+
+    def test_trailing_period_end_of_string_still_extracts(self) -> None:
+        desc = "Updated `bar.md`."
+        result = extract_mentioned_files(desc)
+        assert "bar.md" in result
+
+    # Regression guard: a genuine longer filename whose LAST dotted segment
+    # is a recognized extension still extracts in full.
+    def test_real_compound_filename_extracts_full_form(self) -> None:
+        """`tsconfig.spec.json` is a real `.json` file; the greedy body
+        group captures the full compound name, not a truncated form."""
+        desc = "- `tsconfig.spec.json`"
+        result = extract_mentioned_files(desc)
+        assert "tsconfig.spec.json" in result
+        assert "tsconfig.spec" not in result
+
+    def test_compound_with_earlier_recognized_segment_extracts_full(
+        self,
+    ) -> None:
+        """`config.yaml.json`: the EARLIER segment (`.yaml`) is also a
+        recognized extension. The greedy body must still capture the full
+        name and decide on the LAST segment, not backtrack to `.yaml`."""
+        desc = "- `config.yaml.json`"
+        result = extract_mentioned_files(desc)
+        assert "config.yaml.json" in result
+        assert "config.yaml" not in result
+
+    def test_double_extension_line_does_not_suppress_next_line(self) -> None:
+        """The `re.MULTILINE` list pattern rejects a double-extension line
+        without swallowing the following valid line (issue #1881)."""
+        desc = "- runs.json.bak\n- real.py"
+        result = extract_mentioned_files(desc)
+        assert result == ["real.py"]
+
 
 # ---------------------------------------------------------------------------
 # _strip_informational_sections
