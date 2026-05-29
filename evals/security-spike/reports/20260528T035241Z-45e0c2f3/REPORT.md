@@ -37,7 +37,7 @@ Pass rate per run (variant: agent | baseline).
 
 ## Confidence Interval
 
-**Note**: at least one fixture exhibited non-zero pass-rate variance; flaky fixtures are excluded from the delta computed below. The CI describes the stable subset only.
+**Note**: at least one fixture exhibited non-zero pass-rate variance. Flaky fixtures are excluded from all headline metrics below: agent recall, baseline recall, delta, and bootstrap CI are all computed on the stable fixture subset only.
 
 Paired bootstrap, n=10000 resamples at fixture level. The 95% CI on the signed recall delta is **[+10.00pp, +72.73pp]**. The interval **excludes** zero, so the observed delta is statistically distinguishable from no effect.
 

@@ -116,9 +116,9 @@ Three fix paths (not in scope here):
 
 ## Methodology
 
-Per spike: 3-5 independent runs per fixture per variant at default temperature. Verdict assertion passes when output begins with the expected verdict from IDENTIFY|OK|ESCALATE. Regex assertions pass when the pattern matches anywhere in the body. Recall is mean per-fixture pass rate. Bootstrap CI uses 1000 resamples of fixture-level deltas.
+Per spike: 3-5 independent runs per fixture per variant at default temperature. Verdict assertion passes when output begins with the expected verdict from IDENTIFY|OK|ESCALATE. Regex assertions pass when the pattern matches anywhere in the body. Recall is sum(passed_assertions) / sum(total_assertions) across the stable fixture subset. Bootstrap CI uses 10000 resamples of fixture-level deltas.
 
-Flaky fixtures (intra-run variance > 0 within a single variant) are detected and selectively excluded by the runner when their inclusion would push error rate above MAX_ERROR_RATE (REQ-004 AC-3).
+Flaky fixtures (intra-run pass-rate variance > 0 within a single variant) are excluded from all headline metrics: agent recall, baseline recall, delta, and bootstrap CI are all computed on the stable subset only. The runner halts when more than 30% of fixtures are flaky (REQ-004 AC-10). MAX_ERROR_RATE is a separate parameter that caps the fraction of API-error outcomes; it does not govern flakiness exclusion.
 
 Baseline prompt is fixed: "Review the following input." plus OUTPUT_SHAPE_SUFFIX. Specialization (the agent's `templates/agents/<agent>.shared.md`) is the only free variable between variants.
 
