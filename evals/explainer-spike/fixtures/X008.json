@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "X008",
+  "policy_id": "pol-explainer-ok-good-acceptance-criteria",
+  "input": "Story: 'As a customer, I can reset my password via email link. AC: (1) link expires 15 min, (2) one-time use enforced, (3) email contains user-visible reason, (4) rate-limit 3 attempts/hour, (5) attempted reset logged to audit trail.' Ship?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(complete|thorough|approve|ship|nothing.*missing|specific.*AC|measurable)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

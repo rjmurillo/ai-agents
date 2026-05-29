@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "B007",
+  "policy_id": "pol-backlog-generator-duplicate-detection",
+  "input": "Generated task: 'Add lint gate to PR workflow.' Existing CI workflow already includes a lint job. Critique.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(duplicate|already.*exists|already.*built|search.*before|reject|redundant)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

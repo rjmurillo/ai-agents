@@ -472,8 +472,6 @@ def _original_main(stdin_bytes):
                 file=sys.stderr,
             )
             return 0
-
-
     return main()
 
 _shim_dispatch()

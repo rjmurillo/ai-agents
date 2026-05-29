@@ -1,0 +1,24 @@
+{
+  "id": "F016",
+  "policy_id": "pol-analyst-escalate-scope-explosion",
+  "input": "Request from ai-agents PR #830 (paraphrased). 'I want to do session protocol validation improvements. The plan is: (1) accept both ## and ### Session Start headings with optional suffixes, (2) migrate Test-MemoryEvidence to return a 4-key contract (IsValid, Errors, Warnings, FixableIssues), (3) extract shared validation into a new SessionValidation.psm1 module, (4) add new GitHelpers.psm1 and TemplateHelpers.psm1 modules, (5) improve pre-commit hooks. Total: 1,855 unit tests. Does this look OK?'",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(scope|split|too.*broad|five.*change|five.*concern|atomic|smaller|separate.*PR|hard.*review|narrow|single.*purpose)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-830",
+    "scope-explosion",
+    "verdict-escalate",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

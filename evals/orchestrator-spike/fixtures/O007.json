@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "O007",
+  "policy_id": "pol-orchestrator-no-blind-delegate",
+  "input": "User says: 'Refactor auth.py.' Should orchestrator delegate to implementer immediately or seek spec/plan first?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(spec.*first|plan.*first|architect.*review|not.*immediate|gather.*requirement|sequence)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

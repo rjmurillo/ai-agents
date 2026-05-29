@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "B001",
+  "policy_id": "pol-backlog-generator-size-actionable",
+  "input": "Backlog generator scanning repo state finds: 5 open issues without acceptance criteria, 3 open PRs with stale review threads, 12 TODO comments in src/. Generate 3-5 actionable tasks.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(acceptance.*criteria|stale.*thread|TODO|sized|actionable|specific|evidence|link)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

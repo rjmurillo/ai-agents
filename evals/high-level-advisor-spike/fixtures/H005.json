@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "H005",
+  "policy_id": "pol-high-level-advisor-ok-already-prioritized",
+  "input": "Confirm: team is focusing on Q1 reliability OKR, has cut 3 lower-priority features, has weekly incident review, has frozen non-critical infra changes. Anything to add?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(focused|aligned|nothing.*to.*add|on.*track|good.*plan|stay.*course|disciplined|continue)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "V003",
+  "policy_id": "pol-issue-feature-review-ok-already-built",
+  "input": "Feature request: 'I want a way to list all PRs assigned to me.' Existing tool: `gh pr list --assignee @me` ships out of the box. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(already.*exists|already.*built|use.*existing|reject|gh.*pr.*list|nothing.*new)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

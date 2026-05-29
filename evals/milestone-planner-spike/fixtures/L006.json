@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "L006",
+  "policy_id": "pol-milestone-planner-risk-with-mitigation",
+  "input": "Plan: 'Migrate auth to OAuth2. Risk: existing tokens become invalid.' Mitigation?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(grace.*period|dual.*support|rotate.*gradually|deprecation|feature.*flag|rollback|migration.*window)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

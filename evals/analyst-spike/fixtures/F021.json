@@ -1,0 +1,23 @@
+{
+  "id": "F021",
+  "policy_id": "pol-analyst-identify-framework-rationale",
+  "input": "Request from ai-agents PR #1887 (paraphrased). 'I am building a pre-push validation framework with 4 guards: M1 shared dispatcher (push_guard_base.py), M2 markdownlint guard, M3 marketplace-count guard, M4 session-log evidence guard, M5 PR-description-vs-diff guard. The shared dispatcher has 1 MiB stdin cap, command-shape verification, git diff with ACMR filter and @{push}..HEAD plus fallbacks, glob filtering, structured BLOCKED output, machine-parseable EVENT line on stderr, fail-open on infrastructure errors. Is the dispatcher complexity worth it for 4 guards, or should each guard ship its own dispatcher?'",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(shared.*dispatch|DRY|common.*infra|fourth.*guard|threshold.*reuse|three.*or.*more|consolidat|amortiz|standardiz|future.*guard)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-1887",
+    "framework-rationale",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

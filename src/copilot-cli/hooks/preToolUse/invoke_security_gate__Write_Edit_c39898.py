@@ -337,8 +337,6 @@ def _original_main(stdin_bytes):
             # Fail-open on infrastructure errors
             print(f"Security gate error: {type(exc).__name__} - {exc}", file=sys.stderr)
             return 0
-
-
     return main()
 
 _shim_dispatch()

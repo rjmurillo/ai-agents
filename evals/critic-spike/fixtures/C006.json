@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "C006",
+  "policy_id": "pol-critic-planted-race-condition",
+  "input": "Critique: pre-push hook fires on every push; reads `.git/refs/heads/<branch>` directly with `open().read()` to compare against PR head.sha. If the branch has been packed into `.git/packed-refs` the file does not exist and the read fails with FileNotFoundError. What is wrong and what is the fix shape?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(packed.*refs|rev-parse|missing.*ref|use.*git.*command|loose.*vs.*packed|reflog|symbolic)"
+    }
+  ],
+  "tags": [
+    "agent-critic",
+    "ai-agents-autofix-doc",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

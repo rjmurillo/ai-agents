@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "C002",
+  "policy_id": "pol-critic-planted-missing-tests",
+  "input": "Critique this change: adds a new error-handling branch in BenchmarkFileReader catching JsonReaderException + IOException + UnauthorizedAccessException + JsonSerializationException, logging the exception object. Tests added: one happy-path test loading a valid JSON file. Verdict?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(no.*test.*for.*new.*catch|missing.*test.*IOException|missing.*test.*Unauthor|untested.*branch|test.*each.*exception|coverage.*gap)"
+    }
+  ],
+  "tags": [
+    "agent-critic",
+    "moq-1040",
+    "verdict-identify"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "F018",
+  "policy_id": "pol-analyst-escalate-bundled-features",
+  "input": "Request from ai-agents PR #402 (paraphrased). 'Complete overhaul of PR maintenance workflow. Five features in one PR: (1) bot authority - bot-authored PRs with conflicts go to ActionRequired not Blocked; (2) proactive detection - unaddressed comments trigger action without CHANGES_REQUESTED; (3) Copilot synthesis - aggregate other bot feedback and direct copilot to address; (4) deduplication - single list guarantee; (5) acknowledged-vs-resolved distinction. Original scope was just #400, but it grew. Should I land this as one PR or split?'",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(split|five.*PR|atomic|review.*hard|smaller.*PR|coupling|dependency.*order|land.*incremental|stack|individually)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-402",
+    "bundled-features",
+    "verdict-escalate"
+  ],
+  "schemaVersion": 1
+}

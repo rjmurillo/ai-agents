@@ -301,8 +301,6 @@ def _original_main(stdin_bytes):
             print(f"ADR lifecycle hook error (input_size={input_size}): {exc}", file=sys.stderr)
 
         return 0
-
-
     return main()
 
 _shim_dispatch()

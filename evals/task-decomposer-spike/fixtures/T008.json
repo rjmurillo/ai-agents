@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "T008",
+  "policy_id": "pol-task-decomposer-from-pr-1989",
+  "input": "From ai-agents PR #1989 (REQ-009, 5 milestones). 'M1: stable-zero wrapper for poll loop. M2: applyTo glob extension. M3: co-change check. M4: pre-merge gate. M5: documentation update.' Critique sequencing and dependency capture.",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(M1.*first|wrapper.*before.*gate|sequence|test.*per.*milestone|dependency|atomic|ship.*per.*milestone)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "ai-agents-1989",
+    "verdict-identify"
+  ]
+}

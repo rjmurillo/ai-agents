@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
+"""Checkpoint work-in-progress state before context compaction.
+
+Claude Code PreCompact hook that snapshots the current work state before
+context is compacted, providing a resume context for the post-compaction
+session.
+
+Captures:
+1. Current session log path and last-modified timestamp
+2. Open TODO items from session log work field
+3. Current git branch
+4. Resume context string (printed to stdout for injection)
+
+Hook Type: PreCompact (non-blocking, fail-open)
+Exit Codes:
+    0 = Always (never blocks compaction)
+
+References:
+    - Issue #1703 (lifecycle hook infrastructure)
+    - Issue #1691 (anti-drift protocol)
+    - ADR-008 (protocol automation)
 """
-PreCompact hook: Checkpoints work-in-progress state before context compaction.
 
-Saves current session state, open TODO items, and branch info so agents
-can resume seamlessly after compaction. Prints resume context to stdout
-for injection into the compacted context.
-
-Hook Type: PreCompact (non-blocking)
-Exit Codes: Always 0 (fail-open, never blocks compaction)
-
-Related:
-- Issue #1703 (lifecycle hook infrastructure)
-- Issue #1691 (anti-drift protocol)
-- ADR-008 (protocol automation lifecycle hooks)
-"""
+from __future__ import annotations
 
 import json
 import os
@@ -22,278 +30,249 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+# --- Standard hook boilerplate ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+    _lib_dir = os.path.join(_plugin_root, "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
 if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import coerce_to_list as _coerce_to_list
-    from hook_utilities import format_work_item as _format_work_item
-    from hook_utilities import get_project_directory as _get_project_directory
-    from hook_utilities import get_recent_session_log as _get_recent_session_log
-
-    def get_project_directory() -> Path | None:
-        """Wrap shared utility returning Path for backward compat."""
-        result = _get_project_directory()
-        return Path(result) if result else None
-
+    from hook_utilities import get_project_directory, get_recent_session_log
+    from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
-    # Fallback if hook_utilities not available
-    def get_project_directory() -> Path | None:
-        """Resolve project root from env or git."""
-        env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+    from datetime import timedelta
+
+    def get_project_directory() -> str:
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
         if env_dir:
-            return Path(env_dir)
-        current = Path.cwd()
-        while current != current.parent:
-            if (current / ".git").exists():
-                return current
-            current = current.parent
+            return str(Path(env_dir).resolve())
+        return str(Path.cwd())
+
+    def get_recent_session_log(sessions_dir: str) -> Path | None:
+        """Return newest today or yesterday session log for cross-midnight support."""
+        sessions_path = Path(sessions_dir)
+        if not sessions_path.is_dir():
+            return None
+        now = datetime.now(tz=UTC)
+        for offset in (0, 1):
+            date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+            try:
+                candidates = list(sessions_path.glob(f"{date}-session-*.json"))
+                if candidates:
+                    return max(candidates, key=lambda p: p.stat().st_mtime)
+            except OSError:
+                continue
         return None
 
-    _get_recent_session_log = None  # type: ignore[assignment]
-    _coerce_to_list = None  # type: ignore[assignment]
-    _format_work_item = None  # type: ignore[assignment]
+    def skip_if_consumer_repo(hook_name: str) -> bool:
+        agents_path = Path(get_project_directory()) / ".agents"
+        if not agents_path.is_dir():
+            print(f"[SKIP] {hook_name}: .agents/ not found (consumer repo)", file=sys.stderr)
+            return True
+        return False
 
 
-def get_current_branch(project_dir: Path | None = None) -> str:
-    """Return current git branch name, or 'unknown' / 'detached' on edge cases.
+HOOK_NAME = "compact-checkpoint"
 
-    `git branch --show-current` exits 0 with empty output when HEAD is
-    detached; without normalization the empty string propagates into the
-    checkpoint and renders as 'Branch: . Session: ...' in resume context.
-    Return 'detached' so the resume context stays readable, and 'unknown'
-    on any subprocess or filesystem error.
+
+def _get_current_branch() -> str:
+    """Get the current git branch name.
+
+    Uses ``git -C`` to bind the call to the project directory rather
+    than relying on the hook process CWD, and applies a short timeout
+    so a stuck git index lock cannot hang the PreCompact gate.
     """
+    project_dir = get_project_directory()
     try:
-        # 2s leaves budget under the 5s hook timeout for session JSON reads
-        # and the checkpoint write. A hung git subprocess that consumes the
-        # full hook timeout would let the harness kill the hook mid-flight
-        # and break the fail-open contract.
         result = subprocess.run(
-            ["git", "branch", "--show-current"],
+            ["git", "-C", project_dir, "branch", "--show-current"],
             capture_output=True,
             text=True,
-            timeout=2,
-            cwd=str(project_dir) if project_dir else None,
+            check=False,
+            timeout=5,
         )
         if result.returncode == 0:
             branch = result.stdout.strip()
-            if branch:
-                return branch
-            return "detached"
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
-        print(
-            f"[hook-error] invoke_compact_checkpoint get_current_branch: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-    return "unknown"
+            return branch if branch else "(detached)"
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return "(unknown)"
 
 
-def _coerce_to_list_fallback(value) -> list:
-    """Fallback normalizer when hook_utilities is unavailable."""
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    if isinstance(value, dict):
-        if not value:
-            return []  # Empty dict: no items (matches canonical coerce_to_list)
-        for key in ("tasks", "items", "log", "entries"):
-            inner = value.get(key)
-            if isinstance(inner, list):
-                return inner
-        for v in value.values():
-            if isinstance(v, list):
-                return v
-        return [value]
-    if isinstance(value, str):
-        return [value] if value.strip() else []
-    return []
+def _extract_open_items(session_log: Path) -> list[str]:
+    """Extract open/incomplete work items from a session log.
 
-
-def coerce_to_list(value) -> list:
-    """Normalize work to a list across legacy and current session schema shapes."""
-    if _coerce_to_list is not None:
-        return _coerce_to_list(value)
-    return _coerce_to_list_fallback(value)
-
-
-def _format_work_item_fallback(item: dict) -> str:
-    """Fallback formatter when hook_utilities is unavailable."""
-    if "action" in item:
-        parts = []
-        if "step" in item:
-            parts.append(f"Step {item['step']}:")
-        parts.append(str(item["action"]))
-        if "outcome" in item:
-            parts.append(f"→ {item['outcome']}")
-        return " ".join(parts)
-    if "description" in item:
-        return str(item["description"])
-    if "task" in item:
-        return str(item["task"])
-    return str(item)
-
-
-def format_work_item(item: dict) -> str:
-    """Format a work item dict into a human-readable string.
-
-    Supports multiple session schemas:
-    - Current: {'step': N, 'action': '...', 'outcome': '...'}
-    - Legacy: {'description': '...'} or {'task': '...'}
+    Supports the legacy ``work: [{description, status}, ...]`` shape, the
+    current ``workLog`` schema, and the observed ``work: { tasks: [...] }``
+    shape (see ``.agents/sessions/2026-02-08-session-1194.json``).
+    Items whose ``status`` is done/complete/completed are excluded.
     """
-    if _format_work_item is not None:
-        return _format_work_item(item)
-    return _format_work_item_fallback(item)
+    items: list[str] = []
 
-
-def _find_recent_session_fallback(sessions_dir: Path) -> Path | None:
-    """Fallback session lookup when hook_utilities is unavailable.
-
-    Only falls back to yesterday if no today session exists, preventing stale
-    data from yesterday being used in a new session's checkpoint.
-    """
-    from datetime import timedelta
-
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-
-    # First, check for today's sessions
-    today_candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
-    if today_candidates:
-        try:
-            return max(today_candidates, key=lambda f: f.stat().st_mtime)
-        except OSError:
-            return None
-
-    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    yesterday_candidates = list(sessions_dir.glob(f"{yesterday}-session-*.json"))
-    if yesterday_candidates:
-        try:
-            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
-        except OSError:
-            return None
-
-    return None
-
-
-def get_session_info(project_dir: Path) -> dict:
-    """Get current session log info.
-
-    Checks both today's and yesterday's session files (UTC) to handle sessions
-    that span midnight.
-    """
-    sessions_dir = project_dir / ".agents" / "sessions"
-    if not sessions_dir.is_dir():
-        return {}
-
-    # Use shared utility if available (handles cross-midnight)
-    if _get_recent_session_log is not None:
-        session_file = _get_recent_session_log(str(sessions_dir))
-    else:
-        session_file = _find_recent_session_fallback(sessions_dir)
-
-    if not session_file:
-        return {}
-    try:
-        data = json.loads(session_file.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return {"session_log": session_file.name}
-        # Modern schema is workLog; legacy is work (sometimes a dict wrapper).
-        work_raw = data.get("workLog")
-        if not work_raw:
-            work_raw = data.get("work", [])
-        work_items = coerce_to_list(work_raw)
-        return {
-            "session_log": session_file.name,
-            "last_modified": datetime.fromtimestamp(
-                session_file.stat().st_mtime, tz=UTC
-            ).isoformat(),
-            "open_items_count": len(work_items),
-            "work_items": [
-                (
-                    item if isinstance(item, str)
-                    else format_work_item(item) if isinstance(item, dict)
-                    else str(item)
+    def _append_open_items(entries: object) -> None:
+        if not isinstance(entries, list):
+            return
+        for entry in entries:
+            if isinstance(entry, dict):
+                status = str(entry.get("status", "")).lower()
+                if status in ("done", "complete", "completed"):
+                    continue
+                # Prefer description, then task, then action, then step.
+                # Skip entries whose values are missing or empty rather than
+                # appending "None" / blank strings that pollute the resume context.
+                desc = (
+                    entry.get("description")
+                    or entry.get("task")
+                    or entry.get("action")
+                    or entry.get("step")
                 )
-                for item in work_items[:5]
-            ],
-        }
-    except (json.JSONDecodeError, OSError, ValueError) as e:
-        print(
-            f"[hook-error] invoke_compact_checkpoint get_session_info: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-        return {"session_log": session_file.name}
+                if isinstance(desc, str):
+                    stripped = desc.strip()
+                    if stripped:
+                        items.append(stripped)
+            elif isinstance(entry, str):
+                stripped = entry.strip()
+                if stripped:
+                    items.append(stripped)
 
-
-def main() -> int:
-    """Checkpoint state before compaction."""
-    # Skip if stdin is TTY
-    if sys.stdin.isatty():
-        return 0
-
-    # Consume stdin
     try:
-        sys.stdin.read()
-    except Exception as e:
-        print(f"[hook-error] invoke_compact_checkpoint stdin: {type(e).__name__}: {e}", file=sys.stderr)
+        content = session_log.read_text(encoding="utf-8", errors="replace")
+        data = json.loads(content)
+    except (json.JSONDecodeError, OSError):
+        return items
 
-    project_dir = get_project_directory()
-    if not project_dir:
-        return 0
+    if not isinstance(data, dict):
+        return items
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-    # Suffix combines microsecond resolution and PID so two compactions
-    # firing in the same second from different processes do not overwrite
-    # each other's checkpoints.
-    timestamp = now.strftime("%H%M%S-%f") + f"-{os.getpid()}"
-    branch = get_current_branch(project_dir)
-    session_info = get_session_info(project_dir)
+    work = data.get("work", [])
+    if isinstance(work, list):
+        _append_open_items(work)
+    elif isinstance(work, dict):
+        _append_open_items(work.get("tasks", []))
 
-    # Build checkpoint
-    checkpoint = {
-        "timestamp": now.isoformat(),
+    _append_open_items(data.get("workLog", []))
+    return items
+
+
+def _write_checkpoint(
+    project_dir: str,
+    session_log_name: str,
+    session_mtime: str,
+    branch: str,
+    open_items: list[str],
+    resume_context: str,
+) -> None:
+    """Write checkpoint file for compaction recovery."""
+    checkpoint_dir = Path(project_dir) / ".agents" / ".hook-state"
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    timestamp = datetime.now(tz=UTC).strftime("%H%M%S-%f")
+
+    checkpoint_file = checkpoint_dir / f"pre-compact-{today}-{timestamp}-{os.getpid()}.json"
+    checkpoint_data = {
+        "session_log": session_log_name,
+        "session_mtime": session_mtime,
         "branch": branch,
-        "session": session_info,
-        "resume_context": (
-            f"Compaction occurred at {now.strftime('%H:%M:%S')}. "
-            f"Branch: {branch}. "
-            f"Session: {session_info.get('session_log', 'none')}. "
-            f"Open items: {session_info.get('open_items_count', 0)}"
-        ),
+        "open_items": open_items,
+        "resume_context": resume_context,
+        "created_at": datetime.now(tz=UTC).isoformat(),
     }
 
-    # Write checkpoint file (skip silently in consumer repos that lack .agents/)
+    checkpoint_file.write_text(
+        json.dumps(checkpoint_data, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _drain_stdin() -> None:
+    """Drain stdin to prevent pipe buffer blocking on the harness side.
+
+    Even when this hook does not need input data, consuming stdin keeps
+    the fail-open contract with the harness: an unconsumed pipe can leave
+    the producer blocked or trigger EPIPE/SIGPIPE when the hook exits.
+    """
+    if not sys.stdin.isatty():
+        try:
+            sys.stdin.read()
+        except OSError:
+            pass
+
+
+def main() -> None:
+    """Snapshot state before context compaction."""
+    _drain_stdin()
+
+    if skip_if_consumer_repo(HOOK_NAME):
+        sys.exit(0)
+
+    project_dir = get_project_directory()
+    project_path = Path(project_dir)
+
+    # Get session log (supports cross-midnight sessions via yesterday fallback)
+    sessions_dir = str(project_path / ".agents" / "sessions")
+    session_log = get_recent_session_log(sessions_dir)
+
+    session_log_name = session_log.name if session_log else "(none)"
+    session_mtime = ""
+    if session_log and session_log.exists():
+        try:
+            mtime = session_log.stat().st_mtime
+            session_mtime = datetime.fromtimestamp(mtime, tz=UTC).isoformat()
+        except OSError:
+            session_mtime = "(unknown)"
+
+    # Get open items
+    open_items = _extract_open_items(session_log) if session_log else []
+
+    # Get branch
+    branch = _get_current_branch()
+
+    # Build resume context
+    timestamp = datetime.now(tz=UTC).isoformat()
+    item_count = len(open_items)
+    resume_context = (
+        f"Compaction occurred at {timestamp}. "
+        f"Resume from: {session_log_name}. "
+        f"Branch: {branch}. "
+        f"Open items: {item_count}."
+    )
+
+    if open_items:
+        items_preview = "; ".join(open_items[:5])
+        if len(open_items) > 5:
+            items_preview += f" ... (+{len(open_items) - 5} more)"
+        resume_context += f" Items: {items_preview}"
+
+    # Print the resume context to stdout first so the post-compaction
+    # session still receives it even when checkpoint persistence fails
+    # (full disk, read-only mount, permission error, etc.). The injected
+    # context is the primary product of this hook; the on-disk checkpoint
+    # is a best-effort audit artifact.
+    print(f"## ⚠️ Pre-Compaction Checkpoint\n\n{resume_context}")
+
     try:
-        agents_dir = project_dir / ".agents"
-        if not agents_dir.is_dir():
-            return 0
-        hook_state_dir = agents_dir / ".hook-state"
-        hook_state_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_file = hook_state_dir / f"pre-compact-{today}-{timestamp}.json"
-        checkpoint_file.write_text(
-            json.dumps(checkpoint, indent=2, ensure_ascii=False),
-            encoding="utf-8",
+        _write_checkpoint(
+            project_dir,
+            session_log_name,
+            session_mtime,
+            branch,
+            open_items,
+            resume_context,
         )
-    except OSError as e:
+    except OSError as exc:
         print(
-            f"[hook-error] invoke_compact_checkpoint checkpoint write: {type(e).__name__}: {e}",
+            f"[WARNING] {HOOK_NAME} checkpoint write failed: {exc}",
             file=sys.stderr,
         )
-
-    # Print resume context to stdout (injected into compacted context)
-    print(checkpoint["resume_context"])
-
-    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except Exception as exc:
+        print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
+        sys.exit(0)

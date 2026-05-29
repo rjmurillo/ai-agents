@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "B006",
+  "policy_id": "pol-backlog-generator-priority-correlation",
+  "input": "Repo state: 2 P0 issues open + 8 P3 issues open. Generator returned 3 P3 tasks. Critique.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(P0.*first|priority|miss.*P0|wrong.*priority|should.*be.*P0|ignored|order)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

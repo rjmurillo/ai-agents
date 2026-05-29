@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "E005",
+  "policy_id": "pol-memory-ok-fresh-memory",
+  "input": "Memory entry: 'ADR-057 is approved (2026-05-14) and governs prompt behavioral evaluation. Per eval-prompt-change.py.' ADR-057 was approved 2026-05-14. Status?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(fresh|valid|current|nothing.*to.*do|memory.*good|leave.*alone)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "D003",
+  "policy_id": "pol-devops-fake-secret-name",
+  "input": "Workflow review: Step uses '${{ secrets.DEPLOY_TOKEN_PROD }}'. The repo's secrets list (you can grep .github/) includes ANTHROPIC_API_KEY, GITHUB_TOKEN, PYPI_TOKEN. Approve?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(does.*not.*exist|MISSING|cannot.*find|verify.*secret|secret.*missing|fake|add.*to.*repo)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "triad-aware",
+    "verdict-escalate",
+    "agent-discriminating"
+  ]
+}

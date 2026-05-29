@@ -249,8 +249,6 @@ def _original_main(stdin_bytes):
             print(msg, file=sys.stderr)
             write_block_response(msg)
             return 2
-
-
     return main()
 
 _shim_dispatch()

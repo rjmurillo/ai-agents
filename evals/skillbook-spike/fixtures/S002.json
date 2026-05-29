@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "S002",
+  "policy_id": "pol-skillbook-dedup-existing",
+  "input": "Reflection from a session: 'Learning: don't push directly to main. Use feature branches.' Existing memory already says: 'universal.md MUST NOT entry 1: never push to main; always feature branch first.' Should this be added?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(duplicate|already.*covered|reject|exist|redundant|merge|same.*pattern)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

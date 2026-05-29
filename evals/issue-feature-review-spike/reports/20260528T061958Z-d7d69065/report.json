@@ -1,0 +1,130 @@
+{
+  "agent_prompt_sha": "6e919c6009c0efdab81e90972252b86dc6e9b36a3d0ffcff3517223376ed88ac",
+  "agent_recall": 0.541667,
+  "baseline_prompt_sha": "f2837b5416a8d4cb076234938c32a077f9101ccefce42d3ae2c398c69122e445",
+  "baseline_recall": 0.625,
+  "bootstrap_ci_95": [
+    -0.416667,
+    0.1875
+  ],
+  "cost_estimate_usd": 0.2391,
+  "error_count": 0,
+  "fixture_set_sha": "927d542a5715836a572e1ad141e2e5b594c6195d2a106d8020f05b248a29d93b",
+  "flakiness": true,
+  "flaky_fixtures_detected": [
+    "V001",
+    "V006",
+    "V007"
+  ],
+  "flaky_fixtures_excluded": [],
+  "model_id": "claude-sonnet-4-6",
+  "per_fixture_pass_rates": {
+    "V001": {
+      "agent": [
+        0.0,
+        0.0,
+        0.5
+      ],
+      "baseline": [
+        0.0,
+        0.0,
+        0.5
+      ]
+    },
+    "V002": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "V003": {
+      "agent": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "V004": {
+      "agent": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "V005": {
+      "agent": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "baseline": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    "V006": {
+      "agent": [
+        0.5,
+        1.0,
+        0.5
+      ],
+      "baseline": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    },
+    "V007": {
+      "agent": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "baseline": [
+        0.5,
+        0.5,
+        0.0
+      ]
+    },
+    "V008": {
+      "agent": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "baseline": [
+        0.5,
+        0.5,
+        0.5
+      ]
+    }
+  },
+  "pricing_rate_as_of": "2026-05-03",
+  "recall_delta": -0.083333,
+  "recall_excluding_errors": 0.541667,
+  "recall_with_errors": 0.541667,
+  "recommendation": "halt-due-to-flakiness",
+  "run_id": "20260528T061958Z-d7d69065",
+  "schemaVersion": 1,
+  "tokens_estimated": true,
+  "total_tokens_in": 51546,
+  "total_tokens_out": 5628,
+  "wall_clock_seconds": 190.36
+}

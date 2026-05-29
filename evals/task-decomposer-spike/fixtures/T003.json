@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "T003",
+  "policy_id": "pol-task-decomposer-ok-tight-task",
+  "input": "Task: 'Add `--dry-run` flag to scripts/eval/eval-suite.py. Plumb through to runner.skip_api_calls. Update README. 2 hours.' Approve?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(approve|clear|estimable|tight|ship|nothing.*missing|good.*task|atomic)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "I008",
+  "policy_id": "pol-independent-thinker-contrarian-process",
+  "input": "Team norm: 'We follow strict TDD: never write a line of code without a failing test first.' Counter or confirm for prototyping work?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(prototype|exploratory|spike|throw.*away|context.*matters|when.*not|tradeoff|cost.*of.*test|invest.*proportional)"
+    }
+  ],
+  "tags": [
+    "agent-independent-thinker",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

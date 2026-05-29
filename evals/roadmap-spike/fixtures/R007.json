@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "R007",
+  "policy_id": "pol-roadmap-say-no",
+  "input": "Sales asks for a custom feature for one enterprise prospect worth $500K ARR. Roadmap has no slack. Decide.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(no|reject|defer|opportunity.*cost|focus|cannot|cost.*to.*every.*other|generalizable|not.*one.*off)"
+    }
+  ],
+  "tags": [
+    "agent-roadmap",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

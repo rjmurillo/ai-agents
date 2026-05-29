@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "R004",
+  "policy_id": "pol-roadmap-ok-stay-the-course",
+  "input": "Roadmap committed Q1 to reliability. Team spent 80 percent on reliability so far; 20 percent on a small customer-asked feature flag. Cycle time down 30 percent. CTO asks: stay or adjust?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(stay.*course|on.*track|continue|good.*progress|nothing.*change|focused|aligned)"
+    }
+  ],
+  "tags": [
+    "agent-roadmap",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

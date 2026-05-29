@@ -1,0 +1,23 @@
+{
+  "id": "F005",
+  "policy_id": "pol-analyst-error-handling-gaps",
+  "input": "Bug report (moq.analyzers issue #991): Error handling gaps in the PerfDiff tool. Specific case in src/tools/PerfDiff/BDN/BenchmarkFileReader.cs:26-34:\n\n```csharp\ncatch (JsonSerializationException)\n{\n    logger.LogError(\"Exception while reading the {ResultFilePath} file.\", resultFilePath);\n    return null;\n}\n```\n\nWhat is wrong, what other exception types should this catch, and what is wrong with the log call itself?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(IOException|UnauthorizedAccess|JsonReader|malformed|exception.*object|stack.*trace|preserve|swallow)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-991",
+    "error-handling",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}
