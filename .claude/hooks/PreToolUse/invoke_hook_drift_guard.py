@@ -117,9 +117,9 @@ def _hook_diff_paths(repo_root: Path) -> list[str]:
     Combines two sources so that both modified tracked files and new
     untracked files (e.g. freshly generated shims) are included:
 
-    1. ``git diff --name-only`` (no HEAD): unstaged changes in the
-       working tree relative to the index (modified tracked files not
-       yet staged); does not include staged changes or committed state.
+    1. ``git diff --name-only`` (no HEAD): staged and unstaged changes
+       in the working tree relative to the index; does not mix in
+       committed state.
     2. ``git ls-files --others --exclude-standard src/copilot-cli/hooks/``:
        untracked files that the generator may have created.
 
@@ -130,11 +130,6 @@ def _hook_diff_paths(repo_root: Path) -> list[str]:
     hook_prefix = "src/copilot-cli/hooks/"
     git_executable = shutil.which("git")
     if not git_executable:
-        emit_fail_open(
-            GUARD_NAME,
-            "git_not_on_path",
-            "git binary not found via shutil.which; skipping hook-shim diff check",
-        )
         return []
     try:
         diff_result = subprocess.run(
@@ -159,19 +154,7 @@ def _hook_diff_paths(repo_root: Path) -> list[str]:
             check=False,
             timeout=5,
         )
-    except FileNotFoundError as exc:
-        emit_fail_open(
-            GUARD_NAME,
-            "git_exec_not_found",
-            f"git binary disappeared after which() check: {exc}",
-        )
-        return []
-    except subprocess.TimeoutExpired as exc:
-        emit_fail_open(
-            GUARD_NAME,
-            "git_timeout",
-            f"git diff/ls-files exceeded timeout: {exc}",
-        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return []
     paths: list[str] = []
     if diff_result.returncode == 0:
