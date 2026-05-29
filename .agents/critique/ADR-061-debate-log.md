@@ -81,7 +81,7 @@ P1 weaknesses:
 P2 weaknesses:
 
 - Security section understates the change (shared `_shim_runtime.py` is single-point-of-compromise vs. N independent targets).
-- Confirmation Rule 2 misspecified (thin shims do not contain body bytes after refactor , rule becomes a tautology).
+- Confirmation Rule 2 misspecified (thin shims do not contain body bytes after refactor; rule becomes a tautology).
 
 Recommendations: demote to Draft until Phase 1 spike completes; add math; strengthen alt B rejection with data; correct security wording; fix Rule 2.
 

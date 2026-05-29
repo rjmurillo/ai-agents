@@ -254,13 +254,14 @@ def _original_main(stdin_bytes):
 
 
     def _hook_diff_paths(repo_root: Path) -> list[str]:
-        """Return changed paths under src/copilot-cli/hooks/ since the last commit.
+        """Return uncommitted paths under src/copilot-cli/hooks/.
 
         Combines two sources so that both modified tracked files and new
         untracked files (e.g. freshly generated shims) are included:
 
         1. ``git diff --name-only`` (no HEAD): staged and unstaged changes
-           against the index; does not mix in committed state.
+           in the working tree relative to the index; does not mix in
+           committed state.
         2. ``git ls-files --others --exclude-standard src/copilot-cli/hooks/``:
            untracked files that the generator may have created.
 
