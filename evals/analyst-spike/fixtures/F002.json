@@ -1,0 +1,23 @@
+{
+  "id": "F002",
+  "policy_id": "pol-analyst-power-shell-parse",
+  "input": "Bug report (moq.analyzers issue #1081): Pre-push git hook fails with PowerShell parse error, blocking all pushes:\n\n```\nRunning tech debt marker scan...\nAt build/scripts/todo-scanner/Scan-TodoComments.ps1:1 char:1\n+ <#\n+ ~~\nThe terminator '#>' is missing from the multiline comment.\nat <ScriptBlock>, .githooks/hooks/Invoke-PrePush.ps1: line 21\n```\n\nImpact: all pushes blocked unless bypassed with --no-verify. What is the most likely root cause and the cheapest first check?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(line.*ending|CRLF|LF|encoding|BOM|terminator|hexdump|file -b|od -c)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-1081",
+    "powershell-parse",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

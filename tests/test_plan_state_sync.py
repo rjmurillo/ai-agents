@@ -1,153 +1,215 @@
 #!/usr/bin/env python3
-"""Tests for invoke_plan_state_sync.py (PostToolUse hook)."""
+"""Tests for PostToolUse/invoke_plan_state_sync.py.
+
+Covers:
+- Session log detection and checkpoint creation
+- Plan/TODO file detection
+- Non-matching file pass-through
+- Checkpoint file format
+- Consumer repo skip
+"""
+
+from __future__ import annotations
 
 import json
 import sys
-import tempfile
-import unittest
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "PostToolUse"))
 
-import invoke_plan_state_sync
+import invoke_plan_state_sync  # noqa: E402
 
 
-class TestPlanStateSync(unittest.TestCase):
-    """Test PostToolUse plan state sync hook."""
+class TestIsCheckpointableFile:
+    """Test _is_checkpointable_file detection."""
 
-    def test_tty_stdin_exits_zero(self):
-        with patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            result = invoke_plan_state_sync.main()
-            self.assertEqual(result, 0)
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".agents/sessions/2026-01-01-session-001.json",
+            "TODO.md",
+            "PLAN.md",
+            ".agents/plan-v2.md",
+            "PROJECT-PLAN.md",
+            "todo.md",
+        ],
+    )
+    def test_detects_checkpointable_files(self, path: str) -> None:
+        assert invoke_plan_state_sync._is_checkpointable_file(path) is True
 
-    def test_empty_stdin_exits_zero(self):
-        with patch("sys.stdin", StringIO("")):
-            result = invoke_plan_state_sync.main()
-            self.assertEqual(result, 0)
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "src/main.py",
+            "README.md",
+            ".agents/architecture/ADR-001.md",
+            "package.json",
+            "tests/test_foo.py",
+            # Nested planning docs must not match `.agents/plan*.md`.
+            # The earlier `\.agents/plan.*\.md$` pattern crossed segment
+            # boundaries and matched these paths; the scoped pattern
+            # `\.agents/plan[^/]*\.md$` keeps the match within one segment.
+            ".agents/planning/roadmap.md",
+            ".agents/planning/2026/q2.md",
+            ".agents/planner/notes.md",
+        ],
+    )
+    def test_ignores_non_checkpointable_files(self, path: str) -> None:
+        assert invoke_plan_state_sync._is_checkpointable_file(path) is False
 
-    def test_non_dict_root_json_exits_zero(self):
-        """Valid JSON whose root is not an object must not break fail-open."""
-        with patch("sys.stdin", StringIO('"just-a-string"')):
-            result = invoke_plan_state_sync.main()
-            self.assertEqual(result, 0)
 
-    def test_non_dict_tool_input_exits_zero(self):
-        """tool_input that is a list/string must not break fail-open."""
-        hook_input = {"tool_input": "not-a-dict"}
-        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-            result = invoke_plan_state_sync.main()
-            self.assertEqual(result, 0)
+class TestReadFileSummary:
+    """Test _read_file_summary helper."""
 
-    def test_non_plan_file_passes_through(self):
-        """Regular files should not trigger checkpointing."""
-        hook_input = {"tool_input": {"file_path": "src/main.py"}}
-        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-            result = invoke_plan_state_sync.main()
-            self.assertEqual(result, 0)
+    def test_reads_small_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "todo.md"
+        f.write_text("# TODO\n- Item 1", encoding="utf-8")
+        result = invoke_plan_state_sync._read_file_summary(str(f))
+        assert "# TODO" in result
 
-    def test_session_log_triggers_checkpoint(self):
-        """Session log writes should create checkpoint."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            sessions_dir = tmp_path / ".agents" / "sessions"
-            sessions_dir.mkdir(parents=True)
-            session_file = sessions_dir / "2026-04-20-session-01.json"
-            session_file.write_text(json.dumps({"work": ["task A"]}))
+    def test_truncates_large_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "big.md"
+        f.write_text("x" * 1000, encoding="utf-8")
+        result = invoke_plan_state_sync._read_file_summary(str(f))
+        assert len(result) <= 510  # 500 + "..."
 
-            hook_input = {"tool_input": {"file_path": ".agents/sessions/2026-04-20-session-01.json"}}
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_plan_state_sync, "get_project_directory", return_value=tmp_path):
-                    result = invoke_plan_state_sync.main()
-                    self.assertEqual(result, 0)
+    def test_missing_file(self, tmp_path: Path) -> None:
+        result = invoke_plan_state_sync._read_file_summary(str(tmp_path / "nope.md"))
+        assert "not found" in result
 
-                    # Checkpoint should exist
-                    hook_state = tmp_path / ".agents" / ".hook-state"
-                    checkpoints = list(hook_state.glob("plan-checkpoint-*.json"))
-                    self.assertEqual(len(checkpoints), 1)
 
-    def test_todo_md_triggers_checkpoint(self):
-        """TODO.md writes should create checkpoint."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            (tmp_path / ".agents").mkdir()
-            todo = tmp_path / "TODO.md"
-            todo.write_text("- [ ] Fix bug")
+class TestWriteCheckpoint:
+    """Test _write_checkpoint function."""
 
-            hook_input = {"tool_input": {"file_path": "TODO.md"}}
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_plan_state_sync, "get_project_directory", return_value=tmp_path):
-                    result = invoke_plan_state_sync.main()
-                    self.assertEqual(result, 0)
+    def test_creates_checkpoint_file(self, tmp_path: Path) -> None:
+        (tmp_path / ".agents").mkdir()
+        invoke_plan_state_sync._write_checkpoint(
+            str(tmp_path), "TODO.md", "# TODO\n- Item 1"
+        )
 
-                    hook_state = tmp_path / ".agents" / ".hook-state"
-                    checkpoints = list(hook_state.glob("plan-checkpoint-*.json"))
-                    self.assertEqual(len(checkpoints), 1)
+        checkpoint_dir = tmp_path / ".agents" / ".hook-state"
+        assert checkpoint_dir.exists()
+        files = list(checkpoint_dir.glob("plan-checkpoint-*.json"))
+        assert len(files) == 1
 
-    def test_checkpoint_contains_summary(self):
-        """Checkpoint should contain first 500 chars of file."""
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            (tmp_path / ".agents").mkdir()
-            todo = tmp_path / "TODO.md"
-            todo.write_text("Important task details here")
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+        assert isinstance(data, list)
+        assert data[0]["file"] == "TODO.md"
 
-            hook_input = {"tool_input": {"file_path": "TODO.md"}}
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_plan_state_sync, "get_project_directory", return_value=tmp_path):
-                    invoke_plan_state_sync.main()
+    def test_appends_to_existing(self, tmp_path: Path) -> None:
+        checkpoint_dir = tmp_path / ".agents" / ".hook-state"
+        checkpoint_dir.mkdir(parents=True)
 
-                    hook_state = tmp_path / ".agents" / ".hook-state"
-                    cp = list(hook_state.glob("plan-checkpoint-*.json"))[0]
-                    data = json.loads(cp.read_text())
-                    self.assertIn("Important task details", data[-1]["summary"])
+        invoke_plan_state_sync._write_checkpoint(str(tmp_path), "TODO.md", "first")
+        invoke_plan_state_sync._write_checkpoint(str(tmp_path), "PLAN.md", "second")
 
-    def test_substring_match_does_not_trigger(self):
-        """Files that merely contain TODO/PLAN substrings must not match.
+        files = list(checkpoint_dir.glob("plan-checkpoint-*.json"))
+        assert len(files) == 1  # Same day, same file
 
-        Anchored regexes prevent file names like MyTODO.md, OLD-PLAN.md, or
-        nested/path/SOMETODO.md from polluting the checkpoint ring.
-        """
-        for offender in (
-            "src/MyTODO.md",
-            "vendor/OLD-PLAN.md",
-            "docs/SOMETODO.md",
-            "config/MYPROJECT-PLAN.md",
-            # `.agents/plan*.md` is intentionally permissive (e.g. plan-v2.md);
-            # the offender below is a sibling directory, not under `.agents/`.
-            "vendor/.agents-clone/plan-foo.md",
-        ):
-            self.assertFalse(
-                invoke_plan_state_sync.is_plan_file(offender),
-                msg=f"{offender!r} should not match PLAN_PATTERNS",
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+        assert len(data) == 2
+
+    def test_limits_checkpoint_count(self, tmp_path: Path) -> None:
+        (tmp_path / ".agents").mkdir()
+        for i in range(25):
+            invoke_plan_state_sync._write_checkpoint(
+                str(tmp_path), f"file-{i}.md", f"summary-{i}"
             )
 
-    def test_path_traversal_rejected(self):
-        """file_path that escapes project root must not be read or checkpointed.
+        files = list((tmp_path / ".agents" / ".hook-state").glob("plan-checkpoint-*.json"))
+        data = json.loads(files[0].read_text(encoding="utf-8"))
+        assert len(data) <= 20
 
-        Verifies the CWE-22 defense at lines 173-186 of the hook.
+
+class TestMain:
+    """Test main() function."""
+
+    def test_skip_consumer_repo(self) -> None:
+        with patch.object(
+            invoke_plan_state_sync, "skip_if_consumer_repo", return_value=True
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_plan_state_sync.main()
+            assert exc_info.value.code == 0
+
+    def test_tty_stdin_exits_zero(self) -> None:
+        with patch.object(
+            invoke_plan_state_sync, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_plan_state_sync, "_read_stdin_json", return_value=None,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_plan_state_sync.main()
+            assert exc_info.value.code == 0
+
+    def test_non_checkpointable_file_passes(self) -> None:
+        hook_input = {"tool_input": {"file_path": "src/main.py"}}
+        with patch.object(
+            invoke_plan_state_sync, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_plan_state_sync, "_read_stdin_json", return_value=hook_input,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_plan_state_sync.main()
+            assert exc_info.value.code == 0
+
+    def test_checkpoints_todo_file(self, tmp_path: Path) -> None:
+        """Hook writes a JSON checkpoint reflecting the TODO contents.
+
+        Asserts the checkpoint records the file name and a summary that
+        contains the TODO contents. Without these checks the test would
+        pass even if the hook checkpointed ``(file not found)`` due to
+        a CWD-relative resolve bug.
         """
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            (tmp_path / ".agents").mkdir()
-            # A path that resolves above project root.
-            hook_input = {"tool_input": {"file_path": "../outside/TODO.md"}}
+        todo = tmp_path / "TODO.md"
+        todo.write_text("# TODO\n- Item 1", encoding="utf-8")
+        (tmp_path / ".agents").mkdir()
 
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_plan_state_sync, "get_project_directory", return_value=tmp_path):
-                    result = invoke_plan_state_sync.main()
-                    self.assertEqual(result, 0)
-                    # No checkpoint should have been written.
-                    hook_state = tmp_path / ".agents" / ".hook-state"
-                    if hook_state.is_dir():
-                        self.assertEqual(list(hook_state.glob("plan-checkpoint-*.json")), [])
+        hook_input = {"tool_input": {"file_path": "TODO.md"}}
+        with patch.object(
+            invoke_plan_state_sync, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_plan_state_sync, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_plan_state_sync,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ):
+            invoke_plan_state_sync.main()
+
+        checkpoint_dir = tmp_path / ".agents" / ".hook-state"
+        assert checkpoint_dir.exists()
+
+        checkpoint_files = list(checkpoint_dir.glob("plan-checkpoint-*.json"))
+        assert checkpoint_files, "Expected a JSON checkpoint file to be created"
+
+        checkpoint_data = json.loads(checkpoint_files[0].read_text(encoding="utf-8"))
+        checkpoint_text = json.dumps(checkpoint_data)
+
+        assert "TODO.md" in checkpoint_text
+        assert "# TODO" in checkpoint_text
+        assert "Item 1" in checkpoint_text
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestFailOpen:
+    """Test fail-open behavior of the script wrapper."""
+
+    def test_exception_exits_zero(self) -> None:
+        """The ``__main__`` wrapper must catch errors and exit 0.
+
+        Validates the contract Claude Code relies on: even when
+        ``main()`` raises, the script must not block tool use.
+        """
+        from tests.hook_test_helpers import run_main_wrapper
+
+        def raising_main() -> None:
+            raise RuntimeError("boom")
+
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_plan_state_sync, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr

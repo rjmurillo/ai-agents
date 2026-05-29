@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "E004",
+  "policy_id": "pol-memory-cross-session-continuity",
+  "input": "New session starts. Branch: feat/long-running-work. Prior session created a session log + memory entry + open issue. What is the first action?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(read.*session.*log|read.*memory|continuation|prior.*session|context.*before.*reason|HANDOFF|search.*memory)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

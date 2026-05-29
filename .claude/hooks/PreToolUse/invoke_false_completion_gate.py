@@ -1,360 +1,690 @@
 #!/usr/bin/env python3
+"""Block false completion claims without verification evidence.
+
+Claude Code PreToolUse hook that detects when agents claim "done", "fixed",
+etc. in commit messages or PR operations without prior verification evidence
+(test/build runs) in the session log.
+
+Addresses 44 false completion mentions across 80+ retrospectives.
+
+Gate triggers on:
+- git commit messages containing completion signals
+- gh pr create commands with completion language
+- gh pr merge commands (inherently completion actions)
+
+Evidence requirements (any one satisfies):
+1. Test run in session log (pytest, npm test, etc.)
+2. Build verification in session log (tsc --noEmit, etc.)
+3. PR checks verified (gh pr checks)
+
+Bypass conditions:
+- SKIP_COMPLETION_GATE=true environment variable
+- Documentation-only changes (*.md files only)
+- No session log present (fail-open), unless the completion claim was
+  inferred from an unreadable -F / --body-file (fail-closed)
+- Non-commit/non-PR/non-merge commands
+
+Hook Type: PreToolUse (blocking on match)
+Exit Codes (Claude Hook Semantics):
+    0 = Allow (evidence exists or not a completion claim)
+    2 = Block (completion claim without verification)
+
+References:
+    - Issue #1703 (lifecycle hook infrastructure)
+    - Issue #1673 (false completion)
+    - ADR-008 (protocol automation)
 """
-PreToolUse hook: Blocks false completion claims without prior verification.
 
-Detects when agents claim "done/fixed/complete" in commit messages or PR
-descriptions without evidence of running tests/builds in the session.
-
-Hook Type: PreToolUse (matcher: Bash)
-Exit Codes:
-    0 = Allow (no false completion detected, or verification evidence found)
-    2 = Block (false completion detected without verification)
-
-Bypass: SKIP_COMPLETION_GATE=true environment variable
-
-Related:
-- Issue #1703 (lifecycle hook infrastructure)
-- Issue #1673 (false completion mentions)
-- ADR-008 (protocol automation lifecycle hooks)
-"""
+from __future__ import annotations
 
 import json
 import os
 import re
+import subprocess
 import sys
-from datetime import UTC, datetime
+import tempfile
+import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+# --- Standard hook boilerplate ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+    _lib_dir = os.path.join(_plugin_root, "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
 if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import get_project_directory as _get_project_directory
-    from hook_utilities import get_recent_session_log as _get_recent_session_log
-    from hook_utilities import lock_file as _lock_file
-    from hook_utilities import unlock_file as _unlock_file
-
-    def get_project_directory() -> Path | None:
-        """Wrap shared utility returning Path for backward compat."""
-        result = _get_project_directory()
-        return Path(result) if result else None
-
+    from hook_utilities import (
+        get_project_directory,
+        get_recent_session_log,
+        get_today_session_logs,
+    )
+    from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
-    # Fallback if hook_utilities not available
-    def get_project_directory() -> Path | None:
-        """Resolve project root from env or git."""
-        env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
+
+    def get_project_directory() -> str:
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
         if env_dir:
-            return Path(env_dir)
-        current = Path.cwd()
-        while current != current.parent:
-            if (current / ".git").exists():
-                return current
-            current = current.parent
+            return str(Path(env_dir).resolve())
+        return str(Path.cwd())
+
+    def get_today_session_logs(sessions_dir: str) -> list[Path]:
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        sessions_path = Path(sessions_dir)
+        if not sessions_path.is_dir():
+            return []
+        try:
+            return list(sessions_path.glob(f"{today}-session-*.json"))
+        except OSError:
+            return []
+
+    def get_recent_session_log(sessions_dir: str) -> Path | None:
+        """Fallback: return newest today or yesterday session log."""
+        from datetime import timedelta
+
+        sessions_path = Path(sessions_dir)
+        if not sessions_path.is_dir():
+            return None
+        now = datetime.now(tz=UTC)
+        for offset in (0, 1):
+            date = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+            try:
+                candidates = list(sessions_path.glob(f"{date}-session-*.json"))
+                if candidates:
+                    return max(candidates, key=lambda p: p.stat().st_mtime)
+            except OSError:
+                continue
         return None
 
-    _get_recent_session_log = None  # type: ignore[assignment]
-    _lock_file = None  # type: ignore[assignment]
-    _unlock_file = None  # type: ignore[assignment]
+    def skip_if_consumer_repo(hook_name: str) -> bool:
+        agents_path = Path(get_project_directory()) / ".agents"
+        if not agents_path.is_dir():
+            print(f"[SKIP] {hook_name}: .agents/ not found (consumer repo)", file=sys.stderr)
+            return True
+        return False
 
 
-def _is_consumer_repo(project_dir: Path | None) -> bool:
-    """Return True when the resolved project lacks the ai-agents .agents/ dir.
+HOOK_NAME = "false-completion-gate"
 
-    Consumer repos that install this plugin must not be blocked by the
-    completion gate, since they may not follow the ai-agents session
-    protocol. Resolved via the hook's own get_project_directory so that
-    tests can patch it; the shared hook_utilities guard binds to the shared
-    utility's get_project_directory and is not patchable from the hook.
-    """
-    if not project_dir or not (project_dir / ".agents").is_dir():
-        return True
-    return False
-
-# Regex for false-completion signals in commands.
-#
-# Only past-tense "merged" is a completion signal. Present-tense "merge"
-# overlaps with the `gh pr merge` command keyword in COMPLETION_COMMANDS,
-# causing a tautological match on every merge invocation.
+# Completion signal patterns in commit messages / PR titles
 COMPLETION_SIGNALS = re.compile(
-    r"\b(done|fixed|complete[d]?|finished|resolved|merged|shipped|closes?\s+#\d+)\b",
+    r"\b(done|fixed|complete[ds]?|finished|resolved|merged|shipped|closes?\s+#\d+)\b",
     re.IGNORECASE,
 )
 
-# Evidence patterns indicating a test/build command was named
-VERIFICATION_PATTERNS = re.compile(
-    r"(pytest|python\s+-m\s+pytest|tsc\s+--noEmit|npm\s+test|npm\s+run\s+test|"
-    r"pnpm\s+test|yarn\s+test|dotnet\s+test|go\s+test|"
-    r"gh\s+pr\s+checks|Invoke-Pester|uv\s+run\s+pytest|make\s+test)",
-    re.IGNORECASE,
-)
+# Verification evidence patterns in session logs (command names)
+VERIFICATION_PATTERNS = [
+    re.compile(r"pytest", re.IGNORECASE),
+    re.compile(r"npm\s+test", re.IGNORECASE),
+    re.compile(r"npm\s+run\s+test", re.IGNORECASE),
+    re.compile(r"pnpm\s+test", re.IGNORECASE),
+    re.compile(r"yarn\s+test", re.IGNORECASE),
+    re.compile(r"tsc\s+--noEmit", re.IGNORECASE),
+    re.compile(r"dotnet\s+test", re.IGNORECASE),
+    re.compile(r"go\s+test", re.IGNORECASE),
+    re.compile(r"gh\s+pr\s+checks", re.IGNORECASE),
+    re.compile(r"Invoke-Pester", re.IGNORECASE),
+    re.compile(r"uv\s+run\s+pytest", re.IGNORECASE),
+    re.compile(r"make\s+test", re.IGNORECASE),
+]
 
-# Patterns indicating a test/build was actually executed (not merely mentioned).
-# Requires command-output-style evidence: result counts, status verbs, exit codes.
-# Without this dual-check, "I plan to run pytest" satisfies the gate.
-VERIFICATION_RESULT_PATTERNS = re.compile(
-    r"(\b\d+\s+passed\b|\b\d+\s+failed\b|\bPASSED\b|\bFAILED\b|"
-    r"\bok\s*=?\s*\d+\b|\bfailures?\s*=\s*\d+\b|"
-    r"\b(test\s+suite|test\s+run|tests?)\s+(passed|failed|complete[d]?)\b|"
-    r"\bexit(\s+code)?\s*[:=]?\s*0\b)",
-    re.IGNORECASE,
-)
+# Result patterns that indicate SUCCESSFUL test/check execution. A pytest run
+# that ended with failures proves the command ran, but does not prove the work
+# is complete; the gate must reject a completion claim backed only by failing
+# evidence. Patterns here MUST match success signals only. Failure signals
+# (FAILED, "\d+ failed", "checks failed", "exit code: 1") are intentionally
+# excluded; commits claiming completion after a failing run must be blocked.
+VERIFICATION_RESULT_PATTERNS = [
+    re.compile(r"\d+\s+passed", re.IGNORECASE),
+    re.compile(r"\bPASSED\b"),
+    re.compile(r"exit[_ ]code[:\s]+0\b", re.IGNORECASE),
+    re.compile(r"exited with 0\b", re.IGNORECASE),
+    re.compile(r"✓|✔"),
+    re.compile(r"All checks have passed", re.IGNORECASE),
+    re.compile(r"checks? passed", re.IGNORECASE),
+]
 
-# Commands that trigger completion detection
-COMPLETION_COMMANDS = re.compile(
-    r"(git\s+commit|gh\s+pr\s+create|gh\s+pr\s+merge)",
-    re.IGNORECASE,
-)
+
+def _read_stdin_json() -> dict | None:
+    """Read and parse JSON from stdin (Claude hook input)."""
+    if sys.stdin.isatty():
+        return None
+    try:
+        data = sys.stdin.read().strip()
+        if not data:
+            return None
+        return json.loads(data)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
-def _find_session_log_fallback(sessions_dir: Path) -> Path | None:
-    """Fallback session lookup when hook_utilities is unavailable.
+def _extract_command(hook_input: dict) -> str:
+    """Extract the command string from hook input.
 
-    Only falls back to yesterday's session if NO today-prefixed session exists.
-    This prevents stale verification evidence from yesterday being used to
-    satisfy the completion gate for a brand-new session today.
+    Defends against malformed input where ``hook_input``, ``tool_input``,
+    or ``tool_input["command"]`` is not a string. Returning an empty
+    string lets the caller fall through to the no-op path instead of
+    raising a ``TypeError`` inside the regex search and being swallowed
+    by the top-level fail-open handler.
     """
-    from datetime import timedelta
+    if not isinstance(hook_input, dict):
+        return ""
+    tool_input = hook_input.get("tool_input", {})
+    if not isinstance(tool_input, dict):
+        return ""
+    command = tool_input.get("command", "")
+    if not isinstance(command, str):
+        return ""
+    return command
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # First, check for today's sessions
-    today_candidates = list(sessions_dir.glob(f"{today}-session-*.json"))
-    if today_candidates:
-        try:
-            return max(today_candidates, key=lambda f: f.stat().st_mtime)
-        except OSError:
-            return None
+def _is_completion_claim(command: str) -> bool:
+    """Check if a command contains completion signals."""
+    return COMPLETION_SIGNALS.search(command) is not None
 
-    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
-    yesterday_candidates = list(sessions_dir.glob(f"{yesterday}-session-*.json"))
-    if yesterday_candidates:
-        try:
-            return max(yesterday_candidates, key=lambda f: f.stat().st_mtime)
-        except OSError:
-            return None
 
+def _extract_commit_message_file(command: str) -> str | None:
+    """Extract the filename from a `git commit -F <file>` command.
+
+    Returns the file path if found, otherwise None.
+    """
+    match = re.search(r"(?:^|\s)git\s+(?:commit|ci)\s+.*?(?:-F|--file)[=\s]+([^\s]+)", command)
+    if match:
+        return match.group(1).strip("'\"")
     return None
 
 
-def find_session_log(project_dir: Path) -> Path | None:
-    """Find the most recent session log for the current session.
+def _allowed_temp_roots() -> tuple[Path, ...]:
+    """Trusted root directories where absolute message-file paths are allowed.
 
-    Only falls back to yesterday's session if NO today-prefixed session exists.
-    This prevents stale verification evidence from yesterday being used to
-    satisfy the completion gate for a brand-new session today.
+    ``gh pr create --body-file`` and ``git commit -F`` are commonly invoked with
+    paths under ``$TMPDIR`` (or ``/tmp`` on POSIX); refusing those silently
+    bypasses the gate. The allowlist mirrors the temp-root set used by
+    ``scripts/github_core/validation.py:_candidate_temp_roots`` (consumed by
+    ``assert_valid_body_file``), narrowed to read-only inspection here.
+
+    Canonical set (verbatim from ``_candidate_temp_roots``):
+        ``os.environ.get("TMPDIR")``, ``tempfile.gettempdir()``, ``/tmp``,
+        ``/private/tmp``.
+
+    No intentional divergence: this list MUST stay character-for-character in
+    sync with the canonical source so a body file accepted by the upstream
+    validator is also accepted by this read-only gate. Like the canonical, we
+    filter non-existent roots and deduplicate by resolved string.
     """
-    sessions_dir = project_dir / ".agents" / "sessions"
-    if not sessions_dir.is_dir():
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for candidate in (
+        os.environ.get("TMPDIR"),
+        tempfile.gettempdir(),
+        "/tmp",
+        "/private/tmp",
+    ):
+        if not candidate:
+            continue
+        try:
+            resolved = Path(candidate).resolve()
+        except (OSError, ValueError):
+            continue
+        resolved_str = str(resolved)
+        if resolved_str not in seen and resolved.exists():
+            seen.add(resolved_str)
+            unique.append(resolved)
+    return tuple(unique)
+
+
+def _is_within(candidate: Path, root: Path) -> bool:
+    """Return True when ``candidate`` resolves inside ``root``."""
+    try:
+        candidate.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _read_commit_message_file(filepath: str) -> str | None:
+    """Read the contents of a commit message file.
+
+    Returns the file contents if readable, otherwise None.
+
+    Security: Applies CWE-22 path traversal containment. Relative paths must
+    resolve inside the project root. Absolute paths are allowed only when they
+    resolve inside the project root or a trusted temp root (``$TMPDIR``,
+    ``tempfile.gettempdir()``, ``/tmp``, ``/private/tmp``); anything outside
+    those is rejected so callers cannot point the gate at arbitrary filesystem
+    locations.
+    """
+    try:
+        project_root = Path(get_project_directory()).resolve()
+        path = Path(filepath)
+
+        if path.is_absolute():
+            resolved = path.resolve()
+        else:
+            resolved = (project_root / path).resolve()
+
+        trusted_roots = (project_root, *_allowed_temp_roots())
+        if not any(_is_within(resolved, root) for root in trusted_roots):
+            return None
+
+        if resolved.is_file():
+            return resolved.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        pass
+    return None
+
+
+def _is_completion_claim_in_message_file(command: str) -> tuple[bool, bool]:
+    """Check if a git commit -F file contains completion signals.
+
+    Returns a tuple ``(has_claim, body_unreadable)``.
+
+    ``body_unreadable`` is True when ``-F`` was specified but the file
+    could not be read (outside trusted paths or I/O error). Callers use
+    that signal to keep the fail-closed contract end-to-end: when the
+    body cannot be inspected, the gate cannot fall through to the
+    "no session log => allow" branch.
+    """
+    message_file = _extract_commit_message_file(command)
+    if message_file is None:
+        return (False, False)
+    message_content = _read_commit_message_file(message_file)
+    if message_content is None:
+        return (True, True)
+    return (COMPLETION_SIGNALS.search(message_content) is not None, False)
+
+
+def _extract_pr_body_file(command: str) -> str | None:
+    """Extract the filename from a `gh pr create --body-file <file>` command.
+
+    Returns the file path if found, otherwise None.
+    """
+    match = re.search(r"(?:^|\s)gh\s+pr\s+create\s+.*?(?:--body-file|-F)[=\s]+([^\s]+)", command)
+    if match:
+        return match.group(1).strip("'\"")
+    return None
+
+
+def _is_completion_claim_in_pr_body_file(command: str) -> tuple[bool, bool]:
+    """Check if a gh pr create --body-file contains completion signals.
+
+    Uses the same path containment as commit message files (CWE-22).
+    Returns a tuple ``(has_claim, body_unreadable)`` so callers can keep
+    the fail-closed contract end-to-end (see
+    ``_is_completion_claim_in_message_file``).
+    """
+    body_file = _extract_pr_body_file(command)
+    if body_file is None:
+        return (False, False)
+    body_content = _read_commit_message_file(body_file)
+    if body_content is None:
+        return (True, True)
+    return (COMPLETION_SIGNALS.search(body_content) is not None, False)
+
+
+# Per-git-call timeout. The hook's outer timeout in .claude/settings.json
+# is 5s and this hook can issue multiple git calls per invocation
+# (PR-base resolution + log inspection); keep each call well under the
+# outer budget so a single slow git invocation cannot starve the rest.
+_GIT_TIMEOUT_SECONDS = 2
+
+# Total wall-time budget across all git calls in one hook invocation.
+# Set below the 5s hook timeout in .claude/settings.json so we surface
+# a documented "deadline exceeded" before the harness kills the process.
+# Callers check ``_deadline_exceeded`` between probes and fall through
+# to the staged-diff path instead of stalling.
+_DEADLINE_BUDGET_SECONDS = 4.0
+
+
+def _start_deadline() -> float:
+    """Return a monotonic deadline timestamp for the current invocation."""
+    return time.monotonic() + _DEADLINE_BUDGET_SECONDS
+
+
+def _deadline_exceeded(deadline: float | None) -> bool:
+    """Return True when the deadline has elapsed.
+
+    A ``None`` deadline means no budget is being enforced (callers that
+    do not propagate a deadline keep the original behavior).
+    """
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def _run_git(
+    args: list[str], deadline: float | None = None
+) -> subprocess.CompletedProcess[str] | None:
+    """Run a git subcommand bound to the project directory with a timeout.
+
+    Returns ``None`` when git fails to launch, exceeds the per-call timeout,
+    or the caller's deadline has elapsed. Callers can choose how to fall
+    back instead of stalling the gate.
+    """
+    if _deadline_exceeded(deadline):
+        return None
+    project_dir = get_project_directory()
+    try:
+        return subprocess.run(
+            ["git", "-C", project_dir, *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return None
 
-    if _get_recent_session_log is None:
-        return _find_session_log_fallback(sessions_dir)
 
-    return _get_recent_session_log(str(sessions_dir))
+def _resolve_pr_base_branch(deadline: float | None = None) -> str | None:
+    """Discover the base branch a ``gh pr create`` would target.
 
+    Tries ``origin/HEAD`` symbolic ref first, then common default-branch
+    names as a fallback. Returns ``None`` if nothing resolves so the
+    caller can fall back to staged changes.
 
-def has_verification_evidence(project_dir: Path) -> bool:
-    """Check session log for evidence that tests/builds were actually executed.
+    A timeout on the ``symbolic-ref`` probe is treated the same as a
+    missing ``origin/HEAD``: continue into the default-branch loop. That
+    keeps behavior consistent with a repo that simply lacks the symbolic
+    ref. The shared ``deadline`` bounds the total time across all probes,
+    so a failing remote cannot stall the gate even with the loop in play.
 
-    Requires BOTH a known test-command name AND a result-shaped marker (exit
-    code, pass/fail count, status verb). Mention alone (e.g. "need to run
-    pytest") does not satisfy the gate.
+    Note: We intentionally skip ``@{u}`` (upstream tracking) because after
+    ``git push -u origin feature-branch``, it resolves to ``origin/feature-branch``,
+    which is the push target, not the PR merge target (e.g., ``main``).
     """
-    session_log = find_session_log(project_dir)
-    if not session_log:
-        return False
-    # Catch UnicodeDecodeError (subclass of ValueError) alongside OSError so
-    # a non-UTF8 session log does not crash this blocking hook and break the
-    # fail-open contract; treat the decode failure as "no evidence" instead.
-    try:
-        content = session_log.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        print(
-            f"[hook-error] invoke_false_completion_gate session-read: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-        return False
-    return bool(
-        VERIFICATION_PATTERNS.search(content)
-        and VERIFICATION_RESULT_PATTERNS.search(content)
+
+    head_ref = _run_git(["symbolic-ref", "refs/remotes/origin/HEAD"], deadline)
+    if head_ref is not None and head_ref.returncode == 0:
+        ref = head_ref.stdout.strip()
+        if ref:
+            return ref.removeprefix("refs/remotes/")
+
+    for default_branch in ("origin/main", "origin/master", "origin/develop",
+                           "main", "master", "develop"):
+        if _deadline_exceeded(deadline):
+            return None
+        rev = _run_git(["rev-parse", "--verify", "--quiet", default_branch], deadline)
+        if rev is None:
+            continue
+        if rev.returncode == 0:
+            return default_branch
+    return None
+
+
+def _changed_files_for_pr(
+    current_branch: str, deadline: float | None = None
+) -> list[str] | None:
+    """Return files changed against the resolved PR base, or None if unresolved.
+
+    When the user is already on the default branch the merge-base degenerates
+    to HEAD and produces an empty diff, which would falsely classify normal
+    changes as non-documentation-only. The caller treats ``None`` as
+    "fall through to staged diff."
+    """
+    base_branch = _resolve_pr_base_branch(deadline)
+    if base_branch is None:
+        return None
+
+    # If we are sitting on the same ref as the resolved base, skip the
+    # merge-base dance: comparing main..HEAD on main returns nothing.
+    base_short = base_branch.removeprefix("origin/")
+    if current_branch and current_branch == base_short:
+        return None
+
+    merge_base = _run_git(["merge-base", base_branch, "HEAD"], deadline)
+    if not merge_base or merge_base.returncode != 0:
+        return None
+
+    diff = _run_git(
+        ["diff", "--name-only", merge_base.stdout.strip(), "HEAD"], deadline
     )
+    if not diff or diff.returncode != 0:
+        return None
+    return [f.strip() for f in diff.stdout.strip().split("\n") if f.strip()]
 
 
-def write_audit_log(
-    project_dir: Path,
-    command: str,
-    decision: str,
-    reason: str,
-    session_id: str = "",
-    tool_use_id: str = "",
-) -> None:
-    """Log every terminal decision to audit trail.
+def _is_documentation_only(is_branch_operation: bool) -> bool:
+    """Check if the relevant changed files are documentation-only.
 
-    Logs include:
-    - decision: 'block', 'allow_verified', 'allow_no_project', 'bypass_env',
-                'error_parse', 'allow_no_command', 'allow_not_completion'
-    - session_id, tool_use_id: correlation IDs from hook stdin
-    - schema: 1 for forward-compat
+    For ``git commit`` we look at the index. For ``gh pr create`` and
+    ``gh pr merge`` we resolve the actual base branch (upstream /
+    origin/HEAD / common defaults) and diff the branch against the
+    merge base. If no base can be resolved we fall back to the staged
+    diff so docs-only PRs keep their bypass when possible.
+    """
+    deadline = _start_deadline()
+    if is_branch_operation:
+        head_branch_result = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], deadline)
+        if head_branch_result is None or head_branch_result.returncode != 0:
+            return False
+        current_branch = head_branch_result.stdout.strip()
+
+        files = _changed_files_for_pr(current_branch, deadline)
+        if files is None:
+            staged = _run_git(["diff", "--cached", "--name-only"], deadline)
+            if staged is None or staged.returncode != 0:
+                return False
+            files = [f.strip() for f in staged.stdout.strip().split("\n") if f.strip()]
+    else:
+        staged = _run_git(["diff", "--cached", "--name-only"], deadline)
+        if staged is None or staged.returncode != 0:
+            return False
+        files = [f.strip() for f in staged.stdout.strip().split("\n") if f.strip()]
+
+    if not files:
+        return False
+    return all(f.endswith(".md") for f in files)
+
+
+def _has_verification_evidence_in_log(
+    session_log: Path, found_command: bool, found_result: bool
+) -> tuple[bool, bool]:
+    """Check session log for test/build verification evidence.
+
+    Requires both a command pattern (e.g., "pytest", "npm test") AND a result
+    pattern (e.g., "5 passed", "FAILED") to prevent narrative mentions like
+    "need to run pytest" from satisfying the gate.
+
+    Streams the log line-by-line. Memory cost is O(1) regardless of log size.
+
+    Args:
+        session_log: Path to the session log file. Caller must ensure
+            this is not None.
+        found_command: Whether a command pattern was already found in a
+            previous log (for aggregation across multiple logs).
+        found_result: Whether a result pattern was already found in a
+            previous log (for aggregation across multiple logs).
+
+    Returns:
+        Tuple of (found_command, found_result) after scanning this log.
     """
     try:
-        agents_dir = project_dir / ".agents"
-        if not agents_dir.is_dir():
-            return  # Consumer repo: skip silently to avoid creating .agents/
-        audit_dir = agents_dir / ".hook-state"
+        with session_log.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not found_command:
+                    for pattern in VERIFICATION_PATTERNS:
+                        if pattern.search(line):
+                            found_command = True
+                            break
+                if not found_result:
+                    for pattern in VERIFICATION_RESULT_PATTERNS:
+                        if pattern.search(line):
+                            found_result = True
+                            break
+                if found_command and found_result:
+                    return (found_command, found_result)
+    except OSError:
+        pass
+    return (found_command, found_result)
+
+
+def _has_verification_evidence_across_logs(session_logs: list[Path]) -> bool:
+    """Check multiple session logs for test/build verification evidence.
+
+    Aggregates evidence across all logs: a command pattern in one log and
+    a result pattern in another log satisfies the gate. This handles cases
+    where verification output is split across multiple same-day session files.
+
+    Args:
+        session_logs: List of session log paths to check.
+
+    Returns:
+        True if both command and result patterns were found across all logs.
+    """
+    found_command = False
+    found_result = False
+    for session_log in session_logs:
+        found_command, found_result = _has_verification_evidence_in_log(
+            session_log, found_command, found_result
+        )
+        if found_command and found_result:
+            return True
+    return False
+
+
+def _write_audit_log(project_dir: str, command: str, decision: str, reason: str) -> None:
+    """Write audit entry for false completion gate decisions."""
+    try:
+        audit_dir = Path(project_dir) / ".agents" / ".hook-state"
         audit_dir.mkdir(parents=True, exist_ok=True)
+
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        audit_file = audit_dir / f"audit-{today}.jsonl"
-        entry = json.dumps({
-            "schema": 1,
-            "timestamp": datetime.now(tz=UTC).isoformat(),
-            "hook": "invoke_false_completion_gate",
-            "command": command[:200],
-            "decision": decision,
-            "reason": reason,
-            "session_id": session_id,
-            "tool_use_id": tool_use_id,
-        })
-        with open(audit_file, "a", encoding="utf-8") as f:
-            if _lock_file is not None:
-                _lock_file(f)
-            try:
-                f.write(entry + "\n")
-            finally:
-                if _unlock_file is not None:
-                    _unlock_file(f)
-    except OSError as e:
-        print(f"[hook-error] invoke_false_completion_gate audit: {type(e).__name__}: {e}", file=sys.stderr)
+        timestamp = datetime.now(tz=UTC).isoformat()
+        audit_file = audit_dir / f"false-completion-gate-{today}.log"
+
+        # Truncate command for audit (avoid huge log entries)
+        cmd_preview = command[:200] + "..." if len(command) > 200 else command
+
+        with audit_file.open("a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] {decision}: {reason} | cmd: {cmd_preview}\n")
+    except OSError:
+        pass
 
 
-def main() -> int:
-    """Check for false completion claims without verification.
+def main() -> None:
+    """Check for false completion claims without verification."""
+    # Read stdin first to ensure it's drained before any early exit,
+    # maintaining the fail-open drain contract with the harness.
+    hook_input = _read_stdin_json()
 
-    Audits every terminal decision that involves a completion-relevant command
-    (commit, PR create, PR merge), plus the bypass and parse-error paths.
-    Non-completion Bash invocations return 0 silently to avoid flooding the
-    audit log; SREs can verify the gate ran on a given commit by looking for
-    an audit entry keyed by the commit's session_id/tool_use_id.
-    """
-    project_dir = get_project_directory()
-    session_id = ""
-    tool_use_id = ""
+    if skip_if_consumer_repo(HOOK_NAME):
+        sys.exit(0)
 
-    # Drain stdin FIRST, before any early-exit branches. Other lifecycle
-    # hooks in this PR (invoke_context_loader, invoke_compact_checkpoint)
-    # follow the same pattern. Leaving stdin unread can surface as EPIPE
-    # or SIGPIPE on the harness side if its pipe buffer is full.
-    stdin_data = ""
-    if not sys.stdin.isatty():
-        try:
-            stdin_data = sys.stdin.read()
-        except Exception as e:
-            print(
-                f"[hook-error] invoke_false_completion_gate stdin: {type(e).__name__}: {e}",
-                file=sys.stderr,
-            )
-            if project_dir:
-                write_audit_log(
-                    project_dir, "", "error_parse", f"{type(e).__name__}: {e}", session_id, tool_use_id
-                )
-            return 0  # Fail-open
-
-    # Consumer-repo guard: if .agents/ does not exist, skip silently so the
-    # gate does not block commits in repos that install the plugin but do not
-    # follow the ai-agents session protocol. Silent because this hook is
-    # registered for the broad Bash matcher and runs on every Bash call; a
-    # diagnostic line here would flood harness stderr in consumer repos.
-    if _is_consumer_repo(project_dir):
-        return 0
-
-    # Parse drained stdin JSON; extract correlation IDs even on parse-failure path.
-    try:
-        if not stdin_data.strip():
-            return 0
-        hook_input = json.loads(stdin_data)
-    except Exception as e:
-        print(
-            f"[hook-error] invoke_false_completion_gate stdin: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-        if project_dir:
-            write_audit_log(project_dir, "", "error_parse", f"{type(e).__name__}: {e}", session_id, tool_use_id)
-        return 0  # Fail-open
-
-    # Valid JSON whose root is not an object would crash the .get() calls
-    # below and break the fail-open contract. Treat that as a parse failure.
-    if not isinstance(hook_input, dict):
-        if project_dir:
-            write_audit_log(
-                project_dir,
-                "",
-                "error_parse",
-                f"non-dict hook_input: {type(hook_input).__name__}",
-                session_id,
-                tool_use_id,
-            )
-        return 0  # Fail-open
-
-    # Correlation IDs from harness
-    session_id = str(hook_input.get("session_id", ""))
-    tool_use_id = str(hook_input.get("tool_use_id", ""))
-
-    # Bypass env var (audited with correlation IDs from stdin so operators see
-    # which session disabled the gate). Checked AFTER stdin parsing so the
-    # audit entry carries session_id/tool_use_id when the harness provided
-    # them.
+    # Bypass via environment variable
     if os.environ.get("SKIP_COMPLETION_GATE", "").lower() == "true":
-        if project_dir:
-            write_audit_log(project_dir, "", "bypass_env", "SKIP_COMPLETION_GATE=true", session_id, tool_use_id)
-        return 0
+        sys.exit(0)
 
-    # Extract command from tool input (tolerate non-dict tool_input as no-op)
-    tool_input = hook_input.get("tool_input", {})
-    if not isinstance(tool_input, dict):
-        return 0  # Not a tool input we recognize; preserve fail-open
-    command = tool_input.get("command", "")
+    if hook_input is None:
+        sys.exit(0)
 
+    command = _extract_command(hook_input)
     if not command:
-        return 0  # Not a Bash invocation we care about; do not flood audit
+        sys.exit(0)
 
-    # Only check completion-relevant commands (commits, PRs)
-    if not COMPLETION_COMMANDS.search(command):
-        return 0  # Out of scope; do not flood audit
+    # Only gate on `git commit`/`git ci`, `gh pr create`, and `gh pr merge` commands.
+    # The trailing boundary keeps neighbours like `git commit-tree` or
+    # `gh pr create-checkout` from accidentally matching.
+    is_commit = re.search(r"(?:^|\s)git\s+(commit|ci)(?:\s|$)", command)
+    is_pr_create = re.search(r"(?:^|\s)gh\s+pr\s+create(?:\s|$)", command)
+    is_pr_merge = re.search(r"(?:^|\s)gh\s+pr\s+merge(?:\s|$)", command)
+    if not is_commit and not is_pr_create and not is_pr_merge:
+        sys.exit(0)
 
-    # Check for completion signals in the command
-    if not COMPLETION_SIGNALS.search(command):
-        if project_dir:
-            write_audit_log(project_dir, command, "allow_not_completion", "no completion keyword", session_id, tool_use_id)
-        return 0
-
-    # Completion signal detected: check for verification evidence.
-    if not project_dir:
-        # Fail-open without project dir; cannot audit either.
-        return 0
-
-    if has_verification_evidence(project_dir):
-        write_audit_log(project_dir, command, "allow_verified", "verification evidence found", session_id, tool_use_id)
-        return 0
-
-    # BLOCK: False completion without verification
-    reason = (
-        "Completion claim detected without prior test/build verification. "
-        "Run tests (pytest, npm test, etc.) before claiming completion."
+    # Check if the command/message contains completion signals.
+    # For `git commit -F <file>`, also check the message file contents.
+    # For `gh pr create --body-file <file>`, also check the body file contents.
+    # `gh pr merge` is always treated as a completion claim since merging is
+    # an inherent "done" action that requires verification evidence.
+    msg_claim, msg_unreadable = _is_completion_claim_in_message_file(command)
+    body_claim, body_unreadable = _is_completion_claim_in_pr_body_file(command)
+    has_completion_claim = (
+        _is_completion_claim(command) or msg_claim or body_claim or bool(is_pr_merge)
     )
-    # Output deny decision (Claude hook protocol)
-    print(json.dumps({"decision": "block", "reason": reason}))
+    if not has_completion_claim:
+        sys.exit(0)
 
-    write_audit_log(project_dir, command, "block", reason, session_id, tool_use_id)
+    # ``body_inferred`` is true when the completion claim was inferred from
+    # a body file that could not be read (commit -F / pr create --body-file
+    # pointing outside trusted paths). The fail-closed contract on those
+    # helpers must propagate: when we cannot read the body, we cannot fall
+    # through to the "no session log => allow" branch below.
+    body_inferred = msg_unreadable or body_unreadable
 
-    return 2  # Exit code 2 = BLOCK
+    project_dir = get_project_directory()
+
+    # Bypass for documentation-only changes
+    if _is_documentation_only(is_branch_operation=bool(is_pr_create or is_pr_merge)):
+        _write_audit_log(project_dir, command, "ALLOW", "documentation-only changes")
+        sys.exit(0)
+
+    # Check for verification evidence in session logs from today first.
+    # Only fall back to yesterday's logs when today's logs lack evidence,
+    # to prevent stale verification from a prior day from satisfying a
+    # fresh session's claim.
+    sessions_dir = str(Path(project_dir) / ".agents" / "sessions")
+    session_logs = get_today_session_logs(sessions_dir)
+
+    # Fail-open when no session logs exist, EXCEPT when the completion
+    # claim was inferred from an unreadable body file. In that case we
+    # honor the fail-closed contract on the body-file helpers and require
+    # verification before allowing the command through.
+    if not session_logs and not body_inferred:
+        # No today logs: check yesterday (cross-midnight continuation).
+        sessions_path = Path(sessions_dir)
+        if sessions_path.is_dir():
+            yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+            try:
+                yesterday_logs = list(sessions_path.glob(f"{yesterday}-session-*.json"))
+                if yesterday_logs:
+                    if _has_verification_evidence_across_logs(yesterday_logs):
+                        _write_audit_log(project_dir, command, "ALLOW", "verification evidence found (yesterday)")
+                        sys.exit(0)
+                    # Yesterday logs exist but lack evidence; fall through to block.
+                else:
+                    # No yesterday logs either; fail-open.
+                    _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+                    sys.exit(0)
+            except OSError:
+                # Can't read yesterday logs; fail-open.
+                _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+                sys.exit(0)
+        else:
+            # No sessions directory; fail-open.
+            _write_audit_log(project_dir, command, "ALLOW", "no session log (fail-open)")
+            sys.exit(0)
+    elif session_logs:
+        # Today's logs exist (a fresh session started today): verification
+        # MUST come from today. Stale evidence from a prior day cannot satisfy
+        # a fresh session's claim. No yesterday fallback in this branch;
+        # cross-midnight continuation is only meaningful when today has no
+        # session log at all (the no-today-logs branch above).
+        if _has_verification_evidence_across_logs(session_logs):
+            _write_audit_log(project_dir, command, "ALLOW", "verification evidence found")
+            sys.exit(0)
+        # Fall through to block.
+
+    # Block: completion claim without verification
+    _write_audit_log(project_dir, command, "BLOCK", "completion claim without verification")
+
+    block_response = json.dumps({
+        "decision": "block",
+        "reason": (
+            "⛔ FALSE COMPLETION GATE: You claimed completion "
+            "(done/fixed/complete/etc.) but no verification evidence "
+            "(test run, build check, PR checks) was found in the session log. "
+            "Run tests or build verification before claiming completion."
+        ),
+    })
+    print(block_response)
+    sys.exit(2)
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except Exception as exc:
+        # Fail-open on unexpected errors
+        print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
+        sys.exit(0)

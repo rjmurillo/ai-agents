@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "S001",
+  "policy_id": "pol-skillbook-atomicity-reject",
+  "input": "A reflection proposes adding a new skill memory: 'When working on PRs, always check tests and lint and CI and code style and architecture and security and docs and frontmatter and validate the session log.' Should this be accepted as a skill update?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(atomicity|split|multiple.*concern|too.*broad|not.*atomic|reject|too.*many|one.*concept|fragment)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

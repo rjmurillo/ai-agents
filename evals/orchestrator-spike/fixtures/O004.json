@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "O004",
+  "policy_id": "pol-orchestrator-synthesis-multiple-agents",
+  "input": "Three agents returned: architect approves with caveats, security raises 2 concerns, devops blocks on workflow YAML. Synthesize.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(blocker.*first|security|address.*before.*merge|sequence|critical.*path|devops.*block|prioritiz)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

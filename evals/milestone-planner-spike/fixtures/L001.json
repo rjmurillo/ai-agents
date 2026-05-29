@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "L001",
+  "policy_id": "pol-milestone-planner-decompose-cross-cutting",
+  "input": "From ai-agents PR #1724 (5 lifecycle hooks at once). 'I want to add 5 Python hooks: SessionStart, PreToolUse, PostToolUse, PreCompact, Stop. All share a hook_utilities/ module.' Decompose into milestones.",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(M1.*shared|extract.*shared.*first|sequence|per.*hook|five.*milestone|dependency|incremental|test.*each)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "ai-agents-1724",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

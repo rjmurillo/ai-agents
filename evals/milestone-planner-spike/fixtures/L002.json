@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "L002",
+  "policy_id": "pol-milestone-planner-dependency-capture",
+  "input": "Plan: 'Migrate database to Postgres 16.' Decompose with dependencies.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(schema.*migration|read.*replica|cutover|rollback|backup|test.*against|dependency|blocked|order|first)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

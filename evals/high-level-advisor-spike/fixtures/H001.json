@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "H001",
+  "policy_id": "pol-high-level-advisor-priority-ruthless",
+  "input": "Strategic decision: We have 18 P1 bugs, 3 P0 incidents in the last quarter, and the team wants to introduce a new microservice architecture. Engineering capacity is 4 engineers. What should we focus on?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(stabiliz|incident.*first|stop.*new.*work|fix.*P0|reduce.*P1|defer.*architecture|incident.*before.*feature|focus|ruthless|cut)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

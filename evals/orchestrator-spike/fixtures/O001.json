@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "O001",
+  "policy_id": "pol-orchestrator-routing-correctness",
+  "input": "User says: 'Why is this test failing?' Choose: invoke analyze, invoke qa, or proceed inline?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(analyze.*skill|invoke.*skill|debug.*skill|root.*cause.*skill|delegate.*analyze|skill.*first)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "ai-agents-pattern",
+    "verdict-identify"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "T004",
+  "policy_id": "pol-task-decomposer-DoD-check",
+  "input": "Task: 'Refactor auth middleware to use the new session-token format.' Critique the Definition of Done.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(definition.*done|tests.*added|backward.*compat|migration|coverage.*target|reviewer.*approve|measurable|specific.*test)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

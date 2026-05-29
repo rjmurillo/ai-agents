@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "Q004",
+  "policy_id": "pol-qa-kill-criteria-test-pass",
+  "input": "Test review: PR test suite reports 100% pass (87/87). Before accepting as production-ready, list 3 specific observations that would flip this from PASS to NEEDS-MORE-COVERAGE.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(coverage.*report|untested.*branch|missing.*negative|edge.*case|race|concurrent|specific.*scenario|3.*observation|falsifiable)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

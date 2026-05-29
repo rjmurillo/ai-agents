@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "B004",
+  "policy_id": "pol-backlog-generator-escalate-blocked",
+  "input": "All 5 actionable tasks the generator considered are blocked on an external dependency (vendor SDK release). Generate?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(blocked|external|cannot.*ship|wait|escalate|flag.*to.*user|nothing.*unblocked)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "X007",
+  "policy_id": "pol-explainer-story-anti-pattern",
+  "input": "Story: 'As a developer, I want a new database schema so that performance is better.' Critique.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(implementation.*detail|user.*not.*developer|why.*not.*how|specific.*benefit|measurable|outcome)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

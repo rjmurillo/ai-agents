@@ -1,0 +1,24 @@
+{
+  "id": "F011",
+  "policy_id": "pol-analyst-bittwiddle-ascii",
+  "input": "Bug report from dotnet/runtime issue (paraphrased from PR #45928/#46057). string.Equals under OrdinalIgnoreCase comparison incorrectly returns true for the character pair (backtick) and (at-sign). Example:\n\n`\"abc`def\".Equals(\"abc@def\", StringComparison.OrdinalIgnoreCase)` returns `true`.\n\nBehavior depends on string length and which side each character appears on. No other character pairs trigger it. Not a regression from the previous release. What is the most likely root cause shape, and what specific data would confirm it?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(bit.*mask|case.*fold|ASCII.*table|0x20|XOR|0x5F|toupper|tolower|vector|SIMD|alphabet.*range|A.*Z)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "dotnet-runtime-46057",
+    "hard-pr",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

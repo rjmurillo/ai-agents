@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "B002",
+  "policy_id": "pol-backlog-generator-ok-no-work-needed",
+  "input": "Repo state: all PRs merged, 0 open issues, CI green for 3 days, no stale TODOs. Generate tasks?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(no.*tasks|nothing.*to.*do|all.*clear|empty|idle|nothing.*queued)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

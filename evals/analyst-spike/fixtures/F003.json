@@ -1,0 +1,24 @@
+{
+  "id": "F003",
+  "policy_id": "pol-analyst-git-config-corruption",
+  "input": "Bug report (moq.analyzers issue #1080): .git/config and .git/packed-refs get corrupted every session. The .git/config remote origin URL gets wrapped in angle brackets:\n\n```\nurl = <https://github.com/rjmurillo/moq.analyzers>\n```\n\nGit then rejects with 'fatal: protocol \"<https\" is not supported'. Manual repair required before every git operation. The user wants the root cause and a permanent fix, not just a workaround. What hypothesis ranking and what specific evidence would falsify or confirm each?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(markdown.*linkif|auto.*link|editor|VS Code|render|template.*substitut|format.*tool|prettier|markdownlint)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-1080",
+    "recurring-corruption",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

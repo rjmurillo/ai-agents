@@ -25,12 +25,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
             "timeout": 5,
-            "statusMessage": "Verifying completion claims have test evidence (BLOCKING)"
+            "statusMessage": "Checking for false completion claims without verification (#1703)"
           }
         ]
       },
       {
-        "matcher": "Bash(git commit*)",
+        "matcher": "Bash(git commit*|git ci*)",
         "hooks": [
           {
             "type": "command",
@@ -181,8 +181,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/SessionStart/invoke_context_loader.py",
-            "timeout": 5,
-            "statusMessage": "Loading HANDOFF.md and latest retrospective into context"
+            "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
           }
         ]
       }
@@ -226,8 +225,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_plan_state_sync.py",
-            "timeout": 5,
-            "statusMessage": "Checkpointing plan/TODO state"
+            "statusMessage": "Checkpointing plan/TODO state (#1703)"
           }
         ]
       },
@@ -269,8 +267,7 @@
           {
             "type": "command",
             "command": "python3 -u .claude/hooks/Stop/invoke_auto_retrospective.py",
-            "timeout": 5,
-            "statusMessage": "Auto-generating session retrospective"
+            "statusMessage": "Auto-generating session retrospective (#1703)"
           }
         ]
       }
@@ -286,6 +283,17 @@
         ]
       }
     ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
+            "statusMessage": "Checkpointing state before compaction (#1703)"
+          }
+        ]
+      }
+    ],
     "PermissionRequest": [
       {
         "matcher": "Bash(pwsh*Invoke-Pester*|npm test*|npm run test*|pnpm test*|yarn test*|pytest*|python*pytest*|dotnet test*|mvn test*|gradle test*|go test*)",
@@ -294,18 +302,6 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/PermissionRequest/invoke_test_auto_approval.py",
             "statusMessage": "Auto-approving test execution"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
-            "timeout": 5,
-            "statusMessage": "Checkpointing state before compaction"
           }
         ]
       }

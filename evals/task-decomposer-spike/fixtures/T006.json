@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "T006",
+  "policy_id": "pol-task-decomposer-escalate-PRD-vague",
+  "input": "PRD: 'Improve user experience.' Decompose.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(what.*UX|specific.*page|persona|measurable|success|metric|target|return.*for.*spec|clarif)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

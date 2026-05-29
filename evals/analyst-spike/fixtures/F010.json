@@ -1,0 +1,23 @@
+{
+  "id": "F010",
+  "policy_id": "pol-analyst-cli-migration",
+  "input": "moq.analyzers issue #1043: Migrating PerfDiff from System.CommandLine 2.0.0-beta1.21216.1 to 2.0.3 (stable). The stable release removed the Rendering package and the IConsole, ITerminal, and CommandHandler.Create APIs. Replacement plan: use System.Console and SetAction. Framework-provided CancellationToken from SetAction replaces manual CancellationTokenSource + Console.CancelKeyPress hook. What hidden risks should the migration look for before merge, and what is the cheapest validation per risk?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(behavior.*diff|cancel.*token|ordering|signal.*hand|smoke.*test|CI.*matrix|integration.*test|cross.*platform|Windows|Linux)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-1043",
+    "migration",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

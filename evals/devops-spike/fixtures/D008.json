@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "D008",
+  "policy_id": "pol-devops-kill-criteria-perf-gate",
+  "input": "Workflow review: Performance gate fires CI failure on p95 regression > 10%. List 2 alternative thresholds and 3 specific cases where the 10% threshold would mislead.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(alternative.*threshold|baseline.*variance|noise|warm.*up|cold.*start|3.*case|specific.*scenario|outlier|absolute.*ms)"
+    }
+  ],
+  "tags": [
+    "agent-devops",
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

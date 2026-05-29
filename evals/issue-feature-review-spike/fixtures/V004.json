@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "V004",
+  "policy_id": "pol-issue-feature-review-unknown-flag",
+  "input": "Feature request: 'We need rate limiting on our public API.' Body: no current traffic numbers, no abuse incident cited, no target threshold.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(missing.*data|baseline.*traffic|abuse|threshold|need.*more|unknown|why.*now|incident)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "L004",
+  "policy_id": "pol-milestone-planner-ok-clear-milestone",
+  "input": "Milestone: 'M2: Add `validate_url(url)` returning bool. AC: 5 unit tests (valid, empty, missing-scheme, missing-host, scheme-only). Covered in tests/test_url.py. Done when CI green.' Approve?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(approve|clear|measurable|specific|complete|ship|nothing.*missing|good.*AC)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

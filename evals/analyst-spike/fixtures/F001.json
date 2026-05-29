@@ -1,0 +1,24 @@
+{
+  "id": "F001",
+  "policy_id": "pol-analyst-false-positive-investigation",
+  "input": "Bug report from a downstream C# project (moq.analyzers issue #1010): Moq1302 ('Invalid member ... in LINQ to Mocks expression') fires false-positive on this code:\n\n```csharp\nvar blobClient = new Mock<BlobClient>();\nblobClient.Setup(static c => c.ExistsAsync(It.IsAny<CancellationToken>()))\n          .ReturnsAsync(Response.FromValue(false, Mock.Of<Response>(static r => r.Status == StatusCodes.Status200OK)));\n```\n\nWarning says 'Invalid member StatusCodes.Status202Accepted'. The user reports the analyzer is wrong. What is the most likely root cause and what specific evidence would confirm it?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(LINQ.*Mock|member.*detect|static.*const|StatusCodes|expression.*walk|symbol.*resolution|literal)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-1010",
+    "false-positive",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

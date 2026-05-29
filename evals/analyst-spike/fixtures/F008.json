@@ -1,0 +1,23 @@
+{
+  "id": "F008",
+  "policy_id": "pol-analyst-ok-already-investigated",
+  "input": "moq.analyzers issue #1057 follow-up: A test was previously named 'GenericCallbackValidation_CurrentLimitation_IsDocumented' and asserted that the analyzer did NOT produce a diagnostic for .Callback<int>(wrongTypeParam => { }) when the mocked method takes string. After PR #1030 introduced symbol-based detection, the callback type is resolved correctly and Moq1100 now fires. The fix renames the test to 'GenericCallbackWithWrongType_ProducesDiagnostic' and updates the expected diagnostic. Tests pass locally on Net80WithOldMoq and Net80WithNewMoq. CI pass pending. Anything to investigate before merging?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(wait.*for.*CI|nothing.*else|close|covered|complete|sufficient|ready|merge)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-1057",
+    "post-fix",
+    "verdict-ok"
+  ],
+  "schemaVersion": 1
+}

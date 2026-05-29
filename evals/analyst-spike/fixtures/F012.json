@@ -1,0 +1,25 @@
+{
+  "id": "F012",
+  "policy_id": "pol-analyst-socket-regression",
+  "input": "Bug report from dotnet/runtime PR #46745 / issue #45673 (paraphrased). When we get an epoll notification for a socket, we may get a read notification, a write notification, or both. Each triggers IO + user callback.\n\nBefore PR #37974, when we got both notifications, we dispatched one to the thread pool so both user callbacks could run concurrently. After PR #37974, the notifications are now processed sequentially: the second IO and callback wait for the first callback to return.\n\nCustomer impact: latency-sensitive workloads see head-of-line blocking. What changed in PR #37974 that broke the concurrent dispatch, and what is the smallest fix shape?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(dispatch|thread.*pool|queue.*work|ThreadPool|QueueUserWorkItem|Task\\.Run|callback.*invoke|both.*notification|read.*write.*separate)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "dotnet-runtime-46745",
+    "regression",
+    "concurrency",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}
