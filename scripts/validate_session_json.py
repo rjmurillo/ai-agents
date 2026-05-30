@@ -207,6 +207,11 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
     1. The token sits inside a parenthetical aside, or
     2. An affirmative completion word precedes the token across a clause boundary
        (the evidence reports the item done, then notes other deferred work).
+       A clause boundary is a semicolon, or a period acting as sentence
+       punctuation (followed by whitespace or end of string); a period inside a
+       version or decimal such as "v1.5" is not a boundary, and a closing
+       parenthesis is deliberately excluded (parentheticals are handled by rule
+       1 above).
 
     The affirmative completion must not be negated (directly or via an adverb,
     e.g. "not yet validated"), the clause boundary must sit BETWEEN the

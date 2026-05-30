@@ -518,6 +518,9 @@ class TestEvidenceContradiction:
             # A dot inside a version/decimal is not a clause boundary, so the
             # deferral is not suppressed (bug 0a163adc).
             "Created item v1.5 pending review",
+            # Contraction negation: "haven't passed" negates the affirmative, so
+            # the trailing deferral is a genuine contradiction (bug 0ea9d246).
+            "Tests haven't passed; pending review",
         ],
     )
     def test_genuine_contradiction_still_flags(self, evidence: str) -> None:
@@ -534,6 +537,9 @@ class TestEvidenceContradiction:
             "CI checks passing (CodeRabbit pending)",
             # Trailing note after affirmative completion across a clause boundary.
             "Markdown lint passed (0 errors after fix); pending pre-commit final run",
+            # Mid-clause adversative ("but" meaning "except") does not introduce
+            # the deferral clause, so suppression still applies (bug ref1_dda37e6b).
+            "Tests passed. All scenarios but the edge case handled; deferred edge case",
             # Exact strings from issue #2007.
             "Used: spec skill (Step 0 + Step 0.5 gates), plan skill (decomposition). "
             "Bash: grep, awk, wc, gh CLI. No Python scorer (deferred per PRD 11).",
