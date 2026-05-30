@@ -1587,6 +1587,18 @@ class TestParseSimpleYaml:
             "bots": ['"foo\'']
         }
 
+    def test_colon_value_without_space(self) -> None:
+        # Per YAML spec, a colon without a following space is part of a plain
+        # scalar, not a key-value separator. yaml.safe_load("name:value\n")
+        # returns the string "name:value", not a dict. Our parser follows suit
+        # by returning {} for non-mapping documents.
+        assert bot_config._parse_simple_yaml("name:value\n") == {}
+
+    def test_crlf_line_endings(self) -> None:
+        assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {
+            "bots": ["foo"]
+        }
+
 
 class TestMirrorParity:
     """The canonical bot_config and its install mirrors must stay in sync."""
@@ -1598,13 +1610,3 @@ class TestMirrorParity:
             "src/copilot-cli/lib/github_core/bot_config.py",
         ):
             assert (_REPO_ROOT / mirror).read_text() == canon, mirror
-
-    def test_colon_value_without_space(self) -> None:
-        assert bot_config._parse_simple_yaml("name:value\n") == {
-            "name": "value"
-        }
-
-    def test_crlf_line_endings(self) -> None:
-        assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {
-            "bots": ["foo"]
-        }
