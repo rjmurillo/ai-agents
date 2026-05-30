@@ -236,6 +236,17 @@ def _run_install(
             f"set core.hooksPath -> {HOOKS_DIR_NAME} (was: {current or 'unset'})",
             quiet=quiet,
         )
+        # Re-read effective path to detect higher-precedence overrides (e.g. worktree-local config)
+        effective = get_hooks_path(repo_root)
+        if not hooks_path_points_at_canonical(repo_root, effective):
+            print(
+                f"error: core.hooksPath was written to shared config but effective "
+                f"value is '{effective or 'unset'}'; "
+                "a higher-precedence config (e.g. worktree-local) is overriding it. "
+                "Run: git config --unset core.hooksPath",
+                file=sys.stderr,
+            )
+            return EXIT_LOGIC
 
     problems = verify_hooks(repo_root)
     if problems:
