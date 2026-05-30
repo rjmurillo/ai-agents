@@ -1,6 +1,6 @@
 ---
 name: programming-advisor
-description: Evaluate existing solutions (libraries, SaaS, open source) before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", or need build vs buy cost analysis with token estimates.
+description: Evaluate existing solutions (libraries, SaaS, open source) AND internal prior-art before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", "do we already have this", "is there existing code for X in this repo", or need build vs buy cost analysis with token estimates. Checks internal reuse (leverage/extend) before external.
 license: MIT
 metadata:
   version: 1.0.0
@@ -18,6 +18,7 @@ metadata:
 | "is there a package for X" | Search npm/pip/cargo/etc |
 | "build vs buy for X" | Generate cost comparison table |
 | "check if X exists before building" | Run full wheel detection workflow |
+| "do we already have X" / "is there existing code for X in this repo" | Search internal prior-art first (leverage/extend), then external |
 
 ## Core Philosophy
 
@@ -34,6 +35,20 @@ Extract from user request:
 - **Constraints**: Language, platform, budget, licensing requirements
 
 ### Step 2: Search for Existing Solutions
+
+**Search internal prior-art FIRST (leverage/extend), then external.** The cheapest option is code you already have.
+
+#### 2a. Internal prior-art
+
+Before any web search, check whether the capability already exists in the current repo or org:
+
+- grep the codebase for the capability's keywords and likely symbol names
+- if Serena is available, run a symbol search; if Forgetful memory is available, query it
+- check existing dependencies (`package.json` / `requirements.txt` / `Cargo.toml` / `go.mod`) for a library already pulled in
+
+If an internal implementation exists, recommend **Leverage** (use as-is) or **Extend** (adapt it) before proposing a build or an external buy. Internal reuse beats both a new dependency and a rewrite.
+
+#### 2b. External solutions
 
 Search strategy (use web_search):
 
@@ -71,6 +86,8 @@ Always present a decision table:
 ```markdown
 | Option | Type | Cost | Setup Time | Maintenance | Token Burn | Verdict |
 |--------|------|------|------------|-------------|------------|---------|
+| Existing internal | Leverage | Free | minutes | Shared | 0 | ♻️ Reuse first |
+| Existing internal | Extend | Free | hrs | You own the delta | low | 🔧 Adapt existing |
 | [Solution A] | Library | Free | 5 min | Updates only | 0 | ✅ Recommended |
 | [Solution B] | SaaS | $X/mo | Instant | None | 0 | ⚡ Fastest |
 | Vibe Code | Custom | Free | X hrs | You own it | ~XK tokens | 🔧 Full control |
