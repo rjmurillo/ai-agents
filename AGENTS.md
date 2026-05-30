@@ -15,6 +15,8 @@ Read first, reason second. Pre-training last resort.
 |Protocol: `.agents/SESSION-PROTOCOL.md`
 |Skills: `.claude/skills/{name}/SKILL.md`
 
+**Memory lookup**: NEVER bare `list_memories` (800+ atomic files, ~73KB/call). Filter by namespace: `list_memories(topic="<dir>")` where `<dir>` is the top-level folder prefix (`git`, `adr`, `memory`, `pr-review`); it matches the directory, not arbitrary keywords (so `topic="git-hooks"` is empty, `topic="git"` returns `git/git-hooks-*`). Or read a `*-index` registry then `read_memory` the one file. Atomic files + index is deliberate (no embeddings; name = activation vocab): see `memory-token-efficiency`, `memory-size-001-decomposition-thresholds`. Do NOT consolidate atomic memories to cheapen listing; it breaks discovery + cross-links.
+
 ## Session Gates
 
 **Start**: Init Serena|Read HANDOFF.md + latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
