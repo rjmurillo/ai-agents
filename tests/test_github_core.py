@@ -1573,6 +1573,15 @@ class TestParseSimpleYaml:
             "bots": ["foo"]
         }
 
+    def test_hash_inside_quoted_item_preserved(self) -> None:
+        # A # inside quotes is literal content, not a comment marker.
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo # bar'\n") == {
+            "bots": ["foo # bar"]
+        }
+        assert bot_config._parse_simple_yaml('name: "value # note"\n') == {
+            "name": "value # note"
+        }
+
     def test_empty_text(self) -> None:
         assert bot_config._parse_simple_yaml("") == {}
 
