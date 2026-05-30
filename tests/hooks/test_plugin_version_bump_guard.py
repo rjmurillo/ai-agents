@@ -143,3 +143,52 @@ class TestBaseForwarded:
 
         _run(".claude/skills/foo/SKILL.md\n", find_violations, tmp_path)
         assert seen["base_ref"] == "@{push}"
+
+
+class TestImportFailOpen:
+    """Import-time failures other than ImportError must fail-open, not crash."""
+
+    def test_non_import_error_during_import_fails_open(self, tmp_path, capsys):
+        (tmp_path / "build" / "scripts").mkdir(parents=True, exist_ok=True)
+
+        real_import = __import__
+
+        def boom(name, *args, **kwargs):
+            if name == "validate_plugin_version_bump":
+                raise RuntimeError("module body blew up at import time")
+            return real_import(name, *args, **kwargs)
+
+        # Force the validator import to raise a non-ImportError. The broadened
+        # except clause must fail-open rather than let it crash the push.
+        with patch("builtins.__import__", side_effect=boom):
+            result = guard._import_validator(tmp_path)
+
+        assert result is None
+        # An EVENT line on stderr marks the degraded state for telemetry.
+        err = capsys.readouterr().err
+        assert "import_failed" in err
+        assert "RuntimeError" in err
+
+
+class TestHooksJsonRegistration:
+    """The guard must be wired into the push surface or it never runs."""
+
+    _ROOT = Path(__file__).resolve().parents[2]
+    _GUARD = "invoke_plugin_version_bump_guard.py"
+
+    def _push_block(self, path: Path) -> list[str]:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        block = next(
+            b
+            for b in data["hooks"]["PreToolUse"]
+            if b.get("matcher") == "Bash(git push*)"
+        )
+        return [hook.get("command", "") for hook in block["hooks"]]
+
+    def test_settings_json_registers_guard(self):
+        commands = self._push_block(self._ROOT / ".claude" / "settings.json")
+        assert any(self._GUARD in cmd for cmd in commands)
+
+    def test_hooks_json_registers_guard(self):
+        commands = self._push_block(self._ROOT / ".claude" / "hooks" / "hooks.json")
+        assert any(self._GUARD in cmd for cmd in commands)

@@ -67,7 +67,11 @@ def _import_validator(project_dir: Path):
         sys.path.insert(0, str(candidate))
     try:
         import validate_plugin_version_bump as vpb  # noqa: PLC0415
-    except ImportError as exc:
+    except Exception as exc:  # noqa: BLE001
+        # Catch every import-time failure, not just ImportError. A syntax or
+        # runtime error raised while the module body executes (a corrupt build
+        # tree, an incompatible Python) is not an ImportError; letting it
+        # propagate would crash the push instead of fail-opening to the CI gate.
         emit_fail_open(
             GUARD_NAME,
             "import_failed",
@@ -80,13 +84,33 @@ def _import_validator(project_dir: Path):
 def _resolve_base(project_dir: Path) -> str | None:
     """Resolve the base ref for reading prior plugin.json versions.
 
-    Mirrors push_guard_base's diff base so the version comparison lines up
-    with the changed-file set:
+    Canonical source: ``.claude/hooks/PreToolUse/push_guard_base.py``,
+    function ``_changed_files``. That function computes the changed-file set
+    this guard validates against, so the version comparison must read the
+    prior manifest from the same base. Its load-bearing contract is::
+
+        rc, out = _run_git_diff(["git", "diff", *args, "@{push}..HEAD"], ...)
+        if rc == 0:
+            return ...
+        fallback_ref = _detect_default_base_ref(cwd)
+        rc2, out2 = _run_git_diff(["git", "diff", *args, f"{fallback_ref}...HEAD"], ...)
+
+    So the changed set is ``@{push}..HEAD`` (two-dot) when ``@{push}``
+    resolves, else ``<default-base>...HEAD`` (three-dot). This resolver
+    returns the matching base ref:
 
     1. ``@{push}`` when it resolves (the last pushed tip; two-dot semantics).
-    2. Otherwise the merge-base of ``_detect_default_base_ref`` and HEAD, so
-       a base branch that advanced its own version after the branch point
-       does not produce a false "not increased" block (three-dot semantics).
+    2. Otherwise the merge-base of ``_detect_default_base_ref`` and HEAD.
+
+    Different than canonical: push_guard_base passes the default base ref to
+    git's three-dot operator (``ref...HEAD``), which resolves the merge-base
+    internally. This resolver computes that merge-base explicitly with
+    ``git merge-base`` and hands the resulting SHA to the validator, because
+    the validator reads the prior version with two-dot ``git show <base>:path``
+    and needs the branch-point SHA, not the ref. Both select the same commit;
+    the difference is who resolves it. A base branch that advanced its own
+    version after the branch point therefore cannot produce a false
+    "not increased" block.
     """
     rc = _git(["rev-parse", "--verify", "--quiet", "@{push}"], project_dir)
     if rc == 0:
