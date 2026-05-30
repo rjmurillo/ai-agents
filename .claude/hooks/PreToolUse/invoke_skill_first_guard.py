@@ -119,8 +119,11 @@ SKILL_MAPPINGS: dict[str, dict[str, dict[str, str]]] = {
             ),
         },
         "list": {
-            "script": "get_issue_context.py",
-            "example": "python3 .claude/skills/github/scripts/issue/get_issue_context.py",
+            "script": "list_issues.py",
+            "example": (
+                "python3 .claude/skills/github/scripts/issue/"
+                "list_issues.py --state open --label bug"
+            ),
         },
     },
 }

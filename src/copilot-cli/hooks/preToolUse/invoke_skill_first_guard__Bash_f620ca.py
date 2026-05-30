@@ -262,8 +262,11 @@ def _original_main(stdin_bytes):
                 ),
             },
             "list": {
-                "script": "get_issue_context.py",
-                "example": "python3 .claude/skills/github/scripts/issue/get_issue_context.py",
+                "script": "list_issues.py",
+                "example": (
+                    "python3 .claude/skills/github/scripts/issue/"
+                    "list_issues.py --state open --label bug"
+                ),
             },
         },
     }
