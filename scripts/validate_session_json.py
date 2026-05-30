@@ -195,7 +195,13 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
     if _token_in_parentheses(evidence, match.start()):
         return True
     prefix = evidence[: match.start()]
-    return bool(_AFFIRMATIVE_COMPLETION.search(prefix) and _CLAUSE_BOUNDARY.search(prefix))
+    affirmative = _AFFIRMATIVE_COMPLETION.search(prefix)
+    if not affirmative:
+        return False
+    # Verify a clause boundary exists AFTER the affirmative word, ensuring
+    # the boundary actually separates the affirmative completion from the deferral token.
+    suffix_after_affirmative = prefix[affirmative.end() :]
+    return bool(_CLAUSE_BOUNDARY.search(suffix_after_affirmative))
 
 
 def _has_contradiction(evidence: str) -> bool:
