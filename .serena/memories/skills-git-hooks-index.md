@@ -10,3 +10,4 @@
 | branch recovery main commit mistake reset origin HEAD | [git/git-hooks-002-branch-recovery-procedure](git/git-hooks-002-branch-recovery-procedure.md) |
 | branch name validation pattern feat fix chore docs reject pre-commit mismatch declared | [git/git-hooks-004-branch-name-validation](git/git-hooks-004-branch-name-validation.md) |
 | pre-commit hook bypass no-verify protocol enforcement fix-errors | [git/git-hooks-fix-hook-errors-never-bypass](git/git-hooks-fix-hook-errors-never-bypass.md) |
+| core.hooksPath relative absolute worktree githooks install bypass guard footgun | [git/git-hooks-005-relative-hookspath-worktrees](git/git-hooks-005-relative-hookspath-worktrees.md) |
