@@ -97,6 +97,12 @@ def _docker_ready() -> bool:
     return rc == 0
 
 
+def _gh_act_available() -> bool:
+    """True when the ``gh act`` extension is installed."""
+    rc, _, _ = _run(["gh", "act", "--help"], timeout=20)
+    return rc == 0
+
+
 def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int, str, str]:
     """Run a command. Returns (exit_code, stdout, stderr); -1 on spawn error."""
     try:
@@ -197,6 +203,13 @@ def run_local_test(
     if not _have("gh"):
         report.exit_code = 3
         report.note = f"gh CLI not installed. Install it or set {_BYPASS_ENV}=true."
+        return report
+    if not _gh_act_available():
+        report.exit_code = 3
+        report.note = (
+            "gh act extension not installed. Install it via "
+            f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true."
+        )
         return report
 
     s2 = _act_dryrun_stage(files, repo_root)
