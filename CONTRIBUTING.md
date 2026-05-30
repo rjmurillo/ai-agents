@@ -40,7 +40,7 @@ Thank you for your interest in contributing to this project. This guide explains
 3. **Install Python 3.14.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv venv && uv pip install -e ".[dev]"`
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Set up git hooks (pre-commit + pre-push): `git config core.hooksPath .githooks`
+6. Set up git hooks (pre-commit + pre-push): `python3 scripts/install_git_hooks.py` (idempotent: sets `core.hooksPath`, verifies the hooks are executable, and flags a stale `.git/hooks/pre-push` shim; the bare `git config core.hooksPath .githooks` also works)
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
@@ -505,8 +505,19 @@ In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
 Enable automated validation on commits:
 
 ```bash
-git config core.hooksPath .githooks
+python3 scripts/install_git_hooks.py
 ```
+
+This points `core.hooksPath` at `.githooks`, verifies the hook scripts are
+executable, and warns about a legacy `.git/hooks/pre-push` shim that would
+otherwise shadow the canonical hook. Because `core.hooksPath` is stored in the
+shared `.git/config` as the relative path `.githooks`, every `git worktree`
+inherits it and runs its own checked-out hooks automatically; no per-worktree
+setup is needed. The equivalent one-liner is `git config core.hooksPath .githooks`.
+
+`pre_pr.py` runs `install_git_hooks.py --check` as a local gate, so a desynced
+`core.hooksPath` (for example, a clone left on an absolute `.git/hooks` path)
+is caught before push instead of silently bypassing the pre-push guards.
 
 The pre-commit hook automatically runs checks including, depending on staged files:
 
