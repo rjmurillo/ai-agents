@@ -23,6 +23,7 @@ Copilot CLI skill artifacts from .claude/skills/ (REQ-003-001)").
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -32,20 +33,20 @@ CONFIG_PATH = REPO_ROOT / ".markdownlint-cli2.yaml"
 
 
 @pytest.fixture(scope="module")
-def config() -> dict:
+def config() -> dict[str, object]:
     """Parsed .markdownlint-cli2.yaml from the repo root."""
     assert CONFIG_PATH.is_file(), f"missing config: {CONFIG_PATH}"
-    return yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+    return cast(dict[str, object], yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")))
 
 
-def test_config_parses_as_mapping(config: dict) -> None:
+def test_config_parses_as_mapping(config: dict[str, object]) -> None:
     """The config file is a YAML mapping with the expected top-level keys."""
     assert isinstance(config, dict)
     assert "config" in config
     assert "ignores" in config
 
 
-def test_copilot_skills_excluded_like_claude_skills(config: dict) -> None:
+def test_copilot_skills_excluded_like_claude_skills(config: dict[str, object]) -> None:
     """Copilot CLI skills get the same blanket lint exclusion as Claude skills.
 
     The Copilot tree is a verbatim copy of ``.claude/skills/``; both are
@@ -53,32 +54,32 @@ def test_copilot_skills_excluded_like_claude_skills(config: dict) -> None:
     a clean checkout (Issue #1837). Assert both globs are present together so the
     asymmetry cannot return.
     """
-    ignores = config["ignores"]
+    ignores = cast(list[str], config["ignores"])
     assert ".claude/skills/**" in ignores
     assert "src/copilot-cli/skills/**" in ignores
 
 
-def test_md024_scoped_to_siblings(config: dict) -> None:
+def test_md024_scoped_to_siblings(config: dict[str, object]) -> None:
     """MD024 must be siblings_only so repeated platform sub-headings pass.
 
     docs/installation.md intentionally reuses "Claude Code" and "GitHub Copilot
     CLI" sub-headings under several distinct parent sections. siblings_only
     permits that while still catching true sibling duplicates.
     """
-    md024 = config["config"].get("MD024")
+    md024 = cast(dict[str, Any], config["config"]).get("MD024")
     assert isinstance(md024, dict), "MD024 must be configured as a mapping"
     assert md024.get("siblings_only") is True
 
 
-def test_md040_remains_enabled(config: dict) -> None:
+def test_md040_remains_enabled(config: dict[str, object]) -> None:
     """MD040 (fenced-code-language) stays on; the authored fixes depend on it.
 
     The fix added language identifiers to bare fences in agent files, README,
     and eval docs. If MD040 were disabled, those fixes would be unverified.
     """
-    assert config["config"].get("MD040") is True
+    assert cast(dict[str, Any], config["config"]).get("MD040") is True
 
 
-def test_md041_remains_enabled(config: dict) -> None:
+def test_md041_remains_enabled(config: dict[str, object]) -> None:
     """MD041 (first-line-heading) stays on; agent files keep their H1 to pass it."""
-    assert config["config"].get("MD041") is True
+    assert cast(dict[str, Any], config["config"]).get("MD041") is True
