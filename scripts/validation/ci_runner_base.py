@@ -57,7 +57,7 @@ def run(
     smuggled in as a git option. The values are git refs, never raw user input.
     """
     try:
-        proc = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit
+        proc = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
             cmd,
             cwd=str(REPO_ROOT),
             capture_output=True,
