@@ -1,6 +1,6 @@
 ---
 tier: manager
-description: Review GitHub feature requests with constructive skepticism. Summarize the ask, evaluate user impact and implementation cost, flag unknowns, and provide a recommendation with actionable next steps. Use when triaging a GitHub feature-request or enhancement issue, or when you say "should we build this", "evaluate this feature request", "triage this issue", "is this worth building". Do NOT use to break an approved feature into milestones or schedule work (use milestone-planner) or to investigate root cause of a bug (use the analyst).
+description: Review GitHub feature requests with constructive skepticism. Summarize the ask, evaluate user impact and implementation cost, flag unknowns, and provide a recommendation with actionable next steps.
 argument-hint: Provide the issue title, issue body, and any known repository context
 model_tier: sonnet
 tools_vscode:

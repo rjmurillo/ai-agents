@@ -10,7 +10,7 @@ Re-ran every edited agent that has an eval scaffold and compared the new `recall
 |---|---|---|---|---|
 | critic | +0.083 | -0.083 | +0.166 | flipped neg→pos |
 | backlog-generator | +0.071 | -0.083 | +0.154 | flipped neg→pos |
-| issue-feature-review | +0.000 | -0.083 | +0.083 | no longer negative |
+| issue-feature-review | +0.000 | -0.083 | +0.083 | measured, then REVERTED (see note) |
 | milestone-planner | -0.208 | -0.214 | +0.006 | still SIG-NEG (baseline attributes this to fixtures/harness, not prompt; a description edit cannot fix it) |
 | security | +0.333 | +0.417 | -0.084 | still positive; see n=5 confirm below |
 | qa | +0.000 | +0.042 | -0.042 | NULL, unchanged |
@@ -20,6 +20,8 @@ Re-ran every edited agent that has an eval scaffold and compared the new `recall
 | orchestrator | -0.071 | +0.071 | -0.142 | NULL, widest negative shift (within noise) |
 
 **No agent regressed to a new significant-negative.** Three improved.
+
+> Note: `issue-feature-review` was measured above but then **reverted** from this PR. It is a SHARED_AGENT lacking a `.github/agents/` install copy at origin/main, so editing its siblings trips install-parity. Backfilling the hand-curated `.github` variant is out of scope; its #2127/#2128 edits are deferred until that sibling exists.
 
 ### Flagship confirm: security at n=5 (not flaky)
 
