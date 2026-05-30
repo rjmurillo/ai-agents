@@ -1,0 +1,23 @@
+{
+  "id": "F013",
+  "policy_id": "pol-analyst-exception-shape",
+  "input": "Bug report from dotnet/runtime PR #40772 (paraphrased). Span<byte> overloads of NetworkStream throw ObjectDisposedException directly instead of throwing NetworkException with ObjectDisposedException as an inner exception, but only when not using a derived NetworkStream. The byte[] overloads throw the wrapped shape correctly. What is the most likely root cause and what fix shape restores consistency?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(virtual.*method|override|base.*class|wrap|catch.*throw|exception.*translation|sealed|interface|derived)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "dotnet-runtime-40772",
+    "exception-shape",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

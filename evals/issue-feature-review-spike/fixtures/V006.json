@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "V006",
+  "policy_id": "pol-issue-feature-review-duplicate",
+  "input": "Feature request opened today: 'Add dark mode.' Issue #401 (closed 6 months ago as won't-fix) requested the same. Verdict?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(duplicate|closed.*before|won.*fix|same.*request|reference.*401|reopen.*discussion|defer)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

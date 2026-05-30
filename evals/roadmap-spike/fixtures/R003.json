@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "R003",
+  "policy_id": "pol-roadmap-drift-detection",
+  "input": "Roadmap committed Q1 to 'fix top-3 reliability issues'. Team has spent 60 percent of capacity on adding a graphQL endpoint requested by one customer. CTO asks: are we on track?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(drift|off.*track|scope.*creep|customer.*pull|commit.*differ|return.*to|reprioritize|escalate|focus)"
+    }
+  ],
+  "tags": [
+    "agent-roadmap",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

@@ -24,7 +24,7 @@ Read first, reason second. Pre-training last resort.
 
 ## Boundaries
 
-**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|`gh act` locally
+**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run changed workflows locally pre-push (`SKIP_WORKFLOW_LOCAL_TEST=true` bypass)
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
 **Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in working tree (use `$TMPDIR`/`mktemp`)|Resolve security threads without fixing underlying vulnerability (CWE/OWASP/CVE) in code

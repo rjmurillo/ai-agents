@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "A006",
+  "policy_id": "pol-architect-ok-all-real-citations",
+  "input": "Design review: 'Move push-guard framework to .claude/hooks/ per ADR-006 (thin workflows) and ADR-042 (Python-first).' All cited ADRs exist and match the topic. Plan body is concise. Approve?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(approve|OK|all.*citation.*exist|verified|no.*MISSING|ship|nothing.*block)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "triad-aware",
+    "verdict-ok",
+    "agent-discriminating"
+  ]
+}

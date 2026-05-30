@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "E001",
+  "policy_id": "pol-memory-atomic-write",
+  "input": "About to write to memory: 'In session 23, while fixing auth bug, I learned that null checks should come first AND we should always log structured AND tests should mock at boundaries.' Action?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(split|three.*memories|atomic|one.*concept|separate.*entry|fragment|too.*broad)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

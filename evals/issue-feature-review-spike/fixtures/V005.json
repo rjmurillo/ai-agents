@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "V005",
+  "policy_id": "pol-issue-feature-review-escalate-customer-context",
+  "input": "Feature request: 'Customer X wants feature Y.' Decide.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(which.*customer|how.*many.*ask|paying|tier|generaliz|other.*customer|exec|sales|input)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

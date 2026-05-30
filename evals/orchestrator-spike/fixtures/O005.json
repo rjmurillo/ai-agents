@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "O005",
+  "policy_id": "pol-orchestrator-escalate-ambiguous-task",
+  "input": "User says: 'Make this work.' No prior context. Decide.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(clarif|what.*work|specific|task|return|need.*more|ambiguous)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

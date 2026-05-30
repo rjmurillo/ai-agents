@@ -1,0 +1,23 @@
+{
+  "id": "F017",
+  "policy_id": "pol-analyst-validator-drift",
+  "input": "Bug report from ai-agents PR #760 (paraphrased). The repo uses a deprecated pre-commit hook step called 'Skill Generation (BLOCKING)' that runs `Generate-Skills.ps1`. That script has been replaced upstream in SkillForge by `validate-skill.py`, which has different frontmatter requirements. Pre-commit passes locally because the deprecated script is permissive, but the upstream validator now rejects the same skills in CI. Five skills in `.claude/skills/` now fail validation. What is the smallest fix shape and how to prevent this drift class?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(replace.*hook|switch.*validator|align.*upstream|delete.*deprecated|canonical|single.*source|validate.*skill|frontmatter|drift)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-760",
+    "validator-drift",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

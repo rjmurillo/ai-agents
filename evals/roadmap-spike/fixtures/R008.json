@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "R008",
+  "policy_id": "pol-roadmap-from-ai-agents-1965",
+  "input": "From ai-agents PR #1965. The /review wrapper and CI workflow drifted because both held separate prompt copies. Two fix-loops + 4 round-2 regressions resulted. Is fixing this a roadmap-level priority or local engineering hygiene?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(systemic|class.*of.*failure|other.*drift|broader|priority|invest.*in.*tooling|prevent.*recurrence)"
+    }
+  ],
+  "tags": [
+    "agent-roadmap",
+    "ai-agents-1965",
+    "verdict-identify"
+  ]
+}

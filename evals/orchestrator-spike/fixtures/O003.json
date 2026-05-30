@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "O003",
+  "policy_id": "pol-orchestrator-handoff-fidelity",
+  "input": "Delegating to architect agent: 'Review the new orchestrator hook design.' What information must the handoff carry?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(design.*doc|context|prior.*ADR|constraint|scope|out.*of.*scope|risk|specific.*ask)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

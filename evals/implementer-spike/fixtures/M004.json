@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "M004",
+  "policy_id": "pol-implementer-escalate-spec-ambiguous",
+  "input": "Implementation request: 'Make the dashboard faster.' Decide.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(metric|baseline|measure|which.*page|specific|target|p99|cold|cache|clarif)"
+    }
+  ],
+  "tags": [
+    "agent-implementer",
+    "synthetic",
+    "verdict-escalate",
+    "agent-discriminating"
+  ]
+}

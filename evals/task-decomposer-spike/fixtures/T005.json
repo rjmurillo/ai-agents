@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "T005",
+  "policy_id": "pol-task-decomposer-dependency-sequencing",
+  "input": "Three tasks: (T1) write integration tests, (T2) wire the new endpoint, (T3) update the data model. Sequence?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(T3.*first|data.*model.*before|then.*T2|finally.*T1|wire.*after.*data|dependency|order)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

@@ -262,8 +262,11 @@ def _original_main(stdin_bytes):
                 ),
             },
             "list": {
-                "script": "get_issue_context.py",
-                "example": "python3 .claude/skills/github/scripts/issue/get_issue_context.py",
+                "script": "list_issues.py",
+                "example": (
+                    "python3 .claude/skills/github/scripts/issue/"
+                    "list_issues.py --state open --label bug"
+                ),
             },
         },
     }
@@ -411,8 +414,6 @@ def _original_main(stdin_bytes):
             # Fail-open on errors (don't block on infrastructure issues)
             print(f"Skill-first guard error: {type(exc).__name__} - {exc}", file=sys.stderr)
             return 0
-
-
     return main()
 
 _shim_dispatch()

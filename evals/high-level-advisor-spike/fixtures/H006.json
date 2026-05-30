@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "H006",
+  "policy_id": "pol-high-level-advisor-scope-explosion-pushback",
+  "input": "From ai-agents PR #402. Original scope was one feature (#400 bot authority). PR grew to five features (bot authority + proactive detection + Copilot synthesis + deduplication + acknowledged-vs-resolved). Should we ship as one or split?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(split|five.*PR|cut.*scope|land.*incrementally|land.*one.*at.*time|original.*scope|stack|atomic|smaller)"
+    }
+  ],
+  "tags": [
+    "agent-high-level-advisor",
+    "ai-agents-402",
+    "verdict-identify"
+  ]
+}

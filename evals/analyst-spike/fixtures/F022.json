@@ -1,0 +1,24 @@
+{
+  "id": "F022",
+  "policy_id": "pol-analyst-identify-stable-zero",
+  "input": "Bug report from ai-agents PR #1989 (paraphrased). 'PR #1965 had a fix loop where the /review wrapper polled get_pr_review_threads.py and merged when unresolved_count returned zero, but the count flickered: bot reviewers (Copilot, Devin) had webhook latency that delayed thread creation. The wrapper saw zero, merged, then more threads arrived. Pre-mortem found that 60s/2-reading default was too aggressive. What is the right polling discipline, and what specific data informs the threshold?'",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(consecutive.*reading|3 readings|three.*reading|180s|stable|observe.*latency|measure.*webhook|poll.*interval|fetched_pages_complete|wait.*longer)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-1989",
+    "polling-stability",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

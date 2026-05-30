@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "I004",
+  "policy_id": "pol-independent-thinker-popular-but-wrong",
+  "input": "Popular claim in security threads: 'Use bcrypt for everything; it is the gold standard.' True?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(argon2|case.*specific|HMAC|context|memory.*hard|GPU|password.*hash.*function|not.*one.*size|alternative|argon2id|RFC)"
+    }
+  ],
+  "tags": [
+    "agent-independent-thinker",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

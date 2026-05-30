@@ -16,10 +16,11 @@ test cases.
 
 Of 14 dynamic D-checks in TASK-017-5, 4 are promoted to pytest here
 (D2, D8, D10, D11) because they are deterministic from spec.md prose
-and parser logic without an LLM in the loop. The LLM-required checks
-D1, D6, D7, D9, D12, D13, and D14 are captured as ADR-057 scenarios in
-`tests/evals/spec-scenarios.json`. D3, D4, and D5 remain manual because
-they require live memory-query behavior outside this issue's scope.
+and parser logic without an LLM in the loop. The LLM-required subset
+(D1, D6, D7, D9, D12, D13, D14) is promoted to ADR-057 behavioral
+scenarios in `tests/evals/spec-scenarios.json`. The remaining D3-D5
+manual checks require live tool-invocation trace assertions that are
+outside issue #1972.
 """
 
 from __future__ import annotations
@@ -458,10 +459,10 @@ def test_supplemental_traversal_warranted(
 #
 # 4 of 14 D-checks (D2, D8, D10, D11) are promoted to pytest because
 # they are deterministic from spec.md prose and parser logic without an
-# LLM in the loop. D1, D6, D7, D9, D12, D13, and D14 are promoted to
-# ADR-057 behavioral scenarios in tests/evals/spec-scenarios.json.
-# D3, D4, and D5 remain manual because they require live memory-query
-# behavior outside #1972's scope.
+# LLM in the loop. ADR-057 behavioral scenarios for the LLM-required
+# #1972 subset live in tests/evals/spec-scenarios.json:
+# D1, D6, D7, D9, D12, D13, D14. D3-D5 still require live tool-call
+# trace assertions and remain manual.
 # ---------------------------------------------------------------------------
 
 
@@ -655,13 +656,23 @@ def test_llm_required_d_checks_have_adr057_scenarios():
         assert scenario["rationale"]
         assert scenario["id"].startswith("D")
 
-    assert by_id["D1"]["expected_verdict"] == "PASS"
-    assert by_id["D6"]["expected_verdict"] == "PASS"
-    assert by_id["D7"]["expected_verdict"] == "PASS"
-    assert by_id["D9"]["expected_verdict"] == "PASS"
+    # PR #2029 (fix/issue-1972-spec-d-evals) supersedes PR #2028 verdict vocabulary.
+    # PR #2028 used coarse PASS/FAIL options; PR #2029 uses precise per-check enums
+    # that match the actual D-check behaviors defined in ADR-057 and issue #1972.
+    # D1 AC-01: Step 0.5 must run (RUN_STEP_0_5, not a generic PASS).
+    assert by_id["D1"]["expected_verdict"] == "RUN_STEP_0_5"
+    # D6 AC-07: Forgetful failure degrades gracefully (DEGRADED_PASS, not generic PASS).
+    assert by_id["D6"]["expected_verdict"] == "DEGRADED_PASS"
+    # D7 AC-08: Discovered entity needs adjudication (REQUEST_ADJUDICATION, not PASS).
+    assert by_id["D7"]["expected_verdict"] == "REQUEST_ADJUDICATION"
+    # D9 AC-09: Under blast-radius threshold, Step 0.5 proceeds (PROCEED_STEP_1, not PASS).
+    assert by_id["D9"]["expected_verdict"] == "PROCEED_STEP_1"
+    # D12 AC-12: 9d passes on populated PriorArtBlock (PASS, unchanged).
     assert by_id["D12"]["expected_verdict"] == "PASS"
+    # D13 AC-12: 9d fails when PriorArtBlock removed (FAIL, unchanged).
     assert by_id["D13"]["expected_verdict"] == "FAIL"
-    assert by_id["D14"]["expected_verdict"] == "PASS"
+    # D14 AC-10: Tier upgrade triggers supplemental phase (RUN_SUPPLEMENTAL, not PASS).
+    assert by_id["D14"]["expected_verdict"] == "RUN_SUPPLEMENTAL"
 
 
 # ---------------------------------------------------------------------------

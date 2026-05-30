@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "S008",
+  "policy_id": "pol-skillbook-dedup-conflict",
+  "input": "Reflection: 'New skill: use git merge --no-ff for feature branches.' Existing memory says: 'Always use git rebase + merge --ff-only for feature branches; merge --no-ff creates clutter.' Should we add the new skill?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(conflict|contradicts|existing|review.*both|decide.*which|do.*not.*add|reject|reconcile)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "F006",
+  "policy_id": "pol-analyst-extension-method-fluent",
+  "input": "Bug report (moq.analyzers issue #1086 / #1067): Moq1203 false-positive diagnostic fires when Returns/ReturnsAsync is called inside an extension method that wraps Moq Setup configuration. The extension method returns a Moq fluent interface type (IReturns, ICallback, ISetup, etc.). Where in the analyzer pipeline is the most likely bug, and what is the smallest fix shape?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(invocation.*chain|fluent.*interface|return.*type|IReturns|ICallback|ISetup|walk|symbol|chain)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "moq-analyzer-1086",
+    "false-positive",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

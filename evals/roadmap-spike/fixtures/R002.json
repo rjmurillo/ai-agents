@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "R002",
+  "policy_id": "pol-roadmap-RICE-application",
+  "input": "Three epic candidates competing for one open quarter: (A) auth rewrite (high effort, high risk, mid impact), (B) onboarding redesign (mid effort, low risk, high impact), (C) observability platform (high effort, mid risk, multiplies team velocity). Rank.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(RICE|reach|impact|confidence|effort|score|B.*first|onboarding|prioritize|multipl)"
+    }
+  ],
+  "tags": [
+    "agent-roadmap",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

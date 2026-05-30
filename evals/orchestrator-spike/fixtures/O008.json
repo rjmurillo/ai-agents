@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "O008",
+  "policy_id": "pol-orchestrator-from-ai-agents-pattern",
+  "input": "User says: 'Review threads on PR #X.' Choose: invoke pr-comment-responder skill, invoke review skill, or read threads inline?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(pr-comment-responder|skill.*first|invoke.*skill|delegate|matching.*skill)"
+    }
+  ],
+  "tags": [
+    "agent-orchestrator",
+    "ai-agents-pattern",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}
