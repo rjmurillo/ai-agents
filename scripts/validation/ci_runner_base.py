@@ -46,9 +46,18 @@ def validate_sha(value: str) -> str | None:
 def run(
     cmd: list[str], *, check: bool = False, timeout: int = 60
 ) -> tuple[int, str, str]:
-    """Run a subprocess. Returns (exit_code, stdout, stderr)."""
+    """Run a subprocess by argv. Returns (exit_code, stdout, stderr).
+
+    Not vulnerable to CWE-78 (command injection): ``cmd`` is an argv list and
+    ``subprocess.run`` is called without ``shell=True``, so no string is ever
+    handed to a shell for re-parsing. Env-supplied refs (``PR_BASE_REF``,
+    ``PUSH_BEFORE_SHA``) reach this function only after passing the
+    ``validate_branch`` / ``validate_sha`` allowlists, which reject anything
+    outside ``[A-Za-z0-9_./-]`` and forbid a leading ``-`` so a ref cannot be
+    smuggled in as a git option. The values are git refs, never raw user input.
+    """
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosemgrep: dangerous-subprocess-use-audit
             cmd,
             cwd=str(REPO_ROOT),
             capture_output=True,
