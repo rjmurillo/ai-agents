@@ -1604,12 +1604,29 @@ class TestParseSimpleYaml:
 
 
 class TestMirrorParity:
-    """The canonical bot_config and its install mirrors must stay in sync."""
+    """The install mirrors must equal the canonical loader's sync transform.
 
-    def test_mirrors_identical_to_canonical(self) -> None:
-        canon = (_REPO_ROOT / "scripts/github_core/bot_config.py").read_text()
+    The mirrors are NOT byte-identical to the canonical file. scripts/sync_plugin_lib.py
+    (_transform_file -> _replace_first_docstring_line) rewrites the first module
+    docstring line to a canonical note and converts intra-package absolute imports to
+    relative ones. Asserting raw byte-identity always fails on the first docstring line.
+    This test asserts each mirror equals the transform the sync tool itself produces, so
+    it cannot drift from the real sync contract.
+    """
+
+    def test_mirrors_match_sync_transform(self) -> None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_lib", _REPO_ROOT / "scripts" / "sync_plugin_lib.py"
+        )
+        spl = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(spl)
+
+        src = _REPO_ROOT / "scripts/github_core/bot_config.py"
+        expected = spl._transform_file(src, "scripts/github_core")
         for mirror in (
             ".claude/lib/github_core/bot_config.py",
             "src/copilot-cli/lib/github_core/bot_config.py",
         ):
-            assert (_REPO_ROOT / mirror).read_text() == canon, mirror
+            assert (_REPO_ROOT / mirror).read_text(encoding="utf-8") == expected, mirror
