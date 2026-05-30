@@ -144,6 +144,9 @@ def main() -> int:
             return 0
 
         hook_input = json.loads(input_json)
+    except OSError as exc:
+        print(f"serena_reassertion: Failed to read input: {exc}", file=sys.stderr)
+        return 0
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"serena_reassertion: Failed to parse input JSON: {exc}", file=sys.stderr)
         return 0
