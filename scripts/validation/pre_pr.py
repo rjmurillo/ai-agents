@@ -880,7 +880,18 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
         print("No changed workflow files; nothing to run locally.")
         return True
 
-    cmd = [sys.executable, str(script), "--no-full", "--files", *changed]
+    # Pass the known repo_root explicitly so containment and path resolution
+    # validate against this checkout, not the script's path-derived default
+    # (robust to symlinked checkouts).
+    cmd = [
+        sys.executable,
+        str(script),
+        "--repo-root",
+        str(repo_root),
+        "--no-full",
+        "--files",
+        *changed,
+    ]
     exit_code, stdout, stderr = _run_subprocess(cmd)
     output = (stdout or "") + (stderr or "")
     if output.strip():

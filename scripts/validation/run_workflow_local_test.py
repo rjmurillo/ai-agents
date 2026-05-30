@@ -272,10 +272,14 @@ def run_local_test(
     if full:
         if not _docker_ready():
             report.exit_code = 3
+            if not _have("docker"):
+                cause = "Docker is not installed"
+            else:
+                cause = "the Docker daemon is not running"
             report.note = (
-                "Docker daemon not available; the full gh act run cannot "
-                f"execute. Start Docker or set {_BYPASS_ENV}=true to bypass an "
-                "unrunnable workflow (or pass --no-full for the lint+dry-run tier)."
+                f"{cause}; the full gh act run cannot execute. Install/start "
+                f"Docker or set {_BYPASS_ENV}=true to bypass an unrunnable "
+                "workflow (or pass --no-full for the lint+dry-run tier)."
             )
             return report
         s3 = _act_full_stage(files, repo_root)

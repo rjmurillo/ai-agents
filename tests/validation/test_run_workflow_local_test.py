@@ -149,12 +149,26 @@ def test_gh_act_extension_missing_is_exit_3(monkeypatch, tmp_path):
 
 def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
     # Dry-run passes (no daemon needed); the full stage needs Docker -> exit 3.
+    # docker is installed but the daemon is down -> "not running" note.
     monkeypatch.setattr(w, "_docker_ready", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
-    assert "Docker" in r.note
+    assert "daemon is not running" in r.note
+
+
+def test_docker_not_installed_is_exit_3_with_distinct_note(monkeypatch, tmp_path):
+    # docker binary absent -> "not installed" note, distinct from daemon-down.
+    monkeypatch.setattr(w, "_have", lambda tool: tool != "docker")
+    monkeypatch.setattr(w, "_gh_act_available", lambda: True)
+    monkeypatch.setattr(w, "_docker_ready", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert "Docker is not installed" in r.note
 
 
 def test_no_full_does_not_require_docker(all_tools, monkeypatch, tmp_path):
