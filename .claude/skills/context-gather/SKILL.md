@@ -63,6 +63,13 @@ Skip this skill when:
    - **DeepWiki**: Read repository-level documentation for relevant GitHub repos.
    - **Web Search**: Fall back to web sources only when memory and docs are insufficient.
 3. Wait for the subagent to return its findings.
+4. For each tier actually queried, emit a marker line:
+
+```text
+TIER_QUERIED: <tier>
+```
+
+Where `<tier>` is one of: `forgetful`, `serena`, `context7`, `deepwiki`, `web`. Emit at least two `TIER_QUERIED:` lines to satisfy the verification gate.
 
 ### Phase 3: Synthesize, Emit Marker, and Return
 
