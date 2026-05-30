@@ -203,6 +203,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py",
+            "timeout": 3,
+            "statusMessage": "Re-asserting Serena activation (issue #1993)"
+          },
+          {
+            "type": "command",
             "command": "python3 -u .claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py",
             "statusMessage": "Detecting autonomous execution patterns"
           },
