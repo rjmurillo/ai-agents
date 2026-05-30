@@ -1,6 +1,6 @@
 ---
 name: style-enforcement
-description: Validate code against style rules from .editorconfig, StyleCop.json, and Directory.Build.props. Detects line ending violations, naming convention issues, indentation problems, and charset mismatches across C#, Python, PowerShell, and JavaScript. Produces JSON reports for pre-commit hooks and CI pipelines.
+description: Validate code against style rules from .editorconfig, StyleCop.json, and Directory.Build.props. Use when you say "check style compliance", "validate editorconfig rules", "run style enforcement", "check naming conventions", or "validate line endings". Detects line ending violations, naming convention issues, indentation problems, and charset mismatches across C#, Python, PowerShell, and JavaScript. Do NOT use for taste/style invariants like file size or structured logging (use taste-lints).
 license: MIT
 metadata:
   version: 1.0.0
@@ -386,13 +386,12 @@ Use existing linters instead when:
 After running style check, the gate is `check_style.py`'s exit code, not a self-check:
 
 ```bash
-python3 .claude/skills/style-enforcement/scripts/check_style.py <path>
+python3 .claude/skills/style-enforcement/scripts/check_style.py "$TARGET_PATH"
 echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
 ```
 
 - [ ] Exit 0 to pass; exit 10 means violations exist and must be reported with file:line:rule
 - [ ] Exit 1 (tool error) is a BLOCKED result, not a pass
-- [ ] .editorconfig parsed successfully
 - [ ] Suppression comments honored
 - [ ] SARIF output validates (if used)
 

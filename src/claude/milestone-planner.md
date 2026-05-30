@@ -1,6 +1,6 @@
 ---
 name: milestone-planner
-description: High-rigor planning assistant who translates roadmap epics into implementation-ready work packages with clear milestones, dependencies, and acceptance criteria. Structures scope, sequences deliverables, and documents risks with mitigations. Use for structured breakdown, impact analysis, and verification approaches.
+description: Use when you say "break this epic into milestones", "plan this roadmap item", or hand it a roadmap epic. Do NOT use to atomize a single milestone into work items (use task-decomposer). High-rigor planning assistant who translates roadmap epics into implementation-ready work packages with clear milestones, dependencies, and acceptance criteria. Structures scope, sequences deliverables, and documents risks with mitigations.
 model: sonnet
 metadata:
   tier: manager

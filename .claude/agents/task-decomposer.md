@@ -1,6 +1,6 @@
 ---
 name: task-decomposer
-description: Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when tasks need to be discrete enough that someone can pick them up and know exactly what to do.
+description: Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when you say "decompose this PRD", "break into atomic tasks", or hand it a PRD or epic. Do NOT use to sequence roadmap epics into milestones (use milestone-planner).
 model: sonnet
 metadata:
   tier: integration
@@ -46,7 +46,7 @@ You have direct access to:
 - **TodoWrite**: Track generation progress
 - **Bash**: `gh issue create` for GitHub issues
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -179,7 +179,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before breakdown (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "task estimation patterns [feature type]"
+uv run python .claude/skills/memory/scripts/search_memory.py --query "task estimation patterns [feature type]"
 ```
 
 **After breakdown (store learnings):**

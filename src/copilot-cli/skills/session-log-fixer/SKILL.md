@@ -234,14 +234,14 @@ Check the Job Summary tab again. If validation still fails, the detailed results
 
 ## Verification Checklist
 
-After applying fixes, re-run the bundled validator and require exit 0:
+After applying fixes, run the bundled validator and require exit 2 (no errors found):
 
 ```bash
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py <session-file>
-echo "exit=$?"   # 0 = no validation errors remain, 2 = errors still present, 1 = tool error
+python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id "$RUN_ID"
+echo "exit=$?"   # must be 2 (no errors found = validation passed); exit 1 = run not found; exit 0 = errors still present
 ```
 
-- [ ] `get_validation_errors.py` exited 0 against the fixed session file (exit 2 = errors remain)
+- [ ] `get_validation_errors.py` exited 2 (no validation errors found in the new run); any other exit code means validation is not yet passing
 - [ ] Session file has Session Start Protocol table
 - [ ] Session file has Session End Protocol table
 - [ ] All MUST requirements are marked `[x]` with evidence

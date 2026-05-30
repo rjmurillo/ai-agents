@@ -77,7 +77,7 @@ After applying this skill:
 - [ ] Local config aligns with upstream defaults
 - [ ] Any overrides include documented rationale
 - [ ] No upstream tool source code was modified
-- [ ] Reconciliation: paste the exit-status line from the upstream validator's last run (e.g. the final `exit=0` line from the tool, or its summary line such as `0 errors, 0 warnings`). A claim that "validation passes" without pasted output is not accepted.
+- [ ] Reconciliation: paste the validator's exit status line (e.g., `echo "exit=$?"` output after running the validator command) to confirm the updated config passes; a claim of "validation passes" without pasted output does not count
 
 ## Examples
 

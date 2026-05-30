@@ -1,6 +1,6 @@
 ---
 tier: integration
-description: Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when tasks need to be discrete enough that someone can pick them up and know exactly what to do.
+description: Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when you say "decompose this PRD", "break into atomic tasks", or hand it a PRD or epic. Do NOT use to sequence roadmap epics into milestones (use milestone-planner).
 argument-hint: Provide the PRD or epic to break into tasks
 tools_vscode:
   - $toolset:editor

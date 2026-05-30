@@ -1,7 +1,7 @@
 ---
 name: github-url-intercept
 version: 2.1.0
-description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: pull/, issues/, blob/, tree/, commit/, compare/, discussions/."
+description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: pull/, issues/, blob/, tree/, commit/, compare/, discussions/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
 license: MIT
 model: claude-opus-4-6
 metadata:
@@ -349,16 +349,16 @@ python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-
 
 ---
 
-## Verification Checklist
+## Verification
 
-Before processing any GitHub URL, run the routing test suite and require exit 0:
+After routing a GitHub URL, run the bundled validator and require exit 0:
 
 ```bash
-python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py
-echo "exit=$?"   # 0 = all routing tests pass, 1 = routing failure
+python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py --url "$GITHUB_URL"
+echo "exit=$?"   # must be 0; exit 1 means invalid URL or no routing available
 ```
 
-- [ ] `test_url_routing.py` exited 0 (exit 1 = routing logic broken; do not process URLs)
+- [ ] `test_url_routing.py` exited 0 (non-zero = invalid URL or unroutable type; routing is not valid)
 - [ ] Extracted owner/repo from URL path
 - [ ] Identified URL type (PR, issue, blob, commit, compare)
 - [ ] Extracted fragment ID if present (#discussion_r, #issuecomment-, #pullrequestreview-)

@@ -1,0 +1,116 @@
+[
+  {
+    "id": "memory-01-recall",
+    "query": "What do we know about the ARM64 build cache from prior sessions? Recall the prior context.",
+    "candidates": ["memory", "memory-enhancement", "memory-documentary", "using-forgetful-memory"],
+    "correct": "memory"
+  },
+  {
+    "id": "memory-02-citation-hygiene",
+    "query": "Add a citation to this stored memory and verify its code references still resolve. Check the memory's health.",
+    "candidates": ["memory", "memory-enhancement", "memory-documentary"],
+    "correct": "memory-enhancement"
+  },
+  {
+    "id": "memory-03-documentary",
+    "query": "Produce an evidence-based report investigating what happened with the orchestrator refactor across all our memory systems over time.",
+    "candidates": ["memory", "memory-documentary", "memory-enhancement"],
+    "correct": "memory-documentary"
+  },
+  {
+    "id": "memory-04-forgetful-guidance",
+    "query": "I'm unsure whether I should query Forgetful for an existing memory or create a new one. What's the right call?",
+    "candidates": ["using-forgetful-memory", "memory", "memory-enhancement"],
+    "correct": "using-forgetful-memory"
+  },
+  {
+    "id": "context-01-gather",
+    "query": "Gather context before I start planning this feature. What do we know before I begin?",
+    "candidates": ["context-gather", "context-optimizer"],
+    "correct": "context-gather"
+  },
+  {
+    "id": "context-02-optimize",
+    "query": "Compress this skill's markdown and decide Skill vs Passive Context placement to reduce tokens.",
+    "candidates": ["context-gather", "context-optimizer"],
+    "correct": "context-optimizer"
+  },
+  {
+    "id": "context-03-optimize-placement",
+    "query": "Analyze this skill for optimal placement and convert it to the pipe-delimited compressed format.",
+    "candidates": ["context-optimizer", "context-gather"],
+    "correct": "context-optimizer"
+  },
+  {
+    "id": "security-01-scan-cwe",
+    "query": "Scan this source for command injection. Run the CWE-78 check before I open the PR.",
+    "candidates": ["security-detection", "security-scan"],
+    "correct": "security-scan"
+  },
+  {
+    "id": "security-02-detection-gate",
+    "query": "Did I touch any security-critical files in this diff? Decide whether the security agent should review this.",
+    "candidates": ["security-detection", "security-scan"],
+    "correct": "security-detection"
+  },
+  {
+    "id": "review-01-full-premerge",
+    "query": "Run a full pre-merge review of my diff before I merge.",
+    "candidates": ["review", "code-qualities-assessment", "quality-grades", "taste-lints"],
+    "correct": "review"
+  },
+  {
+    "id": "review-02-maintainability-score",
+    "query": "Assess the maintainability of this class. Score its cohesion, coupling, and testability.",
+    "candidates": ["review", "code-qualities-assessment", "quality-grades"],
+    "correct": "code-qualities-assessment"
+  },
+  {
+    "id": "review-03-repo-domain-grades",
+    "query": "Give me repo-wide A-F domain grades and track the quality trend over time.",
+    "candidates": ["quality-grades", "code-qualities-assessment", "review"],
+    "correct": "quality-grades"
+  },
+  {
+    "id": "review-04-taste-style",
+    "query": "Catch taste and style invariants like file size, naming, and structured logging on this code.",
+    "candidates": ["taste-lints", "review", "code-qualities-assessment"],
+    "correct": "taste-lints"
+  },
+  {
+    "id": "planning-01-epic-to-milestones",
+    "query": "Break this epic into milestones and plan this roadmap item with dependencies.",
+    "candidates": ["milestone-planner", "task-decomposer"],
+    "correct": "milestone-planner"
+  },
+  {
+    "id": "planning-02-decompose-prd",
+    "query": "Decompose this PRD into atomic tasks with acceptance criteria so someone can pick them up.",
+    "candidates": ["milestone-planner", "task-decomposer"],
+    "correct": "task-decomposer"
+  },
+  {
+    "id": "adr-01-write",
+    "query": "Write an ADR documenting our decision to adopt central package management.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-generator"
+  },
+  {
+    "id": "adr-02-review",
+    "query": "Review this existing ADR and run the multi-agent debate on it.",
+    "candidates": ["adr-generator", "adr-review"],
+    "correct": "adr-review"
+  },
+  {
+    "id": "bvb-01-library-exists",
+    "query": "Is there an existing library for this? Should I build it or use something that already exists?",
+    "candidates": ["buy-vs-build-framework", "programming-advisor"],
+    "correct": "programming-advisor"
+  },
+  {
+    "id": "bvb-02-strategic-tco",
+    "query": "Run a strategic build, buy, partner, or defer evaluation with full TCO analysis for this capability.",
+    "candidates": ["buy-vs-build-framework", "programming-advisor"],
+    "correct": "buy-vs-build-framework"
+  }
+]

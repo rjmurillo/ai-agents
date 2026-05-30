@@ -3,6 +3,8 @@ name: memory-enhancement
 version: 1.0.0
 description: >
   Manage memory citations, verify code references, and track confidence scores. Use when adding citations to memories, checking memory health, or verifying code references are still valid.
+  Use when you say "add a citation", "verify this memory's code refs", "check memory health".
+  Do NOT use for searching or creating memories (use memory) or for documentary reports (use memory-documentary).
 license: MIT
 model: claude-sonnet-4-6
 metadata:

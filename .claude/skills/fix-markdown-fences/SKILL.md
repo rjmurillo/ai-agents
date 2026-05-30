@@ -2,7 +2,12 @@
 name: fix-markdown-fences
 version: 1.1.0
 model: claude-haiku-4-5
-description: "Repair malformed markdown code fence closings. Use when markdown files have closing fences with language identifiers or when generating markdown with code blocks to ensure proper fence closure."
+description: >-
+  Repair malformed markdown code fence closings. Use when you say "fix markdown
+  fences", "repair code block closings", "markdown rendering broken", "code
+  blocks bleeding into content", or "validate markdown code blocks" on any .md
+  file. Do NOT use for documentation accuracy checks or verifying code examples
+  (use doc-accuracy).
 license: MIT
 ---
 

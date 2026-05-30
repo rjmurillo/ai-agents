@@ -2,7 +2,7 @@
 name: taste-lints
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Custom lints with agent-readable remediation instructions. Enforces taste invariants (file size, naming conventions, structured logging, complexity) and surfaces errors that agents can act on directly. Use when writing or reviewing code to catch style violations early.
+description: Custom lints with agent-readable remediation instructions. Enforces taste invariants (file size, naming conventions, structured logging, complexity) and surfaces errors that agents can act on directly. Use when writing or reviewing code to catch style violations early. Use to catch taste/style invariants (file size, naming, structured logging) on code. Do NOT use for a full review (use review).
 license: MIT
 ---
 

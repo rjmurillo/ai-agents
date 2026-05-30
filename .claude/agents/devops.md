@@ -28,7 +28,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research best practices
 - **TodoWrite**: Track infrastructure tasks
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -199,7 +199,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before pipeline work (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "devops patterns [pipeline/infrastructure]"
+uv run python .claude/skills/memory/scripts/search_memory.py --query "devops patterns [pipeline/infrastructure]"
 ```
 
 **After pipeline work (store learnings):**

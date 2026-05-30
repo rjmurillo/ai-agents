@@ -45,7 +45,7 @@ Check that required sections are populated:
 If `.claude/skills/github/scripts/pr/validate_pr_description.py` exists, run it:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/validate_pr_description.py \
+uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
   --title "[title]" \
   --body-file "[path-to-body.md]"
 ```
