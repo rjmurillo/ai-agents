@@ -47,9 +47,9 @@ Usage:
 
 Exit codes:
     0 ok
-    2 config (fixtures file invalid, or a candidate's description failed to load)
+    2 config (fixtures file invalid, candidate description failed to load, or
+              missing ANTHROPIC_API_KEY - a missing env var is config per ADR-035)
     3 external (API failure)
-    4 auth   (missing ANTHROPIC_API_KEY)
 """
 
 from __future__ import annotations
