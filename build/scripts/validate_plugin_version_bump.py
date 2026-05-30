@@ -277,6 +277,30 @@ def _disk_version(manifest: str, repo_root: Path) -> str | None:
         return None
 
 
+def _resolve_merge_base(base_ref: str, repo_root: Path) -> str:
+    """Return ``git merge-base <base_ref> HEAD``, or ``base_ref`` if it fails.
+
+    Diffing and reading the prior version from the merge-base gives three-dot
+    semantics: only changes introduced on this branch count. Without it, a base
+    ref that advanced on its own side after the branch point (a sibling PR
+    merged to main) leaks its files into ``base..HEAD`` and the gate flags
+    plugins this branch never touched.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "merge-base", base_ref, "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return base_ref
+    if proc.returncode != 0:
+        return base_ref
+    return proc.stdout.strip() or base_ref
+
+
 def _base_version(base_ref: str, manifest: str, repo_root: Path) -> str | None:
     """Read the manifest version at ``base_ref`` via ``git show``.
 
@@ -318,9 +342,15 @@ def find_violations(
     repo_root: Path | None = None,
     plugins: Sequence[PluginManifest] = PLUGINS,
 ) -> tuple[list[Violation], list[str]]:
-    """Resolve versions from git/disk, then run the pure ``evaluate`` check."""
+    """Resolve versions from git/disk, then run the pure ``evaluate`` check.
+
+    ``base_ref`` is collapsed to its merge-base with HEAD so the prior version
+    is read from the branch point, matching the three-dot changed-file set the
+    CLI computes. Idempotent when ``base_ref`` is already an ancestor of HEAD.
+    """
     root = repo_root or _REPO_ROOT
-    pairs = _version_pairs(base_ref, root, plugins)
+    effective_base = _resolve_merge_base(base_ref, root)
+    pairs = _version_pairs(effective_base, root, plugins)
     return evaluate(changed_files, pairs, plugins)
 
 
@@ -434,14 +464,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.files is not None:
         changed = list(args.files)
+        base = args.base
     else:
-        changed, rc, err = _git_diff_files(args.base, repo_root)
+        # Collapse to the merge-base so the diff and the version read both use
+        # three-dot semantics (only this branch's changes; ignore work the
+        # base ref advanced on its own side).
+        base = _resolve_merge_base(args.base, repo_root)
+        changed, rc, err = _git_diff_files(base, repo_root)
         if rc != 0:
             print(err, file=sys.stderr)
             return 2
 
     violations, config_errors = find_violations(
-        changed, base_ref=args.base, repo_root=repo_root
+        changed, base_ref=base, repo_root=repo_root
     )
 
     if args.format == "json":

@@ -235,3 +235,99 @@ def test_cli_bad_repo_root_returns_2(capsys):
     rc = vpb.main(["--files", "x", "--repo-root", "/no/such/dir/xyz"])
     assert rc == 2
     assert "repo root not found" in capsys.readouterr().err
+
+
+# --- Regression: divergent base must use merge-base (three-dot) -----------
+
+
+def _git(repo: Path, *args: str) -> None:
+    import subprocess
+
+    subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@t",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@t",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "PATH": __import__("os").environ.get("PATH", ""),
+        },
+    )
+
+
+def _write(repo: Path, rel: str, text: str) -> None:
+    p = repo / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+
+
+def _manifest(version: str) -> str:
+    return json.dumps({"name": "project-toolkit", "version": version}) + "\n"
+
+
+def test_divergent_base_uses_merge_base(tmp_path: Path):
+    """A sibling change on the base ref after the branch point must not count.
+
+    Reproduces the two-dot bug: ``main`` advances its own copy of a plugin
+    file and bumps the version after the branch diverges. The feature branch
+    bumps from the branch-point version. ``base..HEAD`` (two-dot) would pull in
+    main's file and compare against main's bumped version, producing a false
+    not-increased verdict. ``merge-base`` (three-dot) sees only the feature
+    branch's change and passes.
+    """
+    repo = tmp_path
+    _git(repo, "init", "-q", "-b", "main")
+    _write(repo, ".claude/.claude-plugin/plugin.json", _manifest("0.3.0"))
+    _write(repo, ".claude/skills/x/SKILL.md", "# x\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "base")
+
+    _git(repo, "checkout", "-q", "-b", "feat")
+
+    # main advances on its own side: edits x and bumps to 0.4.0 (sibling PR).
+    _git(repo, "checkout", "-q", "main")
+    _write(repo, ".claude/skills/x/SKILL.md", "# x edited on main\n")
+    _write(repo, ".claude/.claude-plugin/plugin.json", _manifest("0.4.0"))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "main advance")
+
+    # feature branch adds y and bumps from the branch-point version (0.3.0->0.3.1).
+    _git(repo, "checkout", "-q", "feat")
+    _write(repo, ".claude/skills/y/SKILL.md", "# y\n")
+    _write(repo, ".claude/.claude-plugin/plugin.json", _manifest("0.3.1"))
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "feat change + bump")
+
+    rc = vpb.main(["--base", "main", "--repo-root", str(repo)])
+    assert rc == 0  # three-dot: only feat's bump counts, 0.3.0 -> 0.3.1
+
+
+def test_divergent_base_still_catches_missing_bump(tmp_path: Path):
+    """The merge-base fix must not mask a real missing bump on the branch."""
+    repo = tmp_path
+    _git(repo, "init", "-q", "-b", "main")
+    _write(repo, ".claude/.claude-plugin/plugin.json", _manifest("0.3.0"))
+    _write(repo, ".claude/skills/x/SKILL.md", "# x\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "base")
+
+    _git(repo, "checkout", "-q", "-b", "feat")
+    # main advances (irrelevant to the branch's obligation).
+    _git(repo, "checkout", "-q", "main")
+    _write(repo, ".claude/skills/x/SKILL.md", "# edited\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "main advance")
+
+    # feat changes a plugin file but never bumps the version.
+    _git(repo, "checkout", "-q", "feat")
+    _write(repo, ".claude/skills/z/SKILL.md", "# z\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "feat change no bump")
+
+    rc = vpb.main(["--base", "main", "--repo-root", str(repo)])
+    assert rc == 1  # 0.3.0 -> 0.3.0, not bumped
