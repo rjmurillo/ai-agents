@@ -76,98 +76,18 @@ Always present a decision table:
 | Vibe Code | Custom | Free | X hrs | You own it | ~XK tokens | 🔧 Full control |
 ```
 
-### Step 5: Buy vs Build Evaluation Framework
+### Step 5: Strategic build/buy/partner/defer (delegate)
 
-#### When to Build
+This skill is **tactical**: "use an existing library/SaaS vs write glue code." When the decision is **strategic** (a capability investment needing Core-vs-Context classification, a weighted decision matrix, multi-year TCO, partner/defer options, or multi-stakeholder sign-off), STOP here and use the `buy-vs-build-framework` skill. It owns that decision and backs it with scripts (`calculate_tco.py`, `score_decision.py`, `score_vendor.py`). Do not re-derive that analysis here.
 
-- [ ] Software is core to business differentiation
-- [ ] Competitive advantage requires 100% control
-- [ ] Vendor solutions insufficient for requirements
-- [ ] Team has capacity without additional investment
-- [ ] Long-term total cost of ownership favors build
+Hand off when any of these is true:
 
-#### When to Buy
+- Budget impact > ~$50K, or a 2+ year horizon
+- The capability may be a competitive differentiator (a strategic core-versus-commodity call)
+- Partner or defer is a live option (not just build vs use-existing)
+- Multiple stakeholders must align on the choice
 
-- [ ] Time to value critical (weeks not months)
-- [ ] Standard capability, not differentiating
-- [ ] Vendor efficiencies reduce total cost
-- [ ] Team should focus on higher-impact projects
-- [ ] Acceptable vendor lock-in trade-off
-
-#### Evaluation Matrix
-
-| Factor | Build | Buy | Weight | Score |
-|--------|-------|-----|--------|-------|
-| Core competency | [Evidence] | [Evidence] | 30% | [Weighted score] |
-| Time to value | [Evidence] | [Evidence] | 25% | [Weighted score] |
-| Total cost (5 years) | [Evidence] | [Evidence] | 20% | [Weighted score] |
-| Customization needs | [Evidence] | [Evidence] | 15% | [Weighted score] |
-| Team expertise | [Evidence] | [Evidence] | 10% | [Weighted score] |
-| **Total Score** | | | **100%** | [Sum] |
-
-#### Hidden Costs Analysis
-
-**Build Hidden Costs**:
-
-- Maintenance burden (20-40% of build cost annually)
-- Opportunity cost (what else could team build?)
-- Expertise acquisition/retention
-- Testing and security validation
-- Documentation and knowledge transfer
-
-**Buy Hidden Costs**:
-
-- Integration complexity (API changes, data mapping)
-- Vendor lock-in (switching cost estimation)
-- Customization limitations (workarounds needed?)
-- Ongoing licensing (per-user, per-transaction costs)
-- Vendor stability risk (acquisition, discontinuation)
-
-#### Core vs Context Assessment
-
-Use Geoffrey Moore's framework to prioritize investment:
-
-| Capability | Type | Rationale | Strategy |
-|------------|------|-----------|----------|
-| [Capability 1] | Core | [Differentiates business] | Build, own, invest |
-| [Capability 2] | Context | [Necessary but commodity] | Buy, outsource |
-
-**Key Insight**: Building context is a distraction from core. Buy context, build core.
-
-#### Lindy Effect Consideration
-
-Evaluate technology maturity:
-
-- **Build**: Are you creating novel solution in unstable space? (High risk)
-- **Buy**: Is vendor solution based on Lindy survivor tech? (Lower risk)
-
-#### Buy vs Build Recommendation Template
-
-```markdown
-## Buy vs Build Recommendation: [Capability]
-
-**Verdict**: [BUILD | BUY | HYBRID]
-
-### Core Rationale
-[Primary reason in 2-3 sentences]
-
-### Evaluation Scores
-- Build score: [X/100]
-- Buy score: [Y/100]
-
-### Core vs Context
-[Core/Context classification with justification]
-
-### Hidden Costs Accepted
-**If Build**: [Maintenance burden, opportunity cost, expertise]
-**If Buy**: [Lock-in level, integration complexity, licensing]
-
-### Decision Confidence
-[High | Medium | Low] - [Why]
-
-### Review Trigger
-Revisit if: [Conditions that would change this decision]
-```
+Otherwise continue below for the tactical recommendation.
 
 ### Step 6: Recommendation Framework (Quick Reference)
 
@@ -273,35 +193,24 @@ Include cost table when:
 - Comparing multiple paid services
 - Security-sensitive features (auth, payments)
 
-#### 9.2 Cost Calculation
+#### 9.2 Multi-year TCO: delegate
 
-Use the pricing reference: [references/pricing-data.md](references/pricing-data.md)
+For a multi-year TCO/NPV comparison (Year 1/3/5, discount rate, break-even, maintenance), use the `buy-vs-build-framework` skill's `calculate_tco.py`. Do not re-derive the NPV math here.
 
-**Formula:**
+#### 9.3 Tactical cost note
 
-```text
-Year N Cost = Setup Cost + (Monthly × 12 × N) + (Maintenance × N)
-
-Where:
-- Setup Cost (DIY) = Token Estimate × $0.015/1K tokens
-- Maintenance (DIY) = 20% of Setup Cost annually
-- Maintenance (SaaS) = $0
-```
-
-#### 9.3 Cost Table Format
+For the tactical "library vs glue code" choice, a one-line comparison is enough: SaaS monthly fee vs the DIY token-burn from Step 4 (pricing in [references/pricing-data.md](references/pricing-data.md)).
 
 ```markdown
-## 💰 Cost Analysis
+## 💰 Cost Note
 
-| Option | Setup | Monthly | Year 1 | Year 3 | Notes |
-|--------|-------|---------|--------|--------|-------|
-| [SaaS A] | 10min | $25 | $300 | $900 | Free tier: 10K MAU |
-| [SaaS B] | 15min | $35 | $420 | $1,260 | More features |
-| [Free/OSS] | 1hr | $0 | $0 | $0 | Self-host required |
-| DIY | Xhrs | $0 | ~$Y | ~$Z | + maintenance burden |
+| Option | Setup | Monthly | Notes |
+|--------|-------|---------|-------|
+| [SaaS A] | 10min | $25 | Free tier: 10K MAU |
+| [Free/OSS] | 1hr | $0 | Self-host required |
+| DIY | Xhrs | $0 | ~XK tokens + maintenance |
 
-💡 **Break-even:** [When DIY becomes cheaper, if ever]
-⚠️ **Hidden costs:** [Security audits, compliance, on-call burden]
+💡 Beyond a quick estimate, hand the multi-year TCO to buy-vs-build-framework.
 ```
 
 #### 9.4 Hidden Costs to Surface
@@ -345,14 +254,14 @@ I found [N] existing solutions before we write custom code:
 |--------|------|------|-------|-------------|-------------|
 | ... | ... | ... | ... | ... | ... |
 
-## 💰 Cost Analysis (for significant decisions)
+## 💰 Cost Note (tactical)
 
-| Option | Setup | Monthly | Year 1 | Year 3 | Notes |
-|--------|-------|---------|--------|--------|-------|
-| ... | ... | ... | ... | ... | ... |
+| Option | Setup | Monthly | Notes |
+|--------|-------|---------|-------|
+| ... | ... | ... | ... |
 
-💡 **Break-even:** [analysis]
 ⚠️ **Hidden costs:** [security, compliance, maintenance]
+💡 For a multi-year TCO/NPV, hand off to `buy-vs-build-framework` (`calculate_tco.py`).
 
 ## 💡 Recommendation
 
