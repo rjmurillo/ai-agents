@@ -1,0 +1,45 @@
+{
+  "session": {
+    "number": 1853,
+    "date": "2026-05-29",
+    "branch": "fix/1844-bot-config-yaml-fallback",
+    "startingCommit": "1970ad1c",
+    "objective": "Fix #1844: bot_config PyYAML-absent fallback (PR 2 of 10)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "memory-index queried in prior session 1850; project active"},
+      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "retrieval-led reasoning; validation-pre-pr-checklist memory applied"},
+      "handoffRead": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md auto-loaded by context_loader hook"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "this file"},
+      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "github + session-init skill scripts enumerated and used"},
+      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "validation-pre-pr-checklist memory read"},
+      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": ".claude/rules/* auto-loaded (universal, testing, code-quality, canonical-source-mirror)"},
+      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "serena list_memories + read in session 1850"},
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "fix/1844-bot-config-yaml-fallback off clean main"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "on feature branch"},
+      "gitStatusVerified": {"level": "SHOULD", "Complete": true, "Evidence": "porcelain 0 before branch creation"},
+      "startingCommitNoted": {"level": "SHOULD", "Complete": true, "Evidence": "1970ad1c"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "impl + 52 tests + 3-agent review + parity verified"},
+      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md unmodified (ADR-014)"},
+      "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "learning in workLog; no new cross-session memory needed for a contained fix"},
+      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "no markdown files changed (Python only)"},
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "commit 3eb50612 (amended with review-driven tests)"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "pytest 52 pass; install-parity validator exit 0; sync_plugin_lib re-run no-op; diff -q mirrors identical"},
+      "tasksUpdated": {"level": "SHOULD", "Complete": true, "Evidence": "TaskList updated to 2/10"},
+      "retrospectiveInvoked": {"level": "SHOULD", "Complete": true, "Evidence": "retro in workLog"}
+    }
+  },
+  "workLog": [
+    "Monitored PR #2115 (#1881 fix): one Validate PR run passed, one failed with empty log. Reproduced description validation locally via check_file_mentions on real body+diff: 0 issues. The failure was a stale/transient duplicate run, not a content defect. Re-ran failed jobs via actions/runs/<id>/rerun-failed-jobs. 0 unresolved threads, no review work needed. Did not self-merge (consensus gate).",
+    "Root cause #1844: scripts/github_core/bot_config.py did `import yaml` at module top, so every skill script importing github_core died with ModuleNotFoundError under a bare python3 not in the project venv, breaking the skill-first redirect target.",
+    "Edited canonical scripts/github_core/bot_config.py: wrapped import (yaml=None on ImportError), added _parse_simple_yaml for the bot-authors.yml subset (key: mappings, - scalar lists, comments, blanks, inline comments, quoted scalars), get_bot_authors_config dispatches PyYAML-or-fallback, _CONFIG_LOAD_ERRORS tuple replaces the unreferenceable yaml.YAMLError in the except. Synced to .claude/lib and src/copilot-cli/lib via sync_plugin_lib.py.",
+    "Verified: parser parity True vs yaml.safe_load on real config; config-with-fallback == config-with-yaml; end-to-end import with yaml blocked returns 10 authors, no crash; 3 copies byte-identical (diff -q); install-parity validator exit 0.",
+    "Reviews: critic CHANGES-NEEDED on a mirror-parity blocker, REFUTED with evidence (diff -q identical + re-sync no-op + validator green; the different per-file insertion counts reflect pre-existing divergence converging, not drift). Added the parity unit test the critic suggested. QA APPROVE (52 pass, e2e). Security APPROVE (pure string parsing, no eval, O(n), CWE-22 guard intact, smaller attack surface than safe_load). Added QA-suggested no-space-colon and CRLF tests.",
+    "Retro: WENT WELL strictly sequential single-call steps with /tmp+grep+markers survived a badly degraded renderer that had been cancelling large parallel batches; the critic's false-positive blocker was caught by independent verification rather than accepted. IMPROVE earlier sessions lost work to git stash -u and big batches; this session avoided both. LESSON in a degraded-output environment, one tool call per step with file-based verification is the only reliable mode; never trust a multi-line render, re-grep single facts."
+  ],
+  "endingCommit": "3eb50612",
+  "nextSteps": ["Push, open PR Fixes #1844", "Continue loop: PR 3 of 10"]
+}
