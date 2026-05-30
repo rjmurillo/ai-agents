@@ -29,6 +29,7 @@ flowchart TD
         VG[validate-generated-agents.yml]
         VP[validate-paths.yml]
         VPA[validate-planning-artifacts.yml]
+        VPV[validate-plugin-version-bump.yml]
         PT[pester-tests.yml]
         CQ[codeql-analysis.yml]
     end
@@ -301,6 +302,19 @@ sequenceDiagram
 | **Script** | `build/scripts/Validate-PlanningArtifacts.ps1` |
 | **Output** | Consistency report |
 | **Checks** | Effort estimates, orphan conditions, coverage |
+
+---
+
+### validate-plugin-version-bump.yml
+
+**Role**: Plugin version-bump gate (Issue #2118)
+
+| Attribute | Value |
+|-----------|-------|
+| **Trigger** | PR/push touching `.claude/**`, `src/claude/**`, or `src/copilot-cli/**` |
+| **Script** | `scripts/validation/run_plugin_version_bump_ci.py` (delegates to `build/scripts/validate_plugin_version_bump.py`) |
+| **Output** | Pass/fail status |
+| **Checks** | A changed plugin source dir must bump its `.claude-plugin/plugin.json` version (strictly greater semver) |
 
 ---
 
