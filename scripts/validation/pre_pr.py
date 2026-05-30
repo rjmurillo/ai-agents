@@ -903,7 +903,13 @@ def validate_git_hooks_installed(repo_root: Path) -> bool:
         raise MissingScriptSkip("git hooks check skipped under CI")
     script = repo_root / "scripts" / "install_git_hooks.py"
     if not script.exists():
-        raise MissingScriptSkip("install_git_hooks.py not present")
+        print(
+            "[ERROR] install_git_hooks.py absent; the git-hooks gate cannot "
+            "run. Hard failure: the gate is the point of registering "
+            "this validator.",
+            file=sys.stderr,
+        )
+        return False
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--check", "--repo-root", str(repo_root)]
     )

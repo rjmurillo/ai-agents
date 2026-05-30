@@ -28,6 +28,7 @@ Exit codes (per AGENTS.md): 0 ok, 1 logic (hooks missing/not executable or
 from __future__ import annotations
 
 import argparse
+import os
 import stat
 import subprocess
 import sys
@@ -44,13 +45,20 @@ EXIT_EXTERNAL = 3
 
 
 def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    """Run a git command, capturing output. Raises on a missing git binary."""
+    """Run a git command, capturing output. Raises on a missing git binary.
+
+    Uses ``-C`` and strips ``GIT_DIR``/``GIT_WORK_TREE`` from the environment
+    so that git always operates on the specified ``cwd``, ignoring any
+    repository override variables the caller may have inherited.
+    """
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
     return subprocess.run(
-        ["git", *args],
+        ["git", "-C", str(cwd), *args],
         cwd=str(cwd),
         capture_output=True,
         text=True,
         check=False,
+        env=env,
     )
 
 
