@@ -1,171 +1,508 @@
 #!/usr/bin/env python3
-"""Tests for invoke_false_completion_gate.py (PreToolUse hook)."""
+"""Tests for PreToolUse/invoke_false_completion_gate.py.
+
+Covers:
+- Completion signal regex detection
+- Verification evidence checking in session logs
+- Deny output format
+- Bypass conditions (env var, docs-only, no session log)
+- Consumer repo skip
+- Non-commit commands pass through
+"""
+
+from __future__ import annotations
 
 import json
 import sys
-import tempfile
-import unittest
-from io import StringIO
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "PreToolUse"))
 
-import invoke_false_completion_gate
+import invoke_false_completion_gate  # noqa: E402
 
 
-class TestFalseCompletionGate(unittest.TestCase):
-    """Test PreToolUse false completion gate."""
+class TestCompletionSignalDetection:
+    """Test _is_completion_claim regex matching."""
 
-    def test_tty_stdin_exits_zero(self):
-        with patch("sys.stdin") as mock_stdin:
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'git commit -m "feat: done with implementation"',
+            'git commit -m "fix: fixed the bug"',
+            'git commit -m "feat: completed migration"',
+            'git commit -m "chore: finished cleanup"',
+            'git commit -m "feat: resolved issue"',
+            'git commit -m "feat: merged changes"',
+            'git commit -m "feat: shipped v2"',
+            'git commit -m "fix: closes #42"',
+        ],
+    )
+    def test_detects_completion_signals(self, command: str) -> None:
+        assert invoke_false_completion_gate._is_completion_claim(command) is True
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            'git commit -m "feat: add new validation logic"',
+            'git commit -m "refactor: extract helper method"',
+            'git commit -m "test: add unit tests for parser"',
+            'git commit -m "docs: update README"',
+            'git commit -m "chore: update dependencies"',
+        ],
+    )
+    def test_ignores_non_completion_signals(self, command: str) -> None:
+        assert invoke_false_completion_gate._is_completion_claim(command) is False
+
+
+class TestVerificationEvidence:
+    """Test _has_verification_evidence_across_logs checking.
+
+    The gate requires BOTH a command pattern (pytest, npm test) AND a
+    successful result pattern (passed count, exit code 0). A failing run
+    (FAILED, "N failed") MUST NOT satisfy the gate; failing tests prove the
+    run happened but do not prove completion.
+    """
+
+    def test_finds_pytest_evidence(self, tmp_path: Path) -> None:
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log = sessions_dir / "2026-01-01-session-001.json"
+        log.write_text(
+            json.dumps({
+                "work": [{"task": "ran uv run pytest"}, {"output": "42 passed"}]
+            }),
+            encoding="utf-8",
+        )
+
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [log]
+        ) is True
+
+    def test_no_evidence_without_tests(self, tmp_path: Path) -> None:
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log = sessions_dir / "2026-01-01-session-001.json"
+        log.write_text(
+            json.dumps({"work": [{"task": "edited some files"}]}),
+            encoding="utf-8",
+        )
+
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [log]
+        ) is False
+
+    def test_no_evidence_when_log_missing(self, tmp_path: Path) -> None:
+        nonexistent_log = tmp_path / "nonexistent-session.json"
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [nonexistent_log]
+        ) is False
+
+    def test_failing_pytest_does_not_satisfy_gate(self, tmp_path: Path) -> None:
+        """Refs cursor thread PRRT_kwDOQoWRls6EnEK7.
+
+        A pytest run that reports failures (FAILED, "3 failed") matches a
+        command pattern but does not satisfy the result-pattern requirement,
+        because only successful result patterns count as verification.
+        """
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log = sessions_dir / "2026-01-01-session-001.json"
+        log.write_text(
+            json.dumps({
+                "work": [
+                    {"task": "ran uv run pytest"},
+                    {"output": "FAILED tests/test_foo.py::test_bar - 3 failed"},
+                ]
+            }),
+            encoding="utf-8",
+        )
+
+        assert invoke_false_completion_gate._has_verification_evidence_across_logs(
+            [log]
+        ) is False
+
+    def test_yesterday_evidence_does_not_satisfy_today_logs(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Refs cursor thread PRRT_kwDOQoWRls6EnEK4.
+
+        When today's session log exists (a fresh session started today),
+        verification MUST come from today. Stale evidence from yesterday's
+        log MUST NOT satisfy today's completion claim. Cross-midnight
+        fallback only applies when today has no session log at all.
+        """
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        # Today's log lacks verification.
+        today_str = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today_log = sessions_dir / f"{today_str}-session-001.json"
+        today_log.write_text(
+            json.dumps({"work": [{"task": "edited"}]}), encoding="utf-8"
+        )
+        # Yesterday's log has verification.
+        yesterday_str = (
+            datetime.now(tz=UTC) - timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+        yesterday_log = sessions_dir / f"{yesterday_str}-session-001.json"
+        yesterday_log.write_text(
+            json.dumps({
+                "work": [{"task": "ran pytest"}, {"output": "5 passed"}]
+            }),
+            encoding="utf-8",
+        )
+
+        hook_input = {
+            "tool_input": {"command": 'git commit -m "feat: done with task"'},
+        }
+        with patch.object(
+            invoke_false_completion_gate,
+            "skip_if_consumer_repo",
+            return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_read_stdin_json",
+            return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_is_documentation_only",
+            return_value=False,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            # Today has logs without evidence: must block, no yesterday fallback.
+            assert exc_info.value.code == 2
+
+
+class TestMain:
+    """Test main() function flow."""
+
+    def test_skip_consumer_repo(self) -> None:
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=True
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
+
+    def test_skip_via_env_var(self) -> None:
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.dict("os.environ", {"SKIP_COMPLETION_GATE": "true"}):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
+
+    def test_tty_stdin_exits_zero(self) -> None:
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch("sys.stdin") as mock_stdin:
             mock_stdin.isatty.return_value = True
-            result = invoke_false_completion_gate.main()
-            self.assertEqual(result, 0)
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
 
-    def test_empty_stdin_exits_zero(self):
-        with patch("sys.stdin", StringIO("")):
-            result = invoke_false_completion_gate.main()
-            self.assertEqual(result, 0)
+    def test_non_commit_command_passes(self) -> None:
+        hook_input = json.dumps({
+            "tool_input": {"command": "ls -la"},
+        })
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json",
+            return_value=json.loads(hook_input),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
 
-    def test_non_dict_root_json_exits_zero(self):
-        """Valid JSON whose root is not an object must not break fail-open."""
-        with patch("sys.stdin", StringIO("[1, 2, 3]")):
-            result = invoke_false_completion_gate.main()
-            self.assertEqual(result, 0)
+    def test_commit_without_completion_signal_passes(self) -> None:
+        hook_input = {
+            "tool_input": {"command": 'git commit -m "feat: add new validation"'},
+        }
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
 
-    def test_non_dict_tool_input_exits_zero(self):
-        """tool_input that is a list/string must not break fail-open."""
-        hook_input = {"tool_input": ["not", "a", "dict"]}
-        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-            result = invoke_false_completion_gate.main()
-            self.assertEqual(result, 0)
+    def test_blocks_completion_without_evidence(self, tmp_path: Path) -> None:
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log = sessions_dir / "2026-01-01-session-001.json"
+        log.write_text(json.dumps({"work": []}), encoding="utf-8")
 
-    def test_non_completion_command_passes(self):
-        """Regular commands should not be blocked."""
-        hook_input = {"tool_input": {"command": "ls -la"}}
-        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-            result = invoke_false_completion_gate.main()
-            self.assertEqual(result, 0)
+        hook_input = {
+            "tool_input": {"command": 'git commit -m "feat: done with implementation"'},
+        }
+        # main() reads logs via the plural helper get_today_session_logs and
+        # passes the list to _has_verification_evidence_across_logs. Patch
+        # both so the fixture (dated 2026-01-01) is treated as today and the
+        # evidence check returns False, driving the block branch.
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate, "_is_documentation_only", return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[log],
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_has_verification_evidence_across_logs",
+            return_value=False,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 2
 
-    def test_commit_without_completion_signal_passes(self):
-        """git commit without done/fixed keywords passes."""
-        hook_input = {"tool_input": {"command": "git commit -m 'refactor: extract method'"}}
-        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-            result = invoke_false_completion_gate.main()
-            self.assertEqual(result, 0)
+    def test_allows_completion_with_evidence(self, tmp_path: Path) -> None:
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        log = sessions_dir / "2026-01-01-session-001.json"
+        log.write_text(
+            json.dumps({"work": [{"task": "ran pytest"}]}),
+            encoding="utf-8",
+        )
 
-    def test_commit_with_done_no_verification_blocks(self):
-        """git commit claiming 'done' without test evidence should block."""
-        hook_input = {"tool_input": {"command": "git commit -m 'feat: done with implementation'"}}
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+        hook_input = {
+            "tool_input": {"command": 'git commit -m "feat: done with implementation"'},
+        }
+        # See note on test_blocks_completion_without_evidence for why this
+        # patches the plural get_today_session_logs.
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate, "_is_documentation_only", return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[log],
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_has_verification_evidence_across_logs",
+            return_value=True,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
 
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_false_completion_gate, "get_project_directory", return_value=tmp_path):
-                    with patch("sys.stdout", new_callable=StringIO) as mock_out:
-                        result = invoke_false_completion_gate.main()
-                        self.assertEqual(result, 2)
-                        output = json.loads(mock_out.getvalue())
-                        self.assertEqual(output["decision"], "block")
+    def test_allows_documentation_only(self, tmp_path: Path) -> None:
+        hook_input = {
+            "tool_input": {"command": 'git commit -m "docs: done updating README"'},
+        }
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate, "_is_documentation_only", return_value=True,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 0
 
-    def test_commit_with_done_and_verification_passes(self):
-        """git commit claiming 'done' WITH test evidence should pass."""
-        hook_input = {"tool_input": {"command": "git commit -m 'feat: done with implementation'"}}
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            sessions_dir = tmp_path / ".agents" / "sessions"
-            sessions_dir.mkdir(parents=True)
-            from datetime import UTC, datetime
-            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-            session_file = sessions_dir / f"{today}-session-01.json"
-            # Use the current schema (workLog) and a realistic verification marker
-            # that matches both VERIFICATION_PATTERNS (command name) and
-            # VERIFICATION_RESULT_PATTERNS (pass/fail count).
-            session_file.write_text(json.dumps({
-                "workLog": ["ran pytest: 32 passed in 0.21s"]
-            }))
 
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_false_completion_gate, "get_project_directory", return_value=tmp_path):
-                    result = invoke_false_completion_gate.main()
-                    self.assertEqual(result, 0)
+class TestFailOpen:
+    """Test fail-open behavior of the script wrapper on unexpected errors."""
 
-    def test_bypass_env_var(self):
-        """SKIP_COMPLETION_GATE=true should bypass."""
-        hook_input = {"tool_input": {"command": "git commit -m 'done'"}}
-        with patch.dict("os.environ", {"SKIP_COMPLETION_GATE": "true"}):
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                result = invoke_false_completion_gate.main()
-                self.assertEqual(result, 0)
+    def test_exception_exits_zero(self) -> None:
+        """The ``__main__`` wrapper must catch errors and exit 0.
 
-    def test_pr_create_with_closes_blocks(self):
-        """gh pr create with 'closes #X' without verification blocks."""
-        hook_input = {"tool_input": {"command": "gh pr create --title 'closes #123'"}}
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            (tmp_path / ".agents" / "sessions").mkdir(parents=True)
-
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_false_completion_gate, "get_project_directory", return_value=tmp_path):
-                    with patch("sys.stdout", new_callable=StringIO):
-                        result = invoke_false_completion_gate.main()
-                        self.assertEqual(result, 2)
-
-    def test_pr_merge_with_done_blocks(self):
-        """gh pr merge claiming 'done' without verification should block.
-
-        Earlier the COMPLETION_SIGNALS regex only matched 'merged' (past
-        tense), creating an inconsistency with COMPLETION_COMMANDS that lists
-        `gh pr merge` (present tense). This pins the consistent behavior.
+        The previous version only confirmed ``main()`` raised, not that
+        the wrapper was fail-open. A blocking exit (code 2) or unhandled
+        raise from the wrapper would have passed silently.
         """
-        hook_input = {"tool_input": {"command": "gh pr merge --squash --auto # done"}}
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+        from tests.hook_test_helpers import run_main_wrapper
 
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_false_completion_gate, "get_project_directory", return_value=tmp_path):
-                    with patch("sys.stdout", new_callable=StringIO):
-                        result = invoke_false_completion_gate.main()
-                        self.assertEqual(result, 2)
+        def raising_main() -> None:
+            raise RuntimeError("boom")
 
-    def test_consumer_repo_skipped(self):
-        """Repos without .agents/ must not be blocked by this gate.
+        code, _stdout, stderr = run_main_wrapper(
+            invoke_false_completion_gate, raising_main
+        )
+        assert code == 0
+        assert "boom" in stderr
 
-        Without this guard the gate could reject `git commit` in any repo
-        that installs the plugin even when the repo does not follow the
-        ai-agents session protocol.
+
+class TestBodyFileFailClosed:
+    """Test fail-closed when body-file paths are unreadable.
+
+    Refs cursor bugbot thread PRRT_kwDOQoWRls6Eef5V (PR #1763).
+    When git commit -F <path> or gh pr create --body-file <path>
+    points outside the trusted allowlist or to a missing file, the gate
+    MUST treat that as a completion claim (block until verified) instead
+    of silently skipping evaluation.
+    """
+
+    def test_commit_message_file_outside_allowlist_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        outside = tmp_path.parent / "definitely-outside" / "msg.txt"
+        command = f'git commit -F {outside}'
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            command
+        ) == (True, True)
+
+    def test_commit_message_file_missing_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        missing = tmp_path / "does-not-exist.txt"
+        command = f'git commit -F {missing}'
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            command
+        ) == (True, True)
+
+    def test_pr_body_file_outside_allowlist_fails_closed(
+        self, tmp_path: Path
+    ) -> None:
+        outside = tmp_path.parent / "definitely-outside" / "body.md"
+        command = f'gh pr create --body-file {outside}'
+        assert invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+            command
+        ) == (True, True)
+
+    def test_pr_body_file_missing_fails_closed(self, tmp_path: Path) -> None:
+        missing = tmp_path / "no-body.md"
+        command = f'gh pr create --body-file {missing}'
+        assert invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+            command
+        ) == (True, True)
+
+    def test_no_message_file_returns_false(self) -> None:
+        """No -F argument means no body-file claim; do not over-block."""
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            'git commit -m "feat: ordinary inline message"'
+        ) == (False, False)
+        assert invoke_false_completion_gate._is_completion_claim_in_pr_body_file(
+            'gh pr create --title "x"'
+        ) == (False, False)
+
+    def test_unreadable_body_file_blocks_even_with_no_session_logs(
+        self, tmp_path: Path
+    ) -> None:
+        """Regression for Cursor BugBot PRRT_kwDOQoWRls6EfZri.
+
+        When ``gh pr create --body-file`` points at a file outside the
+        trusted allowlist the helper returns the fail-closed claim. The
+        gate's caller MUST honor that signal even when there are no
+        session logs for today; otherwise the no-session fail-open path
+        silently bypasses the fail-closed contract.
         """
-        hook_input = {"tool_input": {"command": "git commit -m 'feat: done'"}}
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-            (tmp_path / ".git").mkdir()
-            # Intentionally do NOT create .agents/
-
-            with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-                with patch.object(invoke_false_completion_gate, "get_project_directory", return_value=tmp_path):
-                    result = invoke_false_completion_gate.main()
-                    self.assertEqual(result, 0)
-
-    def test_stdin_oserror_fails_open(self):
-        """Stdin read raising OSError must not crash the blocking hook."""
-        class BrokenStdin:
-            def isatty(self):
-                return False
-
-            def read(self):
-                raise OSError("broken pipe")
-
-        with patch("sys.stdin", BrokenStdin()):
-            result = invoke_false_completion_gate.main()
-            self.assertEqual(result, 0)
+        outside = tmp_path.parent / "definitely-outside" / "body.md"
+        hook_input = {
+            "tool_input": {"command": f"gh pr create --body-file {outside}"},
+        }
+        with patch.object(
+            invoke_false_completion_gate, "skip_if_consumer_repo", return_value=False
+        ), patch.object(
+            invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
+        ), patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(tmp_path),
+        ), patch.object(
+            invoke_false_completion_gate, "_is_documentation_only", return_value=False,
+        ), patch.object(
+            invoke_false_completion_gate, "get_today_session_logs", return_value=[],
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                invoke_false_completion_gate.main()
+            assert exc_info.value.code == 2
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestAllowedTempRoots:
+    """_allowed_temp_roots mirrors canonical _candidate_temp_roots semantics."""
+
+    def test_filters_nonexistent_roots(self, monkeypatch, tmp_path) -> None:
+        """Non-existent roots are filtered, matching canonical."""
+        bogus = tmp_path / "does-not-exist"
+        monkeypatch.setenv("TMPDIR", str(bogus))
+        roots = invoke_false_completion_gate._allowed_temp_roots()
+        assert all(p.exists() for p in roots)
+        assert bogus.resolve() not in roots
+
+    def test_deduplicates_by_resolved_string(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        """When TMPDIR resolves to the same place as gettempdir, no dupes."""
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        monkeypatch.setattr(
+            invoke_false_completion_gate.tempfile,
+            "gettempdir",
+            lambda: str(tmp_path),
+        )
+        roots = invoke_false_completion_gate._allowed_temp_roots()
+        resolved = [str(p) for p in roots]
+        assert len(resolved) == len(set(resolved))
+
+
+class TestDeadlineBudget:
+    """Total wall-time budget protects the 5s hook timeout."""
+
+    def test_deadline_exceeded_short_circuits_run_git(
+        self, monkeypatch
+    ) -> None:
+        """When the deadline has passed, _run_git returns None without exec."""
+        call_count = {"n": 0}
+
+        def fake_run(*args, **kwargs):
+            call_count["n"] += 1
+            raise AssertionError("should not be called past deadline")
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate.subprocess, "run", fake_run
+        )
+        expired = invoke_false_completion_gate.time.monotonic() - 1.0
+        assert invoke_false_completion_gate._run_git(["status"], expired) is None
+        assert call_count["n"] == 0
+
+    def test_resolve_base_branch_falls_through_on_symbolic_ref_timeout(
+        self, monkeypatch
+    ) -> None:
+        """symbolic-ref timeout still tries the default-branch loop."""
+        sequence = iter(
+            [
+                None,
+                type(
+                    "R",
+                    (),
+                    {"returncode": 0, "stdout": "origin/main\n", "stderr": ""},
+                )(),
+            ]
+        )
+
+        def fake_run_git(args, deadline=None):
+            return next(sequence)
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate, "_run_git", fake_run_git
+        )
+        assert (
+            invoke_false_completion_gate._resolve_pr_base_branch(
+                deadline=None
+            )
+            == "origin/main"
+        )
