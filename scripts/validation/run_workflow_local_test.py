@@ -293,6 +293,8 @@ def run_local_test(
 def _format_text(report: Report) -> str:
     if report.bypassed:
         return f"workflow-local-test: BYPASSED ({report.note})"
+    if report.exit_code == 2:
+        return f"workflow-local-test: CONFIG ERROR\n  {report.note}"
     if report.exit_code == 3:
         return f"workflow-local-test: TOOL UNAVAILABLE\n  {report.note}"
     if report.exit_code == 0:
