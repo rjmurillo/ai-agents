@@ -81,13 +81,13 @@ Factors to estimate:
 
 ### Step 4: Generate Comparison Table
 
-Always present a decision table:
+Always present a decision table. **Include internal rows only if Step 2a found prior-art:**
 
 ```markdown
 | Option | Type | Cost | Setup Time | Maintenance | Token Burn | Verdict |
 |--------|------|------|------------|-------------|------------|---------|
-| Existing internal | Leverage | Free | minutes | Shared | 0 | ♻️ Reuse first |
-| Existing internal | Extend | Free | hrs | You own the delta | low | 🔧 Adapt existing |
+| Existing internal | Leverage | Free | minutes | Shared | 0 | ♻️ Reuse first |  <!-- only if Step 2a found match -->
+| Existing internal | Extend | Free | hrs | You own the delta | low | 🔧 Adapt existing |  <!-- only if Step 2a found match -->
 | [Solution A] | Library | Free | 5 min | Updates only | 0 | ✅ Recommended |
 | [Solution B] | SaaS | $X/mo | Instant | None | 0 | ⚡ Fastest |
 | Vibe Code | Custom | Free | X hrs | You own it | ~XK tokens | 🔧 Full control |
