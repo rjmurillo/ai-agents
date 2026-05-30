@@ -256,7 +256,7 @@ def parse_version(value: str) -> SemVer | None:
 
 def evaluate(
     changed_files: Iterable[str],
-    version_pairs: dict[str, tuple[str | None | _BaseRefError, str | None]],
+    version_pairs: dict[str, tuple[str | None | _BaseRefError, str | None | _BaseRefError]],
     plugins: Sequence[PluginManifest] = PLUGINS,
 ) -> tuple[list[Violation], list[str]]:
     """Pure core: decide violations from a changed set and version pairs.
@@ -265,11 +265,12 @@ def evaluate(
     the base-ref version string, ``None`` when the manifest did not exist at the
     base ref (a brand-new plugin, nothing to compare against), or a
     ``_BaseRefError`` when git could not read the base ref (a config error, not
-    a new plugin). ``new`` is the disk version string, ``None`` when the
-    manifest is missing or unreadable on disk now.
+    a new plugin). ``new`` is the head-ref version string, ``None`` when the
+    manifest did not exist at the head ref, or a ``_BaseRefError`` when git
+    could not read the head ref (a config error).
 
     Returns ``(violations, config_errors)``. ``config_errors`` is non-empty
-    when a version string cannot be parsed or the base ref is unreadable; the
+    when a version string cannot be parsed or a ref is unreadable; the
     CLI maps that to exit 2.
     """
     touched = [_normalize_path(p) for p in changed_files]
@@ -289,9 +290,16 @@ def evaluate(
 
         old, new = version_pairs.get(plugin.manifest, (None, None))
 
+        if isinstance(new, _BaseRefError):
+            config_errors.append(
+                f"{plugin.manifest}: cannot read head version for "
+                f"{plugin.name}: {new.message}"
+            )
+            continue
+
         if new is None:
             config_errors.append(
-                f"{plugin.manifest}: version missing or unreadable on disk; "
+                f"{plugin.manifest}: version missing at head ref; "
                 f"cannot verify bump for {plugin.name}"
             )
             continue
@@ -371,18 +379,53 @@ def _disk_version(manifest: str, repo_root: Path) -> str | None:
         return None
 
 
-def _resolve_merge_base(base_ref: str, repo_root: Path) -> str:
-    """Return ``git merge-base <base_ref> HEAD``, or ``base_ref`` if it fails.
+def _head_version(
+    head_ref: str, manifest: str, repo_root: Path
+) -> str | None | _BaseRefError:
+    """Read the manifest version at ``head_ref`` via ``git show``.
+
+    Returns the version string on success; ``None`` when the manifest did not
+    exist at the ref (should not happen for HEAD/local_sha but handled for
+    safety); a ``_BaseRefError`` when git itself failed.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "show", f"{head_ref}:{manifest}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return _BaseRefError(f"git show {head_ref}:{manifest} failed: {exc}")
+    if proc.returncode != 0:
+        stderr = proc.stderr.strip()
+        if any(marker in stderr for marker in _PATH_ABSENT_MARKERS):
+            return None
+        return _BaseRefError(
+            f"git show {head_ref}:{manifest} exit {proc.returncode}: {stderr}"
+        )
+    version = _read_version_text(proc.stdout)
+    if version is None:
+        return _BaseRefError(
+            f"{head_ref}:{manifest} exists but has no readable version "
+            "(invalid JSON or missing version field)"
+        )
+    return version
+
+
+def _resolve_merge_base(base_ref: str, head_ref: str, repo_root: Path) -> str:
+    """Return ``git merge-base <base_ref> <head_ref>``, or ``base_ref`` if it fails.
 
     Diffing and reading the prior version from the merge-base gives three-dot
     semantics: only changes introduced on this branch count. Without it, a base
     ref that advanced on its own side after the branch point (a sibling PR
-    merged to main) leaks its files into ``base..HEAD`` and the gate flags
+    merged to main) leaks its files into ``base..<head>`` and the gate flags
     plugins this branch never touched.
     """
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo_root), "merge-base", base_ref, "HEAD"],
+            ["git", "-C", str(repo_root), "merge-base", base_ref, head_ref],
             capture_output=True,
             text=True,
             check=False,
@@ -459,13 +502,20 @@ def _base_version(
 
 
 def _version_pairs(
-    base_ref: str, repo_root: Path, plugins: Sequence[PluginManifest] = PLUGINS
-) -> dict[str, tuple[str | None | _BaseRefError, str | None]]:
-    """Build the ``(old, new)`` version map for every plugin manifest."""
-    pairs: dict[str, tuple[str | None | _BaseRefError, str | None]] = {}
+    base_ref: str,
+    head_ref: str,
+    repo_root: Path,
+    plugins: Sequence[PluginManifest] = PLUGINS,
+) -> dict[str, tuple[str | None | _BaseRefError, str | None | _BaseRefError]]:
+    """Build the ``(old, new)`` version map for every plugin manifest.
+
+    Reads both versions from git refs, not the working tree, so uncommitted
+    changes cannot cause the gate to pass while pushed commits lack a bump.
+    """
+    pairs: dict[str, tuple[str | None | _BaseRefError, str | None | _BaseRefError]] = {}
     for plugin in plugins:
         old = _base_version(base_ref, plugin.manifest, repo_root)
-        new = _disk_version(plugin.manifest, repo_root)
+        new = _head_version(head_ref, plugin.manifest, repo_root)
         pairs[plugin.manifest] = (old, new)
     return pairs
 
@@ -474,28 +524,34 @@ def find_violations(
     changed_files: Iterable[str],
     *,
     base_ref: str,
+    head_ref: str = "HEAD",
     repo_root: Path | None = None,
     plugins: Sequence[PluginManifest] = PLUGINS,
     base_already_resolved: bool = False,
 ) -> tuple[list[Violation], list[str]]:
-    """Resolve versions from git/disk, then run the pure ``evaluate`` check.
+    """Resolve versions from git refs, then run the pure ``evaluate`` check.
 
-    ``base_ref`` is collapsed to its merge-base with HEAD so the prior version
-    is read from the branch point, matching the three-dot changed-file set the
-    CLI computes. When ``base_already_resolved`` is True, the merge-base
+    ``base_ref`` is collapsed to its merge-base with ``head_ref`` so the prior
+    version is read from the branch point, matching the three-dot changed-file
+    set the CLI computes. When ``base_already_resolved`` is True, the merge-base
     resolution is skipped (caller has already resolved it).
+
+    ``head_ref`` specifies the commit being validated (the commit being pushed).
+    Defaults to HEAD for backward compatibility and CI usage. Versions are read
+    from the commit, not the working tree, so uncommitted changes cannot cause
+    the gate to pass while pushed commits lack a bump.
     """
     root = repo_root or _REPO_ROOT
-    effective_base = base_ref if base_already_resolved else _resolve_merge_base(base_ref, root)
-    pairs = _version_pairs(effective_base, root, plugins)
+    effective_base = base_ref if base_already_resolved else _resolve_merge_base(base_ref, head_ref, root)
+    pairs = _version_pairs(effective_base, head_ref, root, plugins)
     return evaluate(changed_files, pairs, plugins)
 
 
-def _git_diff_files(base: str, repo_root: Path) -> tuple[list[str], int, str]:
-    """Return changed paths from ``git diff --name-only base..HEAD``."""
+def _git_diff_files(base: str, head: str, repo_root: Path) -> tuple[list[str], int, str]:
+    """Return changed paths from ``git diff --name-only base..head``."""
     try:
         proc = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-only", f"{base}..HEAD"],
+            ["git", "-C", str(repo_root), "diff", "--name-only", f"{base}..{head}"],
             capture_output=True,
             text=True,
             check=False,
@@ -507,7 +563,7 @@ def _git_diff_files(base: str, repo_root: Path) -> tuple[list[str], int, str]:
         return (
             [],
             2,
-            f"git diff --name-only {base}..HEAD exit {proc.returncode}: "
+            f"git diff --name-only {base}..{head} exit {proc.returncode}: "
             f"{proc.stderr.strip()}",
         )
     return [ln for ln in proc.stdout.splitlines() if ln.strip()], 0, ""
@@ -580,6 +636,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Git base ref to diff against (default: origin/main).",
     )
     p.add_argument(
+        "--head",
+        default="HEAD",
+        help="Git head ref to validate (default: HEAD). Use to validate a "
+        "specific commit being pushed instead of the current HEAD.",
+    )
+    p.add_argument(
         "--files",
         nargs="*",
         default=None,
@@ -602,6 +664,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: repo root not found: {repo_root}", file=sys.stderr)
         return 2
 
+    head_ref = args.head
+
     if args.files is not None:
         changed = list(args.files)
         base = args.base
@@ -609,14 +673,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         # Collapse to the merge-base so the diff and the version read both use
         # three-dot semantics (only this branch's changes; ignore work the
         # base ref advanced on its own side).
-        base = _resolve_merge_base(args.base, repo_root)
-        changed, rc, err = _git_diff_files(base, repo_root)
+        base = _resolve_merge_base(args.base, head_ref, repo_root)
+        changed, rc, err = _git_diff_files(base, head_ref, repo_root)
         if rc != 0:
             print(err, file=sys.stderr)
             return 2
 
     violations, config_errors = find_violations(
-        changed, base_ref=base, repo_root=repo_root,
+        changed, base_ref=base, head_ref=head_ref, repo_root=repo_root,
         base_already_resolved=(args.files is None),
     )
 
