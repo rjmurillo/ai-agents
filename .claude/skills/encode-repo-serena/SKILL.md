@@ -1,8 +1,12 @@
 ---
 name: encode-repo-serena
 version: 1.1.0
-description: Systematically populate the Forgetful knowledge base using Serena's LSP-powered
-  symbol analysis for accurate, comprehensive codebase understanding.
+description: Populates the Forgetful knowledge base using Serena's LSP-powered symbol
+  analysis for accurate, comprehensive codebase understanding. Use when you say "encode
+  this repository", "populate forgetful with this codebase", "onboard to this repo",
+  "refresh project understanding", or "build knowledge base for this project". Do NOT
+  use to analyze existing repo structure (use serena-code-architecture) or for symbol-edit
+  guidance (use using-serena-symbols).
 license: MIT
 model: claude-sonnet-4-6
 metadata:

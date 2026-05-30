@@ -1,7 +1,7 @@
 ---
 name: decision-critic
 version: 1.0.0
-description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality.
+description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality. Do NOT use to surface failure risks pre-launch (use pre-mortem) or to probe why a constraint exists (use chestertons-fence).
 triggers:
   - "validate my thinking"
   - "poke holes in this decision"

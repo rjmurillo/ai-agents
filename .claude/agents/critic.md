@@ -1,6 +1,6 @@
 ---
 name: critic
-description: Constructive reviewer who stress-tests plans before implementation, validates completeness, identifies gaps, catches ambiguity. Challenges assumptions, checks alignment, and blocks approval when risks aren't mitigated. Use when you need a clear verdict on whether a plan is ready or needs revision.
+description: Constructive reviewer who stress-tests plans before implementation, validates completeness, identifies gaps, catches ambiguity. Challenges assumptions, checks alignment, and blocks approval when risks aren't mitigated. Use when you say "review this plan", "stress-test this plan", "is this plan ready", "poke holes in this", or hand it a plan file or planning artifact and need a clear ready-or-revise verdict. Do NOT use to stress-test a single decision's reasoning (use decision-critic).
 model: opus
 metadata:
   tier: manager
