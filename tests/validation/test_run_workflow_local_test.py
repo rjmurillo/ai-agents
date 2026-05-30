@@ -22,8 +22,9 @@ WF = ".github/workflows/x.yml"
 
 @pytest.fixture
 def all_tools(monkeypatch):
-    """Pretend actionlint, gh, and Docker are all available."""
+    """Pretend actionlint, gh, the gh-act extension, and Docker are available."""
     monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_gh_act_available", lambda: True)
     monkeypatch.setattr(w, "_docker_ready", lambda: True)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
 
@@ -70,6 +71,16 @@ def test_gh_missing_is_exit_3(monkeypatch, tmp_path):
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
     assert "gh" in r.note
+
+
+def test_gh_act_extension_missing_is_exit_3(monkeypatch, tmp_path):
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_gh_act_available", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert "gh act extension" in r.note
 
 
 def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
