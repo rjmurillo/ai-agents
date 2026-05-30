@@ -706,6 +706,26 @@ class TestValidateGitHooksInstalled:
             with pytest.raises(MissingScriptSkip):
                 validate_git_hooks_installed(tmp_path)
 
+    def test_not_skipped_when_ci_is_false(self, tmp_path: Path) -> None:
+        """CI=false or CI=0 should NOT skip the check (they are non-truthy)."""
+        import os
+
+        from scripts.validation.pre_pr import (
+            MissingScriptSkip,
+            validate_git_hooks_installed,
+        )
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        env = {"CI": "false"}
+        with patch.dict("os.environ", env, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            with patch(
+                "scripts.validation.pre_pr._run_subprocess"
+            ) as mock_run:
+                mock_run.return_value = (0, "OK", "")
+                assert validate_git_hooks_installed(tmp_path) is True
+
     def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
         import os
 

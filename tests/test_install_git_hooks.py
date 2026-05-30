@@ -121,7 +121,8 @@ def test_points_at_canonical_relative(repo: Path) -> None:
 
 def test_points_at_canonical_absolute(repo: Path) -> None:
     abs_path = str((repo / ".githooks").resolve())
-    assert igh.hooks_path_points_at_canonical(repo, abs_path) is True
+    # Absolute paths are drift that breaks worktrees - must be rejected.
+    assert igh.hooks_path_points_at_canonical(repo, abs_path) is False
 
 
 def test_points_at_canonical_rejects_default(repo: Path) -> None:

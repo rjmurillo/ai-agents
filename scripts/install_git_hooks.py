@@ -73,13 +73,19 @@ def get_hooks_path(repo_root: Path) -> str | None:
 
 
 def hooks_path_points_at_canonical(repo_root: Path, value: str | None) -> bool:
-    """True if ``value`` resolves to the repo's ``.githooks`` directory."""
+    """True if ``value`` is a relative path resolving to ``.githooks``.
+
+    Absolute paths are rejected even if they resolve to ``.githooks``, because
+    they break worktrees: secondary worktrees do not get per-tree hook
+    resolution when an absolute path is written to the shared ``.git/config``.
+    """
     if not value:
         return False
-    canonical = (repo_root / HOOKS_DIR_NAME).resolve()
     candidate = Path(value)
-    if not candidate.is_absolute():
-        candidate = (repo_root / candidate)
+    if candidate.is_absolute():
+        return False
+    canonical = (repo_root / HOOKS_DIR_NAME).resolve()
+    candidate = repo_root / candidate
     try:
         return candidate.resolve() == canonical
     except OSError:

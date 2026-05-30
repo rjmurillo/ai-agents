@@ -896,7 +896,10 @@ def validate_git_hooks_installed(repo_root: Path) -> bool:
     ``core.hooksPath`` set to ``.githooks`` (the guards run as workflow steps,
     not local hooks), so the check is irrelevant there.
     """
-    if os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
+    if (
+        os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
+        or os.environ.get("CI", "").lower() in ("true", "1")
+    ):
         raise MissingScriptSkip("git hooks check skipped under CI")
     script = repo_root / "scripts" / "install_git_hooks.py"
     if not script.exists():
