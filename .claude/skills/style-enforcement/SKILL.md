@@ -386,7 +386,7 @@ Use existing linters instead when:
 After running style check, the gate is `check_style.py`'s exit code, not a self-check:
 
 ```bash
-python3 scripts/check_style.py "$TARGET_PATH"
+python3 .claude/skills/style-enforcement/scripts/check_style.py "$TARGET_PATH"
 echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
 ```
 

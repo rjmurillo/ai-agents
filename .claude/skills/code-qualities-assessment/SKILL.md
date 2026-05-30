@@ -171,7 +171,7 @@ Create `.qualityrc.json` to customize thresholds:
 After running assessment, run the bundled validator and require exit 0:
 
 ```bash
-python3 scripts/assess.py --target "$TARGET_PATH"
+python3 .claude/skills/code-qualities-assessment/scripts/assess.py --target "$TARGET_PATH"
 echo "exit=$?"   # must be 0; exit 11 means thresholds not met, exit 1 means script error
 ```
 
