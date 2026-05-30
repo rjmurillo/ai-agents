@@ -217,6 +217,21 @@ def test_cli_config_error_returns_2(monkeypatch, capsys):
     assert "CONFIG ERROR" in capsys.readouterr().out
 
 
+def test_cli_violation_outranks_config_error(monkeypatch):
+    # claude has a real not-bumped violation; copilot has an unparseable
+    # version (config error). The violation must win the exit code (block=1),
+    # not be masked by the config error (warn=2).
+    monkeypatch.setattr(
+        vpb,
+        "_version_pairs",
+        lambda *a, **k: _pairs(claude=("0.3.0", "0.3.0"), copilot=("0.4.1", "bad")),
+    )
+    rc = vpb.main(
+        ["--files", ".claude/x.md", "src/copilot-cli/y.md", "--base", "x"]
+    )
+    assert rc == 1
+
+
 def test_cli_json_format(monkeypatch, capsys):
     monkeypatch.setattr(
         vpb, "_version_pairs", lambda *a, **k: _pairs(claude=("0.3.0", "0.3.0"))
