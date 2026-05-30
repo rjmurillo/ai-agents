@@ -102,8 +102,10 @@ _CLAUSE_BOUNDARY = re.compile(r";|\.(?=\s|$)")
 # single adverb ("not yet validated", "no longer confirmed", "not fully done"),
 # it does not indicate completion (e.g., "not passed", "never confirmed").
 # See bug ref1_1ef17459 and bug 07f14170 (adverb-separated negation).
+# Note: "n't" uses (?<=\w) instead of \b because in contractions like "haven't",
+# the "n" is preceded by a letter (no word boundary). See bug 0ea9d246.
 _NEGATION_BEFORE_AFFIRMATIVE = re.compile(
-    r"(?i)\b(not|no|never|n't)\b"
+    r"(?i)(?:\b(?:not|no|never)\b|(?<=\w)n't\b)"
     r"(?:\s+(?:yet|longer|fully|really|currently|still|quite))?\s*$"
 )
 
@@ -244,8 +246,10 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
             continue
         # If the deferral's clause opens with an adversative conjunction, the
         # deferral contradicts the completion rather than noting separate work.
-        deferral_clause = suffix_after_affirmative[boundary.end() :]
-        if _CONTRAST_CONJUNCTION.search(deferral_clause):
+        # Use match() on lstripped text to check only the clause opening, not
+        # mid-clause uses like "everything but X". See bug ref1_dda37e6b.
+        deferral_clause = suffix_after_affirmative[boundary.end() :].lstrip()
+        if _CONTRAST_CONJUNCTION.match(deferral_clause):
             continue
         return True
     return False
