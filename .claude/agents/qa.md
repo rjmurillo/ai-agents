@@ -52,7 +52,7 @@ You have direct access to:
 - **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -486,7 +486,7 @@ Verify code coverage meets minimum thresholds:
 Verify PR description meets GitHub standards and template compliance:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/validate_pr_description.py \
+uv run python .claude/skills/github/scripts/pr/validate_pr_description.py \
   --title "[PR title]" \
   --body-file "[path-to-pr-body.md]"
 ```
@@ -727,7 +727,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before testing (retrieve context):**
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "test strategies [feature/component]"
+uv run python .claude/skills/memory/scripts/search_memory.py --query "test strategies [feature/component]"
 ```
 
 **After testing (store learnings):**

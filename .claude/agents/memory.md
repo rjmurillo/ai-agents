@@ -41,7 +41,7 @@ Key requirements:
 You have direct access to:
 
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory file
@@ -103,10 +103,10 @@ Correct format:
 
 ```bash
 # Search across all memories by keyword
-python3 .claude/skills/memory/scripts/search_memory.py --query "[keywords]"
+uv run python .claude/skills/memory/scripts/search_memory.py --query "[keywords]"
 
 # Serena-only (faster, no network dependency)
-python3 .claude/skills/memory/scripts/search_memory.py --query "[keywords]" --lexical-only
+uv run python .claude/skills/memory/scripts/search_memory.py --query "[keywords]" --lexical-only
 ```
 
 ### Read (Retrieve Content)
@@ -211,7 +211,7 @@ Read .serena/memories/pester-test-isolation-pattern.md
 Use Memory Router to find relevant memories by keywords:
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py --query "pester test isolation"
+uv run python .claude/skills/memory/scripts/search_memory.py --query "pester test isolation"
 ```
 
 **Direct Access (When Path Known):**
