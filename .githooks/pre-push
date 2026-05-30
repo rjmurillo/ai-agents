@@ -457,9 +457,21 @@ else
     record_skip "Python type check (no .py files changed)"
 fi
 
-# 8. Workflow YAML (actionlint) - BLOCKING
+# 8. Workflow local-run gate (actionlint + gh act dry-run + full run) - BLOCKING
+#
+# Belt and suspenders: a changed .github/workflows file MUST pass actionlint,
+# then `gh act -n` (dry-run graph), then a full `gh act` run before the push is
+# allowed. Delegates to scripts/validation/run_workflow_local_test.py so the
+# stage logic is unit-tested (ADR-006). Exit 3 means a required tool
+# (actionlint, gh act, Docker) is unavailable; that blocks too, because the
+# point of this gate is to REQUIRE the local run. A workflow that genuinely
+# cannot run under act (secrets, ARM-only runner) is bypassed, audibly, with
+# SKIP_WORKFLOW_LOCAL_TEST=true.
 if [ -n "$CHANGED_WORKFLOWS" ]; then
-    if command -v actionlint &> /dev/null; then
+    WF_LOCAL_SCRIPT="$REPO_ROOT/scripts/validation/run_workflow_local_test.py"
+    if [ -L "$WF_LOCAL_SCRIPT" ]; then
+        record_warn "Workflow local-run script is a symlink (skipping)"
+    elif [ -f "$WF_LOCAL_SCRIPT" ] && set_python_cmd; then
         WF_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -468,24 +480,33 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
         done <<< "$CHANGED_WORKFLOWS"
 
         if [ ${#WF_FILES[@]} -gt 0 ]; then
-            ACTIONLINT_OUTPUT=$(mktemp)
-            if actionlint "${WF_FILES[@]}" > "$ACTIONLINT_OUTPUT" 2>&1; then
-                rm -f "$ACTIONLINT_OUTPUT"
-                record_pass "Workflow YAML/actionlint (${#WF_FILES[@]} files)"
+            WF_LOCAL_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$WF_LOCAL_OUTPUT")
+            "${PYTHON_CMD[@]}" "$WF_LOCAL_SCRIPT" --files "${WF_FILES[@]}" \
+                > "$WF_LOCAL_OUTPUT" 2>&1
+            WF_LOCAL_RC=$?
+            if [ $WF_LOCAL_RC -eq 0 ]; then
+                record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+            elif [ $WF_LOCAL_RC -eq 3 ]; then
+                cat "$WF_LOCAL_OUTPUT"
+                record_fail "Workflow local run: required tool unavailable"
+                echo_info "  Install actionlint + Docker, or set"
+                echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
             else
-                echo_info "  actionlint issues:"
-                head -10 "$ACTIONLINT_OUTPUT"
-                rm -f "$ACTIONLINT_OUTPUT"
-                record_fail "Workflow YAML/actionlint"
+                cat "$WF_LOCAL_OUTPUT"
+                record_fail "Workflow local run failed (exit $WF_LOCAL_RC)"
+                echo_info "  Make the workflow pass locally, or set"
+                echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true if it cannot run under act."
             fi
+            rm -f "$WF_LOCAL_OUTPUT"
         else
-            record_skip "Workflow YAML (no accessible files)"
+            record_skip "Workflow local run (no accessible files)"
         fi
     else
-        record_skip "Workflow YAML (actionlint not installed)"
+        record_skip "Workflow local run (script or Python unavailable)"
     fi
 else
-    record_skip "Workflow YAML (no workflow files changed)"
+    record_skip "Workflow local run (no workflow files changed)"
 fi
 
 # 8a. Workflow validation (validate_workflows.py) - BLOCKING

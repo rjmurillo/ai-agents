@@ -838,6 +838,58 @@ def validate_install_parity(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_workflow_local_run(repo_root: Path) -> bool:
+    """Shift-left tier of the workflow local-run gate (actionlint + act -n).
+
+    Runs the fast stages of ``scripts/validation/run_workflow_local_test.py``
+    (``--no-full``) over the changed ``.github/workflows`` files. The full
+    ``gh act`` execution stage is reserved for the pre-push hook so pre_pr stays
+    fast and does not require a running Docker daemon.
+
+    Contract: pass when no workflow changed or all run stages pass. A stage
+    failure (exit 1) blocks. A missing local tool (exit 3) does NOT block here,
+    because the pre-push gate is the authoritative enforcer; pre_pr only warns
+    so a contributor without actionlint installed is not stopped pre-PR.
+    """
+    script = repo_root / "scripts" / "validation" / "run_workflow_local_test.py"
+    if not script.exists():
+        raise MissingScriptSkip("run_workflow_local_test.py not present")
+
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if not base_ref:
+        print("[WARN] workflow local-run: base ref unresolved; skipping.")
+        return True
+
+    diff_code, diff_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
+    )
+    if diff_code != 0:
+        print("[WARN] workflow local-run: git diff failed; skipping.")
+        return True
+    changed = [
+        line
+        for line in diff_out.splitlines()
+        if line.startswith(".github/workflows/") and line.endswith((".yml", ".yaml"))
+    ]
+    if not changed:
+        print("No changed workflow files; nothing to run locally.")
+        return True
+
+    cmd = [sys.executable, str(script), "--no-full", "--files", *changed]
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:80]:
+            print(line)
+    if exit_code == 3:
+        print(
+            "[WARN] workflow local-run tools unavailable locally; the pre-push "
+            "hook enforces the full gate (actionlint + gh act)."
+        )
+        return True
+    return exit_code == 0
+
+
 def validate_command_bundle_coverage(repo_root: Path) -> bool:
     """SPEC-005 advisory check: each lifecycle command invokes its bundled skills.
 
@@ -1056,6 +1108,13 @@ def main(argv: list[str] | None = None) -> int:
         "Install Parity (agents and rules)",
         state,
         lambda: validate_install_parity(repo_root),
+    )
+
+    # 6d. Workflow Local Run (actionlint + gh act dry-run for changed workflows)
+    run_validation(
+        "Workflow Local Run",
+        state,
+        lambda: validate_workflow_local_run(repo_root),
     )
 
     # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)
