@@ -87,11 +87,11 @@ _CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
     r"Test\s*Plan",
     r"Design\s*Decisions?",
     r"Related",
-    r"Related\s+Issues",
+    r"Related[ \t]+Issues",
     r"References?",
     r"See\s*Also",
     r"Notes?",
-    r"Notes\s+for\s+Reviewers",
+    r"Notes[ \t]+for[ \t]+Reviewers",
     r"Background",
     r"Inspired\s*By",
     r"Pattern\s*From",
@@ -119,7 +119,7 @@ _REFERENCE_SECTION_PREFIXES: tuple[str, ...] = (
     r"Evidence",
     r"Validation",
     r"Verification",
-    r"Out[\s-]*of[\s-]*Scope",
+    r"Out[ \t-]*of[ \t-]*Scope",
 )
 
 # Patterns to extract file paths from PR description text
