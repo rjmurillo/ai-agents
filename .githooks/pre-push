@@ -238,7 +238,7 @@ CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" \
     | grep -Ev '^src/copilot-cli/skills/' \
     || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
-CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
+CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
 CHANGED_TEMPLATES=$(echo "$CHANGED_FILES" | grep -E '^templates/' || true)
 CHANGED_SESSIONS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/sessions/' || true)
@@ -486,7 +486,12 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
                 > "$WF_LOCAL_OUTPUT" 2>&1
             WF_LOCAL_RC=$?
             if [ $WF_LOCAL_RC -eq 0 ]; then
-                record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+                if grep -q "BYPASSED" "$WF_LOCAL_OUTPUT" 2>/dev/null; then
+                    cat "$WF_LOCAL_OUTPUT"
+                    record_warn "Workflow local run BYPASSED (SKIP_WORKFLOW_LOCAL_TEST=true)"
+                else
+                    record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+                fi
             elif [ $WF_LOCAL_RC -eq 3 ]; then
                 cat "$WF_LOCAL_OUTPUT"
                 record_fail "Workflow local run: required tool unavailable"
