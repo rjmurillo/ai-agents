@@ -47,6 +47,15 @@ Strictly-greater only. The new version must parse and compare greater than the
 old version; the magnitude of the bump (patch vs minor vs major) is not
 inferred or enforced.
 
+Versions MUST be valid SemVer 2.0.0 cores: exactly three dot-separated numeric
+identifiers (``MAJOR.MINOR.PATCH``), with an optional ``-prerelease`` and
+optional ``+build`` suffix. ``1``, ``1.2``, and ``1.2.3.4`` are rejected as
+config errors. Precedence follows the SemVer spec
+(https://semver.org/#spec-item-11): a pre-release version has lower precedence
+than the associated release, so ``0.3.0-rc1 < 0.3.0`` and promoting a
+pre-release to its final release counts as a strictly-greater bump. Build
+metadata (``+meta``) is ignored for precedence.
+
 CLI
 ---
 
@@ -148,23 +157,76 @@ def _under(source_dir: str, path: str) -> bool:
     return pp[: len(sp)] == sp
 
 
-def parse_version(value: str) -> tuple[int, ...] | None:
-    """Parse a semver core into a comparable int tuple, else ``None``.
+# A SemVer pre-release identifier is either a non-negative integer (compared
+# numerically) or an ASCII alphanumeric/hyphen string (compared lexically). To
+# get total ordering across the two kinds in a single tuple, each identifier is
+# wrapped as ``(rank, value)``: rank 0 for numeric (sorts below all strings per
+# SemVer rule 11.4.3), rank 1 for alphanumeric.
+PreReleaseId = tuple[int, object]
 
-    Drops any pre-release (``-rc1``) or build (``+meta``) suffix, then splits
-    the numeric core on dots. Returns ``None`` when any core component is not
-    an integer; the caller treats ``None`` as a configuration error.
+# Full SemVer-comparable: ((major, minor, patch), is_release, prerelease_ids).
+# ``is_release`` is True for a plain release and False for a pre-release; a
+# release outranks any pre-release that shares its core (SemVer rule 11.3), and
+# tuples compare element-by-element so ``True > False`` puts the release ahead.
+# Build metadata is intentionally excluded: it does not affect precedence.
+SemVer = tuple[tuple[int, int, int], bool, tuple[PreReleaseId, ...]]
+
+
+def _parse_prerelease(pre: str) -> tuple[PreReleaseId, ...] | None:
+    """Parse a dot-separated pre-release string into comparable identifiers.
+
+    Returns ``None`` when any identifier is empty or carries a character outside
+    the SemVer alphabet (ASCII alphanumerics and hyphen). Numeric identifiers
+    with leading zeros (other than ``0`` itself) are invalid per SemVer 11.
+    """
+    ids: list[PreReleaseId] = []
+    for ident in pre.split("."):
+        if not ident:
+            return None
+        if ident.isdigit():
+            if len(ident) > 1 and ident.startswith("0"):
+                return None
+            ids.append((0, int(ident)))
+            continue
+        if not all(c.isalnum() or c == "-" for c in ident) or not ident.isascii():
+            return None
+        ids.append((1, ident))
+    return tuple(ids)
+
+
+def parse_version(value: str) -> SemVer | None:
+    """Parse a SemVer 2.0.0 string into a comparable value, else ``None``.
+
+    Requires exactly three numeric core identifiers (``MAJOR.MINOR.PATCH``).
+    Honors pre-release precedence (a pre-release sorts below its release) and
+    ignores build metadata. Returns ``None`` for anything that is not valid
+    SemVer; the caller treats ``None`` as a configuration error. ``1``, ``1.2``,
+    and ``1.2.3.4`` are rejected.
     """
     if not value or not value.strip():
         return None
-    core = value.strip().split("+", 1)[0].split("-", 1)[0]
+    body = value.strip().split("+", 1)[0]  # drop build metadata
+    core, hyphen, pre = body.partition("-")
     parts = core.split(".")
-    out: list[int] = []
+    if len(parts) != 3:
+        return None
+    nums: list[int] = []
     for part in parts:
         if not part.isdigit():
             return None
-        out.append(int(part))
-    return tuple(out) if out else None
+        if len(part) > 1 and part.startswith("0"):  # no leading zeros
+            return None
+        nums.append(int(part))
+    core_tuple = (nums[0], nums[1], nums[2])
+
+    if not hyphen:
+        # No hyphen: a plain release. Outranks any pre-release with same core.
+        return (core_tuple, True, ())
+    # A trailing hyphen with an empty pre-release body (``1.2.3-``) is invalid.
+    prerelease = _parse_prerelease(pre)
+    if prerelease is None:
+        return None
+    return (core_tuple, False, prerelease)
 
 
 # --- Core check (pure) ---------------------------------------------------
@@ -172,18 +234,21 @@ def parse_version(value: str) -> tuple[int, ...] | None:
 
 def evaluate(
     changed_files: Iterable[str],
-    version_pairs: dict[str, tuple[str | None, str | None]],
+    version_pairs: dict[str, tuple[str | None | _BaseRefError, str | None]],
     plugins: Sequence[PluginManifest] = PLUGINS,
 ) -> tuple[list[Violation], list[str]]:
     """Pure core: decide violations from a changed set and version pairs.
 
-    ``version_pairs`` maps a plugin manifest path to ``(old, new)`` version
-    strings. ``old`` is ``None`` when the manifest did not exist at the base
-    ref (a brand-new plugin, nothing to compare against). ``new`` is ``None``
-    when the manifest is missing or unreadable on disk now.
+    ``version_pairs`` maps a plugin manifest path to ``(old, new)``. ``old`` is
+    the base-ref version string, ``None`` when the manifest did not exist at the
+    base ref (a brand-new plugin, nothing to compare against), or a
+    ``_BaseRefError`` when git could not read the base ref (a config error, not
+    a new plugin). ``new`` is the disk version string, ``None`` when the
+    manifest is missing or unreadable on disk now.
 
     Returns ``(violations, config_errors)``. ``config_errors`` is non-empty
-    when a version string cannot be parsed; the CLI maps that to exit 2.
+    when a version string cannot be parsed or the base ref is unreadable; the
+    CLI maps that to exit 2.
     """
     touched = [_normalize_path(p) for p in changed_files]
     violations: list[Violation] = []
@@ -213,6 +278,13 @@ def evaluate(
         if new_tuple is None:
             config_errors.append(
                 f"{plugin.manifest}: current version {new!r} is not valid semver"
+            )
+            continue
+
+        if isinstance(old, _BaseRefError):
+            config_errors.append(
+                f"{plugin.manifest}: cannot read base version for "
+                f"{plugin.name}: {old.message}"
             )
             continue
 
@@ -301,12 +373,37 @@ def _resolve_merge_base(base_ref: str, repo_root: Path) -> str:
     return proc.stdout.strip() or base_ref
 
 
-def _base_version(base_ref: str, manifest: str, repo_root: Path) -> str | None:
+# Sentinel for a git failure that is NOT "the path is absent at a valid ref".
+# A bad base ref, a non-repo directory, or a git crash must surface as a config
+# error, never collapse into the "new plugin, nothing to compare" pass path.
+class _BaseRefError:
+    """Marker: git could not read the base ref (distinct from path absence)."""
+
+    __slots__ = ("message",)
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+
+# git prints these when the *path* is absent at an otherwise valid ref. Any
+# other non-zero exit means the *ref* itself is unusable (bad revision, not a
+# repo), which is a config error rather than a new-plugin pass.
+_PATH_ABSENT_MARKERS = (
+    "does not exist",
+    "exists on disk, but not in",
+)
+
+
+def _base_version(
+    base_ref: str, manifest: str, repo_root: Path
+) -> str | None | _BaseRefError:
     """Read the manifest version at ``base_ref`` via ``git show``.
 
-    Returns ``None`` when the manifest did not exist at the base (a new
-    plugin) or when git cannot produce it. Both cases mean "no prior version
-    to compare", which ``evaluate`` treats as a pass.
+    Returns the version string on success; ``None`` when the manifest did not
+    exist at the base (a new plugin, nothing to compare); a ``_BaseRefError``
+    when git itself failed (bad ref, non-repo, timeout). The caller maps the
+    error to a config error so a broken base ref cannot masquerade as a new
+    plugin and pass the gate.
     """
     try:
         proc = subprocess.run(
@@ -316,18 +413,23 @@ def _base_version(base_ref: str, manifest: str, repo_root: Path) -> str | None:
             check=False,
             timeout=30,
         )
-    except (OSError, subprocess.SubprocessError):
-        return None
+    except (OSError, subprocess.SubprocessError) as exc:
+        return _BaseRefError(f"git show {base_ref}:{manifest} failed: {exc}")
     if proc.returncode != 0:
-        return None
+        stderr = proc.stderr.strip()
+        if any(marker in stderr for marker in _PATH_ABSENT_MARKERS):
+            return None  # path absent at a valid ref: a new plugin
+        return _BaseRefError(
+            f"git show {base_ref}:{manifest} exit {proc.returncode}: {stderr}"
+        )
     return _read_version_text(proc.stdout)
 
 
 def _version_pairs(
     base_ref: str, repo_root: Path, plugins: Sequence[PluginManifest] = PLUGINS
-) -> dict[str, tuple[str | None, str | None]]:
+) -> dict[str, tuple[str | None | _BaseRefError, str | None]]:
     """Build the ``(old, new)`` version map for every plugin manifest."""
-    pairs: dict[str, tuple[str | None, str | None]] = {}
+    pairs: dict[str, tuple[str | None | _BaseRefError, str | None]] = {}
     for plugin in plugins:
         old = _base_version(base_ref, plugin.manifest, repo_root)
         new = _disk_version(plugin.manifest, repo_root)
@@ -412,7 +514,10 @@ def _format_text(violations: Sequence[Violation], config_errors: Sequence[str]) 
 
 def _format_json(violations: Sequence[Violation], config_errors: Sequence[str]) -> str:
     payload = {
-        "bumped": not violations,
+        # bumped is true only on a clean pass: no violations AND no config
+        # errors. A config-error-only run exits 2; reporting bumped:true there
+        # would let a downstream consumer read success from a failed run.
+        "bumped": not violations and not config_errors,
         "violations": [
             {
                 "plugin": v.plugin,

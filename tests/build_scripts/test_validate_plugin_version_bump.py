@@ -55,12 +55,21 @@ def _pairs(**kw: tuple[str | None, str | None]) -> dict[str, tuple[str | None, s
 
 
 def test_parse_version_plain():
-    assert vpb.parse_version("0.3.1") == (0, 3, 1)
+    # Plain release: core tuple, is_release True, no pre-release identifiers.
+    assert vpb.parse_version("0.3.1") == ((0, 3, 1), True, ())
 
 
-def test_parse_version_drops_suffix():
-    assert vpb.parse_version("1.2.3-rc1") == (1, 2, 3)
-    assert vpb.parse_version("1.2.3+build9") == (1, 2, 3)
+def test_parse_version_prerelease():
+    # Pre-release: is_release False; identifiers wrapped (rank, value).
+    assert vpb.parse_version("1.2.3-rc1") == ((1, 2, 3), False, ((1, "rc1"),))
+    # Numeric pre-release identifier ranks below alphanumeric.
+    assert vpb.parse_version("1.2.3-1") == ((1, 2, 3), False, ((0, 1),))
+
+
+def test_parse_version_drops_build_metadata():
+    # Build metadata does not affect precedence: parses to the plain release.
+    assert vpb.parse_version("1.2.3+build9") == ((1, 2, 3), True, ())
+    assert vpb.parse_version("1.2.3-rc1+build9") == ((1, 2, 3), False, ((1, "rc1"),))
 
 
 def test_parse_version_rejects_non_numeric():
@@ -69,9 +78,50 @@ def test_parse_version_rejects_non_numeric():
     assert vpb.parse_version("   ") is None
 
 
+def test_parse_version_rejects_non_semver_core():
+    # SemVer requires exactly three numeric core identifiers.
+    assert vpb.parse_version("1") is None
+    assert vpb.parse_version("1.2") is None
+    assert vpb.parse_version("1.2.3.4") is None
+
+
+def test_parse_version_rejects_leading_zeros():
+    # Leading zeros are invalid in core and numeric pre-release identifiers.
+    assert vpb.parse_version("01.2.3") is None
+    assert vpb.parse_version("1.2.3-01") is None
+
+
+def test_parse_version_rejects_empty_prerelease():
+    assert vpb.parse_version("1.2.3-") is None
+    assert vpb.parse_version("1.2.3-rc.") is None
+
+
 def test_version_ordering_via_tuple():
     assert vpb.parse_version("0.3.1") > vpb.parse_version("0.3.0")
     assert vpb.parse_version("0.4.0") > vpb.parse_version("0.3.9")
+
+
+def test_prerelease_precedes_release():
+    # A pre-release has lower precedence than its associated release (SemVer 11).
+    # Promoting 0.3.0-rc1 to 0.3.0 is therefore a strictly-greater bump.
+    assert vpb.parse_version("0.3.0-rc1") < vpb.parse_version("0.3.0")
+    assert vpb.parse_version("1.2.3-alpha") < vpb.parse_version("1.2.3")
+
+
+def test_prerelease_identifier_ordering():
+    # Numeric identifiers compare numerically and rank below alphanumerics.
+    assert vpb.parse_version("1.2.3-alpha") < vpb.parse_version("1.2.3-beta")
+    assert vpb.parse_version("1.2.3-alpha.1") < vpb.parse_version("1.2.3-alpha.2")
+    assert vpb.parse_version("1.2.3-1") < vpb.parse_version("1.2.3-alpha")
+
+
+def test_promote_prerelease_to_release_is_valid_bump():
+    # Source change + promote 0.3.0-rc1 -> 0.3.0 must pass (release > prerelease).
+    v, errs = vpb.evaluate(
+        [".claude/skills/foo/SKILL.md"], _pairs(claude=("0.3.0-rc1", "0.3.0"))
+    )
+    assert v == []
+    assert errs == []
 
 
 # --- evaluate: positive --------------------------------------------------
@@ -185,6 +235,46 @@ def test_backslash_paths_normalized():
         [".claude\\skills\\foo\\SKILL.md"], _pairs(claude=("0.3.0", "0.3.0"))
     )
     assert len(v) == 1
+    # Guard against normalization regressing into spurious config errors.
+    assert errs == []
+
+
+def test_non_semver_current_version_is_config_error():
+    # A two-part version that the old parser accepted must now be rejected.
+    v, errs = vpb.evaluate([".claude/x.md"], _pairs(claude=("0.3.0", "1.2")))
+    assert v == []
+    assert len(errs) == 1
+    assert CLAUDE in errs[0]
+
+
+def test_non_semver_base_version_is_config_error():
+    v, errs = vpb.evaluate([".claude/x.md"], _pairs(claude=("1", "0.3.1")))
+    assert v == []
+    assert len(errs) == 1
+    assert CLAUDE in errs[0]
+
+
+def test_base_ref_error_is_config_error_not_new_plugin():
+    # A git-level base read failure must not collapse into a new-plugin pass.
+    err = vpb._BaseRefError("git show main:.claude/...: bad revision")
+    v, errs = vpb.evaluate(
+        [".claude/x.md"], {CLAUDE: (err, "0.3.0"), SRC_CLAUDE: ("0.0.0", "0.0.0"), COPILOT: ("0.0.0", "0.0.0")}
+    )
+    assert v == []
+    assert len(errs) == 1
+    assert CLAUDE in errs[0]
+
+
+def test_json_bumped_false_on_config_error(monkeypatch, capsys):
+    # bumped must be false when only config errors occurred (exit 2).
+    monkeypatch.setattr(
+        vpb, "_version_pairs", lambda *a, **k: _pairs(claude=("0.3.0", "bad"))
+    )
+    rc = vpb.main(["--files", ".claude/x.md", "--base", "x", "--format", "json"])
+    assert rc == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["bumped"] is False
+    assert payload["config_errors"]
 
 
 # --- CLI -----------------------------------------------------------------
