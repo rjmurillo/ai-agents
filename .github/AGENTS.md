@@ -47,6 +47,7 @@ flowchart TD
     PR --> VG
     PR --> VP
     PR --> VPA
+    PR --> VPV
     PR --> PT
     PR --> CQ
 
@@ -65,6 +66,7 @@ flowchart TD
     VG --> CHK
     VP --> CHK
     VPA --> CHK
+    VPV --> CHK
     PT --> CHK
     CQ --> CHK
 
