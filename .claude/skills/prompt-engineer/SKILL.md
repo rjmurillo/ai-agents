@@ -162,11 +162,11 @@ Before presenting the final prompt, verify:
 
 After optimization:
 
-- [ ] Every change has pattern attribution from reference document
+- [ ] Reconciliation: paste the count of visual cards presented in Phase 2 and confirm each card named its reference trigger condition (not a claim: list the card titles here)
 - [ ] No section contradicts another section
-- [ ] User approved Phase 2 plan before Phase 3 execution
+- [ ] User approved Phase 2 plan before Phase 3 execution (paste the approval message or turn reference)
 - [ ] Anti-patterns section consulted, none introduced
-- [ ] Emphasis markers used sparingly (3 or fewer)
+- [ ] Reconciliation: count emphasis markers (`**` or `__`) in the optimized prompt; paste the count -- must be <= 3
 
 ---
 

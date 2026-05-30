@@ -2,7 +2,7 @@
 name: quality-grades
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Grade quality per product domain and architectural layer with gap tracking. Produces markdown or JSON reports showing grades (A-F), file counts, gaps, and trends over time. Use when auditing repo quality, tracking improvement, or identifying domains that need attention.
+description: Grade each product domain and architectural layer with A-F scoring and gap tracking. Produces markdown or JSON reports showing grades, file counts, gaps, and trends. Use when you ask "grade quality", "audit domain quality", "show quality gaps", "domain quality report", or "run quality grades" across a repo. Use for repo-wide A-F domain grading and trend tracking. Do NOT use for single-file maintainability scoring (use code-qualities-assessment) or a pre-merge review (use review). For the agent form, use quality-auditor.
 license: MIT
 ---
 
@@ -110,12 +110,16 @@ Use `code-qualities-assessment` instead when:
 
 ## Verification
 
-After execution:
+After execution, run the bundled validator and require exit 0:
 
-- [ ] Report contains at least one domain
+```bash
+python3 .claude/skills/quality-grades/scripts/grade_domains.py --output quality-grades.md
+echo "exit=$?"   # must be 0; exit 2 means no domains detected (report is empty)
+```
+
+- [ ] `grade_domains.py` exited 0 (non-zero = no domains; the report is not valid)
 - [ ] Each domain has grades for all six layers
 - [ ] Gaps include actionable descriptions
-- [ ] Output format matches --format flag
 
 ## References
 

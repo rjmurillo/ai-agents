@@ -622,6 +622,17 @@ Save to: `.agents/qa/NNN-[feature]-test-report.md`
 | Skipped | [N] |
 | Coverage | [%] |
 
+## Reconciliation
+
+The `Promised/Delivered/Gap` reconciliation block MUST appear immediately above the `Status:` line. The verdict is backed by that reconciliation, not asserted alone.
+
+```text
+Promised: [list from issue/delegation]
+Delivered: [list from workspace]
+Gap: [missing items, if any]
+Result: PASS | FAIL
+```
+
 ## Status
 **QA COMPLETE** | **QA FAILED**
 
@@ -662,7 +673,7 @@ Before handing off, validate ALL items in the applicable checklist:
 
 ```markdown
 - [ ] Test report saved to `.agents/qa/`
-- [ ] All tests pass (summary shows 0 failures)
+- [ ] Paste the test-runner summary line showing 0 failures (not a claim)
 - [ ] Coverage meets plan requirements (or gap documented)
 - [ ] Test report includes: summary, passed, failed, skipped, gaps
 - [ ] Status explicitly stated as "QA COMPLETE"

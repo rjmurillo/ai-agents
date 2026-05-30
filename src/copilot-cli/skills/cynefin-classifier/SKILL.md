@@ -369,8 +369,16 @@ Escalate to human or senior decision-maker when:
 
 ## Verification
 
-After classification:
+After classification, run the bundled validator and require exit 0:
 
+```bash
+python3 .claude/skills/cynefin-classifier/scripts/classify.py \
+  --problem "Description of the problem" \
+  --context "Additional context about constraints, environment"
+echo "exit=$?"   # must be 0; exit 1 = invalid arguments, exit 2 = insufficient information (Confusion domain)
+```
+
+- [ ] `classify.py` exited 0 (non-zero = classification failed or insufficient information; result is not valid)
 - [ ] Domain identified with confidence level (HIGH/MEDIUM/LOW)
 - [ ] Rationale explains cause-effect relationship
 - [ ] Response strategy matches the domain (not borrowed from another)

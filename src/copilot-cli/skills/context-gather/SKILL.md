@@ -2,7 +2,7 @@
 name: context-gather
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Gather comprehensive context from Forgetful Memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Delegates to the context-retrieval subagent to search across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection.
+description: Gather comprehensive context from Forgetful Memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Delegates to the context-retrieval subagent to search across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
 license: MIT
 ---
 
@@ -109,7 +109,7 @@ This skill delegates to the context-retrieval subagent, which uses:
 
 After execution, confirm:
 
-- [ ] At least two knowledge tiers were queried (e.g., Serena + Context7, or Forgetful + Web).
+- [ ] Reconciliation: `grep -c '^TIER_QUERIED:' <output>` >= 2 (emit one `TIER_QUERIED: <tier>` line per source actually queried)
 - [ ] Summary addresses the stated topic with specific findings, not generic advice.
 - [ ] `CONTEXT_LOADED: <topic>` marker line is present at the end of output.
 - [ ] No raw tool output was returned; findings are synthesized.

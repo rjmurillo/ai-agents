@@ -194,8 +194,8 @@ Use [exploring-knowledge-graph](../exploring-knowledge-graph/SKILL.md) instead w
 
 After curation operations:
 
-- [ ] Updated memories reflect accurate current state
-- [ ] Obsolete memories have clear reason documented
-- [ ] New links are bidirectional and meaningful
-- [ ] No duplicate memories remain on the same topic
+- [ ] Reconciliation: paste the `update_memory` tool response showing the memory ID and updated fields (not a claim)
+- [ ] Obsolete memories have a non-empty `reason` field in the `mark_memory_obsolete` response (paste the response)
+- [ ] Reconciliation: paste the `link_memories` response confirming both directions created (A-to-B and B-to-A)
+- [ ] Reconciliation: `query_memory` on the consolidated topic returns exactly 1 active result (paste the result count)
 - [ ] Curation changes were confirmed by user before execution

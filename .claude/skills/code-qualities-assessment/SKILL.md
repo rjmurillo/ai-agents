@@ -1,7 +1,7 @@
 ---
 name: code-qualities-assessment
 model: claude-sonnet-4-6
-description: Assess code maintainability through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance.
+description: Assess code maintainability through 5 foundational qualities (cohesion, coupling, encapsulation, testability, non-redundancy) with quantifiable scoring rubrics. Works at method/class/module levels across multiple languages. Produces markdown reports with remediation guidance. Use when you ask to "assess maintainability", "score cohesion/coupling/testability" on specific code. Do NOT use for a full pre-merge review (use review) or repo-wide domain grading (use quality-grades).
 version: 1.1.0
 license: MIT
 ---
@@ -168,13 +168,18 @@ Create `.qualityrc.json` to customize thresholds:
 
 ## Verification
 
-After running assessment:
+After running assessment, run the bundled validator and require exit 0:
 
+```bash
+python3 .claude/skills/code-qualities-assessment/scripts/assess.py --target <path>
+echo "exit=$?"   # must be 0; exit 11 means thresholds not met, exit 1 means script error
+```
+
+- [ ] `assess.py` exited 0 (exit 11 = thresholds not met; exit 1 = script error; neither is a pass)
 - [ ] All 5 qualities scored for each symbol
 - [ ] Scores are 1-10 (not null or out of range)
 - [ ] Remediation links provided for low scores
 - [ ] Report format is valid (markdown/JSON/HTML)
-- [ ] Exit code matches assessment result
 - [ ] Historical data saved to .quality-cache/
 
 ---
