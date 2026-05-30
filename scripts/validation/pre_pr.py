@@ -847,9 +847,12 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     fast and does not require a running Docker daemon.
 
     Contract: pass when no workflow changed or all run stages pass. A stage
-    failure (exit 1) blocks. A missing local tool (exit 3) does NOT block here,
-    because the pre-push gate is the authoritative enforcer; pre_pr only warns
-    so a contributor without actionlint installed is not stopped pre-PR.
+    failure (exit 1) blocks. A configuration error (exit 2: a path that escapes
+    the repo root, or a missing repo root) also blocks, because the inputs are
+    wrong and a clean run cannot be trusted. A missing local tool (exit 3) does
+    NOT block here, because the pre-push gate is the authoritative enforcer;
+    pre_pr only warns so a contributor without actionlint installed is not
+    stopped pre-PR.
     """
     script = repo_root / "scripts" / "validation" / "run_workflow_local_test.py"
     if not script.exists():
