@@ -71,6 +71,26 @@ def find_repo_root(start: Path) -> Path | None:
     return Path(top) if top else None
 
 
+def get_git_common_dir(repo_root: Path) -> Path | None:
+    """Return the shared git directory (common dir) for this repository.
+
+    For a regular checkout, this is the same as ``.git``. For a linked worktree,
+    this returns the main repository's ``.git`` directory, which is where shared
+    config (including ``core.hooksPath``) should be written so all worktrees
+    inherit the setting.
+    """
+    result = _run_git(["rev-parse", "--git-common-dir"], cwd=repo_root)
+    if result.returncode != 0:
+        return None
+    common = result.stdout.strip()
+    if not common:
+        return None
+    common_path = Path(common)
+    if not common_path.is_absolute():
+        common_path = repo_root / common_path
+    return common_path.resolve()
+
+
 def get_hooks_path(repo_root: Path) -> str | None:
     """Return the configured ``core.hooksPath`` value, or None if unset."""
     result = _run_git(["config", "--get", "core.hooksPath"], cwd=repo_root)
@@ -101,9 +121,20 @@ def hooks_path_points_at_canonical(repo_root: Path, value: str | None) -> bool:
 
 
 def set_hooks_path(repo_root: Path) -> bool:
-    """Point ``core.hooksPath`` at ``.githooks``. Return True on success."""
+    """Point ``core.hooksPath`` at ``.githooks`` in the shared repository config.
+
+    Uses ``--file`` targeting the shared config so linked worktrees inherit the
+    setting. Without this, ``git config`` from a linked worktree writes to the
+    worktree's private config, leaving other worktrees (including the primary
+    checkout) with an unset ``core.hooksPath``.
+    """
+    common_dir = get_git_common_dir(repo_root)
+    if common_dir is None:
+        return False
+    shared_config = common_dir / "config"
     result = _run_git(
-        ["config", "core.hooksPath", HOOKS_DIR_NAME], cwd=repo_root
+        ["config", "--file", str(shared_config), "core.hooksPath", HOOKS_DIR_NAME],
+        cwd=repo_root,
     )
     return result.returncode == 0
 
