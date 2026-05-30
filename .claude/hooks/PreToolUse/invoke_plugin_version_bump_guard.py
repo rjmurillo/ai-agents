@@ -81,8 +81,13 @@ def _import_validator(project_dir: Path):
     return vpb
 
 
-def _resolve_base(project_dir: Path) -> str | None:
+def _resolve_base(project_dir: Path) -> tuple[str | None, bool]:
     """Resolve the base ref for reading prior plugin.json versions.
+
+    Returns ``(ref, is_already_resolved)``. ``is_already_resolved`` is True
+    when the ref is ``@{push}`` or a merge-base SHA that the validator can
+    use directly; False when it's a fallback branch ref that the validator
+    must resolve via ``_resolve_merge_base``.
 
     Canonical source: ``.claude/hooks/PreToolUse/push_guard_base.py``,
     function ``_changed_files``. That function computes the changed-file set
@@ -111,13 +116,22 @@ def _resolve_base(project_dir: Path) -> str | None:
     the difference is who resolves it. A base branch that advanced its own
     version after the branch point therefore cannot produce a false
     "not increased" block.
+
+    When ``git merge-base`` fails (e.g., timeout or shallow clone), this
+    function falls back to the branch ref and returns ``is_already_resolved=False``
+    so the validator's ``_resolve_merge_base`` can retry. Passing
+    ``is_already_resolved=True`` with a branch ref would cause the validator
+    to read the manifest at the branch tip instead of the merge-base, creating
+    a mismatch with the three-dot changed-file semantics.
     """
     rc = _git(["rev-parse", "--verify", "--quiet", "@{push}"], project_dir)
     if rc == 0:
-        return "@{push}"
+        return "@{push}", True
     base_ref = _detect_default_base_ref(str(project_dir))
     merge_base = _git_stdout(["merge-base", base_ref, "HEAD"], project_dir)
-    return merge_base or base_ref
+    if merge_base:
+        return merge_base, True
+    return base_ref, False
 
 
 def _git(args: list[str], cwd: Path) -> int:
@@ -162,14 +176,14 @@ def _validate(_matching: list[str], all_changed: list[str]) -> list[str]:
     if vpb is None:
         return []
 
-    base_ref = _resolve_base(project_dir)
+    base_ref, base_resolved = _resolve_base(project_dir)
     if not base_ref:
         emit_fail_open(GUARD_NAME, "no_base_ref", "could not resolve a base ref")
         return []
 
     try:
         violations, config_errors = vpb.find_violations(
-            all_changed, base_ref=base_ref, repo_root=project_dir, base_already_resolved=True
+            all_changed, base_ref=base_ref, repo_root=project_dir, base_already_resolved=base_resolved
         )
     except Exception as exc:  # pragma: no cover - defensive fail-open
         emit_fail_open(GUARD_NAME, "validator_raised", f"{type(exc).__name__}: {exc}")
