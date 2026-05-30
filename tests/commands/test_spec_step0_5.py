@@ -722,10 +722,17 @@ def test_normalize_topic_collapses_separators_to_hyphen():
 
 
 def test_normalize_topic_strips_leading_dots_and_separators_and_lowercases():
-    """Rules 1-3: strip leading `/`, `\\`, `.`; lowercase; trim."""
+    """Rules 1-3: trim; strip leading `/`, `\\`, `.`; lowercase."""
     assert normalize_topic(".claude/commands/spec.md") == "claude/commands/spec.md"
     assert normalize_topic("  AUTH-Service  ") == "auth-service"
     assert normalize_topic("///leading") == "leading"
+    # Regression: leading whitespace must not defeat leading-dot stripping.
+    # Rule 1 (trim) runs before rule 2 (strip), so surrounding whitespace is
+    # removed before the leading-dot regex applies.
+    assert (
+        normalize_topic("  .claude/commands/spec.md  ")
+        == "claude/commands/spec.md"
+    )
 
 
 def test_normalize_topic_empty_and_separator_only_yield_empty_string():

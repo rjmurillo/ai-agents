@@ -115,9 +115,9 @@ def normalize_topic(raw: str) -> str:
     `.claude/commands/spec.md`, subsection `#### Step 0.5 topic extraction`,
     quoted verbatim:
 
-        1. Strip leading path separators (`/`, `\\`) AND leading dots (`.`).
-        2. Lowercase the string.
-        3. Trim leading and trailing whitespace.
+        1. Trim leading and trailing whitespace.
+        2. Strip leading path separators (`/`, `\\`) AND leading dots (`.`).
+        3. Lowercase the string.
         4. Collapse internal separator runs (whitespace, `-`, `_`) to a single
            hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline`
            all normalize to `spec-pipeline`.
@@ -127,8 +127,9 @@ def normalize_topic(raw: str) -> str:
     adjudication`). Returns the normalized hyphen-joined string. An all-
     separator or empty input normalizes to the empty string.
     """
-    stripped = _LEADING_PATH_DOTS_RE.sub("", raw)
-    lowered = stripped.lower().strip()
+    trimmed = raw.strip()
+    stripped = _LEADING_PATH_DOTS_RE.sub("", trimmed)
+    lowered = stripped.lower()
     collapsed = _SEPARATOR_RUN_RE.sub("-", lowered)
     return collapsed.strip("-")
 
