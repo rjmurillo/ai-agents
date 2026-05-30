@@ -752,7 +752,7 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     if output:
         print(output)
     if stderr.strip():
-        print(stderr.strip())
+        print(stderr.strip(), file=sys.stderr)
 
     # Default mode is soft-warn; the script already exits 0 unless
     # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
@@ -881,6 +881,48 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     return _run_build_script_gate(
         repo_root, "validate_plugin_version_bump.py", "plugin version-bump"
     )
+
+
+def validate_git_hooks_installed(repo_root: Path) -> bool:
+    """Fail when the local clone is not wired to run the canonical githooks.
+
+    Delegates to ``scripts/install_git_hooks.py --check``, which verifies that
+    ``core.hooksPath`` resolves to ``.githooks`` and the hook scripts exist and
+    are executable. A clone left on the default ``.git/hooks`` (or pointed at an
+    absolute path) silently bypasses every pre-push guard, including the plugin
+    version-bump gate, so drift here is a hard local failure.
+
+    Skipped under CI: a CI checkout neither has nor should have
+    ``core.hooksPath`` set to ``.githooks`` (the guards run as workflow steps,
+    not local hooks), so the check is irrelevant there.
+    """
+    if (
+        os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
+        or os.environ.get("CI", "").lower() in ("true", "1")
+    ):
+        raise MissingScriptSkip("git hooks check skipped under CI")
+    script = repo_root / "scripts" / "install_git_hooks.py"
+    if not script.exists():
+        print(
+            "[ERROR] install_git_hooks.py absent; the git-hooks gate cannot "
+            "run. Hard failure: the gate is the point of registering "
+            "this validator.",
+            file=sys.stderr,
+        )
+        return False
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--check", "--repo-root", str(repo_root)]
+    )
+    if stdout.strip():
+        print(stdout.strip())
+    if stderr.strip():
+        print(stderr.strip(), file=sys.stderr)
+    if exit_code != 0:
+        print(
+            "[FAIL] Local git hooks are not installed. "
+            "Run: python3 scripts/install_git_hooks.py"
+        )
+    return exit_code == 0
 
 
 def validate_workflow_local_run(repo_root: Path) -> bool:
@@ -1176,6 +1218,14 @@ def main(argv: list[str] | None = None) -> int:
         "Plugin Version Bump",
         state,
         lambda: validate_plugin_version_bump(repo_root),
+    )
+
+    # 6d. Git Hooks Installed (local clone must run the canonical .githooks;
+    # a desynced hooksPath bypasses the pre-push guards). Skipped under CI.
+    run_validation(
+        "Git Hooks Installed",
+        state,
+        lambda: validate_git_hooks_installed(repo_root),
     )
 
     # 6d. Workflow Local Run (actionlint + gh act dry-run for changed workflows)

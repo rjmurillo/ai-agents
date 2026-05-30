@@ -667,3 +667,104 @@ class TestValidateDashProhibition:
             # No file at tmp_path/doc.md (working tree). Function should
             # still detect the violation because it reads HEAD content.
             assert validate_dash_prohibition(tmp_path) is False
+
+
+# ---------------------------------------------------------------------------
+# validate_git_hooks_installed
+# ---------------------------------------------------------------------------
+
+
+class TestValidateGitHooksInstalled:
+    """The local-githooks gate delegates to install_git_hooks.py --check."""
+
+    def test_skipped_under_github_actions(self, tmp_path: Path) -> None:
+        import pytest
+
+        from scripts.validation.pre_pr import (
+            MissingScriptSkip,
+            validate_git_hooks_installed,
+        )
+
+        with patch.dict("os.environ", {"GITHUB_ACTIONS": "true"}, clear=False):
+            with pytest.raises(MissingScriptSkip):
+                validate_git_hooks_installed(tmp_path)
+
+    def test_skipped_under_ci(self, tmp_path: Path) -> None:
+        import pytest
+
+        from scripts.validation.pre_pr import (
+            MissingScriptSkip,
+            validate_git_hooks_installed,
+        )
+
+        env = {"CI": "1"}
+        with patch.dict("os.environ", env, clear=False):
+            # Ensure GITHUB_ACTIONS does not mask the CI branch.
+            import os
+
+            os.environ.pop("GITHUB_ACTIONS", None)
+            with pytest.raises(MissingScriptSkip):
+                validate_git_hooks_installed(tmp_path)
+
+    def test_not_skipped_when_ci_is_false(self, tmp_path: Path) -> None:
+        """CI=false or CI=0 should NOT skip the check (they are non-truthy)."""
+        import os
+
+        from scripts.validation.pre_pr import (
+            MissingScriptSkip,
+            validate_git_hooks_installed,
+        )
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        env = {"CI": "false"}
+        with patch.dict("os.environ", env, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            with patch(
+                "scripts.validation.pre_pr._run_subprocess"
+            ) as mock_run:
+                mock_run.return_value = (0, "OK", "")
+                assert validate_git_hooks_installed(tmp_path) is True
+
+    def test_missing_script_fails_closed(self, tmp_path: Path) -> None:
+        import os
+
+        from scripts.validation.pre_pr import validate_git_hooks_installed
+
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            # tmp_path has no scripts/install_git_hooks.py; expect hard failure
+            assert validate_git_hooks_installed(tmp_path) is False
+
+    def test_passes_when_check_exits_zero(self, tmp_path: Path) -> None:
+        import os
+
+        from scripts.validation.pre_pr import validate_git_hooks_installed
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            with patch(
+                "scripts.validation.pre_pr._run_subprocess"
+            ) as mock_run:
+                mock_run.return_value = (0, "OK", "")
+                assert validate_git_hooks_installed(tmp_path) is True
+
+    def test_fails_when_check_exits_nonzero(self, tmp_path: Path) -> None:
+        import os
+
+        from scripts.validation.pre_pr import validate_git_hooks_installed
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            with patch(
+                "scripts.validation.pre_pr._run_subprocess"
+            ) as mock_run:
+                mock_run.return_value = (1, "", "core.hooksPath not set")
+                assert validate_git_hooks_installed(tmp_path) is False
