@@ -1,6 +1,6 @@
 ---
 name: serena-code-architecture
-description: Architectural analysis workflow using Serena symbols and Forgetful memory. Use when analyzing project structure, documenting architecture, creating component entities, or building knowledge graphs from code.
+description: Architectural analysis workflow using Serena symbols and Forgetful memory. Use when you say "analyze the architecture of this project", "map out the codebase structure", "trace dependencies for this component", "document the architecture", or "what components does this project have". Do NOT use to populate the knowledge base from scratch (use encode-repo-serena) or for symbol-edit guidance (use using-serena-symbols).
 license: MIT
 metadata:
 version: 1.0.0

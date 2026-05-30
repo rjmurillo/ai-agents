@@ -3,7 +3,9 @@ name: memory
 version: 0.2.0
 description: Unified four-tier memory system for AI agents. Tier 1 Semantic (Serena+Forgetful
   search), Tier 2 Episodic (session replay), Tier 3 Causal (decision patterns). Enables
-  memory-first architecture per ADR-007.
+  memory-first architecture per ADR-007. Use when you ask "what do we know about X",
+  "recall prior context", "search memory". Do NOT use for adding citations to existing
+  memories (use memory-enhancement) or for narrative cross-system reports (use memory-documentary).
 license: MIT
 model: claude-sonnet-4-6
 metadata:

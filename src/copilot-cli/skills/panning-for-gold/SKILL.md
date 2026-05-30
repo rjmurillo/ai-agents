@@ -2,7 +2,7 @@
 name: panning-for-gold
 version: 1.0.0
 model: claude-sonnet-4-6
-description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file. Four phases: front-gate, extract, evaluate, synthesize."
+description: "Triage raw unstructured input (transcripts, brain dumps) into evaluated thread inventories and a synthesized gold-found file. Four phases: front-gate, extract, evaluate, synthesize. Use when you say \"pan for gold\", \"triage transcript\", \"synthesize gold-found\", or hand it a voice transcript or brain dump. Do NOT use for structured input like specs or ADRs (use analyst or spec-generator instead)."
 license: MIT
 ---
 

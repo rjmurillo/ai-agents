@@ -4,7 +4,9 @@ version: 1.0.0
 description: Generate evidence-based documentary reports by searching across all 4
   memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, and
   GitHub issues. Produces investigative journalism-style analysis with full citation
-  chains.
+  chains. Use when you ask for an "evidence-based report", "investigate across all
+  memory systems", "what happened with X over time". Do NOT use for a single semantic
+  recall (use memory) or for citation hygiene (use memory-enhancement).
 license: MIT
 model: claude-sonnet-4-6
 metadata:

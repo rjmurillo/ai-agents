@@ -2,7 +2,7 @@
 name: chestertons-fence
 version: 1.1.0
 model: claude-sonnet-4-6
-description: Investigate historical context of existing code, patterns, or constraints before proposing changes. Automates git archaeology, PR/ADR search, and dependency analysis to prevent removing structures without understanding their purpose.
+description: Investigate historical context of existing code, patterns, or constraints before proposing changes. Automates git archaeology, PR/ADR search, and dependency analysis to prevent removing structures without understanding their purpose. Use when you ask "why does this code/constraint exist", "is it safe to remove this". Do NOT use for forward-risk analysis (use pre-mortem).
 license: MIT
 user-invocable: true
 ---

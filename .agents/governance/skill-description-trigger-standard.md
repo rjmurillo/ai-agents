@@ -67,6 +67,32 @@ description: Research external topics, create comprehensive analysis, determine
 | "Populates Forgetful via LSP" | Too technical, no when | "Encode codebase into searchable knowledge graph. Use when onboarding to repository or refreshing project understanding." |
 | "Collects metrics" | No use case | "Collect agent usage metrics from git history. Use when measuring agent adoption or system health over time." |
 
+### SKIP Clause for Sibling Families
+
+When a skill shares a naming family with a sibling (skills whose names share a prefix or theme, such as `memory*`, `context*`, `session*`, `security*`, `adr-*`), its description **MUST** include a SKIP clause that names the sibling and routes away from it.
+
+A positive trigger alone over-triggers across the family: the router matches the shared keyword and cannot deterministically pick the right member. The remediation is a negative trigger. This is the Over-triggering remediation from the wiki `Skill Triggering Failure Modes` page: "Add negative triggers: 'Do NOT use for X (use Y skill instead).'"
+
+**Format**:
+
+```
+Do NOT use for [sibling's job]; use [sibling-name] instead.
+```
+
+**Rules**:
+
+- Name a real sibling artifact that exists in the repo.
+- Make clauses reciprocal: if A points to B, B points back to A (or to the chaining parent, when one sibling orchestrates the others).
+- Keep the description under 1024 chars and free of angle brackets (AIP-02).
+
+**Example** (`context-gather` vs `context-optimizer`, which both match "context" but do opposite jobs):
+
+```yaml
+description: Gather context from memory and docs before planning. Use when you say
+  "gather context before planning". Do NOT use for compressing or placing skill
+  text; use context-optimizer instead.
+```
+
 ---
 
 ## Part 2: Body Structure (Progressive Disclosure)
@@ -271,6 +297,7 @@ Before marking skill complete:
 ## References
 
 - [Skill Description Trigger Review](../analysis/skill-description-trigger-review.md) - 28-skill analysis
+- `Skill Triggering Failure Modes` (wiki: Agent Instruction Patterns) - Over-triggering remediation backing the SKIP clause requirement
 - [SkillForge Specification](../../.claude/skills/SkillForge/SKILL.md) - Skill creation framework
 - [Session 372](../sessions/2026-01-03-session-372.md) - Standard creation session
 - [ADR Review Debate Log](../critique/skill-description-trigger-standard-debate-log.md) - P0 issues addressed

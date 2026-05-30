@@ -1,7 +1,7 @@
 ---
 name: review
 version: 1.0.0
-description: Review before merge. Nine-axis review across 6 canonical axes (analyst, architect, qa, security, devops, roadmap) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test.
+description: Review before merge. Nine-axis review across 6 canonical axes (analyst, architect, qa, security, devops, roadmap) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test. Run for a full pre-merge review. Do NOT invoke code-qualities-assessment, taste-lints, or quality-grades directly for a full review; review chains them.
 argument-hint:
   - branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)

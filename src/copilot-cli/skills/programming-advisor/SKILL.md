@@ -1,6 +1,6 @@
 ---
 name: programming-advisor
-description: Evaluate existing solutions (libraries, SaaS, open source) before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", or need build vs buy cost analysis with token estimates.
+description: Evaluate existing solutions (libraries, SaaS, open source) before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", or need build vs buy cost analysis with token estimates. Use when you ask "is there a library for this", "should I build or use existing". Do NOT use for strategic multi-option TCO (use buy-vs-build-framework).
 license: MIT
 metadata:
   version: 1.0.0
