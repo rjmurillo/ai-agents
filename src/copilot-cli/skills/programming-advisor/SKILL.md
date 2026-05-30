@@ -13,10 +13,10 @@ metadata:
 
 | Trigger Phrase | Action |
 |----------------|--------|
-| "should I build X or use a library" | Search existing solutions, provide comparison |
-| "find existing solutions for X" | Web search, categorize findings |
-| "is there a package for X" | Search npm/pip/cargo/etc |
-| "build vs buy for X" | Generate cost comparison table |
+| "should I build X or use a library" | Search internal prior-art first (Step 2a), then external solutions, provide comparison |
+| "find existing solutions for X" | Search internal prior-art first (Step 2a), then web search, categorize findings |
+| "is there a package for X" | Check existing dependencies first (Step 2a), then search npm/pip/cargo/etc |
+| "build vs buy for X" | Tactical: generate cost comparison table; Strategic (>$50K, multi-year, partner/defer options): delegate to `buy-vs-build-framework` |
 | "check if X exists before building" | Run full wheel detection workflow |
 | "do we already have X" / "is there existing code for X in this repo" | Search internal prior-art first (leverage/extend), then external |
 
