@@ -470,8 +470,16 @@ fi
 # SKIP_WORKFLOW_LOCAL_TEST=true.
 if [ -n "$CHANGED_WORKFLOWS" ]; then
     WF_LOCAL_SCRIPT="$REPO_ROOT/scripts/validation/run_workflow_local_test.py"
-    if [ -L "$WF_LOCAL_SCRIPT" ]; then
-        record_warn "Workflow local-run script is a symlink (skipping)"
+    # Fail closed: the gate exists to REQUIRE a local run. A missing, symlinked,
+    # or unrunnable validator MUST block the push, not silently skip it. The only
+    # escape is the documented, audible bypass.
+    WF_BYPASS=$(printf '%s' "${SKIP_WORKFLOW_LOCAL_TEST:-}" | tr '[:upper:]' '[:lower:]')
+    if [ "$WF_BYPASS" = "true" ] || [ "$WF_BYPASS" = "1" ]; then
+        record_warn "Workflow local run BYPASSED (SKIP_WORKFLOW_LOCAL_TEST set)"
+    elif [ -L "$WF_LOCAL_SCRIPT" ]; then
+        record_fail "Workflow local-run script is a symlink; refusing to skip the gate"
+        echo_info "  Restore scripts/validation/run_workflow_local_test.py, or set"
+        echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
     elif [ -f "$WF_LOCAL_SCRIPT" ] && set_python_cmd; then
         WF_FILES=()
         while IFS= read -r file; do
@@ -487,16 +495,12 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
                 > "$WF_LOCAL_OUTPUT" 2>&1
             WF_LOCAL_RC=$?
             if [ $WF_LOCAL_RC -eq 0 ]; then
-                if grep -q "BYPASSED" "$WF_LOCAL_OUTPUT" 2>/dev/null; then
-                    cat "$WF_LOCAL_OUTPUT"
-                    record_warn "Workflow local run BYPASSED (SKIP_WORKFLOW_LOCAL_TEST=true)"
-                else
-                    record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
-                fi
+                record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
             elif [ $WF_LOCAL_RC -eq 3 ]; then
                 cat "$WF_LOCAL_OUTPUT"
                 record_fail "Workflow local run: required tool unavailable"
-                echo_info "  Install actionlint + Docker, or set"
+                echo_info "  Install actionlint, the gh act extension"
+                echo_info "  (gh extension install nektos/gh-act), and Docker, or set"
                 echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
             else
                 cat "$WF_LOCAL_OUTPUT"
@@ -509,7 +513,10 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
             record_skip "Workflow local run (no accessible files)"
         fi
     else
-        record_skip "Workflow local run (script or Python unavailable)"
+        record_fail "Workflow local run: validator script or Python unavailable"
+        echo_info "  Install Python 3 and restore"
+        echo_info "  scripts/validation/run_workflow_local_test.py, or set"
+        echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
     fi
 else
     record_skip "Workflow local run (no workflow files changed)"
