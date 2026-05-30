@@ -15,14 +15,13 @@ Read first, reason second. Pre-training last resort.
 |Protocol: `.agents/SESSION-PROTOCOL.md`
 |Skills: `.claude/skills/{name}/SKILL.md`
 
-**Memory lookup** (cheapest → last resort; never start with `list_memories`):
+**Memory lookup**: use the `memory` skill, don't hand-roll:
 
-1. **Guess + read**: `read_memory("<intuitive-name>")` directly. Names are activation-vocab by design (aim >80% hit); a miss returns a cheap "not found" string, not a list.
-2. **Index-first** (unknown exact name): read the domain router `skills-<domain>-index` / `<domain>/...-index` (small), then `read_memory` the linked file.
-3. **Root router** (domain unclear): `read_memory("memory-index")` (keyword → file table).
-4. **Last resort only**: `list_memories(topic="<dir>")` (namespace = top folder like `git`/`adr`, not keywords), then bare `list_memories` (800+ files, ~73KB).
+1. **Primary**: `python3 .claude/skills/memory/scripts/search_memory.py "<query>"` (Serena-first + Forgetful, ranked, token-bounded ~2K). Returns the right `*-index`/atomic file; then `read_memory` it.
+2. **Deep context** before planning: delegate to `context-retrieval` agent. Human CLI: `/memory-search`.
+3. **Raw fallback** (scripting): guess `read_memory("<intuitive-name>")` (miss = cheap "not found", not a list) → domain `*-index` → `read_memory("memory-index")`. NEVER bare `list_memories` (800+ files, ~73KB); `topic="<dir>"` filters by namespace folder only, not keywords.
 
-When adding a memory, update its `*-index` so the next agent finds it by name. Atomic files + indexes are deliberate (no embeddings; filename = activation vocab): see `memory-token-efficiency`, `memory-size-001-decomposition-thresholds`. Do NOT consolidate atomic memories to cheapen listing; it breaks discovery + cross-links.
+On add: update the `*-index` so the next agent finds it by name. Atomic files + indexes are deliberate (no embeddings; filename = activation vocab): see `memory-token-efficiency`, `memory-size-001-decomposition-thresholds`. Do NOT consolidate atomic memories to cheapen listing; it breaks discovery + cross-links.
 
 ## Session Gates
 
