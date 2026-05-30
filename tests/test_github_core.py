@@ -42,9 +42,9 @@ from scripts.github_core import (
 from scripts.github_core.api import _403_PATTERN
 from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
+from tests.mock_fidelity import assert_mock_keys_match
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-from tests.mock_fidelity import assert_mock_keys_match
 
 # ---------------------------------------------------------------------------
 # Helpers
