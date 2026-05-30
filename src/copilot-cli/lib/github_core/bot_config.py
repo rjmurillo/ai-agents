@@ -78,21 +78,13 @@ def _cache_bot_config(
 def _strip_inline_comment(value: str) -> str:
     """Drop a YAML inline comment from *value*.
 
-    A ``#`` at index 0, or one preceded by a space or tab, starts a comment
-    unless it is inside a quoted section. A ``#`` with a non-space character
-    before it is part of the value: ``foo # note`` becomes ``foo``;
-    ``foo#bar`` stays ``foo#bar``. Quoted sections (single or double quotes)
-    are respected: ``'foo # bar'`` stays ``'foo # bar'``. The returned value
-    is stripped of surrounding whitespace.
+    A ``#`` at index 0, or one preceded by a space or tab, starts a comment. A
+    ``#`` with a non-space character before it is part of the value:
+    ``foo # note`` becomes ``foo``; ``foo#bar`` stays ``foo#bar``. The returned
+    value is stripped of surrounding whitespace.
     """
-    in_quote: str | None = None
     for i, char in enumerate(value):
-        if char in ("'", '"'):
-            if in_quote is None:
-                in_quote = char
-            elif in_quote == char:
-                in_quote = None
-        elif in_quote is None and char == "#" and (i == 0 or value[i - 1] in (" ", "\t")):
+        if char == "#" and (i == 0 or value[i - 1] in (" ", "\t")):
             return value[:i].strip()
     return value.strip()
 
