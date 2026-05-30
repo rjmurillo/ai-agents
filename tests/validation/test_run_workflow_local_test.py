@@ -13,7 +13,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
+_VALIDATION_DIR = str(REPO_ROOT / "scripts" / "validation")
+if _VALIDATION_DIR not in sys.path:
+    sys.path.insert(0, _VALIDATION_DIR)
 
 import run_workflow_local_test as w  # noqa: E402
 
@@ -22,7 +24,7 @@ WF = ".github/workflows/x.yml"
 
 @pytest.fixture
 def all_tools(monkeypatch):
-    """Pretend actionlint, gh, the gh-act extension, and Docker are available."""
+    """Pretend actionlint, gh, the gh act extension, and Docker are available."""
     monkeypatch.setattr(w, "_have", lambda tool: True)
     monkeypatch.setattr(w, "_gh_act_available", lambda: True)
     monkeypatch.setattr(w, "_docker_ready", lambda: True)
@@ -47,10 +49,62 @@ def test_bypass_env_short_circuits(monkeypatch, tmp_path):
     assert r.bypassed is True
 
 
+def test_bypass_env_accepts_one(monkeypatch, tmp_path):
+    # Matches the repo convention: boolean env flags accept "1" and "true".
+    monkeypatch.setenv(w._BYPASS_ENV, "1")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert r.bypassed is True
+
+
 def test_no_files_passes(all_tools, tmp_path):
     r = w.run_local_test([], tmp_path)
     assert r.exit_code == 0
     assert r.stages == []
+
+
+# --- path containment (CWE-22) + workflow filtering ----------------------
+
+
+def test_path_traversal_is_exit_2(all_tools, tmp_path):
+    # A path that escapes repo_root must be rejected as a config error, not run.
+    r = w.run_local_test(["../../etc/passwd"], tmp_path)
+    assert r.exit_code == 2
+    assert "escapes repository root" in r.note
+
+
+def test_absolute_path_outside_repo_is_exit_2(all_tools, tmp_path):
+    r = w.run_local_test(["/etc/passwd"], tmp_path)
+    assert r.exit_code == 2
+    assert "escapes repository root" in r.note
+
+
+def test_non_workflow_paths_are_filtered_out(all_tools, monkeypatch, tmp_path):
+    # Custom actions and unrelated YAML never run under gh act; they drop out
+    # and, with nothing left to test, the run is a clean no-op.
+    r = w.run_local_test(
+        [".github/actions/foo/action.yml", "README.md"], tmp_path
+    )
+    assert r.exit_code == 0
+    assert r.note == "no workflow files to test"
+
+
+def test_select_workflow_files_keeps_only_workflows(tmp_path):
+    selected, err = w._select_workflow_files(
+        [
+            ".github/workflows/ci.yml",
+            ".github/workflows/release.yaml",
+            ".github/actions/build/action.yml",
+            "docs/x.yml",
+            "",
+        ],
+        tmp_path,
+    )
+    assert err is None
+    assert selected == [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yaml",
+    ]
 
 
 # --- tool / docker gaps --------------------------------------------------
@@ -74,6 +128,7 @@ def test_gh_missing_is_exit_3(monkeypatch, tmp_path):
 
 
 def test_gh_act_extension_missing_is_exit_3(monkeypatch, tmp_path):
+    # gh is present but the act extension is not -> exit 3 before dry-run.
     monkeypatch.setattr(w, "_have", lambda tool: True)
     monkeypatch.setattr(w, "_gh_act_available", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))

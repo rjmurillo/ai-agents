@@ -58,6 +58,18 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 _BYPASS_ENV = "SKIP_WORKFLOW_LOCAL_TEST"
 
+# Truthy values for the bypass env. Matches the repo convention for boolean
+# env flags (see BUNDLE_CHECK_ENFORCED in scripts/validation/pre_pr.py, which
+# accepts "1" and "true").
+_TRUTHY = {"1", "true"}
+
+# Only GitHub Actions workflow files can run under ``gh act``. Custom actions
+# under ``.github/actions/`` and any other path are filtered out before the act
+# stages so a caller that over-collects (the pre-push hook globs changed files)
+# does not hand a non-runnable path to ``gh act``.
+_WORKFLOW_PREFIX = ".github/workflows/"
+_WORKFLOW_SUFFIXES = (".yml", ".yaml")
+
 # Per-stage timeouts (seconds). The full act run pulls images and executes
 # composite actions, so it gets the largest budget.
 _ACTIONLINT_TIMEOUT = 60
@@ -121,6 +133,35 @@ def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int,
     return proc.returncode, proc.stdout, proc.stderr
 
 
+def _select_workflow_files(
+    workflow_files: Sequence[str], repo_root: Path
+) -> tuple[list[str], str | None]:
+    """Resolve, contain, and filter the candidate files.
+
+    Returns ``(files, error)``. ``files`` are repo-relative workflow paths safe
+    to hand to ``actionlint`` and ``gh act``. ``error`` is non-None when a path
+    escapes ``repo_root`` (CWE-22 path traversal); the caller maps that to a
+    configuration error (exit 2).
+
+    Containment uses ``Path.resolve()`` + ``is_relative_to`` rather than a
+    string prefix check, so symlinks and ``..`` segments cannot smuggle a path
+    outside the repository. Non-workflow paths (custom actions, unrelated YAML)
+    are dropped silently because only ``.github/workflows`` files run under act.
+    """
+    root = repo_root.resolve()
+    selected: list[str] = []
+    for candidate in workflow_files:
+        if not candidate:
+            continue
+        resolved = (root / candidate).resolve()
+        if not resolved.is_relative_to(root):
+            return [], f"path escapes repository root: {candidate}"
+        rel = resolved.relative_to(root).as_posix()
+        if rel.startswith(_WORKFLOW_PREFIX) and rel.endswith(_WORKFLOW_SUFFIXES):
+            selected.append(rel)
+    return selected, None
+
+
 # --- Stages --------------------------------------------------------------
 
 
@@ -170,14 +211,16 @@ def run_local_test(
     as exit 3 so the caller can decide how loudly to block. A clean run over
     zero files is exit 0.
     """
-    if os.environ.get(_BYPASS_ENV, "").lower() == "true":
+    if os.environ.get(_BYPASS_ENV, "").strip().lower() in _TRUTHY:
         return Report(
             exit_code=0,
             bypassed=True,
-            note=f"{_BYPASS_ENV}=true; local workflow run skipped (logged).",
+            note=f"{_BYPASS_ENV} set; local workflow run skipped (logged).",
         )
 
-    files = [f for f in workflow_files if f]
+    files, path_error = _select_workflow_files(workflow_files, repo_root)
+    if path_error is not None:
+        return Report(exit_code=2, note=path_error)
     if not files:
         return Report(exit_code=0, note="no workflow files to test")
 
