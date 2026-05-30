@@ -838,6 +838,46 @@ def validate_install_parity(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_plugin_version_bump(repo_root: Path) -> bool:
+    """Fail when a plugin source dir changed without a plugin.json bump.
+
+    Wraps ``build/scripts/validate_plugin_version_bump.py``. The script exits
+    0 when every touched plugin was version-bumped (or nothing relevant
+    changed), 1 when a touched plugin's version did not increase, and 2 on a
+    configuration error (unparseable version, git unavailable). Exit 1 and 2
+    are both hard failures here.
+
+    Like the install-parity gate, this fails closed when the validator is
+    absent (a silent skip would defeat the gate) and when the branch base ref
+    cannot be resolved (so the validator never diffs against an unknown base).
+    """
+    script = repo_root / "build" / "scripts" / "validate_plugin_version_bump.py"
+    if not script.exists():
+        print(
+            "[ERROR] validate_plugin_version_bump.py absent; the plugin "
+            "version-bump gate cannot run. Hard failure: the gate is the "
+            "point of registering this validator.",
+            file=sys.stderr,
+        )
+        return False
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if not base_ref:
+        print(
+            "[ERROR] plugin version-bump gate: base ref could not be "
+            "resolved; refusing to invoke validator without an explicit "
+            "--base.",
+            file=sys.stderr,
+        )
+        return False
+    cmd = [sys.executable, str(script), "--base", base_ref]
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:80]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_command_bundle_coverage(repo_root: Path) -> bool:
     """SPEC-005 advisory check: each lifecycle command invokes its bundled skills.
 
@@ -1056,6 +1096,13 @@ def main(argv: list[str] | None = None) -> int:
         "Install Parity (agents and rules)",
         state,
         lambda: validate_install_parity(repo_root),
+    )
+
+    # 6c. Plugin Version Bump (source change requires a plugin.json bump; #2118)
+    run_validation(
+        "Plugin Version Bump",
+        state,
+        lambda: validate_plugin_version_bump(repo_root),
     )
 
     # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)
