@@ -15,7 +15,14 @@ Read first, reason second. Pre-training last resort.
 |Protocol: `.agents/SESSION-PROTOCOL.md`
 |Skills: `.claude/skills/{name}/SKILL.md`
 
-**Memory lookup**: NEVER bare `list_memories` (800+ atomic files, ~73KB/call). Filter by namespace: `list_memories(topic="<dir>")` where `<dir>` is the top-level folder prefix (`git`, `adr`, `memory`, `pr-review`); it matches the directory, not arbitrary keywords (so `topic="git-hooks"` is empty, `topic="git"` returns `git/git-hooks-*`). Or read a `*-index` registry then `read_memory` the one file. Atomic files + index is deliberate (no embeddings; name = activation vocab): see `memory-token-efficiency`, `memory-size-001-decomposition-thresholds`. Do NOT consolidate atomic memories to cheapen listing; it breaks discovery + cross-links.
+**Memory lookup** (cheapest → last resort; never start with `list_memories`):
+
+1. **Guess + read**: `read_memory("<intuitive-name>")` directly. Names are activation-vocab by design (aim >80% hit); a miss returns a cheap "not found" string, not a list.
+2. **Index-first** (unknown exact name): read the domain router `skills-<domain>-index` / `<domain>/...-index` (small), then `read_memory` the linked file.
+3. **Root router** (domain unclear): `read_memory("memory-index")` (keyword → file table).
+4. **Last resort only**: `list_memories(topic="<dir>")` (namespace = top folder like `git`/`adr`, not keywords), then bare `list_memories` (800+ files, ~73KB).
+
+When adding a memory, update its `*-index` so the next agent finds it by name. Atomic files + indexes are deliberate (no embeddings; filename = activation vocab): see `memory-token-efficiency`, `memory-size-001-decomposition-thresholds`. Do NOT consolidate atomic memories to cheapen listing; it breaks discovery + cross-links.
 
 ## Session Gates
 
