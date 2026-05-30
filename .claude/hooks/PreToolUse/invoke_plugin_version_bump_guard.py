@@ -169,7 +169,7 @@ def _validate(_matching: list[str], all_changed: list[str]) -> list[str]:
 
     try:
         violations, config_errors = vpb.find_violations(
-            all_changed, base_ref=base_ref, repo_root=project_dir
+            all_changed, base_ref=base_ref, repo_root=project_dir, base_already_resolved=True
         )
     except Exception as exc:  # pragma: no cover - defensive fail-open
         emit_fail_open(GUARD_NAME, "validator_raised", f"{type(exc).__name__}: {exc}")

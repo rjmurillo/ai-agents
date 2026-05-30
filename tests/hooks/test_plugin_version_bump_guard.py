@@ -89,7 +89,7 @@ def _run(diff_stdout, find_violations_fake, tmp_path):
 
 class TestClean:
     def test_source_changed_with_bump_passes(self, push_command, tmp_path, capsys):
-        def find_violations(changed, *, base_ref, repo_root):
+        def find_violations(changed, *, base_ref, repo_root, base_already_resolved=False):
             return [], []
 
         rc = _run(".claude/skills/foo/SKILL.md\n", find_violations, tmp_path)
@@ -99,7 +99,7 @@ class TestClean:
 
 class TestNotBumped:
     def test_not_bumped_blocks_with_hint(self, push_command, tmp_path, capsys):
-        def find_violations(changed, *, base_ref, repo_root):
+        def find_violations(changed, *, base_ref, repo_root, base_already_resolved=False):
             return [_violation()], []
 
         rc = _run(".claude/skills/foo/SKILL.md\n", find_violations, tmp_path)
@@ -115,7 +115,7 @@ class TestShortCircuit:
     def test_non_plugin_change_skips_validator(self, push_command, tmp_path):
         invoked = {"called": False}
 
-        def find_violations(changed, *, base_ref, repo_root):
+        def find_violations(changed, *, base_ref, repo_root, base_already_resolved=False):
             invoked["called"] = True
             return [], []
 
@@ -126,7 +126,7 @@ class TestShortCircuit:
 
 class TestConfigErrorFailsOpen:
     def test_config_error_does_not_block(self, push_command, tmp_path):
-        def find_violations(changed, *, base_ref, repo_root):
+        def find_violations(changed, *, base_ref, repo_root, base_already_resolved=False):
             return [], [".claude/.claude-plugin/plugin.json: bad version"]
 
         rc = _run(".claude/skills/foo/SKILL.md\n", find_violations, tmp_path)
@@ -135,14 +135,16 @@ class TestConfigErrorFailsOpen:
 
 class TestBaseForwarded:
     def test_resolved_base_forwarded(self, push_command, tmp_path):
-        seen = {"base_ref": None}
+        seen = {"base_ref": None, "base_already_resolved": None}
 
-        def find_violations(changed, *, base_ref, repo_root):
+        def find_violations(changed, *, base_ref, repo_root, base_already_resolved=False):
             seen["base_ref"] = base_ref
+            seen["base_already_resolved"] = base_already_resolved
             return [], []
 
         _run(".claude/skills/foo/SKILL.md\n", find_violations, tmp_path)
         assert seen["base_ref"] == "@{push}"
+        assert seen["base_already_resolved"] is True
 
 
 class TestImportFailOpen:
