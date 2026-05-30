@@ -19,6 +19,7 @@ See: ADR-035 Exit Code Standardization
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -47,6 +48,36 @@ GH_PATTERNS = (
 
 # File extensions to check
 VALID_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
+
+# Directories pruned from the full-tree walk.
+#
+# Performance contract (issue #2047 / #2010): a full-tree scan via --path or
+# the default walk MUST finish well under the 60-second pytest subprocess
+# timeout in tests/test_detect_skill_violation.py (and the 30-second
+# new_pr.py validation budget). The prior walk used rglob over the whole
+# tree and only filtered .git and node_modules AFTER the walk, so it still
+# descended into and counted every file in the largest subtrees. Measured
+# from the repo root: 50390 files, ~32s wall clock; .venv alone was 32171
+# files and the .claude tree (which holds agent worktrees, each a full repo
+# copy) was 17074.
+#
+# These directories hold no source the scanner needs and dominate the cost
+# as the checkout grows. os.walk prunes by directory basename, so the bare
+# name "worktrees" prunes the whole .claude/worktrees subtree. When the repo
+# grows, add hot directories here rather than widening the walk.
+SKIP_DIRS = frozenset(
+    {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "worktrees",
+    }
+)
 
 
 @dataclass
@@ -116,20 +147,26 @@ def get_staged_files(repo_root: Path) -> list[str]:
 def get_all_files(repo_root: Path) -> list[str]:
     """Get all relevant files in the repository.
 
+    Walks the tree once with os.walk and prunes SKIP_DIRS in place so the
+    walk never descends into the largest, source-free subtrees (.venv, agent
+    worktrees, caches). See the SKIP_DIRS comment for the performance
+    contract behind issue #2047 / #2010.
+
     Args:
         repo_root: Repository root path.
 
     Returns:
-        List of file paths (relative to repo root).
+        List of file paths (relative to repo root), POSIX-separated.
     """
-    files = []
-    for ext in VALID_EXTENSIONS:
-        for path in repo_root.rglob(f"*{ext}"):
-            # Skip .git and node_modules directories
-            rel_path = path.relative_to(repo_root)
-            if ".git" in rel_path.parts or "node_modules" in rel_path.parts:
+    files: list[str] = []
+    for current_dir, dir_names, file_names in os.walk(repo_root):
+        # Prune in place so os.walk does not descend into skipped subtrees.
+        dir_names[:] = [d for d in dir_names if d not in SKIP_DIRS]
+        for name in file_names:
+            if Path(name).suffix not in VALID_EXTENSIONS:
                 continue
-            files.append(str(rel_path).replace("\\", "/"))
+            rel_path = Path(current_dir, name).relative_to(repo_root)
+            files.append(rel_path.as_posix())
     return files
 
 

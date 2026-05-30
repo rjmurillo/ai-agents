@@ -17,6 +17,7 @@ import pytest
 
 from scripts.detect_skill_violation import (
     GH_PATTERNS,
+    SKIP_DIRS,
     VALID_EXTENSIONS,
     Violation,
     check_file_for_violations,
@@ -170,6 +171,59 @@ class TestGetAllFiles:
         result = get_all_files(test_repo)
 
         assert not any(f.endswith(".txt") for f in result)
+
+    @pytest.mark.parametrize(
+        "skip_dir",
+        ["worktrees", ".venv", ".pytest_cache", ".mypy_cache", "node_modules"],
+    )
+    def test_prunes_high_cost_dirs(self, tmp_path: Path, skip_dir: str) -> None:
+        """Each high-cost directory in SKIP_DIRS is pruned from the walk.
+
+        Regression guard for #2047 / #2010. The unbounded growth that caused
+        the timeout came from descending into .venv and into agent worktrees
+        (.claude/worktrees holds a full repo copy per worktree). Pruning by
+        basename keeps the walk bounded as those subtrees accumulate.
+        """
+        pruned = tmp_path / skip_dir
+        pruned.mkdir()
+        (pruned / "buried.md").write_text("gh pr create")
+        kept = tmp_path / "src"
+        kept.mkdir()
+        (kept / "real.md").write_text("# real")
+
+        result = get_all_files(tmp_path)
+
+        assert "src/real.md" in result
+        assert not any("buried.md" in f for f in result)
+
+    def test_prunes_nested_worktrees_subtree(self, tmp_path: Path) -> None:
+        """A worktree nested under .claude is pruned, not just a top dir.
+
+        Mirrors the real layout (.claude/worktrees/<agent>/...), the exact
+        subtree that drove the 50390-file walk in #2047 / #2010.
+        """
+        worktree_copy = tmp_path / ".claude" / "worktrees" / "agent-x" / "scripts"
+        worktree_copy.mkdir(parents=True)
+        (worktree_copy / "copy.py").write_text("gh pr create")
+        real = tmp_path / "scripts"
+        real.mkdir()
+        (real / "real.py").write_text("# real")
+
+        result = get_all_files(tmp_path)
+
+        assert "scripts/real.py" in result
+        assert not any("copy.py" in f for f in result)
+
+    def test_skip_dirs_registers_worktrees(self) -> None:
+        """SKIP_DIRS contains the worktrees basename.
+
+        os.walk prunes by directory basename, so .claude/worktrees is pruned
+        via the bare name "worktrees". This pins the contract that the
+        worktree subtree (the unbounded-growth source in #2047 / #2010) is
+        excluded.
+        """
+        assert "worktrees" in SKIP_DIRS
+        assert ".venv" in SKIP_DIRS
 
 
 class TestCheckFileForViolations:
@@ -411,6 +465,32 @@ class TestMainFunction:
         captured = capsys.readouterr()
         assert captured.out == ""
 
+    def test_main_staged_only_no_staged_files(
+        self,
+        test_repo: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: CaptureFixture[str],
+    ) -> None:
+        """main() with --staged-only takes the staged-file collection path.
+
+        A fresh git repo has no staged files, so the staged path returns an
+        empty list and main() reports "No files to check". This exercises the
+        sibling collection branch (get_staged_files) that the default scan
+        does not, without depending on the unbounded full-tree walk.
+        """
+        from scripts import detect_skill_violation
+
+        monkeypatch.setattr(
+            "sys.argv",
+            ["detect_skill_violation.py", "--path", str(test_repo), "--staged-only"],
+        )
+
+        result = detect_skill_violation.main()
+
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "No files to check" in captured.out
+
     def test_main_invalid_repo(
         self,
         tmp_path: Path,
@@ -503,6 +583,31 @@ class TestScriptIntegration:
 
         # Should succeed (exit 0)
         assert result.returncode == 0
+
+    def test_full_scan_completes_within_budget(
+        self, script_path: Path, project_root: Path
+    ) -> None:
+        """Full-tree scan finishes well under the 60s subprocess timeout.
+
+        Regression guard for #2047 / #2010. The scan walked the whole tree,
+        including .venv and agent worktrees, and crossed the 60s pytest
+        subprocess timeout (and the 30s new_pr.py budget). SKIP_DIRS pruning
+        keeps the walk bounded. The 30s ceiling is the new_pr.py budget from
+        issue #2047; a regression that re-adds the unbounded walk blows it.
+        """
+        import time
+
+        start = time.monotonic()
+        result = subprocess.run(
+            [sys.executable, str(script_path), "--path", str(project_root), "--quiet"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        elapsed = time.monotonic() - start
+
+        assert result.returncode == 0
+        assert elapsed < 30.0, f"scan took {elapsed:.1f}s, exceeds 30s budget"
 
 
 class TestViolationDataclass:
