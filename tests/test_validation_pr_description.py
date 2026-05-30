@@ -433,6 +433,27 @@ class TestExtractMentionedFiles:
         assert "real.py" in result
         assert "proof.py" not in result
 
+    def test_validation_script_heading_not_stripped(self) -> None:
+        """Copilot review: 'Validation Script', 'Validation Rules', etc. must NOT
+        strip because they can describe real validator changes. Only bare
+        'Validation' and known proof suffixes (Summary, Results, Report) strip."""
+        desc = (
+            "## Summary\nUpdated the validator.\n\n"
+            "## Validation Script\n- rewrote `validator.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "validator.py" in result
+
+    def test_verification_steps_heading_not_stripped(self) -> None:
+        """'Verification Steps' is a change-description heading, not a proof
+        heading; it must NOT strip."""
+        desc = (
+            "## Summary\nAdded hook.\n\n"
+            "## Verification Steps\n- run `hook.py` to confirm\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "hook.py" in result
+
     def test_contextual_section_case_insensitive(self) -> None:
         desc = (
             "## Summary\nChanged `a.py`.\n\n"

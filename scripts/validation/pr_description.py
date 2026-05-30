@@ -96,29 +96,39 @@ _CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
     r"Inspired\s*By",
     r"Pattern\s*From",
     r"Prior\s*Art",
+    # Proof/results headings that name an activity, not a changed file.
+    # Listed here (exact match) instead of _REFERENCE_SECTION_PREFIXES so that
+    # headings like "## Validation Script" or "## Verification Steps", which
+    # describe real validator changes, are NOT stripped. Only bare proof headings
+    # and known summary suffixes strip.
+    r"Validation",
+    r"Validation[ \t]+Summary",
+    r"Validation[ \t]+Results",
+    r"Validation[ \t]+Report",
+    r"Verification",
+    r"Verification[ \t]+Results",
+    r"Verification[ \t]+Summary",
+    r"Verification[ \t]+Report",
 )
 
 # Section-name PREFIXES whose file mentions are proof or scope references, never
 # change claims. Matched as a prefix at a word boundary, so ANY suffix is
-# absorbed: "Evidence", "Evidence For", "Validation Summary", "Verification
-# Results", "Out of Scope notes" all strip. This kills the exact-name treadmill:
-# agent PR-body templates emit many variants of these proof/scope sections, and
-# enumerating each one recurs on the next variant.
+# absorbed. This kills the exact-name treadmill for Evidence and Out-of-Scope
+# headings: agent PR-body templates emit many variants, and enumerating each one
+# recurs on the next variant.
 #
-# Safe because the description check is one-directional: Check 1
-# (mentioned-but-not-in-diff) is the only CRITICAL gate, and Check 2
-# (changed-but-not-mentioned) is a non-blocking WARNING. Stripping a reference
-# section can only remove a blocking false positive; the worst case is that a
-# file mentioned ONLY here, and actually changed, becomes a non-blocking
-# WARNING instead of a satisfied mention. Real drift is never hidden.
+# Validation and Verification are NOT here (they moved to _CONTEXTUAL_SECTION_NAMES
+# as exact-match entries). Those words can prefix real change-claim sections
+# (e.g., "## Validation Script", "## Verification Steps"), so a blind prefix
+# match would suppress CRITICAL checks for genuine drift.
 #
-# Restricted to KINDS that never assert "I changed this file": proof (Evidence,
-# Validation, Verification) and scope exclusion (Out of Scope). Ambiguous words
-# that can carry real claims with a suffix stay in the exact-match list above.
+# Evidence never precedes a real change-claim section in this codebase, so the
+# prefix absorbs all Evidence variants safely.
+#
+# Out-of-Scope is unambiguous by definition: it explicitly names files NOT
+# changed in this PR.
 _REFERENCE_SECTION_PREFIXES: tuple[str, ...] = (
     r"Evidence",
-    r"Validation",
-    r"Verification",
     r"Out[ \t-]*of[ \t-]*Scope",
 )
 
