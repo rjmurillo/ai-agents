@@ -108,8 +108,16 @@ Otherwise continue below for the tactical recommendation.
 
 ### Step 6: Recommendation Framework (Quick Reference)
 
+Recommend **internal reuse (Leverage/Extend)** when:
+
+- Step 2a found existing internal implementation
+- Capability already exists in repo or org codebase
+- Existing dependency already provides the functionality
+- Internal code covers ≥80% of the requirement (extend for the rest)
+
 Recommend **existing solutions** when:
 
+- No internal prior-art found in Step 2a
 - Mature library exists with >1K GitHub stars
 - SaaS solves it for <$20/mo
 - Common problem with well-tested solutions
