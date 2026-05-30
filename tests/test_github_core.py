@@ -42,9 +42,9 @@ from scripts.github_core import (
 from scripts.github_core.api import _403_PATTERN
 from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
+from tests.mock_fidelity import assert_mock_keys_match
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-from tests.mock_fidelity import assert_mock_keys_match
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1571,6 +1571,15 @@ class TestParseSimpleYaml:
     def test_quoted_item_unwrapped(self) -> None:
         assert bot_config._parse_simple_yaml("bots:\n  - 'foo'\n") == {
             "bots": ["foo"]
+        }
+
+    def test_hash_inside_quoted_item_preserved(self) -> None:
+        # A # inside quotes is literal content, not a comment marker.
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo # bar'\n") == {
+            "bots": ["foo # bar"]
+        }
+        assert bot_config._parse_simple_yaml('name: "value # note"\n') == {
+            "name": "value # note"
         }
 
     def test_empty_text(self) -> None:
