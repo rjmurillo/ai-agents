@@ -19,7 +19,7 @@ Read first, reason second. Pre-training last resort.
 
 **Start**: Init Serena|Read HANDOFF.md + latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
 **Mid**: `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan
+**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style: `.gemini/styleguide.md`
 **End**: Complete log|Preserve HANDOFF.md|Issue handoff (template) if open|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
@@ -59,7 +59,3 @@ Tests (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv exits. See `.agent
 ## Stack
 
 Python 3.14|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
-
-## Refs
-
-`.agents/SESSION-PROTOCOL.md`|`.agents/HANDOFF.md`|`.agents/governance/`|`.gemini/styleguide.md`
