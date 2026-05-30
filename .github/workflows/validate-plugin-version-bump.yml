@@ -1,0 +1,108 @@
+# Validate Plugin Version Bump
+#
+# Fails when a packaged plugin's source directory changes without a
+# strictly-greater bump to its .claude-plugin/plugin.json version. Installed
+# plugin caches key off that version; an unbumped version means installs never
+# re-sync (PR #1942 / PR #2114 motivated this gate).
+#
+# Scope: the 3 packaged plugins (.claude, src/claude, src/copilot-cli).
+# Runs only on PRs/pushes that touch a plugin source dir or the gate itself.
+#
+# Related: Issue rjmurillo/ai-agents#2118
+
+name: Validate Plugin Version Bump
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Check for relevant file changes
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            paths:
+              - '.claude/**'
+              - 'src/claude/**'
+              - 'src/copilot-cli/**'
+              - 'build/scripts/validate_plugin_version_bump.py'
+              - 'scripts/validation/run_plugin_version_bump_ci.py'
+              - '.github/workflows/validate-plugin-version-bump.yml'
+
+  validate:
+    name: Validate Plugin Version Bump
+    needs: check-paths
+    if: needs.check-paths.outputs.should-validate == 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # fetch-depth: 0 so the runner can resolve origin/<base> and the
+          # push-event before-SHA. The validator diffs against a base ref to
+          # read the prior plugin.json version; a shallow checkout leaves that
+          # ref unresolvable.
+          fetch-depth: 0
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Validate plugin version bump
+        # Per ADR-006 (Thin Workflows, Testable Modules), fetch + base-ref
+        # resolution + validator invocation live in the runner module. The
+        # YAML passes inputs via env and runs one command.
+        env:
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref || 'main' }}
+          PUSH_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || '' }}
+        run: |
+          python3 scripts/validation/run_plugin_version_bump_ci.py
+
+      - name: Show fix instructions on failure
+        if: failure()
+        run: |
+          echo ""
+          echo "=== Plugin Version Bump Validation Failed ==="
+          echo ""
+          echo "A plugin source dir changed without a strictly-greater"
+          echo "plugin.json version bump. Installs will not re-sync."
+          echo ""
+          echo "Fix: bump the version in the reported .claude-plugin/plugin.json"
+          echo "to a higher semver, then commit."
+          echo ""
+
+  skip-validation:
+    name: Validate Plugin Version Bump (Skipped)
+    needs: check-paths
+    if: needs.check-paths.outputs.should-validate != 'true'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Skip validation (no relevant files changed)
+        run: echo "No plugin source files changed - skipping version-bump validation"
