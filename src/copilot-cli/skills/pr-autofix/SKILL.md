@@ -1,11 +1,11 @@
 ---
-name: autofix-pr
+name: pr-autofix
 description: Autonomous PR monitor and fixer per docs/autonomous-pr-monitor.md. Triages open PRs by tier, addresses thread feedback, fixes CI failures, and enables auto-merge when the 4-condition Ready-to-Merge gate passes.
 allowed-tools: Bash, Read, Edit, Write, Skill
 user-invocable: true
 ---
 
-# /autofix-pr
+# /pr-autofix
 
 Autonomous PR monitor and fixer. Implements the protocol from
 `docs/autonomous-pr-monitor.md`.
@@ -14,7 +14,7 @@ Autonomous PR monitor and fixer. Implements the protocol from
 
 | Trigger phrase | Operation |
 |----------------|-----------|
-| `autofix-pr` | Triage all open PRs by tier and act |
+| `pr-autofix` | Triage all open PRs by tier and act |
 | `autofix this pr` | Single-PR mode on the current branch's open PR |
 | `monitor open prs` | Periodic triage without merging |
 | `auto-merge ready prs` | Tier 1 only: enable auto-merge on land-ready PRs |
