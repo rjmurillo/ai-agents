@@ -144,6 +144,11 @@ def main(argv: list[str] | None = None) -> int:
     except (json.JSONDecodeError, ValueError) as exc:
         error_and_exit(f"Failed to parse JSON response from gh: {exc}", 3)
 
+    if not isinstance(issues, list):
+        error_and_exit(
+            f"Expected a JSON array from gh, got {type(issues).__name__}.", 3,
+        )
+
     output = [
         {
             "number": i.get("number"),
