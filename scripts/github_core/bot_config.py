@@ -147,10 +147,11 @@ def _parse_simple_yaml(text: str) -> dict:
             if current_key is not None and isinstance(result.get(current_key), list):
                 result[current_key].append(item)
             continue
-        if ":" in raw and not raw[0].isspace():
-            key, _, rest = raw.partition(":")
-            key = key.strip()
-            inline = _strip_inline_comment(rest.strip())
+        if not raw[0].isspace():
+            parsed = _parse_mapping_line(raw)
+            if parsed is None:
+                continue
+            key, inline = parsed
             if inline:
                 result[key] = _strip_quotes(inline)
                 current_key = None
