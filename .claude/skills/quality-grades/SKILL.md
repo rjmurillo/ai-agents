@@ -110,9 +110,14 @@ Use `code-qualities-assessment` instead when:
 
 ## Verification
 
-After execution:
+After execution, run the bundled validator and require exit 0:
 
-- [ ] Report contains at least one domain
+```bash
+python3 .claude/skills/quality-grades/scripts/grade_domains.py --output quality-grades.md
+echo "exit=$?"   # must be 0; exit 2 means no domains detected (report is empty)
+```
+
+- [ ] `grade_domains.py` exited 0 (non-zero = no domains; the report is not valid)
 - [ ] Each domain has grades for all six layers
 - [ ] Gaps include actionable descriptions
 - [ ] Output format matches --format flag

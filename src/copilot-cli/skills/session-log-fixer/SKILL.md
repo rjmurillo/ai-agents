@@ -234,8 +234,14 @@ Check the Job Summary tab again. If validation still fails, the detailed results
 
 ## Verification Checklist
 
-After applying fixes:
+After applying fixes, re-run the bundled validator and require exit 0:
 
+```bash
+python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py <session-file>
+echo "exit=$?"   # 0 = no validation errors remain, 2 = errors still present, 1 = tool error
+```
+
+- [ ] `get_validation_errors.py` exited 0 against the fixed session file (exit 2 = errors remain)
 - [ ] Session file has Session Start Protocol table
 - [ ] Session file has Session End Protocol table
 - [ ] All MUST requirements are marked `[x]` with evidence

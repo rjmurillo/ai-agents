@@ -369,8 +369,14 @@ Escalate to human or senior decision-maker when:
 
 ## Verification
 
-After classification:
+After classification, run the bundled validator and require exit 0:
 
+```bash
+python3 .claude/skills/cynefin-classifier/scripts/classify.py <input>
+echo "exit=$?"   # 0 = classified, 2 = ambiguous/unclassifiable, 1 = tool error
+```
+
+- [ ] `classify.py` exited 0 (exit 2 = ambiguous input, exit 1 = tool error; neither passes)
 - [ ] Domain identified with confidence level (HIGH/MEDIUM/LOW)
 - [ ] Rationale explains cause-effect relationship
 - [ ] Response strategy matches the domain (not borrowed from another)

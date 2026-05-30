@@ -383,11 +383,16 @@ Use existing linters instead when:
 
 ## Verification
 
-After running style check:
+After running style check, the gate is `check_style.py`'s exit code, not a self-check:
 
+```bash
+python3 .claude/skills/style-enforcement/scripts/check_style.py <path>
+echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
+```
+
+- [ ] Exit 0 to pass; exit 10 means violations exist and must be reported with file:line:rule
+- [ ] Exit 1 (tool error) is a BLOCKED result, not a pass
 - [ ] .editorconfig parsed successfully
-- [ ] Violations include file:line:rule format
-- [ ] Exit code matches violation count (0 vs 10)
 - [ ] Suppression comments honored
 - [ ] SARIF output validates (if used)
 

@@ -168,13 +168,18 @@ Create `.qualityrc.json` to customize thresholds:
 
 ## Verification
 
-After running assessment:
+After running assessment, the gate is `assess.py`'s exit code, not self-inspection:
 
+```bash
+python3 .claude/skills/code-qualities-assessment/scripts/assess.py --target <path>
+echo "exit=$?"   # 0 = assessment complete, 11 = invalid input/scoring failure, 1 = tool error
+```
+
+- [ ] `assess.py` exited 0 (exit 11 = invalid scoring, exit 1 = tool error; neither passes)
 - [ ] All 5 qualities scored for each symbol
 - [ ] Scores are 1-10 (not null or out of range)
 - [ ] Remediation links provided for low scores
 - [ ] Report format is valid (markdown/JSON/HTML)
-- [ ] Exit code matches assessment result
 - [ ] Historical data saved to .quality-cache/
 
 ---

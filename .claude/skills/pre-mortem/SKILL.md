@@ -271,8 +271,14 @@ python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
 
 ## Verification
 
-After completing a pre-mortem:
+After completing a pre-mortem, run the bundled validator and require exit 0:
 
+```bash
+python3 .claude/skills/pre-mortem/scripts/pre-mortem.py <args>
+echo "exit=$?"   # 0 = pre-mortem complete, 10 = missing required phases/risks, 1 = tool error
+```
+
+- [ ] `pre-mortem.py` exited 0 (exit 10 = incomplete; exit 1 = tool error)
 - [ ] All 5 phases completed (Brief, Failure Announcement, Analysis, Collection, Mitigation)
 - [ ] Risk inventory generated with risk scores (Likelihood x Impact)
 - [ ] All Critical/High risks have mitigation strategies

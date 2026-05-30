@@ -407,13 +407,13 @@ The pipeline-validator will automatically:
 
 ## Verification Checklist
 
-After complete execution:
+After complete execution. Each item below is a reconciliation line: paste the referenced command output, do not just self-assert it.
 
-- [ ] PR exists and has description with Summary, Changes, Validation sections
-- [ ] PR Build pipeline passes
-- [ ] Buddy Build pipeline passes
-- [ ] Buddy Release pipeline passes
-- [ ] PR description updated with all pipeline run links
+- [ ] PR exists and has description with Summary, Changes, Validation sections (paste output of `az repos pr show --id <N> --query 'description'`)
+- [ ] PR Build pipeline passes (paste `az pipelines runs show --id <N> --query 'result'` showing `succeeded`)
+- [ ] Buddy Build pipeline passes (paste `az pipelines runs show --id <N> --query 'result'` showing `succeeded`)
+- [ ] Buddy Release pipeline passes (paste `az pipelines runs show --id <N> --query 'result'` showing `succeeded`)
+- [ ] PR description updated with all pipeline run links (paste the updated description with the link URLs)
 - [ ] Final status reported to user
 
 ---

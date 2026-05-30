@@ -187,8 +187,14 @@ python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untrac
 
 ## Verification Checklist
 
-After skill invocation:
+Before opening the review, run the bundled detector and require it found the ADR under review:
 
+```bash
+python3 .claude/skills/adr-review/scripts/detect_adr_changes.py
+echo "exit=$?"   # 0 = ADR change detected, 2/3 = nothing to review, 1 = tool error
+```
+
+- [ ] `detect_adr_changes.py` exited 0 and the ADR file under review appears in its output
 - [ ] Debate log exists at `.agents/critique/ADR-NNN-debate-log.md`
 - [ ] ADR status updated (proposed/accepted/needs-revision)
 - [ ] All P0 issues addressed or documented

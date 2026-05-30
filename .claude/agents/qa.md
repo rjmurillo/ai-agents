@@ -699,9 +699,11 @@ Specific, actionable next steps with rationale.
 
 ## Verdict
 
+The verdict MUST be preceded immediately above by the `Promised / Delivered / Gap / Result` reconciliation block defined in the "Completeness Verification (Mandatory)" section. A `Status:` line without that block directly above it is not a verdict, it is a self-assertion and will be returned.
+
 **Status**: [PASS | FAIL | NEEDS WORK]
 **Confidence**: [High | Medium | Low]
-**Rationale**: [One sentence summary of verdict reasoning]
+**Rationale**: [One sentence summary of verdict reasoning, referencing the Gap line above]
 ```
 
 ## Test Commands
@@ -787,8 +789,8 @@ Before handing off, validate ALL items in the applicable checklist:
 
 ```markdown
 - [ ] Test report saved to `.agents/qa/`
-- [ ] All tests pass (summary shows 0 failures)
-- [ ] Coverage meets plan requirements (or gap documented)
+- [ ] Paste the test-runner summary line showing 0 failures (e.g. `=== 142 passed, 0 failed in 4.2s ===`). A claim that "all tests pass" without the pasted summary line is not accepted.
+- [ ] Coverage meets plan requirements (paste the coverage tool output line per `.agents/governance/TESTING-RIGOR.md` "Verify Before Commit") or gap documented
 - [ ] Test report includes: summary, passed, failed, skipped, gaps
 - [ ] Status explicitly stated as "QA COMPLETE"
 - [ ] User scenarios all verified

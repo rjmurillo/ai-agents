@@ -351,8 +351,14 @@ python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-
 
 ## Verification Checklist
 
-Before processing any GitHub URL:
+Before processing any GitHub URL, run the routing test suite and require exit 0:
 
+```bash
+python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py
+echo "exit=$?"   # 0 = all routing tests pass, 1 = routing failure
+```
+
+- [ ] `test_url_routing.py` exited 0 (exit 1 = routing logic broken; do not process URLs)
 - [ ] Extracted owner/repo from URL path
 - [ ] Identified URL type (PR, issue, blob, commit, compare)
 - [ ] Extracted fragment ID if present (#discussion_r, #issuecomment-, #pullrequestreview-)

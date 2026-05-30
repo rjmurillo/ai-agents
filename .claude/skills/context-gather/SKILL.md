@@ -109,9 +109,9 @@ This skill delegates to the context-retrieval subagent, which uses:
 
 After execution, confirm:
 
-- [ ] At least two knowledge tiers were queried (e.g., Serena + Context7, or Forgetful + Web).
-- [ ] Summary addresses the stated topic with specific findings, not generic advice.
+- [ ] Reconciliation: `grep -c '^TIER_QUERIED:' <output>` >= 2 (emit one `TIER_QUERIED: <tier>` line per source actually queried, e.g. `TIER_QUERIED: Serena`, `TIER_QUERIED: Context7`)
 - [ ] `CONTEXT_LOADED: <topic>` marker line is present at the end of output.
+- [ ] Summary addresses the stated topic with specific findings, not generic advice.
 - [ ] No raw tool output was returned; findings are synthesized.
 - [ ] If a prior marker existed for the same topic, the skill short-circuited without re-fetching.
 
