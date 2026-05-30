@@ -206,7 +206,7 @@ Flag any concerns:
 
 ### Step 9: Cost Analysis (For Significant Decisions)
 
-For features with meaningful cost implications (auth, payments, email, infrastructure), provide a Total Cost of Ownership (TCO) comparison.
+For features with meaningful cost implications (auth, payments, email, infrastructure), provide a quick tactical cost comparison (9.3). For a multi-year TCO/NPV, delegate to the `buy-vs-build-framework` skill (9.2); do not produce that analysis here.
 
 #### 9.1 When to Include Cost Analysis
 
