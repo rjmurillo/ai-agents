@@ -869,7 +869,9 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     changed = [
         line
         for line in diff_out.splitlines()
-        if line.startswith(".github/workflows/") and line.endswith((".yml", ".yaml"))
+        if line.startswith(".github/workflows/")
+        and line.endswith((".yml", ".yaml"))
+        and (repo_root / line).is_file()
     ]
     if not changed:
         print("No changed workflow files; nothing to run locally.")
