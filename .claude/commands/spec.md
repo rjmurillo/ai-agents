@@ -177,12 +177,12 @@ ProvisionalTier = `max(hours_tier, entity_tier)`. Step 3 may classify the actual
 
 Topics are derived mechanically from Q3 and Q4 named entities. One topic per distinct entity. Normalization, applied in order:
 
-1. Strip leading path separators (`/`, `\`) AND leading dots (`.`).
-2. Lowercase the string.
-3. Trim leading and trailing whitespace.
+1. Trim leading and trailing whitespace.
+2. Strip leading path separators (`/`, `\`) AND leading dots (`.`).
+3. Lowercase the string.
 4. Collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`.
 
-Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 1 strips the leading dot and any leading slashes). `spec pipeline` normalizes to `spec-pipeline`. These are distinct topics.
+Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 2 strips the leading dot and any leading slashes). `spec pipeline` normalizes to `spec-pipeline`. These are distinct topics.
 
 The agent lists the derived topics explicitly in the Step 0.5 preamble before running any searches. Auto-mode adjudication (defined under entity discovery below) compares discovered entity names against Q answers using the same normalization.
 
@@ -223,14 +223,16 @@ When `exploring-knowledge-graph` discovers an entity or project name that does n
 - `out-of-scope`: the entity is deliberately excluded; record name and one-line reason.
 - `blast-radius`: the entity is connected but the proposer did not previously acknowledge it; record name and one-line risk note.
 
-In auto-mode (no human present), the agent applies the four-rule normalization defined under topic extraction above (strip leading dots and path separators, lowercase, trim, collapse internal separator runs to single hyphens) to BOTH the discovered entity name AND the Q1+Q3+Q4 answers, then performs case-insensitive substring match. A match resolves the entity as `in-scope` automatically. No match resolves the entity as `blast-radius` (conservative). A human proposer in a later turn may override blast-radius classifications that auto-mode conservatively assigned.
+In auto-mode (no human present), the agent applies the four-rule normalization defined under topic extraction above (trim, strip leading dots and path separators, lowercase, collapse internal separator runs to single hyphens) to BOTH the discovered entity name AND the Q1+Q3+Q4 answers. Because rule 4 collapses every whitespace, `-`, and `_` run to a single hyphen, each normalized answer is one hyphen-joined string; split it on `-` to recover its token sequence. The agent then performs whole-token equality, not substring match: the discovered entity matches a Q answer only when the entity's normalized token sequence appears as a contiguous run of whole tokens inside that answer's token sequence. A single-token entity matches only a standalone token; a multi-token entity matches only a contiguous token run. Case-insensitivity is already handled by rule 3 (lowercase) of the normalization, so no separate case fold is applied at match time. A match resolves the entity as `in-scope` automatically. No match resolves the entity as `blast-radius` (conservative). A human proposer in a later turn may override blast-radius classifications that auto-mode conservatively assigned.
+
+Whole-token equality closes the substring bypass (CWE-863, broken access control). Under the old substring rule, a token-rich Q1 such as `auth-service payment-service billing-service` (normalized to `auth-service-payment-service-billing-service`) made almost any short discovered name "match" as a substring, so genuinely connected blast-radius entities resolved to `in-scope` and never counted toward the halt threshold. Worked example with the token rule: discovered `service-mesh` (tokens `service`, `mesh`) does NOT match that answer, because `service mesh` never appears as a contiguous token run; the lone `service` tokens are followed by `payment`/`billing`, not `mesh`. Discovered `auth-service` (tokens `auth`, `service`) DOES match, because `auth service` is a contiguous token run at the answer's head.
 
 The blast-radius halt threshold differs by mode:
 
 | Mode | Blast-radius count to trigger halt |
 |---|---|
 | Human (proposer adjudicates each entity) | 2 or more |
-| Auto (string-match only) | 3 or more |
+| Auto (whole-token equality only) | 3 or more |
 
 The halt itself, the metrics tally, and the supplemental traversal hook are defined in the next section of this gate.
 
@@ -443,8 +445,8 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
      - FAIL if any acceptance criterion adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
    - **Check 9d, Prior Art / Constraints elicitation**:
      - PASS: the PRD contains a "## Prior Art / Constraints" section with at least one sub-section ("### Direct prior art from memory", "### Connected context from exploring-knowledge-graph", or "### Coverage notes") that has either evidence content or a justified coverage note.
-     - FAIL conditions (any one triggers FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) the Step 0.5 BLOCK itself in `.claude/commands/spec.md` (between the `### Step 0.5: Memory-First Gate` heading and the next `\n---\n` delimiter) contains the partial-implementation guard token (string `step0.5:incomplete-without-2b` wrapped in HTML-comment delimiters). Note: the same token appears in this 9d FAIL clause as documentation; check 9d MUST scope its match to the Step 0.5 block boundaries to avoid a tautological self-trigger from this Step 9 text.
-     - On FAIL: surface as a blocking finding. The critic SHALL NOT return APPROVED while check 9d is FAIL.
+     - FAIL conditions (any one triggers a blocking FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) the Step 0.5 BLOCK itself in `.claude/commands/spec.md` (between the `### Step 0.5: Memory-First Gate` heading and the next `\n---\n` delimiter) contains the partial-implementation guard token (string `step0.5:incomplete-without-2b` wrapped in HTML-comment delimiters). Note: the same token appears in this 9d FAIL clause as documentation; check 9d MUST scope its match to the Step 0.5 block boundaries to avoid a tautological self-trigger from this Step 9 text.
+     - On FAIL: report the verdict as FAIL and surface the gap as a blocking finding. The critic SHALL NOT return APPROVED while check 9d is a FAIL: a missing, absent, or empty Prior Art / Constraints section is a blocking gap, so the critic reports a FAIL verdict with a blocking finding and withholds APPROVED.
 
 ## Evaluation Axes
 

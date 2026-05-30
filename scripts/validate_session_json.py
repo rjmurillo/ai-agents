@@ -68,6 +68,53 @@ CONTRADICTION_PATTERNS = re.compile(
     r"(?i)\b(not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD)\b"
 )
 
+# Subset of CONTRADICTION_PATTERNS tokens that legitimately describe a DIFFERENT
+# scope than the item under validation. "deferred" and "pending" routinely appear
+# in honest multi-scope evidence ("scorer deferred per PRD 11", "lint passed;
+# pending pre-commit final run") where a different piece of work, not the item, is
+# deferred. The other tokens (TODO, TBD, N/A, skipped, will run, will validate, not
+# available) signal the item itself is incomplete and always flag. See issue #2007.
+_SCOPE_QUALIFIED_TOKENS = frozenset({"deferred", "pending"})
+
+# Words that affirmatively report the item itself was done. When such a word
+# precedes a scope-qualified token across a clause boundary, the token is a
+# trailing note about other work, not a contradiction of the item.
+_AFFIRMATIVE_COMPLETION = re.compile(
+    r"(?i)\b(pass|passed|passing|done|created|validated|complete|completed"
+    r"|confirmed|verified|ran|listed|used)\b"
+)
+
+# A clause boundary separating affirmative completion from a trailing deferral.
+# NOTE: Do NOT include ')' here. A closing paren allows false suppression when
+# an affirmative word sits inside a parenthetical (e.g., "Report (tests passed)
+# pending final sign-off" would suppress incorrectly). Legitimate trailing-note
+# suppressions use '.' or ';' separators. See bug 80aca362.
+#
+# A period only counts as a boundary when it is sentence punctuation (followed
+# by whitespace or end of string). A period flanked by digits is part of a
+# version or decimal (`v1.5`, `Step 0.5`) and is NOT a clause boundary; treating
+# it as one suppressed real contradictions like "Created item v1.5 pending
+# review". See bug 0a163adc.
+_CLAUSE_BOUNDARY = re.compile(r";|\.(?=\s|$)")
+
+# Negation words that negate an affirmative completion.
+# When an affirmative word is preceded by these, optionally separated by a
+# single adverb ("not yet validated", "no longer confirmed", "not fully done"),
+# it does not indicate completion (e.g., "not passed", "never confirmed").
+# See bug ref1_1ef17459 and bug 07f14170 (adverb-separated negation).
+# Note: "n't" uses (?<=\w) instead of \b because in contractions like "haven't",
+# the "n" is preceded by a letter (no word boundary). See bug 0ea9d246.
+_NEGATION_BEFORE_AFFIRMATIVE = re.compile(
+    r"(?i)(?:\b(?:not|no|never)\b|(?<=\w)n't\b)"
+    r"(?:\s+(?:yet|longer|fully|really|currently|still|quite))?\s*$"
+)
+
+# Adversative conjunctions. When one introduces the clause holding the deferral
+# token, the deferral contradicts the preceding completion ("Tests passed. But
+# we deferred the deploy") rather than noting separate work, so it must NOT be
+# suppressed. See bug (gemini) on ordering/contrast false negatives.
+_CONTRAST_CONJUNCTION = re.compile(r"(?i)\b(but|however|except|though|although)\b")
+
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
 # New logs use "handoffPreserved" (level=MUST, Complete=true when satisfied).
@@ -129,6 +176,113 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
         result.errors.append(f"Invalid commit SHA format: {commit}")
 
 
+def _token_in_parentheses(text: str, token_start: int) -> bool:
+    """Return True if the character at token_start sits inside an open parenthesis.
+
+    Scans the prefix before the token tracking parenthesis depth. A positive
+    depth means the token is part of a parenthetical aside.
+
+    Args:
+        text: Full evidence string.
+        token_start: Index where the matched token begins.
+
+    Returns:
+        True if the token is inside unmatched parentheses.
+    """
+    depth = 0
+    for char in text[:token_start]:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+    return depth > 0
+
+
+def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
+    """Return True if a contradiction token applies to a different scope.
+
+    Only "deferred" and "pending" can be scope-qualified (see
+    _SCOPE_QUALIFIED_TOKENS). They are treated as non-contradicting when either:
+
+    1. The token sits inside a parenthetical aside, or
+    2. An affirmative completion word precedes the token across a clause boundary
+       (the evidence reports the item done, then notes other deferred work).
+       A clause boundary is a semicolon, or a period acting as sentence
+       punctuation (followed by whitespace or end of string); a period inside a
+       version or decimal such as "v1.5" is not a boundary, and a closing
+       parenthesis is deliberately excluded (parentheticals are handled by rule
+       1 above).
+
+    The affirmative completion must not be negated (directly or via an adverb,
+    e.g. "not yet validated"), the clause boundary must sit BETWEEN the
+    affirmative word and the token, and the deferral's own clause must not open
+    with an adversative conjunction ("but", "however") that ties the deferral
+    back to the completion.
+
+    Every other token, and a bare "deferred"/"pending" with no affirmative
+    context, always counts as a contradiction.
+
+    Args:
+        evidence: Full evidence string.
+        match: A single CONTRADICTION_PATTERNS match within the evidence.
+
+    Returns:
+        True if the matched token describes a different scope (suppress warning).
+    """
+    if match.group(0).lower() not in _SCOPE_QUALIFIED_TOKENS:
+        return False
+    if _token_in_parentheses(evidence, match.start()):
+        return True
+    prefix = evidence[: match.start()]
+    # Iterate over ALL affirmative matches, returning True if any non-negated
+    # match has a clause boundary separating it from the deferral token AND no
+    # adversative conjunction follows that boundary.
+    for affirmative in _AFFIRMATIVE_COMPLETION.finditer(prefix):
+        # Check if the affirmative word is negated (e.g., "not passed",
+        # "not yet validated"). Negated affirmatives do not indicate completion.
+        prefix_before_affirmative = prefix[: affirmative.start()]
+        if _NEGATION_BEFORE_AFFIRMATIVE.search(prefix_before_affirmative):
+            continue
+        # The boundary must sit AFTER the affirmative word and before the token,
+        # so search only the segment between them. Use the LAST boundary (not
+        # first) so `deferral_clause` starts at the clause containing the actual
+        # deferral token, not an intermediate clause. See bug a317fc68.
+        suffix_after_affirmative = prefix[affirmative.end() :]
+        boundaries = list(_CLAUSE_BOUNDARY.finditer(suffix_after_affirmative))
+        if not boundaries:
+            continue
+        boundary = boundaries[-1]
+        # If the deferral's clause opens with an adversative conjunction, the
+        # deferral contradicts the completion rather than noting separate work.
+        # Use match() on lstripped text to check only the clause opening, not
+        # mid-clause uses like "everything but X". See bug ref1_dda37e6b.
+        deferral_clause = suffix_after_affirmative[boundary.end() :].lstrip()
+        if _CONTRAST_CONJUNCTION.match(deferral_clause):
+            continue
+        return True
+    return False
+
+
+def _has_contradiction(evidence: str) -> bool:
+    """Return True if evidence contradicts a "complete: true" claim.
+
+    Flags any CONTRADICTION_PATTERNS token unless it is a scope-qualified
+    "deferred"/"pending" that points at a different subject. A genuine
+    contradiction (an item-itself deferral, "TODO", a bare token) still flags
+    even when scope-qualified tokens appear elsewhere in the same string.
+
+    Args:
+        evidence: The evidence string to inspect.
+
+    Returns:
+        True if at least one unqualified contradiction token is present.
+    """
+    return any(
+        not _is_scope_qualified(evidence, match)
+        for match in CONTRADICTION_PATTERNS.finditer(evidence)
+    )
+
+
 def validate_must_item(
     check_data: dict[str, Any],
     item_name: str,
@@ -154,7 +308,7 @@ def validate_must_item(
         result.warnings.append(f"Missing evidence: {section_name}.{item_name}")
 
     if level == "MUST" and is_complete and evidence and isinstance(evidence, str):
-        if CONTRADICTION_PATTERNS.search(evidence):
+        if _has_contradiction(evidence):
             result.warnings.append(
                 f"Evidence contradiction: {section_name}.{item_name} "
                 f"is complete but evidence suggests otherwise: {evidence!r}"

@@ -104,6 +104,104 @@ def _entity_count_to_tier(entity_count: int) -> int:
     return 5
 
 
+_SEPARATOR_RUN_RE = re.compile(r"[\s\-_]+")
+_LEADING_PATH_DOTS_RE = re.compile(r"^[/\\.]+")
+
+
+def normalize_topic(raw: str) -> str:
+    """Normalize a topic or entity name per the spec.md four-rule contract.
+
+    Mirrors the canonical normalization defined in
+    `.claude/commands/spec.md`, subsection `#### Step 0.5 topic extraction`,
+    quoted verbatim:
+
+        1. Trim leading and trailing whitespace.
+        2. Strip leading path separators (`/`, `\\`) AND leading dots (`.`).
+        3. Lowercase the string.
+        4. Collapse internal separator runs (whitespace, `-`, `_`) to a single
+           hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline`
+           all normalize to `spec-pipeline`.
+
+    The same normalization is applied to BOTH the discovered entity name and
+    the Q1+Q3+Q4 answers before matching (per `#### Step 0.5 entity
+    adjudication`). Returns the normalized hyphen-joined string. An all-
+    separator or empty input normalizes to the empty string.
+    """
+    trimmed = raw.strip()
+    stripped = _LEADING_PATH_DOTS_RE.sub("", trimmed)
+    lowered = stripped.lower()
+    collapsed = _SEPARATOR_RUN_RE.sub("-", lowered)
+    return collapsed.strip("-")
+
+
+def _tokenize_normalized(normalized: str) -> list[str]:
+    """Split a normalized hyphen-joined string into its token sequence.
+
+    Per `#### Step 0.5 entity adjudication`: because normalization rule 4
+    collapses every whitespace, `-`, and `_` run to a single hyphen, each
+    normalized answer is one hyphen-joined string; split it on `-` to recover
+    its token sequence. Returns an empty list for the empty string.
+    """
+    if not normalized:
+        return []
+    return normalized.split("-")
+
+
+def entity_matches_answer(entity_name: str, answer: str) -> bool:
+    """Return True when a discovered entity matches a Q answer by whole-token equality.
+
+    Mirrors the auto-mode adjudication rule in `.claude/commands/spec.md`,
+    subsection `#### Step 0.5 entity adjudication`. Both inputs are normalized
+    with `normalize_topic`, then tokenized on `-`. The entity matches the
+    answer only when the entity's normalized token sequence appears as a
+    contiguous run of whole tokens inside the answer's token sequence:
+
+    - A single-token entity matches only a standalone token.
+    - A multi-token entity matches only a contiguous token run.
+
+    This is whole-token equality, NOT substring match. It closes the
+    CWE-863 substring bypass: a token-rich answer like
+    `auth-service payment-service billing-service` does NOT match a discovered
+    `service-mesh` (the `service mesh` token pair never appears contiguously),
+    but DOES match `auth-service`.
+
+    An empty entity name never matches (no tokens to match). An empty answer
+    matches nothing.
+
+    Stricter/looser/different than canonical: identical to the spec.md
+    rule. The spec.md prose is the runtime contract enforced by the LLM;
+    this function pins the same semantics deterministically so #1973's
+    behavioral tests run without an LLM in the loop.
+    """
+    entity_tokens = _tokenize_normalized(normalize_topic(entity_name))
+    answer_tokens = _tokenize_normalized(normalize_topic(answer))
+    if not entity_tokens:
+        return False
+    span = len(entity_tokens)
+    for start in range(0, len(answer_tokens) - span + 1):
+        if answer_tokens[start:start + span] == entity_tokens:
+            return True
+    return False
+
+
+def adjudicate_entity_scope(entity_name: str, q_answers: "list[str] | tuple[str, ...]") -> str:
+    """Classify a discovered entity as `in-scope` or `blast-radius` in auto-mode.
+
+    Mirrors the auto-mode resolution in `.claude/commands/spec.md`,
+    subsection `#### Step 0.5 entity adjudication`: a whole-token match
+    against ANY of the Q answers resolves the entity as `in-scope`; no match
+    resolves it as `blast-radius` (the conservative default). `out-of-scope`
+    is a human-only classification (the proposer deliberately excludes the
+    entity) and is never produced by auto-mode, so it is not returned here.
+
+    `q_answers` is the list of Step 0 Q1+Q3+Q4 answer strings.
+    """
+    for answer in q_answers:
+        if entity_matches_answer(entity_name, answer):
+            return "in-scope"
+    return "blast-radius"
+
+
 def phases_needed(tier: int) -> int:
     """Return the number of exploring-knowledge-graph phases required at a tier.
 

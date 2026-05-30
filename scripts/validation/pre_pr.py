@@ -794,6 +794,54 @@ def validate_agent_drift(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def _run_build_script_gate(
+    repo_root: Path,
+    script_name: str,
+    gate_label: str,
+) -> bool:
+    """Run a build script gate with standard error handling.
+
+    Shared helper for gates that wrap a ``build/scripts/`` Python validator
+    with the same pattern: check existence, resolve base ref, invoke with
+    ``--base``, print output, and return success/failure.
+
+    Args:
+        repo_root: Repository root path.
+        script_name: Filename under ``build/scripts/`` (e.g.,
+            ``validate_install_parity.py``).
+        gate_label: Human-readable name for error messages (e.g.,
+            ``install-parity``).
+
+    Returns:
+        True if the script exits 0, False otherwise. Fails closed when
+        the script is absent or when the base ref cannot be resolved.
+    """
+    script = repo_root / "build" / "scripts" / script_name
+    if not script.exists():
+        print(
+            f"[ERROR] {script_name} absent; the {gate_label} gate cannot "
+            f"run. Hard failure: the gate is the point of registering "
+            f"this validator.",
+            file=sys.stderr,
+        )
+        return False
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if not base_ref:
+        print(
+            f"[ERROR] {gate_label} gate: base ref could not be resolved; "
+            f"refusing to invoke validator without an explicit --base.",
+            file=sys.stderr,
+        )
+        return False
+    cmd = [sys.executable, str(script), "--base", base_ref]
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:80]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_install_parity(repo_root: Path) -> bool:
     """Detect install-copy drift across SHARED_AGENT and RULE parity groups.
 
@@ -812,29 +860,94 @@ def validate_install_parity(repo_root: Path) -> bool:
     falls back to its own @{push} default (which is not reliably set in CI
     or fresh local checkouts) and never validates against an unknown base.
     """
-    script = repo_root / "build" / "scripts" / "validate_install_parity.py"
+    return _run_build_script_gate(
+        repo_root, "validate_install_parity.py", "install-parity"
+    )
+
+
+def validate_plugin_version_bump(repo_root: Path) -> bool:
+    """Fail when a plugin source dir changed without a plugin.json bump.
+
+    Wraps ``build/scripts/validate_plugin_version_bump.py``. The script exits
+    0 when every touched plugin was version-bumped (or nothing relevant
+    changed), 1 when a touched plugin's version did not increase, and 2 on a
+    configuration error (unparseable version, git unavailable). Exit 1 and 2
+    are both hard failures here.
+
+    Like the install-parity gate, this fails closed when the validator is
+    absent (a silent skip would defeat the gate) and when the branch base ref
+    cannot be resolved (so the validator never diffs against an unknown base).
+    """
+    return _run_build_script_gate(
+        repo_root, "validate_plugin_version_bump.py", "plugin version-bump"
+    )
+
+
+def validate_workflow_local_run(repo_root: Path) -> bool:
+    """Shift-left tier of the workflow local-run gate (actionlint + act -n).
+
+    Runs the fast stages of ``scripts/validation/run_workflow_local_test.py``
+    (``--no-full``) over the changed ``.github/workflows`` files. The full
+    ``gh act`` execution stage is reserved for the pre-push hook so pre_pr stays
+    fast and does not require a running Docker daemon.
+
+    Contract: pass when no workflow changed or all run stages pass. A stage
+    failure (exit 1) blocks. A configuration error (exit 2: a path that escapes
+    the repo root, or a missing repo root) also blocks, because the inputs are
+    wrong and a clean run cannot be trusted. A missing local tool (exit 3) does
+    NOT block here, because the pre-push gate is the authoritative enforcer;
+    pre_pr only warns so a contributor without actionlint installed is not
+    stopped pre-PR.
+    """
+    script = repo_root / "scripts" / "validation" / "run_workflow_local_test.py"
     if not script.exists():
-        print(
-            "[ERROR] validate_install_parity.py absent; the install-parity "
-            "gate cannot run. This is a hard failure: the gate is the "
-            "point of registering this validator.",
-            file=sys.stderr,
-        )
-        return False
+        raise MissingScriptSkip("run_workflow_local_test.py not present")
+
     base_ref = _resolve_branch_base_ref(repo_root)
     if not base_ref:
-        print(
-            "[ERROR] install-parity gate: base ref could not be resolved; "
-            "refusing to invoke validator without an explicit --base.",
-            file=sys.stderr,
-        )
-        return False
-    cmd = [sys.executable, str(script), "--base", base_ref]
+        print("[WARN] workflow local-run: base ref unresolved; skipping.")
+        return True
+
+    diff_code, diff_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "diff", "--name-only", f"{base_ref}...HEAD"]
+    )
+    if diff_code != 0:
+        print("[WARN] workflow local-run: git diff failed; skipping.")
+        return True
+    changed = [
+        line
+        for line in diff_out.splitlines()
+        if line.startswith(".github/workflows/")
+        and line.endswith((".yml", ".yaml"))
+        and (repo_root / line).is_file()
+    ]
+    if not changed:
+        print("No changed workflow files; nothing to run locally.")
+        return True
+
+    # Pass the known repo_root explicitly so containment and path resolution
+    # validate against this checkout, not the script's path-derived default
+    # (robust to symlinked checkouts).
+    cmd = [
+        sys.executable,
+        str(script),
+        "--repo-root",
+        str(repo_root),
+        "--no-full",
+        "--files",
+        *changed,
+    ]
     exit_code, stdout, stderr = _run_subprocess(cmd)
     output = (stdout or "") + (stderr or "")
     if output.strip():
         for line in output.strip().splitlines()[:80]:
             print(line)
+    if exit_code == 3:
+        print(
+            "[WARN] workflow local-run tools unavailable locally; the pre-push "
+            "hook enforces the full gate (actionlint + gh act)."
+        )
+        return True
     return exit_code == 0
 
 
@@ -1056,6 +1169,20 @@ def main(argv: list[str] | None = None) -> int:
         "Install Parity (agents and rules)",
         state,
         lambda: validate_install_parity(repo_root),
+    )
+
+    # 6c. Plugin Version Bump (source change requires a plugin.json bump; #2118)
+    run_validation(
+        "Plugin Version Bump",
+        state,
+        lambda: validate_plugin_version_bump(repo_root),
+    )
+
+    # 6d. Workflow Local Run (actionlint + gh act dry-run for changed workflows)
+    run_validation(
+        "Workflow Local Run",
+        state,
+        lambda: validate_workflow_local_run(repo_root),
     )
 
     # 7. Command-Skill Bundle Coverage (advisory by default; SPEC-005 AC-14)

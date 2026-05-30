@@ -143,6 +143,9 @@ ZERO="0000000000000000000000000000000000000000"
 CHANGED_FILES=""
 PUSH_RANGE=""
 REFS_PROCESSED=0
+# Store each ref's base and head for per-ref validation (plugin version bump)
+PVB_BASES=()
+PVB_HEADS=()
 
 while read -r local_ref local_sha remote_ref remote_sha; do
     REFS_PROCESSED=$((REFS_PROCESSED + 1))
@@ -181,6 +184,16 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     # Keep last ref range for commit count and additions checks
     PUSH_RANGE="$ref_range"
+
+    # Store base and head for per-ref plugin version validation
+    if [ -n "$ref_range" ]; then
+        pvb_base="${ref_range%%..*}"
+        if [ "$pvb_base" = "$ref_range" ]; then
+            pvb_base="origin/main"
+        fi
+        PVB_BASES+=("$pvb_base")
+        PVB_HEADS+=("$local_sha")
+    fi
 
     if [ -n "$ref_range" ]; then
         if ! new_files=$(git diff --name-only "$ref_range" 2>&1); then
@@ -238,7 +251,8 @@ CHANGED_PY_CANONICAL=$(echo "$CHANGED_PY" \
     | grep -Ev '^src/copilot-cli/skills/' \
     || true)
 CHANGED_PS=$(echo "$CHANGED_FILES" | grep -E '\.(ps1|psm1)$' || true)
-CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
+CHANGED_WORKFLOWS=$(echo "$CHANGED_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
+CHANGED_ACTIONS=$(echo "$CHANGED_FILES" | grep -E '^\.github/actions/.*\.ya?ml$' || true)
 CHANGED_YAML=$(echo "$CHANGED_FILES" | grep -E '\.ya?ml$' || true)
 CHANGED_TEMPLATES=$(echo "$CHANGED_FILES" | grep -E '^templates/' || true)
 CHANGED_SESSIONS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/sessions/' || true)
@@ -457,9 +471,29 @@ else
     record_skip "Python type check (no .py files changed)"
 fi
 
-# 8. Workflow YAML (actionlint) - BLOCKING
+# 8. Workflow local-run gate (actionlint + gh act dry-run + full run) - BLOCKING
+#
+# Belt and suspenders: a changed .github/workflows file MUST pass actionlint,
+# then `gh act -n` (dry-run graph), then a full `gh act` run before the push is
+# allowed. Delegates to scripts/validation/run_workflow_local_test.py so the
+# stage logic is unit-tested (ADR-006). Exit 3 means a required tool
+# (actionlint, gh act, Docker) is unavailable; that blocks too, because the
+# point of this gate is to REQUIRE the local run. A workflow that genuinely
+# cannot run under act (secrets, ARM-only runner) is bypassed, audibly, with
+# SKIP_WORKFLOW_LOCAL_TEST=true.
 if [ -n "$CHANGED_WORKFLOWS" ]; then
-    if command -v actionlint &> /dev/null; then
+    WF_LOCAL_SCRIPT="$REPO_ROOT/scripts/validation/run_workflow_local_test.py"
+    # Fail closed: the gate exists to REQUIRE a local run. A missing, symlinked,
+    # or unrunnable validator MUST block the push, not silently skip it. The only
+    # escape is the documented, audible bypass.
+    WF_BYPASS=$(printf '%s' "${SKIP_WORKFLOW_LOCAL_TEST:-}" | tr '[:upper:]' '[:lower:]')
+    if [ "$WF_BYPASS" = "true" ] || [ "$WF_BYPASS" = "1" ]; then
+        record_warn "Workflow local run BYPASSED (SKIP_WORKFLOW_LOCAL_TEST set)"
+    elif [ -L "$WF_LOCAL_SCRIPT" ]; then
+        record_fail "Workflow local-run script is a symlink; refusing to skip the gate"
+        echo_info "  Restore scripts/validation/run_workflow_local_test.py, or set"
+        echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
+    elif [ -f "$WF_LOCAL_SCRIPT" ] && set_python_cmd; then
         WF_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -468,28 +502,44 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
         done <<< "$CHANGED_WORKFLOWS"
 
         if [ ${#WF_FILES[@]} -gt 0 ]; then
-            ACTIONLINT_OUTPUT=$(mktemp)
-            if actionlint "${WF_FILES[@]}" > "$ACTIONLINT_OUTPUT" 2>&1; then
-                rm -f "$ACTIONLINT_OUTPUT"
-                record_pass "Workflow YAML/actionlint (${#WF_FILES[@]} files)"
+            WF_LOCAL_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$WF_LOCAL_OUTPUT")
+            "${PYTHON_CMD[@]}" "$WF_LOCAL_SCRIPT" --files "${WF_FILES[@]}" \
+                > "$WF_LOCAL_OUTPUT" 2>&1
+            WF_LOCAL_RC=$?
+            if [ $WF_LOCAL_RC -eq 0 ]; then
+                record_pass "Workflow local run (actionlint+act, ${#WF_FILES[@]} files)"
+            elif [ $WF_LOCAL_RC -eq 3 ]; then
+                cat "$WF_LOCAL_OUTPUT"
+                record_fail "Workflow local run: required tool unavailable"
+                echo_info "  Install actionlint, the gh act extension"
+                echo_info "  (gh extension install nektos/gh-act), and Docker, or set"
+                echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
             else
-                echo_info "  actionlint issues:"
-                head -10 "$ACTIONLINT_OUTPUT"
-                rm -f "$ACTIONLINT_OUTPUT"
-                record_fail "Workflow YAML/actionlint"
+                cat "$WF_LOCAL_OUTPUT"
+                record_fail "Workflow local run failed (exit $WF_LOCAL_RC)"
+                echo_info "  Make the workflow pass locally, or set"
+                echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true if it cannot run under act."
             fi
+            rm -f "$WF_LOCAL_OUTPUT"
         else
-            record_skip "Workflow YAML (no accessible files)"
+            record_skip "Workflow local run (no accessible files)"
         fi
     else
-        record_skip "Workflow YAML (actionlint not installed)"
+        record_fail "Workflow local run: validator script or Python unavailable"
+        echo_info "  Install Python 3 and restore"
+        echo_info "  scripts/validation/run_workflow_local_test.py, or set"
+        echo_info "  SKIP_WORKFLOW_LOCAL_TEST=true to bypass an unrunnable workflow."
     fi
 else
-    record_skip "Workflow YAML (no workflow files changed)"
+    record_skip "Workflow local run (no workflow files changed)"
 fi
 
 # 8a. Workflow validation (validate_workflows.py) - BLOCKING
-if [ -n "$CHANGED_WORKFLOWS" ]; then
+# validate_workflows.py validates both .github/workflows/ and .github/actions/ files
+# for SHA-pinning, expression-injection, and YAML structure. Use both CHANGED_WORKFLOWS
+# (for Section 8 local-run gate) and CHANGED_ACTIONS (for action definitions) here.
+if [ -n "$CHANGED_WORKFLOWS" ] || [ -n "$CHANGED_ACTIONS" ]; then
     VALIDATE_WORKFLOWS_SCRIPT="$REPO_ROOT/scripts/validate_workflows.py"
 
     if [ -L "$VALIDATE_WORKFLOWS_SCRIPT" ]; then
@@ -502,6 +552,11 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
                 [ -L "$file" ] && continue
                 [ -f "$file" ] && WF_FILES+=("$file")
             done <<< "$CHANGED_WORKFLOWS"
+            while IFS= read -r file; do
+                [ -z "$file" ] && continue
+                [ -L "$file" ] && continue
+                [ -f "$file" ] && WF_FILES+=("$file")
+            done <<< "$CHANGED_ACTIONS"
 
             if [ ${#WF_FILES[@]} -gt 0 ]; then
                 VALIDATE_OUTPUT=$(mktemp)
@@ -525,7 +580,7 @@ if [ -n "$CHANGED_WORKFLOWS" ]; then
         record_skip "Workflow validation (script not found)"
     fi
 else
-    record_skip "Workflow validation (no workflow files changed)"
+    record_skip "Workflow validation (no workflow or action files changed)"
 fi
 
 # 9. YAML style (yamllint) - Non-blocking warnings
@@ -681,6 +736,65 @@ elif [ -f "$BUILD_ALL_SCRIPT" ]; then
     fi
 else
     record_skip "Build pipeline staleness (script not found)"
+fi
+
+# 11c. Plugin version bump (validate_plugin_version_bump.py)
+#
+# Fails when a packaged plugin's source dir (.claude, src/claude,
+# src/copilot-cli) changed in this push without a strictly-greater
+# plugin.json version bump. Installed caches key off the version; an
+# unbumped version means the change never reaches consumers (PR #1942 /
+# PR #2114, Issue #2118). Same validator the CI gate and the PreToolUse
+# guard use, so all three agree.
+#
+# Validates each ref being pushed (not just the last one) by iterating
+# over PVB_BASES/PVB_HEADS arrays populated during ref processing. Uses
+# --head to validate the specific commit being pushed, not the working
+# tree or HEAD, so uncommitted changes cannot mask missing bumps.
+PLUGIN_VERSION_SCRIPT="$REPO_ROOT/build/scripts/validate_plugin_version_bump.py"
+
+if [ -L "$PLUGIN_VERSION_SCRIPT" ]; then
+    record_warn "Plugin version bump script is a symlink (skipping)"
+elif [ -f "$PLUGIN_VERSION_SCRIPT" ] && [ ${#PVB_BASES[@]} -gt 0 ]; then
+    if set_python_cmd; then
+        PVB_ALL_PASSED=1
+        PVB_ANY_CONFIG_ERROR=0
+        for i in "${!PVB_BASES[@]}"; do
+            pvb_base="${PVB_BASES[$i]}"
+            pvb_head="${PVB_HEADS[$i]}"
+            PVB_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$PVB_OUTPUT")
+            "${PYTHON_CMD[@]}" "$PLUGIN_VERSION_SCRIPT" \
+                --base "$pvb_base" --head "$pvb_head" \
+                > "$PVB_OUTPUT" 2>&1
+            PVB_RC=$?
+            if [ $PVB_RC -eq 0 ]; then
+                : # Pass for this ref, continue checking others
+            elif [ $PVB_RC -eq 2 ]; then
+                head -20 "$PVB_OUTPUT"
+                PVB_ANY_CONFIG_ERROR=1
+            else
+                cat "$PVB_OUTPUT"
+                PVB_ALL_PASSED=0
+            fi
+            rm -f "$PVB_OUTPUT"
+        done
+        if [ $PVB_ALL_PASSED -eq 1 ] && [ $PVB_ANY_CONFIG_ERROR -eq 0 ]; then
+            record_pass "Plugin version bump"
+        elif [ $PVB_ANY_CONFIG_ERROR -eq 1 ] && [ $PVB_ALL_PASSED -eq 1 ]; then
+            record_warn "Plugin version bump check config error (exit 2)"
+        else
+            record_fail "Plugin source changed without version bump"
+            echo_info "  Fix: bump 'version' in the reported"
+            echo_info "  .claude-plugin/plugin.json to a higher semver, then commit."
+        fi
+    else
+        record_skip "Plugin version bump (no Python available)"
+    fi
+elif [ ! -f "$PLUGIN_VERSION_SCRIPT" ]; then
+    record_skip "Plugin version bump (script not found)"
+else
+    record_skip "Plugin version bump (no refs to validate)"
 fi
 
 # 12. Path normalization

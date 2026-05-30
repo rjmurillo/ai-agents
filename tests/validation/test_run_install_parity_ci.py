@@ -1,9 +1,12 @@
-"""Tests for scripts/validation/run_install_parity_ci.py.
+"""Tests for run_install_parity_ci.py and its shared ci_runner_base helpers.
 
-Covers the env-var allowlist (CWE-78 defense in depth) and the
-base-ref resolution priority order. The fetch and validator invocation
-are exercised indirectly via mocks; the module is small enough that
-the unit tests cover every branch.
+The base-ref allowlist and resolution logic were extracted into
+``scripts/validation/ci_runner_base.py`` (shared with the plugin
+version-bump CI runner). These tests target the helpers in their new home
+and the thin ``run_install_parity_ci.main`` wrapper that composes them.
+
+Covers the env-var allowlist (CWE-78 defense in depth) and the base-ref
+resolution priority order. Fetch and validator invocation are mocked.
 """
 
 from __future__ import annotations
@@ -16,22 +19,23 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
 
+import ci_runner_base as base  # noqa: E402
 import run_install_parity_ci as runner  # noqa: E402
 
 
-# --- _validate_branch ----------------------------------------------------
+# --- validate_branch -----------------------------------------------------
 
 
 def test_branch_accepts_simple_name() -> None:
-    assert runner._validate_branch("main") == "main"
-    assert runner._validate_branch("feat/install-parity-guard") == "feat/install-parity-guard"
-    assert runner._validate_branch("fix-2094") == "fix-2094"
-    assert runner._validate_branch("release/1.2.3") == "release/1.2.3"
+    assert base.validate_branch("main") == "main"
+    assert base.validate_branch("feat/install-parity-guard") == "feat/install-parity-guard"
+    assert base.validate_branch("fix-2094") == "fix-2094"
+    assert base.validate_branch("release/1.2.3") == "release/1.2.3"
 
 
 def test_branch_rejects_empty_or_whitespace() -> None:
-    assert runner._validate_branch("") is None
-    assert runner._validate_branch("   ") is None
+    assert base.validate_branch("") is None
+    assert base.validate_branch("   ") is None
 
 
 def test_branch_rejects_shell_metacharacters() -> None:
@@ -50,84 +54,76 @@ def test_branch_rejects_shell_metacharacters() -> None:
         "-delete",
         "--upload-pack=evil",
     ]:
-        assert runner._validate_branch(bad) is None, f"should reject: {bad!r}"
+        assert base.validate_branch(bad) is None, f"should reject: {bad!r}"
 
 
 def test_branch_rejects_overly_long_names() -> None:
     """200 chars is the cap; anything longer is refused."""
-    assert runner._validate_branch("a" * 201) is None
-    assert runner._validate_branch("a" * 200) == "a" * 200
+    assert base.validate_branch("a" * 201) is None
+    assert base.validate_branch("a" * 200) == "a" * 200
 
 
-# --- _validate_sha -------------------------------------------------------
+# --- validate_sha --------------------------------------------------------
 
 
 def test_sha_accepts_valid_short_and_long() -> None:
-    assert runner._validate_sha("abc1234") == "abc1234"
-    assert runner._validate_sha("0123456789abcdef0123456789abcdef01234567") == (
+    assert base.validate_sha("abc1234") == "abc1234"
+    assert base.validate_sha("0123456789abcdef0123456789abcdef01234567") == (
         "0123456789abcdef0123456789abcdef01234567"
     )
 
 
 def test_sha_rejects_non_hex_and_short() -> None:
-    assert runner._validate_sha("") is None
-    assert runner._validate_sha("xyz") is None
-    assert runner._validate_sha("abc") is None  # too short
-    assert runner._validate_sha("a" * 41) is None  # too long
-    assert runner._validate_sha("abc; rm -rf /") is None
+    assert base.validate_sha("") is None
+    assert base.validate_sha("xyz") is None
+    assert base.validate_sha("abc") is None  # too short
+    assert base.validate_sha("a" * 41) is None  # too long
+    assert base.validate_sha("abc; rm -rf /") is None
 
 
 def test_sha_rejects_all_zero_sentinel() -> None:
     """github.event.before is 0000... for the first push of a branch."""
-    assert runner._validate_sha("0" * 40) is None
-    assert runner._validate_sha("0" * 7) is None
+    assert base.validate_sha("0" * 40) is None
+    assert base.validate_sha("0" * 7) is None
 
 
-# --- _resolve_base -------------------------------------------------------
+# --- resolve_base --------------------------------------------------------
+# resolve_base lives in ci_runner_base and calls ci_runner_base.run, so the
+# subprocess seam is patched on `base`, not on the thin runner wrapper.
 
 
 def test_resolve_base_prefers_origin_when_resolvable(monkeypatch) -> None:
-    calls: list[list[str]] = []
-
     def fake_run(cmd, *, check=False, timeout=60):
-        calls.append(cmd)
-        # rev-parse for origin/main succeeds
-        if cmd[:3] == ["git", "rev-parse", "--verify"]:
-            ref = cmd[-1]
-            if ref == "origin/main":
-                return 0, "deadbeef\n", ""
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "origin/main":
+            return 0, "deadbeef\n", ""
         return 1, "", ""
 
-    monkeypatch.setattr(runner, "_run", fake_run)
-    assert runner._resolve_base("main") == "origin/main"
+    monkeypatch.setattr(base, "run", fake_run)
+    assert base.resolve_base("main") == "origin/main"
 
 
 def test_resolve_base_falls_back_to_push_before_sha(monkeypatch) -> None:
     monkeypatch.setenv("PUSH_BEFORE_SHA", "abc1234")
 
     def fake_run(cmd, *, check=False, timeout=60):
-        if cmd[:3] == ["git", "rev-parse", "--verify"]:
-            ref = cmd[-1]
-            if ref == "abc1234":
-                return 0, "abc1234\n", ""
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "abc1234":
+            return 0, "abc1234\n", ""
         return 1, "", ""
 
-    monkeypatch.setattr(runner, "_run", fake_run)
-    assert runner._resolve_base("main") == "abc1234"
+    monkeypatch.setattr(base, "run", fake_run)
+    assert base.resolve_base("main") == "abc1234"
 
 
 def test_resolve_base_falls_back_to_head_caret(monkeypatch) -> None:
     monkeypatch.delenv("PUSH_BEFORE_SHA", raising=False)
 
     def fake_run(cmd, *, check=False, timeout=60):
-        if cmd[:3] == ["git", "rev-parse", "--verify"]:
-            ref = cmd[-1]
-            if ref == "HEAD^":
-                return 0, "abc\n", ""
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "HEAD^":
+            return 0, "abc\n", ""
         return 1, "", ""
 
-    monkeypatch.setattr(runner, "_run", fake_run)
-    assert runner._resolve_base("main") == "HEAD^"
+    monkeypatch.setattr(base, "run", fake_run)
+    assert base.resolve_base("main") == "HEAD^"
 
 
 def test_resolve_base_returns_none_when_nothing_resolves(monkeypatch) -> None:
@@ -136,8 +132,8 @@ def test_resolve_base_returns_none_when_nothing_resolves(monkeypatch) -> None:
     def fake_run(cmd, *, check=False, timeout=60):
         return 1, "", ""
 
-    monkeypatch.setattr(runner, "_run", fake_run)
-    assert runner._resolve_base("main") is None
+    monkeypatch.setattr(base, "run", fake_run)
+    assert base.resolve_base("main") is None
 
 
 def test_resolve_base_ignores_malformed_push_before_sha(monkeypatch) -> None:
@@ -145,19 +141,18 @@ def test_resolve_base_ignores_malformed_push_before_sha(monkeypatch) -> None:
     monkeypatch.setenv("PUSH_BEFORE_SHA", "abc; rm -rf /")
 
     def fake_run(cmd, *, check=False, timeout=60):
-        if cmd[:3] == ["git", "rev-parse", "--verify"]:
-            ref = cmd[-1]
-            # Only HEAD^ resolves
-            if ref == "HEAD^":
-                return 0, "x\n", ""
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "HEAD^":
+            return 0, "x\n", ""
         return 1, "", ""
 
-    monkeypatch.setattr(runner, "_run", fake_run)
+    monkeypatch.setattr(base, "run", fake_run)
     # Should NOT call rev-parse on the malformed sha; falls to HEAD^.
-    assert runner._resolve_base("main") == "HEAD^"
+    assert base.resolve_base("main") == "HEAD^"
 
 
 # --- main ----------------------------------------------------------------
+# main() composes the imported helpers; patching them on the runner module
+# (where main looks them up) is the correct seam.
 
 
 def test_main_with_malformed_pr_base_ref_fails_closed(
@@ -169,20 +164,9 @@ def test_main_with_malformed_pr_base_ref_fails_closed(
 
     fetch_calls: list[str] = []
 
-    def fake_fetch(base_ref: str) -> None:
-        fetch_calls.append(base_ref)
-
-    def fake_resolve(base_ref: str) -> str | None:
-        return f"origin/{base_ref}"
-
-    monkeypatch.setattr(runner, "_fetch_base_ref", fake_fetch)
-    monkeypatch.setattr(runner, "_resolve_base", fake_resolve)
-
-    # Stub the validator subprocess so we don't actually shell out.
-    def fake_run(cmd, *, check=False, timeout=60):
-        return 0, "install-parity: OK\n", ""
-
-    monkeypatch.setattr(runner, "_run", fake_run)
+    monkeypatch.setattr(runner, "fetch_base_ref", lambda base_ref: fetch_calls.append(base_ref))
+    monkeypatch.setattr(runner, "resolve_base", lambda base_ref: f"origin/{base_ref}")
+    monkeypatch.setattr(runner, "run", lambda cmd, *, check=False, timeout=60: (0, "OK\n", ""))
 
     rc = runner.main()
     assert rc == 2

@@ -40,8 +40,11 @@ from scripts.github_core import (
     update_issue_comment,
 )
 from scripts.github_core.api import _403_PATTERN
+from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1488,3 +1491,151 @@ class TestGetReactionEmoji:
 
     def test_unknown_returns_input(self):
         assert get_reaction_emoji("custom") == "custom"
+
+
+class TestYamlFallback:
+    """No-PyYAML fallback path (issue #1844).
+
+    When PyYAML is not importable, bot_config must still load authors via
+    the vendored _parse_simple_yaml and produce the same result.
+    """
+
+    def test_parse_simple_yaml_matches_yaml_safe_load(self) -> None:
+        import yaml as _yaml
+
+        text = (_REPO_ROOT / ".github" / "bot-authors.yml").read_text(
+            encoding="utf-8"
+        )
+        reference = _yaml.safe_load(text)
+        assert bot_config._parse_simple_yaml(text) == reference
+
+    def test_get_bot_authors_config_without_yaml(self, monkeypatch) -> None:
+        with_yaml = bot_config.get_bot_authors_config(force=True)
+        monkeypatch.setattr(bot_config, "yaml", None)
+        without_yaml = bot_config.get_bot_authors_config(force=True)
+        assert without_yaml == with_yaml
+
+    def test_is_bot_without_yaml(self, monkeypatch) -> None:
+        monkeypatch.setattr(bot_config, "yaml", None)
+        bot_config.get_bot_authors_config(force=True)
+        assert bot_config.is_bot("coderabbitai[bot]")
+        assert not bot_config.is_bot("octocat-human")
+
+    def test_missing_file_without_yaml_uses_defaults(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(bot_config, "yaml", None)
+        missing = str(tmp_path / "none.yml")
+        cfg = bot_config.get_bot_authors_config(config_path=missing, force=True)
+        assert cfg == bot_config._DEFAULT_BOTS
+
+
+class TestParseSimpleYaml:
+    """Unit coverage for the vendored YAML-subset parser (issue #1844)."""
+
+    def test_block_list(self) -> None:
+        assert bot_config._parse_simple_yaml("bots:\n  - foo\n  - bar\n") == {
+            "bots": ["foo", "bar"]
+        }
+
+    def test_inline_comment_stripped_from_item(self) -> None:
+        assert bot_config._parse_simple_yaml("bots:\n  - foo  # note\n") == {
+            "bots": ["foo"]
+        }
+
+    def test_comments_and_blanks_ignored(self) -> None:
+        text = "# header\n\nbots:\n  - foo\n\n  - bar\n# trailer\n"
+        assert bot_config._parse_simple_yaml(text) == {"bots": ["foo", "bar"]}
+
+    def test_item_with_space_and_brackets_preserved(self) -> None:
+        text = "bots:\n  - Copilot   # no suffix\n  - renovate[bot]\n"
+        assert bot_config._parse_simple_yaml(text) == {
+            "bots": ["Copilot", "renovate[bot]"]
+        }
+
+    def test_literal_hash_in_item_preserved(self) -> None:
+        assert bot_config._parse_simple_yaml("bots:\n  - foo#bar\n") == {
+            "bots": ["foo#bar"]
+        }
+
+    def test_inline_scalar_value(self) -> None:
+        assert bot_config._parse_simple_yaml("name: value\n") == {
+            "name": "value"
+        }
+
+    def test_quoted_value_unwrapped(self) -> None:
+        assert bot_config._parse_simple_yaml('name: "value"\n') == {
+            "name": "value"
+        }
+
+    def test_quoted_item_unwrapped(self) -> None:
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo'\n") == {
+            "bots": ["foo"]
+        }
+
+    def test_hash_inside_quoted_item_preserved(self) -> None:
+        # A # inside quotes is literal content, not a comment marker.
+        assert bot_config._parse_simple_yaml("bots:\n  - 'foo # bar'\n") == {
+            "bots": ["foo # bar"]
+        }
+        assert bot_config._parse_simple_yaml('name: "value # note"\n') == {
+            "name": "value # note"
+        }
+
+    def test_empty_text(self) -> None:
+        assert bot_config._parse_simple_yaml("") == {}
+
+    def test_orphan_item_without_key_ignored(self) -> None:
+        assert bot_config._parse_simple_yaml("- foo\n") == {}
+
+    def test_bare_scalar_text_yields_empty(self) -> None:
+        # A document with no `key:` mapping has nothing to collect; the
+        # caller then falls back to defaults via the empty-dict guard.
+        assert bot_config._parse_simple_yaml("just a string\n") == {}
+
+    def test_mismatched_quote_left_intact(self) -> None:
+        # Only a matched surrounding pair is stripped.
+        assert bot_config._parse_simple_yaml("bots:\n  - \"foo'\n") == {
+            "bots": ['"foo\'']
+        }
+
+    def test_colon_value_without_space(self) -> None:
+        # Per YAML spec, a colon without a following space is part of a plain
+        # scalar, not a key-value separator. yaml.safe_load("name:value\n")
+        # returns the string "name:value", not a dict. Our parser follows suit
+        # by returning {} for non-mapping documents.
+        assert bot_config._parse_simple_yaml("name:value\n") == {}
+
+    def test_crlf_line_endings(self) -> None:
+        assert bot_config._parse_simple_yaml("bots:\r\n  - foo\r\n") == {
+            "bots": ["foo"]
+        }
+
+
+class TestMirrorParity:
+    """The install mirrors must equal the canonical loader's sync transform.
+
+    The mirrors are NOT byte-identical to the canonical file. scripts/sync_plugin_lib.py
+    (_transform_file -> _replace_first_docstring_line) rewrites the first module
+    docstring line to a canonical note and converts intra-package absolute imports to
+    relative ones. Asserting raw byte-identity always fails on the first docstring line.
+    This test asserts each mirror equals the transform the sync tool itself produces, so
+    it cannot drift from the real sync contract.
+    """
+
+    def test_mirrors_match_sync_transform(self) -> None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "sync_plugin_lib", _REPO_ROOT / "scripts" / "sync_plugin_lib.py"
+        )
+        spl = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(spl)
+
+        src = _REPO_ROOT / "scripts/github_core/bot_config.py"
+        expected = spl._transform_file(src, "scripts/github_core")
+        for mirror in (
+            ".claude/lib/github_core/bot_config.py",
+            "src/copilot-cli/lib/github_core/bot_config.py",
+        ):
+            assert (_REPO_ROOT / mirror).read_text(encoding="utf-8") == expected, mirror

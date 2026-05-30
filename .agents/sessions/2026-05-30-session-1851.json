@@ -1,0 +1,129 @@
+{
+  "session": {
+    "number": 1851,
+    "date": "2026-05-30",
+    "branch": "fix/2047-skill-violation-scan-timeout",
+    "startingCommit": "42b3e26490072782edf1dd1d61569835eab3353d",
+    "objective": "Fix detect_skill_violation full-tree scan timeout (issues 2047 and 2010)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active via harness; project context loaded at session start"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions present via MCP server during this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md via Read tool; left unchanged (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created with .claude/skills/session-init/scripts/new_session_log_json.py (this file)"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github/scripts: issue, milestone, pr, reactions, notifications, utils"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first rules read from AGENTS.md in harness context; used skill scripts for issue assignment and PR creation"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Binding constraints applied from .claude/rules loaded in harness context (universal.md, ci-scripts.md, testing.md)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue bodies 2047 and 2010 read via gh api; both name scripts/detect_skill_violation.py as the source"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git rev-parse confirms branch fix/2047-skill-violation-scan-timeout off origin/main 42b3e264"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Current branch is fix/2047-skill-violation-scan-timeout, confirmed by git rev-parse --abbrev-ref HEAD"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified clean before and after the fix commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Starting commit (origin/main): 42b3e26490072782edf1dd1d61569835eab3353d"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Objective met: fix commit a471eac0 changes get_all_files to os.walk with SKIP_DIRS pruning"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git status confirms .agents/HANDOFF.md was not modified this session (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Decision recorded in commit body and PR description: rglob walk replaced by os.walk SKIP_DIRS pruning, 50390 to 1109 files, ~32s to ~0.3s"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Only .py files changed; markdownlint has no markdown to lint. Ruff and dash checks clean on both .py files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix committed as a471eac0 (scripts/detect_skill_violation.py, tests/test_detect_skill_violation.py); session log committed separately"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hook test suite green (43 passed); script coverage 88% with get_all_files rewrite fully covered; full repo scan completes in ~0.3s under the 30s budget"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Work tracked inline; objective and outcome captured in this log"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-file bug fix; retrospective not warranted for this scope"
+      }
+    }
+  },
+  "workLog": [
+    "Read issues 2047 and 2010; both name scripts/detect_skill_violation.py full-repo scan as the timeout cause",
+    "Profiled: rglob walk visited 50390 files (.venv 32171, .claude worktree tree 17074), ~32s wall clock",
+    "Rewrote get_all_files from rglob to os.walk with in-place SKIP_DIRS pruning",
+    "Added SKIP_DIRS: .venv, venv, worktrees, .pytest_cache, .mypy_cache, .ruff_cache plus pre-existing .git, node_modules, __pycache__",
+    "Re-measured: 1109 files, ~0.3s, violations unchanged at 30",
+    "Added tests: parametrized pruning, nested-worktree pruning, SKIP_DIRS contract, --staged-only path, 30s timing budget; kept canonical test_runs_without_error",
+    "Hook suite green (43 passed); script coverage 88%"
+  ],
+  "endingCommit": "a471eac0",
+  "nextSteps": [
+    "Reviewer verification of os.walk pruning and timing-budget test",
+    "Merge after CI passes"
+  ]
+}

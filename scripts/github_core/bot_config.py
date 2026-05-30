@@ -7,9 +7,20 @@ import os
 import warnings
 from pathlib import Path
 
-import yaml
+try:
+    import yaml
+except ImportError:  # pragma: no cover
+    yaml = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+# Errors raised while loading the config. ``yaml.YAMLError`` is only
+# referenceable when PyYAML is installed; when it is absent the vendored
+# parser raises only OSError on read failure. Build the except-tuple to
+# match whichever loader path get_bot_authors_config uses (issue #1844).
+_CONFIG_LOAD_ERRORS: tuple[type[Exception], ...] = (
+    (OSError, yaml.YAMLError) if yaml is not None else (OSError,)
+)
 
 # ---------------------------------------------------------------------------
 # Bot configuration
@@ -64,6 +75,100 @@ def _cache_bot_config(
     return bots
 
 
+def _strip_inline_comment(value: str) -> str:
+    """Drop a YAML inline comment from *value*.
+
+    A ``#`` at index 0, or one preceded by a space or tab, starts a comment
+    unless it is inside a quoted section. A ``#`` with a non-space character
+    before it is part of the value: ``foo # note`` becomes ``foo``;
+    ``foo#bar`` stays ``foo#bar``. Quoted sections (single or double quotes)
+    are respected: ``'foo # bar'`` stays ``'foo # bar'``. The returned value
+    is stripped of surrounding whitespace.
+    """
+    in_quote: str | None = None
+    for i, char in enumerate(value):
+        if char in ("'", '"'):
+            if in_quote is None:
+                in_quote = char
+            elif in_quote == char:
+                in_quote = None
+        elif in_quote is None and char == "#" and (i == 0 or value[i - 1] in (" ", "\t")):
+            return value[:i].strip()
+    return value.strip()
+
+
+def _strip_quotes(value: str) -> str:
+    """Remove one matching pair of surrounding quotes from *value*.
+
+    When *value* is at least two characters long and starts and ends with the
+    same single- or double-quote character, return the inner slice. Otherwise
+    return *value* unchanged.
+    """
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        return value[1:-1]
+    return value
+
+
+def _parse_mapping_line(raw: str) -> tuple[str, str] | None:
+    """Split a top-level mapping line into (key, inline_value), or None.
+
+    A line is a mapping entry only when a colon is followed by whitespace
+    (``key: value``) or the colon is the last character before any inline
+    comment (``key:``). A colon with a non-space character after it is part of
+    a plain scalar, not a separator: yaml.safe_load("name:value") returns the
+    string "name:value", not a dict. Returns None for such non-mapping lines.
+
+    The inline value has its inline comment stripped but quotes left intact;
+    the caller decides whether to unwrap quotes. For a bare ``key:`` the inline
+    value is the empty string, signalling a block list follows.
+    """
+    line = _strip_inline_comment(raw)
+    for i, char in enumerate(line):
+        if char != ":":
+            continue
+        after = line[i + 1 :]
+        if after == "" or after[0] in (" ", "\t"):
+            return line[:i].strip(), after.strip()
+    return None
+
+
+def _parse_simple_yaml(text: str) -> dict:
+    """Parse the small YAML subset used by bot-authors.yml without PyYAML.
+
+    Supports top-level scalar keys (``key: value``) and top-level list keys
+    (``key:`` followed by ``- item`` lines). A colon is a key separator only
+    when followed by whitespace or at end of line; ``name:value`` (no space) is
+    a plain scalar, matching yaml.safe_load, and contributes nothing to the
+    mapping. Blank lines and full-line comments are skipped. Inline comments and
+    one matching pair of surrounding quotes are stripped from values and list
+    items. This is the fallback used when PyYAML is not importable; for the
+    bot-authors.yml subset its output equals ``yaml.safe_load`` (issue #1844).
+    """
+    result: dict = {}
+    current_key: str | None = None
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("-"):
+            item = _strip_quotes(_strip_inline_comment(stripped[1:]))
+            if current_key is not None and isinstance(result.get(current_key), list):
+                result[current_key].append(item)
+            continue
+        if not raw[0].isspace():
+            parsed = _parse_mapping_line(raw)
+            if parsed is None:
+                continue
+            key, inline = parsed
+            if inline:
+                result[key] = _strip_quotes(inline)
+                current_key = None
+            else:
+                result[key] = []
+                current_key = key
+    return result
+
+
 def get_bot_authors_config(
     config_path: str | None = None,
     force: bool = False,
@@ -104,8 +209,8 @@ def get_bot_authors_config(
             return _cache_bot_config(config_path, dict(_DEFAULT_BOTS))
 
     try:
-        with open(config_path, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+        text = Path(config_path).read_text(encoding="utf-8")
+        data = yaml.safe_load(text) if yaml is not None else _parse_simple_yaml(text)
 
         if not isinstance(data, dict):
             logger.debug("Bot authors config was not a dict, using defaults")
@@ -123,7 +228,7 @@ def get_bot_authors_config(
 
         return _cache_bot_config(config_path, bots)
 
-    except (OSError, yaml.YAMLError) as exc:
+    except _CONFIG_LOAD_ERRORS as exc:
         warnings.warn(
             f"Failed to parse bot authors config: {exc}, using defaults",
             stacklevel=2,

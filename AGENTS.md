@@ -19,12 +19,12 @@ Read first, reason second. Pre-training last resort.
 
 **Start**: Init Serena|Read HANDOFF.md + latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
 **Mid**: `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan
+**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style: `.gemini/styleguide.md`
 **End**: Complete log|Preserve HANDOFF.md|Issue handoff (template) if open|Update Serena|Lint|Commit|Validate JSON
 
 ## Boundaries
 
-**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|`gh act` locally
+**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run changed workflows locally pre-push (`SKIP_WORKFLOW_LOCAL_TEST=true` bypass)|Bump `plugin.json` (semver) on plugin source change (#2118)
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
 **Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in working tree (use `$TMPDIR`/`mktemp`)|Resolve security threads without fixing underlying vulnerability (CWE/OWASP/CVE) in code
@@ -59,7 +59,3 @@ Tests (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv exits. See `.agent
 ## Stack
 
 Python 3.14|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
-
-## Refs
-
-`.agents/SESSION-PROTOCOL.md`|`.agents/HANDOFF.md`|`.agents/governance/`|`.gemini/styleguide.md`

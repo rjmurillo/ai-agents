@@ -137,7 +137,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 | **Handoff** | Explicit transfer of context and control between agents with clear accountability |
 | **Skill** | A reusable workflow component for common tasks (69+ included: git, PR, testing, linting) |
 | **Memory** | Cross-session context persistence via Serena + Forgetful for knowledge retention |
-| **ADR** | Architectural Decision Record—structured documents capturing design decisions |
+| **ADR** | Architectural Decision Record, structured documents capturing design decisions |
 | **Quality Gate** | Validation checkpoint (critic review, QA pass, security scan) before proceeding |
 
 ---
@@ -152,7 +152,7 @@ The [Fastest Start](#fastest-start) above is the recommended path. Use the comma
 
 The [Fastest Start](#fastest-start) commands install the full toolkit. For component-level installs, register the marketplace once in the CLI you are using and then install just the parts you want. Claude Code resolves that repository to `.claude-plugin/marketplace.json`; Copilot CLI resolves it to `.github/plugin/marketplace.json`. In Claude Code you can also use `/install-plugin rjmurillo/ai-agents` as a one-step shortcut that registers the marketplace and prompts for plugin selection.
 
-**Claude Code**
+**Claude Code:**
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
@@ -163,7 +163,7 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 | Claude agents only | `/plugin install claude-agents@ai-agents` | 24 agent definitions from `src/claude/` (no skills, commands, or hooks) |
 | Project toolkit | `/plugin install project-toolkit@ai-agents` | 23 agents, 23 slash commands, 29 hooks, and 69 reusable skills from `.claude/` |
 
-**GitHub Copilot CLI**
+**GitHub Copilot CLI:**
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents

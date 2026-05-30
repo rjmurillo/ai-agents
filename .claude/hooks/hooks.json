@@ -120,6 +120,12 @@
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_pr_description_guard.py\"",
             "timeout": 90,
             "statusMessage": "Checking PR description vs diff (BLOCKING)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_plugin_version_bump_guard.py\"",
+            "timeout": 30,
+            "statusMessage": "Checking plugin.json version bump on plugin source changes (BLOCKING)"
           }
         ]
       },

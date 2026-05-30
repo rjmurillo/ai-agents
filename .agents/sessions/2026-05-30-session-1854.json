@@ -1,0 +1,125 @@
+{
+  "session": {
+    "number": 1854,
+    "date": "2026-05-30",
+    "branch": "fix/1973-step0-5-whole-token-equality",
+    "startingCommit": "1970ad1c",
+    "objective": "Fix #1973: replace Step 0.5 auto-mode case-insensitive substring match with whole-token equality to close the CWE-863 broken-access-control bypass in entity adjudication."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP offline this session; satisfied the gate intent through the documented degraded-mode fallback: ran Layer-1 codebase search (grep + Read) to load prior context. Located the canonical rule at .claude/commands/spec.md line 226 and its mirror at src/copilot-cli/skills/spec/SKILL.md."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP offline; followed the equivalent project instructions directly: AGENTS.md, CLAUDE.md, and the applicable .claude/rules/*.md (canonical-source-mirror, code-quality, testing, universal)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only per ADR-014). No open issue handoff for #1973."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created via new_session_log_json.py."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill scripts (set_issue_assignee.py, get_pull_requests.py, new_pr.py) and session-init/session validators instead of raw gh."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md, and applicable .claude/rules/*.md (canonical-source-mirror, code-quality, testing, universal) before editing."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue #1973 acceptance criteria and the Step 0.5 spec rule; applied canonical-source-mirror rule for the parser docstrings."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Layer-1 codebase search substituted for Serena memory (unavailable). Located canonical rule at spec.md line 226 and SKILL.md mirror."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current returned fix/1973-step0-5-whole-token-equality."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Branch is fix/1973-step0-5-whole-token-equality, not main or master."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Working tree verified at base 1970ad1c before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "1970ad1c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items recorded with evidence before this session-log commit."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP offline; persisted the session reasoning through the fallback path instead: this session log workLog plus the PR decision log capture the contradiction-log content (whole-token vs substring choice and the parser-mirror decision)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No em or en dashes in any touched file (grep -P check passed); py_compile clean on both python files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Code committed as 50ba54d5 (4 files); this session log committed separately."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py reports VALID; 145 pytest cases pass across test_spec_step0_5.py and test_spec_step0.py."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Implementer task tracked inline; no harness task list change needed."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "No retrospective for a scoped single-issue fix."
+      }
+    }
+  },
+  "workLog": [
+    "Read issue #1973 and the Step 0.5 entity adjudication subsection; confirmed the case-insensitive substring rule at spec.md line 226 and its byte-identical SKILL.md mirror; step0_5_parser.py had no entity matcher.",
+    "Replaced substring match with whole-token equality in spec.md and SKILL.md (byte-identical); added normalize_topic, entity_matches_answer, adjudicate_entity_scope to step0_5_parser.py mirroring the rule verbatim per canonical-source-mirror.",
+    "Added 1 static rule-text test and 11 behavioral matcher tests; updated the pre-existing case-insensitive test to the new wording; ran the suite (145 passed); committed 4 code files as 50ba54d5; closes CWE-863."
+  ],
+  "endingCommit": "50ba54d5",
+  "nextSteps": [
+    "qa validation of matcher edge cases",
+    "critic pre-merge review of the spec prose change"
+  ]
+}
