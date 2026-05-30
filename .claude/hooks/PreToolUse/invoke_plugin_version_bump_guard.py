@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""Block git push when a plugin source dir changes without a version bump.
+
+Thin adapter over :mod:`push_guard_base`. Reuses the version-bump logic in
+``build/scripts/validate_plugin_version_bump.py`` so the same rule applies in
+CI (``scripts/validation/run_plugin_version_bump_ci.py``) and at push time
+(this guard). Activates on any path under a packaged plugin's source dir; the
+validator decides whether the touched files require a bump that did not happen.
+
+Hook Type: PreToolUse
+Exit Codes (Claude Hook Semantics, exempt from ADR-035):
+    0 = Allow (no source change needing a bump, or the diff touched nothing
+        under a plugin source dir)
+    2 = Block (a plugin source changed but its plugin.json version did not
+        increase)
+
+Fail-open path:
+    The validator depends on the build script being importable and on git
+    being able to read the base-ref manifest. If the import fails (consumer
+    repo without ``build/scripts/``) or a version string cannot be parsed,
+    the guard fail-opens with an EVENT line so telemetry flags the degraded
+    state. Only real not-bumped violations block; infrastructure and config
+    problems fail-open and let the authoritative CI gate decide.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+from _bootstrap import ensure_plugin_paths
+
+ensure_plugin_paths()
+
+from hook_utilities import get_project_directory  # noqa: E402
+from push_guard_base import (  # noqa: E402
+    _detect_default_base_ref,
+    emit_fail_open,
+    run_guard,
+)
+
+GUARD_NAME = "plugin-version-bump"
+
+# Wake on any file under a packaged plugin source dir. push_guard_base's
+# matcher splits ``/**/`` patterns into prefix + single-segment tail, so
+# ``<dir>/**/*`` matches files at any depth under <dir>. The validator
+# short-circuits to "clean" when the only touched file is the manifest.
+_GLOBS = (
+    ".claude/**/*",
+    "src/claude/**/*",
+    "src/copilot-cli/**/*",
+)
+
+
+def _import_validator(project_dir: Path):
+    """Import the validator from the repo's build tree, or None (fail-open)."""
+    candidate = project_dir / "build" / "scripts"
+    if not candidate.is_dir():
+        emit_fail_open(
+            GUARD_NAME,
+            "build_tree_absent",
+            f"build/scripts not found under {project_dir}; consumer-repo checkout",
+        )
+        return None
+    if str(candidate) not in sys.path:
+        sys.path.insert(0, str(candidate))
+    try:
+        import validate_plugin_version_bump as vpb  # noqa: PLC0415
+    except Exception as exc:  # noqa: BLE001
+        # Catch every import-time failure, not just ImportError. A syntax or
+        # runtime error raised while the module body executes (a corrupt build
+        # tree, an incompatible Python) is not an ImportError; letting it
+        # propagate would crash the push instead of fail-opening to the CI gate.
+        emit_fail_open(
+            GUARD_NAME,
+            "import_failed",
+            f"validate_plugin_version_bump: {type(exc).__name__}: {exc}",
+        )
+        return None
+    return vpb
+
+
+def _resolve_base(project_dir: Path) -> tuple[str | None, bool]:
+    """Resolve the base ref for reading prior plugin.json versions.
+
+    Returns ``(ref, is_already_resolved)``. ``is_already_resolved`` is True
+    when the ref is ``@{push}`` or a merge-base SHA that the validator can
+    use directly; False when it's a fallback branch ref that the validator
+    must resolve via ``_resolve_merge_base``.
+
+    Canonical source: ``.claude/hooks/PreToolUse/push_guard_base.py``,
+    function ``_changed_files``. That function computes the changed-file set
+    this guard validates against, so the version comparison must read the
+    prior manifest from the same base. Its load-bearing contract is::
+
+        rc, out = _run_git_diff(["git", "diff", *args, "@{push}..HEAD"], ...)
+        if rc == 0:
+            return ...
+        fallback_ref = _detect_default_base_ref(cwd)
+        rc2, out2 = _run_git_diff(["git", "diff", *args, f"{fallback_ref}...HEAD"], ...)
+
+    So the changed set is ``@{push}..HEAD`` (two-dot) when ``@{push}``
+    resolves, else ``<default-base>...HEAD`` (three-dot). This resolver
+    returns the matching base ref:
+
+    1. ``@{push}`` when it resolves (the last pushed tip; two-dot semantics).
+    2. Otherwise the merge-base of ``_detect_default_base_ref`` and HEAD.
+
+    Different than canonical: push_guard_base passes the default base ref to
+    git's three-dot operator (``ref...HEAD``), which resolves the merge-base
+    internally. This resolver computes that merge-base explicitly with
+    ``git merge-base`` and hands the resulting SHA to the validator, because
+    the validator reads the prior version with two-dot ``git show <base>:path``
+    and needs the branch-point SHA, not the ref. Both select the same commit;
+    the difference is who resolves it. A base branch that advanced its own
+    version after the branch point therefore cannot produce a false
+    "not increased" block.
+
+    When ``git merge-base`` fails (e.g., timeout or shallow clone), this
+    function falls back to the branch ref and returns ``is_already_resolved=False``
+    so the validator's ``_resolve_merge_base`` can retry. Passing
+    ``is_already_resolved=True`` with a branch ref would cause the validator
+    to read the manifest at the branch tip instead of the merge-base, creating
+    a mismatch with the three-dot changed-file semantics.
+    """
+    rc = _git(["rev-parse", "--verify", "--quiet", "@{push}"], project_dir)
+    if rc == 0:
+        return "@{push}", True
+    base_ref = _detect_default_base_ref(str(project_dir))
+    merge_base = _git_stdout(["merge-base", base_ref, "HEAD"], project_dir)
+    if merge_base:
+        return merge_base, True
+    return base_ref, False
+
+
+def _git(args: list[str], cwd: Path) -> int:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(cwd), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return 1
+    return proc.returncode
+
+
+def _git_stdout(args: list[str], cwd: Path) -> str | None:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(cwd), *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    out = proc.stdout.strip()
+    return out or None
+
+
+def _validate(_matching: list[str], all_changed: list[str]) -> list[str]:
+    project = get_project_directory()
+    if not project:
+        emit_fail_open(GUARD_NAME, "no_project_dir", "get_project_directory empty")
+        return []
+    project_dir = Path(project)
+
+    vpb = _import_validator(project_dir)
+    if vpb is None:
+        return []
+
+    base_ref, base_resolved = _resolve_base(project_dir)
+    if not base_ref:
+        emit_fail_open(GUARD_NAME, "no_base_ref", "could not resolve a base ref")
+        return []
+
+    try:
+        violations, config_errors = vpb.find_violations(
+            all_changed, base_ref=base_ref, repo_root=project_dir, base_already_resolved=base_resolved
+        )
+    except Exception as exc:  # pragma: no cover - defensive fail-open
+        emit_fail_open(GUARD_NAME, "validator_raised", f"{type(exc).__name__}: {exc}")
+        return []
+
+    # Config errors (unparseable version on disk) fail-open here; the CI gate
+    # is authoritative and blocks hard. Blocking a push on a parse problem
+    # would surprise the author mid-push.
+    if config_errors:
+        emit_fail_open(GUARD_NAME, "config_error", " ; ".join(config_errors))
+
+    if not violations:
+        return []
+
+    out: list[str] = ["Plugin source changed without a version bump:"]
+    for v in violations:
+        out.append("")
+        out.append(f"  [{v.reason}] {v.plugin}")
+        out.append(f"    manifest: {v.manifest}")
+        out.append(f"    version:  {v.old_version} (base) -> {v.new_version} (now)")
+        out.append("    changed under source dir:")
+        for p in v.touched:
+            out.append(f"      {p}")
+    out.append("")
+    out.append(
+        "Fix: bump `version` in each manifest above to a strictly greater "
+        "semver and re-stage it. Installs key off this version; an unbumped "
+        "version means the change never reaches consumers."
+    )
+    return out
+
+
+def main() -> int:
+    # include_deletions=True: a deletion inside a plugin source dir (e.g.
+    # removing a skill) is exactly the change that must bump the version.
+    # The validator reads only plugin.json paths via git, never the deleted
+    # paths, so ACMRD is safe.
+    return run_guard(_validate, list(_GLOBS), GUARD_NAME, include_deletions=True)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

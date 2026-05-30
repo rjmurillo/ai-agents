@@ -794,6 +794,54 @@ def validate_agent_drift(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def _run_build_script_gate(
+    repo_root: Path,
+    script_name: str,
+    gate_label: str,
+) -> bool:
+    """Run a build script gate with standard error handling.
+
+    Shared helper for gates that wrap a ``build/scripts/`` Python validator
+    with the same pattern: check existence, resolve base ref, invoke with
+    ``--base``, print output, and return success/failure.
+
+    Args:
+        repo_root: Repository root path.
+        script_name: Filename under ``build/scripts/`` (e.g.,
+            ``validate_install_parity.py``).
+        gate_label: Human-readable name for error messages (e.g.,
+            ``install-parity``).
+
+    Returns:
+        True if the script exits 0, False otherwise. Fails closed when
+        the script is absent or when the base ref cannot be resolved.
+    """
+    script = repo_root / "build" / "scripts" / script_name
+    if not script.exists():
+        print(
+            f"[ERROR] {script_name} absent; the {gate_label} gate cannot "
+            f"run. Hard failure: the gate is the point of registering "
+            f"this validator.",
+            file=sys.stderr,
+        )
+        return False
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if not base_ref:
+        print(
+            f"[ERROR] {gate_label} gate: base ref could not be resolved; "
+            f"refusing to invoke validator without an explicit --base.",
+            file=sys.stderr,
+        )
+        return False
+    cmd = [sys.executable, str(script), "--base", base_ref]
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:80]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_install_parity(repo_root: Path) -> bool:
     """Detect install-copy drift across SHARED_AGENT and RULE parity groups.
 
@@ -812,30 +860,27 @@ def validate_install_parity(repo_root: Path) -> bool:
     falls back to its own @{push} default (which is not reliably set in CI
     or fresh local checkouts) and never validates against an unknown base.
     """
-    script = repo_root / "build" / "scripts" / "validate_install_parity.py"
-    if not script.exists():
-        print(
-            "[ERROR] validate_install_parity.py absent; the install-parity "
-            "gate cannot run. This is a hard failure: the gate is the "
-            "point of registering this validator.",
-            file=sys.stderr,
-        )
-        return False
-    base_ref = _resolve_branch_base_ref(repo_root)
-    if not base_ref:
-        print(
-            "[ERROR] install-parity gate: base ref could not be resolved; "
-            "refusing to invoke validator without an explicit --base.",
-            file=sys.stderr,
-        )
-        return False
-    cmd = [sys.executable, str(script), "--base", base_ref]
-    exit_code, stdout, stderr = _run_subprocess(cmd)
-    output = (stdout or "") + (stderr or "")
-    if output.strip():
-        for line in output.strip().splitlines()[:80]:
-            print(line)
-    return exit_code == 0
+    return _run_build_script_gate(
+        repo_root, "validate_install_parity.py", "install-parity"
+    )
+
+
+def validate_plugin_version_bump(repo_root: Path) -> bool:
+    """Fail when a plugin source dir changed without a plugin.json bump.
+
+    Wraps ``build/scripts/validate_plugin_version_bump.py``. The script exits
+    0 when every touched plugin was version-bumped (or nothing relevant
+    changed), 1 when a touched plugin's version did not increase, and 2 on a
+    configuration error (unparseable version, git unavailable). Exit 1 and 2
+    are both hard failures here.
+
+    Like the install-parity gate, this fails closed when the validator is
+    absent (a silent skip would defeat the gate) and when the branch base ref
+    cannot be resolved (so the validator never diffs against an unknown base).
+    """
+    return _run_build_script_gate(
+        repo_root, "validate_plugin_version_bump.py", "plugin version-bump"
+    )
 
 
 def validate_workflow_local_run(repo_root: Path) -> bool:
@@ -1124,6 +1169,13 @@ def main(argv: list[str] | None = None) -> int:
         "Install Parity (agents and rules)",
         state,
         lambda: validate_install_parity(repo_root),
+    )
+
+    # 6c. Plugin Version Bump (source change requires a plugin.json bump; #2118)
+    run_validation(
+        "Plugin Version Bump",
+        state,
+        lambda: validate_plugin_version_bump(repo_root),
     )
 
     # 6d. Workflow Local Run (actionlint + gh act dry-run for changed workflows)

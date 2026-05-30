@@ -143,6 +143,9 @@ ZERO="0000000000000000000000000000000000000000"
 CHANGED_FILES=""
 PUSH_RANGE=""
 REFS_PROCESSED=0
+# Store each ref's base and head for per-ref validation (plugin version bump)
+PVB_BASES=()
+PVB_HEADS=()
 
 while read -r local_ref local_sha remote_ref remote_sha; do
     REFS_PROCESSED=$((REFS_PROCESSED + 1))
@@ -181,6 +184,16 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     # Keep last ref range for commit count and additions checks
     PUSH_RANGE="$ref_range"
+
+    # Store base and head for per-ref plugin version validation
+    if [ -n "$ref_range" ]; then
+        pvb_base="${ref_range%%..*}"
+        if [ "$pvb_base" = "$ref_range" ]; then
+            pvb_base="origin/main"
+        fi
+        PVB_BASES+=("$pvb_base")
+        PVB_HEADS+=("$local_sha")
+    fi
 
     if [ -n "$ref_range" ]; then
         if ! new_files=$(git diff --name-only "$ref_range" 2>&1); then
@@ -723,6 +736,65 @@ elif [ -f "$BUILD_ALL_SCRIPT" ]; then
     fi
 else
     record_skip "Build pipeline staleness (script not found)"
+fi
+
+# 11c. Plugin version bump (validate_plugin_version_bump.py)
+#
+# Fails when a packaged plugin's source dir (.claude, src/claude,
+# src/copilot-cli) changed in this push without a strictly-greater
+# plugin.json version bump. Installed caches key off the version; an
+# unbumped version means the change never reaches consumers (PR #1942 /
+# PR #2114, Issue #2118). Same validator the CI gate and the PreToolUse
+# guard use, so all three agree.
+#
+# Validates each ref being pushed (not just the last one) by iterating
+# over PVB_BASES/PVB_HEADS arrays populated during ref processing. Uses
+# --head to validate the specific commit being pushed, not the working
+# tree or HEAD, so uncommitted changes cannot mask missing bumps.
+PLUGIN_VERSION_SCRIPT="$REPO_ROOT/build/scripts/validate_plugin_version_bump.py"
+
+if [ -L "$PLUGIN_VERSION_SCRIPT" ]; then
+    record_warn "Plugin version bump script is a symlink (skipping)"
+elif [ -f "$PLUGIN_VERSION_SCRIPT" ] && [ ${#PVB_BASES[@]} -gt 0 ]; then
+    if set_python_cmd; then
+        PVB_ALL_PASSED=1
+        PVB_ANY_CONFIG_ERROR=0
+        for i in "${!PVB_BASES[@]}"; do
+            pvb_base="${PVB_BASES[$i]}"
+            pvb_head="${PVB_HEADS[$i]}"
+            PVB_OUTPUT=$(mktemp)
+            TEMP_FILES+=("$PVB_OUTPUT")
+            "${PYTHON_CMD[@]}" "$PLUGIN_VERSION_SCRIPT" \
+                --base "$pvb_base" --head "$pvb_head" \
+                > "$PVB_OUTPUT" 2>&1
+            PVB_RC=$?
+            if [ $PVB_RC -eq 0 ]; then
+                : # Pass for this ref, continue checking others
+            elif [ $PVB_RC -eq 2 ]; then
+                head -20 "$PVB_OUTPUT"
+                PVB_ANY_CONFIG_ERROR=1
+            else
+                cat "$PVB_OUTPUT"
+                PVB_ALL_PASSED=0
+            fi
+            rm -f "$PVB_OUTPUT"
+        done
+        if [ $PVB_ALL_PASSED -eq 1 ] && [ $PVB_ANY_CONFIG_ERROR -eq 0 ]; then
+            record_pass "Plugin version bump"
+        elif [ $PVB_ANY_CONFIG_ERROR -eq 1 ] && [ $PVB_ALL_PASSED -eq 1 ]; then
+            record_warn "Plugin version bump check config error (exit 2)"
+        else
+            record_fail "Plugin source changed without version bump"
+            echo_info "  Fix: bump 'version' in the reported"
+            echo_info "  .claude-plugin/plugin.json to a higher semver, then commit."
+        fi
+    else
+        record_skip "Plugin version bump (no Python available)"
+    fi
+elif [ ! -f "$PLUGIN_VERSION_SCRIPT" ]; then
+    record_skip "Plugin version bump (script not found)"
+else
+    record_skip "Plugin version bump (no refs to validate)"
 fi
 
 # 12. Path normalization
