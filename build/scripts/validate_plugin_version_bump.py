@@ -341,15 +341,17 @@ def find_violations(
     base_ref: str,
     repo_root: Path | None = None,
     plugins: Sequence[PluginManifest] = PLUGINS,
+    base_already_resolved: bool = False,
 ) -> tuple[list[Violation], list[str]]:
     """Resolve versions from git/disk, then run the pure ``evaluate`` check.
 
     ``base_ref`` is collapsed to its merge-base with HEAD so the prior version
     is read from the branch point, matching the three-dot changed-file set the
-    CLI computes. Idempotent when ``base_ref`` is already an ancestor of HEAD.
+    CLI computes. When ``base_already_resolved`` is True, the merge-base
+    resolution is skipped (caller has already resolved it).
     """
     root = repo_root or _REPO_ROOT
-    effective_base = _resolve_merge_base(base_ref, root)
+    effective_base = base_ref if base_already_resolved else _resolve_merge_base(base_ref, root)
     pairs = _version_pairs(effective_base, root, plugins)
     return evaluate(changed_files, pairs, plugins)
 
@@ -476,7 +478,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 2
 
     violations, config_errors = find_violations(
-        changed, base_ref=base, repo_root=repo_root
+        changed, base_ref=base, repo_root=repo_root,
+        base_already_resolved=(args.files is None),
     )
 
     if args.format == "json":
