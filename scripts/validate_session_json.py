@@ -204,18 +204,20 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
     if _token_in_parentheses(evidence, match.start()):
         return True
     prefix = evidence[: match.start()]
-    affirmative = _AFFIRMATIVE_COMPLETION.search(prefix)
-    if not affirmative:
-        return False
-    # Check if the affirmative word is negated (e.g., "not passed", "never confirmed").
-    # Negated affirmatives do not indicate completion. See bug ref1_1ef17459.
-    prefix_before_affirmative = prefix[: affirmative.start()]
-    if _NEGATION_BEFORE_AFFIRMATIVE.search(prefix_before_affirmative):
-        return False
-    # Verify a clause boundary exists AFTER the affirmative word, ensuring
-    # the boundary actually separates the affirmative completion from the deferral token.
-    suffix_after_affirmative = prefix[affirmative.end() :]
-    return bool(_CLAUSE_BOUNDARY.search(suffix_after_affirmative))
+    # Iterate over ALL affirmative matches, returning True if any non-negated
+    # match has a clause boundary separating it from the deferral token.
+    for affirmative in _AFFIRMATIVE_COMPLETION.finditer(prefix):
+        # Check if the affirmative word is negated (e.g., "not passed", "never confirmed").
+        # Negated affirmatives do not indicate completion. See bug ref1_1ef17459.
+        prefix_before_affirmative = prefix[: affirmative.start()]
+        if _NEGATION_BEFORE_AFFIRMATIVE.search(prefix_before_affirmative):
+            continue
+        # Verify a clause boundary exists AFTER the affirmative word, ensuring
+        # the boundary actually separates the affirmative completion from the deferral token.
+        suffix_after_affirmative = prefix[affirmative.end() :]
+        if _CLAUSE_BOUNDARY.search(suffix_after_affirmative):
+            return True
+    return False
 
 
 def _has_contradiction(evidence: str) -> bool:
