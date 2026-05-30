@@ -506,6 +506,18 @@ class TestEvidenceContradiction:
             "pending",
             # A genuine token alongside a scope-qualified one still flags.
             "Tests skipped. Perf deferred to follow-up.",
+            # Adversative conjunction ties the deferral to the completion, so
+            # it contradicts rather than noting separate work (gemini).
+            "Tests passed. But we deferred the deploy to next session",
+            # Clause boundary must sit AFTER the affirmative word, not before:
+            # the ';' precedes 'passed', so it is not a trailing-note separator.
+            "Status; passed but pending review",
+            # Adverb-separated negation: "not yet validated" negates the
+            # affirmative, so the deferral is not suppressed (bug 07f14170).
+            "Not yet validated; pending final review",
+            # A dot inside a version/decimal is not a clause boundary, so the
+            # deferral is not suppressed (bug 0a163adc).
+            "Created item v1.5 pending review",
         ],
     )
     def test_genuine_contradiction_still_flags(self, evidence: str) -> None:

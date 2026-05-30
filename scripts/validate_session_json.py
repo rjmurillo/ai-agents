@@ -89,12 +89,29 @@ _AFFIRMATIVE_COMPLETION = re.compile(
 # an affirmative word sits inside a parenthetical (e.g., "Report (tests passed)
 # pending final sign-off" would suppress incorrectly). Legitimate trailing-note
 # suppressions use '.' or ';' separators. See bug 80aca362.
-_CLAUSE_BOUNDARY = re.compile(r"[.;]")
+#
+# A period only counts as a boundary when it is sentence punctuation (followed
+# by whitespace or end of string). A period flanked by digits is part of a
+# version or decimal (`v1.5`, `Step 0.5`) and is NOT a clause boundary; treating
+# it as one suppressed real contradictions like "Created item v1.5 pending
+# review". See bug 0a163adc.
+_CLAUSE_BOUNDARY = re.compile(r";|\.(?=\s|$)")
 
 # Negation words that negate an affirmative completion.
-# When an affirmative word is immediately preceded by these, it does not
-# indicate completion (e.g., "not passed", "never confirmed"). See bug ref1_1ef17459.
-_NEGATION_BEFORE_AFFIRMATIVE = re.compile(r"(?i)\b(not|no|never|n't)\s*$")
+# When an affirmative word is preceded by these, optionally separated by a
+# single adverb ("not yet validated", "no longer confirmed", "not fully done"),
+# it does not indicate completion (e.g., "not passed", "never confirmed").
+# See bug ref1_1ef17459 and bug 07f14170 (adverb-separated negation).
+_NEGATION_BEFORE_AFFIRMATIVE = re.compile(
+    r"(?i)\b(not|no|never|n't)\b"
+    r"(?:\s+(?:yet|longer|fully|really|currently|still|quite))?\s*$"
+)
+
+# Adversative conjunctions. When one introduces the clause holding the deferral
+# token, the deferral contradicts the preceding completion ("Tests passed. But
+# we deferred the deploy") rather than noting separate work, so it must NOT be
+# suppressed. See bug (gemini) on ordering/contrast false negatives.
+_CONTRAST_CONJUNCTION = re.compile(r"(?i)\b(but|however|except|though|although)\b")
 
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
@@ -189,6 +206,12 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
     2. An affirmative completion word precedes the token across a clause boundary
        (the evidence reports the item done, then notes other deferred work).
 
+    The affirmative completion must not be negated (directly or via an adverb,
+    e.g. "not yet validated"), the clause boundary must sit BETWEEN the
+    affirmative word and the token, and the deferral's own clause must not open
+    with an adversative conjunction ("but", "however") that ties the deferral
+    back to the completion.
+
     Every other token, and a bare "deferred"/"pending" with no affirmative
     context, always counts as a contradiction.
 
@@ -205,18 +228,26 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
         return True
     prefix = evidence[: match.start()]
     # Iterate over ALL affirmative matches, returning True if any non-negated
-    # match has a clause boundary separating it from the deferral token.
+    # match has a clause boundary separating it from the deferral token AND no
+    # adversative conjunction follows that boundary.
     for affirmative in _AFFIRMATIVE_COMPLETION.finditer(prefix):
-        # Check if the affirmative word is negated (e.g., "not passed", "never confirmed").
-        # Negated affirmatives do not indicate completion. See bug ref1_1ef17459.
+        # Check if the affirmative word is negated (e.g., "not passed",
+        # "not yet validated"). Negated affirmatives do not indicate completion.
         prefix_before_affirmative = prefix[: affirmative.start()]
         if _NEGATION_BEFORE_AFFIRMATIVE.search(prefix_before_affirmative):
             continue
-        # Verify a clause boundary exists AFTER the affirmative word, ensuring
-        # the boundary actually separates the affirmative completion from the deferral token.
+        # The boundary must sit AFTER the affirmative word and before the token,
+        # so search only the segment between them.
         suffix_after_affirmative = prefix[affirmative.end() :]
-        if _CLAUSE_BOUNDARY.search(suffix_after_affirmative):
-            return True
+        boundary = _CLAUSE_BOUNDARY.search(suffix_after_affirmative)
+        if boundary is None:
+            continue
+        # If the deferral's clause opens with an adversative conjunction, the
+        # deferral contradicts the completion rather than noting separate work.
+        deferral_clause = suffix_after_affirmative[boundary.end() :]
+        if _CONTRAST_CONJUNCTION.search(deferral_clause):
+            continue
+        return True
     return False
 
 
