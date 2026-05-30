@@ -201,40 +201,40 @@ def _original_main(stdin_bytes):
             "view": {
                 "script": "get_pr_context.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/pr/"
+                    "uv run python .claude/skills/github/scripts/pr/"
                     "get_pr_context.py --pull-request 123"
                 ),
             },
             "list": {
                 "script": "get_pull_requests.py",
-                "example": "python3 .claude/skills/github/scripts/pr/get_pull_requests.py",
+                "example": "uv run python .claude/skills/github/scripts/pr/get_pull_requests.py",
             },
             "create": {
                 "script": "new_pr.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/pr/"
+                    "uv run python .claude/skills/github/scripts/pr/"
                     'new_pr.py --title "..." --body "..."'
                 ),
             },
             "comment": {
                 "script": "post_pr_comment_reply.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/pr/"
+                    "uv run python .claude/skills/github/scripts/pr/"
                     'post_pr_comment_reply.py --pull-request 123 --body "..."'
                 ),
             },
             "merge": {
                 "script": "merge_pr.py",
-                "example": "python3 .claude/skills/github/scripts/pr/merge_pr.py --pull-request 123",
+                "example": "uv run python .claude/skills/github/scripts/pr/merge_pr.py --pull-request 123",
             },
             "close": {
                 "script": "close_pr.py",
-                "example": "python3 .claude/skills/github/scripts/pr/close_pr.py --pull-request 123",
+                "example": "uv run python .claude/skills/github/scripts/pr/close_pr.py --pull-request 123",
             },
             "checks": {
                 "script": "get_pr_checks.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/pr/"
+                    "uv run python .claude/skills/github/scripts/pr/"
                     "get_pr_checks.py --pull-request 123"
                 ),
             },
@@ -243,28 +243,28 @@ def _original_main(stdin_bytes):
             "view": {
                 "script": "get_issue_context.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/issue/"
+                    "uv run python .claude/skills/github/scripts/issue/"
                     "get_issue_context.py --issue 456"
                 ),
             },
             "create": {
                 "script": "new_issue.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/issue/"
+                    "uv run python .claude/skills/github/scripts/issue/"
                     'new_issue.py --title "..." --body "..."'
                 ),
             },
             "comment": {
                 "script": "post_issue_comment.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/issue/"
+                    "uv run python .claude/skills/github/scripts/issue/"
                     'post_issue_comment.py --issue 456 --body "..."'
                 ),
             },
             "list": {
                 "script": "list_issues.py",
                 "example": (
-                    "python3 .claude/skills/github/scripts/issue/"
+                    "uv run python .claude/skills/github/scripts/issue/"
                     "list_issues.py --state open --label bug"
                 ),
             },
@@ -333,7 +333,7 @@ def _original_main(stdin_bytes):
         if matching_scripts:
             script = matching_scripts[0]
             relative_path = f".claude/skills/github/scripts/{operation}/{script.name}"
-            runner = "python3" if script.suffix == ".py" else "pwsh"
+            runner = "uv run python" if script.suffix == ".py" else "pwsh"
             return {"path": str(script), "example": f"{runner} {relative_path} [parameters]"}
 
         return None

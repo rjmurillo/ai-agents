@@ -79,7 +79,7 @@ Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `r
 The completion gate is dispatchable: each criterion in `completion_criteria` runs an external verification command, and the command's stdout JSON is the source of truth for the verdict. Run the dispatcher exactly once per PR:
 
 ```bash
-python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
+uv run python .claude/skills/github/scripts/pr/run_completion_gate.py \
     --config .claude/commands/pr-review-config.yaml \
     --pull-request {pr} \
     --json
