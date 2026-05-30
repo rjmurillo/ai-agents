@@ -76,17 +76,60 @@ DEFAULT_BYPASS_LABEL = "description-validation-bypass"
 # Section names whose file mentions are contextual references, not change
 # claims. Matches `## Heading` (h2) at the start of a line, case-insensitive.
 # Each entry is a regex fragment for the heading text only.
+#
+# These are matched EXACTLY (the whole `## ...` line must be the name, modulo
+# trailing whitespace). Use this list for ambiguous single words where a
+# trailing suffix can carry a real change claim (e.g. `## Notes on the auth
+# rewrite` must stay validated). Multi-word template headings that are pure
+# references ("Related Issues", "Notes for Reviewers") are listed explicitly so
+# the exact-match anchor accepts them.
 _CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
     r"Test\s*Plan",
     r"Design\s*Decisions?",
     r"Related",
+    r"Related[ \t]+Issues",
     r"References?",
     r"See\s*Also",
     r"Notes?",
+    r"Notes[ \t]+for[ \t]+Reviewers",
     r"Background",
     r"Inspired\s*By",
     r"Pattern\s*From",
     r"Prior\s*Art",
+    # Proof/results headings that name an activity, not a changed file.
+    # Listed here (exact match) instead of _REFERENCE_SECTION_PREFIXES so that
+    # headings like "## Validation Script" or "## Verification Steps", which
+    # describe real validator changes, are NOT stripped. Only bare proof headings
+    # and known summary suffixes strip.
+    r"Validation",
+    r"Validation[ \t]+Summary",
+    r"Validation[ \t]+Results",
+    r"Validation[ \t]+Report",
+    r"Verification",
+    r"Verification[ \t]+Results",
+    r"Verification[ \t]+Summary",
+    r"Verification[ \t]+Report",
+)
+
+# Section-name PREFIXES whose file mentions are proof or scope references, never
+# change claims. Matched as a prefix at a word boundary, so ANY suffix is
+# absorbed. This kills the exact-name treadmill for Evidence and Out-of-Scope
+# headings: agent PR-body templates emit many variants, and enumerating each one
+# recurs on the next variant.
+#
+# Validation and Verification are NOT here (they moved to _CONTEXTUAL_SECTION_NAMES
+# as exact-match entries). Those words can prefix real change-claim sections
+# (e.g., "## Validation Script", "## Verification Steps"), so a blind prefix
+# match would suppress CRITICAL checks for genuine drift.
+#
+# Evidence never precedes a real change-claim section in this codebase, so the
+# prefix absorbs all Evidence variants safely.
+#
+# Out-of-Scope is unambiguous by definition: it explicitly names files NOT
+# changed in this PR.
+_REFERENCE_SECTION_PREFIXES: tuple[str, ...] = (
+    r"Evidence",
+    r"Out[ \t-]*of[ \t-]*Scope",
 )
 
 # Patterns to extract file paths from PR description text
@@ -350,6 +393,25 @@ def _strip_informational_sections(description: str) -> str:
     )
     text = re.sub(
         contextual_pattern,
+        "",
+        text,
+        flags=re.DOTALL | re.MULTILINE | re.IGNORECASE,
+    )
+    # Strip proof/scope reference sections by heading PREFIX (any suffix). Unlike
+    # the exact-match block above, this absorbs trailing words so heading
+    # variants ("Evidence For", "Validation Summary", "Verification Results",
+    # "Out of Scope notes") all strip without enumerating each one. The `\b`
+    # after the prefix prevents matching a longer word that merely starts with
+    # the prefix (e.g. "Validations" or "Evidenced"); the rest of the heading
+    # line is then consumed by `[^\n]*$`. Same terminating lookahead as above:
+    # the section ends at the next H1 or H2 (not H3+).
+    reference_prefix_pattern = (
+        r"^##\s+(?:"
+        + "|".join(_REFERENCE_SECTION_PREFIXES)
+        + r")\b[^\n]*$.*?(?=^#{1,2}(?!#)|\Z)"
+    )
+    text = re.sub(
+        reference_prefix_pattern,
         "",
         text,
         flags=re.DOTALL | re.MULTILINE | re.IGNORECASE,

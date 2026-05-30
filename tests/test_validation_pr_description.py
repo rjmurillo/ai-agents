@@ -326,6 +326,134 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
+    def test_evidence_section_ignored(self) -> None:
+        """Issue #2119 repro: agent PR bodies cite files in an Evidence section
+        as proof, not as change claims."""
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Evidence\n- `validate_marketplace_counts.py --fix` updated counts\n"
+            "- pre-existing failures in `pre_pr.py` are unrelated\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "a.py" in result
+        assert "pre_pr.py" not in result
+        assert "validate_marketplace_counts.py" not in result
+
+    def test_evidence_with_suffix_section_ignored(self) -> None:
+        """Prefix match absorbs a trailing word: 'Evidence For' strips too."""
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Evidence For\n- `b.py` demonstrates the prior behavior\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_validation_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Validation\n- ran `b.py`; `c.json` config unchanged\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "a.py" in result
+        assert "b.py" not in result
+        assert "c.json" not in result
+
+    def test_validation_summary_suffix_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Validation Summary\n- `b.py` passed\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_verification_results_suffix_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Verification Results\n- `b.py` exit 0\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_out_of_scope_section_ignored(self) -> None:
+        """Issue #2119 repro (PR #2114): 'Out of scope' names files explicitly
+        NOT changed; treating them as change claims is backwards."""
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Out of scope\n- `marketplace.json` count drift is pre-existing\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "a.py" in result
+        assert "marketplace.json" not in result
+
+    def test_out_of_scope_hyphenated_section_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Out-of-Scope\n- `b.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_related_issues_multiword_heading_ignored(self) -> None:
+        """The strict exact-match anchor rejected 'Related Issues' (only bare
+        'Related' matched); it is now listed explicitly."""
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Related Issues\n- see `b.py` from #100\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_notes_for_reviewers_multiword_heading_ignored(self) -> None:
+        desc = (
+            "## Summary\nChanged `a.py`.\n\n"
+            "## Notes for Reviewers\n- `b.py` is the prior art\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" not in result
+
+    def test_reference_prefix_word_boundary_not_overstripped(self) -> None:
+        """`\\b` after the prefix prevents matching a longer word. A section
+        named 'Validations' (plural, not a known proof kind) must NOT strip, so
+        a real change claim inside it is still validated."""
+        desc = (
+            "## Summary\nWork.\n\n"
+            "## Validationsxyz\n- changed `b.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "b.py" in result
+
+    def test_reference_prefix_does_not_overstrip_changes_section(self) -> None:
+        """A real change claim in a normal section still extracts even when an
+        Evidence section follows it."""
+        desc = (
+            "## Changes\n- `real.py` rewritten\n\n"
+            "## Evidence\n- `proof.py` shows the fix\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "real.py" in result
+        assert "proof.py" not in result
+
+    def test_validation_script_heading_not_stripped(self) -> None:
+        """Copilot review: 'Validation Script', 'Validation Rules', etc. must NOT
+        strip because they can describe real validator changes. Only bare
+        'Validation' and known proof suffixes (Summary, Results, Report) strip."""
+        desc = (
+            "## Summary\nUpdated the validator.\n\n"
+            "## Validation Script\n- rewrote `validator.py`\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "validator.py" in result
+
+    def test_verification_steps_heading_not_stripped(self) -> None:
+        """'Verification Steps' is a change-description heading, not a proof
+        heading; it must NOT strip."""
+        desc = (
+            "## Summary\nAdded hook.\n\n"
+            "## Verification Steps\n- run `hook.py` to confirm\n"
+        )
+        result = extract_mentioned_files(desc)
+        assert "hook.py" in result
+
     def test_contextual_section_case_insensitive(self) -> None:
         desc = (
             "## Summary\nChanged `a.py`.\n\n"
@@ -1012,6 +1140,42 @@ class TestValidatePRDescription:
         critical = [i for i in issues if i.severity == "CRITICAL"]
         assert len(critical) == 1
         assert critical[0].file == "scripts/bar.py"
+
+    def test_issue_2119_evidence_and_scope_files_do_not_block(self) -> None:
+        """End-to-end #2119 (PR #2114 shape): a body that cites files in
+        Evidence and Out of scope sections, none in the diff, must produce zero
+        CRITICAL. The actually-changed file is mentioned in Summary, so no
+        warning either."""
+        description = (
+            "## Summary\nBumps `plugin.json` to 0.3.1.\n\n"
+            "## Evidence\n- `validate_marketplace_counts.py` reports no drift\n\n"
+            "## Out of scope\n"
+            "- pre-existing `pre_pr.py` lint failures\n"
+            "- `marketplace.json` count is handled separately\n"
+        )
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(
+            pr_files=["plugin.json"],
+            mentioned_files=mentioned,
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        assert critical == []
+
+    def test_issue_2119_real_summary_claim_still_blocks(self) -> None:
+        """Guard against over-strip: a genuine change claim in Summary that is
+        NOT in the diff must still fire CRITICAL even when an Evidence section
+        is present."""
+        description = (
+            "## Summary\nRewrites `scripts/missing.py`.\n\n"
+            "## Evidence\n- `proof.py` shows it\n"
+        )
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(
+            pr_files=["scripts/other.py"],
+            mentioned_files=mentioned,
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        assert [i.file for i in critical] == ["scripts/missing.py"]
 
     def test_warning_when_significant_file_not_mentioned(self) -> None:
         issues = validate_pr_description(
