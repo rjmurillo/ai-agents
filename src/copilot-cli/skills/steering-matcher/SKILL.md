@@ -1,6 +1,6 @@
 ---
 name: steering-matcher
-description: Match file paths against steering file glob patterns to determine applicable steering guidance. Use when orchestrator needs to inject context-aware guidance based on files being modified.
+description: Match file paths against steering file glob patterns to determine applicable steering guidance. Use when you say "match steering for these files", "which steering applies to this task", or "inject steering context". Use when orchestrator needs to inject context-aware guidance based on files being modified. Do NOT use for reading steering files directly when the applicable file is already known; read the file manually instead.
 license: MIT
 metadata:
 version: 1.0.0

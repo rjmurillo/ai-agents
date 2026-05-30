@@ -103,11 +103,16 @@ Valid rules: `script-language`, `skill-frontmatter`, `agent-definition`, `yaml-l
 
 ## Verification
 
-After execution:
+After execution, run the bundled validator and require exit 0:
 
+```bash
+python3 .claude/skills/golden-principles/scripts/scan_principles.py <path>
+echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
+```
+
+- [ ] Exit 0 to pass; exit 10 means violations exist and must be reported with principle ID and remediation
+- [ ] Exit 1 (tool error) is a BLOCKED result, not a pass
 - [ ] Report lists scanned file count
-- [ ] Each violation includes principle ID and remediation
-- [ ] Exit code matches violation state
 - [ ] Output format matches --format flag
 
 ## References

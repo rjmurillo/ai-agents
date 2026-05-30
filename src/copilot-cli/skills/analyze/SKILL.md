@@ -2,7 +2,7 @@
 name: analyze
 version: 1.1.0
 model: claude-sonnet-4-6
-description: Systematic multi-step codebase analysis producing prioritized findings with file-line evidence. Covers architecture reviews, security assessments, and code quality evaluations through guided exploration, investigation planning, and synthesis.
+description: Systematic multi-step codebase analysis producing prioritized findings with file-line evidence. Covers architecture reviews, security assessments, and code quality evaluations through guided exploration, investigation planning, and synthesis. Use when you say "analyze this codebase", "run security assessment", "architecture review of this system", "find code smells", or "review code quality" across multiple files. Do NOT use for single-file maintainability scoring (use code-qualities-assessment) or CWE-78 injection pattern scanning (use security-scan).
 license: MIT
 user-invocable: true
 allowed-tools:

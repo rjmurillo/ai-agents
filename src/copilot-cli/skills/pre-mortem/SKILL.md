@@ -2,7 +2,7 @@
 name: pre-mortem
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Guide prospective hindsight analysis to identify project risks before failure occurs. Teams imagine the project has failed spectacularly, then work backward to identify causes. Increases risk identification by 30% compared to traditional planning.
+description: Guide prospective hindsight analysis to identify project risks before failure occurs. Teams imagine the project has failed spectacularly, then work backward to identify causes. Increases risk identification by 30% compared to traditional planning. Use when you say "run a pre-mortem on", "what could cause this to fail", "identify project risks", or "what could go wrong with". Do NOT use to stress-test a single decision's reasoning (use decision-critic).
 license: MIT
 metadata:
   author: SkillForge
@@ -249,7 +249,7 @@ Validates risk inventory completeness and calculates aggregate statistics.
 
 ```bash
 python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
-  --inventory-path <path-to-risk-inventory.md> \
+  --inventory-path "$INVENTORY_PATH" \
   --validate
 ```
 
@@ -271,8 +271,16 @@ python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
 
 ## Verification
 
-After completing a pre-mortem:
+After completing a pre-mortem, run the bundled validator and require exit 0:
 
+```bash
+python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
+  --inventory-path "$INVENTORY_PATH" \
+  --validate
+echo "exit=$?"   # must be 0; exit 10 means missing required sections (inventory is not valid)
+```
+
+- [ ] `pre-mortem.py` exited 0 (exit 10 = validation failed; exit 1 = invalid arguments; non-zero = blocked)
 - [ ] All 5 phases completed (Brief, Failure Announcement, Analysis, Collection, Mitigation)
 - [ ] Risk inventory generated with risk scores (Likelihood x Impact)
 - [ ] All Critical/High risks have mitigation strategies

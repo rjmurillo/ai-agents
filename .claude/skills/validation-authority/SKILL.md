@@ -77,7 +77,7 @@ After applying this skill:
 - [ ] Local config aligns with upstream defaults
 - [ ] Any overrides include documented rationale
 - [ ] No upstream tool source code was modified
-- [ ] Validation passes with the updated config
+- [ ] Reconciliation: paste the validator's exit status line (e.g., `echo "exit=$?"` output after running the validator command) to confirm the updated config passes; a claim of "validation passes" without pasted output does not count
 
 ## Examples
 

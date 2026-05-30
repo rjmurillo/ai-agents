@@ -2,7 +2,7 @@
 name: adr-generator
 version: 1.0.0
 model: claude-opus-4-6
-description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions or creating new ADR files.
+description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions or creating new ADR files. Use when you say "write an ADR", "document this decision". Do NOT use to debate or review an existing ADR (use adr-review).
 license: MIT
 user-invocable: true
 metadata:

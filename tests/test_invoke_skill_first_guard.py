@@ -138,7 +138,7 @@ class TestMainBlockPath:
         mock_skill.return_value = {
             "path": "/tmp/.claude/skills/github/scripts/pr/get_pr_context.py",
             "example": (
-                "python3 .claude/skills/github/scripts/pr/"
+                "uv run python .claude/skills/github/scripts/pr/"
                 "get_pr_context.py --pull-request 123"
             ),
         }
