@@ -34,11 +34,14 @@ from tests.commands.step0_5_parser import (
     GUARD_STRING,
     HALT_BLOCK_FIELDS,
     VALID_HALT_TRIGGERS,
+    adjudicate_entity_scope,
     compute_provisional_tier,
+    entity_matches_answer,
     extract_step0_5_block,
     extract_step0_5_subsection,
     extract_step9_block,
     has_guard_string,
+    normalize_topic,
     parse_halt_block,
     parse_tally_line,
     phases_needed,
@@ -213,8 +216,40 @@ def test_s8_auto_mode_case_insensitive_match_rule(spec_text: str):
         spec_text,
         "#### Step 0.5 entity adjudication",
     )
-    assert "case-insensitive" in body
+    # Issue #1973 changed how case-insensitivity is documented: it is now
+    # stated as a consequence of normalization rule 2 (lowercase) rather
+    # than as a separate "case-insensitive substring match" clause. The
+    # rule still documents case handling, so assert on the new wording.
+    assert "Case-insensitivity is already handled" in body
     assert "auto-mode" in body or "Auto" in body
+
+
+def test_s8_auto_mode_uses_whole_token_equality_not_substring(spec_text: str):
+    """Issue #1973: the auto-mode adjudication rule must specify whole-token
+    equality, not substring match (REQ-008 Sec F2, CWE-863).
+
+    The fix replaces the substring rule that let a token-rich Q1 trivially
+    "match" any short discovered entity, hiding genuine blast-radius
+    entities from the halt threshold. The rule text and the Auto threshold
+    row both name the whole-token mechanism so the LLM enforces it at
+    runtime.
+    """
+    body = extract_step0_5_subsection(
+        spec_text,
+        "#### Step 0.5 entity adjudication",
+    )
+    assert "whole-token equality" in body, (
+        "auto-mode rule must specify whole-token equality"
+    )
+    assert "not substring match" in body, (
+        "rule must explicitly reject substring matching"
+    )
+    assert "Auto (whole-token equality only)" in body, (
+        "blast-radius threshold table must name whole-token matching for Auto"
+    )
+    assert "CWE-863" in body, (
+        "rule should cite the access-control weakness it closes"
+    )
 
 
 def test_s8_blast_radius_thresholds_2_human_3_auto(spec_text: str):
@@ -662,6 +697,110 @@ def test_llm_required_d_checks_have_adr057_scenarios():
     assert by_id["D12"]["expected_verdict"] == "PASS"
     assert by_id["D13"]["expected_verdict"] == "FAIL"
     assert by_id["D14"]["expected_verdict"] == "PASS"
+
+
+# ---------------------------------------------------------------------------
+# Whole-token equality matcher (Issue #1973, REQ-008 Sec F2, CWE-863)
+#
+# The parser implements the auto-mode adjudication rule from
+# `#### Step 0.5 entity adjudication` deterministically so the substring
+# bypass is pinned by a behavioral test, not only by prose. The runtime
+# gate is still enforced by the LLM following spec.md; these tests pin the
+# same semantics at CI time.
+# ---------------------------------------------------------------------------
+
+
+TOKEN_RICH_ANSWER = "auth-service payment-service billing-service"
+
+
+def test_normalize_topic_collapses_separators_to_hyphen():
+    """Normalization rule 4: whitespace, `-`, `_` runs collapse to one hyphen."""
+    assert normalize_topic("spec pipeline") == "spec-pipeline"
+    assert normalize_topic("spec-pipeline") == "spec-pipeline"
+    assert normalize_topic("spec_pipeline") == "spec-pipeline"
+    assert normalize_topic("spec   __  pipeline") == "spec-pipeline"
+
+
+def test_normalize_topic_strips_leading_dots_and_separators_and_lowercases():
+    """Rules 1-3: strip leading `/`, `\\`, `.`; lowercase; trim."""
+    assert normalize_topic(".claude/commands/spec.md") == "claude/commands/spec.md"
+    assert normalize_topic("  AUTH-Service  ") == "auth-service"
+    assert normalize_topic("///leading") == "leading"
+
+
+def test_normalize_topic_empty_and_separator_only_yield_empty_string():
+    assert normalize_topic("") == ""
+    assert normalize_topic("   ") == ""
+    assert normalize_topic("---") == ""
+    assert normalize_topic("__ -- __") == ""
+
+
+def test_entity_substring_false_match_no_longer_matches():
+    """Issue #1973 core case: `service-mesh` must NOT match a token-rich answer.
+
+    Under the old substring rule, `service-mesh` (or any name sharing the
+    `service` token) matched `auth-service payment-service billing-service`
+    trivially. Whole-token equality rejects it: the token pair
+    `service mesh` never appears as a contiguous run in the answer.
+    """
+    assert entity_matches_answer("service-mesh", TOKEN_RICH_ANSWER) is False
+    assert adjudicate_entity_scope("service-mesh", [TOKEN_RICH_ANSWER]) == "blast-radius"
+
+
+def test_entity_genuine_whole_token_match_still_matches():
+    """A genuine entity whose tokens form a contiguous run still resolves in-scope."""
+    assert entity_matches_answer("auth-service", TOKEN_RICH_ANSWER) is True
+    assert entity_matches_answer("payment-service", TOKEN_RICH_ANSWER) is True
+    assert entity_matches_answer("billing-service", TOKEN_RICH_ANSWER) is True
+    assert adjudicate_entity_scope("auth-service", [TOKEN_RICH_ANSWER]) == "in-scope"
+
+
+def test_entity_single_token_matches_standalone_token_only():
+    """A lone token matches a standalone token; an unrelated lone token does not."""
+    assert entity_matches_answer("service", TOKEN_RICH_ANSWER) is True
+    assert entity_matches_answer("mesh", TOKEN_RICH_ANSWER) is False
+
+
+def test_entity_match_at_answer_start_and_end():
+    """Contiguous run is found whether it sits at the head, middle, or tail."""
+    assert entity_matches_answer("auth-service", "auth service then more") is True
+    assert entity_matches_answer("more-thing", "lead then more thing") is True
+    assert entity_matches_answer("payment-service", "auth service payment service") is True
+
+
+def test_entity_match_is_case_insensitive_via_normalization():
+    """Rule 2 (lowercase) makes the match case-insensitive without a separate fold."""
+    assert entity_matches_answer("AUTH-SERVICE", TOKEN_RICH_ANSWER) is True
+    assert entity_matches_answer("Auth_Service", TOKEN_RICH_ANSWER) is True
+
+
+def test_entity_match_treats_underscore_and_space_like_hyphen():
+    """Rule 4 unifies `_`, space, and `-`, so all three spellings match."""
+    assert entity_matches_answer("auth_service", TOKEN_RICH_ANSWER) is True
+    assert entity_matches_answer("auth service", TOKEN_RICH_ANSWER) is True
+
+
+def test_entity_trailing_punctuation_in_answer_does_not_match():
+    """Spec normalization strips only LEADING dots/separators, not trailing
+    punctuation; `auth-service.` is therefore a distinct token from
+    `auth-service`. This pins the documented limitation rather than assuming
+    punctuation stripping the spec does not perform.
+    """
+    assert normalize_topic("auth-service.") == "auth-service."
+    assert entity_matches_answer("auth-service", "use auth-service.") is False
+
+
+def test_entity_empty_inputs_never_match():
+    assert entity_matches_answer("", TOKEN_RICH_ANSWER) is False
+    assert entity_matches_answer("   ", TOKEN_RICH_ANSWER) is False
+    assert entity_matches_answer("auth-service", "") is False
+
+
+def test_adjudicate_matches_against_any_answer_in_the_list():
+    """A whole-token match against ANY Q answer resolves the entity in-scope."""
+    answers = ["unrelated topic", "auth service module", "another"]
+    assert adjudicate_entity_scope("auth-service", answers) == "in-scope"
+    assert adjudicate_entity_scope("service-mesh", answers) == "blast-radius"
 
 
 # ---------------------------------------------------------------------------
