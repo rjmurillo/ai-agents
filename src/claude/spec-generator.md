@@ -38,7 +38,7 @@ Push back hard on vague answers. "Better" is not a spec.
 
 ## 3-Tier Output
 
-```
+```text
 REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 ```
 
@@ -50,7 +50,7 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 
 ### EARS Syntax
 
-```
+```text
 WHEN [precondition/trigger]
 THE SYSTEM SHALL [action/behavior]
 SO THAT [rationale]
