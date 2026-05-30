@@ -10,18 +10,10 @@ Read first, reason second. Pre-training last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
-|Patterns: Serena `mcp__serena__read_memory`
+|Memory: `memory` skill; not bare `list_memories`
 |ADRs: `.agents/architecture/ADR-*.md`
 |Protocol: `.agents/SESSION-PROTOCOL.md`
 |Skills: `.claude/skills/{name}/SKILL.md`
-
-**Memory lookup**: use the `memory` skill, don't hand-roll:
-
-1. **Primary**: `python3 .claude/skills/memory/scripts/search_memory.py "<query>"`. Keyword-ranks Serena memory names (Serena-first), augments with Forgetful when it is reachable, and flags large memories by token estimate. Returns the relevant `*-index`; `read_memory` it, then follow its links to the atomic file.
-2. **Deep context** before planning: delegate to `context-retrieval` agent. Human CLI: `/memory-search`.
-3. **Raw fallback** (scripting): guess `read_memory("<intuitive-name>")` (miss = cheap "not found", not a list) then domain `*-index` then `read_memory("memory-index")`. Prefer these name/index lookups over a bare `list_memories`.
-
-On add: update the `*-index` so the next agent finds it by name. Atomic files + indexes are deliberate (no embeddings; filename = activation vocab): see `.serena/memories/memory/memory-token-efficiency.md`, `.serena/memories/memory/memory-size-001-decomposition-thresholds.md`. Do NOT consolidate atomic memories to cheapen listing; it breaks discovery + cross-links.
 
 ## Session Gates
 
