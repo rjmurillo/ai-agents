@@ -40,7 +40,10 @@ from scripts.github_core import (
     update_issue_comment,
 )
 from scripts.github_core.api import _403_PATTERN
+from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 from tests.mock_fidelity import assert_mock_keys_match
 
 # ---------------------------------------------------------------------------
@@ -1497,7 +1500,7 @@ class TestYamlFallback:
     the vendored _parse_simple_yaml and produce the same result.
     """
 
-    def test_config_matches_yaml_when_yaml_absent(self, monkeypatch) -> None:
+    def test_parse_simple_yaml_matches_yaml_safe_load(self) -> None:
         import yaml as _yaml
 
         text = (_REPO_ROOT / ".github" / "bot-authors.yml").read_text(
