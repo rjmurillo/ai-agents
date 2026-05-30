@@ -1,6 +1,6 @@
 ---
 name: programming-advisor
-description: Evaluate existing solutions (libraries, SaaS, open source) before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", or need build vs buy cost analysis with token estimates. Use when you ask "is there a library for this", "should I build or use existing". Do NOT use for strategic multi-option TCO (use buy-vs-build-framework).
+description: Evaluate existing solutions (libraries, SaaS, open source) AND internal prior-art before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", "do we already have this", "is there existing code for X in this repo", "is there a library for this", or need build vs buy cost analysis with token estimates. Checks internal reuse (leverage/extend) before external. Do NOT use for strategic multi-option TCO (use buy-vs-build-framework).
 license: MIT
 metadata:
   version: 1.0.0
@@ -13,11 +13,12 @@ metadata:
 
 | Trigger Phrase | Action |
 |----------------|--------|
-| "should I build X or use a library" | Search existing solutions, provide comparison |
-| "find existing solutions for X" | Web search, categorize findings |
-| "is there a package for X" | Search npm/pip/cargo/etc |
-| "build vs buy for X" | Generate cost comparison table |
+| "should I build X or use a library" | Search internal prior-art first (Step 2a), then external solutions, provide comparison |
+| "find existing solutions for X" | Search internal prior-art first (Step 2a), then web search, categorize findings |
+| "is there a package for X" | Check existing dependencies first (Step 2a), then search npm/pip/cargo/etc |
+| "build vs buy for X" | Tactical: generate cost comparison table; Strategic (>$50K, multi-year, partner/defer options): delegate to `buy-vs-build-framework` |
 | "check if X exists before building" | Run full wheel detection workflow |
+| "do we already have X" / "is there existing code for X in this repo" | Search internal prior-art first (leverage/extend), then external |
 
 ## Core Philosophy
 
@@ -34,6 +35,20 @@ Extract from user request:
 - **Constraints**: Language, platform, budget, licensing requirements
 
 ### Step 2: Search for Existing Solutions
+
+**Search internal prior-art FIRST (leverage/extend), then external.** The cheapest option is code you already have.
+
+#### 2a. Internal prior-art
+
+Before any web search, check whether the capability already exists in the current repo or org:
+
+- grep the codebase for the capability's keywords and likely symbol names
+- if Serena is available, run a symbol search; if Forgetful memory is available, query it
+- check existing dependencies (`package.json` / `requirements.txt` / `Cargo.toml` / `go.mod`) for a library already pulled in
+
+If an internal implementation exists, recommend **Leverage** (use as-is) or **Extend** (adapt it) before proposing a build or an external buy. Internal reuse beats both a new dependency and a rewrite.
+
+#### 2b. External solutions
 
 Search strategy (use web_search):
 
@@ -66,113 +81,43 @@ Factors to estimate:
 
 ### Step 4: Generate Comparison Table
 
-Always present a decision table:
+Always present a decision table. **Include internal rows only if Step 2a found prior-art:**
 
 ```markdown
 | Option | Type | Cost | Setup Time | Maintenance | Token Burn | Verdict |
 |--------|------|------|------------|-------------|------------|---------|
+| Existing internal | Leverage | Free | minutes | Shared | 0 | ♻️ Reuse first |  <!-- only if Step 2a found match -->
+| Existing internal | Extend | Free | hrs | You own the delta | low | 🔧 Adapt existing |  <!-- only if Step 2a found match -->
 | [Solution A] | Library | Free | 5 min | Updates only | 0 | ✅ Recommended |
 | [Solution B] | SaaS | $X/mo | Instant | None | 0 | ⚡ Fastest |
 | Vibe Code | Custom | Free | X hrs | You own it | ~XK tokens | 🔧 Full control |
 ```
 
-### Step 5: Buy vs Build Evaluation Framework
+### Step 5: Strategic build/buy/partner/defer (delegate)
 
-#### When to Build
+This skill is **tactical**: "use an existing library/SaaS vs write glue code." When the decision is **strategic** (a capability investment needing Core-vs-Context classification, a weighted decision matrix, multi-year TCO, partner/defer options, or multi-stakeholder sign-off), STOP here and use the `buy-vs-build-framework` skill. It owns that decision and backs it with scripts (`calculate_tco.py`, `score_decision.py`, `score_vendor.py`). Do not re-derive that analysis here.
 
-- [ ] Software is core to business differentiation
-- [ ] Competitive advantage requires 100% control
-- [ ] Vendor solutions insufficient for requirements
-- [ ] Team has capacity without additional investment
-- [ ] Long-term total cost of ownership favors build
+Hand off when any of these is true:
 
-#### When to Buy
+- Budget impact > ~$50K, or a 2+ year horizon
+- The capability may be a competitive differentiator (a strategic core-versus-commodity call)
+- Partner or defer is a live option (not just build vs use-existing)
+- Multiple stakeholders must align on the choice
 
-- [ ] Time to value critical (weeks not months)
-- [ ] Standard capability, not differentiating
-- [ ] Vendor efficiencies reduce total cost
-- [ ] Team should focus on higher-impact projects
-- [ ] Acceptable vendor lock-in trade-off
-
-#### Evaluation Matrix
-
-| Factor | Build | Buy | Weight | Score |
-|--------|-------|-----|--------|-------|
-| Core competency | [Evidence] | [Evidence] | 30% | [Weighted score] |
-| Time to value | [Evidence] | [Evidence] | 25% | [Weighted score] |
-| Total cost (5 years) | [Evidence] | [Evidence] | 20% | [Weighted score] |
-| Customization needs | [Evidence] | [Evidence] | 15% | [Weighted score] |
-| Team expertise | [Evidence] | [Evidence] | 10% | [Weighted score] |
-| **Total Score** | | | **100%** | [Sum] |
-
-#### Hidden Costs Analysis
-
-**Build Hidden Costs**:
-
-- Maintenance burden (20-40% of build cost annually)
-- Opportunity cost (what else could team build?)
-- Expertise acquisition/retention
-- Testing and security validation
-- Documentation and knowledge transfer
-
-**Buy Hidden Costs**:
-
-- Integration complexity (API changes, data mapping)
-- Vendor lock-in (switching cost estimation)
-- Customization limitations (workarounds needed?)
-- Ongoing licensing (per-user, per-transaction costs)
-- Vendor stability risk (acquisition, discontinuation)
-
-#### Core vs Context Assessment
-
-Use Geoffrey Moore's framework to prioritize investment:
-
-| Capability | Type | Rationale | Strategy |
-|------------|------|-----------|----------|
-| [Capability 1] | Core | [Differentiates business] | Build, own, invest |
-| [Capability 2] | Context | [Necessary but commodity] | Buy, outsource |
-
-**Key Insight**: Building context is a distraction from core. Buy context, build core.
-
-#### Lindy Effect Consideration
-
-Evaluate technology maturity:
-
-- **Build**: Are you creating novel solution in unstable space? (High risk)
-- **Buy**: Is vendor solution based on Lindy survivor tech? (Lower risk)
-
-#### Buy vs Build Recommendation Template
-
-```markdown
-## Buy vs Build Recommendation: [Capability]
-
-**Verdict**: [BUILD | BUY | HYBRID]
-
-### Core Rationale
-[Primary reason in 2-3 sentences]
-
-### Evaluation Scores
-- Build score: [X/100]
-- Buy score: [Y/100]
-
-### Core vs Context
-[Core/Context classification with justification]
-
-### Hidden Costs Accepted
-**If Build**: [Maintenance burden, opportunity cost, expertise]
-**If Buy**: [Lock-in level, integration complexity, licensing]
-
-### Decision Confidence
-[High | Medium | Low] - [Why]
-
-### Review Trigger
-Revisit if: [Conditions that would change this decision]
-```
+Otherwise continue below for the tactical recommendation.
 
 ### Step 6: Recommendation Framework (Quick Reference)
 
+Recommend **internal reuse (Leverage/Extend)** when:
+
+- Step 2a found existing internal implementation
+- Capability already exists in repo or org codebase
+- Existing dependency already provides the functionality
+- Internal code covers ≥80% of the requirement (extend for the rest)
+
 Recommend **existing solutions** when:
 
+- No internal prior-art found in Step 2a
 - Mature library exists with >1K GitHub stars
 - SaaS solves it for <$20/mo
 - Common problem with well-tested solutions
@@ -261,7 +206,7 @@ Flag any concerns:
 
 ### Step 9: Cost Analysis (For Significant Decisions)
 
-For features with meaningful cost implications (auth, payments, email, infrastructure), provide a Total Cost of Ownership (TCO) comparison.
+For features with meaningful cost implications (auth, payments, email, infrastructure), provide a quick tactical cost comparison (9.3). For a multi-year TCO/NPV, delegate to the `buy-vs-build-framework` skill (9.2); do not produce that analysis here.
 
 #### 9.1 When to Include Cost Analysis
 
@@ -273,35 +218,24 @@ Include cost table when:
 - Comparing multiple paid services
 - Security-sensitive features (auth, payments)
 
-#### 9.2 Cost Calculation
+#### 9.2 Multi-year TCO: delegate
 
-Use the pricing reference: [references/pricing-data.md](references/pricing-data.md)
+For a multi-year TCO/NPV comparison (Year 1/3/5, discount rate, break-even, maintenance), use the `buy-vs-build-framework` skill's `calculate_tco.py`. Do not re-derive the NPV math here.
 
-**Formula:**
+#### 9.3 Tactical cost note
 
-```text
-Year N Cost = Setup Cost + (Monthly × 12 × N) + (Maintenance × N)
-
-Where:
-- Setup Cost (DIY) = Token Estimate × $0.015/1K tokens
-- Maintenance (DIY) = 20% of Setup Cost annually
-- Maintenance (SaaS) = $0
-```
-
-#### 9.3 Cost Table Format
+For the tactical "library vs glue code" choice, a one-line comparison is enough: SaaS monthly fee vs the DIY token-burn from Step 4 (pricing in [references/pricing-data.md](references/pricing-data.md)).
 
 ```markdown
-## 💰 Cost Analysis
+## 💰 Cost Note
 
-| Option | Setup | Monthly | Year 1 | Year 3 | Notes |
-|--------|-------|---------|--------|--------|-------|
-| [SaaS A] | 10min | $25 | $300 | $900 | Free tier: 10K MAU |
-| [SaaS B] | 15min | $35 | $420 | $1,260 | More features |
-| [Free/OSS] | 1hr | $0 | $0 | $0 | Self-host required |
-| DIY | Xhrs | $0 | ~$Y | ~$Z | + maintenance burden |
+| Option | Setup | Monthly | Notes |
+|--------|-------|---------|-------|
+| [SaaS A] | 10min | $25 | Free tier: 10K MAU |
+| [Free/OSS] | 1hr | $0 | Self-host required |
+| DIY | Xhrs | $0 | ~XK tokens + maintenance |
 
-💡 **Break-even:** [When DIY becomes cheaper, if ever]
-⚠️ **Hidden costs:** [Security audits, compliance, on-call burden]
+💡 Beyond a quick estimate, hand the multi-year TCO to buy-vs-build-framework.
 ```
 
 #### 9.4 Hidden Costs to Surface
@@ -345,14 +279,14 @@ I found [N] existing solutions before we write custom code:
 |--------|------|------|-------|-------------|-------------|
 | ... | ... | ... | ... | ... | ... |
 
-## 💰 Cost Analysis (for significant decisions)
+## 💰 Cost Note (tactical)
 
-| Option | Setup | Monthly | Year 1 | Year 3 | Notes |
-|--------|-------|---------|--------|--------|-------|
-| ... | ... | ... | ... | ... | ... |
+| Option | Setup | Monthly | Notes |
+|--------|-------|---------|-------|
+| ... | ... | ... | ... |
 
-💡 **Break-even:** [analysis]
 ⚠️ **Hidden costs:** [security, compliance, maintenance]
+💡 For a multi-year TCO/NPV, hand off to `buy-vs-build-framework` (`calculate_tco.py`).
 
 ## 💡 Recommendation
 
