@@ -109,8 +109,10 @@ def main(argv: list[str] | None = None) -> int:
         # --assignee. Only pass --search to avoid misleading behavior.
         list_args.extend(["--search", args.search])
     else:
-        if args.state != "all":
-            list_args.extend(["--state", args.state])
+        # Forward every state, including 'all'. Omitting --state makes
+        # gh fall back to its open-only default, which silently drops
+        # closed issues when the caller asked for --state all.
+        list_args.extend(["--state", args.state])
 
         if args.label:
             labels = [lbl.strip() for lbl in args.label.split(",") if lbl.strip()]
@@ -123,30 +125,47 @@ def main(argv: list[str] | None = None) -> int:
         if args.assignee:
             list_args.extend(["--assignee", args.assignee])
 
-    result = subprocess.run(
-        list_args, capture_output=True, text=True, timeout=30, check=False,
-    )
+    try:
+        result = subprocess.run(
+            list_args, capture_output=True, text=True, timeout=30, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit("Timed out waiting for gh issue list.", 3)
+    except FileNotFoundError:
+        error_and_exit("gh CLI not found on PATH.", 3)
 
     if result.returncode != 0:
         error_and_exit(
             f"Failed to list issues: {result.stderr or result.stdout}", 3,
         )
 
-    issues = json.loads(result.stdout)
+    try:
+        issues = json.loads(result.stdout)
+    except (json.JSONDecodeError, ValueError) as exc:
+        error_and_exit(f"Failed to parse JSON response from gh: {exc}", 3)
 
     output = [
         {
             "number": i.get("number"),
             "title": i.get("title"),
             "state": i.get("state"),
-            "labels": [lbl.get("name") for lbl in i.get("labels", [])],
-            "assignees": [a.get("login") for a in i.get("assignees", [])],
+            "labels": [
+                lbl.get("name")
+                for lbl in (i.get("labels") or [])
+                if isinstance(lbl, dict)
+            ],
+            "assignees": [
+                a.get("login")
+                for a in (i.get("assignees") or [])
+                if isinstance(a, dict)
+            ],
             "author": (i.get("author") or {}).get("login"),
             "url": i.get("url"),
             "createdAt": i.get("createdAt"),
             "updatedAt": i.get("updatedAt"),
         }
         for i in issues
+        if isinstance(i, dict)
     ]
 
     print(json.dumps(output, indent=2))

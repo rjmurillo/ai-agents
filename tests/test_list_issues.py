@@ -169,7 +169,9 @@ class TestMain:
         assert "--assignee" in cmd
         assert "@me" in cmd
 
-    def test_state_all_omits_state_flag(self):
+    def test_state_all_forwards_state_flag(self):
+        # gh issue list defaults to open-only when --state is omitted,
+        # so --state all must be forwarded to actually return all states.
         with patch(
             "list_issues.assert_gh_authenticated",
         ), patch(
@@ -181,7 +183,8 @@ class TestMain:
         ) as mock_run:
             main(["--state", "all"])
         cmd = mock_run.call_args[0][0]
-        assert "--state" not in cmd
+        assert "--state" in cmd
+        assert "all" in cmd
 
     def test_search_filter_ignores_other_flags(self, capsys):
         issues = [_issue(5, "Fix auth bug")]
@@ -220,6 +223,94 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 3
+
+    def test_timeout_exits_3(self):
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+
+    def test_gh_missing_exits_3(self):
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=FileNotFoundError("gh"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+
+    def test_malformed_json_exits_3(self):
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout="not json", rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+
+    def test_non_dict_items_skipped(self, capsys):
+        # gh should never return scalars, but a malformed response must
+        # not crash on attribute access.
+        payload = [_issue(1, "Good"), "garbage", None, 42]
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=json.dumps(payload), rc=0),
+        ):
+            rc = main([])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert len(output) == 1
+        assert output[0]["number"] == 1
+
+    def test_null_labels_and_assignees_handled(self, capsys):
+        payload = [{
+            "number": 7,
+            "title": "Null lists",
+            "state": "OPEN",
+            "labels": None,
+            "assignees": None,
+            "author": {"login": "alice"},
+            "url": "https://github.com/o/r/issues/7",
+            "createdAt": None,
+            "updatedAt": None,
+        }]
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=json.dumps(payload), rc=0),
+        ):
+            rc = main([])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output[0]["labels"] == []
+        assert output[0]["assignees"] == []
 
     def test_empty_results(self, capsys):
         with patch(
