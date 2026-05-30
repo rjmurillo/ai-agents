@@ -137,7 +137,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 | **Handoff** | Explicit transfer of context and control between agents with clear accountability |
 | **Skill** | A reusable workflow component for common tasks (69+ included: git, PR, testing, linting) |
 | **Memory** | Cross-session context persistence via Serena + Forgetful for knowledge retention |
-| **ADR** | Architectural Decision Record—structured documents capturing design decisions |
+| **ADR** | Architectural Decision Record, structured documents capturing design decisions |
 | **Quality Gate** | Validation checkpoint (critic review, QA pass, security scan) before proceeding |
 
 ---
