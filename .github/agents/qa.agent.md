@@ -610,7 +610,7 @@ Save to: `.agents/qa/NNN-[feature]-test-strategy.md`
 
 Save to: `.agents/qa/NNN-[feature]-test-report.md`
 
-```markdown
+````markdown
 # Test Report: [Feature Name]
 
 ## Summary
@@ -655,7 +655,7 @@ Result: PASS | FAIL
 
 ## Recommendations
 - [Recommendation for improvement]
-```
+````
 
 ## Handoff Options
 

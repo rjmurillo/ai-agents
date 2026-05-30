@@ -625,11 +625,11 @@ mcp__cloudmcp-manager__memory-add_observations
 
 ### PowerShell Security Review
 
-For `.ps1`/`.psm1` review, apply the input-validation, command-injection (CWE-77/78), path-traversal (CWE-22), secrets, error-handling, and code-execution (CWE-94/95) checklist in `references/powershell-security-checklist.md`. Load it only when the diff touches PowerShell.
+For `.ps1`/`.psm1` review, apply the input-validation, command-injection (CWE-77/78), path-traversal (CWE-22), secrets, error-handling, and code-execution (CWE-94/95) checklist in `security/references/powershell-security-checklist.md`. Load it only when the diff touches PowerShell.
 
 ## Threat Model Format
 
-Save threat models to `.agents/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in `references/threat-model-template.md`.
+Save threat models to `.agents/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in `security/references/threat-model-template.md`.
 
 ## Security Report Length Bounds
 
