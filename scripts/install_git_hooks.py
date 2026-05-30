@@ -100,6 +100,27 @@ def get_hooks_path(repo_root: Path) -> str | None:
     return value or None
 
 
+def get_shared_hooks_path(repo_root: Path) -> str | None:
+    """Return the ``core.hooksPath`` from shared config only, or None if unset.
+
+    This reads directly from the shared git config file, ignoring any
+    higher-precedence worktree-local or environment overrides. Use this to
+    verify the shared config is correctly set for all worktrees.
+    """
+    common_dir = get_git_common_dir(repo_root)
+    if common_dir is None:
+        return None
+    shared_config = common_dir / "config"
+    result = _run_git(
+        ["config", "--file", str(shared_config), "--get", "core.hooksPath"],
+        cwd=repo_root,
+    )
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
 def hooks_path_points_at_canonical(repo_root: Path, value: str | None) -> bool:
     """True if ``value`` is a relative path resolving to ``.githooks``.
 
@@ -230,13 +251,22 @@ def _run_check(
 def _run_install(
     repo_root: Path, *, configured: bool, current: str | None, quiet: bool
 ) -> int:
-    if configured:
+    shared_value = get_shared_hooks_path(repo_root)
+    shared_ok = hooks_path_points_at_canonical(repo_root, shared_value)
+
+    if shared_ok:
         _print(
             f"core.hooksPath already set to {HOOKS_DIR_NAME}", quiet=quiet
         )
     elif not set_hooks_path(repo_root):
         print("error: failed to set core.hooksPath", file=sys.stderr)
         return EXIT_EXTERNAL
+    elif configured:
+        _print(
+            f"repaired shared config core.hooksPath -> {HOOKS_DIR_NAME} "
+            f"(shared was: {shared_value or 'unset'})",
+            quiet=quiet,
+        )
     else:
         _print(
             f"set core.hooksPath -> {HOOKS_DIR_NAME} (was: {current or 'unset'})",
