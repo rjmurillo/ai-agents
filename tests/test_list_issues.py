@@ -266,6 +266,24 @@ class TestMain:
                 main([])
             assert exc.value.code == 3
 
+    @pytest.mark.parametrize("payload", ["null", "{}", "42", '"text"'])
+    def test_non_list_root_exits_3(self, payload):
+        # gh should always return a JSON array; a non-list root (null,
+        # object, scalar) must map to ADR-035 exit code 3, not crash or
+        # silently emit an empty list.
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=payload, rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+
     def test_non_dict_items_skipped(self, capsys):
         # gh should never return scalars, but a malformed response must
         # not crash on attribute access.
