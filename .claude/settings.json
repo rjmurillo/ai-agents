@@ -134,6 +134,12 @@
           },
           {
             "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_plugin_version_bump_guard.py",
+            "timeout": 30,
+            "statusMessage": "Checking plugin.json version bump on plugin source change (BLOCKING)"
+          },
+          {
+            "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_hook_drift_guard.py",
             "timeout": 30,
             "statusMessage": "Checking hook generator drift in src/copilot-cli/hooks/ (BLOCKING)"

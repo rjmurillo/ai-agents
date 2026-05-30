@@ -46,6 +46,7 @@ jobs:
               - 'src/copilot-cli/**'
               - 'build/scripts/validate_plugin_version_bump.py'
               - 'scripts/validation/run_plugin_version_bump_ci.py'
+              - 'scripts/validation/ci_runner_base.py'
               - '.github/workflows/validate-plugin-version-bump.yml'
 
   validate:
