@@ -85,7 +85,16 @@ _AFFIRMATIVE_COMPLETION = re.compile(
 )
 
 # A clause boundary separating affirmative completion from a trailing deferral.
-_CLAUSE_BOUNDARY = re.compile(r"[.;)]")
+# NOTE: Do NOT include ')' here. A closing paren allows false suppression when
+# an affirmative word sits inside a parenthetical (e.g., "Report (tests passed)
+# pending final sign-off" would suppress incorrectly). Legitimate trailing-note
+# suppressions use '.' or ';' separators. See bug 80aca362.
+_CLAUSE_BOUNDARY = re.compile(r"[.;]")
+
+# Negation words that negate an affirmative completion.
+# When an affirmative word is immediately preceded by these, it does not
+# indicate completion (e.g., "not passed", "never confirmed"). See bug ref1_1ef17459.
+_NEGATION_BEFORE_AFFIRMATIVE = re.compile(r"(?i)\b(not|no|never|n't)\s*$")
 
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
@@ -197,6 +206,11 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
     prefix = evidence[: match.start()]
     affirmative = _AFFIRMATIVE_COMPLETION.search(prefix)
     if not affirmative:
+        return False
+    # Check if the affirmative word is negated (e.g., "not passed", "never confirmed").
+    # Negated affirmatives do not indicate completion. See bug ref1_1ef17459.
+    prefix_before_affirmative = prefix[: affirmative.start()]
+    if _NEGATION_BEFORE_AFFIRMATIVE.search(prefix_before_affirmative):
         return False
     # Verify a clause boundary exists AFTER the affirmative word, ensuring
     # the boundary actually separates the affirmative completion from the deferral token.
