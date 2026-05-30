@@ -73,7 +73,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pre-PR checklist walked: tests green, no dashes, no secrets, conventional commit, atomic (4 tracked files)."
+        "Evidence": "Pre-PR checklist walked: tests green, no dashes, no secrets, conventional commits. The initial change was atomic (4 tracked files); follow-up commits (CI fixes, committed .claude/settings.json wiring, plugin version bumps, generated Copilot mirrors, marketplace metadata, and main merges) expanded the final PR to 10 tracked files."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -93,7 +93,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Committed 4 tracked files in one atomic commit on feat/1993-serena-reassertion-hook."
+        "Evidence": "Initial atomic commit landed 4 tracked files on feat/1993-serena-reassertion-hook. Subsequent commits committed .claude/settings.json (hook wiring), the .claude and Copilot plugin manifests, the generated Copilot hook mirror, marketplace metadata, and this session log, for 10 tracked files total in the final PR diff."
       },
       "validationPassed": {
         "level": "MUST",
@@ -119,7 +119,7 @@
     },
     {
       "action": "Registered hook in .claude/hooks/hooks.json UserPromptSubmit array",
-      "detail": "First entry, timeout 3s. .claude/settings.json (gitignored, local-only) updated for live use but not committed."
+      "detail": "First entry, timeout 3s. .claude/settings.json is tracked (not gitignored) and is committed as part of this PR to register the hook for live use."
     },
     {
       "action": "Added tests/hooks/test_serena_reassertion.py",
