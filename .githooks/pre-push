@@ -726,6 +726,8 @@ elif [ -f "$PLUGIN_VERSION_SCRIPT" ] && [ -n "$PUSH_RANGE" ]; then
     fi
 elif [ ! -f "$PLUGIN_VERSION_SCRIPT" ]; then
     record_skip "Plugin version bump (script not found)"
+else
+    record_skip "Plugin version bump (no push range)"
 fi
 
 # 12. Path normalization
