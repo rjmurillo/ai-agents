@@ -80,11 +80,17 @@ def _strip_inline_comment(value: str) -> str:
 
     A ``#`` at index 0, or one preceded by a space or tab, starts a comment. A
     ``#`` with a non-space character before it is part of the value:
-    ``foo # note`` becomes ``foo``; ``foo#bar`` stays ``foo#bar``. The returned
-    value is stripped of surrounding whitespace.
+    ``foo # note`` becomes ``foo``; ``foo#bar`` stays ``foo#bar``. A ``#``
+    inside a quoted span (single or double quotes) is literal content, not a
+    comment. The returned value is stripped of surrounding whitespace.
     """
+    quote_char: str | None = None
     for i, char in enumerate(value):
-        if char == "#" and (i == 0 or value[i - 1] in (" ", "\t")):
+        if quote_char is None and char in ("'", '"'):
+            quote_char = char
+        elif char == quote_char:
+            quote_char = None
+        elif quote_char is None and char == "#" and (i == 0 or value[i - 1] in (" ", "\t")):
             return value[:i].strip()
     return value.strip()
 
