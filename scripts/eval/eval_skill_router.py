@@ -292,14 +292,21 @@ def resolve_variant_descriptions(
 def parse_pick(raw: str, candidates: list[str]) -> str:
     """Parse the model's chosen skill from its raw reply.
 
-    Matches a candidate name as a whole token (case-insensitive). Returns the
-    canonical candidate name, or "PARSE_ERROR" if none of the candidates appear.
-    Longest names are checked first so a substring name cannot shadow a longer
-    sibling (none overlap today, but this keeps the match deterministic).
+    The router prompt instructs the model to reply with EXACTLY one candidate
+    name and nothing else, so the whole reply must be a single candidate (modulo
+    surrounding quotes, markdown emphasis, whitespace, or trailing punctuation).
+    Replies that name several candidates or wrap the pick in prose are scored as
+    "PARSE_ERROR" rather than counted as correct, so accuracy is not inflated by
+    loose substring matches. Longest names are checked first so a substring name
+    cannot shadow a longer sibling.
     """
     text = raw.strip()
     for name in sorted(candidates, key=len, reverse=True):
-        if re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", text, re.IGNORECASE):
+        if re.fullmatch(
+            rf"[\"'`*\s]*{re.escape(name)}[\"'`*.,!?;:\s-]*",
+            text,
+            re.IGNORECASE,
+        ):
             return name
     return "PARSE_ERROR"
 
@@ -474,8 +481,12 @@ def main() -> int:
     try:
         api_key = load_api_key()
     except RuntimeError as exc:
+        # A missing ANTHROPIC_API_KEY is an absent environment variable, which
+        # ADR-035 classifies as a configuration/environment error (exit 2), not
+        # an auth failure (exit 4, reserved for a credential that exists but is
+        # rejected: token expired, permission denied, rate limited).
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 4
+        return 2
 
     try:
         summary = run_eval(plan, api_key)

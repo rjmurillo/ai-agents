@@ -187,14 +187,15 @@ python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untrac
 
 ## Verification Checklist
 
-Before marking complete, run the bundled detector and confirm the ADR file was detected:
+Before marking complete, run the bundled detector to check for pending ADR changes:
 
 ```bash
 python3 .claude/skills/adr-review/scripts/detect_adr_changes.py --include-untracked
 echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 ```
 
-- [ ] `detect_adr_changes.py` exited 0 and `HasChanges` is `true` in output (ADR file was actually detected; if `HasChanges` is `false`, the review target was not found by the detector)
+- [ ] `detect_adr_changes.py` exited 0 (no git or I/O errors)
+- [ ] If skill was auto-triggered by a file change, `HasChanges` should be `true`; if skill was manually invoked on an existing committed ADR, `HasChanges: false` is expected and acceptable
 
 After skill invocation:
 

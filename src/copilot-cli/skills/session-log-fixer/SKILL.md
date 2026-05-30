@@ -237,7 +237,7 @@ Check the Job Summary tab again. If validation still fails, the detailed results
 After applying fixes, run the bundled validator and require exit 2 (no errors found):
 
 ```bash
-python3 .claude/skills/session-log-fixer/scripts/get_validation_errors.py --run-id <new-run-id>
+python3 scripts/get_validation_errors.py --run-id "$RUN_ID"
 echo "exit=$?"   # must be 2 (no errors found = validation passed); exit 1 = run not found; exit 0 = errors still present
 ```
 

@@ -354,7 +354,7 @@ python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py <github-
 After routing a GitHub URL, run the bundled validator and require exit 0:
 
 ```bash
-python3 .claude/skills/github-url-intercept/scripts/test_url_routing.py --url <github-url>
+python3 scripts/test_url_routing.py --url "$GITHUB_URL"
 echo "exit=$?"   # must be 0; exit 1 means invalid URL or no routing available
 ```
 

@@ -588,7 +588,7 @@ What aspects will be tested
 
 ### Phase 2: Verification (After Implementation)
 
-```markdown
+````markdown
 # Test Report: [Feature Name]
 
 ## Objective
@@ -677,7 +677,7 @@ Result: PASS | FAIL
 **Status**: [PASS | FAIL | NEEDS WORK]
 **Confidence**: [High | Medium | Low]
 **Rationale**: [One sentence summary of verdict reasoning]
-```
+````
 
 ## Memory Protocol
 

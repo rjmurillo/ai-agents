@@ -248,8 +248,8 @@ Generate the risk inventory using this structure:
 Validates risk inventory completeness and calculates aggregate statistics.
 
 ```bash
-python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
-  --inventory-path <path-to-risk-inventory.md> \
+python3 scripts/pre-mortem.py \
+  --inventory-path "$INVENTORY_PATH" \
   --validate
 ```
 
@@ -274,8 +274,8 @@ python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
 After completing a pre-mortem, run the bundled validator and require exit 0:
 
 ```bash
-python3 .claude/skills/pre-mortem/scripts/pre-mortem.py \
-  --inventory-path <path-to-risk-inventory.md> \
+python3 scripts/pre-mortem.py \
+  --inventory-path "$INVENTORY_PATH" \
   --validate
 echo "exit=$?"   # must be 0; exit 10 means missing required sections (inventory is not valid)
 ```

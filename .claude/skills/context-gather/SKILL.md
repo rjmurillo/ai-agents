@@ -26,7 +26,7 @@ Collect multi-source context before planning or implementation. Searches Forgetf
 |-------|-------|
 | Input | Task description or technology topic (free text) |
 | Output | Focused summary with code snippets, architectural insights, and `CONTEXT_LOADED: <topic>` marker |
-| Quality Gate | Summary addresses the stated topic; at least two knowledge tiers queried; marker line present |
+| Quality Gate | Summary addresses the stated topic; at least one queried tier reconciled (short-circuit and early-stop exempt); marker line present |
 
 ## When to Use
 
@@ -69,7 +69,7 @@ Skip this skill when:
 TIER_QUERIED: <tier>
 ```
 
-Where `<tier>` is one of: `forgetful`, `serena`, `context7`, `deepwiki`, `web`. Emit at least two `TIER_QUERIED:` lines to satisfy the verification gate.
+Where `<tier>` is one of: `forgetful`, `serena`, `context7`, `deepwiki`, `web`. Emit one `TIER_QUERIED:` line per tier actually queried.
 
 ### Phase 3: Synthesize, Emit Marker, and Return
 
@@ -116,7 +116,7 @@ This skill delegates to the context-retrieval subagent, which uses:
 
 After execution, confirm:
 
-- [ ] Reconciliation: `grep -c '^TIER_QUERIED:' <output>` >= 2 (emit one `TIER_QUERIED: <tier>` line per source actually queried)
+- [ ] Reconciliation (fetch path only): `grep -c '^TIER_QUERIED:' <output>` >= 1, with one `TIER_QUERIED: <tier>` line per source actually queried. Exempt when the skill short-circuited on a prior `CONTEXT_LOADED:` marker (no tiers queried) or early-stopped after one source gave sufficient coverage.
 - [ ] Summary addresses the stated topic with specific findings, not generic advice.
 - [ ] `CONTEXT_LOADED: <topic>` marker line is present at the end of output.
 - [ ] No raw tool output was returned; findings are synthesized.
