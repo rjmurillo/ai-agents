@@ -172,6 +172,23 @@ PreReleaseId = tuple[int, object]
 SemVer = tuple[tuple[int, int, int], bool, tuple[PreReleaseId, ...]]
 
 
+def _valid_build_metadata(build: str) -> bool:
+    """True when ``build`` is valid SemVer build metadata (rule 11/10).
+
+    Build metadata is a dot-separated series of identifiers, each non-empty and
+    drawn from ASCII alphanumerics and hyphen. Unlike pre-release identifiers,
+    leading zeros are allowed. An empty string (a trailing ``+``) is invalid.
+    """
+    if not build:
+        return False
+    for ident in build.split("."):
+        if not ident:
+            return False
+        if not ident.isascii() or not all(c.isalnum() or c == "-" for c in ident):
+            return False
+    return True
+
+
 def _parse_prerelease(pre: str) -> tuple[PreReleaseId, ...] | None:
     """Parse a dot-separated pre-release string into comparable identifiers.
 
@@ -205,7 +222,12 @@ def parse_version(value: str) -> SemVer | None:
     """
     if not value or not value.strip():
         return None
-    body = value.strip().split("+", 1)[0]  # drop build metadata
+    body, plus, build = value.strip().partition("+")
+    # Build metadata does not affect precedence, but a trailing ``+`` or a
+    # malformed identifier (``1.2.3+`` or ``1.2.3+a+b``) is invalid SemVer and
+    # must be rejected, not silently dropped.
+    if plus and not _valid_build_metadata(build):
+        return None
     core, hyphen, pre = body.partition("-")
     parts = core.split(".")
     if len(parts) != 3:
@@ -422,7 +444,18 @@ def _base_version(
         return _BaseRefError(
             f"git show {base_ref}:{manifest} exit {proc.returncode}: {stderr}"
         )
-    return _read_version_text(proc.stdout)
+    # git show succeeded: the manifest EXISTS at the base ref. If its content
+    # cannot yield a version (invalid JSON, no version field, non-string
+    # version), that is a malformed base manifest, a config error. Returning
+    # None here would let evaluate treat an existing-but-broken base as a new
+    # plugin and pass the gate.
+    version = _read_version_text(proc.stdout)
+    if version is None:
+        return _BaseRefError(
+            f"{base_ref}:{manifest} exists but has no readable version "
+            "(invalid JSON or missing version field)"
+        )
+    return version
 
 
 def _version_pairs(

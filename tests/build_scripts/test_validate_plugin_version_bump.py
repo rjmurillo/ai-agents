@@ -96,6 +96,22 @@ def test_parse_version_rejects_empty_prerelease():
     assert vpb.parse_version("1.2.3-rc.") is None
 
 
+def test_parse_version_accepts_valid_build_metadata():
+    # Valid build metadata is dropped for precedence but must parse.
+    assert vpb.parse_version("1.2.3+build9") == ((1, 2, 3), True, ())
+    assert vpb.parse_version("1.2.3+a.b.c") == ((1, 2, 3), True, ())
+    # Leading zeros are allowed in build metadata (unlike pre-release).
+    assert vpb.parse_version("1.2.3+001") == ((1, 2, 3), True, ())
+
+
+def test_parse_version_rejects_malformed_build_metadata():
+    # A trailing + or an empty identifier is invalid SemVer build metadata.
+    assert vpb.parse_version("1.2.3+") is None
+    assert vpb.parse_version("1.2.3+a+b") is None
+    assert vpb.parse_version("1.2.3+a..b") is None
+    assert vpb.parse_version("1.2.3+a$b") is None
+
+
 def test_version_ordering_via_tuple():
     assert vpb.parse_version("0.3.1") > vpb.parse_version("0.3.0")
     assert vpb.parse_version("0.4.0") > vpb.parse_version("0.3.9")
@@ -410,6 +426,32 @@ def test_divergent_base_uses_merge_base(tmp_path: Path):
 
     rc = vpb.main(["--base", "main", "--repo-root", str(repo)])
     assert rc == 0  # three-dot: only feat's bump counts, 0.3.0 -> 0.3.1
+
+
+def test_malformed_base_manifest_is_config_error(tmp_path: Path):
+    """A base manifest that exists but has invalid JSON must be a config error.
+
+    The base ref is valid and git show succeeds, but the committed plugin.json
+    cannot yield a version. That is a malformed base, not a new plugin; it must
+    surface as a config error (exit 2), never pass as nothing-to-compare.
+    """
+    repo = tmp_path
+    _git(repo, "init", "-q", "-b", "main")
+    # Base commit: a manifest with broken JSON, plus a source file.
+    _write(repo, ".claude/.claude-plugin/plugin.json", "{ not valid json")
+    _write(repo, ".claude/skills/x/SKILL.md", "# x\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "base with broken manifest")
+
+    _git(repo, "checkout", "-q", "-b", "feat")
+    # Repair the manifest to valid JSON and change a source file.
+    _write(repo, ".claude/.claude-plugin/plugin.json", _manifest("0.3.1"))
+    _write(repo, ".claude/skills/y/SKILL.md", "# y\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-gpg-sign", "-m", "feat change")
+
+    rc = vpb.main(["--base", "main", "--repo-root", str(repo)])
+    assert rc == 2  # malformed base manifest is a config error, not a pass
 
 
 def test_divergent_base_still_catches_missing_bump(tmp_path: Path):
