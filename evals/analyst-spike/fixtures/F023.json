@@ -1,0 +1,23 @@
+{
+  "id": "F023",
+  "policy_id": "pol-analyst-identify-convergence",
+  "input": "Bug report from ai-agents PR #1965 (paraphrased). 'PR #1934 had 2 fix-loops + 5 commits + 4 Round-2 regressions because two systems drifted: /review (local slash command) and ai-pr-quality-gate.yml (CI workflow) used separate prompt copies that nobody kept in sync. Six axes were duplicated under .github/prompts/ and .claude/skills/review/. What is the root cause of the drift class and what is the smallest fix shape that prevents recurrence?'",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(canonical.*source|single.*source|extract.*shared|.claude/review-axes|both.*read.*same|consolidat.*file|deduplicat|one.*place|symlink|generated)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-1965",
+    "drift-class",
+    "verdict-identify"
+  ],
+  "schemaVersion": 1
+}

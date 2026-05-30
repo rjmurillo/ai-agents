@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "V007",
+  "policy_id": "pol-issue-feature-review-impact-survey",
+  "input": "Bug report: 'The export-to-CSV button fails on Safari.' Browser share is 4 percent. No paying customer reported it. Estimated fix: 3 days.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(low.*priority|defer|small.*share|workaround|other.*browser|opportunity.*cost|fix.*later|backlog)"
+    }
+  ],
+  "tags": [
+    "agent-issue-feature-review",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

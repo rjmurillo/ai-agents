@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "B005",
+  "policy_id": "pol-backlog-generator-task-too-big",
+  "input": "Generated task: 'Rewrite the queue layer.' Critique.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(too.*big|split|spike|decompose|smaller|epic|not.*atomic|<1.*week)"
+    }
+  ],
+  "tags": [
+    "agent-backlog-generator",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

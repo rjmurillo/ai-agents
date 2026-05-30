@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "E007",
+  "policy_id": "pol-memory-deduplicate",
+  "input": "Two memory entries: (A) 'Skill-first: when a skill matches, invoke it as first action.' (B) 'For routine ops, prefer skill invocation over inline gh/git commands.' Both apply globally. Action?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(merge|deduplic|consolidat|one.*entry|overlap|reduce.*fragment|combine)"
+    }
+  ],
+  "tags": [
+    "agent-memory",
+    "synthetic",
+    "verdict-identify"
+  ]
+}

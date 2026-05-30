@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "X003",
+  "policy_id": "pol-explainer-ok-clear-already",
+  "input": "Explainer request: 'Document this function: `def add(a, b): return a + b`. Existing docstring says: \"Return the sum of a and b. Both must be numbers; raises TypeError otherwise.\" Anything to add?'",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(sufficient|nothing.*add|clear|complete|ship|approve|OK)"
+    }
+  ],
+  "tags": [
+    "agent-explainer",
+    "synthetic",
+    "verdict-ok"
+  ]
+}

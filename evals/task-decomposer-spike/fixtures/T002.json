@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "T002",
+  "policy_id": "pol-task-decomposer-estimable-rejection",
+  "input": "Task draft: 'Make the build faster.' Estimable? Decompose if not.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(not.*estimable|too.*broad|baseline|profile|measure.*first|specific.*step|cannot.*size|clarif)"
+    }
+  ],
+  "tags": [
+    "agent-task-decomposer",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

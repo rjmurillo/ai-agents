@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "Q005",
+  "policy_id": "pol-qa-ok-comprehensive-cited",
+  "input": "Test review: 'Tests at tests/test_validate_email.py (12 cases: happy, empty, no-at, no-tld, IDN, max-length, unicode, special-char, leading-space, trailing-space, whitespace-only, multiple-at). pytest --cov shows auth.email 100%. PR includes coverage report attachment.' Cited file exists. Approve?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(approve|comprehensive|verified|sufficient|nothing.*missing|ship|OK|good.*coverage)"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "triad-aware",
+    "verdict-ok",
+    "agent-discriminating"
+  ]
+}

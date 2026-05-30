@@ -1,189 +1,195 @@
 #!/usr/bin/env python3
+"""Auto-load HANDOFF.md and latest retrospective at session start.
+
+Claude Code SessionStart hook that injects critical context files into
+the session to eliminate the 95.8% context reading failure rate documented
+in retrospective analysis.
+
+Loads:
+1. .agents/HANDOFF.md (read-only dashboard of project state)
+2. Latest retrospective from .agents/retrospective/ (learnings from prior sessions)
+
+Both are truncated to prevent context bloat. Output is printed to stdout
+so Claude Code injects it into the session context.
+
+Hook Type: SessionStart (non-blocking, fail-open)
+Exit Codes:
+    0 = Success (always, fail-open)
+
+References:
+    - Issue #1703 (lifecycle hook infrastructure)
+    - Issue #1672 (session-start gate)
+    - ADR-008 (protocol automation via lifecycle hooks)
 """
-SessionStart hook: Auto-loads HANDOFF.md and latest retrospective into context.
 
-Addresses issue #1703 acceptance criteria: SessionStart hook implemented and tested.
-Fixes 95.8% context reading failure rate by injecting critical context automatically.
+from __future__ import annotations
 
-Hook Type: SessionStart (non-blocking)
-Exit Codes: Always 0 (fail-open, never blocks session start)
-
-Related:
-- Issue #1672 (session-start gate)
-- ADR-008 (protocol automation lifecycle hooks)
-- .agents/SESSION-PROTOCOL.md
-"""
-
-import json
 import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+# --- Standard hook boilerplate: resolve lib directory ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root:
-    _lib_dir = str(Path(_plugin_root).resolve() / "lib")
+    _lib_dir = os.path.join(_plugin_root, "lib")
 else:
     _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
 if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 try:
-    from hook_utilities import get_project_directory as _get_project_directory
-    from hook_utilities import lock_file as _lock_file
-    from hook_utilities import unlock_file as _unlock_file
-
-    def get_project_directory() -> Path | None:
-        """Wrap shared utility returning Path for backward compat."""
-        result = _get_project_directory()
-        return Path(result) if result else None
-
+    from hook_utilities import get_project_directory
+    from hook_utilities.guards import skip_if_consumer_repo
 except ImportError:
-    def get_project_directory() -> Path | None:
-        """Resolve project root from env or git."""
-        env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
-        if env_dir:
-            return Path(env_dir)
 
-        # Walk up from CWD to find .git
-        current = Path.cwd()
-        while current != current.parent:
-            if (current / ".git").exists():
-                return current
-            current = current.parent
+    def get_project_directory() -> str:
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+        if env_dir:
+            return str(Path(env_dir).resolve())
+        return str(Path.cwd())
+
+    def skip_if_consumer_repo(hook_name: str) -> bool:
+        agents_path = Path(get_project_directory()) / ".agents"
+        if not agents_path.is_dir():
+            print(f"[SKIP] {hook_name}: .agents/ not found (consumer repo)", file=sys.stderr)
+            return True
+        return False
+
+
+# Maximum characters to inject per file to prevent context bloat
+MAX_HANDOFF_CHARS = 4000
+MAX_RETRO_CHARS = 4000
+
+HOOK_NAME = "context-loader"
+
+
+def _read_file_truncated(path: Path, max_chars: int) -> str | None:
+    """Read a file, truncating to max_chars if necessary.
+
+    Streams only the bytes needed instead of loading the whole file, so
+    large files do not balloon hook memory.
+    """
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            content = handle.read(max_chars + 1)
+    except OSError:
         return None
 
-    _lock_file = None  # type: ignore[assignment]
-    _unlock_file = None  # type: ignore[assignment]
-
-# Maximum characters to inject per file to avoid context bloat
-MAX_CHARS_PER_FILE = 4000
-
-# Audit trail directory
-AUDIT_DIR_NAME = ".agents/.hook-state"
+    if len(content) > max_chars:
+        return content[:max_chars] + f"\n\n[... truncated at {max_chars} chars ...]"
+    return content
 
 
-def get_latest_retrospective(retro_dir: Path) -> Path | None:
-    """Find the most recent readable retrospective file by modification time."""
+def _find_latest_retrospective(retro_dir: Path) -> Path | None:
+    """Find the most recent retrospective file by modification time.
+
+    Per-file stat failures (race with deletion, permission issue) skip that
+    file rather than aborting the whole scan, so a single unreadable retro
+    does not hide every other retro from the SessionStart hook.
+    """
     if not retro_dir.is_dir():
         return None
 
-    latest_file: Path | None = None
-    latest_mtime: float | None = None
+    candidates: list[tuple[float, Path]] = []
+    try:
+        retro_paths = list(retro_dir.glob("*.md"))
+    except OSError:
+        return None
 
-    for retro_file in retro_dir.glob("*.md"):
+    for path in retro_paths:
         try:
-            mtime = retro_file.stat().st_mtime
+            candidates.append((path.stat().st_mtime, path))
         except OSError:
-            continue  # Skip unreadable files (race with deletion, perms, etc.)
+            continue
 
-        if latest_mtime is None or mtime > latest_mtime:
-            latest_file = retro_file
-            latest_mtime = mtime
+    if not candidates:
+        return None
 
-    return latest_file
+    candidates.sort(key=lambda entry: entry[0], reverse=True)
+    return candidates[0][1]
 
 
-def write_audit_log(project_dir: Path, event: str, details: str) -> None:
-    """Write hook execution to audit trail (best-effort)."""
+def _write_audit_log(project_dir: str, loaded_files: list[str]) -> None:
+    """Write a brief audit entry for session start context loading."""
     try:
-        audit_dir = project_dir / AUDIT_DIR_NAME
+        audit_dir = Path(project_dir) / ".agents" / ".hook-state"
         audit_dir.mkdir(parents=True, exist_ok=True)
+
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        audit_file = audit_dir / f"audit-{today}.jsonl"
-        entry = json.dumps({
-            "timestamp": datetime.now(tz=UTC).isoformat(),
-            "hook": "invoke_context_loader",
-            "event": event,
-            "details": details,
-        })
-        with open(audit_file, "a", encoding="utf-8") as f:
-            if _lock_file is not None:
-                _lock_file(f)
-            try:
-                f.write(entry + "\n")
-            finally:
-                if _unlock_file is not None:
-                    _unlock_file(f)
-    except OSError as e:
-        print(
-            f"[hook-error] invoke_context_loader audit: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
+        timestamp = datetime.now(tz=UTC).isoformat()
+        audit_file = audit_dir / f"context-loader-{today}.log"
+
+        with audit_file.open("a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] Loaded: {', '.join(loaded_files)}\n")
+    except OSError:
+        pass  # Fail-open: audit is best-effort
 
 
-def main() -> int:
-    """Load HANDOFF.md and latest retro, print to stdout for context injection."""
-    # Skip if stdin is a TTY (interactive, not piped from Claude)
-    if sys.stdin.isatty():
-        return 0
+def _drain_stdin() -> None:
+    """Drain stdin to prevent pipe buffer blocking on the harness side.
 
-    # Drain stdin so the harness pipe closes cleanly. Contents are unused;
-    # the hook injects context based on filesystem state, not stdin.
-    try:
-        sys.stdin.read()
-    except Exception as e:
-        print(f"[hook-error] invoke_context_loader stdin: {type(e).__name__}: {e}", file=sys.stderr)
+    Even when this hook does not need input data, consuming stdin keeps
+    the fail-open contract with the harness: an unconsumed pipe can leave
+    the producer blocked or trigger EPIPE/SIGPIPE when the hook exits.
+    """
+    if not sys.stdin.isatty():
+        try:
+            sys.stdin.read()
+        except OSError:
+            pass
+
+
+def main() -> None:
+    """Load HANDOFF.md and latest retrospective into session context."""
+    _drain_stdin()
+
+    if skip_if_consumer_repo(HOOK_NAME):
+        sys.exit(0)
 
     project_dir = get_project_directory()
-    if not project_dir:
-        return 0  # Fail-open
+    project_path = Path(project_dir)
+    loaded_files: list[str] = []
+    output_parts: list[str] = []
 
-    # Consumer-repo guard: if .agents/ does not exist, this is not an
-    # ai-agents-bearing repo. Skip silently rather than create surprise files.
-    if not (project_dir / ".agents").is_dir():
-        return 0
+    # 1. Load HANDOFF.md
+    handoff_path = project_path / ".agents" / "HANDOFF.md"
+    handoff_content = _read_file_truncated(handoff_path, MAX_HANDOFF_CHARS)
+    if handoff_content:
+        output_parts.append(
+            "## 📋 Auto-loaded: HANDOFF.md (read-only dashboard)\n\n"
+            f"{handoff_content}"
+        )
+        loaded_files.append("HANDOFF.md")
 
-    loaded_files = []
-    output_parts = []
-
-    # Load HANDOFF.md. Catch UnicodeDecodeError (subclass of ValueError)
-    # alongside OSError so a non-UTF8 file does not crash the hook and break
-    # the fail-open contract.
-    handoff_path = project_dir / ".agents" / "HANDOFF.md"
-    if handoff_path.is_file():
-        try:
-            content = handoff_path.read_text(encoding="utf-8")[:MAX_CHARS_PER_FILE]
-            output_parts.append(
-                f"--- HANDOFF.md (auto-loaded by context_loader hook) ---\n{content}\n"
-            )
-            loaded_files.append("HANDOFF.md")
-        except (OSError, UnicodeDecodeError) as e:
-            print(
-                f"[hook-error] invoke_context_loader handoff_read: {type(e).__name__}: {e}",
-                file=sys.stderr,
-            )
-
-    # Load latest retrospective. Same fail-open contract: a corrupt or
-    # non-UTF8 retro file must not crash session start.
-    retro_dir = project_dir / ".agents" / "retrospective"
-    latest_retro = get_latest_retrospective(retro_dir)
+    # 2. Load latest retrospective
+    retro_dir = project_path / ".agents" / "retrospective"
+    latest_retro = _find_latest_retrospective(retro_dir)
     if latest_retro:
-        try:
-            content = latest_retro.read_text(encoding="utf-8")[:MAX_CHARS_PER_FILE]
+        retro_content = _read_file_truncated(latest_retro, MAX_RETRO_CHARS)
+        if retro_content:
             output_parts.append(
-                f"--- Latest Retro: {latest_retro.name} (auto-loaded) ---\n{content}\n"
+                f"## 📝 Auto-loaded: Latest Retrospective ({latest_retro.name})\n\n"
+                f"{retro_content}"
             )
-            loaded_files.append(latest_retro.name)
-        except (OSError, UnicodeDecodeError) as e:
-            print(
-                f"[hook-error] invoke_context_loader retro_read: {type(e).__name__}: {e}",
-                file=sys.stderr,
-            )
+            loaded_files.append(f"retrospective/{latest_retro.name}")
 
-    # Print to stdout (injected into Claude's context)
+    # Output to stdout (injected into Claude's context)
     if output_parts:
-        print("\n".join(output_parts))
+        header = "## 🔄 Context Loader: Session Start Auto-Injection\n\n"
+        summary = f"**Loaded {len(loaded_files)} file(s)**: {', '.join(loaded_files)}\n\n---\n\n"
+        print(header + summary + "\n\n---\n\n".join(output_parts))
+    else:
+        print("## 🔄 Context Loader: No context files found to auto-load")
 
-    # Audit log
-    write_audit_log(
-        project_dir,
-        "context_loaded",
-        f"Loaded: {', '.join(loaded_files) if loaded_files else 'none'}",
-    )
-
-    return 0
+    # Audit trail (best-effort)
+    _write_audit_log(project_dir, loaded_files if loaded_files else ["(none)"])
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        main()
+    except Exception as exc:
+        # Fail-open: never block session start
+        print(f"[WARNING] context-loader error: {exc}", file=sys.stderr)
+        sys.exit(0)

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "A003",
+  "policy_id": "pol-architect-force-alternatives-extract",
+  "input": "Design review: Proposed change extracts a Strategy pattern for one current config parser (YAML), in anticipation of supporting TOML and JSON later. No second implementation exists. Plan recommends shipping the Strategy now. Before approving, list 2 alternative approaches the plan did not consider.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(alternative.*1|alternative.*2|1\\.|2\\.|inline|defer|table.*driven|wait.*until.*second|delete.*abstract|YAGNI)"
+    }
+  ],
+  "tags": [
+    "agent-architect",
+    "triad-aware",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

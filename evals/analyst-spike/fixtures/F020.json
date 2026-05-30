@@ -1,0 +1,24 @@
+{
+  "id": "F020",
+  "policy_id": "pol-analyst-identify-stack-collapse",
+  "input": "Request from ai-agents PR #1897 (paraphrased). 'I have a four-PR stack (#1894 reviewer-asymmetry, #1895 build gates, #1896 evidence standards, plus a fourth for guard maturity). They have hard ordering between layers, no Graphite/jujutsu automation, single owner, and single reviewer pool. Per-layer split pays overhead with nothing to show for it. Reviewers grep four diffs to answer where is X; CI runs four times per push. Should I keep the stack split, or consolidate into one PR?'",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(consolidat|single.*PR|stack.*overhead|no.*tooling|cost.*outweigh|merge.*together|combine|land.*one)"
+    }
+  ],
+  "tags": [
+    "analyst-investigation",
+    "ai-agents-1897",
+    "consolidation",
+    "verdict-identify",
+    "agent-discriminating"
+  ],
+  "schemaVersion": 1
+}

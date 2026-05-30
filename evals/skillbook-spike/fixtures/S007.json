@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "S007",
+  "policy_id": "pol-skillbook-escalate-unclear-impact",
+  "input": "Reflection: 'Learning: sometimes the test pass even when the code is wrong.' Add?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(too.*vague|when|specific|example|which.*test|reproduce|clarif|return)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

@@ -291,8 +291,6 @@ def _original_main(stdin_bytes):
             )
 
         return 0
-
-
     return main()
 
 _shim_dispatch()

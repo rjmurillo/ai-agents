@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "C005",
+  "policy_id": "pol-critic-escalate-scope-unclear",
+  "input": "Critique this plan: 'I want to refactor the agent prompts to make them better.' Approve?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "ESCALATE"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(scope|specific|which|what.*better|measur|define.*success|clarif|too.*broad)"
+    }
+  ],
+  "tags": [
+    "agent-critic",
+    "synthetic",
+    "verdict-escalate"
+  ]
+}

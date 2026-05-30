@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "S004",
+  "policy_id": "pol-skillbook-ok-novel-pattern",
+  "input": "Reflection from PR #1887 retrospective: 'Learning: when a CI failure is followed by a retry without log inspection, the next failure costs 2x the time. Always inspect logs once before deciding the action.' Existing skillbook does not cover CI retry discipline. Worth adding as atomic skill update?",
+  "provenance": "paraphrased-from-public",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "OK"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(approve|accept|novel|add.*skill|specific|measurable|actionable|good.*pattern)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "ai-agents-1887",
+    "verdict-ok"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "I001",
+  "policy_id": "pol-independent-thinker-contrarian-popular-wisdom",
+  "input": "Popular take in our org: 'AI-generated tests are unreliable; they catch the happy path and miss edge cases.' Engineer proposes adopting AI test generation broadly. Provide counter-evidence or confirmation.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(depends.*on.*prompt|evidence|measure|specific.*model|context|nuance|gap|partial|some.*tasks|alternative|measure.*recall)"
+    }
+  ],
+  "tags": [
+    "agent-independent-thinker",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

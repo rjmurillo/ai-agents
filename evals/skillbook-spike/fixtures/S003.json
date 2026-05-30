@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "S003",
+  "policy_id": "pol-skillbook-vague-reject",
+  "input": "Reflection: 'Learning: I should be more careful about edge cases.' Should this be added to the skillbook?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(vague|specific|measurable|actionable|reject|not.*operationaliz|too.*generic|how.*apply)"
+    }
+  ],
+  "tags": [
+    "agent-skillbook",
+    "synthetic",
+    "verdict-identify",
+    "agent-discriminating"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "L003",
+  "policy_id": "pol-milestone-planner-AC-clarity",
+  "input": "Milestone draft: 'M1: improve error handling.' Critique the AC clarity.",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "verdict",
+      "expected_value": "IDENTIFY"
+    },
+    {
+      "kind": "regex",
+      "pattern": "(?i)(measurable|specific.*exception|coverage.*target|test.*added|definition.*of.*done|how.*verify|acceptance.*criteria)"
+    }
+  ],
+  "tags": [
+    "agent-milestone-planner",
+    "synthetic",
+    "verdict-identify"
+  ]
+}
