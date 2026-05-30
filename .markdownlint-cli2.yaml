@@ -60,6 +60,18 @@ config:
       - code
       - example
 
+  # Duplicate headings - scope the check to siblings under one parent.
+  # docs/installation.md intentionally repeats the same platform sub-heading
+  # ("Claude Code", "GitHub Copilot CLI") under several distinct parent
+  # sections (Installation Methods / Uninstallation / Troubleshooting). That
+  # is readable and correct; only true sibling duplicates under one parent are
+  # a problem. siblings_only restricts MD024 to siblings. Verified behavior
+  # (markdownlint v0.40.0): with siblings_only true, two "### Foo" under
+  # different "##" parents pass; with the default false the second is flagged.
+  # Refs Issue #1837.
+  MD024:
+    siblings_only: true
+
   # Multiple H1 - allow in agent templates (frontmatter can create implicit H1)
   MD025:
     front_matter_title: ""
@@ -133,6 +145,17 @@ ignores:
 
   # Skills treated as third-party plugins per PR #331 - blanket exclusion
   - ".claude/skills/**"
+
+  # Copilot CLI skills are a whole-tree copy of .claude/skills/ produced by
+  # build/scripts/generate_skills.py (its module docstring, line 2: "Generate
+  # Copilot CLI skill artifacts from .claude/skills/ (REQ-003-001)", mode
+  # directory-copy). They are the same plugin-class content as .claude/skills/**
+  # above, so they get the same blanket exclusion. Without this, the copied
+  # skills surface 403 MD040/MD041/MD036 violations on a pristine main while
+  # their .claude/skills/ source counterparts are excluded -- an asymmetry that
+  # made scripts/validation/pre_pr.py fail Markdown Linting on a clean checkout.
+  # Refs Issue #1837.
+  - "src/copilot-cli/skills/**"
 
   # TEMPORARY: Agent definition files (.github/agents/*.agent.md) have pre-existing linting
   # issues being fixed in a separate PR. This exclusion unblocks PR #847.
