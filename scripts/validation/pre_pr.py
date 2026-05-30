@@ -752,7 +752,7 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     if output:
         print(output)
     if stderr.strip():
-        print(stderr.strip())
+        print(stderr.strip(), file=sys.stderr)
 
     # Default mode is soft-warn; the script already exits 0 unless
     # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
@@ -916,7 +916,7 @@ def validate_git_hooks_installed(repo_root: Path) -> bool:
     if stdout.strip():
         print(stdout.strip())
     if stderr.strip():
-        print(stderr.strip())
+        print(stderr.strip(), file=sys.stderr)
     if exit_code != 0:
         print(
             "[FAIL] Local git hooks are not installed. "

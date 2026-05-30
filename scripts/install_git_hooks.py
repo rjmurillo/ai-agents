@@ -164,9 +164,15 @@ def detect_legacy_shim(repo_root: Path) -> Path | None:
     """Return the path to a legacy ``.git/hooks/pre-push`` shim if present.
 
     Once ``core.hooksPath`` points at ``.githooks`` this file is shadowed and
-    never runs, so a stale copy is a foot-gun worth flagging.
+    never runs, so a stale copy is a foot-gun worth flagging. Resolve the git
+    common dir so this works in linked worktrees, where ``repo_root/.git`` is a
+    file (a gitdir pointer) rather than a directory and the shared hooks live in
+    the main repository's ``.git/hooks``.
     """
-    legacy = repo_root / ".git" / "hooks" / "pre-push"
+    common_dir = get_git_common_dir(repo_root)
+    if common_dir is None:
+        return None
+    legacy = common_dir / "hooks" / "pre-push"
     return legacy if legacy.is_file() else None
 
 
