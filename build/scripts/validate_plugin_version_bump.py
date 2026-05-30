@@ -200,7 +200,7 @@ def _parse_prerelease(pre: str) -> tuple[PreReleaseId, ...] | None:
     for ident in pre.split("."):
         if not ident:
             return None
-        if ident.isdigit():
+        if ident.isascii() and ident.isdigit():
             if len(ident) > 1 and ident.startswith("0"):
                 return None
             ids.append((0, int(ident)))
@@ -234,7 +234,7 @@ def parse_version(value: str) -> SemVer | None:
         return None
     nums: list[int] = []
     for part in parts:
-        if not part.isdigit():
+        if not part.isascii() or not part.isdigit():
             return None
         if len(part) > 1 and part.startswith("0"):  # no leading zeros
             return None
