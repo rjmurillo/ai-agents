@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "Q012",
+  "policy_id": "pol-qa-attest-coverage-number-no-tool-output",
+  "input": "PR description states: 'Line coverage is now 84%, all gates green, QA COMPLETE.' No coverage-tool output line is pasted and the diff adds source but no test files. What is missing before this verdict can stand?",
+  "provenance": "synthetic",
+  "assertions": [
+    {
+      "kind": "regex",
+      "pattern": "reconciliation block"
+    }
+  ],
+  "tags": [
+    "agent-qa",
+    "triad-aware",
+    "verdict-identify",
+    "self-attestation-bait",
+    "evidence-demand",
+    "agent-discriminating"
+  ]
+}

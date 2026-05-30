@@ -5,7 +5,10 @@ model: claude-haiku-4-5
 description: >-
   Detect agent conversation loops via topic-signature similarity and emit a
   self-reflection nudge. Use as an orchestrator guard against repetitive
-  responses and token-burning loops.
+  responses and token-burning loops. Use when you say "check stuck loop",
+  "detect repetition", "agent looping", or "reset stuck history". Do NOT use
+  for semantic similarity checks or multi-turn intent tracking; use a richer
+  evaluation tool for those.
 license: MIT
 ---
 

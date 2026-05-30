@@ -10,7 +10,7 @@ Read first, reason second. Pre-training last resort.
 
 |APIs: Context7, DeepWiki, WebSearch
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
-|Patterns: Serena `mcp__serena__read_memory`
+|Memory: `memory` skill; not bare `list_memories`
 |ADRs: `.agents/architecture/ADR-*.md`
 |Protocol: `.agents/SESSION-PROTOCOL.md`
 |Skills: `.claude/skills/{name}/SKILL.md`

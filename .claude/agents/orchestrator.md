@@ -155,7 +155,7 @@ Only after these three steps complete does reasoning about the response begin. S
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
 3. Verify delegation count is within budget (fewer than 15); if budget limit was reached, produce a budget-exhaustion summary.
-4. Run `python3 .claude/skills/session-end/scripts/complete_session_log.py`.
+4. Run `uv run python .claude/skills/session-end/scripts/complete_session_log.py`.
 5. Verify `protocolCompliance.sessionEnd` fields are all `Complete: true` in the session JSON.
 6. Verify HANDOFF.md was preserved (read-only per ADR-014). Outcomes and next steps recorded in the session log.
 7. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session. Fill every section; leave no `{placeholder}` tokens. See SESSION-PROTOCOL.md § Session End Phase 1.5. Distinct from `.agents/HANDOFF.md`, which stays read-only.

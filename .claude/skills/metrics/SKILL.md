@@ -2,7 +2,8 @@
 name: metrics
 description: Collect agent usage metrics from git history and generate health reports.
   Use when measuring agent adoption, reviewing system health, or producing periodic
-  dashboards. Implements 8 key metrics from agent-metrics.md.
+  dashboards. Collects 4 of the metrics defined in docs/agent-metrics.md (Invocation
+  Rate, Coverage, Infrastructure Review, Usage Distribution).
 license: MIT
 metadata:
 version: 1.0.0
@@ -13,7 +14,7 @@ model: claude-haiku-4-5
 
 ## Purpose
 
-This utility collects and reports metrics on agent usage from git history. It implements the 8 key metrics defined in `docs/agent-metrics.md` for measuring agent system health, effectiveness, and adoption.
+This utility collects and reports metrics on agent usage from git history. It collects 4 of the metrics defined in `docs/agent-metrics.md` (Invocation Rate, Coverage, Infrastructure Review, Usage Distribution) for measuring agent system health, effectiveness, and adoption.
 
 ## Triggers
 

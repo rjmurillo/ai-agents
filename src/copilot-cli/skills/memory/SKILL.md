@@ -3,7 +3,9 @@ name: memory
 version: 0.2.0
 description: Unified four-tier memory system for AI agents. Tier 1 Semantic (Serena+Forgetful
   search), Tier 2 Episodic (session replay), Tier 3 Causal (decision patterns). Enables
-  memory-first architecture per ADR-007.
+  memory-first architecture per ADR-007. Use when you ask "what do we know about X",
+  "recall prior context", "search memory". Do NOT use for adding citations to existing
+  memories (use memory-enhancement) or for narrative cross-system reports (use memory-documentary).
 license: MIT
 model: claude-sonnet-4-6
 metadata:
@@ -139,6 +141,8 @@ This skill implements [progressive disclosure principles](../../../.agents/analy
 | **Index** | `search_memory.py` | ~100-500 tokens | Always start here |
 | **Details** | `mcp__serena__read_memory` | ~500-10K tokens | After index confirms relevance |
 | **Deep Dive** | Follow cross-references | Variable | For complete understanding |
+
+**Routing**: `search_memory.py "<q>"` keyword-ranks Serena memory names (Serena-first, augments with Forgetful when reachable, flags large memories by token estimate) and returns the relevant `*-index`; `read_memory` it, then follow its links to the atomic file. Raw fallback when scripting: guess `read_memory("<intuitive-name>")` (a miss is a cheap "not found", not a list), then the domain `*-index`, then `read_memory("memory-index")`. Prefer these name/index lookups over a bare `list_memories`. On add: update the `*-index` so the next agent finds it by name. Atomic files plus indexes are deliberate (no embeddings; filename is the activation vocabulary): do NOT consolidate atomic memories to cheapen listing, it breaks discovery and cross-links.
 
 ### Token Cost Visibility
 

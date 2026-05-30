@@ -2,7 +2,7 @@
 name: context-optimizer
 version: 1.1.0
 model: claude-sonnet-4-6
-description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format (60-80% token reduction), and validate compliance against the decision framework. Based on Vercel research showing passive context achieves 100% pass rates vs 53-79% for skills.
+description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format (60-80% token reduction), and validate compliance against the decision framework. Based on Vercel research showing passive context achieves 100% pass rates vs 53-79% for skills. Use when you ask "compress this skill", "Skill vs Passive Context placement", "reduce tokens". Do NOT use for gathering knowledge before a task (use context-gather).
 license: MIT
 user-invocable: true
 allowed-tools:

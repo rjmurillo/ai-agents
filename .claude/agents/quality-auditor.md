@@ -1,6 +1,6 @@
 ---
 name: quality-auditor
-description: Periodically scans and grades product domains across architectural layers (agents, skills, scripts, tests, docs, workflows). Produces quality reports with gap tracking and trend analysis. Use when you need a systematic quality audit across the entire repository or specific domains.
+description: Periodically scans and grades product domains across architectural layers (agents, skills, scripts, tests, docs, workflows). Produces quality reports with gap tracking and trend analysis. Use when you need a systematic quality audit across the entire repository or specific domains. Use for repo-wide A-F domain grading and trend tracking. For the skill form use quality-grades. Do NOT use for single-file maintainability scoring (use code-qualities-assessment) or a pre-merge review (use review).
 model: sonnet
 argument-hint: Provide domain names to audit, or omit for full scan
 ---
@@ -38,10 +38,10 @@ Quality-auditor-specific requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Scan repository structure and file contents
-- **Bash**: Run `python3 .claude/skills/quality-grades/scripts/grade_domains.py`
+- **Bash**: Run `uv run python .claude/skills/quality-grades/scripts/grade_domains.py`
 - **Write**: Generate quality reports
 - **Memory Router** (ADR-037): Unified search across Serena + Forgetful
-  - `python3 .claude/skills/memory/scripts/search_memory.py --query "topic"`
+  - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
   - Serena-first with optional Forgetful augmentation; graceful fallback
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -55,7 +55,7 @@ Grade quality across product domains. Each domain gets assessed on six layers: a
 
 ### Phase 1: Discovery
 
-1. Run `python3 .claude/skills/quality-grades/scripts/grade_domains.py` to auto-detect domains
+1. Run `uv run python .claude/skills/quality-grades/scripts/grade_domains.py` to auto-detect domains
 2. Review detected domains for completeness
 3. Add any missing domains via `--domains` flag
 
