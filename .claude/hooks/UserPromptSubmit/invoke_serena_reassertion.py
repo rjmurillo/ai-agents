@@ -112,7 +112,8 @@ SERENA_REMINDER = (
     "prefer Serena symbolic tools (get_symbols_overview, find_symbol, "
     "find_referencing_symbols) over native Read/Edit/Bash for code files. "
     "If Serena is not active this session (e.g. after compaction), run "
-    "mcp__serena__initial_instructions before further tool calls.\n"
+    "mcp__serena__activate_project with the project path, then "
+    "mcp__serena__initial_instructions, before further tool calls.\n"
 )
 
 
