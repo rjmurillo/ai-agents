@@ -449,9 +449,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(_format_text(violations, config_errors))
 
+    if violations:
+        return 1
     if config_errors:
         return 2
-    return 1 if violations else 0
+    return 0
 
 
 if __name__ == "__main__":
