@@ -262,6 +262,13 @@
     ],
     "userPromptSubmitted": [
       {
+        "bash": "python3 -u \"./hooks/userPromptSubmitted/invoke_serena_reassertion.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/userPromptSubmitted/invoke_serena_reassertion.py\"",
+        "timeoutSec": 3,
+        "type": "command"
+      },
+      {
         "bash": "python3 -u \"./hooks/userPromptSubmitted/invoke_autonomous_execution_detector.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/userPromptSubmitted/invoke_autonomous_execution_detector.py\"",

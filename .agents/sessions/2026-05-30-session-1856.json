@@ -1,0 +1,139 @@
+{
+  "session": {
+    "number": 1856,
+    "date": "2026-05-30",
+    "branch": "feat/1993-serena-reassertion-hook",
+    "startingCommit": "f5ba0de3",
+    "objective": "Fix #1993: add UserPromptSubmit hook invoke_serena_reassertion.py that re-injects a Serena activation reminder every turn to prevent mid-session drift after compaction. Mirror the autonomous_execution_detector pattern; register in the tracked plugin manifest .claude/hooks/hooks.json; add pytest coverage."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP offline this session. Degraded-mode fallback per AGENTS.md: ran Layer-1 codebase search (Grep + Read) to load prior art. Confirmed via grep of .claude/hooks/ that no Serena reassertion hook exists; located .claude/hooks/UserPromptSubmit/invoke_autonomous_execution_detector.py as the mirror pattern."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP offline. Followed project instructions directly: AGENTS.md, CLAUDE.md, and applicable .claude/rules/*.md (code-quality, testing, universal, canonical-source-mirror, release-it)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only per ADR-014). Issue #1993 has no prior Serena reassertion hook; work is not duplicative."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created via .claude/skills/session-init/scripts/new_session_log_json.py (session 1856)."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill script set_issue_assignee.py to assign #1993; used session-init creator and validate_session_json.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md, and applicable .claude/rules/*.md before editing hook and test files."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/universal.md (no-dash, atomic commits, branch discipline) and release-it.md (hooks must be fast, fail-open, no network block) before implementation."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP offline; loaded equivalent context from AGENTS.md, CLAUDE.md, and applicable .claude/rules/*.md. Verified prior art via codebase search per degraded-mode protocol."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1993-serena-reassertion-hook"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/1993-serena-reassertion-hook"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; branch created off origin/main."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "f5ba0de3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-PR checklist walked: tests green, no dashes, no secrets, conventional commits. The initial change was atomic (4 tracked files); follow-up commits (CI fixes, committed .claude/settings.json wiring, plugin version bumps, generated Copilot mirrors, marketplace metadata, and main merges) expanded the final PR to 10 tracked files."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP offline this session; memory update not possible. Decision rationale recorded in the hook docstring and PR description per the search-before-building fallback (code comment when memory write unavailable)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed; markdownlint not applicable to this diff (Python hook, pytest, JSON manifest, JSON session log)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Initial atomic commit landed 4 tracked files on feat/1993-serena-reassertion-hook. Subsequent commits committed .claude/settings.json (hook wiring), the .claude and Copilot plugin manifests, the generated Copilot hook mirror, marketplace metadata, and this session log, for 10 tracked files total in the final PR diff."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/hooks/test_serena_reassertion.py: 29 passed. tests/hooks/test_hook_contracts.py + adjacent UserPromptSubmit suites: 116 passed (includes test_real_settings)."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked progress through implementation, wiring, tests, validation, commit."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-task feature; no cross-session retrospective required."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Added .claude/hooks/UserPromptSubmit/invoke_serena_reassertion.py",
+      "detail": "Stateless per-turn Serena re-assertion hook. Exit-0-always, fail-open bootstrap, extract_prompt schema fallback. Mirrors invoke_autonomous_execution_detector.py."
+    },
+    {
+      "action": "Registered hook in .claude/hooks/hooks.json UserPromptSubmit array",
+      "detail": "First entry, timeout 3s. .claude/settings.json is tracked (not gitignored) and is committed as part of this PR to register the hook for live use."
+    },
+    {
+      "action": "Added tests/hooks/test_serena_reassertion.py",
+      "detail": "29 tests: positive injection, negative pass-through (tty, empty, whitespace, malformed JSON, non-dict, no-prompt, empty-prompt), consumer-repo skip, no-dash assertion, subprocess and runpy entrypoints."
+    },
+    {
+      "action": "Design decision: collapsed the issue's activation-marker branch",
+      "detail": "No marker surface exists for a UserPromptSubmit hook (only the prompt is on stdin; no hook writes a Serena-activation marker). Emit one unconditional reminder correct whether or not Serena is active. Documented in hook docstring."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR with Fixes #1993.",
+    "qa review of the hook contract and test coverage.",
+    "Follow-up if a real Serena activation surface is added: restore the marker-branch (active vs init-required messages)."
+  ]
+}
