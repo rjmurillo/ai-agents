@@ -68,6 +68,25 @@ CONTRADICTION_PATTERNS = re.compile(
     r"(?i)\b(not available|skipped|N/A|deferred|will validate|will run|TODO|pending|TBD)\b"
 )
 
+# Subset of CONTRADICTION_PATTERNS tokens that legitimately describe a DIFFERENT
+# scope than the item under validation. "deferred" and "pending" routinely appear
+# in honest multi-scope evidence ("scorer deferred per PRD 11", "lint passed;
+# pending pre-commit final run") where a different piece of work, not the item, is
+# deferred. The other tokens (TODO, TBD, N/A, skipped, will run, will validate, not
+# available) signal the item itself is incomplete and always flag. See issue #2007.
+_SCOPE_QUALIFIED_TOKENS = frozenset({"deferred", "pending"})
+
+# Words that affirmatively report the item itself was done. When such a word
+# precedes a scope-qualified token across a clause boundary, the token is a
+# trailing note about other work, not a contradiction of the item.
+_AFFIRMATIVE_COMPLETION = re.compile(
+    r"(?i)\b(pass|passed|passing|done|created|validated|complete|completed"
+    r"|confirmed|verified|ran|listed|used)\b"
+)
+
+# A clause boundary separating affirmative completion from a trailing deferral.
+_CLAUSE_BOUNDARY = re.compile(r"[.;)]")
+
 # Legacy field name for backward compatibility with existing session logs.
 # Issue #868: "handoffNotUpdated" with Complete=false was a confusing double negative.
 # New logs use "handoffPreserved" (level=MUST, Complete=true when satisfied).
@@ -129,6 +148,76 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
         result.errors.append(f"Invalid commit SHA format: {commit}")
 
 
+def _token_in_parentheses(text: str, token_start: int) -> bool:
+    """Return True if the character at token_start sits inside an open parenthesis.
+
+    Scans the prefix before the token tracking parenthesis depth. A positive
+    depth means the token is part of a parenthetical aside.
+
+    Args:
+        text: Full evidence string.
+        token_start: Index where the matched token begins.
+
+    Returns:
+        True if the token is inside unmatched parentheses.
+    """
+    depth = 0
+    for char in text[:token_start]:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(0, depth - 1)
+    return depth > 0
+
+
+def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
+    """Return True if a contradiction token applies to a different scope.
+
+    Only "deferred" and "pending" can be scope-qualified (see
+    _SCOPE_QUALIFIED_TOKENS). They are treated as non-contradicting when either:
+
+    1. The token sits inside a parenthetical aside, or
+    2. An affirmative completion word precedes the token across a clause boundary
+       (the evidence reports the item done, then notes other deferred work).
+
+    Every other token, and a bare "deferred"/"pending" with no affirmative
+    context, always counts as a contradiction.
+
+    Args:
+        evidence: Full evidence string.
+        match: A single CONTRADICTION_PATTERNS match within the evidence.
+
+    Returns:
+        True if the matched token describes a different scope (suppress warning).
+    """
+    if match.group(0).lower() not in _SCOPE_QUALIFIED_TOKENS:
+        return False
+    if _token_in_parentheses(evidence, match.start()):
+        return True
+    prefix = evidence[: match.start()]
+    return bool(_AFFIRMATIVE_COMPLETION.search(prefix) and _CLAUSE_BOUNDARY.search(prefix))
+
+
+def _has_contradiction(evidence: str) -> bool:
+    """Return True if evidence contradicts a "complete: true" claim.
+
+    Flags any CONTRADICTION_PATTERNS token unless it is a scope-qualified
+    "deferred"/"pending" that points at a different subject. A genuine
+    contradiction (an item-itself deferral, "TODO", a bare token) still flags
+    even when scope-qualified tokens appear elsewhere in the same string.
+
+    Args:
+        evidence: The evidence string to inspect.
+
+    Returns:
+        True if at least one unqualified contradiction token is present.
+    """
+    return any(
+        not _is_scope_qualified(evidence, match)
+        for match in CONTRADICTION_PATTERNS.finditer(evidence)
+    )
+
+
 def validate_must_item(
     check_data: dict[str, Any],
     item_name: str,
@@ -154,7 +243,7 @@ def validate_must_item(
         result.warnings.append(f"Missing evidence: {section_name}.{item_name}")
 
     if level == "MUST" and is_complete and evidence and isinstance(evidence, str):
-        if CONTRADICTION_PATTERNS.search(evidence):
+        if _has_contradiction(evidence):
             result.warnings.append(
                 f"Evidence contradiction: {section_name}.{item_name} "
                 f"is complete but evidence suggests otherwise: {evidence!r}"

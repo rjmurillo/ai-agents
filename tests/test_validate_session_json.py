@@ -476,6 +476,65 @@ class TestEvidenceContradiction:
         assert CONTRADICTION_PATTERNS.search("N/A for this session")
         assert not CONTRADICTION_PATTERNS.search("Tool output confirmed")
 
+    @staticmethod
+    def _warn(section_data: dict) -> list[str]:
+        """Validate a sessionStart section and return contradiction warnings."""
+        result = ValidationResult()
+        validate_checklist_section(section_data, frozenset(), "sessionStart", result)
+        return [w for w in result.warnings if "Evidence contradiction" in w]
+
+    @staticmethod
+    def _item(evidence: str) -> dict:
+        """Build a complete MUST item with the given evidence."""
+        return {
+            "serenaActivated": {
+                "complete": True,
+                "evidence": evidence,
+                "level": "MUST",
+            },
+        }
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            # Item ITSELF deferred is a genuine contradiction (issue #2007).
+            "Deferred to next session",
+            "Deferred to pre-commit hook validation",
+            "Planning artifacts staged; commit deferred to session-824",
+            "Serena init deferred per ADR-007 fast-path",
+            "deferred",
+            "pending",
+            # A genuine token alongside a scope-qualified one still flags.
+            "Tests skipped. Perf deferred to follow-up.",
+        ],
+    )
+    def test_genuine_contradiction_still_flags(self, evidence: str) -> None:
+        """An item-itself deferral or any genuine token must still warn."""
+        assert self._warn(self._item(evidence)), f"expected warning for {evidence!r}"
+
+    @pytest.mark.parametrize(
+        "evidence",
+        [
+            # Deferred/pending in a parenthetical aside about other work.
+            "Tests pass (perf benchmark deferred to follow-up)",
+            "Schema validated (migration pending review)",
+            "Two commits created: P0 (commit 5639b23f) and P1 (pending)",
+            "CI checks passing (CodeRabbit pending)",
+            # Trailing note after affirmative completion across a clause boundary.
+            "Markdown lint passed (0 errors after fix); pending pre-commit final run",
+            # Exact strings from issue #2007.
+            "Used: spec skill (Step 0 + Step 0.5 gates), plan skill (decomposition). "
+            "Bash: grep, awk, wc, gh CLI. No Python scorer (deferred per PRD 11).",
+            "Spec scope validation: Step 0 First Principles Gate PASS (after H3 halt "
+            "+ revision); Step 0.5 Memory-First Gate PASS (after H11 halt + "
+            "reclassification); Step 9 critic checks 9a/9b/9c/9d all PASS. "
+            "Audit-execution validation per TASK-011 Step 10 deferred to audit commit.",
+        ],
+    )
+    def test_scope_qualified_deferral_not_flagged(self, evidence: str) -> None:
+        """Deferred/pending pointing at a different scope must not warn (#2007)."""
+        assert not self._warn(self._item(evidence)), f"false positive on {evidence!r}"
+
 
 class TestValidateProtocolCompliance:
     """Tests for validate_protocol_compliance function."""
