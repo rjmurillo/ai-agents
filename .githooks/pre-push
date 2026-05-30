@@ -683,6 +683,51 @@ else
     record_skip "Build pipeline staleness (script not found)"
 fi
 
+# 11c. Plugin version bump (validate_plugin_version_bump.py)
+#
+# Fails when a packaged plugin's source dir (.claude, src/claude,
+# src/copilot-cli) changed in this push without a strictly-greater
+# plugin.json version bump. Installed caches key off the version; an
+# unbumped version means the change never reaches consumers (PR #1942 /
+# PR #2114, Issue #2118). Same validator the CI gate and the PreToolUse
+# guard use, so all three agree.
+PLUGIN_VERSION_SCRIPT="$REPO_ROOT/build/scripts/validate_plugin_version_bump.py"
+
+if [ -L "$PLUGIN_VERSION_SCRIPT" ]; then
+    record_warn "Plugin version bump script is a symlink (skipping)"
+elif [ -f "$PLUGIN_VERSION_SCRIPT" ] && [ -n "$PUSH_RANGE" ]; then
+    if set_python_cmd; then
+        # PUSH_RANGE is "<base>..<local_sha>" (or just "<local_sha>" when no
+        # merge-base was found). The validator diffs <base>..HEAD and reads
+        # the prior plugin.json version at <base>, so pass the base side.
+        PVB_BASE="${PUSH_RANGE%%..*}"
+        if [ "$PVB_BASE" = "$PUSH_RANGE" ]; then
+            PVB_BASE="origin/main"
+        fi
+        PVB_OUTPUT=$(mktemp)
+        TEMP_FILES+=("$PVB_OUTPUT")
+        "${PYTHON_CMD[@]}" "$PLUGIN_VERSION_SCRIPT" --base "$PVB_BASE" \
+            > "$PVB_OUTPUT" 2>&1
+        PVB_RC=$?
+        if [ $PVB_RC -eq 0 ]; then
+            record_pass "Plugin version bump"
+        elif [ $PVB_RC -eq 2 ]; then
+            head -20 "$PVB_OUTPUT"
+            record_warn "Plugin version bump check config error (exit 2)"
+        else
+            cat "$PVB_OUTPUT"
+            record_fail "Plugin source changed without version bump (exit $PVB_RC)"
+            echo_info "  Fix: bump 'version' in the reported"
+            echo_info "  .claude-plugin/plugin.json to a higher semver, then commit."
+        fi
+        rm -f "$PVB_OUTPUT"
+    else
+        record_skip "Plugin version bump (no Python available)"
+    fi
+elif [ ! -f "$PLUGIN_VERSION_SCRIPT" ]; then
+    record_skip "Plugin version bump (script not found)"
+fi
+
 # 12. Path normalization
 PATH_NORM_SCRIPT="$REPO_ROOT/build/scripts/Validate-PathNormalization.ps1"
 
