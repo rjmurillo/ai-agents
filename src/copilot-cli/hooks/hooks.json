@@ -179,6 +179,13 @@
         "type": "command"
       },
       {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py\"",
+        "timeoutSec": 30,
+        "type": "command"
+      },
+      {
         "bash": "python3 -u \"./hooks/preToolUse/invoke_hook_drift_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_hook_drift_guard__Bash_git_push_0e93bf.py\"",
