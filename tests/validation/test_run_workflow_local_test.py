@@ -79,6 +79,15 @@ def test_absolute_path_outside_repo_is_exit_2(all_tools, tmp_path):
     assert "escapes repository root" in r.note
 
 
+def test_missing_repo_root_is_exit_2(all_tools, tmp_path):
+    # A direct caller passing a non-existent repo_root is a config error (2),
+    # not a stage failure (1). Matches main()'s repo-root check.
+    missing = tmp_path / "does" / "not" / "exist"
+    r = w.run_local_test([WF], missing)
+    assert r.exit_code == 2
+    assert "repo root not found" in r.note
+
+
 def test_non_workflow_paths_are_filtered_out(all_tools, monkeypatch, tmp_path):
     # Custom actions and unrelated YAML never run under gh act; they drop out
     # and, with nothing left to test, the run is a clean no-op.

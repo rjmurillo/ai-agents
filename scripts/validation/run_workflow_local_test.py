@@ -218,6 +218,13 @@ def run_local_test(
             note=f"{_BYPASS_ENV} set; local workflow run skipped (logged).",
         )
 
+    # Precondition: repo_root must exist. A direct caller (the tests, the
+    # pre-PR runner) that passes a missing root is a configuration error
+    # (exit 2), not a stage failure (exit 1). main() checks this too; the
+    # check lives here so every caller of run_local_test gets the contract.
+    if not repo_root.is_dir():
+        return Report(exit_code=2, note=f"repo root not found: {repo_root}")
+
     files, path_error = _select_workflow_files(workflow_files, repo_root)
     if path_error is not None:
         return Report(exit_code=2, note=path_error)
