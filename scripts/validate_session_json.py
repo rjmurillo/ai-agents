@@ -244,11 +244,14 @@ def _is_scope_qualified(evidence: str, match: re.Match[str]) -> bool:
         if _NEGATION_BEFORE_AFFIRMATIVE.search(prefix_before_affirmative):
             continue
         # The boundary must sit AFTER the affirmative word and before the token,
-        # so search only the segment between them.
+        # so search only the segment between them. Use the LAST boundary (not
+        # first) so `deferral_clause` starts at the clause containing the actual
+        # deferral token, not an intermediate clause. See bug a317fc68.
         suffix_after_affirmative = prefix[affirmative.end() :]
-        boundary = _CLAUSE_BOUNDARY.search(suffix_after_affirmative)
-        if boundary is None:
+        boundaries = list(_CLAUSE_BOUNDARY.finditer(suffix_after_affirmative))
+        if not boundaries:
             continue
+        boundary = boundaries[-1]
         # If the deferral's clause opens with an adversative conjunction, the
         # deferral contradicts the completion rather than noting separate work.
         # Use match() on lstripped text to check only the clause opening, not
