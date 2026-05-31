@@ -135,7 +135,7 @@ class TestValidateWithFixtures:
         data = json.loads(marketplace.read_text())
         desc = data["plugins"][0]["description"]
         assert "999" not in desc
-        assert "24 specialized agent definitions" in desc
+        assert "25 specialized agent definitions" in desc
 
     def test_missing_marketplace_returns_error(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
