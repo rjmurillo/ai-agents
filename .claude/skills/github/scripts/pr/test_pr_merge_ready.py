@@ -503,7 +503,18 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
 
 
 def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
-    """Append draft/state/merge-conflict reasons; return mergeable string."""
+    """Append draft/state/merge-conflict reasons; return mergeable string.
+
+    Also gates on ``mergeStateStatus == BEHIND`` (issue #2157): a branch
+    behind its base cannot land, and this repo does not auto-update it on
+    auto-merge (issue #2048 concrete failure), so it must block. ``DRAFT``,
+    ``DIRTY``, and ``UNKNOWN`` are already covered by the ``isDraft`` and
+    ``mergeable`` checks. ``BLOCKED`` is intentionally NOT blocked: it
+    usually means "awaiting required review", which is exactly when enabling
+    auto-merge is the correct action; it stays surfaced via the
+    ``MergeStateStatus`` output field. See decision note
+    ``decision-merge-ready-blocked-vs-behind``.
+    """
     if pr["state"] != "OPEN":
         reasons.append(f"PR is {pr['state'].lower()}, not open")
     if pr.get("isDraft"):
@@ -513,6 +524,8 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
         reasons.append("PR has merge conflicts")
     elif mergeable == "UNKNOWN":
         reasons.append("Merge status is being calculated")
+    if pr.get("mergeStateStatus") == "BEHIND":
+        reasons.append("Branch is behind base; update against main before merging")
     return mergeable
 
 
