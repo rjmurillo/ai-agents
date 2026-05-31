@@ -1,0 +1,290 @@
+{
+  "model": "claude-sonnet-4-20250514",
+  "runs_per_feature": 3,
+  "features": [
+    {
+      "id": "REQ-001",
+      "type": "requirement",
+      "before": {
+        "valid": 0,
+        "runs": 3,
+        "details": [
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmp9nmttkwa.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmp9nmttkwa.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-001\ntitle: password-reset-via-email\nstatus: draft\npriority: medium\ncategory: functional\nepic: user-authentication\nrelated: []\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpqmm9i2ys.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmpqmm9i2ys.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-001\ntitle: password-reset-via-email\nstatus: draft\npriority: medium\ncategory: functional\nepic: user-authentication\nrelated: []\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpkjb4w7q4.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmpkjb4w7q4.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-001\ntitle: password-reset-via-email\nstatus: draft\npriority: medium\ncategory: functional\nepic: user-authentication\nrelated: []\nauthor: spec-generator\n---\n"
+          }
+        ]
+      },
+      "after": {
+        "valid": 3,
+        "runs": 3,
+        "details": [
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmp9lxkqgx7.md",
+            "block": "---\ntype: requirement\nid: REQ-001\ntitle: Password Reset via Email\nstatus: draft\npriority: P1\ncategory: functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpnrwvve9i.md",
+            "block": "---\ntype: requirement\nid: REQ-001\ntitle: Password Reset via Email\nstatus: draft\npriority: P1\ncategory: functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpq0b4j7lg.md",
+            "block": "---\ntype: requirement\nid: REQ-001\ntitle: Password Reset via Email\nstatus: draft\npriority: P1\ncategory: functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "REQ-002",
+      "type": "requirement",
+      "before": {
+        "valid": 0,
+        "runs": 3,
+        "details": [
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpbfz81qjx.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmpbfz81qjx.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-002\ntitle: Config File Linting Script\nstatus: draft\npriority: medium\ncategory: tooling\nepic: build-infrastructure\nrelated: []\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpwsm3gzkz.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmpwsm3gzkz.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-002\ntitle: Config File Linting Script\nstatus: draft\npriority: medium\ncategory: tooling\nepic: build-infrastructure\nrelated: []\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmp0euydeq5.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmp0euydeq5.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-002\ntitle: Config File Linting Script\nstatus: draft\npriority: medium\ncategory: tooling\nepic: build-infrastructure\nrelated: []\nauthor: spec-generator\n---\n"
+          }
+        ]
+      },
+      "after": {
+        "valid": 3,
+        "runs": 3,
+        "details": [
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpg_sczvm3.md",
+            "block": "---\ntype: requirement\nid: REQ-002\ntitle: Build tooling script for config file linting\nstatus: draft\npriority: P2\ncategory: functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmp04qf4q8l.md",
+            "block": "---\ntype: requirement\nid: REQ-002\ntitle: Build tooling script for config file linting\nstatus: draft\npriority: P2\ncategory: functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmp9w6vepbs.md",
+            "block": "---\ntype: requirement\nid: REQ-002\ntitle: Build tooling script for config file linting\nstatus: draft\npriority: P2\ncategory: functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "TASK-001",
+      "type": "task",
+      "before": {
+        "valid": 0,
+        "runs": 3,
+        "details": [
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmp3amdc03f.md: missing required field 'related' for type 'task'\n[FAIL] /tmp/claude-1000/tmp3amdc03f.md: missing required field 'created' for type 'task'\n[FAIL] /tmp/claude-100",
+            "block": "---\ntype: task\nid: TASK-001\ntitle: implement-password-reset-endpoint\nstatus: ready\npriority: medium\ncomplexity: XS\nrelated: []\nblocked_by: []\nblocks: []\nassignee: null\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmp6o30p_oy.md: missing required field 'related' for type 'task'\n[FAIL] /tmp/claude-1000/tmp6o30p_oy.md: missing required field 'created' for type 'task'\n[FAIL] /tmp/claude-100",
+            "block": "---\ntype: task\nid: TASK-001\ntitle: implement-password-reset-endpoint\nstatus: ready\npriority: medium\ncomplexity: XS\nrelated: []\nblocked_by: []\nblocks: []\nassignee: null\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpcyha0ri4.md: missing required field 'related' for type 'task'\n[FAIL] /tmp/claude-1000/tmpcyha0ri4.md: missing required field 'created' for type 'task'\n[FAIL] /tmp/claude-100",
+            "block": "---\ntype: task\nid: TASK-001\ntitle: implement-password-reset-endpoint\nstatus: ready\npriority: medium\ncomplexity: XS\nrelated: []\nblocked_by: []\nblocks: []\nassignee: null\nauthor: spec-generator\n---\n"
+          }
+        ]
+      },
+      "after": {
+        "valid": 0,
+        "runs": 3,
+        "details": [
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpiqy7zgvx.md: missing required field 'related' for type 'task'",
+            "block": "---\ntype: task\nid: TASK-001\ntitle: implement-password-reset-endpoint\nstatus: todo\npriority: P1\ncomplexity: XS\nrelated: []\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpnjp5c68h.md: missing required field 'related' for type 'task'",
+            "block": "---\ntype: task\nid: TASK-001\ntitle: implement-password-reset-endpoint\nstatus: todo\npriority: P1\ncomplexity: XS\nrelated: []\ncreated: 2024-12-19\nupdated: 2024-12-19\nestimate: 1h\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmplnckcy__.md: missing required field 'related' for type 'task'",
+            "block": "---\ntype: task\nid: TASK-001\ntitle: implement-password-reset-endpoint\nstatus: todo\npriority: P1\ncomplexity: XS\nrelated: []\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "TASK-002",
+      "type": "task",
+      "before": {
+        "valid": 0,
+        "runs": 3,
+        "details": [
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmph77l2o10.md: missing required field 'related' for type 'task'\n[FAIL] /tmp/claude-1000/tmph77l2o10.md: missing required field 'created' for type 'task'\n[FAIL] /tmp/claude-100",
+            "block": "---\ntype: task\nid: TASK-002\ntitle: refactor-auth-module-remove-duplication\nstatus: in-progress\npriority: medium\ncomplexity: M\nrelated: []\nblocked_by: []\nblocks: []\nassignee: null\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpfqbyo8af.md: missing required field 'related' for type 'task'\n[FAIL] /tmp/claude-1000/tmpfqbyo8af.md: missing required field 'created' for type 'task'\n[FAIL] /tmp/claude-100",
+            "block": "---\ntype: task\nid: TASK-002\ntitle: refactor-auth-module-remove-duplication\nstatus: in-progress\npriority: medium\ncomplexity: M\nrelated: []\nblocked_by: []\nblocks: []\nassignee: null\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmp1vkk2fa9.md: missing required field 'related' for type 'task'\n[FAIL] /tmp/claude-1000/tmp1vkk2fa9.md: missing required field 'created' for type 'task'\n[FAIL] /tmp/claude-100",
+            "block": "---\ntype: task\nid: TASK-002\ntitle: refactor-auth-module-remove-duplication\nstatus: in-progress\npriority: medium\ncomplexity: M\nrelated: []\nblocked_by: []\nblocks: []\nassignee: null\nauthor: spec-generator\n---\n"
+          }
+        ]
+      },
+      "after": {
+        "valid": 1,
+        "runs": 3,
+        "details": [
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpvnxf2hh1.md",
+            "block": "---\ntype: task\nid: TASK-002\ntitle: refactor-auth-module-remove-duplication\nstatus: in-progress\npriority: P1\ncomplexity: M\nrelated:\n  - DESIGN-001\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmp158wmi82.md: missing required field 'related' for type 'task'",
+            "block": "---\ntype: task\nid: TASK-002\ntitle: refactor-auth-module-remove-duplication\nstatus: in-progress\npriority: P1\ncomplexity: M\nrelated: []\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmp44uzabzf.md: missing required field 'related' for type 'task'",
+            "block": "---\ntype: task\nid: TASK-002\ntitle: refactor-auth-module-remove-duplication\nstatus: in-progress\npriority: P1\ncomplexity: M\nrelated: []\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "DESIGN-001",
+      "type": "design",
+      "before": {
+        "valid": 0,
+        "runs": 3,
+        "details": [
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpwr8eyeup.md: missing required field 'updated' for type 'design'\n[FAIL] /tmp/claude-1000/tmpwr8eyeup.md: priority='high' is not a valid value; allowed: P0, P1, P2",
+            "block": "---\ntype: design\nid: DESIGN-001\ntitle: session-state-machine-persistence\nrelated: [REQ-001]\nadr: null\nauthor: spec-generator\nstatus: draft\npriority: high\ncreated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpgksooelw.md: missing required field 'updated' for type 'design'\n[FAIL] /tmp/claude-1000/tmpgksooelw.md: priority='high' is not a valid value; allowed: P0, P1, P2",
+            "block": "---\ntype: design\nid: DESIGN-001\ntitle: session-state-machine-persistence\nrelated: [REQ-001]\nadr: null\nauthor: spec-generator\nstatus: draft\npriority: high\ncreated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpuk6ke1xs.md: missing required field 'updated' for type 'design'\n[FAIL] /tmp/claude-1000/tmpuk6ke1xs.md: priority='high' is not a valid value; allowed: P0, P1, P2",
+            "block": "---\ntype: design\nid: DESIGN-001\ntitle: session-state-machine-persistence\nrelated: [REQ-001]\nadr: null\nauthor: spec-generator\nstatus: draft\npriority: high\ncreated: 2024-12-19\n---\n"
+          }
+        ]
+      },
+      "after": {
+        "valid": 3,
+        "runs": 3,
+        "details": [
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpcvqilo79.md",
+            "block": "---\ntype: design\nid: DESIGN-001\ntitle: Session State Machine for Phase Transitions\nstatus: draft\npriority: P0\nrelated:\n  - REQ-001\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpn_jnu913.md",
+            "block": "---\ntype: design\nid: DESIGN-001\ntitle: Session State Machine for Phase Transitions\nstatus: draft\npriority: P0\nrelated:\n  - REQ-001\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpg5rojfen.md",
+            "block": "---\ntype: design\nid: DESIGN-001\ntitle: Session State Machine for Phase Transitions\nstatus: draft\npriority: P0\nrelated:\n  - REQ-001\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "REQ-003",
+      "type": "requirement",
+      "before": {
+        "valid": 0,
+        "runs": 3,
+        "details": [
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpxt1qq1y6.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmpxt1qq1y6.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-003\ntitle: data-at-rest-encryption\nstatus: draft\npriority: critical\ncategory: non-functional\nepic: security\nrelated: []\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmpb_3tyo43.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmpb_3tyo43.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-003\ntitle: data-at-rest-encryption\nstatus: draft\npriority: critical\ncategory: non-functional\nepic: security\nrelated: []\nauthor: spec-generator\n---\n"
+          },
+          {
+            "ok": false,
+            "report": "[FAIL] /tmp/claude-1000/tmptic868zn.md: missing required field 'created' for type 'requirement'\n[FAIL] /tmp/claude-1000/tmptic868zn.md: missing required field 'updated' for type 'requirement'\n[FAIL] /",
+            "block": "---\ntype: requirement\nid: REQ-003\ntitle: data-at-rest-encryption\nstatus: draft\npriority: critical\ncategory: non-functional\nepic: security\nrelated: []\nauthor: spec-generator\n---\n"
+          }
+        ]
+      },
+      "after": {
+        "valid": 3,
+        "runs": 3,
+        "details": [
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmp8javhkd_.md",
+            "block": "---\ntype: requirement\nid: REQ-003\ntitle: encrypt-data-at-rest\nstatus: draft\npriority: P0\ncategory: non-functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpdpjn3pd2.md",
+            "block": "---\ntype: requirement\nid: REQ-003\ntitle: encrypt-data-at-rest\nstatus: draft\npriority: P0\ncategory: non-functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          },
+          {
+            "ok": true,
+            "report": "[PASS] /tmp/claude-1000/tmpswe4po1c.md",
+            "block": "---\ntype: requirement\nid: REQ-003\ntitle: encrypt-data-at-rest\nstatus: draft\npriority: P0\ncategory: non-functional\ncreated: 2024-12-19\nupdated: 2024-12-19\n---\n"
+          }
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "before_valid": 0,
+    "after_valid": 13,
+    "total": 18,
+    "before_rate": 0.0,
+    "after_rate": 0.7222,
+    "delta": 0.7222
+  }
+}

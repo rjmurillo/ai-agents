@@ -1,0 +1,132 @@
+{
+  "session": {
+    "number": 1862,
+    "date": "2026-05-31",
+    "branch": "feat/1877-variance-control",
+    "startingCommit": "389c1c6a3",
+    "objective": "Fix issue 1877 AC-1: add variance-control eval harness measuring Anthropic API determinism at temperature=0"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions activated project ai-agents; Serena re-asserted each turn"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual via initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected at session start and reviewed (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github and session-init skill scripts invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first and Serena-first routing followed; reused existing eval infra (AnthropicAPIAdapter, _scoring_engine._VERDICT_RE) rather than duplicating"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/*.md loaded via CLAUDE.md imports; ADR-042 (Python script), CWE-22 path containment, and DRY reuse of the canonical verdict extractor applied; new eval/measurement script (not a product capability) so buy-vs-build skipped"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory index loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1877-variance-control"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree at /tmp/wt-1877 on feat/1877-variance-control off origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; only the new harness script and its test changed"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "389c1c6a3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Start MUST gates complete; uv run pytest tests/eval/test_variance_control.py reports 30 passed; ruff check passed; dry-run smoke works without API"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memories written earlier this session; no new memory needed for this harness"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PR adds two generated Markdown artifacts (evals/security-spike/control/20260531T184905Z-60538bcf/REPORT.md and FINDINGS.md) alongside the Python script and test; markdownlint-cli2 on both .md files reports 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work head 0ae82a0b8; session log committed last"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/eval/test_variance_control.py -> 30 passed; ruff check passed; only pre-existing markdown, agent-drift, and git-hooks environment failures remain, outside this diff"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in workLog and nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #1877 AC-1: build the variance-control harness to quantify Anthropic API determinism at temperature=0 on long context",
+      "outcome": "Added scripts/eval/variance-control.py: runs N reps of one (fixture, agent) at temperature=0, computes verdict distribution, pass-rate variance, and normalized-Levenshtein response-text variance, and classifies the result against the issue's three branches. Reuses _scoring_engine._VERDICT_RE and AnthropicAPIAdapter; pure metrics are independently tested. AC-2 to AC-4 (live F002 run, committed report, ADR-058 note) require API spend and are left as the maintainer's deliberate step.",
+      "evidence": "uv run pytest -> 30 passed; ruff clean; dry-run plan prints with no API calls"
+    },
+    {
+      "task": "Issue #1877 AC-2/3/4: run the live control and write up the finding (user authorized API spend)",
+      "outcome": "Ran the live N=20 control of (F002, security) at temperature=0 on claude-sonnet-4-6, ~7.4K input tokens/call, run 20260531T184905Z-60538bcf. Committed REPORT.md, summary.json, raw.jsonl, and FINDINGS.md (the ADR-058 follow-on note). Finding: text varies, verdict stable (ESCALATE x20, zero verdict variance; 20/20 unique responses, mean consecutive edit distance 0.64). Recommendation: gate AC-10 on verdict variance, not any-assertion pass-rate variance; the ADR amendment is left for architect ratification via adr-review.",
+      "evidence": "20/20 successful API calls, 0 errors; summary.json verdict_variance.stable=true; FINDINGS.md lints clean"
+    }
+  ],
+  "endingCommit": "18628fc32",
+  "nextSteps": [
+    "Flip PR #2162 to Fixes #1877 (all four ACs complete)",
+    "Architect ratifies the AC-10 amendment (gate on verdict variance) via adr-review, per ADR-058's ratification rule"
+  ]
+}
