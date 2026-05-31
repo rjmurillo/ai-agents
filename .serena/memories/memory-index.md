@@ -76,6 +76,7 @@
 
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
+|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (1960), [eval-harness-observations](eval-harness-observations.md) (543), [ci-infrastructure-observations](ci-infrastructure-observations.md) (568)
 
 [Memory and Context]
 |serena token efficiency symbolic tools cache memory read search: [skills-serena-index](skills-serena-index.md) (284)

@@ -78,7 +78,29 @@ For changes to:
 
 ## Output Requirements
 
-Provide your analysis in this format:
+Emit the verdict as the FIRST line of your response, before any analysis.
+Determine it from the highest-severity finding, then state it up front. The
+output budget can truncate a long review; a leading verdict is still read by
+the gate when the findings below are cut off (issue #2006). Emit exactly ONE
+`VERDICT:` line in the whole response.
+
+The `VERDICT:` line MUST contain only the token. The CI parser is anchored to
+the end of the line, so any trailing explanation after the token makes the line
+fail to match. Put all explanation on the `MESSAGE:` line. When the `VERDICT:`
+line does not match, the gate falls back to the `verdict` field in the JSON
+block below, and only if that is also missing does it default to
+`NEEDS_REVIEW`. Because the verdict is emitted first but the parser never
+revisits it, compute it from the completed analysis: the leading verdict MUST
+equal the highest-severity finding and MUST match the `verdict` field in the
+JSON block. Keeping the two in agreement means an optimistic early verdict
+cannot slip through when the JSON fallback is the value actually used.
+
+```text
+VERDICT: [PASS|WARN|CRITICAL_FAIL]
+MESSAGE: [Brief explanation]
+```
+
+After the verdict block, provide the supporting analysis in this format:
 
 ### Findings
 
@@ -92,16 +114,13 @@ Provide your analysis in this format:
 
 ### Verdict
 
-Choose ONE verdict:
+Choose the verdict by highest-severity finding (do not emit a second
+`VERDICT:` line here; if multiple verdict lines appear, `extract_verdict`
+returns the last match, which may differ from your intended leading verdict):
 
-- `VERDICT: PASS` - No security issues found
-- `VERDICT: WARN` - Minor issues that don't block merge
-- `VERDICT: CRITICAL_FAIL` - Security vulnerabilities that MUST be fixed
-
-```text
-VERDICT: [PASS|WARN|CRITICAL_FAIL]
-MESSAGE: [Brief explanation]
-```
+- `PASS` - No security issues found
+- `WARN` - Minor issues that don't block merge
+- `CRITICAL_FAIL` - Security vulnerabilities that MUST be fixed
 
 ## Verdict Thresholds
 
@@ -199,10 +218,12 @@ object):
   findings list (any `critical` severity -> CRITICAL_FAIL; any `high` ->
   WARN; otherwise PASS).
 
-The response MUST contain a final line matching the regex
-`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label is case-insensitive; tokens are case-sensitive uppercase).
+The response MUST begin with a single line (the first line) matching the regex
+`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label is case-insensitive; tokens are case-sensitive uppercase). Emit it once, at the start, so it survives output truncation (issue #2006).
 This line is parsed by `extract_verdict` in
 `.claude/lib/ai_review_common/verdict.py` and consumed by `merge_verdicts`
-when `/review` aggregates across all axes.
+when `/review` aggregates across all axes. Note: `extract_verdict` returns
+the last match if multiple verdict lines appear; emit exactly one verdict
+line to avoid ambiguity between the leading verdict and any later occurrences.
 
 Refs REQ-008-01, REQ-008-05 (issue #1934).
