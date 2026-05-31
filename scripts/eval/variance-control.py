@@ -162,7 +162,7 @@ def pass_rate_variance(verdicts: list[str | None], expected: str) -> dict:
         "pass_rate": (sum(passes) / rep_count) if rep_count else 0.0,
         "pass_variance": statistics.pvariance(passes) if rep_count >= 2 else 0.0,
         "all_pass": all(passes) if passes else False,
-        "any_fail": 0 in passes,
+        "any_fail": not passes or 0 in passes,
     }
 
 
