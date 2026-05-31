@@ -424,7 +424,10 @@ def json_timestamp(data: dict) -> str:
     date = str(data.get("session", {}).get("date", "")).strip()
     if date:
         try:
-            return datetime.fromisoformat(date).replace(tzinfo=UTC).isoformat()
+            dt = datetime.fromisoformat(date)
+            if dt.tzinfo is not None:
+                return dt.astimezone(UTC).isoformat()
+            return dt.replace(tzinfo=UTC).isoformat()
         except ValueError:
             pass
     return datetime.now(UTC).isoformat()
@@ -510,13 +513,14 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
 
 
 def json_metrics(data: dict) -> dict:
-    shas = _collect_shas(data, include_starting=False)
+    ending = str(data.get("endingCommit", "")).strip()
+    commit_count = 1 if _SHA_RE.fullmatch(ending) else 0
     metrics = {
         "duration_minutes": 0,
         "tool_calls": 0,
         "errors": 0,
         "recoveries": 0,
-        "commits": len(shas),
+        "commits": commit_count,
         "files_changed": 0,
     }
     for entry in data.get("workLog", []):
@@ -599,12 +603,12 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     locate and parse the corresponding archive file (JSON first, then markdown)
     to preserve rich event/decision/lesson data from migrated sessions.
     """
-    now_iso = datetime.now(UTC).isoformat()
+    session_ts = json_timestamp(data)
     session = data.get("session", {})
     work_log = data.get("workLog", [])
 
-    events = json_events(data, now_iso)
-    decisions = json_decisions(data, now_iso)
+    events = json_events(data, session_ts)
+    decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
 
     if archive_fallback and not work_log:
@@ -618,8 +622,8 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     archive_content = archive_json_path.read_text(encoding="utf-8")
                     archive_data = looks_like_json_session(archive_content)
                     if archive_data and archive_data.get("workLog"):
-                        archive_events = json_events(archive_data, now_iso)
-                        archive_decisions = json_decisions(archive_data, now_iso)
+                        archive_events = json_events(archive_data, session_ts)
+                        archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
                         if not events:
                             events = archive_events
