@@ -57,6 +57,59 @@ def filter_unresolved_threads(thread_nodes: list[dict]) -> list[dict]:
     """
     return [t for t in thread_nodes if not t.get("isResolved", True)]
 
+
+def transform_review_thread(thread: dict, include_comments: bool = False) -> dict:
+    """Transform a raw GraphQL review-thread node into the canonical flat shape.
+
+    Single authoritative definition (DRY) of the review-thread output shape
+    shared by ``get_pr_review_threads.py`` and
+    ``get_unresolved_review_threads.py``. A consumer that reads one script's
+    ``threads`` list can read the other's without a shape branch, which is the
+    bug this consolidates: the lighter unresolved script previously emitted raw
+    GraphQL nodes (``{"id", "isResolved", "comments": {"nodes": [...]}}``) while
+    the richer script emitted this flat shape, so ``thread["comments"][-1]``
+    crashed against one and worked against the other.
+
+    ``include_comments`` controls whether the full comment list is materialized.
+    When False (the cheap-probe default), ``comments`` is None and only the
+    ``first_comment_*`` fields are populated; the caller still pays for one
+    comment per thread in its GraphQL query, never the whole conversation.
+    """
+    comments_nodes = thread.get("comments", {}).get("nodes", [])
+    first = comments_nodes[0] if comments_nodes else None
+
+    result: dict = {
+        "thread_id": thread.get("id"),
+        "is_resolved": thread.get("isResolved", False),
+        "is_outdated": thread.get("isOutdated", False),
+        "path": thread.get("path"),
+        "line": thread.get("line"),
+        "start_line": thread.get("startLine"),
+        "diff_side": thread.get("diffSide"),
+        "comment_count": thread.get("comments", {}).get("totalCount", 0),
+        "first_comment_id": first.get("databaseId") if first else None,
+        "first_comment_author": (
+            first.get("author", {}).get("login") if first and first.get("author") else None
+        ),
+        "first_comment_body": first.get("body") if first else None,
+        "first_comment_created_at": first.get("createdAt") if first else None,
+        "comments": None,
+    }
+
+    if include_comments:
+        result["comments"] = [
+            {
+                "id": c.get("databaseId"),
+                "author": c.get("author", {}).get("login") if c.get("author") else None,
+                "body": c.get("body"),
+                "created_at": c.get("createdAt"),
+            }
+            for c in comments_nodes
+        ]
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Result types
 # ---------------------------------------------------------------------------
