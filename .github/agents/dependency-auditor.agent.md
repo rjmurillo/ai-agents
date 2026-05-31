@@ -1,14 +1,16 @@
 ---
-tier: builder
+name: dependency-auditor
 description: Audit dependencies for vulnerabilities, outdated versions, and deprecations. C#/.NET first (dotnet list package), with extensible patterns for npm, pip, and cargo. Use on a schedule or before releases to surface supply-chain risk before it reaches production.
 argument-hint: Specify the solution/project path or language ecosystem to audit (e.g. "src/MyApp.sln" or "npm")
-tools_vscode:
-  - $toolset:executor
-  - $toolset:knowledge
-tools_copilot:
-  - $toolset:executor
+tools:
+  - read
+  - edit
+  - search
+  - shell
   - cloudmcp-manager/*
   - serena/*
+model: claude-opus-4.5
+tier: builder
 ---
 # Dependency Auditor
 

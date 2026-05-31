@@ -137,8 +137,8 @@ Emit a structured report:
 
 ### Step 5: Exit
 
-- Exit 0 if no Critical findings.
-- Exit 1 if any Critical finding (gate signal for CI/release workflows).
+- Exit 0 if no Critical or High findings.
+- Exit 1 if any Critical or High finding (gate signal for CI/release workflows).
 - Exit 3 if a scan command failed (external/infra error per ADR-035).
 
 ## Anti-Patterns
