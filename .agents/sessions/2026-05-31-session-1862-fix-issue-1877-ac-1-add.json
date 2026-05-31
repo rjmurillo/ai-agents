@@ -88,7 +88,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "This PR changes only Python (a script and its test); no authored markdown files changed"
+        "Evidence": "PR adds two generated Markdown artifacts (evals/security-spike/control/20260531T184905Z-60538bcf/REPORT.md and FINDINGS.md) alongside the Python script and test; markdownlint-cli2 on both .md files reports 0 errors"
       },
       "changesCommitted": {
         "level": "MUST",
