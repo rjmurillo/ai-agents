@@ -11,7 +11,11 @@ artifacts:
     sourceDir: ".claude/skills"
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
-    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+    # merge-resolver is hard-wired to this repo's layout (gh, .agents/sessions,
+    # .serena, session-protocol scripts) and does not generalize to other repos.
+    # It stays in .claude/skills for ai-agents' own use but is omitted from the
+    # publicly-shipping copilot-cli toolkit (issue #2026).
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
   commands:
     sourceDir: ".claude/commands"
     outputDir: "src/copilot-cli/skills"
