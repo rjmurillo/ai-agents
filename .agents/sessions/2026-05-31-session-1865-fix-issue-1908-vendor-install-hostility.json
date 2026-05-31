@@ -35,7 +35,7 @@
   "workLog": [
     {
       "task": "Issue #1908: agent templates refuse to start on vendor installs that ship the agent definition without the in-repo .agents/ scaffold",
-      "outcome": "Evidence-scoped the fix: grep proved the hard-refuse fallback ([BLOCKED] ... Do not proceed on missing .agents/ files) lives in implementer.shared.md only (3 fallbacks); architect/retrospective/pr-comment-responder reference .agents/ as save targets or self-created state, not startup gates, so no change. Added a vendor-install carve-out: when the .agents/ directory is absent, skip the BLOCKING section and proceed (graceful degradation per release-it.md); the hard stops still fire when .agents/ exists but a required file is missing (the real misconfiguration). Edited template + 2 hand copies + regenerated 2 platform copies; bumped both plugin manifests.",
+      "outcome": "Evidence-scoped the fix: grep proved the hard-refuse fallback ([BLOCKED] ... Do not proceed on missing .agents/ files) lives in implementer.shared.md only (3 fallbacks); architect/retrospective/pr-comment-responder reference .agents/ as save targets or self-created state, not startup gates, so no change. Added a vendor-install carve-out: when the .agents/ directory is absent, skip the BLOCKING section and proceed (graceful degradation per release-it.md); the hard stops still fire when .agents/ exists but a required file is missing (the real misconfiguration). Edited template + 2 hand copies + regenerated 2 platform copies; bumped all three plugin manifests.",
       "evidence": "validate_install_parity.py -> install-parity: OK; npx markdownlint-cli2 -> 0 errors; all 3 plugin.json bumped above their origin/main base"
     }
   ],
