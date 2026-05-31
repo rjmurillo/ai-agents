@@ -53,7 +53,7 @@ OUTPUT_SHAPE_SUFFIX = (
 # (templates/agents/<agent>.shared.md and evals/security-spike/control/<run_id>/).
 # Both are constrained to a conservative charset, matching the run-id contract in
 # eval-agent-vs-baseline.py, and every resolved path is re-checked under REPO_ROOT.
-_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+_NAME_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9_-]{0,63}\Z")
 CONTROL_DIR_TEMPLATE = "evals/security-spike/control/{run_id}"
 FIXTURES_DIR = "evals/security-spike/fixtures"
 
@@ -182,7 +182,7 @@ def classify_finding(
             "insufficient-data: fewer than 2 reps produced responses. "
             "Cannot determine variance; investigate transport or API failures."
         )
-    if reps_total > 0 and reps_answered < reps_total // 2:
+    if reps_total > 0 and reps_answered * 2 < reps_total:
         return (
             f"high-error-rate: only {reps_answered}/{reps_total} reps succeeded. "
             "Variance metrics are based on sparse data; investigate failures first."
@@ -196,6 +196,12 @@ def classify_finding(
         return (
             "text-varies-verdict-stable: the API has output-text non-determinism "
             "but the scorer is robust. Gate AC-10 on verdict variance, not text variance."
+        )
+    if verdict_var["modal_verdict"] == "<none>":
+        return (
+            "verdicts-unparseable: no answered rep produced an extractable verdict. "
+            "This is a parser or prompt-shape failure, not API verdict non-determinism; "
+            "inspect the raw responses and the output-shape instruction."
         )
     return (
         "verdicts-vary: the API is genuinely non-deterministic on long context. "
@@ -329,10 +335,23 @@ def _name_arg(value: str) -> str:
 
 
 def _assert_under_repo_root(path: Path) -> Path:
-    """Resolve ``path`` and confirm it stays under ``REPO_ROOT`` (CWE-22)."""
-    resolved = path.resolve()
-    if REPO_ROOT not in resolved.parents and resolved != REPO_ROOT:
-        raise ValueError(f"path escapes repo root: {path}")
+    """Resolve ``path`` and confirm it stays under ``REPO_ROOT`` (CWE-22).
+
+    Mirrors ``_assert_under_repo_root`` in eval-agent-vs-baseline.py: resolves
+    with ``strict=False``, maps resolution failures to ``FileNotFoundError``,
+    and raises ``FileNotFoundError`` (not ``ValueError``) on path escape so
+    callers that catch ``FileNotFoundError`` handle containment uniformly. The
+    comparison is against the resolved repo root, not the unresolved constant.
+    """
+    repo_root = REPO_ROOT.resolve()
+    try:
+        resolved = path.resolve(strict=False)
+    except OSError as exc:
+        raise FileNotFoundError(f"refusing to resolve path {path!s}: {exc}") from exc
+    if repo_root not in (resolved, *resolved.parents):
+        raise FileNotFoundError(
+            f"refusing to access {resolved} (outside REPO_ROOT {repo_root})"
+        )
     return resolved
 
 
@@ -346,6 +365,11 @@ def _load_fixture(fixture_id: str) -> dict:
     if not path.exists():
         raise FileNotFoundError(f"fixture not found: {path}")
     fixture = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(fixture, dict):
+        raise ValueError(
+            f"fixture {fixture_id} must be a JSON object, "
+            f"got {type(fixture).__name__}"
+        )
     if "input" not in fixture:
         raise ValueError(f"fixture {fixture_id} missing required 'input' field")
     assertions = fixture.get("assertions")
@@ -359,6 +383,8 @@ def _load_fixture(fixture_id: str) -> dict:
 def _expected_verdict(fixture: dict) -> str:
     assertions = fixture.get("assertions") or []
     for assertion in assertions:
+        if not isinstance(assertion, dict):
+            continue
         if assertion.get("kind") == "verdict" and assertion.get("expected_value"):
             return str(assertion["expected_value"])
     raise ValueError("fixture has no verdict assertion with expected_value")
@@ -418,9 +444,16 @@ def main(argv: list[str] | None = None) -> int:
     user = str(fixture["input"]) + OUTPUT_SHAPE_SUFFIX
     run_id = args.run_id or _generate_run_id()
 
-    # Validate and create output directory before API calls to fail fast on
-    # permission or path errors without wasting billable API spend (Bug #5).
-    out_dir = _assert_under_repo_root(REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id))
+    # Resolve the output directory inside a guarded block: a path-containment
+    # failure must exit 2 with a single-line error, not crash with a traceback
+    # (the resolution happens outside the input-validation try/except above).
+    try:
+        out_dir = _assert_under_repo_root(
+            REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id)
+        )
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
     if not args.dry_run:
         existing_artifacts = [
             out_dir / name for name in ("raw.jsonl", "summary.json", "REPORT.md")
@@ -456,6 +489,15 @@ def main(argv: list[str] | None = None) -> int:
         reps=args.reps,
         model_id=args.model,
     )
+    # Honor the AGENTS.md eval exit-code contract (3=external, 4=auth) so
+    # automation does not read a control run with no successful reps as
+    # success. Auth failures are terminal: exit before writing artifacts.
+    if any(r.error_category == "auth" for r in records):
+        print(
+            "Error: authentication failed (missing or invalid ANTHROPIC_API_KEY).",
+            file=sys.stderr,
+        )
+        return 4
     summary = summarize_variance(records, expected)
     report = build_report_md(
         run_id=run_id, fixture_id=args.fixture, agent=args.agent,
@@ -495,6 +537,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(report)
     print(f"Wrote {out_dir.relative_to(REPO_ROOT)}/")
+    # Every rep errored: artifacts are written as evidence, but the run did not
+    # measure anything. Signal an external failure rather than success.
+    if summary["reps_answered"] == 0:
+        print(
+            "Error: all reps failed; no successful API responses (external failure).",
+            file=sys.stderr,
+        )
+        return 3
     return 0
 
 
@@ -505,7 +555,7 @@ def _generate_run_id() -> str:
     import datetime
     import uuid
 
-    stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return f"{stamp}-{uuid.uuid4().hex[:8]}"
 
 

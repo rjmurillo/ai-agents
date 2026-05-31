@@ -14,15 +14,22 @@ from pathlib import Path
 import pytest
 
 _EVAL_DIR = Path(__file__).resolve().parents[2] / "scripts" / "eval"
-if str(_EVAL_DIR) not in sys.path:
-    sys.path.insert(0, str(_EVAL_DIR))
-
-_SCRIPT = _EVAL_DIR / "variance-control.py"
-_spec = importlib.util.spec_from_file_location("variance_control", _SCRIPT)
-assert _spec is not None and _spec.loader is not None
-vc = importlib.util.module_from_spec(_spec)
-sys.modules["variance_control"] = vc
-_spec.loader.exec_module(vc)
+# Scope the sys.path mutation to the module load and remove it afterward so it
+# does not leak into other tests and perturb import resolution order
+# (mirrors tests/eval/test_eval_rule_activation.py).
+_path_added = str(_EVAL_DIR) not in sys.path
+try:
+    if _path_added:
+        sys.path.insert(0, str(_EVAL_DIR))
+    _SCRIPT = _EVAL_DIR / "variance-control.py"
+    _spec = importlib.util.spec_from_file_location("variance_control", _SCRIPT)
+    assert _spec is not None and _spec.loader is not None
+    vc = importlib.util.module_from_spec(_spec)
+    sys.modules["variance_control"] = vc
+    _spec.loader.exec_module(vc)
+finally:
+    if _path_added and str(_EVAL_DIR) in sys.path:
+        sys.path.remove(str(_EVAL_DIR))
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +173,39 @@ class TestClassifyFinding:
         verdict = vc.verdict_distribution(["IDENTIFY", "ESCALATE"])
         assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith("verdicts-vary")
 
+    def test_high_error_rate_odd_total(self):
+        # 10 of 21 answered is fewer than half; must flag high-error-rate
+        # (integer reps_total // 2 == 10 would miss this off-by-one).
+        text = vc.response_text_variance(["a", "b"])
+        verdict = vc.verdict_distribution(["IDENTIFY", "ESCALATE"])
+        assert vc.classify_finding(
+            text, verdict, reps_answered=10, reps_total=21
+        ).startswith("high-error-rate")
+
+    def test_exactly_half_is_not_high_error(self):
+        text = vc.response_text_variance(["a", "b"])
+        verdict = vc.verdict_distribution(["IDENTIFY", "ESCALATE"])
+        # 10 of 20 is exactly half: healthy, not high-error-rate.
+        assert not vc.classify_finding(
+            text, verdict, reps_answered=10, reps_total=20
+        ).startswith("high-error-rate")
+
+    def test_verdicts_unparseable_when_none_extracted(self):
+        # All answered reps lack an extractable verdict: a parser/prompt-shape
+        # failure, not API verdict non-determinism.
+        text = vc.response_text_variance(["a", "b"])
+        verdict = vc.verdict_distribution([None, None])
+        assert vc.classify_finding(
+            text, verdict, reps_answered=2, reps_total=2
+        ).startswith("verdicts-unparseable")
+
+    def test_zero_answered_is_insufficient_data(self):
+        text = vc.response_text_variance([])
+        verdict = vc.verdict_distribution([])
+        assert vc.classify_finding(
+            text, verdict, reps_answered=0, reps_total=5
+        ).startswith("insufficient-data")
+
 
 # ---------------------------------------------------------------------------
 # Orchestration with a fake adapter
@@ -278,3 +318,33 @@ class TestFixtureAndCli:
     def test_bad_run_id_rejected(self):
         with pytest.raises(SystemExit):
             vc.build_parser().parse_args(["--run-id", "../../etc/passwd"])
+
+    def test_run_id_with_trailing_newline_rejected(self):
+        # `$` in the old regex matched before a trailing newline; `\A...\Z`
+        # rejects it so newline-bearing names cannot reach path interpolation.
+        with pytest.raises(SystemExit):
+            vc.build_parser().parse_args(["--run-id", "F002\n"])
+
+
+class TestPathAndFixtureGuards:
+    def test_assert_under_repo_root_rejects_escape(self):
+        with pytest.raises(FileNotFoundError):
+            vc._assert_under_repo_root(vc.REPO_ROOT / ".." / ".." / "etc" / "passwd")
+
+    def test_expected_verdict_skips_non_dict_assertion(self):
+        fixture = {"assertions": ["bogus", {"kind": "verdict", "expected_value": "OK"}]}
+        assert vc._expected_verdict(fixture) == "OK"
+
+    def test_load_fixture_rejects_non_object_json(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(vc, "REPO_ROOT", tmp_path)
+        fixtures = tmp_path / vc.FIXTURES_DIR
+        fixtures.mkdir(parents=True)
+        (fixtures / "BAD.json").write_text("[]", encoding="utf-8")
+        with pytest.raises(ValueError, match="must be a JSON object"):
+            vc._load_fixture("BAD")
+
+    def test_generate_run_id_is_utc_token(self):
+        import re as _re
+
+        # Exercises the datetime.timezone.utc path (datetime.UTC is 3.11+).
+        assert _re.match(r"\A\d{8}T\d{6}Z-[0-9a-f]{8}\Z", vc._generate_run_id())
