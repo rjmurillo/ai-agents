@@ -1,0 +1,355 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-20250514",
+  "source": "explicit: /tmp/spec-generator-agent-before.md -> .claude/skills/spec-generator/SKILL.md",
+  "runs_per_scenario": 3,
+  "security_critical": false,
+  "comparison": {
+    "before_score": 0.2,
+    "after_score": 1.0,
+    "delta": 0.8,
+    "scenario_count": 5,
+    "api_calls": 30,
+    "est_tokens": 105000
+  },
+  "gate": {
+    "verdict": "PASS",
+    "passed": true,
+    "security_critical": false,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": true,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": true
+    },
+    "improvements": [
+      "S1-priority-medium",
+      "S2-category-tooling",
+      "S4-design-missing-priority",
+      "S5-valid-requirement"
+    ],
+    "regressions": [],
+    "flaky_scenarios": [],
+    "high_flakiness_scenarios": [],
+    "before_score": 0.2,
+    "after_score": 1.0,
+    "delta": 0.8
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "S1-priority-medium",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ACCEPT",
+            "reason": "All frontmatter fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'approved', priority is 'medium' (valid value), category is 'functional', and dates are properly formatted",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"All frontmatter fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'approved', priority is 'medium' (valid value), category is 'functional', and dates are properly formatted\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "All frontmatter fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'approved', priority is 'medium' (valid option), category is 'functional', and dates are properly formatted",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"All frontmatter fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'approved', priority is 'medium' (valid option), category is 'functional', and dates are properly formatted\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "All frontmatter fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'approved', priority is 'medium' (valid option), category is 'functional', and dates are properly formatted",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"All frontmatter fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'approved', priority is 'medium' (valid option), category is 'functional', and dates are properly formatted\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2-category-tooling",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ACCEPT",
+            "reason": "All fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'draft', priority is P2, category is 'tooling', and dates are properly formatted",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"All fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'draft', priority is P2, category is 'tooling', and dates are properly formatted\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "All fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'draft', priority is P2, category is 'tooling', and dates are properly formatted",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"All fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'draft', priority is P2, category is 'tooling', and dates are properly formatted\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "All fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'draft', priority is P2, category is 'tooling', and dates are properly formatted",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"All fields are valid: type is 'requirement', id follows REQ-NNN format, title is descriptive, status is 'draft', priority is P2, category is 'tooling', and dates are properly formatted\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3-task-status-ready",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required fields: blocked_by, blocks, assignee. Title 'Reset endpoint' is too vague - should be specific action like 'implement-password-reset-endpoint'",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required fields: blocked_by, blocks, assignee. Title 'Reset endpoint' is too vague - should be specific action like 'implement-password-reset-endpoint'\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required fields: blocked_by, blocks, assignee. Title 'Reset endpoint' is too vague - should be specific action like 'implement-password-reset-endpoint'",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required fields: blocked_by, blocks, assignee. Title 'Reset endpoint' is too vague - should be specific action like 'implement-password-reset-endpoint'\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required fields: blocked_by, blocks, assignee. Title 'Reset endpoint' is too vague - should be specific action like 'implement-password-reset-endpoint'",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required fields: blocked_by, blocks, assignee. Title 'Reset endpoint' is too vague - should be specific action like 'implement-password-reset-endpoint'\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4-design-missing-priority",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ACCEPT",
+            "reason": "Priority field is not required for design frontmatter according to the schema - only type, id, title, related (REQ ids), adr, and author are specified as required fields",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"Priority field is not required for design frontmatter according to the schema - only type, id, title, related (REQ ids), adr, and author are specified as required fields\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "Priority field is not required for design frontmatter according to the schema - only type, id, title, related (REQ ids), adr, and author are specified as required fields",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"Priority field is not required for design frontmatter according to the schema - only type, id, title, related (REQ ids), adr, and author are specified as required fields\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "Priority field is not required for design frontmatter according to the schema - only type, id, title, related (REQ ids), adr, and author are specified as required fields",
+            "raw": "{\"verdict\": \"ACCEPT\", \"reason\": \"Priority field is not required for design frontmatter according to the schema - only type, id, title, related (REQ ids), adr, and author are specified as required fields\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5-valid-requirement",
+        "passes": 0,
+        "runs": 3,
+        "pass_rate": 0.0,
+        "passed": false,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required fields: epic, related, author. Field 'created' and 'updated' are not in the defined schema.",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required fields: epic, related, author. Field 'created' and 'updated' are not in the defined schema.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required fields: epic, related, author. Field 'created' and 'updated' are not in the defined schema.",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required fields: epic, related, author. Field 'created' and 'updated' are not in the defined schema.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required fields: epic, related, author. Field 'created' and 'updated' are not in the defined schema.",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required fields: epic, related, author. Field 'created' and 'updated' are not in the defined schema.\"}",
+            "passed": false,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "S1-priority-medium",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "priority value 'medium' is invalid. Schema allows only: P0, P1, P2",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"priority value 'medium' is invalid. Schema allows only: P0, P1, P2\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "priority value 'medium' is invalid. Schema allows only: P0, P1, P2",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"priority value 'medium' is invalid. Schema allows only: P0, P1, P2\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "priority value 'medium' is invalid. Schema allows only: P0, P1, P2",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"priority value 'medium' is invalid. Schema allows only: P0, P1, P2\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S2-category-tooling",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "category: tooling is not in allowed enum values. Must be functional, non-functional, or constraint",
+            "raw": "```json\n{\"verdict\": \"REJECT\", \"reason\": \"category: tooling is not in allowed enum values. Must be functional, non-functional, or constraint\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "category: tooling is not in allowed enum values. Must be functional, non-functional, or constraint",
+            "raw": "```json\n{\"verdict\": \"REJECT\", \"reason\": \"category: tooling is not in allowed enum values. Must be functional, non-functional, or constraint\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "category: tooling is not in allowed enum values. Must be functional, non-functional, or constraint",
+            "raw": "```json\n{\"verdict\": \"REJECT\", \"reason\": \"category: tooling is not in allowed enum values. Must be functional, non-functional, or constraint\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S3-task-status-ready",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "status value 'ready' is invalid for task type. Allowed task status values are: todo, in-progress, blocked, done, cancelled",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"status value 'ready' is invalid for task type. Allowed task status values are: todo, in-progress, blocked, done, cancelled\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "status value 'ready' is invalid for task type. Allowed task status values are: todo, in-progress, blocked, done, cancelled",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"status value 'ready' is invalid for task type. Allowed task status values are: todo, in-progress, blocked, done, cancelled\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "status value 'ready' is invalid for task type. Allowed task status values are: todo, in-progress, blocked, done, cancelled",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"status value 'ready' is invalid for task type. Allowed task status values are: todo, in-progress, blocked, done, cancelled\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S4-design-missing-priority",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required field 'priority' - design frontmatter must include both status and priority as required fields",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required field 'priority' - design frontmatter must include both status and priority as required fields\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required field 'priority' - design frontmatter must include both status and priority as required fields",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required field 'priority' - design frontmatter must include both status and priority as required fields\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Missing required field 'priority' - design frontmatter must include both status and priority as required fields",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Missing required field 'priority' - design frontmatter must include both status and priority as required fields\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "S5-valid-requirement",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "ACCEPT",
+            "reason": "All fields are valid: type=requirement (allowed), id=REQ-001 (correct pattern), status=approved (allowed for requirement), priority=P0 (allowed), category=non-functional (allowed), and all required fields are present",
+            "raw": "```json\n{\"verdict\": \"ACCEPT\", \"reason\": \"All fields are valid: type=requirement (allowed), id=REQ-001 (correct pattern), status=approved (allowed for requirement), priority=P0 (allowed), category=non-functional (allowed), and all required fields are present\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "All fields are valid: type=requirement (allowed), id=REQ-001 (correct pattern), status=approved (allowed for requirement), priority=P0 (allowed), category=non-functional (allowed), and all required fields are present",
+            "raw": "```json\n{\"verdict\": \"ACCEPT\", \"reason\": \"All fields are valid: type=requirement (allowed), id=REQ-001 (correct pattern), status=approved (allowed for requirement), priority=P0 (allowed), category=non-functional (allowed), and all required fields are present\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "ACCEPT",
+            "reason": "All fields are valid: type=requirement (allowed), id=REQ-001 (correct pattern), status=approved (allowed for requirement), priority=P0 (allowed), category=non-functional (allowed), and all required fields are present",
+            "raw": "```json\n{\"verdict\": \"ACCEPT\", \"reason\": \"All fields are valid: type=requirement (allowed), id=REQ-001 (correct pattern), status=approved (allowed for requirement), priority=P0 (allowed), category=non-functional (allowed), and all required fields are present\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ]
+  }
+}

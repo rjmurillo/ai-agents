@@ -147,7 +147,7 @@ Variations:
 1. **Create Markdown table**: Commonalities as rows, variabilities as columns
 2. **Fill each cell**: Concrete implementation for that commonality/variability pair
 3. **Highlight patterns**: Where cells are identical (sharing opportunity), where they differ (extension point)
-4. **Optional**: Export to Mermaid diagram using `scripts/export-cva-matrix.py`
+4. **Optional**: Render the matrix as a Mermaid diagram by hand (a matrix exporter is planned, not yet implemented)
 
 **Example Matrix**:
 
@@ -429,31 +429,12 @@ python3 .claude/skills/cva-analysis/scripts/validate-cva-matrix.py cva-matrix.md
 - 10: Validation failure (missing rows/columns, empty cells)
 - 1: Error (file not found, invalid format)
 
-### generate-cva-template.py
+### Planned scripts (not yet implemented)
 
-Create empty matrix template from user input.
+Two helpers are designed in `references/SKILL_SPEC.md` but not yet built. Create the matrix and any diagram by hand until they ship; do not invoke them.
 
-**Usage**:
-
-```bash
-python3 .claude/skills/cva-analysis/scripts/generate-cva-template.py \
-  --commonalities "Validate,Authorize,Record,Handle errors" \
-  --variabilities "CreditCard,PayPal,BankTransfer" \
-  --output cva-matrix.md
-```
-
-### export-cva-matrix.py
-
-Convert Markdown table to Mermaid diagram for presentations.
-
-**Usage**:
-
-```bash
-python3 .claude/skills/cva-analysis/scripts/export-cva-matrix.py \
-  --input cva-matrix.md \
-  --format mermaid \
-  --output cva-diagram.mmd
-```
+- A template generator: produce an empty matrix from comma-separated commonalities and variabilities.
+- A matrix exporter: convert the Markdown table to a Mermaid (or JSON/PlantUML/CSV) diagram for presentations.
 
 ## Extension Points
 
@@ -462,7 +443,7 @@ python3 .claude/skills/cva-analysis/scripts/export-cva-matrix.py \
    - Add Builder, Bridge, Visitor patterns with matrix signatures
 
 2. **Matrix Formats**: Add export formats beyond Markdown
-   - Use `scripts/export-cva-matrix.py --format <json|plantuml|csv>`
+   - The planned matrix exporter would add `json`, `plantuml`, and `csv` formats
 
 3. **Multidimensional Analysis**: Handle complex cases with 3+ axes
    - See `references/multidimensional-cva.md`

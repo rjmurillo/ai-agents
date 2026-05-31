@@ -1,0 +1,64 @@
+{
+  "date": "2026-05-31",
+  "branch": "feat/2001-spec-generator-skill",
+  "issue": 2001,
+  "scope": "Convert spec-generator agent to a skill with bundled schema + deterministic frontmatter validator",
+  "model": "claude-sonnet-4-20250514",
+  "adr": "ADR-057",
+  "verdict": "PASS",
+  "adjudication": "TRUSTWORTHY_WITH_CAVEATS (4-lens adversarial review; see caveats and what_evidence_does_not_prove)",
+  "behavioral_change_under_test": {
+    "claim": "The spec-generator skill produces schema-valid frontmatter where the agent did not. This is driven jointly by (a) supplying required fields the agent's own documented frontmatter never listed (created, updated for all types; related for design/task) and (b) constraining enum values to the canonical sets. The accurate framing is 'produces valid frontmatter', NOT the narrower 'fixes enum drift': the agent's dominant before-failure is missing required fields, with enum drift co-occurring.",
+    "not_claimed": "The validator gate guarantees in-range enum VALUES when run; it does NOT guarantee the model emits complete valid frontmatter unaided. Raw skill generation is 13/18 (72%), not 18/18."
+  },
+  "evidence_ranked": {
+    "load_bearing": [
+      {
+        "name": "deterministic contract test",
+        "result": "uv run pytest .claude/skills/spec-generator/tests/test_validate_spec_frontmatter.py -> 20 passed",
+        "why": "Frontmatter enum membership is a closed, decidable property. The validator mirrors the canonical schema enums verbatim (references/spec-schemas.md is byte-identical to .agents/governance/spec-schemas.md). Case selection cannot pass an invalid case by luck because it exercises a deterministic function, not a model."
+      },
+      {
+        "name": "generation eval (independent grader)",
+        "file": "evals/spec-generator-spike/generation-results.json",
+        "method": "For 6 adversarial feature descriptions, emit frontmatter from the before prompt (origin/main:.claude/agents/spec-generator.md, read live from git) and the after prompt (SKILL.md), then grade each with the real validator. Same model, temperature 0, 3 runs, identical inputs, external grader.",
+        "result": "agent before = 0/18 valid; skill after = 13/18 (72%). No regression: skill >= agent on every feature.",
+        "reproducible": true
+      }
+    ],
+    "supporting_weaker": [
+      {
+        "name": "self-classification harness (eval-prompt-change.py)",
+        "file": "evals/spec-generator-spike/harness-results.json",
+        "result": "before 20% (1/5), after 100% (5/5); ACCEPTANCE GATE PASS",
+        "caveat": "PARTLY CIRCULAR. SKILL.md ('Common drift this gate stops') names all four REJECT inputs verbatim (priority=medium, category=tooling, task status=ready, design missing status+priority); harness scenarios S1-S4 are exactly those four. The 100% is partly a memorization check against an answer key embedded in the after prompt. Carries LESS weight than the load-bearing evidence.",
+        "provenance_gap": "The before-prompt was a /tmp scratch copy (now deleted), so this run is not byte-reproducible; behaviors are consistent with the live git ref."
+      },
+      {
+        "name": "held-out generalization eval",
+        "file": "evals/spec-generator-spike/heldout-results.json",
+        "method": "Three drift values the SKILL does NOT name (priority=high, task status=pending, category=infra), to distinguish 'rejects the four named values' from 'enforces the schema rule'.",
+        "result": "Pass-rate: before 100%, after 100% (both reject). BUT the rejection REASONS diverge decisively: the agent rejects against HALLUCINATED enum sets (priority 'critical/important/normal/low'; status 'not_started/in_progress/...'; category adds 'interface/data') and would therefore also reject the canonical values; the skill rejects citing the CANONICAL sets (P0/P1/P2; todo/in-progress/blocked/done/cancelled; functional/non-functional/constraint). The agent has no faithful schema model in either direction (it accepts named-invalid values like 'medium' yet rejects valid-canonical values against an invented set); the skill enforces the real schema.",
+        "provenance_gap": "before-prompt was a /tmp scratch copy (deleted)."
+      }
+    ]
+  },
+  "residual_gap": "The 72% generation ceiling is not noise. All 5/18 skill failures are the task 'related: DESIGN-NNN' traceability field emitted as empty/absent when a task is generated in isolation with no upstream design context. This is the skill's own documented-vs-validator tension (SKILL requires related for tasks) and would recur for early-in-pipeline /spec task generation. It hits both prompts equally.",
+  "honest_findings": [
+    "The agent's 0/18 is caused jointly by missing required fields (created/updated/related) AND enum drift; missing fields are an independent sufficient cause.",
+    "The held-out eval shows the agent's schema 'knowledge' is confabulated (invents plausible enum sets that do not match canonical), which is the root cause of the shipped invalid frontmatter.",
+    "One harness before-pass (S3) was earned for the wrong reason (agent rejected on hallucinated blocked_by/blocks/assignee requirements, not the status=ready enum drift), so before_score 0.2 slightly flatters the agent.",
+    "The scenario set is REJECT-heavy (4-5 REJECT / 1 ACCEPT); over-rejection is guarded by a single ACCEPT scenario, so '100%' is weak evidence the skill avoids over-rejecting valid specs."
+  ],
+  "what_evidence_does_not_prove": [
+    "Does NOT prove the skill emits complete valid frontmatter at generation time (72%, not 100%).",
+    "Does NOT prove robustness across models or temperatures (single model, temperature 0; the 3-run flakiness protocol cannot surface variance at temp 0).",
+    "Does NOT isolate the validator as the cause: before is a full agent prompt, after is a full SKILL.md; the comparison measures the whole rewrite (persona + schema-read instruction + inline enum table + validator gate).",
+    "Does NOT exercise the bundled-validator MECHANISM live: the harness sends no tools, so the skill's 'run validate_spec_frontmatter.py' step is unfollowable in the eval; the live wins come from the inline enum table. The validator's correctness is proven separately by the 20-case contract test."
+  ],
+  "acceptanceGate": { "noRegression": true, "targetedImprovement": true, "verdict": "PASS" },
+  "manual_review": {
+    "reviewed_by": "agent + 4-lens adversarial workflow (methodology, confounds, claims-honesty, reproducibility) + lead synthesis",
+    "verdict": "approved with caveats recorded above"
+  }
+}
