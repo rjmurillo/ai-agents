@@ -304,11 +304,13 @@ def _original_main(stdin_bytes):
         try:
             with path.open("r", encoding="utf-8") as f:
                 in_frontmatter = False
-                seen_first = False
+                started = False
                 for raw in f:
                     line = raw.strip()
-                    if not seen_first:
-                        seen_first = True
+                    if not started:
+                        if not line:
+                            continue
+                        started = True
                         if line == "---":
                             in_frontmatter = True
                             continue
@@ -360,7 +362,9 @@ def _original_main(stdin_bytes):
         results: list[tuple[str, str]] = []
         for _mtime, path, rel in candidates[:MAX_MEMORIES]:
             if time.monotonic() > deadline:
-                break
+                # Past the budget: surface the match but skip the summary file read.
+                results.append((rel, ""))
+                continue
             results.append((rel, _summary_line_from_file(path)))
         return results
 

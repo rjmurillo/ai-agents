@@ -131,6 +131,33 @@ class TestFindTopicalMemories:
         assert len(out) == 1
         assert out[0][1] == "Real Heading"
 
+    def test_summary_skips_frontmatter_after_leading_blank(self, tmp_path):
+        # A blank line before the opening --- must not defeat frontmatter skip.
+        _seed_memories(tmp_path, {
+            "github/github-cli-blank.md": "\n\n---\nstatus: accepted\n---\n# Real Heading\nbody",
+        })
+        out = find_topical_memories(str(tmp_path), "github", time.monotonic() + 10)
+        assert len(out) == 1
+        assert out[0][1] == "Real Heading"
+
+    def test_returns_matches_when_deadline_passed(self, tmp_path, monkeypatch):
+        # Deadline elapses after the scan collected matches but before the
+        # summary loop: entries are still returned (summary read skipped),
+        # not dropped. Stub monotonic: below deadline during scan, above after.
+        _seed_memories(tmp_path, {"github/github-cli-pr-operations.md": "# PR ops\nbody"})
+        import invoke_topical_memory_injection as mod
+        calls = {"n": 0}
+
+        def fake_monotonic():
+            calls["n"] += 1
+            return 50.0 if calls["n"] == 1 else 150.0
+
+        monkeypatch.setattr(mod.time, "monotonic", fake_monotonic)
+        out = mod.find_topical_memories(str(tmp_path), "github", 100.0)
+        assert len(out) == 1
+        assert out[0][0] == "github/github-cli-pr-operations.md"
+        assert out[0][1] == ""
+
 
 class TestMain:
     def _run(self, tmp_path, stdin: str, monkeypatch, capsys):
