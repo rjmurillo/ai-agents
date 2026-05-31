@@ -35,6 +35,13 @@
         "powershell": "py -3 -u \"./hooks/postToolUse/invoke_observation_sync__mcp_serena_write_memory_d88228.py\"",
         "timeoutSec": 30,
         "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py\"",
+        "timeoutSec": 5,
+        "type": "command"
       }
     ],
     "preToolUse": [
@@ -63,6 +70,13 @@
         "bash": "python3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_lsp_bash_grep_guard__Bash_f620ca.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_lsp_bash_grep_guard__Bash_f620ca.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
@@ -198,6 +212,34 @@
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_adr_architect_gate__Edit_Write_1da157.py\"",
         "timeoutSec": 30,
         "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_lsp_grep_guard__Grep_2589b1.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_lsp_grep_guard__Grep_2589b1.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_lsp_glob_guard__Glob_181cd6.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_lsp_glob_guard__Glob_181cd6.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_lsp_read_guard__Read_852b43.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_lsp_read_guard__Read_852b43.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_lsp_pre_delegation_guard__Agent_5ce2e6.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_lsp_pre_delegation_guard__Agent_5ce2e6.py\"",
+        "timeoutSec": 5,
+        "type": "command"
       }
     ],
     "sessionEnd": [
@@ -257,6 +299,13 @@
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/sessionStart/invoke_context_loader.py\"",
         "timeoutSec": 30,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/sessionStart/invoke_lsp_session_reset.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/sessionStart/invoke_lsp_session_reset.py\"",
+        "timeoutSec": 5,
         "type": "command"
       }
     ],
