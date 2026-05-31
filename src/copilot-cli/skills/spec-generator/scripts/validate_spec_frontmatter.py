@@ -111,8 +111,11 @@ def extract_frontmatter(text: str) -> dict[str, str] | None:
 
 def _check_enum(result: SpecValidation, fields: dict[str, str], key: str, allowed: frozenset[str]) -> None:
     value = fields.get(key, "")
-    if not value or value in ("[]", "[present]"):
+    if not value or value == "[]":
         return  # presence handled by required-field check
+    if value == "[present]":
+        result.errors.append(f"{key} must be a scalar value, not a list; allowed: {', '.join(sorted(allowed))}")
+        return
     if value not in allowed:
         result.errors.append(
             f"{key}={value!r} is not a valid value; allowed: {', '.join(sorted(allowed))}"
