@@ -129,6 +129,8 @@ def relativize(file_path: str, project_root: str) -> str:
             rel = file_path
     else:
         rel = file_path
+    # Normalize to collapse .. segments before topic matching.
+    rel = os.path.normpath(rel)
     rel = rel.replace(os.sep, "/")
     if rel.startswith("./"):
         rel = rel[2:]
