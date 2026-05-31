@@ -29,7 +29,9 @@ SCRIPT_REF_RE = re.compile(
 # the build/scripts|scripts/validation|scripts prefixes, so it misses this
 # class. Existence is checked against the working tree; valid refs never flag.
 SKILL_SCRIPT_REF_RE = re.compile(
-    r"(?:\.claude|src/copilot-cli)/skills/[a-zA-Z0-9_-]+/scripts/[a-zA-Z0-9_/-]+\.py"
+    r"(?<![\w/])(?:\.claude|src/copilot-cli)/skills/[a-zA-Z0-9_-]+"
+    r"/scripts/[a-zA-Z0-9_/-]+\.py(?!\w)",
+    re.IGNORECASE,
 )
 
 # Mirrors COUNT_PATTERN and LABEL_MAP from

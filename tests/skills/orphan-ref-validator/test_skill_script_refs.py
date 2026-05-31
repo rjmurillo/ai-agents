@@ -18,7 +18,9 @@ _SCRIPT_DIR = (
     / ".claude" / "skills" / "orphan-ref-validator" / "scripts"
 )
 sys.path.insert(0, str(_SCRIPT_DIR))
-_spec = importlib.util.spec_from_file_location("_orphan_ref_validator_scan_ci", _SCRIPT_DIR / "scan.py")
+_spec = importlib.util.spec_from_file_location(
+    "_orphan_ref_validator_scan_ci", _SCRIPT_DIR / "scan.py"
+)
 assert _spec is not None and _spec.loader is not None
 _scan = importlib.util.module_from_spec(_spec)
 sys.modules["_orphan_ref_validator_scan_ci"] = _scan
@@ -30,7 +32,10 @@ _check_skill_script_refs = _scan._check_skill_script_refs
 
 class TestExtractSkillScriptRefs:
     def test_bare_command_form(self):
-        text = "Run python3 .claude/skills/github/scripts/pr/get_unresolved_threads.py --pull-request 1979"
+        text = (
+            "Run python3 .claude/skills/github/scripts/pr/"
+            "get_unresolved_threads.py --pull-request 1979"
+        )
         refs = list(extract_skill_script_refs(text))
         assert refs == [(1, ".claude/skills/github/scripts/pr/get_unresolved_threads.py")]
 
@@ -41,7 +46,9 @@ class TestExtractSkillScriptRefs:
 
     def test_copilot_mirror_prefix(self):
         text = "src/copilot-cli/skills/github/scripts/pr/foo.py"
-        assert list(extract_skill_script_refs(text)) == [(1, "src/copilot-cli/skills/github/scripts/pr/foo.py")]
+        assert list(extract_skill_script_refs(text)) == [
+            (1, "src/copilot-cli/skills/github/scripts/pr/foo.py")
+        ]
 
     def test_deduped_per_line(self):
         path = ".claude/skills/x/scripts/y.py"
