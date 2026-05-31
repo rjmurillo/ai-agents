@@ -75,7 +75,8 @@ def transform_review_thread(thread: dict, include_comments: bool = False) -> dic
     ``first_comment_*`` fields are populated; the caller still pays for one
     comment per thread in its GraphQL query, never the whole conversation.
     """
-    comments_nodes = thread.get("comments", {}).get("nodes", [])
+    comments_data = thread.get("comments") or {}
+    comments_nodes = comments_data.get("nodes") or []
     first = comments_nodes[0] if comments_nodes else None
 
     result: dict = {
@@ -86,7 +87,7 @@ def transform_review_thread(thread: dict, include_comments: bool = False) -> dic
         "line": thread.get("line"),
         "start_line": thread.get("startLine"),
         "diff_side": thread.get("diffSide"),
-        "comment_count": thread.get("comments", {}).get("totalCount", 0),
+        "comment_count": comments_data.get("totalCount", 0),
         "first_comment_id": first.get("databaseId") if first else None,
         "first_comment_author": (
             first.get("author", {}).get("login") if first and first.get("author") else None
