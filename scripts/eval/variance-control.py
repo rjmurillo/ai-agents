@@ -410,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         fixture = _load_fixture(args.fixture)
         expected = _expected_verdict(fixture)
         agent_prompt = _read_agent_prompt(args.agent)
-    except (FileNotFoundError, ValueError, OSError) as exc:
+    except (FileNotFoundError, ValueError, OSError, UnicodeDecodeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
@@ -422,6 +422,18 @@ def main(argv: list[str] | None = None) -> int:
     # permission or path errors without wasting billable API spend (Bug #5).
     out_dir = _assert_under_repo_root(REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id))
     if not args.dry_run:
+        existing_artifacts = [
+            out_dir / name for name in ("raw.jsonl", "summary.json", "REPORT.md")
+            if (out_dir / name).exists()
+        ]
+        if existing_artifacts:
+            print(
+                f"Error: run directory {out_dir.relative_to(REPO_ROOT)}/ already contains "
+                f"control artifacts: {', '.join(p.name for p in existing_artifacts)}. "
+                "Use a different --run-id to avoid overwriting prior results.",
+                file=sys.stderr,
+            )
+            return 2
         try:
             out_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -449,13 +461,29 @@ def main(argv: list[str] | None = None) -> int:
         run_id=run_id, fixture_id=args.fixture, agent=args.agent,
         model_id=args.model, summary=summary,
     )
+    # Write to temp files first, then rename atomically to avoid partial artifacts
+    # if a write fails partway through (Bug #2: mixed artifacts on failure).
+    temp_suffix = ".tmp"
+    output_files = [
+        ("raw.jsonl", "".join(json.dumps(r.__dict__) + "\n" for r in records)),
+        ("summary.json", json.dumps(summary, indent=2) + "\n"),
+        ("REPORT.md", report),
+    ]
+    temp_paths: list[Path] = []
     try:
-        (out_dir / "raw.jsonl").write_text(
-            "".join(json.dumps(r.__dict__) + "\n" for r in records), encoding="utf-8"
-        )
-        (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-        (out_dir / "REPORT.md").write_text(report, encoding="utf-8")
+        for name, content in output_files:
+            temp_path = out_dir / f"{name}{temp_suffix}"
+            temp_path.write_text(content, encoding="utf-8")
+            temp_paths.append(temp_path)
+        for temp_path in temp_paths:
+            final_path = temp_path.with_suffix("")
+            temp_path.rename(final_path)
     except OSError as exc:
+        for temp_path in temp_paths:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
         print(f"Error writing output: {exc}", file=sys.stderr)
         return 2
     print(report)
