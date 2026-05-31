@@ -525,7 +525,7 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     elif mergeable == "UNKNOWN":
         reasons.append("Merge status is being calculated")
     if pr.get("mergeStateStatus") == "BEHIND":
-        reasons.append("Branch is behind base; update against main before merging")
+        reasons.append("Branch is behind base; update against the base branch before merging")
     return mergeable
 
 
