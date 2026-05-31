@@ -81,7 +81,7 @@ A docstring that says "matches the validator" with no path is a level-4 claim dr
 
 ## BLOCKING: Read Project Documentation First
 
-**Stop criteria**: Do NOT begin implementation until the files below are read AND you can answer, in one sentence each:
+**Stop criteria** (apply when `.agents/` exists): Do NOT begin implementation until the files below are read AND you can answer, in one sentence each:
 
 - What is the current session's inherited context from `.agents/HANDOFF.md`?
 - What project constraints apply from `.agents/AGENT-INSTRUCTIONS.md` and the root `AGENTS.md`?
@@ -102,8 +102,8 @@ Read these files in order:
 - If `.agents/` exists but `.agents/HANDOFF.md` is missing → stop and report `[BLOCKED] No prior session context available`. Do not proceed.
 - If `.agents/` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Project configuration incomplete`.
 - If `.agents/` exists but the root `AGENTS.md` is missing → stop and report `[BLOCKED] Missing root agent instructions`.
-- If `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
-- If `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
+- If `.agents/` exists but `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/` exists but `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
 **Success definition**: When `.agents/` exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When `.agents/` is absent (vendor install), this section is satisfied by the skip note above plus any root docs you read.
