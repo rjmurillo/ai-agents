@@ -187,7 +187,7 @@ def classify_finding(
             f"high-error-rate: only {reps_answered}/{reps_total} reps succeeded. "
             "Variance metrics are based on sparse data; investigate failures first."
         )
-    if verdict_var["modal_verdict"] == "<none>":
+    if verdict_var["distinct_count"] == 1 and verdict_var["modal_verdict"] == "<none>":
         return (
             "verdicts-unparseable: no answered rep produced an extractable verdict. "
             "This is a parser or prompt-shape failure, not API verdict non-determinism; "
@@ -264,7 +264,10 @@ def run_reps(
     reps: int,
     model_id: str,
 ) -> list[RepRecord]:
-    """Issue ``reps`` identical calls and collect one ``RepRecord`` each."""
+    """Issue ``reps`` identical calls and collect one ``RepRecord`` each.
+
+    Stops early on auth errors to avoid unnecessary billed API calls.
+    """
     records: list[RepRecord] = []
     for index in range(1, reps + 1):
         result = adapter.call_model(
@@ -286,6 +289,8 @@ def run_reps(
                 error_category=result.error_category,
             )
         )
+        if result.error_category == "auth":
+            break
     return records
 
 
@@ -542,11 +547,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(report)
     print(f"Wrote {out_dir.relative_to(REPO_ROOT)}/")
-    # Every rep errored: artifacts are written as evidence, but the run did not
-    # measure anything. Signal an external failure rather than success.
-    if summary["reps_answered"] == 0:
+    # Insufficient reps to measure variance: artifacts are written as evidence, but
+    # the run did not produce a valid measurement. Signal an external failure.
+    if summary["reps_answered"] < 2:
         print(
-            "Error: all reps failed; no successful API responses (external failure).",
+            f"Error: only {summary['reps_answered']} rep(s) answered; need at least 2 "
+            "to measure variance (external failure).",
             file=sys.stderr,
         )
         return 3
