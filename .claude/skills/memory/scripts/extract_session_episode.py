@@ -510,14 +510,13 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
 
 
 def json_metrics(data: dict) -> dict:
-    ending = str(data.get("endingCommit", "")).strip()
-    commit_count = 1 if _SHA_RE.fullmatch(ending) else 0
+    shas = _collect_shas(data, include_starting=False)
     metrics = {
         "duration_minutes": 0,
         "tool_calls": 0,
         "errors": 0,
         "recoveries": 0,
-        "commits": commit_count,
+        "commits": len(shas),
         "files_changed": 0,
     }
     for entry in data.get("workLog", []):
@@ -547,29 +546,58 @@ def _json_lessons(data: dict) -> list[str]:
     return lessons
 
 
-def _find_archive_markdown(session_id: str) -> Path | None:
-    """Find the archive markdown file for a session ID, if it exists.
+def _find_archive_file(session_id: str, extension: str) -> Path | None:
+    """Find an archive file for a session ID with the given extension.
 
-    Searches `.agents/archive/sessions/` for files matching the session ID
-    pattern. Returns the first match or None.
+    Searches both `.agents/archive/sessions/` and `.agents/archive/session/`
+    for files matching the session ID pattern. Returns the first match or None.
     """
     script_dir = Path(__file__).resolve().parent
-    archive_dir = script_dir.parent.parent.parent.parent / ".agents" / "archive" / "sessions"
-    if not archive_dir.is_dir():
-        return None
-    pattern = f"{session_id}*.md"
-    matches = list(archive_dir.glob(pattern))
-    if matches:
-        return matches[0]
+    base_archive = script_dir.parent.parent.parent.parent / ".agents" / "archive"
+    archive_dirs = [base_archive / "sessions", base_archive / "session"]
+    pattern = f"{session_id}*.{extension}"
+    for archive_dir in archive_dirs:
+        if not archive_dir.is_dir():
+            continue
+        matches = list(archive_dir.glob(pattern))
+        if matches:
+            return matches[0]
     return None
+
+
+def _find_archive_markdown(session_id: str) -> Path | None:
+    """Find the archive markdown file for a session ID, if it exists."""
+    return _find_archive_file(session_id, "md")
+
+
+def _find_archive_json(session_id: str) -> Path | None:
+    """Find the archive JSON file for a session ID, if it exists."""
+    return _find_archive_file(session_id, "json")
+
+
+def _filter_markdown_events(events: list[dict]) -> list[dict]:
+    """Filter events from markdown to avoid substring-based false positives.
+
+    Error events from `parse_events` use substring matching which causes issue
+    #2036. Apply the counted-failure guard to error events: keep only those
+    whose content contains a counted failure pattern like "3 failed".
+    """
+    filtered = []
+    for evt in events:
+        if evt.get("type") == "error":
+            content = evt.get("content", "")
+            if not _FAIL_COUNT_RE.search(content):
+                continue
+        filtered.append(evt)
+    return filtered
 
 
 def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     """Build the episode component bundle from a JSON session log.
 
     When `archive_fallback` is True and the JSON workLog is empty, attempts to
-    locate and parse the corresponding archive markdown file to preserve rich
-    event/decision/lesson data from migrated sessions.
+    locate and parse the corresponding archive file (JSON first, then markdown)
+    to preserve rich event/decision/lesson data from migrated sessions.
     """
     now_iso = datetime.now(UTC).isoformat()
     session = data.get("session", {})
@@ -584,19 +612,38 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
         session_date = str(session.get("date", "")).strip()
         if session_num and session_date:
             session_id = f"{session_date}-session-{session_num}"
-            archive_path = _find_archive_markdown(session_id)
-            if archive_path and archive_path.is_file():
+            archive_json_path = _find_archive_json(session_id)
+            if archive_json_path and archive_json_path.is_file():
                 try:
-                    md_content = archive_path.read_text(encoding="utf-8")
-                    md_lines = md_content.splitlines()
-                    if not events:
-                        events = parse_events(md_lines)
-                    if not decisions:
-                        decisions = parse_decisions(md_lines)
-                    if not lessons:
-                        lessons = parse_lessons(md_lines)
-                except OSError:
+                    archive_content = archive_json_path.read_text(encoding="utf-8")
+                    archive_data = looks_like_json_session(archive_content)
+                    if archive_data and archive_data.get("workLog"):
+                        archive_events = json_events(archive_data, now_iso)
+                        archive_decisions = json_decisions(archive_data, now_iso)
+                        archive_lessons = _json_lessons(archive_data)
+                        if not events:
+                            events = archive_events
+                        if not decisions:
+                            decisions = archive_decisions
+                        if not lessons:
+                            lessons = archive_lessons
+                except (OSError, json.JSONDecodeError):
                     pass
+            if not events or not decisions or not lessons:
+                archive_md_path = _find_archive_markdown(session_id)
+                if archive_md_path and archive_md_path.is_file():
+                    try:
+                        md_content = archive_md_path.read_text(encoding="utf-8")
+                        md_lines = md_content.splitlines()
+                        if not events:
+                            md_events = parse_events(md_lines)
+                            events = _filter_markdown_events(md_events)
+                        if not decisions:
+                            decisions = parse_decisions(md_lines)
+                        if not lessons:
+                            lessons = parse_lessons(md_lines)
+                    except OSError:
+                        pass
 
     return {
         "timestamp": json_timestamp(data),
