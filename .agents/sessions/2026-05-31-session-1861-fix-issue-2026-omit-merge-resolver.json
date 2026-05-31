@@ -1,0 +1,127 @@
+{
+  "session": {
+    "number": 1861,
+    "date": "2026-05-31",
+    "branch": "fix/2026-omit-merge-resolver",
+    "startingCommit": "389c1c6a3",
+    "objective": "Fix issue 2026: omit merge-resolver from publicly-shipping copilot-cli toolkit, keep canonical in .claude/skills"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions activated project ai-agents; Serena re-asserted each turn"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual via initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected at session start and reviewed (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github and session-init skill scripts invoked; build_all and validate_marketplace_counts used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first and Serena-first routing followed"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/*.md loaded via CLAUDE.md imports; templates.md (regenerate after edit) and the marketplace-count contract applied; not a new capability (packaging exclusion), so buy-vs-build skipped"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory index loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2026-omit-merge-resolver"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree at /tmp/wt-2026 on fix/2026-omit-merge-resolver off origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; canonical .claude/skills/merge-resolver untouched, only copilot copy and config changed"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "389c1c6a3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Start MUST gates complete; 261 build_scripts tests pass; marketplace counts validated; plugin-version-bump OK"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memories written earlier this session; no new memory needed for this packaging change"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This PR changes config and JSON and deletes a generated skill copy; no authored markdown files changed"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work head 1159d8c5f (config exclude, count 82 to 81, version bump, 5 generated-copy deletions); session log committed last"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "261 build_scripts tests pass; validate_marketplace_counts reports both marketplaces up to date with 81 copilot skills; validate_plugin_version_bump OK; build_all confirms merge-resolver is not regenerated"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in workLog and nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #2026: merge-resolver is hard-wired to this repo's layout and is useless in other repos, yet ships in the public copilot-cli toolkit",
+      "outcome": "Excluded merge-resolver from the copilot-cli skills stanza (excludeFilenames), removed the vendored copy under src/copilot-cli/skills/merge-resolver, updated the copilot skill count 82 to 81, and bumped the copilot plugin version. Canonical .claude/skills/merge-resolver stays for ai-agents' own use (issue resolution #1).",
+      "evidence": "261 build_scripts tests pass; build_all does not regenerate the excluded skill; copilot skill count is 81 and marketplace counts validate"
+    }
+  ],
+  "endingCommit": "1159d8c5f22242ae418b26c1b2e5edcf9f421ba2",
+  "nextSteps": [
+    "Open PR with Fixes #2026",
+    "Proceed to issue #1877 (variance-control eval harness) per user-selected batch"
+  ]
+}
