@@ -2,6 +2,7 @@
 tier: builder
 description: Audit dependencies for vulnerabilities, outdated versions, and deprecations. C#/.NET first (dotnet list package), with extensible patterns for npm, pip, and cargo. Use on a schedule or before releases to surface supply-chain risk before it reaches production.
 argument-hint: Specify the solution/project path or language ecosystem to audit (e.g. "src/MyApp.sln" or "npm")
+model_tier: sonnet
 tools_vscode:
   - $toolset:executor
   - $toolset:knowledge
@@ -84,7 +85,9 @@ what was skipped (with reason).
 
 Run the ecosystem-specific commands above. Capture structured output (JSON where
 available; parse tabular for `dotnet`). On scan failure (command missing, auth
-error, timeout), log the failure and continue to the next ecosystem.
+error, timeout), log the failure and continue to the next ecosystem. A failure
+in one ecosystem does not abort the others; only a total failure (every detected
+ecosystem failed) drives the Exit 3 signal in Step 5.
 
 ### Step 3: Classify
 
@@ -136,7 +139,9 @@ Emit a structured report:
 
 - Exit 0 if no Critical or High findings.
 - Exit 1 if any Critical or High finding (gate signal for CI/release workflows).
-- Exit 3 if a scan command failed (external/infra error per ADR-035).
+- Exit 3 only if at least one ecosystem was detected and every detected
+  ecosystem failed to scan (external/infra error per ADR-035). A partial failure
+  (some ecosystems scanned, others failed) still exits 0 or 1 based on findings.
 
 ## Anti-Patterns
 
