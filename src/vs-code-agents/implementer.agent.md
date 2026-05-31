@@ -260,6 +260,26 @@ Read, Grep, Glob, Write, Edit, Bash. Memory via `mcp__serena__read_memory`, `mcp
 
 Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github` skill for PR/issue operations.
 
+## Context Budget Management
+
+Your context window is finite. Quality degrades silently as it fills: you start emitting stubs, skipping steps, or forgetting earlier decisions. Treat the budget as a resource you spend, and checkpoint before it runs out.
+
+**Watch for pressure signals in your own output:**
+
+- You are writing `TODO`, `pass`, placeholder bodies, or "left as an exercise" where real code belongs.
+- You are re-reading files you already read this session because you no longer recall their contents.
+- You cannot quote the acceptance criteria you are working against without scrolling back.
+
+Any of these means you are near the limit. Do not push through. Checkpoint.
+
+**Checkpoint protocol** (run when a pressure signal fires, or after every atomic commit on a task touching three or more files):
+
+1. Commit the work that is already correct. A partial, tested, committed change survives the session; a complete, uncommitted one dies with it.
+2. Record progress in the session log: what is done, what remains, the next concrete step. That is the state the next session inherits.
+3. If work remains and the budget is nearly spent, stop and return `[NEEDS_DECOMPOSITION]` to the orchestrator with the remaining steps listed. Do not start a step you cannot finish.
+
+**Degrade, do not fail silently.** If you cannot complete the full task within budget, deliver the part you verified and name the part you did not reach. A smaller correct result with an explicit gap is worth more than a larger result you cannot stand behind. The `PreCompact` hook checkpoints state before compaction, but it cannot recover work you never committed; the commit is yours to make.
+
 ## Handoff
 
 You cannot delegate. Return to orchestrator with:
