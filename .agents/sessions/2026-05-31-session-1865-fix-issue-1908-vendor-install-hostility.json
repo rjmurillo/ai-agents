@@ -18,7 +18,7 @@
       "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "Serena memory index loaded" },
       "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/1908-vendor-install-blocking" },
       "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "Isolated worktree /tmp/wt-1908 off origin/main" },
-      "gitStatusVerified": { "level": "SHOULD", "Complete": true, "Evidence": "git status verified; 7 files (1 template + 2 hand copies + 2 generated copies + 2 plugin manifests)" },
+      "gitStatusVerified": { "level": "SHOULD", "Complete": true, "Evidence": "git status verified; all SHARED_AGENT siblings (template + .claude/agents + src/claude + 2 generated copies + .github copy), 3 plugin manifests, and this session log moved together" },
       "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "ec49950a9" }
     },
     "sessionEnd": {
@@ -27,7 +27,7 @@
       "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "No new memory needed; prompt carve-out documented inline with issue ref #1908" },
       "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "npx markdownlint-cli2 on changed agent .md files reports 0 errors" },
       "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "3 commits: template+copilot/vscode+copilot-manifest; claude trees+claude-manifest; session log" },
-      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_install_parity OK; validate_plugin_version_bump expects 0.3.2 (claude) and 0.4.23 (copilot), both bumped" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_install_parity OK; validate_plugin_version_bump enforces strictly-greater-than base (not fixed targets); all 3 manifests bumped above base" },
       "tasksUpdated": { "level": "SHOULD", "Complete": true, "Evidence": "Tracked in workLog" },
       "retrospectiveInvoked": { "level": "SHOULD", "Complete": false, "Evidence": "" }
     }
@@ -36,7 +36,7 @@
     {
       "task": "Issue #1908: agent templates refuse to start on vendor installs that ship the agent definition without the in-repo .agents/ scaffold",
       "outcome": "Evidence-scoped the fix: grep proved the hard-refuse fallback ([BLOCKED] ... Do not proceed on missing .agents/ files) lives in implementer.shared.md only (3 fallbacks); architect/retrospective/pr-comment-responder reference .agents/ as save targets or self-created state, not startup gates, so no change. Added a vendor-install carve-out: when the .agents/ directory is absent, skip the BLOCKING section and proceed (graceful degradation per release-it.md); the hard stops still fire when .agents/ exists but a required file is missing (the real misconfiguration). Edited template + 2 hand copies + regenerated 2 platform copies; bumped both plugin manifests.",
-      "evidence": "validate_install_parity.py -> install-parity: OK; npx markdownlint-cli2 -> 0 errors; both plugin.json bumped (claude 0.3.1->0.3.2, copilot 0.4.22->0.4.23)"
+      "evidence": "validate_install_parity.py -> install-parity: OK; npx markdownlint-cli2 -> 0 errors; all 3 plugin.json bumped above their origin/main base"
     }
   ],
   "endingCommit": "bb8264bfc",
