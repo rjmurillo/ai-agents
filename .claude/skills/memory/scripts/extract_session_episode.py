@@ -454,7 +454,7 @@ def json_timestamp(data: dict) -> str:
     return datetime.now(UTC).isoformat()
 
 
-def json_outcome(data: dict) -> str:
+def json_outcome(data: dict, additional_worklogs: list | None = None) -> str:
     """Derive outcome from the session-end MUST gates and work-log results.
 
     The authoritative signal is the ``sessionEnd`` MUST gates: a session whose
@@ -462,12 +462,20 @@ def json_outcome(data: dict) -> str:
     incomplete session is partial. ``failure`` requires an explicit counted
     failure in a work-log result AND an incomplete gate set, never a bare
     substring match.
+
+    When ``additional_worklogs`` is provided (e.g., from archive fallback), those
+    entries are also checked for counted failures to ensure outcome consistency
+    with metrics sourced from the same archive.
     """
     must = ("checklistComplete", "changesCommitted", "validationPassed")
     all_complete = all(_gate_complete(data, "sessionEnd", g) for g in must)
 
+    worklogs_to_check = _as_list(data.get("workLog"))
+    if additional_worklogs:
+        worklogs_to_check = worklogs_to_check + additional_worklogs
+
     explicit_failure = any(
-        _FAIL_COUNT_RE.search(_entry_text(e)) for e in _as_list(data.get("workLog"))
+        _FAIL_COUNT_RE.search(_entry_text(e)) for e in worklogs_to_check
     )
 
     if explicit_failure and not all_complete:
@@ -668,7 +676,10 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         archive_events = json_events(archive_data, session_ts)
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
-                        if not events:
+                        has_worklog_events = any(
+                            e.get("type") in ("milestone", "test", "error") for e in events
+                        )
+                        if not has_worklog_events:
                             events = archive_events
                         if not decisions:
                             decisions = archive_decisions
@@ -676,7 +687,10 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                             lessons = archive_lessons
                 except (OSError, json.JSONDecodeError):
                     pass
-            if not events or not decisions or not lessons:
+            has_worklog_events = any(
+                e.get("type") in ("milestone", "test", "error") for e in events
+            )
+            if not has_worklog_events or not decisions or not lessons:
                 archive_md_path = next(
                     (p for sid in candidates if (p := _find_archive_markdown(sid)) and p.is_file()),
                     None,
@@ -685,7 +699,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     try:
                         md_content = archive_md_path.read_text(encoding="utf-8")
                         md_lines = md_content.splitlines()
-                        if not events:
+                        if not has_worklog_events:
                             md_events = parse_events(md_lines, session_ts)
                             events = _filter_markdown_events(md_events)
                         if not decisions:
@@ -695,10 +709,13 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     except OSError:
                         pass
 
+    additional_worklogs = (
+        _as_list(metrics_source.get("workLog")) if metrics_source is not data else None
+    )
     return {
         "timestamp": session_ts,
         "task": str(session.get("objective") or "").strip(),
-        "outcome": json_outcome(data),
+        "outcome": json_outcome(data, additional_worklogs),
         "decisions": decisions,
         "events": events,
         "metrics": json_metrics(metrics_source),
