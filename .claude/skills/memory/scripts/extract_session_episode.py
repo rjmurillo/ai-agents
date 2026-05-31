@@ -383,7 +383,7 @@ def _entry_text(entry: Any) -> str:
     if isinstance(entry, str):
         return entry
     if isinstance(entry, dict):
-        return " ".join(str(entry.get(k, "")) for k in ("task", "action", "outcome", "evidence"))
+        return " ".join(str(entry.get(k, "")) for k in ("task", "action", "outcome", "evidence", "result"))
     return ""
 
 
@@ -529,6 +529,22 @@ def json_metrics(data: dict) -> dict:
     return metrics
 
 
+def _json_lessons(data: dict) -> list[str]:
+    """Extract lessons/learnings from JSON session log."""
+    raw = data.get("learnings", [])
+    if not isinstance(raw, list):
+        return []
+    lessons: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            lessons.append(item.strip())
+        elif isinstance(item, dict):
+            text = str(item.get("text") or item.get("content") or item.get("lesson") or "").strip()
+            if text:
+                lessons.append(text)
+    return lessons
+
+
 def extract_from_json(data: dict) -> dict:
     """Build the episode component bundle from a JSON session log."""
     now_iso = datetime.now(UTC).isoformat()
@@ -540,7 +556,7 @@ def extract_from_json(data: dict) -> dict:
         "decisions": json_decisions(data, now_iso),
         "events": json_events(data, now_iso),
         "metrics": json_metrics(data),
-        "lessons": [],
+        "lessons": _json_lessons(data),
     }
 
 
