@@ -134,7 +134,7 @@ def validate_fields(path: str, fields: dict[str, str]) -> SpecValidation:
 
     for required in _REQUIRED[spec_type]:
         value = fields.get(required, "")
-        if not value or value == "[]":
+        if not value or value == "[]" or value == "null":
             result.errors.append(f"missing required field {required!r} for type {spec_type!r}")
 
     _check_enum(result, fields, "status", _STATUS_BY_TYPE[spec_type])

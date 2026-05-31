@@ -585,7 +585,7 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | **Quick Fix** | `implementer → qa` | Can explain fix in one sentence; single file; obvious change |
 | **Standard** | `analyst → milestone-planner → implementer → qa` | Need to investigate first; 2-5 files; some complexity |
 | **Strategic** | `independent-thinker → high-level-advisor → task-decomposer` | Question is *whether*, not *how*; scope/priority question |
-| **Specification** | `spec (skill) → critic → architect → task-decomposer` | Formal EARS requirements needed; traceability required |
+| **Specification** | `/spec → critic → architect → task-decomposer` | Formal EARS requirements needed; traceability required |
 
 ## Agent Sequences by Task Type
 
@@ -603,12 +603,12 @@ These three workflow paths are the canonical reference for all task routing. Oth
 | Strategic | roadmap → architect → milestone-planner → critic | Strategic |
 | Refactoring | analyst → architect → implementer → qa | Standard |
 | Ideation | analyst → high-level-advisor → independent-thinker → critic → roadmap → explainer → task-decomposer → architect → devops → security → qa | Strategic (extended) |
-| Specification | spec (skill) → critic → architect → task-decomposer → implementer → qa | Specification |
+| Specification | /spec → critic → architect → task-decomposer → implementer → qa | Specification |
 | PR Comment (quick fix) | implementer → qa | Quick Fix |
 | PR Comment (standard) | analyst → milestone-planner → implementer → qa | Standard |
 | PR Comment (strategic) | independent-thinker → high-level-advisor → task-decomposer | Strategic |
 | Post-Retrospective | retrospective → [skillbook if skills] → [memory if updates] → git add | Automatic |
-| Specification | spec (skill) → critic → architect → task-decomposer → implementer → qa | Specification |
+| Specification | /spec → critic → architect → task-decomposer → implementer → qa | Specification |
 
 **Note**: Multi-domain features triggering 3+ areas should use impact analysis consultations during planning phase.
 
@@ -934,7 +934,7 @@ See also: `.agents/governance/consistency-protocol.md` for the complete validati
 | Infrastructure changes | devops | security |
 | Feature ideation | analyst | roadmap |
 | PR comment triage | (see PR Comment Routing) | analyst |
-| Formal specifications | /spec (spec-generator skill) | explainer |
+| Formal specifications | /spec | explainer |
 
 ## Specification Workflow
 
@@ -951,9 +951,9 @@ When formal requirements are needed, route through the spec workflow.
 **Orchestration Flow**:
 
 ```text
-1. Orchestrator routes to /spec (the spec-generator skill) with feature description
-2. The skill asks clarifying questions (returns to user if needed)
-3. The skill produces:
+1. Orchestrator routes to /spec command with feature description
+2. The /spec command runs multi-step workflow (interview, tiering, CVA, then invokes spec-generator skill at Step 6)
+3. The workflow produces:
    - REQ-NNN documents in .agents/specs/requirements/
    - DESIGN-NNN documents in .agents/specs/design/
    - TASK-NNN documents in .agents/specs/tasks/

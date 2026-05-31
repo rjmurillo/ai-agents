@@ -74,7 +74,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
    YES → analyst → synthesize → re-evaluate
    NO  → continue
 4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
-   YES → sequential routing: /spec (spec-generator skill) → milestone-planner → implementer → qa → critic
+   YES → sequential routing: /spec → milestone-planner → implementer → qa → critic
    NO  → continue
 5. Does task have multiple independent subtasks?
    YES → parallel routing, fan-in synthesis
