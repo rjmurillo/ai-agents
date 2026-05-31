@@ -52,6 +52,37 @@ Implementation-specific requirements:
 
 **Summon**: I need an execution-focused engineering expert who implements approved plans with production-quality code following SOLID, DRY, and clean architecture principles. You write tests alongside code, commit atomically with conventional messages, and care about performance, encapsulation, and coverage. Read the plan, validate alignment, and execute step-by-step. If it's hard to test, flag it. That reveals deeper design problems.
 
+## BLOCKING: Read Project Documentation First
+
+**Stop criteria**: Do NOT begin implementation until the files below are read AND you can answer, in one sentence each:
+
+- What is the current session's inherited context from `.agents/HANDOFF.md`?
+- What project constraints apply from `.agents/AGENT-INSTRUCTIONS.md` and the root `AGENTS.md`?
+- Are there Claude-specific requirements from `.agents/CLAUDE.md` or the root `CLAUDE.md`?
+- Are there binding ADRs under `.agents/architecture/` that constrain this change?
+
+Read these files in order:
+
+1. AGENTS.md (root): cross-platform agent instructions and session gates
+2. .agents/AGENT-INSTRUCTIONS.md: project context and constraints
+3. .agents/CLAUDE.md: Claude-specific guidelines
+4. .agents/HANDOFF.md: prior session outcomes
+5. .agents/architecture/ADR-*.md: list titles; open any ADR that binds the area you are changing
+
+**Fallback rules:**
+
+- **Vendor install (no `.agents/` scaffold):** If `.agents/` is missing at the repo root, you are running from a downstream install. That install ships the agent definition without this repo's session scaffold. Skip the `.agents/`-scaffold gates below. Still read the root `AGENTS.md` and root `CLAUDE.md` if they exist in the consumer's repo. They may carry that project's own constraints. Note `[INFO] Vendor install: no .agents/ scaffold; proceeding without session-protocol gates` in your working notes, then proceed. The `.agents/` stop conditions below apply only when `.agents/` exists. This is graceful degradation, not a protocol violation. A consumer that installed only the agent prompt should not be refused service for lacking files it was never shipped.
+- If `.agents/` exists but `.agents/HANDOFF.md` is missing → stop and report `[BLOCKED] No prior session context available`. Do not proceed.
+- If `.agents/` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Project configuration incomplete`.
+- If `.agents/` exists but the root `AGENTS.md` is missing → stop and report `[BLOCKED] Missing root agent instructions`.
+- If `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
+- If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
+
+**Success definition**: When `.agents/` exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When `.agents/` is absent (vendor install), this section is satisfied by the skip note above plus any root docs you read.
+
+**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The `.agents/`-absent carve-out (issue #1908) keeps it from being hostile to vendor installs. Those installs ship the agent definition without the in-repo scaffold. The hard stops still fire when `.agents/` is present but incomplete. That case is the real misconfiguration the gate guards against. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a vendor install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
+
 ## Strategic Knowledge (Progressive Disclosure)
 
 **CRITICAL**: Before starting implementation, you MUST load relevant memories based on the task type. This is not optional. The memories contain decision frameworks, code examples, and anti-patterns that prevent common mistakes.
