@@ -107,7 +107,8 @@ After the verdict block, provide the supporting analysis in this format:
 ### Verdict
 
 Choose the verdict by highest-severity finding (do not emit a second
-`VERDICT:` line here; the verdict on the first line is canonical):
+`VERDICT:` line here; if multiple verdict lines appear, `extract_verdict`
+returns the last match, which may differ from your intended leading verdict):
 
 - `PASS` - No security issues found
 - `WARN` - Minor issues that don't block merge
@@ -213,6 +214,8 @@ The response MUST begin with a single line (the first line) matching the regex
 `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label is case-insensitive; tokens are case-sensitive uppercase). Emit it once, at the start, so it survives output truncation (issue #2006).
 This line is parsed by `extract_verdict` in
 `.claude/lib/ai_review_common/verdict.py` and consumed by `merge_verdicts`
-when `/review` aggregates across all axes.
+when `/review` aggregates across all axes. Note: `extract_verdict` returns
+the last match if multiple verdict lines appear; emit exactly one verdict
+line to avoid ambiguity between the leading verdict and any later occurrences.
 
 Refs REQ-008-01, REQ-008-05 (issue #1934).
