@@ -1,0 +1,128 @@
+{
+  "session": {
+    "number": 1859,
+    "date": "2026-05-31",
+    "branch": "fix/2006-security-verdict-first",
+    "startingCommit": "e6fa83a93",
+    "objective": "Fix issue 2006: security review prompt emits VERDICT on first line so truncated reviews stay parseable, add regression test"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions activated project ai-agents; symbolic tools used earlier this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual via initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected at session start and reviewed (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github and session-init skill scripts invoked; generate_pr_quality_prompts and build_all used for prompt regeneration"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first and Serena-first routing followed; raw gh replaced with skill scripts"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/*.md loaded via CLAUDE.md imports; security.md rule (security-sensitive change) and templates.md (regenerate after edit) applied"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory index loaded; pr-review verdict-token memories consulted"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2006-security-verdict-first"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree at /tmp/wt-2006 on fix/2006-security-verdict-first off origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; only the canonical prompt, its generated CI prompt, the copilot copy, and the test changed"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e6fa83a93"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Start MUST gates complete; work landed across 3 atomic commits; 230 ai-review tests and 48 generator tests pass"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory updated this session (workflow/worktree-session-init-writes-to-main, decision-merge-ready-blocked-vs-behind)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on the one linted markdown file (.github/prompts) reports 0 errors; the two skills markdown files are excluded by config"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work head f1b593996; session log committed last"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "230 ai-review tests, 48 generator tests pass; plugin-version-bump and install-parity pass; only pre-existing markdown, agent-drift, and git-hooks environment failures remain, outside this diff"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in workLog and nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #2006: security review verdict was a final line; output-budget truncation dropped it, parser fell through to NEEDS_REVIEW and blocked a substantively-PASS PR",
+      "outcome": "Reworded the canonical security axis prompt to emit a single VERDICT line FIRST (truncation-robust), removed the trailing duplicate, regenerated the CI prompt and copilot copy, and added a regression test against the captured PR #2004 truncated output. Parser unchanged per issue scope.",
+      "evidence": "230 ai-review tests pass (3 new in TestSecurityTruncationRegression); 48 generator tests pass; generated prompts match canonical (no drift)"
+    }
+  ],
+  "endingCommit": "f1b5939968a631863e7b587fcc271d5617db7706",
+  "nextSteps": [
+    "Open PR with Fixes #2006",
+    "Security agent reviews this prompt change in CI (security-sensitive)",
+    "Possible follow-up: apply the same VERDICT-first pattern to the other axis prompts (analyst, architect, qa, devops, roadmap)"
+  ]
+}

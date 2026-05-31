@@ -1,7 +1,7 @@
 # Skill Sidecar Learnings: agent-prompt-optimization
 
-**Last Updated**: 2026-04-11
-**Sessions Analyzed**: 1 (feat/agent-prompt-optimization branch)
+**Last Updated**: 2026-05-30
+**Sessions Analyzed**: 2 (feat/agent-prompt-optimization; wiki-rubric audit #2126/#2136)
 **Related**: knowledge-integration-observations.md (PR #1614, same refs pattern but for skills)
 
 ## Constraints (HIGH confidence)
@@ -100,6 +100,16 @@ These sections appear in most/all agents and are candidates for extraction to sh
 
 Slimming these out saved 40-89% per agent without any capability loss.
 
+### Ground agent/skill changes in evals; prove effectiveness, do not assume
+
+Before filing improvement issues, dedup against ALL open issues (`gh issue list`). Ground proposed changes in the committed eval baseline (`evals/baseline-report.md`) + triage docs (`evals/agent-triage.md`, `evals/skill-triage.md`). After editing, PROVE effectiveness: (a) regression-run every edited eval-able agent vs its committed baseline delta, and (b) author NEW fixtures for behaviours the existing harness does not measure. Most description/safety edits are non-regression-only against the verdict-recall harness; the real signal needs new behavioural fixtures.
+
+**Source**: user — "check for issues already filed so we don't get dupes", "the items need to have their evals run to determine if the edits are effective". (2026-05-30)
+
+### Delegate, do not re-embed another skill's framework
+
+When a skill body re-implements another skill's framework (e.g. `programming-advisor` Steps 5/9 duplicated `buy-vs-build-framework`'s decision matrix in weaker scriptless prose), replace it with a delegation, not a copy. Check the tier: tactical ("use a library vs glue code") vs strategic ("build/buy/partner/defer with multi-year TCO"). Reciprocal SKIP clauses: each artifact owns only its own side; verify both sides landed. (#2140/#2141, 2026-05-30)
+
 ## Edge Cases (MED confidence)
 
 ### Tagging eval prompts with Cynefin classification
@@ -129,9 +139,16 @@ This is THE fundamental distinction for knowledge placement. Skills can afford r
 
 **Implication**: Use skills for reusable capability packages. Use agents for persona definitions. Never conflate.
 
+### New eval fixtures: score behaviour via regex, not the verdict token
+
+The agent-vs-baseline harness (`scripts/eval/eval-agent-vs-baseline.py`) forces the first output token to `IDENTIFY|OK|ESCALATE`. Specialized agents use IDENTIFY vs ESCALATE inconsistently for "I found a problem" (verdict-vocabulary confound, baseline-report followup #1). New fixtures must score the agent-specific BEHAVIOURAL marker via a regex the naive baseline will not emit (e.g. security cites the ASI taxonomy `ASI0\d`; qa says "claim, not evidence" / "reconciliation block"), NOT the verdict token. Also: obvious injections / easy routing SATURATE (the naive baseline already resists/disambiguates), so fixtures need agent-specific markers or harder adversarial inputs to discriminate. Custom eval scripts must call `_anthropic_api.call_api` (urllib transport); the `anthropic` SDK is NOT installed in this repo.
+
+**Source**: new injection (security F011-F016) + evidence (qa Q009-Q012) fixtures; my first pass wrongly asserted ESCALATE while agents said IDENTIFY -> false 0.50. Recalibrated to regex -> security agent 1.000 vs baseline 0.333 SIG-POS. (2026-05-30)
+
 ## Notes for Review (LOW confidence)
 
 - Consider whether task-decomposer, milestone-planner, roadmap would also benefit from the same slim pattern even though they scored above 3.5 baseline
 - Research whether "produce when you can, ask when you must" template should be extracted into a shared agent fragment referenced by all ask-first agents
 - Investigate whether the 4.0 floor we achieved post-slim is actually a ceiling imposed by the LLM-as-judge scoring framework rather than the actual agents
 - Consider publishing eval-agents.py with Cynefin-aware scoring as a reusable tool for other agent-based projects
+- The Workflow tool silently dropped a large nested `args` key (a `clusters` array) on one run; inline big config (cluster/page lists, rubrics) as `const` in the script body rather than passing via `args`. (2026-05-30)
