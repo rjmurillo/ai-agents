@@ -112,12 +112,12 @@ def get_decision_type(text: str) -> str:
     return "implementation"
 
 
-def parse_decisions(lines: list[str]) -> list[dict[str, Any]]:
+def parse_decisions(lines: list[str], timestamp: str | None = None) -> list[dict[str, Any]]:
     """Extract decisions from session log."""
     decisions: list[dict[str, Any]] = []
     decision_index = 0
     in_decision_section = False
-    now_iso = datetime.now(UTC).isoformat()
+    ts = timestamp if timestamp is not None else datetime.now(UTC).isoformat()
 
     for i, line in enumerate(lines):
         if re.match(r'^##\s*Decisions?', line):
@@ -154,7 +154,7 @@ def parse_decisions(lines: list[str]) -> list[dict[str, Any]]:
 
             decisions.append({
                 "id": f"d{decision_index:03d}",
-                "timestamp": now_iso,
+                "timestamp": ts,
                 "type": get_decision_type(decision_text),
                 "context": context,
                 "chosen": decision_text,
@@ -172,7 +172,7 @@ def parse_decisions(lines: list[str]) -> list[dict[str, Any]]:
             decision_index += 1
             decisions.append({
                 "id": f"d{decision_index:03d}",
-                "timestamp": now_iso,
+                "timestamp": ts,
                 "type": "implementation",
                 "context": "",
                 "chosen": line.strip(),
@@ -184,11 +184,11 @@ def parse_decisions(lines: list[str]) -> list[dict[str, Any]]:
     return decisions
 
 
-def parse_events(lines: list[str]) -> list[dict]:
+def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
     """Extract events from session log."""
     events = []
     event_index = 0
-    now_iso = datetime.now(UTC).isoformat()
+    ts = timestamp if timestamp is not None else datetime.now(UTC).isoformat()
 
     for line in lines:
         evt = None
@@ -201,7 +201,7 @@ def parse_events(lines: list[str]) -> list[dict]:
             event_index += 1
             evt = {
                 "id": f"e{event_index:03d}",
-                "timestamp": now_iso,
+                "timestamp": ts,
                 "type": "commit",
                 "content": f"Commit: {m.group(1)}",
                 "caused_by": [],
@@ -216,7 +216,7 @@ def parse_events(lines: list[str]) -> list[dict]:
             event_index += 1
             evt = {
                 "id": f"e{event_index:03d}",
-                "timestamp": now_iso,
+                "timestamp": ts,
                 "type": "error",
                 "content": line.strip(),
                 "caused_by": [],
@@ -232,7 +232,7 @@ def parse_events(lines: list[str]) -> list[dict]:
             content = re.sub(r'^[-*]\s*', '', line.strip())
             evt = {
                 "id": f"e{event_index:03d}",
-                "timestamp": now_iso,
+                "timestamp": ts,
                 "type": "milestone",
                 "content": content,
                 "caused_by": [],
@@ -244,7 +244,7 @@ def parse_events(lines: list[str]) -> list[dict]:
             event_index += 1
             evt = {
                 "id": f"e{event_index:03d}",
-                "timestamp": now_iso,
+                "timestamp": ts,
                 "type": "test",
                 "content": line.strip(),
                 "caused_by": [],
@@ -554,7 +554,8 @@ def _find_archive_file(session_id: str, extension: str) -> Path | None:
     """Find an archive file for a session ID with the given extension.
 
     Searches both `.agents/archive/sessions/` and `.agents/archive/session/`
-    for files matching the session ID pattern. Returns the first match or None.
+    for files matching the session ID pattern. Returns the shortest-named match
+    (preferring exact matches) to ensure deterministic selection across platforms.
     """
     script_dir = Path(__file__).resolve().parent
     base_archive = script_dir.parent.parent.parent.parent / ".agents" / "archive"
@@ -565,6 +566,7 @@ def _find_archive_file(session_id: str, extension: str) -> Path | None:
             continue
         matches = list(archive_dir.glob(pattern))
         if matches:
+            matches.sort(key=lambda p: (len(p.name), p.name))
             return matches[0]
     return None
 
@@ -640,10 +642,10 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         md_content = archive_md_path.read_text(encoding="utf-8")
                         md_lines = md_content.splitlines()
                         if not events:
-                            md_events = parse_events(md_lines)
+                            md_events = parse_events(md_lines, session_ts)
                             events = _filter_markdown_events(md_events)
                         if not decisions:
-                            decisions = parse_decisions(md_lines)
+                            decisions = parse_decisions(md_lines, session_ts)
                         if not lessons:
                             lessons = parse_lessons(md_lines)
                     except OSError:
