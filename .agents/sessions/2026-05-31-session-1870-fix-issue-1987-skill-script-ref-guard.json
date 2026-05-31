@@ -1,0 +1,48 @@
+{
+  "session": {
+    "number": 1870,
+    "date": "2026-05-31",
+    "branch": "fix/1987-skill-script-ref-guard",
+    "startingCommit": "60c363c5e",
+    "objective": "Fix issue 1987: extend orphan-ref-validator to catch skill-script references"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Serena re-asserted each turn" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "initial_instructions manual" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md auto-injected (read-only per ADR-014)" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "orphan-ref-validator scan.py; github + session-init skills; build_all for sync" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Search-before-building Layer 1: found orphan-ref-validator already detects script-path orphans; extended it (approved-capability extension, gate-exempt) rather than building a new validator" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": ".claude/rules/*.md loaded; canonical-source-mirror (pattern cites the #1987 failure), testing.md (pos/neg/edge), claude-agents.md (skill sync) applied" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "Serena memory index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "fix/1987-skill-script-ref-guard" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "Isolated worktree /tmp/wt-1987 off origin/main (60c363c5e)" },
+      "gitStatusVerified": { "level": "SHOULD", "Complete": true, "Evidence": "git status verified; scanner code + tests (3 locations) + cva-analysis fix + version bump" },
+      "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "60c363c5e" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "SKILL_SCRIPT_REF_RE + extract + _check_skill_script_refs added; cva-analysis orphans fixed; tests added to CI-collected + skill-local + copilot" },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "No new memory file; the #1987 failure is encoded in the pattern comment and recommendation text" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "cva-analysis SKILL.md is under .claude/skills (markdownlint-exempt by config); no other authored markdown changed" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Atomic commits: detection code, tests, cva-analysis fix, version bump, session log" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "CI test 8 passed; skill-local + copilot 56 passed each; install-parity OK; scanner finds 0 skill-script orphans after the cva-analysis fix" },
+      "tasksUpdated": { "level": "SHOULD", "Complete": true, "Evidence": "Tracked in workLog" },
+      "retrospectiveInvoked": { "level": "SHOULD", "Complete": false, "Evidence": "" }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #1987: agents invoke skill scripts by the wrong name (e.g. get_unresolved_threads.py for get_unresolved_review_threads.py); nothing static catches the orphan reference",
+      "outcome": "Extended the existing orphan-ref-validator (an approved capability) with SKILL_SCRIPT_REF_RE, extract_skill_script_refs, and _check_skill_script_refs that detect references to .claude/skills/**/scripts/**.py (and the copilot mirror) in both backticked and bare python3-command forms, checking existence against the working tree. The existing SCRIPT_REF_RE required backticks and only the build/scripts|scripts/validation|scripts prefixes, so it missed this class. Running the new check across the repo surfaced two real orphans in cva-analysis SKILL.md (generate-cva-template.py, export-cva-matrix.py document usage for scripts that were never implemented); fixed the doc to mark them planned without invocable paths. Added tests in the CI-collected tests/ location plus the skill-local and copilot copies. Bumped project-toolkit 0.4.25 -> 0.4.26.",
+      "evidence": "pytest tests/skills/orphan-ref-validator -> 8 passed; skill-local + copilot -> 56 passed; scanner reports 0 skill-script orphans repo-wide after the cva-analysis fix"
+    }
+  ],
+  "endingCommit": "ac64ea12d",
+  "nextSteps": [
+    "Open PR with Fixes #1987 (sub-failure 1: wrong script name)",
+    "Sub-failure 2 (JSON-shape: inconsistent Data envelope across github scripts) is a separate output-contract standardization, out of scope here",
+    "Optional follow-up: wire the /build gate to scan agents/commands/skill-descriptions by default so the guard fires on authored refs, not only on demand"
+  ]
+}
