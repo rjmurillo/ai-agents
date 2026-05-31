@@ -192,7 +192,7 @@ def classify_finding(
             "responses-bit-identical: the variance did not come from the API. "
             "Investigate the harness, scorer state, or fixture-text mutation."
         )
-    if verdict_var["stable"]:
+    if verdict_var["stable"] and verdict_var["modal_verdict"] != "<none>":
         return (
             "text-varies-verdict-stable: the API has output-text non-determinism "
             "but the scorer is robust. Gate AC-10 on verdict variance, not text variance."
@@ -207,10 +207,11 @@ def classify_finding(
 def summarize_variance(records: list[RepRecord], expected: str) -> dict:
     """Aggregate one run's records into the variance report payload.
 
-    Text/verdict metrics use only reps that produced a response; error reps are
-    counted separately so a transport failure does not masquerade as variance.
+    Text/verdict metrics use only reps that produced a successful response; error
+    reps are counted separately so a transport failure does not masquerade as
+    variance.
     """
-    answered = [r for r in records if r.response]
+    answered = [r for r in records if r.outcome == "success" and r.response]
     responses = [r.response for r in answered]
     verdicts = [r.verdict for r in answered]
     text_var = response_text_variance(responses)
@@ -409,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         fixture = _load_fixture(args.fixture)
         expected = _expected_verdict(fixture)
         agent_prompt = _read_agent_prompt(args.agent)
-    except (FileNotFoundError, ValueError) as exc:
+    except (FileNotFoundError, ValueError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
 
@@ -421,7 +422,11 @@ def main(argv: list[str] | None = None) -> int:
     # permission or path errors without wasting billable API spend (Bug #5).
     out_dir = _assert_under_repo_root(REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id))
     if not args.dry_run:
-        out_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            print(f"Error creating output directory: {exc}", file=sys.stderr)
+            return 2
 
     if args.dry_run:
         print(
@@ -440,15 +445,19 @@ def main(argv: list[str] | None = None) -> int:
         model_id=args.model,
     )
     summary = summarize_variance(records, expected)
-    (out_dir / "raw.jsonl").write_text(
-        "".join(json.dumps(r.__dict__) + "\n" for r in records), encoding="utf-8"
-    )
-    (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     report = build_report_md(
         run_id=run_id, fixture_id=args.fixture, agent=args.agent,
         model_id=args.model, summary=summary,
     )
-    (out_dir / "REPORT.md").write_text(report, encoding="utf-8")
+    try:
+        (out_dir / "raw.jsonl").write_text(
+            "".join(json.dumps(r.__dict__) + "\n" for r in records), encoding="utf-8"
+        )
+        (out_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        (out_dir / "REPORT.md").write_text(report, encoding="utf-8")
+    except OSError as exc:
+        print(f"Error writing output: {exc}", file=sys.stderr)
+        return 2
     print(report)
     print(f"Wrote {out_dir.relative_to(REPO_ROOT)}/")
     return 0
