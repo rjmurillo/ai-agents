@@ -41,6 +41,11 @@ runners as well as Windows. Defer to `PSScriptAnalyzer` settings in the repo.
 - After calling an external (native) executable, check `$LASTEXITCODE` explicitly
   and reset it. A non-zero `$LASTEXITCODE` left over from one command makes a
   later step or the whole workflow look failed.
+- Standardize process exit codes per ADR-035: `0` success, `1` logic or validation
+  error, `2` usage or configuration error, `3` external or dependency failure,
+  `4` authentication or authorization failure (`5`-`99` reserved, `100`+ documented
+  script-specific). `exit` with the matching code so callers and CI branch on the
+  cause, not just pass or fail.
 
 ## Testing
 
