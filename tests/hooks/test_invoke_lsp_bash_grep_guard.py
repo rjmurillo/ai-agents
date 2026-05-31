@@ -132,7 +132,7 @@ class TestEvaluateCommand:
         assert guard.evaluate_command("", str(REPO_ROOT)) is None
 
     def test_allows_non_string_command(self):
-        assert guard.evaluate_command(123, str(REPO_ROOT)) is None  # type: ignore[arg-type]
+        assert guard.evaluate_command(123, str(REPO_ROOT)) is None
 
     def test_blocks_egrep(self):
         assert guard.evaluate_command('egrep "parseConfig" src/app.py', str(REPO_ROOT)) is not None

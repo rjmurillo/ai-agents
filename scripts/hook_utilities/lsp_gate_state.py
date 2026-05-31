@@ -155,8 +155,10 @@ def _normalize_state(data: dict, cwd: str) -> dict:
 
 def _coerce_int(value: object) -> int:
     """Coerce a value to a non-negative int, defaulting to 0."""
+    if not isinstance(value, (int, float, str)):
+        return 0
     try:
-        result = int(value)  # type: ignore[arg-type]
+        result = int(value)
     except (TypeError, ValueError):
         return 0
     return result if result >= 0 else 0

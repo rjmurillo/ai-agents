@@ -144,7 +144,7 @@ class TestIsGatedTarget:
         monkeypatch.setattr(guard.Path, "relative_to", fake_relative_to)
         # Path is in-repo (so it passes the parents check) but relative_to raises.
         assert guard.is_gated_target(PY_TARGET, str(REPO_ROOT)) is False
-        guard.Path.relative_to = real_relative_to  # type: ignore[method-assign]
+        setattr(guard.Path, "relative_to", real_relative_to)
 
 
 # ---------------------------------------------------------------------------

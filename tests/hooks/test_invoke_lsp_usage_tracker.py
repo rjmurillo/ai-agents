@@ -107,10 +107,10 @@ class TestIsLspNavigationTool:
         assert not invoke_lsp_usage_tracker.is_lsp_navigation_tool("")
 
     def test_non_string_rejected(self):
-        assert not invoke_lsp_usage_tracker.is_lsp_navigation_tool(None)  # type: ignore[arg-type]
+        assert not invoke_lsp_usage_tracker.is_lsp_navigation_tool(None)
 
     def test_non_string_int_rejected(self):
-        assert not invoke_lsp_usage_tracker.is_lsp_navigation_tool(42)  # type: ignore[arg-type]
+        assert not invoke_lsp_usage_tracker.is_lsp_navigation_tool(42)
 
     def test_plain_non_mcp_tool_rejected(self):
         assert not invoke_lsp_usage_tracker.is_lsp_navigation_tool("Bash")
