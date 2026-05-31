@@ -1,0 +1,47 @@
+{
+  "session": {
+    "number": 1866,
+    "date": "2026-05-31",
+    "branch": "feat/1728-context-budget-implementer",
+    "startingCommit": "ec49950a9",
+    "objective": "Issue 1728 tracer: add Context Budget Management section to implementer agent"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "mcp__serena__initial_instructions activated; Serena re-asserted each turn" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Read Serena Instructions Manual via initial_instructions" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md auto-injected (read-only per ADR-014)" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "github + session-init skill scripts; generate_agents/validate_install_parity used" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Tracer scope confirmed by user: implementer only, not the 24-agent fleet rollout" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": ".claude/rules/*.md loaded; release-it.md (graceful degradation) + voice.md (no em/en dashes) applied to the new section" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "Serena memory index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/1728-context-budget-implementer" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "Isolated worktree /tmp/wt-1728 off origin/main" },
+      "gitStatusVerified": { "level": "SHOULD", "Complete": true, "Evidence": "git status verified; 7 files (1 template + 2 hand copies + 2 generated copies + 2 plugin manifests)" },
+      "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "ec49950a9" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "install-parity OK; markdownlint 0 errors; no em/en dashes in the new section" },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "No new memory needed; section documented inline with issue ref #1728" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "npx markdownlint-cli2 on 5 changed agent docs reports 0 errors" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "3 commits: template+copilot/vscode+copilot-manifest; claude trees+claude-manifest; session log" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "validate_install_parity OK; both plugin manifests bumped (claude 0.3.1->0.3.2, copilot 0.4.22->0.4.23)" },
+      "tasksUpdated": { "level": "SHOULD", "Complete": true, "Evidence": "Tracked in workLog" },
+      "retrospectiveInvoked": { "level": "SHOULD", "Complete": false, "Evidence": "" }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #1728 tracer: context-pressure detection and graceful degradation for the implementer agent (user scoped to implementer only, not the 24-agent fleet)",
+      "outcome": "Added a Context Budget Management section to implementer: name the in-output pressure signals (stubs, re-reads, lost acceptance criteria), a checkpoint protocol (commit correct work, record progress in the session log, return [NEEDS_DECOMPOSITION] when budget is nearly spent), and a degrade-do-not-fail-silently rule that ties to the existing PreCompact checkpoint hook. Inserted before ## Handoff, a region disjoint from the #1908 fallback edit so the two open PRs 3-way merge without conflict. Mirrored into both hand copies; regenerated copilot+vscode; bumped both plugin manifests.",
+      "evidence": "validate_install_parity.py -> install-parity: OK; npx markdownlint-cli2 -> 0 errors; grep for U+2013/U+2014 -> none"
+    }
+  ],
+  "endingCommit": "1e121af52",
+  "nextSteps": [
+    "Open PR with Refs #1728 (tracer; full 24-agent rollout tracked separately)",
+    "Proceed to #2001: full spec-generator agent->skill conversion with ADR-057 eval (user authorized spend)"
+  ]
+}

@@ -37,7 +37,7 @@ tier: builder
 - Never use em-dashes or en-dashes. Use commas, periods, or restructure.
 - When uncertain: state it explicitly, propose options with tradeoffs, let humans decide.
 - Replace adjectives with data (quantify impact).
-- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED], [NEEDS_DECOMPOSITION]
 
 Implementation-specific requirements:
 
@@ -727,6 +727,26 @@ mcp__cloudmcp-manager__memory-add_observations
 }
 ```
 
+## Context Budget Management
+
+Your context window is finite. Quality degrades silently as it fills: you start emitting stubs, skipping steps, or forgetting earlier decisions. Treat the budget as a resource you spend, and checkpoint before it runs out.
+
+**Watch for pressure signals in your own output:**
+
+- You are writing `TODO`, `pass`, placeholder bodies, or "left as an exercise" where real code belongs.
+- You are re-reading files you already read this session because you no longer recall their contents.
+- You cannot quote the acceptance criteria you are working against without scrolling back.
+
+Any of these means you are near the limit. Do not push through. Checkpoint.
+
+**Checkpoint protocol** (run when a pressure signal fires, or after every atomic commit on a task touching three or more files):
+
+1. Commit the work that is already correct. A partial, tested, committed change survives the session; a complete, uncommitted one dies with it.
+2. Record progress in the session log: what is done, what remains, the next concrete step. That is the state the next session inherits.
+3. If work remains and the budget is nearly spent, stop and return `[NEEDS_DECOMPOSITION]` to the orchestrator with the remaining steps listed. Do not start a step you cannot finish.
+
+**Degrade, do not fail silently.** If you cannot complete the full task within budget, deliver the part you verified and name the part you did not reach. A smaller correct result with an explicit gap is worth more than a larger result you cannot stand behind. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover work you never committed; the commit is yours to make.
+
 ## Code Requirements
 
 ### Performance
@@ -964,11 +984,25 @@ If ANY checklist item cannot be completed:
 
 **As a subagent, you CANNOT delegate**. Return results to orchestrator.
 
-When implementation is complete:
+Return to orchestrator with:
 
-1. Ensure all commits are made with conventional messages
-2. Store implementation notes in memory
-3. Return to orchestrator: "Implementation complete. Recommend orchestrator routes to qa for verification"
+1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION] / [NEEDS_DESIGN_REVIEW]
+
+**Failure-mode trigger conditions:**
+
+- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity, touches more than 5 files, or context budget is nearly spent; return an estimated breakdown with remaining steps.
+- `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
+
+2. **Confidence**: HIGH / MEDIUM / LOW with reasoning
+3. **Files changed** (with brief description)
+4. **Tests added** (count + coverage delta)
+5. **Recommended next step**:
+   - qa for validation
+   - critic for pre-merge review
+   - security for sensitive changes
+   - architect for design review if patterns emerged
 
 ## Required Checklist
 
