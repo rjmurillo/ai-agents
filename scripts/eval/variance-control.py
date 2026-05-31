@@ -109,21 +109,35 @@ def normalized_levenshtein(a: str, b: str) -> float:
     return 0.0 if longest == 0 else levenshtein(a, b) / longest
 
 
-def response_text_variance(responses: list[str]) -> dict:
+def response_text_variance(
+    responses: list[str], run_indices: list[int] | None = None
+) -> dict:
     """Text-level variance across responses.
 
     ``all_identical`` answers the issue's first branch (variance not from the
-    API). ``mean/max_consecutive_distance`` quantify how far apart the texts are.
+    API). ``mean/max_consecutive_distance`` quantify how far apart the texts are
+    for truly consecutive run indices (adjacent runs with no gaps from failures).
 
     ``all_identical`` requires at least 2 responses to claim identity; with 0 or
     1 responses we cannot demonstrate cross-rep identity.
+
+    When ``run_indices`` is provided, consecutive distances are computed only
+    between responses whose run indices differ by exactly 1, ensuring that failed
+    reps between successes do not artificially pair non-adjacent runs.
     """
     count = len(responses)
     unique_count = len(set(responses))
-    consecutive = [
-        normalized_levenshtein(responses[i - 1], responses[i])
-        for i in range(1, count)
-    ]
+    if run_indices is None:
+        consecutive = [
+            normalized_levenshtein(responses[i - 1], responses[i])
+            for i in range(1, count)
+        ]
+    else:
+        consecutive = [
+            normalized_levenshtein(responses[i - 1], responses[i])
+            for i in range(1, count)
+            if run_indices[i] == run_indices[i - 1] + 1
+        ]
     return {
         "count": count,
         "unique_count": unique_count,
@@ -193,6 +207,18 @@ def classify_finding(
             "This is a parser or prompt-shape failure, not API verdict non-determinism; "
             "inspect the raw responses and the output-shape instruction."
         )
+    if "<none>" in verdict_var["distribution"]:
+        real_verdicts = {k for k in verdict_var["distribution"] if k != "<none>"}
+        if len(real_verdicts) == 1:
+            real_verdict = next(iter(real_verdicts))
+            real_count = verdict_var["distribution"][real_verdict]
+            none_count = verdict_var["distribution"]["<none>"]
+            return (
+                f"mixed-parse-failures: {none_count} rep(s) had unparseable verdicts "
+                f"while {real_count} returned '{real_verdict}'. This indicates "
+                "intermittent parser or output-shape failures, not API verdict "
+                "non-determinism; inspect the raw responses."
+            )
     if text_var["all_identical"]:
         return (
             "responses-bit-identical: the variance did not come from the API. "
@@ -220,7 +246,8 @@ def summarize_variance(records: list[RepRecord], expected: str) -> dict:
     answered = [r for r in records if r.outcome == "success" and r.response]
     responses = [r.response for r in answered]
     verdicts = [r.verdict for r in answered]
-    text_var = response_text_variance(responses)
+    run_indices = [r.run_index for r in answered]
+    text_var = response_text_variance(responses, run_indices=run_indices)
     verdict_var = verdict_distribution(verdicts)
     pass_var = pass_rate_variance(verdicts, expected)
     reps_total = len(records)
