@@ -121,6 +121,16 @@ class TestFindTopicalMemories:
     def test_missing_dir_returns_empty(self, tmp_path):
         assert find_topical_memories(str(tmp_path), "github", time.monotonic() + 10) == []
 
+    def test_summary_skips_frontmatter(self, tmp_path):
+        # A memory file with YAML frontmatter must summarize to the heading,
+        # not the first frontmatter key (e.g. "status: accepted").
+        _seed_memories(tmp_path, {
+            "github/github-cli-notes.md": "---\nstatus: accepted\ntags: [a, b]\n---\n# Real Heading\nbody",
+        })
+        out = find_topical_memories(str(tmp_path), "github", time.monotonic() + 10)
+        assert len(out) == 1
+        assert out[0][1] == "Real Heading"
+
 
 class TestMain:
     def _run(self, tmp_path, stdin: str, monkeypatch, capsys):
@@ -152,7 +162,7 @@ class TestMain:
         assert cap.out.strip() == ""
 
     def test_bad_stdin_exits_zero(self, tmp_path, monkeypatch, capsys):
-        rc, cap = self._run(tmp_path, "{not json", monkeypatch, capsys)
+        rc, _ = self._run(tmp_path, "{not json", monkeypatch, capsys)
         assert rc == 0
 
     def test_consumer_repo_skips(self, tmp_path, monkeypatch, capsys):

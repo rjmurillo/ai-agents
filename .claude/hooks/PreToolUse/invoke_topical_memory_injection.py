@@ -101,7 +101,9 @@ def parse_file_path(stdin_data: str) -> str | None:
         data = json.loads(stdin_data)
     except (json.JSONDecodeError, TypeError):
         return None
-    tool_input = data.get("tool_input", {})
+    tool_input = data.get("tool_input")
+    if tool_input is None:
+        tool_input = {}
     if isinstance(tool_input, str):
         try:
             tool_input = json.loads(tool_input)
@@ -151,11 +153,24 @@ def _summary_line_from_file(path: Path) -> str:
     """Return a one-line summary by reading only until the first heading/prose line.
 
     Opens the file and reads line-by-line to avoid loading large files entirely.
+    A leading YAML frontmatter block (delimited by ``---``) is skipped so its
+    keys are never mistaken for the summary.
     """
     try:
         with path.open("r", encoding="utf-8") as f:
+            in_frontmatter = False
+            seen_first = False
             for raw in f:
                 line = raw.strip()
+                if not seen_first:
+                    seen_first = True
+                    if line == "---":
+                        in_frontmatter = True
+                        continue
+                if in_frontmatter:
+                    if line == "---":
+                        in_frontmatter = False
+                    continue
                 if not line or line == "---":
                     continue
                 if line.startswith("#"):
@@ -230,7 +245,6 @@ def main() -> int:
         if not stdin_data.strip():
             return 0
 
-        deadline = time.monotonic() + SCAN_DEADLINE_SECONDS
         file_path = parse_file_path(stdin_data)
         if not file_path:
             return 0
@@ -240,6 +254,7 @@ def main() -> int:
         if not topic:
             return 0
 
+        deadline = time.monotonic() + SCAN_DEADLINE_SECONDS
         memories = find_topical_memories(project_root, topic, deadline)
         if not memories:
             return 0
