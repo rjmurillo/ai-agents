@@ -19,7 +19,6 @@ This document describes all 23 specialized agents in the AI Agents system. Each 
 | [high-level-advisor](#high-level-advisor) | Strategy | Claude, Copilot CLI, VS Code |
 | [independent-thinker](#independent-thinker) | Strategy | Claude, Copilot CLI, VS Code |
 | [explainer](#explainer) | Documentation | Claude, Copilot CLI, VS Code |
-| [spec-generator](#spec-generator) | Documentation | Claude only |
 | [task-decomposer](#task-decomposer) | Planning | Claude, Copilot CLI, VS Code |
 | [backlog-generator](#backlog-generator) | Planning | Claude, Copilot CLI, VS Code |
 | [debug](#debug) | Implementation | Claude, Copilot CLI, VS Code |
@@ -243,15 +242,7 @@ Documentation specialist. Writes PRDs, explainers, and technical specifications 
 
 **Output:** Specs, user guides, PRDs with clear acceptance criteria.
 
-### spec-generator
-
-Requirement specifications specialist. Transforms feature descriptions into structured 3-tier specifications using EARS requirements format. Guides users through clarifying questions, then produces requirements.md, design.md, and tasks.md with full traceability.
-
-**Use when:** A feature idea needs to become an implementable specification.
-
-**Output:** requirements.md, design.md, and tasks.md with EARS-format requirements.
-
-> **Note:** Available in Claude Code only.
+> **Note:** spec-generation moved from an agent to the `spec-generator` skill (issue #2001). See `.claude/skills/spec-generator/`.
 
 ## Operations
 
