@@ -362,6 +362,8 @@ def _original_main(stdin_bytes):
 
         results: list[tuple[str, str]] = []
         for _mtime, path, rel in candidates[:MAX_MEMORIES]:
+            if time.monotonic() > deadline:
+                break
             results.append((rel, _summary_line_from_file(path)))
         return results
 
