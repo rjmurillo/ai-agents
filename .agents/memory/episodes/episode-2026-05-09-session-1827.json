@@ -1,40 +1,48 @@
 {
   "id": "episode-2026-05-09-session-1827",
   "session": "2026-05-09-session-1827",
-  "timestamp": "2026-05-09T22:53:39.282737+00:00",
+  "timestamp": "2026-05-09T00:00:00+00:00",
   "outcome": "success",
-  "task": "",
+  "task": "/test + /review fix-loop: doc orphan cleanup, gitignore, design-review note",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-09T22:53:39.280491+00:00",
+      "timestamp": "2026-05-31T21:59:01.744854+00:00",
       "type": "milestone",
-      "content": "\"checklistComplete\": {\"level\": \"MUST\", \"Complete\": true, \"Evidence\": \"All Session Start gates complete. /test 6 gates evaluated: 3 inapplicable for deletion-only PR (no perf/security/observability surface), 1 CRITICAL_FAIL on docs orphans (fixed in cdf9c916), 2 WARN with actionable items remediated. /review architect axis run with 1 Important + 2 Suggestion findings (1 cheap fix landed, others routed to follow-up PR).\"},",
+      "content": "Gate 5 CRITICAL_FAIL on docs/ orphan refs (3 critical: skill-reference.md, SKILL-AUTHORING.md, workflow-commands.md). Gate 1 WARN (3 findings; gitignore actionable). Gate 4 WARN (pre-existing drift, env-only).",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-09T22:53:39.280491+00:00",
-      "type": "test",
-      "content": "\"validationPassed\": {\"level\": \"MUST\", \"Complete\": true, \"Evidence\": \"scripts/validate_session_json.py PASS. taste-lints: 1 pre-existing file-size error (test_invoke_skill_learning.py 913 lines, was 941 before this PR; pre-existing). golden-principles: 0 violations. code-qualities-assessment: cohesion 9.7, all others 10/10.\"},",
+      "timestamp": "2026-05-31T21:59:01.744854+00:00",
+      "type": "milestone",
+      "content": "cdf9c916 commit: docs/ orphan refs replaced with doc-accuracy",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-09T22:53:39.280491+00:00",
-      "type": "test",
-      "content": "{\"step\": \"/test gates 1+4+5 in parallel\", \"outcome\": \"Gate 5 CRITICAL_FAIL on docs/ orphan refs (3 critical: skill-reference.md, SKILL-AUTHORING.md, workflow-commands.md). Gate 1 WARN (3 findings; gitignore actionable). Gate 4 WARN (pre-existing drift, env-only).\"},",
+      "timestamp": "2026-05-31T21:59:01.744854+00:00",
+      "type": "milestone",
+      "content": "14e7db36 commit: .doc-accuracy/ added to .gitignore",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-09T22:53:39.280491+00:00",
-      "type": "test",
-      "content": "{\"step\": \"/review standards axes\", \"outcome\": \"taste-lints: 1 pre-existing file-size error (out of scope). golden-principles: 0. code-qualities: 9.7-10.0 across all 5 qualities.\"}",
+      "timestamp": "2026-05-31T21:59:01.744854+00:00",
+      "type": "milestone",
+      "content": "1 Important (ADR-040 stale enumeration), 2 Suggestions. ADR-040 amendment skipped (heavyweight adr-review consensus not justified for factual count correction); documented in PR. DESIGN-REVIEW-skill-pattern-loader.md note added.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-31T21:59:01.744854+00:00",
+      "type": "milestone",
+      "content": "taste-lints: 1 pre-existing file-size error (out of scope). golden-principles: 0. code-qualities: 9.7-10.0 across all 5 qualities.",
       "caused_by": [],
       "leads_to": []
     }
@@ -42,12 +50,10 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
-    "recoveries": 1,
-    "commits": 6,
-    "files_changed": 4
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
   },
-  "lessons": [
-    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in this PR commit messages and analyst/critic gate findings.\"}"
-  ]
+  "lessons": []
 }

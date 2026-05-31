@@ -1,40 +1,128 @@
 {
   "id": "episode-2026-05-09-session-1828",
   "session": "2026-05-09-session-1828",
-  "timestamp": "2026-05-10T00:02:50.249712+00:00",
+  "timestamp": "2026-05-09T00:00:00+00:00",
   "outcome": "success",
-  "task": "",
+  "task": "/pr-quality:all adversarial fix-loop on M1 PR: 7 CI gate findings remediated (eval orphans, REQ-007 AC5, doc-accuracy tense, ADR-040 enumeration, plugin.json counts, PLAN decision log)",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
-      "type": "commit",
-      "content": "Commit: f937a114",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Identified pr-quality-gate-{analyst,architect,qa,security,devops,roadmap}.md + session-protocol-check.md as in-scope. Other prompts (issue-*, spec-*, metrics-*) out of scope for PR review.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
       "type": "milestone",
-      "content": "{\"step\": \"3 rounds /pr-quality:all adversarial review converged to PASS\", \"outcome\": \"Round 1: qa BLOCKED, analyst+roadmap WARN. Round 2: regressions found in Round 1 fixes. Round 3: clean.\"}",
+      "content": "Verdicts: qa BLOCKED (3 findings); analyst WARN (4 findings); roadmap WARN (3 findings); architect PASS (2 low); security PASS; devops PASS (3 info); session-protocol-check COMPLIANT.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
-      "type": "test",
-      "content": "{\"step\": \"Pre-push hook BLOCKED: 73 pytest failures + 71/50 file count overage\", \"outcome\": \"Failures traced to 2 root causes: (a) orphan Python tests at tests/workflow/test_{get_agent_history,sync_session_documentation}.py target deleted .claude/skills/workflow/scripts/ files; (b) marketplace.json count assertions stale after plugin manifest count drop.\"},",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Critical: triage-prompts.json eval orphans, REQ-007-AC5 unenforceable, doc-accuracy description tense. Important: ADR-040 stale enumeration, plugin.json stale counts, PLAN decision log gap (workflow PRUNE rationale), REQ-007 deferred section.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
       "type": "milestone",
-      "content": "{\"step\": \"Commit G: pre-push fixes\", \"outcome\": \"Deleted orphan tests/workflow/ Python tests (3 files). Auto-regenerated .claude-plugin/marketplace.json (70->67 skills) and .github/plugin/marketplace.json (82->79 skills) via build/scripts/validate_marketplace_counts.py --fix. Verified test_validate_marketplace_counts passes (18 tests). These are the same orphan-ref class of failures that issue #1939 (orphan-ref-validator skill) is designed to catch pre-commit.\"}",
+      "content": "7993ed9f. Converted workflow/doc-coverage/doc-sync blocks to negative-routing fixtures. Updated codebase-documenter cross-refs.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "f937a114. Reworded 'Consolidates X' to 'replaced the former X (deleted 2026-05-09)'. Mirrored to src/copilot-cli/ + docs/SKILL-AUTHORING.md. Added 'text' lang identifier to two pre-existing unfenced code blocks.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "a3c82a66. AC5 now points at generate_skills.py round-trip idempotence (not nonexistent detect_skill_drift.py). Deferred section lists 4 items routed to follow-up PRs.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "ADR-040:119 doc-sync removed from Tier 2 list, count 12->11, percentage 44.4%->42.3%. plugin.json: dropped literal '23 agents, 23 slash commands, 35 lifecycle hooks, 69 reusable skills' since real counts are 25/24/30/67.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "adfe9f5d. Documented reversal of analysis F3 (KEEP as deprecation guide) -> spec/plan PRUNE. Cited migration table in docs/workflow-commands.md as the surviving documentation surface.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Verdicts: qa APPROVED, roadmap PASS, analyst WARN (3 NEW regressions), architect WARN (1 NEW regression). Architect/analyst flagged: triage-prompts.json doc-accuracy fixture hedge ('may be redundant'); ADR-040 Tier 1/3 percentages stale after Tier 2 changed denominator from 27 to 26.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "4e077b50. Strengthened doc-accuracy fixture (deleted, not 'may be redundant'). Recalculated ADR-040 Tier 1 (40.7%->42.3%) and Tier 3 (14.8%->15.4%) on /26 denominator. Added historical caveat to ADR S356 section.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Both PASS. Math sums to 100%. No regressions. Recursion complete.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Convergence model: CI=backstop, /review=primary. Sub-issue native linking via GraphQL addSubIssue. Vendor-survival constraint baked into every child.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Ready to push.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Failures traced to 2 root causes: (a) orphan Python tests at tests/workflow/test_{get_agent_history,sync_session_documentation}.py target deleted .claude/skills/workflow/scripts/ files; (b) marketplace.json count assertions stale after plugin manifest count drop.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-05-31T21:59:01.812526+00:00",
+      "type": "milestone",
+      "content": "Deleted orphan tests/workflow/ Python tests (3 files). Auto-regenerated .claude-plugin/marketplace.json (70->67 skills) and .github/plugin/marketplace.json (82->79 skills) via build/scripts/validate_marketplace_counts.py --fix. Verified test_validate_marketplace_counts passes (18 tests). These are the same orphan-ref class of failures that issue #1939 (orphan-ref-validator skill) is designed to catch pre-commit.",
       "caused_by": [],
       "leads_to": []
     }
@@ -42,12 +130,10 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 2,
-    "recoveries": 2,
-    "commits": 9,
-    "files_changed": 77
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 5,
+    "files_changed": 3
   },
-  "lessons": [
-    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in commit messages and adversarial agent reports.\"}"
-  ]
+  "lessons": []
 }

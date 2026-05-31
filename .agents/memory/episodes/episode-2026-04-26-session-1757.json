@@ -1,18 +1,59 @@
 {
   "id": "episode-2026-04-26-session-1757",
   "session": "2026-04-26-session-1757",
-  "timestamp": "2026-04-26T23:16:24.223559+00:00",
-  "outcome": "partial",
-  "task": "",
+  "timestamp": "2026-04-26T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Compress AGENTS.md, CLAUDE.md, copilot-instructions.md via caveman skill",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-31T21:59:00.770557+00:00",
+      "type": "milestone",
+      "content": "Compressed AGENTS.md 2845->2831 bytes (-14)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-31T21:59:00.770557+00:00",
+      "type": "milestone",
+      "content": "Compressed CLAUDE.md 2535->2375 bytes (-160)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-31T21:59:00.770557+00:00",
+      "type": "milestone",
+      "content": "Compressed .github/copilot-instructions.md 3319->3082 bytes (-237)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-31T21:59:00.770557+00:00",
+      "type": "milestone",
+      "content": "Total saved 411 bytes; workspace budget passes 5376/6600",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-31T21:59:00.770557+00:00",
+      "type": "milestone",
+      "content": "markdownlint clean on all 3 files",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
-    "files_changed": 0
+    "commits": 0,
+    "files_changed": 3
   },
   "lessons": []
 }

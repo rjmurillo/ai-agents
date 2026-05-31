@@ -1,24 +1,40 @@
 {
   "id": "episode-2026-04-10-session-2",
   "session": "2026-04-10-session-2",
-  "timestamp": "2026-04-10T17:31:28.133148+00:00",
-  "outcome": "failure",
-  "task": "",
+  "timestamp": "2026-04-10T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Cherry-pick PR #1589 retrospective, build and evaluate 4 skill candidates, rewrite retrospective with honest accounting, persist learnings to Serena",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-04-10T17:31:28.131376+00:00",
-      "type": "test",
-      "content": "\"result\": \"All tests pass, mypy clean, ruff clean\",",
+      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "type": "milestone",
+      "content": "Cherry-picked retrospective from fix/668-exit-code-workflows to new branch",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-04-10T17:31:28.131376+00:00",
-      "type": "error",
-      "content": "\"description\": \"15 tests covering active, stale, mixed, edge cases, and ADR-035 errors\"",
+      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "type": "milestone",
+      "content": "Built detect_stale_pr_comments.py with 26 tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "type": "milestone",
+      "content": "Evaluated 4 skill candidates in parallel",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "type": "milestone",
+      "content": "Rewrote retrospective with honest accounting",
       "caused_by": [],
       "leads_to": []
     }
@@ -26,9 +42,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
+    "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 0,
     "files_changed": 0
   },
   "lessons": []

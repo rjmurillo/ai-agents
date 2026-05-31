@@ -1,32 +1,64 @@
 {
   "id": "episode-2026-04-21-session-1",
   "session": "2026-04-21-session-1",
-  "timestamp": "2026-04-21T04:38:09.037353+00:00",
-  "outcome": "failure",
-  "task": "",
+  "timestamp": "2026-04-21T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autofix PR #1719 session-end enforcement - rebase on main after PR 1680 landed",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-04-21T04:38:09.033553+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"markdownlint-cli2 ran via pre-commit hook on staged .md files; no errors\"",
+      "timestamp": "2026-05-31T21:59:00.546198+00:00",
+      "type": "milestone",
+      "content": "Investigated PR #1719 state via mcp__github__pull_request_read",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-04-21T04:38:09.033553+00:00",
-      "type": "commit",
-      "content": "Commit: efbabaf",
+      "timestamp": "2026-05-31T21:59:00.546198+00:00",
+      "type": "milestone",
+      "content": "Compared main vs PR #1719 content",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-04-21T04:38:09.033553+00:00",
-      "type": "test",
-      "content": "\"finding\": \"44 tests passed (tests/hooks/test_session_validator.py + tests/test_log_session_end_skip.py)\"",
+      "timestamp": "2026-05-31T21:59:00.546198+00:00",
+      "type": "milestone",
+      "content": "Enabled repository git hooks",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-31T21:59:00.546198+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main into PR branch via autofix branch",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-31T21:59:00.546198+00:00",
+      "type": "milestone",
+      "content": "Ran test suite",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-31T21:59:00.546198+00:00",
+      "type": "milestone",
+      "content": "Committed merge resolution efbabaf with pre-commit hooks passing",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-31T21:59:00.546198+00:00",
+      "type": "commit",
+      "content": "Commit: efbabaf",
       "caused_by": [],
       "leads_to": []
     }
@@ -34,9 +66,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
+    "errors": 0,
     "recoveries": 0,
-    "commits": 5,
+    "commits": 1,
     "files_changed": 0
   },
   "lessons": []

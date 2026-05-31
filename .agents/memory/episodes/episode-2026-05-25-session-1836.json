@@ -1,114 +1,17 @@
 {
   "id": "episode-2026-05-25-session-1836",
   "session": "2026-05-25-session-1836",
-  "timestamp": "2026-05-25T05:35:30.673695+00:00",
-  "outcome": "failure",
-  "task": "",
+  "timestamp": "2026-05-25T00:00:00+00:00",
+  "outcome": "success",
+  "task": "ship voice + builder-ethos + search-before-building + claude-model-patches rules and the outputDirs multi-target generator",
   "decisions": [],
-  "events": [
-    {
-      "id": "e001",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"markdownlint-cli2 ran in .githooks/pre-commit for every commit in this session (88cbf206, a7af6dfc, 13df5995, e1e16d59, d504743e); all returned 0 errors\"",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e002",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"All 27 generate_rules tests pass; SkillForge validator passes on autofix-pr and book-to-skill mirrors after structural fixes; eval gate accepts .agents/eval-results/2026-05-24-structural-only-skill-fixes.json as evidence\"",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e003",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: a7af6dfc",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e004",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: a7af6dfc",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: 88cbf206",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: 88cbf206",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: 0ed6bd61",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: 13df5995",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: 13df5995",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: 13df5995",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: e1e16d59",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-05-25T05:35:30.670745+00:00",
-      "type": "commit",
-      "content": "Commit: d504743e",
-      "caused_by": [],
-      "leads_to": []
-    }
-  ],
+  "events": [],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
+    "errors": 0,
     "recoveries": 0,
-    "commits": 14,
+    "commits": 6,
     "files_changed": 0
   },
   "lessons": []

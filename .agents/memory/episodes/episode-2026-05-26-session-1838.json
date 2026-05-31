@@ -1,40 +1,64 @@
 {
   "id": "episode-2026-05-26-session-1838",
   "session": "2026-05-26-session-1838",
-  "timestamp": "2026-05-26T03:58:03.203026+00:00",
+  "timestamp": "2026-05-26T00:00:00+00:00",
   "outcome": "success",
-  "task": "",
+  "task": "Rewrite orchestrator.shared.md A6+A2 improvements: add Reasoning Protocol section and Output Bounds table to reach 33/35 (A tier)",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"Evidence\": \"markdownlint-cli2: 0 errors on templates/agents/orchestrator.shared.md and 2 generated files\"",
+      "timestamp": "2026-05-31T21:59:02.849079+00:00",
+      "type": "milestone",
+      "content": "Read templates/agents/orchestrator.shared.md (244 LOC)",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"Evidence\": \"pre_pr.py: 2 pre-existing failures (merge-resolver drift, lint on other files); 0 new failures from this change; lint 0 errors on changed files\"",
+      "timestamp": "2026-05-31T21:59:02.849079+00:00",
+      "type": "milestone",
+      "content": "Added Reasoning Protocol section (A6: 3 to 5)",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"evidence\": \"mcp__serena__replace_content: inserted before Core Behavior; think-before-routing directive with thinking trigger and failure-mode guidance\"",
+      "timestamp": "2026-05-31T21:59:02.849079+00:00",
+      "type": "milestone",
+      "content": "Added Output Bounds table (A2: 3 to 5)",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"evidence\": \"2 pre-existing failures (merge-resolver drift 20.9%, lint on non-changed files); 0 new failures; lint 0 errors on changed files\"",
+      "timestamp": "2026-05-31T21:59:02.849079+00:00",
+      "type": "milestone",
+      "content": "Added skip/ask boundary to Never delegate blind (A1: 4 to 5)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-31T21:59:02.849079+00:00",
+      "type": "milestone",
+      "content": "Ran python3 build/generate_agents.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-31T21:59:02.849079+00:00",
+      "type": "milestone",
+      "content": "Rubric rescore: 33/35 (A tier)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-31T21:59:02.849079+00:00",
+      "type": "milestone",
+      "content": "Ran pre_pr.py validation",
       "caused_by": [],
       "leads_to": []
     }
@@ -44,8 +68,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
-    "files_changed": 0
+    "commits": 0,
+    "files_changed": 72
   },
   "lessons": []
 }
