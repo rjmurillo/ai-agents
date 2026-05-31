@@ -89,7 +89,7 @@ Read these files in order:
 - If `.agents/` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Project configuration incomplete`.
 - If `.agents/` exists but the root `AGENTS.md` is missing → stop and report `[BLOCKED] Missing root agent instructions`.
 - If `.agents/` exists but `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
-- If `.agents/ARCHITECTURE.md` is missing → note in the session log and proceed (not critical path).
+- If `.agents/` exists but `.agents/ARCHITECTURE.md` is missing → note in the session log and proceed (not critical path).
 - If `.agents/` exists but `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
