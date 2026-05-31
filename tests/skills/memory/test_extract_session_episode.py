@@ -293,3 +293,104 @@ class TestJsonSessionLogPath:
         episode = json.loads(capsys.readouterr().out)
         assert episode["outcome"] == "success"
         assert not any(e["type"] == "error" for e in episode["events"])
+
+
+class TestJsonNullSafety:
+    """Explicit JSON null values must not poison extraction (issue #2036).
+
+    dict.get(key, default) returns None, not the default, when the key is
+    present with a null value. These cover the null-coercion guards.
+    """
+
+    def test_null_session_timestamp_falls_back(self):
+        data = {"session": None, "workLog": []}
+        ts = extract_session_episode.json_timestamp(data)
+        assert isinstance(ts, str) and ts.endswith("+00:00")
+
+    def test_null_worklog_outcome(self):
+        data = _json_log([])
+        data["workLog"] = None
+        assert extract_session_episode.json_outcome(data) in {"success", "partial", "failure"}
+
+    def test_null_worklog_events_no_crash(self):
+        data = _json_log([])
+        data["workLog"] = None
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        assert isinstance(events, list)
+
+    def test_null_worklog_decisions_no_crash(self):
+        data = _json_log([])
+        data["workLog"] = None
+        assert extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00") == []
+
+    def test_null_worklog_metrics_no_crash(self):
+        data = _json_log([])
+        data["workLog"] = None
+        metrics = extract_session_episode.json_metrics(data)
+        assert isinstance(metrics, dict)
+
+    def test_null_ending_commit_no_none_string(self):
+        data = _json_log([{"task": "t", "outcome": "ok"}])
+        data["endingCommit"] = None
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        assert not any("None" in str(e.get("content", "")) for e in events)
+
+    def test_null_protocol_compliance_gate(self):
+        data = _json_log([])
+        data["protocolCompliance"] = None
+        assert extract_session_episode._gate_complete(data, "sessionEnd", "checklistComplete") is False
+
+    def test_null_entry_field_not_literal_none(self):
+        assert extract_session_episode._entry_field({"task": None}, "task") == ""
+
+    def test_null_nested_field_in_entry_text(self):
+        text = extract_session_episode._entry_text({"task": "build", "outcome": None})
+        assert "None" not in text and "build" in text
+
+    def test_extract_from_json_null_objective(self):
+        data = _json_log([{"task": "t", "outcome": "ok"}])
+        data["session"]["objective"] = None
+        bundle = extract_session_episode.extract_from_json(data, archive_fallback=False)
+        assert bundle["task"] == ""
+
+
+class TestArchiveFallback:
+    """Padded session-id candidates and archive metric sourcing (issue #2036)."""
+
+    def test_candidates_pad_widths(self):
+        cands = extract_session_episode._archive_session_id_candidates("2026-05-31", 2)
+        assert cands == [
+            "2026-05-31-session-2",
+            "2026-05-31-session-02",
+            "2026-05-31-session-002",
+        ]
+
+    def test_candidates_dedupe_already_padded(self):
+        cands = extract_session_episode._archive_session_id_candidates("2026-05-31", "003")
+        assert cands == ["2026-05-31-session-003"]
+
+    def test_padded_archive_json_is_found(self, tmp_path, monkeypatch):
+        archive = tmp_path / "2026-05-31-session-02.json"
+        archive.write_text(json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8")
+
+        def fake_find(session_id):
+            p = tmp_path / f"{session_id}.json"
+            return p if p.is_file() else None
+
+        monkeypatch.setattr(extract_session_episode, "_find_archive_json", fake_find)
+        data = {"session": {"number": 2, "date": "2026-05-31"}, "workLog": [], "endingCommit": ""}
+        bundle = extract_session_episode.extract_from_json(data)
+        assert any(e.get("type") == "milestone" for e in bundle["events"])
+
+    def test_metrics_sourced_from_archive(self, tmp_path, monkeypatch):
+        archive = tmp_path / "2026-05-31-session-2.json"
+        archive.write_text(json.dumps(_json_log([{"task": "t", "outcome": "3 failed"}])), encoding="utf-8")
+
+        def fake_find(session_id):
+            p = tmp_path / f"{session_id}.json"
+            return p if p.is_file() else None
+
+        monkeypatch.setattr(extract_session_episode, "_find_archive_json", fake_find)
+        data = {"session": {"number": 2, "date": "2026-05-31"}, "workLog": [], "endingCommit": ""}
+        bundle = extract_session_episode.extract_from_json(data)
+        assert bundle["metrics"]["errors"] >= 1

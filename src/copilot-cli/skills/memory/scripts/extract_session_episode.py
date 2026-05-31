@@ -359,9 +359,26 @@ _DECISION_RE = re.compile(
 )
 
 
+def _as_dict(value: Any) -> dict:
+    """Coerce a possibly-null JSON value to a dict (explicit null -> {})."""
+    return value if isinstance(value, dict) else {}
+
+
+def _as_list(value: Any) -> list:
+    """Coerce a possibly-null JSON value to a list (explicit null -> [])."""
+    return value if isinstance(value, list) else []
+
+
 def _entry_field(entry: Any, key: str) -> str:
-    """Return a work-log entry field, or '' when the entry is not a dict."""
-    return str(entry.get(key, "")) if isinstance(entry, dict) else ""
+    """Return a work-log entry field, or '' when the entry is not a dict.
+
+    An explicitly-null field value collapses to '' rather than the literal
+    string 'None'.
+    """
+    if not isinstance(entry, dict):
+        return ""
+    value = entry.get(key)
+    return str(value) if value is not None else ""
 
 
 def _entry_title(entry: Any) -> str:
@@ -383,7 +400,10 @@ def _entry_text(entry: Any) -> str:
     if isinstance(entry, str):
         return entry
     if isinstance(entry, dict):
-        return " ".join(str(entry.get(k, "")) for k in ("task", "action", "outcome", "evidence", "result"))
+        return " ".join(
+            str(entry.get(k) or "")
+            for k in ("task", "action", "outcome", "evidence", "result")
+        )
     return ""
 
 
@@ -399,8 +419,9 @@ def looks_like_json_session(content: str) -> dict[str, Any] | None:
 
 
 def _gate_complete(data: dict, phase: str, gate: str) -> bool:
-    g = data.get("protocolCompliance", {}).get(phase, {}).get(gate, {})
-    return isinstance(g, dict) and bool(g.get("Complete"))
+    compliance = _as_dict(data.get("protocolCompliance"))
+    g = _as_dict(_as_dict(compliance.get(phase)).get(gate))
+    return bool(g.get("Complete"))
 
 
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
@@ -408,10 +429,10 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
     evidence. Excludes the starting commit by default (it is the base, not a
     commit the session produced)."""
     seen: list[str] = []
-    fields = [str(data.get("endingCommit", ""))]
+    fields = [str(data.get("endingCommit") or "")]
     if include_starting:
-        fields.append(str(data.get("session", {}).get("startingCommit", "")))
-    for entry in data.get("workLog", []):
+        fields.append(str(_as_dict(data.get("session")).get("startingCommit") or ""))
+    for entry in _as_list(data.get("workLog")):
         fields.append(_entry_text(entry))
     for field in fields:
         for sha in _SHA_RE.findall(field):
@@ -421,10 +442,13 @@ def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
 
 
 def json_timestamp(data: dict) -> str:
-    date = str(data.get("session", {}).get("date", "")).strip()
+    date = str(_as_dict(data.get("session")).get("date") or "").strip()
     if date:
         try:
-            return datetime.fromisoformat(date).replace(tzinfo=UTC).isoformat()
+            dt = datetime.fromisoformat(date)
+            if dt.tzinfo is not None:
+                return dt.astimezone(UTC).isoformat()
+            return dt.replace(tzinfo=UTC).isoformat()
         except ValueError:
             pass
     return datetime.now(UTC).isoformat()
@@ -443,7 +467,7 @@ def json_outcome(data: dict) -> str:
     all_complete = all(_gate_complete(data, "sessionEnd", g) for g in must)
 
     explicit_failure = any(
-        _FAIL_COUNT_RE.search(_entry_text(e)) for e in data.get("workLog", [])
+        _FAIL_COUNT_RE.search(_entry_text(e)) for e in _as_list(data.get("workLog"))
     )
 
     if explicit_failure and not all_complete:
@@ -468,7 +492,7 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
             "leads_to": [],
         })
 
-    for entry in data.get("workLog", []):
+    for entry in _as_list(data.get("workLog")):
         title = _entry_title(entry)
         if title:
             add("milestone", title)
@@ -478,7 +502,7 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
         if _FAIL_COUNT_RE.search(text):
             add("error", text.strip())
 
-    ending = str(data.get("endingCommit", ""))
+    ending = str(data.get("endingCommit") or "")
     if _SHA_RE.fullmatch(ending.strip()):
         add("commit", f"Commit: {ending.strip()}")
 
@@ -489,7 +513,7 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
     """Surface work-log entries that describe a choice as decisions."""
     decisions: list[dict] = []
     idx = 0
-    for entry in data.get("workLog", []):
+    for entry in _as_list(data.get("workLog")):
         text = _entry_text(entry)
         if not _DECISION_RE.search(text):
             continue
@@ -510,16 +534,17 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
 
 
 def json_metrics(data: dict) -> dict:
-    shas = _collect_shas(data, include_starting=False)
+    ending = str(data.get("endingCommit") or "").strip()
+    commit_count = 1 if _SHA_RE.fullmatch(ending) else 0
     metrics = {
         "duration_minutes": 0,
         "tool_calls": 0,
         "errors": 0,
         "recoveries": 0,
-        "commits": len(shas),
+        "commits": commit_count,
         "files_changed": 0,
     }
-    for entry in data.get("workLog", []):
+    for entry in _as_list(data.get("workLog")):
         text = _entry_text(entry)
         fail = _FAIL_COUNT_RE.search(text)
         if fail:
@@ -577,6 +602,21 @@ def _find_archive_json(session_id: str) -> Path | None:
     return _find_archive_file(session_id, "json")
 
 
+def _archive_session_id_candidates(session_date: str, session_num: Any) -> list[str]:
+    """Build archive session-id candidates, tolerating zero-padded numbers.
+
+    A primary log may record session number 2 while the archived file is named
+    `...-session-02`. Emit the raw form plus zero-padded widths, de-duplicated
+    in priority order so an exact match is preferred.
+    """
+    raw = str(session_num).strip()
+    forms: list[str] = []
+    for form in (raw, raw.zfill(2), raw.zfill(3)):
+        if form and form not in forms:
+            forms.append(form)
+    return [f"{session_date}-session-{form}" for form in forms]
+
+
 def _filter_markdown_events(events: list[dict]) -> list[dict]:
     """Filter events from markdown to avoid substring-based false positives.
 
@@ -602,24 +642,29 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     to preserve rich event/decision/lesson data from migrated sessions.
     """
     session_ts = json_timestamp(data)
-    session = data.get("session", {})
-    work_log = data.get("workLog", [])
+    session = _as_dict(data.get("session"))
+    work_log = _as_list(data.get("workLog"))
 
     events = json_events(data, session_ts)
     decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
+    metrics_source = data
 
     if archive_fallback and not work_log:
         session_num = session.get("number")
-        session_date = str(session.get("date", "")).strip()
-        if session_num and session_date:
-            session_id = f"{session_date}-session-{session_num}"
-            archive_json_path = _find_archive_json(session_id)
-            if archive_json_path and archive_json_path.is_file():
+        session_date = str(session.get("date") or "").strip()
+        if session_num is not None and str(session_num).strip() and session_date:
+            candidates = _archive_session_id_candidates(session_date, session_num)
+            archive_json_path = next(
+                (p for sid in candidates if (p := _find_archive_json(sid)) and p.is_file()),
+                None,
+            )
+            if archive_json_path is not None:
                 try:
                     archive_content = archive_json_path.read_text(encoding="utf-8")
                     archive_data = looks_like_json_session(archive_content)
-                    if archive_data and archive_data.get("workLog"):
+                    if archive_data and _as_list(archive_data.get("workLog")):
+                        metrics_source = archive_data
                         archive_events = json_events(archive_data, session_ts)
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
@@ -632,8 +677,11 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                 except (OSError, json.JSONDecodeError):
                     pass
             if not events or not decisions or not lessons:
-                archive_md_path = _find_archive_markdown(session_id)
-                if archive_md_path and archive_md_path.is_file():
+                archive_md_path = next(
+                    (p for sid in candidates if (p := _find_archive_markdown(sid)) and p.is_file()),
+                    None,
+                )
+                if archive_md_path is not None:
                     try:
                         md_content = archive_md_path.read_text(encoding="utf-8")
                         md_lines = md_content.splitlines()
@@ -648,12 +696,12 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         pass
 
     return {
-        "timestamp": json_timestamp(data),
-        "task": str(session.get("objective", "")).strip(),
+        "timestamp": session_ts,
+        "task": str(session.get("objective") or "").strip(),
         "outcome": json_outcome(data),
         "decisions": decisions,
         "events": events,
-        "metrics": json_metrics(data),
+        "metrics": json_metrics(metrics_source),
         "lessons": lessons,
     }
 
