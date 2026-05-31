@@ -141,9 +141,10 @@ class TestFindTopicalMemories:
         assert out[0][1] == "Real Heading"
 
     def test_returns_matches_when_deadline_passed(self, tmp_path, monkeypatch):
-        # Deadline elapses after the scan collected matches but before the
-        # summary loop: entries are still returned (summary read skipped),
-        # not dropped. Stub monotonic: below deadline during scan, above after.
+        # A match collected during the scan is returned with its summary; the
+        # deadline budget bounds the scan, not the bounded summary loop, so
+        # collected entries are never silently dropped. Stub monotonic so the
+        # scan check sees time under the deadline and proceeds.
         _seed_memories(tmp_path, {"github/github-cli-pr-operations.md": "# PR ops\nbody"})
         import invoke_topical_memory_injection as mod
         calls = {"n": 0}
@@ -156,7 +157,7 @@ class TestFindTopicalMemories:
         out = mod.find_topical_memories(str(tmp_path), "github", 100.0)
         assert len(out) == 1
         assert out[0][0] == "github/github-cli-pr-operations.md"
-        assert out[0][1] == ""
+        assert out[0][1] == "PR ops"
 
 
 class TestMain:

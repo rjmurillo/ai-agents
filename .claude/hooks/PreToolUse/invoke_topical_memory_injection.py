@@ -156,18 +156,19 @@ def _summary_line_from_file(path: Path) -> str:
 
     Opens the file and reads line-by-line to avoid loading large files entirely.
     A leading YAML frontmatter block (delimited by ``---``) is skipped so its
-    keys are never mistaken for the summary.
+    keys are never mistaken for the summary. Leading blank lines before the
+    frontmatter opener are also skipped.
     """
     try:
         with path.open("r", encoding="utf-8") as f:
             in_frontmatter = False
-            started = False
+            seen_first_nonblank = False
             for raw in f:
                 line = raw.strip()
-                if not started:
+                if not seen_first_nonblank:
                     if not line:
                         continue
-                    started = True
+                    seen_first_nonblank = True
                     if line == "---":
                         in_frontmatter = True
                         continue
@@ -218,10 +219,6 @@ def find_topical_memories(
 
     results: list[tuple[str, str]] = []
     for _mtime, path, rel in candidates[:MAX_MEMORIES]:
-        if time.monotonic() > deadline:
-            # Past the budget: surface the match but skip the summary file read.
-            results.append((rel, ""))
-            continue
         results.append((rel, _summary_line_from_file(path)))
     return results
 
