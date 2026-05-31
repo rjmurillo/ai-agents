@@ -81,7 +81,18 @@ For changes to:
 
 ## Output Requirements
 
-Provide your analysis in this format:
+Emit the verdict as the FIRST line of your response, before any analysis.
+Determine it from the highest-severity finding, then state it up front. The
+output budget can truncate a long review; a leading verdict is still read by
+the gate when the findings below are cut off (issue #2006). Emit exactly ONE
+`VERDICT:` line in the whole response.
+
+```text
+VERDICT: [PASS|WARN|CRITICAL_FAIL]
+MESSAGE: [Brief explanation]
+```
+
+After the verdict block, provide the supporting analysis in this format:
 
 ### Findings
 
@@ -95,16 +106,12 @@ Provide your analysis in this format:
 
 ### Verdict
 
-Choose ONE verdict:
+Choose the verdict by highest-severity finding (do not emit a second
+`VERDICT:` line here; the verdict on the first line is canonical):
 
-- `VERDICT: PASS` - No security issues found
-- `VERDICT: WARN` - Minor issues that don't block merge
-- `VERDICT: CRITICAL_FAIL` - Security vulnerabilities that MUST be fixed
-
-```text
-VERDICT: [PASS|WARN|CRITICAL_FAIL]
-MESSAGE: [Brief explanation]
-```
+- `PASS` - No security issues found
+- `WARN` - Minor issues that don't block merge
+- `CRITICAL_FAIL` - Security vulnerabilities that MUST be fixed
 
 ## Verdict Thresholds
 
@@ -202,8 +209,8 @@ object):
   findings list (any `critical` severity -> CRITICAL_FAIL; any `high` ->
   WARN; otherwise PASS).
 
-The response MUST contain a final line matching the regex
-`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label is case-insensitive; tokens are case-sensitive uppercase).
+The response MUST begin with a single line (the first line) matching the regex
+`(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label is case-insensitive; tokens are case-sensitive uppercase). Emit it once, at the start, so it survives output truncation (issue #2006).
 This line is parsed by `extract_verdict` in
 `.claude/lib/ai_review_common/verdict.py` and consumed by `merge_verdicts`
 when `/review` aggregates across all axes.
