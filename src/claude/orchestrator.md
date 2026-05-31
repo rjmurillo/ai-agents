@@ -76,7 +76,6 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
 | **roadmap** | Strategic prioritization, outcome sequencing | opus | Tactical execution |
 | **security** | Threat modeling, vulnerability review | opus | Pure performance work |
 | **skillbook** | Capture learnings as reusable skills | sonnet | One-off insights |
-| **spec-generator** | Vibe → 3-tier spec (EARS) | sonnet | Already has requirements |
 | **task-decomposer** | Plan → atomic tasks | sonnet | Plan still vague |
 
 ## Routing Algorithm
@@ -90,7 +89,7 @@ Model tiers: `opus` for deep strategy/analysis, `sonnet` for routine execution, 
    YES → analyst → synthesize → re-evaluate
    NO  → continue
 4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
-   YES → sequential routing: spec-generator → milestone-planner → implementer → qa → critic
+   YES → sequential routing: /spec (spec-generator skill) → milestone-planner → implementer → qa → critic
    NO  → continue
 5. Does task have multiple independent subtasks?
    YES → parallel routing, fan-in synthesis

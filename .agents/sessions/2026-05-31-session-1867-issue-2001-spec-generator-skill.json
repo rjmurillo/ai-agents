@@ -1,0 +1,47 @@
+{
+  "session": {
+    "number": 1867,
+    "date": "2026-05-31",
+    "branch": "feat/2001-spec-generator-skill",
+    "startingCommit": "ec49950a9",
+    "objective": "Issue 2001: convert spec-generator agent to skill with bundled schema and frontmatter contract test"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "mcp__serena__initial_instructions activated; Serena re-asserted each turn" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Read Serena Instructions Manual via initial_instructions" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md auto-injected (read-only per ADR-014)" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "github + session-init skill scripts; generate_agents/build_all/validate_marketplace_counts/eval-prompt-change used" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Full caller scan (grep spec-generator) before agent removal; user authorized full single-PR conversion + eval" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": ".claude/rules/*.md loaded; canonical-source-mirror.md (validator cites spec-schemas.md verbatim) + claude-agents.md (SKILL.md frontmatter) applied" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "Serena memory index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/2001-spec-generator-skill" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "Isolated worktree /tmp/wt-2001 off origin/main" },
+      "gitStatusVerified": { "level": "SHOULD", "Complete": true, "Evidence": "git status verified per phase" },
+      "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "ec49950a9" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "Skill + validator + contract test (20 passed); callers rerouted; agent removed; counts/versions fixed; ADR-057 eval evidence produced" },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Conversion documented inline + eval-results JSON; no separate memory file needed" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "npx markdownlint-cli2 on changed authored docs reports 0 errors (skills tree is lint-exempt by config)" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Atomic commits per phase, each <= 5 files" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "pytest 20 passed; validate_install_parity OK; validate_marketplace_counts --fix applied; prompt_eval_gate satisfied via eval-results" },
+      "tasksUpdated": { "level": "SHOULD", "Complete": true, "Evidence": "Tracked in workLog" },
+      "retrospectiveInvoked": { "level": "SHOULD", "Complete": false, "Evidence": "" }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #2001: spec-generator agent emits invalid frontmatter enums (priority=medium, category=tooling, status=ready) because it writes frontmatter from memory instead of reading the schema (PR #1995 drew 9 schema-violation threads; PR #1989 same)",
+      "outcome": "Converted spec-generator from an agent to a skill at .claude/skills/spec-generator/. Bundled .agents/governance/spec-schemas.md as references/spec-schemas.md and added a deterministic validate_spec_frontmatter.py that mirrors the schema enums verbatim (canonical-source-mirror compliant). The SKILL.md makes reading the schema and running the validator a BLOCKING gate. Added a 20-case contract test pinning the documented drift as negative cases. Rerouted /spec, orchestrator, retrospective, and the sibling skills from Task(spec-generator) to Skill(spec-generator); removed the agent; updated docs and the 4 plugin/marketplace manifests; ran the ADR-057 eval on the behavioral edits.",
+      "evidence": "pytest .claude/skills/spec-generator/tests -> 20 passed; validator rejects priority=medium/category=tooling/status=ready; install-parity OK"
+    }
+  ],
+  "endingCommit": "62d7c5ed0",
+  "nextSteps": [
+    "Open PR with Fixes #2001",
+    "Post-merge: confirm /spec end-to-end produces schema-valid specs in a fresh run"
+  ]
+}

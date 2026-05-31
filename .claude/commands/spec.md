@@ -367,7 +367,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 5. **CVA analysis (conditional)**: If the complexity tier is 3-5, or Tier 1-2 with multiple use cases, invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships. Otherwise (Tier 1-2 single-use-case), set `CVA summary: N/A (single-use-case Tier 1-2)` and proceed.
 6. **Formalize the PRD into durable artifacts**:
 
-   **First ask the multi-site opt-in prompt (PR #1989 coderabbit t3_).** Before invoking spec-generator, ask the user verbatim:
+   **First ask the multi-site opt-in prompt.** Before invoking spec-generator, ask the user verbatim:
 
    ```text
    Is this a multi-site contract change? (y/n)
@@ -375,11 +375,11 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 
    Record the answer as `multi_site_opt_in` (boolean). The Co-change checklist subsection below reads this flag to decide whether to emit the checklist via the opt-in branch. The prompt is mandatory; do not skip it.
 
-   Then invoke Task(subagent_type="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3, the buy-vs-build decision from step 4a (which may be `N/A (bug fix / doc / refactor)` for skipped runs), the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs), and the `multi_site_opt_in` flag from this step. The spec-generator agent writes:
+   Then invoke Skill(skill="spec-generator"). Pass every PRD section from step 2 (Problem, User stories, Data model, Integrations, Failure modes, Security, Observability, Acceptance criteria, Out of scope, Deferred, Open questions) plus the complexity tier from step 3, the buy-vs-build decision from step 4a (which may be `N/A (bug fix / doc / refactor)` for skipped runs), the CVA summary from step 5 (which may be the `N/A` placeholder for skipped runs), and the `multi_site_opt_in` flag from this step. The spec-generator skill reads the bundled schema, writes, and validates each file:
    - `.agents/specs/requirements/REQ-NNN-{slug}.md` (one per requirement, EARS syntax)
    - `.agents/specs/design/DESIGN-NNN-{slug}.md`
    - `.agents/specs/tasks/TASK-NNN-{slug}.md`
-   The full PRD must be passed as input so spec-generator does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
+   The full PRD must be passed as input so the spec-generator skill does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`). The skill validates every emitted file with `validate_spec_frontmatter.py` and does not report completion until it exits 0; this closes the frontmatter enum drift the validator was added to catch.
 
    #### Co-change checklist (REQ-012-04, REQ-012-05)
 

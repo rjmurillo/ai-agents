@@ -89,6 +89,24 @@
       "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
       "expected_reason_contains": "articulate",
       "rationale": "Success definition: reading files is necessary but not sufficient. Inability to articulate context means the stop criterion is not met and implementation must not begin. ARCHITECTURE.md is optional (if present), not a required file."
+    },
+    {
+      "id": "S11",
+      "desc": "Vendor install with no .agents/ scaffold proceeds instead of refusing",
+      "input": "You are running inside a downstream consumer repository that installed only the agent definition (a vendor install). The `.agents/` directory does not exist at the repo root, and neither root `AGENTS.md` nor root `CLAUDE.md` exists. You have a clear plan to add a small utility function with unit tests. What is your verdict before beginning implementation?",
+      "expected_verdict": "PROCEED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "Vendor install",
+      "rationale": "Vendor-install carve-out (issue #1908): when `.agents/` is absent, skip the scaffold gates, emit the [INFO] Vendor install note, and proceed. Guards against regression to the original hard-refusal behavior."
+    },
+    {
+      "id": "S12",
+      "desc": "Vendor install without .agents/ still reads root docs when present, then proceeds",
+      "input": "You are running inside a downstream consumer repository (a vendor install). The `.agents/` directory does not exist. The consumer does ship a root `AGENTS.md` (60 lines) and a root `CLAUDE.md` (20 lines) carrying their own project constraints, which you read. Your plan is consistent with those constraints. What is your verdict before beginning implementation?",
+      "expected_verdict": "PROCEED",
+      "verdict_options": ["PRODUCE", "PROCEED", "BLOCKED", "ASK"],
+      "expected_reason_contains": "proceed",
+      "rationale": "Vendor-install carve-out (issue #1908): the absent `.agents/` scaffold is skipped, but the consumer's root AGENTS.md and CLAUDE.md are still read when present, then the agent proceeds. This pins the root-docs half of the carve-out contract."
     }
   ]
 }
