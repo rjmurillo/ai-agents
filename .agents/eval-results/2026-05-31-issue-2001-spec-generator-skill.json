@@ -1,0 +1,47 @@
+{
+  "date": "2026-05-31",
+  "branch": "feat/2001-spec-generator-skill",
+  "issue": 2001,
+  "scope": "Convert spec-generator agent to a skill with bundled schema + deterministic frontmatter validator",
+  "kind": "structural+contract",
+  "behavioral_eval_required": false,
+  "files_evaluated": [
+    ".claude/skills/spec-generator/SKILL.md",
+    ".claude/skills/spec-generator/scripts/validate_spec_frontmatter.py",
+    ".claude/commands/spec.md",
+    "templates/agents/orchestrator.shared.md",
+    ".claude/skills/requirements-interview/SKILL.md",
+    ".claude/skills/panning-for-gold/SKILL.md"
+  ],
+  "behavioral_change_under_test": {
+    "claim": "The spec-generator now emits frontmatter whose enum values are guaranteed in-range, closing the drift that drew 9 schema-violation threads on PR #1995 and recurred on PR #1989.",
+    "verification_method": "deterministic contract test",
+    "evidence": "uv run pytest .claude/skills/spec-generator/tests/test_validate_spec_frontmatter.py -> 20 passed. Negative cases pin the exact documented drift: priority=medium rejected, category=tooling rejected, task status=ready rejected, design missing status+priority rejected, complexity out-of-range rejected.",
+    "why_deterministic_beats_llm_judge": "Frontmatter enum membership is a closed, decidable property. A validator that mirrors the schema enums verbatim (.claude/skills/spec-generator/scripts/validate_spec_frontmatter.py, canonical-source-mirror compliant) proves the property for every input class; an LLM judge would sample it stochastically and could pass an invalid case by luck. The skill makes running this validator a BLOCKING gate, so the property holds at generation time, not just in tests."
+  },
+  "structural_changes": {
+    "rationale": "The remaining edits are routing renames with no semantic change to spec-authoring logic, which moved verbatim from the agent body into the skill.",
+    "per_change": {
+      ".claude/commands/spec.md": "Step 6 invocation changed from Task(subagent_type=spec-generator) to Skill(skill=spec-generator). Same downstream artifacts; the skill additionally self-validates.",
+      "templates/agents/orchestrator.shared.md": "Removed spec-generator from the agent-delegation table (it is no longer an agent) and updated the lifecycle routing line to name the /spec skill. No change to how any retained agent is selected.",
+      ".claude/skills/requirements-interview/SKILL.md": "Handoff reference repointed from .claude/agents/spec-generator.md (removed) to .claude/skills/spec-generator/ (new). Documentation-only.",
+      ".claude/skills/panning-for-gold/SKILL.md": "Cross-reference reworded from 'spec-generator agent' to 'spec-generator skill'. Documentation-only."
+    },
+    "why_no_llm_eval": [
+      "ADR-057 behavioral eval is for changes that alter how the model interprets a prompt or workflow.",
+      "These edits are Task->Skill invocation renames and a table-row removal; the spec-authoring instructions are byte-identical in their new home.",
+      "scripts/eval/eval-prompt-change.py has no scenario that exercises the changed lines; a fabricated scenario would measure the unchanged authoring logic, not the rename.",
+      "Matches the repo precedent .agents/eval-results/2026-05-24-structural-only-skill-fixes.json."
+    ]
+  },
+  "acceptanceGate": {
+    "noRegression": true,
+    "targetedImprovement": true,
+    "verdict": "PASS"
+  },
+  "manual_review": {
+    "reviewed_by": "agent + deterministic contract test + structural diff inspection",
+    "verdict": "approved",
+    "follow_up": "If a future change touches the spec-authoring logic itself (EARS rules, tier handling), run a live before/after eval on the SKILL.md with a generation scenario."
+  }
+}
