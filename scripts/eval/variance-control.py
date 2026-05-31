@@ -114,6 +114,9 @@ def response_text_variance(responses: list[str]) -> dict:
 
     ``all_identical`` answers the issue's first branch (variance not from the
     API). ``mean/max_consecutive_distance`` quantify how far apart the texts are.
+
+    ``all_identical`` requires at least 2 responses to claim identity; with 0 or
+    1 responses we cannot demonstrate cross-rep identity.
     """
     count = len(responses)
     unique_count = len(set(responses))
@@ -124,7 +127,7 @@ def response_text_variance(responses: list[str]) -> dict:
     return {
         "count": count,
         "unique_count": unique_count,
-        "all_identical": unique_count <= 1,
+        "all_identical": count >= 2 and unique_count == 1,
         "mean_consecutive_distance": statistics.fmean(consecutive) if consecutive else 0.0,
         "max_consecutive_distance": max(consecutive) if consecutive else 0.0,
     }
@@ -144,7 +147,11 @@ def verdict_distribution(verdicts: list[str | None]) -> dict:
 
 
 def pass_rate_variance(verdicts: list[str | None], expected: str) -> dict:
-    """Pass rate (verdict == expected) and its variance across reps."""
+    """Pass rate (verdict == expected) and its variance across reps.
+
+    ``pass_variance`` requires at least 2 data points for ``statistics.pvariance``;
+    with fewer samples, variance is reported as 0.0.
+    """
     expected_upper = expected.upper()
     passes = [1 if (v is not None and v.upper() == expected_upper) else 0 for v in verdicts]
     rep_count = len(passes)
@@ -153,14 +160,33 @@ def pass_rate_variance(verdicts: list[str | None], expected: str) -> dict:
         "rep_count": rep_count,
         "pass_count": sum(passes),
         "pass_rate": (sum(passes) / rep_count) if rep_count else 0.0,
-        "pass_variance": statistics.pvariance(passes) if rep_count else 0.0,
+        "pass_variance": statistics.pvariance(passes) if rep_count >= 2 else 0.0,
         "all_pass": all(passes) if passes else False,
         "any_fail": 0 in passes,
     }
 
 
-def classify_finding(text_var: dict, verdict_var: dict) -> str:
-    """Map the metrics onto the issue's three expected outcomes."""
+def classify_finding(
+    text_var: dict,
+    verdict_var: dict,
+    reps_answered: int = 0,
+    reps_total: int = 0,
+) -> str:
+    """Map the metrics onto the issue's three expected outcomes.
+
+    Receives ``reps_answered`` and ``reps_total`` to detect high-error scenarios
+    where sparse data would otherwise produce misleading findings.
+    """
+    if reps_answered < 2:
+        return (
+            "insufficient-data: fewer than 2 reps produced responses. "
+            "Cannot determine variance; investigate transport or API failures."
+        )
+    if reps_total > 0 and reps_answered < reps_total // 2:
+        return (
+            f"high-error-rate: only {reps_answered}/{reps_total} reps succeeded. "
+            "Variance metrics are based on sparse data; investigate failures first."
+        )
     if text_var["all_identical"]:
         return (
             "responses-bit-identical: the variance did not come from the API. "
@@ -190,14 +216,18 @@ def summarize_variance(records: list[RepRecord], expected: str) -> dict:
     text_var = response_text_variance(responses)
     verdict_var = verdict_distribution(verdicts)
     pass_var = pass_rate_variance(verdicts, expected)
+    reps_total = len(records)
+    reps_answered = len(answered)
     return {
-        "reps_total": len(records),
-        "reps_answered": len(answered),
-        "reps_error": len(records) - len(answered),
+        "reps_total": reps_total,
+        "reps_answered": reps_answered,
+        "reps_error": reps_total - reps_answered,
         "text_variance": text_var,
         "verdict_variance": verdict_var,
         "pass_rate_variance": pass_var,
-        "finding": classify_finding(text_var, verdict_var),
+        "finding": classify_finding(
+            text_var, verdict_var, reps_answered=reps_answered, reps_total=reps_total
+        ),
     }
 
 
@@ -306,14 +336,28 @@ def _assert_under_repo_root(path: Path) -> Path:
 
 
 def _load_fixture(fixture_id: str) -> dict:
+    """Load and validate a fixture JSON file.
+
+    Raises ``FileNotFoundError`` if the file is missing and ``ValueError`` if
+    the fixture lacks required fields or has invalid structure.
+    """
     path = _assert_under_repo_root(REPO_ROOT / FIXTURES_DIR / f"{fixture_id}.json")
     if not path.exists():
         raise FileNotFoundError(f"fixture not found: {path}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    fixture = json.loads(path.read_text(encoding="utf-8"))
+    if "input" not in fixture:
+        raise ValueError(f"fixture {fixture_id} missing required 'input' field")
+    assertions = fixture.get("assertions")
+    if assertions is not None and not isinstance(assertions, list):
+        raise ValueError(
+            f"fixture {fixture_id} has invalid 'assertions' field (expected list or null)"
+        )
+    return fixture
 
 
 def _expected_verdict(fixture: dict) -> str:
-    for assertion in fixture.get("assertions", []):
+    assertions = fixture.get("assertions") or []
+    for assertion in assertions:
         if assertion.get("kind") == "verdict" and assertion.get("expected_value"):
             return str(assertion["expected_value"])
     raise ValueError("fixture has no verdict assertion with expected_value")
@@ -373,6 +417,12 @@ def main(argv: list[str] | None = None) -> int:
     user = str(fixture["input"]) + OUTPUT_SHAPE_SUFFIX
     run_id = args.run_id or _generate_run_id()
 
+    # Validate and create output directory before API calls to fail fast on
+    # permission or path errors without wasting billable API spend (Bug #5).
+    out_dir = _assert_under_repo_root(REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id))
+    if not args.dry_run:
+        out_dir.mkdir(parents=True, exist_ok=True)
+
     if args.dry_run:
         print(
             f"PLAN: {args.reps} reps of fixture={args.fixture} agent={args.agent} "
@@ -390,9 +440,6 @@ def main(argv: list[str] | None = None) -> int:
         model_id=args.model,
     )
     summary = summarize_variance(records, expected)
-
-    out_dir = _assert_under_repo_root(REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id))
-    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "raw.jsonl").write_text(
         "".join(json.dumps(r.__dict__) + "\n" for r in records), encoding="utf-8"
     )
