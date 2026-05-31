@@ -50,6 +50,7 @@ from github_core.api import (  # noqa: E402
     filter_unresolved_threads,
     gh_graphql,
     resolve_repo_params,
+    transform_review_thread,
 )
 
 # Page size for the reviewThreads connection. GitHub GraphQL caps connection
@@ -290,40 +291,14 @@ def _collect_all_threads(
 
 
 def _transform_thread(thread: dict, include_comments: bool) -> dict:
-    """Transform a raw GraphQL thread node into the output format."""
-    comments_nodes = thread.get("comments", {}).get("nodes", [])
-    first = comments_nodes[0] if comments_nodes else None
+    """Transform a raw GraphQL thread node into the canonical flat shape.
 
-    result: dict = {
-        "thread_id": thread.get("id"),
-        "is_resolved": thread.get("isResolved", False),
-        "is_outdated": thread.get("isOutdated", False),
-        "path": thread.get("path"),
-        "line": thread.get("line"),
-        "start_line": thread.get("startLine"),
-        "diff_side": thread.get("diffSide"),
-        "comment_count": thread.get("comments", {}).get("totalCount", 0),
-        "first_comment_id": first.get("databaseId") if first else None,
-        "first_comment_author": (
-            first.get("author", {}).get("login") if first and first.get("author") else None
-        ),
-        "first_comment_body": first.get("body") if first else None,
-        "first_comment_created_at": first.get("createdAt") if first else None,
-        "comments": None,
-    }
-
-    if include_comments:
-        result["comments"] = [
-            {
-                "id": c.get("databaseId"),
-                "author": c.get("author", {}).get("login") if c.get("author") else None,
-                "body": c.get("body"),
-                "created_at": c.get("createdAt"),
-            }
-            for c in comments_nodes
-        ]
-
-    return result
+    Thin wrapper over ``github_core.api.transform_review_thread`` (DRY). The
+    shape lives in one place so this script and ``get_unresolved_review_threads.py``
+    cannot drift. Kept as a named function because the test suite imports it
+    directly.
+    """
+    return transform_review_thread(thread, include_comments)
 
 
 def main(argv: list[str] | None = None) -> int:

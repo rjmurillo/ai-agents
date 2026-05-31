@@ -27,6 +27,7 @@ from scripts.github_core.api import (  # noqa: F401
     is_gh_authenticated,
     resolve_repo_params,
     safe_log_str,
+    transform_review_thread,
     update_issue_comment,
 )
 from scripts.github_core.bot_config import (  # noqa: F401
@@ -85,6 +86,7 @@ __all__ = [
     "is_safe_file_path",
     "resolve_repo_params",
     "safe_log_str",
+    "transform_review_thread",
     "update_issue_comment",
     "write_skill_error",
     "write_skill_output",

@@ -1,0 +1,127 @@
+{
+  "session": {
+    "number": 1857,
+    "date": "2026-05-31",
+    "branch": "fix/2012-thread-shape-consistency",
+    "startingCommit": "e6fa83a93",
+    "objective": "Fix issue 2012: normalize get_unresolved_review_threads output to canonical flat thread shape shared with get_pr_review_threads"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions activated project ai-agents; symbolic tools (get_symbols_overview, find_symbol) used to read the pr scripts"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual via initial_instructions before code work"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected at session start and reviewed (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog listed in session context; session-init and session-end skills invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory guidance reviewed; Serena-first and skill-first routing followed"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/*.md loaded via CLAUDE.md imports; AGENTS.md boundaries and canonical-source-mirror rule applied to the dual-synced github_core lib"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory index loaded; github-skill and pr-review memories consulted for thread-shape contract"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2012-thread-shape-consistency"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree at /tmp/wt-2012 on fix/2012-thread-shape-consistency off origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified clean before edits; main checkout left untouched"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e6fa83a93"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Start MUST gates complete; work landed across 4 atomic commits; 208 unit tests pass"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory workflow/worktree-session-init-writes-to-main"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint run via pre_pr.py; this PR changes zero markdown files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work head da8abdf3e; session log committed last"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py: plugin-version-bump was the only diff-caused failure and now re-passes; markdown, agent-drift, and git-hooks failures are pre-existing repo and environment state outside this diff; 208 unit tests pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in workLog and nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Resolve issue #2012: get_unresolved_review_threads emitted raw GraphQL per-thread nodes that disagreed with get_pr_review_threads flat shape, crashing consumers",
+      "outcome": "Added canonical transform_review_thread to scripts/github_core/api.py (single source of truth), made both pr scripts use it, enriched the unresolved GraphQL query and added --include-comments. Verified no consumer reads the old per-thread shape (wait_for_unresolved_zero reads only top-level keys).",
+      "evidence": "208 tests pass (uv run pytest); live run against PR 2155 emits flat shape with no crash; sync_plugin_lib + build_all regenerate .claude/lib and src/copilot-cli copies"
+    }
+  ],
+  "endingCommit": "da8abdf3e9ee06ff5d6848a24e2df67cb9199441",
+  "nextSteps": [
+    "Open PR with Fixes #2012",
+    "Continue session-1858 for issue #2048; verify and close issue #2007"
+  ]
+}
