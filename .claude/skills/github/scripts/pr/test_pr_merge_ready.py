@@ -512,8 +512,7 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     ``mergeable`` checks. ``BLOCKED`` is intentionally NOT blocked: it
     usually means "awaiting required review", which is exactly when enabling
     auto-merge is the correct action; it stays surfaced via the
-    ``MergeStateStatus`` output field. See decision note
-    ``decision-merge-ready-blocked-vs-behind``.
+    ``MergeStateStatus`` output field.
     """
     if pr["state"] != "OPEN":
         reasons.append(f"PR is {pr['state'].lower()}, not open")
