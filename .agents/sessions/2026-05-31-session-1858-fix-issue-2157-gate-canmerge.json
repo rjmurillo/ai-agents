@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 1858,
     "date": "2026-05-31",
@@ -98,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "29 unit tests pass; plugin-version-bump passes (0.4.5/0.4.14); only pre-existing markdown/agent-drift/git-hooks environment failures remain, outside this diff"
+        "Evidence": "29 unit tests pass; plugin-version-bump passes (0.4.8/0.4.17); only pre-existing markdown/agent-drift/git-hooks environment failures remain, outside this diff"
       },
       "tasksUpdated": {
         "level": "SHOULD",
