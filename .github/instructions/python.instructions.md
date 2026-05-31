@@ -5,8 +5,10 @@ applyTo: '**/*.py,**/pyproject.toml,**/requirements*.txt'
 
 # Python Rules
 
-These rules apply when you write or review Python. Baseline is Python 3.12+
-(this repo runs 3.14). Defer to `pyproject.toml`, `ruff` config, and `pyright`
+These rules apply when you write or review Python. Repo tooling runs on 3.14 and
+CI targets it, but package metadata declares `requires-python = ">=3.10"`, so use
+only syntax the interpreter target for the code you touch supports (for example,
+PEP 695 generics need 3.12+). Defer to `pyproject.toml`, `ruff` config, and `mypy`
 settings over personal preference.
 
 ## Typing
@@ -19,7 +21,7 @@ settings over personal preference.
 - Prefer precise types: `Sequence`/`Mapping` for read-only parameters,
   `Protocol` for structural interfaces, `Literal` for fixed string sets,
   `TypedDict` for structured dict payloads at a boundary.
-- Run `pyright` (or `mypy`) in CI and treat type errors as failures. A passing
+- Run `mypy` in CI and treat type errors as failures. A passing
   type checker is part of the contract, not optional.
 
 ## Idioms
@@ -39,7 +41,7 @@ settings over personal preference.
 ## Tooling
 
 - `uv` for environments and dependency resolution; `ruff` for lint and format
-  (it replaces black, isort, flake8); `pyright` for types; `pytest` for tests.
+  (it replaces black, isort, flake8); `mypy` for types; `pytest` for tests.
 - Tests follow Arrange/Act/Assert, one behavior per test, names that describe the
   behavior (`returns_empty_when_no_rows`). Mock only at I/O and process
   boundaries; never mock the function under test.
@@ -68,6 +70,11 @@ settings over personal preference.
   Use it for invariants that should be impossible, raise for invalid input.
 - **Module-level side effects** (I/O, network, mutation) at import time. Imports
   must be cheap and pure; put work behind a function or `if __name__ == "__main__"`.
+- **`.get(key, default)` on a field that can be explicitly `null`.** When the key
+  exists with value `None` (common in JSON and GraphQL payloads), the default is
+  bypassed and you get `None`, not the default; a later attribute or index access
+  then raises `AttributeError`/`TypeError`. Use `data.get(key) or default` when a
+  `null` value should collapse to the default.
 
 ## References
 
