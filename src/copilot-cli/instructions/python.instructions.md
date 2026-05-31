@@ -73,8 +73,10 @@ settings over personal preference.
 - **`.get(key, default)` on a field that can be explicitly `null`.** When the key
   exists with value `None` (common in JSON and GraphQL payloads), the default is
   bypassed and you get `None`, not the default; a later attribute or index access
-  then raises `AttributeError`/`TypeError`. Use `data.get(key) or default` when a
-  `null` value should collapse to the default.
+  then raises `AttributeError`/`TypeError`. Collapse only explicit `None`:
+  `v = data.get(key); v = default if v is None else v`. Avoid
+  `data.get(key) or default`, which also overrides valid falsy values such as
+  `0`, `False`, and `""`.
 
 ## References
 
