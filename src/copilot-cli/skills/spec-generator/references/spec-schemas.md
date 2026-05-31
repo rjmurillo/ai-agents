@@ -57,6 +57,7 @@ stateDiagram-v2
     }
 
     state "Tasks" as T {
+        state "in-progress" as in_progress
         [*] --> todo
         todo --> in_progress: start work
         todo --> blocked: blocker found

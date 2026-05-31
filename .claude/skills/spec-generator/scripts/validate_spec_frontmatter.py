@@ -70,10 +70,26 @@ class SpecValidation:
 
     path: str
     errors: list[str] = field(default_factory=list)
+    config_error: bool = False
 
     @property
     def ok(self) -> bool:
         return not self.errors
+
+
+def _strip_scalar(value: str) -> str:
+    """Normalize a scalar frontmatter value.
+
+    A quoted value is returned with its quotes removed and its contents intact,
+    so an inner ``#`` (e.g. ``title: "Spec #2001"``) is preserved. An unquoted
+    value has a trailing `` # inline comment`` stripped.
+    """
+    if value and value[0] in "\"'":
+        quote = value[0]
+        end = value.find(quote, 1)
+        if end != -1:
+            return value[1:end]
+    return re.sub(r"\s+#.*$", "", value).strip()
 
 
 def extract_frontmatter(text: str) -> dict[str, str] | None:
@@ -101,8 +117,8 @@ def extract_frontmatter(text: str) -> dict[str, str] | None:
         if not match:
             continue
         key, value = match.group(1), match.group(2).strip()
-        # Strip surrounding quotes and trailing inline comments.
-        value = re.sub(r"\s+#.*$", "", value).strip().strip("'\"")
+        # Strip surrounding quotes and (for unquoted values) inline comments.
+        value = _strip_scalar(value)
         current_key = key
         fields[key] = value
     # Unterminated frontmatter (no closing fence): treat as malformed.
@@ -156,9 +172,13 @@ def validate_file(path: str) -> SpecValidation:
     """Read and validate one spec file."""
     result = SpecValidation(path=path)
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
     except OSError as exc:
+        # Unreadable input is a configuration error (exit 2), not a logic
+        # failure (exit 1), per the module exit-code contract above.
         result.errors.append(f"cannot read file: {exc}")
+        result.config_error = True
         return result
     fields = extract_frontmatter(text)
     if fields is None:
@@ -174,14 +194,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     any_failed = False
+    any_config_error = False
     for path in args:
         result = validate_file(path)
         if result.ok:
             print(f"[PASS] {path}")
         else:
-            any_failed = True
+            if result.config_error:
+                any_config_error = True
+            else:
+                any_failed = True
             for err in result.errors:
                 print(f"[FAIL] {path}: {err}")
+    if any_config_error:
+        return 2
     return 1 if any_failed else 0
 
 

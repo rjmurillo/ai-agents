@@ -370,7 +370,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 5. **CVA analysis (conditional)**: If the complexity tier is 3-5, or Tier 1-2 with multiple use cases, invoke Skill(skill="cva-analysis"): identify commonalities across the PRD's user stories, then variabilities, then relationships. Otherwise (Tier 1-2 single-use-case), set `CVA summary: N/A (single-use-case Tier 1-2)` and proceed.
 6. **Formalize the PRD into durable artifacts**:
 
-   **First ask the multi-site opt-in prompt (PR #1989 coderabbit t3_).** Before invoking spec-generator, ask the user verbatim:
+   **First ask the multi-site opt-in prompt.** Before invoking spec-generator, ask the user verbatim:
 
    ```text
    Is this a multi-site contract change? (y/n)
@@ -382,7 +382,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    - `.agents/specs/requirements/REQ-NNN-{slug}.md` (one per requirement, EARS syntax)
    - `.agents/specs/design/DESIGN-NNN-{slug}.md`
    - `.agents/specs/tasks/TASK-NNN-{slug}.md`
-   The full PRD must be passed as input so the spec-generator skill does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`). The skill validates every emitted file with `validate_spec_frontmatter.py` and does not report completion until it exits 0; this closes the frontmatter enum drift from PR #1995 / #1989.
+   The full PRD must be passed as input so the spec-generator skill does not re-ask questions the interview already answered. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`). The skill validates every emitted file with `validate_spec_frontmatter.py` and does not report completion until it exits 0; this closes the frontmatter enum drift the validator was added to catch.
 
    #### Co-change checklist (REQ-012-04, REQ-012-05)
 

@@ -95,7 +95,7 @@ Return to the caller as Markdown with the sections below. Each section uses the 
 
 ## Handoff
 
-After the interview, the caller (typically `/spec`) consumes the structured PRD across its downstream steps. The PRD is then handed to the spec-generator skill (`.claude/skills/spec-generator/`), which formalizes it into durable artifacts:
+After the interview, the caller (typically `/spec`) consumes the structured PRD across its downstream steps. The PRD is then handed to the spec-generator skill, which formalizes it into durable artifacts:
 
 - `.agents/specs/requirements/REQ-NNN-{slug}.md` (one file per requirement, EARS syntax)
 - `.agents/specs/design/DESIGN-NNN-{slug}.md`

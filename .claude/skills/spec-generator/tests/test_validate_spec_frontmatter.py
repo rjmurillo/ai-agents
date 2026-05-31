@@ -127,6 +127,14 @@ class TestExtractFrontmatter:
         assert fields["title"] == "hello"
         assert fields["priority"] == "P1"
 
+    def test_preserves_hash_inside_quoted_value(self):
+        # A quoted value may legitimately contain '#' (e.g. an issue ref); it
+        # must not be truncated as an inline comment.
+        text = '---\ntitle: "Spec #2001 follow-up"\nid: REQ-001\n---\n'
+        fields = extract_frontmatter(text)
+        assert fields["title"] == "Spec #2001 follow-up"
+        assert fields["id"] == "REQ-001"
+
     def test_list_field_marked_present(self):
         text = "---\ntype: design\nrelated:\n  - REQ-001\n---\n"
         fields = extract_frontmatter(text)
@@ -156,6 +164,12 @@ class TestValidateFileAndMain:
 
     def test_main_no_args_is_config_error(self):
         assert main([]) == 2
+
+    def test_main_unreadable_file_is_config_error(self, tmp_path):
+        # A path that cannot be read is a configuration error (exit 2), not a
+        # validation failure (exit 1), per the module exit-code contract.
+        missing = tmp_path / "does-not-exist.md"
+        assert main([str(missing)]) == 2
 
     def test_main_returns_1_on_invalid(self, tmp_path):
         p = tmp_path / "bad.md"
