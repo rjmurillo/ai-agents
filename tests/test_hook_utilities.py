@@ -327,7 +327,7 @@ class TestGetRecentSessionLog:
         good.write_text("{}")
         real_stat = Path.stat
 
-        def flaky_stat(self: Path, *args, **kwargs):  # type: ignore[no-untyped-def]
+        def flaky_stat(self: Path, *args: object, **kwargs: object) -> object:
             if self.name == bad.name:
                 raise OSError("transient stat failure")
             return real_stat(self, *args, **kwargs)
@@ -456,5 +456,26 @@ class TestModuleExports:
             "lock_file",
             "skip_if_consumer_repo",
             "unlock_file",
+            # ADR-062 LSP-first enforcement lib (facade re-exports)
+            "FREE_READS",
+            "NAV_REQUIRED",
+            "PROVIDERS",
+            "SYMBOLS_OVERVIEW",
+            "SYMBOL_NAVIGATION",
+            "WARN_AT",
+            "detect_providers",
+            "extract_pattern_and_target",
+            "is_code_symbol",
+            "is_code_target",
+            "is_git_grep",
+            "is_grep_search",
+            "read_state",
+            "record_nav",
+            "record_read",
+            "record_warmup",
+            "reset_state",
+            "state_path",
+            "strip_zero_width",
+            "write_state",
         }
         assert set(mod.__all__) == expected
