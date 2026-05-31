@@ -470,6 +470,7 @@ def main(argv: list[str] | None = None) -> int:
         ("REPORT.md", report),
     ]
     temp_paths: list[Path] = []
+    final_paths: list[Path] = []
     try:
         for name, content in output_files:
             temp_path = out_dir / f"{name}{temp_suffix}"
@@ -478,10 +479,16 @@ def main(argv: list[str] | None = None) -> int:
         for temp_path in temp_paths:
             final_path = temp_path.with_suffix("")
             temp_path.rename(final_path)
+            final_paths.append(final_path)
     except OSError as exc:
         for temp_path in temp_paths:
             try:
                 temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        for final_path in final_paths:
+            try:
+                final_path.unlink(missing_ok=True)
             except OSError:
                 pass
         print(f"Error writing output: {exc}", file=sys.stderr)
