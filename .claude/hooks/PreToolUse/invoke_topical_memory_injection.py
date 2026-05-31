@@ -147,15 +147,22 @@ def derive_topic(rel_path: str) -> str | None:
     return None
 
 
-def _summary_line(content: str) -> str:
-    """Return a one-line summary: the first heading, else the first prose line."""
-    for raw in content.splitlines():
-        line = raw.strip()
-        if not line or line == "---":
-            continue
-        if line.startswith("#"):
-            return line.lstrip("# ").strip()[:160]
-        return line[:160]
+def _summary_line_from_file(path: Path) -> str:
+    """Return a one-line summary by reading only until the first heading/prose line.
+
+    Opens the file and reads line-by-line to avoid loading large files entirely.
+    """
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line == "---":
+                    continue
+                if line.startswith("#"):
+                    return line.lstrip("# ").strip()[:160]
+                return line[:160]
+    except (OSError, UnicodeDecodeError):
+        pass
     return ""
 
 
@@ -194,11 +201,7 @@ def find_topical_memories(
     for _mtime, path, rel in candidates[:MAX_MEMORIES]:
         if time.monotonic() > deadline:
             break
-        try:
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-        results.append((rel, _summary_line(content)))
+        results.append((rel, _summary_line_from_file(path)))
     return results
 
 

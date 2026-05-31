@@ -290,15 +290,22 @@ def _original_main(stdin_bytes):
         return None
 
 
-    def _summary_line(content: str) -> str:
-        """Return a one-line summary: the first heading, else the first prose line."""
-        for raw in content.splitlines():
-            line = raw.strip()
-            if not line or line == "---":
-                continue
-            if line.startswith("#"):
-                return line.lstrip("# ").strip()[:160]
-            return line[:160]
+    def _summary_line_from_file(path: Path) -> str:
+        """Return a one-line summary by reading only until the first heading/prose line.
+
+        Opens the file and reads line-by-line to avoid loading large files entirely.
+        """
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                for raw in f:
+                    line = raw.strip()
+                    if not line or line == "---":
+                        continue
+                    if line.startswith("#"):
+                        return line.lstrip("# ").strip()[:160]
+                    return line[:160]
+        except (OSError, UnicodeDecodeError):
+            pass
         return ""
 
 
@@ -314,7 +321,8 @@ def _original_main(stdin_bytes):
         memories_dir = Path(project_root) / ".serena" / "memories"
         if not memories_dir.is_dir():
             return []
-        needles = {topic, topic.rstrip("s")}
+        singular = topic.removesuffix("s")
+        needles = {topic, singular} if len(singular) >= 2 else {topic}
         candidates: list[tuple[float, Path, str]] = []
         for md_file in memories_dir.rglob("*.md"):
             if time.monotonic() > deadline:
@@ -336,11 +344,7 @@ def _original_main(stdin_bytes):
         for _mtime, path, rel in candidates[:MAX_MEMORIES]:
             if time.monotonic() > deadline:
                 break
-            try:
-                content = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            results.append((rel, _summary_line(content)))
+            results.append((rel, _summary_line_from_file(path)))
         return results
 
 
