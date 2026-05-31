@@ -16,6 +16,14 @@ Output is a JSON object with:
       "threads": [<thread>, ...]
     }
 
+Each ``thread`` uses the canonical flat shape produced by
+``github_core.api.transform_review_thread`` (``thread_id``, ``is_resolved``,
+``path``, ``line``, ``first_comment_*``, ``comments``). It is identical to the
+shape emitted by ``get_pr_review_threads.py`` so a consumer can read either
+script's ``threads`` without a shape branch. Pass ``--include-comments`` to
+materialize the full per-thread comment list; by default ``comments`` is null
+and only the ``first_comment_*`` fields are populated.
+
 The ``fetched_pages_complete`` flag is true only when pagination ran to
 ``hasNextPage == false``. The /pr-review completion gate's pass_when
 expression requires this flag to be true alongside ``unresolved_count
@@ -68,6 +76,7 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     gh_graphql,
     resolve_repo_params,
+    transform_review_thread,
 )
 
 # Safety net: cap pages so a runaway PR cannot pin the script forever.
@@ -75,8 +84,12 @@ from github_core.api import (  # noqa: E402
 # realistic PR. If exceeded, we fall back to fetched_pages_complete=False.
 _MAX_PAGES = 50
 
+# Node selection mirrors the fields consumed by
+# ``github_core.api.transform_review_thread`` so the emitted ``threads`` share
+# the canonical flat shape with get_pr_review_threads.py. ``$commentsLimit`` is
+# 1 by default (cheap unresolved-count probe) and 50 under --include-comments.
 _QUERY = """\
-query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
+query($owner: String!, $name: String!, $prNumber: Int!, $commentsLimit: Int!, $cursor: String) {
     repository(owner: $owner, name: $name) {
         pullRequest(number: $prNumber) {
             reviewThreads(first: 100, after: $cursor) {
@@ -87,9 +100,18 @@ query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
                 nodes {
                     id
                     isResolved
-                    comments(first: 1) {
+                    isOutdated
+                    path
+                    line
+                    startLine
+                    diffSide
+                    comments(first: $commentsLimit) {
+                        totalCount
                         nodes {
                             databaseId
+                            body
+                            author { login }
+                            createdAt
                         }
                     }
                 }
@@ -100,16 +122,18 @@ query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
 
 
 def fetch_unresolved_threads_paginated(
-    owner: str, repo: str, pull_request: int,
+    owner: str, repo: str, pull_request: int, comments_limit: int = 1,
 ) -> tuple[list[dict], bool]:
     """Fetch unresolved review threads, paginating to exhaustion.
 
-    Returns a tuple ``(threads, fetched_pages_complete)``. The flag is
-    True only when the underlying GraphQL pagination terminated normally
-    (``hasNextPage`` was false on the last page). Pagination errors,
-    page-cap exhaustion, or query failures yield False; the caller MUST
-    treat False as "we cannot prove there are no more unresolved
-    threads".
+    Returns a tuple ``(threads, fetched_pages_complete)`` of raw GraphQL
+    nodes. ``comments_limit`` is forwarded to the query's
+    ``comments(first: ...)`` selection: 1 for the cheap probe, higher when
+    the caller wants the full comment list. The flag is True only when the
+    underlying GraphQL pagination terminated normally (``hasNextPage`` was
+    false on the last page). Pagination errors, page-cap exhaustion, or
+    query failures yield False; the caller MUST treat False as "we cannot
+    prove there are no more unresolved threads".
     """
     all_unresolved: list[dict] = []
     cursor: str | None = None
@@ -126,6 +150,7 @@ def fetch_unresolved_threads_paginated(
             "owner": owner,
             "name": repo,
             "prNumber": pull_request,
+            "commentsLimit": comments_limit,
         }
         if cursor:
             variables["cursor"] = cursor
@@ -173,6 +198,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pull-request", type=int, required=True, help="Pull request number",
     )
+    parser.add_argument(
+        "--include-comments", action="store_true",
+        help="Include the full comment list in each thread (not just the first)",
+    )
     return parser
 
 
@@ -186,9 +215,16 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
 
-    threads, fetched_pages_complete = fetch_unresolved_threads_paginated(
-        owner, repo, args.pull_request,
+    # Mirror get_pr_review_threads.py: 1 comment for the cheap probe, 50 when
+    # the caller wants the whole conversation.
+    comments_limit = 50 if args.include_comments else 1
+
+    nodes, fetched_pages_complete = fetch_unresolved_threads_paginated(
+        owner, repo, args.pull_request, comments_limit,
     )
+    threads = [
+        transform_review_thread(node, args.include_comments) for node in nodes
+    ]
 
     # ``success`` reflects whether the *snapshot* is trustworthy. When
     # pagination cannot prove completeness (an underlying GraphQL error
