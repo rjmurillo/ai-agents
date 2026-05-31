@@ -1,0 +1,31 @@
+{
+  "reps_total": 20,
+  "reps_answered": 20,
+  "reps_error": 0,
+  "text_variance": {
+    "count": 20,
+    "unique_count": 20,
+    "all_identical": false,
+    "mean_consecutive_distance": 0.6357971571105335,
+    "max_consecutive_distance": 0.786219624730852
+  },
+  "verdict_variance": {
+    "distribution": {
+      "ESCALATE": 20
+    },
+    "distinct_count": 1,
+    "stable": true,
+    "modal_verdict": "ESCALATE",
+    "modal_count": 20
+  },
+  "pass_rate_variance": {
+    "expected": "IDENTIFY",
+    "rep_count": 20,
+    "pass_count": 0,
+    "pass_rate": 0.0,
+    "pass_variance": 0,
+    "all_pass": false,
+    "any_fail": true
+  },
+  "finding": "text-varies-verdict-stable: the API has output-text non-determinism but the scorer is robust. Gate AC-10 on verdict variance, not text variance."
+}
