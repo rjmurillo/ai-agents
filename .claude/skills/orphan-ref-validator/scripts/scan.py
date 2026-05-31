@@ -69,6 +69,7 @@ if __package__ in (None, ""):
         extract_count_claims,
         extract_script_refs,
         extract_skill_refs,
+        extract_skill_script_refs,
     )
     from walking import walk_targets
 else:
@@ -91,6 +92,7 @@ else:
         extract_count_claims,
         extract_script_refs,
         extract_skill_refs,
+        extract_skill_script_refs,
     )
     from .walking import walk_targets
 
@@ -149,6 +151,12 @@ def scan_file(
     script_findings, script_refs = _check_script_refs(text, rel, repo_root)
     findings.extend(script_findings)
     refs_checked += script_refs
+
+    skill_script_findings, skill_script_refs = _check_skill_script_refs(
+        text, rel, repo_root
+    )
+    findings.extend(skill_script_findings)
+    refs_checked += skill_script_refs
 
     if is_manifest_file(target_path):
         count_findings, count_refs = _check_count_claims(
@@ -217,6 +225,37 @@ def _check_script_refs(
                 recommendation=(
                     f"Script `{script_ref}` not present on disk. "
                     "Update reference or restore the script."
+                ),
+            )
+        )
+    return findings, refs_checked
+
+
+def _check_skill_script_refs(
+    text: str, rel: str, repo_root: Path
+) -> tuple[list[Finding], int]:
+    """Emit script_path findings for skill-script references (.claude/skills or
+    the copilot mirror), backticked or bare, that do not exist on disk. This is
+    the issue #1987 wrong-script-name class (e.g. get_unresolved_threads.py for
+    get_unresolved_review_threads.py)."""
+    findings: list[Finding] = []
+    refs_checked = 0
+    for lineno, script_ref in extract_skill_script_refs(text):
+        refs_checked += 1
+        if (repo_root / script_ref).exists():
+            continue
+        findings.append(
+            Finding(
+                kind="script_path",
+                severity="critical",
+                target_file=rel,
+                line=lineno,
+                referenced_entity=script_ref,
+                recommendation=(
+                    f"Skill script `{script_ref}` not present on disk. "
+                    "Check the exact filename (a missing word like `review` is "
+                    "the issue #1987 failure mode); update the reference or "
+                    "restore the script."
                 ),
             )
         )
