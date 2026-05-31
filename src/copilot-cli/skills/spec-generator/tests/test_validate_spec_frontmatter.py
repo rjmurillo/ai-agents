@@ -170,3 +170,44 @@ class TestValidateFileAndMain:
             encoding="utf-8",
         )
         assert main([str(p)]) == 0
+
+
+class TestHeldOutGeneralization:
+    """Drift values the SKILL does NOT name in its 'Common drift this gate stops'
+    list. These prove the validator enforces the schema RULE (enum membership),
+    not just the four documented values. Added from the #2001 live-eval held-out
+    run (evals/spec-generator-spike/heldout-results.json), where the removed agent
+    rejected these against hallucinated enum sets while the skill cited canonical.
+    """
+
+    def test_priority_high_rejected(self):
+        result = validate_fields(
+            "REQ.md",
+            _fm(type="requirement", id="REQ-001", title="x", status="approved", priority="high", category="functional"),
+        )
+        assert not result.ok
+        assert any("priority" in e and "high" in e for e in result.errors)
+
+    def test_task_status_pending_rejected(self):
+        result = validate_fields(
+            "TASK.md",
+            _fm(type="task", id="TASK-001", title="x", status="pending", priority="P1", complexity="S", related="[present]"),
+        )
+        assert not result.ok
+        assert any("status" in e and "pending" in e for e in result.errors)
+
+    def test_category_infra_rejected(self):
+        result = validate_fields(
+            "REQ.md",
+            _fm(type="requirement", id="REQ-002", title="x", status="draft", priority="P2", category="infra"),
+        )
+        assert not result.ok
+        assert any("category" in e and "infra" in e for e in result.errors)
+
+    def test_design_status_unnamed_value_rejected(self):
+        result = validate_fields(
+            "DESIGN.md",
+            _fm(type="design", id="DESIGN-001", title="x", status="wip", priority="P0", related="[present]"),
+        )
+        assert not result.ok
+        assert any("status" in e and "wip" in e for e in result.errors)
