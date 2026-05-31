@@ -361,12 +361,42 @@ def _original_main(stdin_bytes):
         )
 
 
+    def _bypassed() -> bool:
+        """Allow without evaluating: consumer repo or the SKIP_LSP_GATE kill switch (ADR-062)."""
+        if skip_if_consumer_repo(_HOOK_NAME):
+            return True
+        if os.environ.get("SKIP_LSP_GATE", "").lower() == "true":
+            print(f"{_HOOK_NAME}: SKIP_LSP_GATE set, allowing", file=sys.stderr)
+            return True
+        return False
+
+
+    def _evaluate(hook_input: dict) -> tuple[str, list[str], list[str]] | None:
+        """Decide whether a Glob call should block.
+
+        Returns ``(pattern, symbols, providers)`` when the pattern carries a code
+        symbol and a symbol_navigation provider is available; otherwise ``None``.
+        """
+        if hook_input.get("tool_name") != "Glob":
+            return None
+        tool_input = hook_input.get("tool_input")
+        if not isinstance(tool_input, dict):
+            return None
+        pattern = _coerce_str(tool_input.get("pattern"))
+        if not pattern:
+            return None
+        symbols = find_glob_symbols(pattern)
+        if not symbols:
+            return None
+        providers = resolve_providers(pattern, get_project_directory())
+        if not providers:
+            return None
+        return pattern, symbols, providers
+
+
     def main() -> int:
         """Main hook entry point. Returns exit code (0 allow, 2 block)."""
-        if skip_if_consumer_repo(_HOOK_NAME):
-            return 0
-        if os.environ.get("SKIP_LSP_GATE", "").lower() == "true":
-            print(f"{_HOOK_NAME}: SKIP_LSP_GATE set, allowing Glob", file=sys.stderr)
+        if _bypassed():
             return 0
 
         try:
@@ -377,28 +407,11 @@ def _original_main(stdin_bytes):
             if not input_json.strip():
                 return 0
 
-            hook_input = json.loads(input_json)
-            if hook_input.get("tool_name") != "Glob":
+            decision = _evaluate(json.loads(input_json))
+            if decision is None:
                 return 0
 
-            tool_input = hook_input.get("tool_input")
-            if not isinstance(tool_input, dict):
-                return 0
-
-            pattern = _coerce_str(tool_input.get("pattern"))
-            if not pattern:
-                return 0
-
-            symbols = find_glob_symbols(pattern)
-            if not symbols:
-                return 0
-
-            project_dir = get_project_directory()
-            providers = resolve_providers(pattern, project_dir)
-            if not providers:
-                # No symbol_navigation provider for this glob's target: fail-open.
-                return 0
-
+            pattern, symbols, providers = decision
             guidance = build_guidance(pattern, symbols, providers)
             if os.environ.get("LSP_GATE_MODE", "").lower() == _WARN_MODE:
                 _emit_warn(guidance)

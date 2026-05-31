@@ -335,12 +335,49 @@ def _original_main(stdin_bytes):
         )
 
 
+    def _bypassed() -> bool:
+        """Allow without evaluating: consumer repo or the SKIP_LSP_GATE kill switch (ADR-062)."""
+        if skip_if_consumer_repo(_HOOK_NAME):
+            return True
+        if os.environ.get("SKIP_LSP_GATE", "").lower() == "true":
+            print(f"{_HOOK_NAME}: SKIP_LSP_GATE set, allowing", file=sys.stderr)
+            return True
+        return False
+
+
+    def _evaluate(hook_input: dict) -> tuple[list[str], list[str]] | None:
+        """Decide whether a Grep call should block.
+
+        Returns ``(symbols, providers)`` when the call is a code-symbol Grep on a
+        symbol-navigable file with an available provider; otherwise ``None`` (allow).
+        Ports the tool-specific checks from ``lsp-first-guard.js:16-61``.
+        """
+        if hook_input.get("tool_name") != "Grep":
+            return None
+        tool_input = hook_input.get("tool_input")
+        if not isinstance(tool_input, dict):
+            return None
+        pattern = _coerce_str(tool_input.get("pattern"))
+        if len(pattern) < 4:
+            return None
+        symbols = find_code_symbols(pattern)
+        if not symbols:
+            return None
+        target = _select_target(
+            _coerce_str(tool_input.get("path")),
+            _coerce_str(tool_input.get("glob")),
+        )
+        if not is_code_target(target, SYMBOL_NAVIGATION):
+            return None
+        providers = detect_providers(target, SYMBOL_NAVIGATION, get_project_directory())
+        if not providers:
+            return None
+        return symbols, providers
+
+
     def main() -> int:
         """Main hook entry point. Returns exit code (0 allow, 2 block)."""
-        if skip_if_consumer_repo(_HOOK_NAME):
-            return 0
-        if os.environ.get("SKIP_LSP_GATE", "").lower() == "true":
-            print(f"{_HOOK_NAME}: SKIP_LSP_GATE set, allowing Grep", file=sys.stderr)
+        if _bypassed():
             return 0
 
         try:
@@ -351,35 +388,11 @@ def _original_main(stdin_bytes):
             if not input_json.strip():
                 return 0
 
-            hook_input = json.loads(input_json)
-            if hook_input.get("tool_name") != "Grep":
+            decision = _evaluate(json.loads(input_json))
+            if decision is None:
                 return 0
 
-            tool_input = hook_input.get("tool_input")
-            if not isinstance(tool_input, dict):
-                return 0
-
-            pattern = _coerce_str(tool_input.get("pattern"))
-            if len(pattern) < 4:
-                return 0
-
-            symbols = find_code_symbols(pattern)
-            if not symbols:
-                return 0
-
-            target = _select_target(
-                _coerce_str(tool_input.get("path")),
-                _coerce_str(tool_input.get("glob")),
-            )
-            if not is_code_target(target, SYMBOL_NAVIGATION):
-                return 0
-
-            project_dir = get_project_directory()
-            providers = detect_providers(target, SYMBOL_NAVIGATION, project_dir)
-            if not providers:
-                # No LSP provider configured for this file type: fail-open (allow).
-                return 0
-
+            symbols, providers = decision
             guidance = build_guidance(symbols, providers)
             if os.environ.get("LSP_GATE_MODE", "").lower() == _WARN_MODE:
                 _emit_warn(guidance)

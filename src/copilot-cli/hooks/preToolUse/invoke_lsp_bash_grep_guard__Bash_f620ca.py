@@ -358,13 +358,18 @@ def _original_main(stdin_bytes):
         return os.environ.get("LSP_GATE_MODE", "block").strip().lower() == "warn"
 
 
+    def _bypassed() -> bool:
+        """Allow without evaluating: consumer repo or the SKIP_LSP_GATE kill switch (ADR-062)."""
+        if skip_if_consumer_repo("lsp-bash-grep-guard"):
+            return True
+        if os.environ.get("SKIP_LSP_GATE", "").strip().lower() == "true":
+            return True
+        return False
+
+
     def main() -> int:
         """Main hook entry point. Returns exit code (0 allow, 2 block)."""
-        # Kill switch: a misfire must never wedge sessions (ADR-062 Section 6).
-        if os.environ.get("SKIP_LSP_GATE", "").strip().lower() == "true":
-            return 0
-
-        if skip_if_consumer_repo("lsp-bash-grep-guard"):
+        if _bypassed():
             return 0
 
         try:
