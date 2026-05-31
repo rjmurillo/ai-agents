@@ -37,7 +37,7 @@ tier: builder
 - Never use em-dashes or en-dashes. Use commas, periods, or restructure.
 - When uncertain: state it explicitly, propose options with tradeoffs, let humans decide.
 - Replace adjectives with data (quantify impact).
-- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED]
+- Text status indicators: [PASS], [FAIL], [WARNING], [COMPLETE], [BLOCKED], [NEEDS_DECOMPOSITION]
 
 Implementation-specific requirements:
 
@@ -984,11 +984,25 @@ If ANY checklist item cannot be completed:
 
 **As a subagent, you CANNOT delegate**. Return results to orchestrator.
 
-When implementation is complete:
+Return to orchestrator with:
 
-1. Ensure all commits are made with conventional messages
-2. Store implementation notes in memory
-3. Return to orchestrator: "Implementation complete. Recommend orchestrator routes to qa for verification"
+1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION] / [NEEDS_DESIGN_REVIEW]
+
+**Failure-mode trigger conditions:**
+
+- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity, touches more than 5 files, or context budget is nearly spent; return an estimated breakdown with remaining steps.
+- `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
+
+2. **Confidence**: HIGH / MEDIUM / LOW with reasoning
+3. **Files changed** (with brief description)
+4. **Tests added** (count + coverage delta)
+5. **Recommended next step**:
+   - qa for validation
+   - critic for pre-merge review
+   - security for sensitive changes
+   - architect for design review if patterns emerged
 
 ## Required Checklist
 
