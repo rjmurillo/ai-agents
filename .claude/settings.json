@@ -205,6 +205,17 @@
             "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
           }
         ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_pre_delegation_guard.py",
+            "timeout": 5,
+            "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -332,6 +343,17 @@
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_lsp_usage_tracker.py",
             "timeout": 5,
             "statusMessage": "Tracking LSP navigation calls for the LSP-first gate (ADR-062)"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_lsp_read_tracker.py",
+            "timeout": 5,
+            "statusMessage": "Tracking Read operations for the LSP-first gate (ADR-062)"
           }
         ]
       }
