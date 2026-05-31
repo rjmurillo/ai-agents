@@ -213,3 +213,83 @@ class TestGetSessionOutcome:
     def test_no_info_partial(self):
         metadata = {"status": ""}
         assert extract_session_episode.get_session_outcome(metadata, []) == "partial"
+
+
+def _gate(complete):
+    return {"level": "MUST", "Complete": complete, "Evidence": "x"}
+
+
+def _json_log(work_log, end_complete=True):
+    gate = _gate(end_complete)
+    return {
+        "session": {
+            "number": 1, "date": "2026-05-31", "branch": "feat/x",
+            "startingCommit": "aaaaaaa", "objective": "Do the thing",
+        },
+        "protocolCompliance": {
+            "sessionStart": {},
+            "sessionEnd": {
+                "checklistComplete": gate, "changesCommitted": gate,
+                "validationPassed": gate,
+            },
+        },
+        "workLog": work_log,
+        "endingCommit": "bbbbbbb1234",
+        "nextSteps": [],
+    }
+
+
+class TestJsonSessionLogPath:
+    """JSON is the primary session-log format (issue #2036)."""
+
+    def test_detects_json_session(self):
+        content = json.dumps(_json_log([{"task": "t", "outcome": "o"}]))
+        assert extract_session_episode.looks_like_json_session(content) is not None
+
+    def test_markdown_is_none(self):
+        assert extract_session_episode.looks_like_json_session("# H\n**Status**: Done\n") is None
+
+    def test_all_gates_complete_is_success(self):
+        assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "20 passed"}])) == "success"
+
+    def test_incomplete_gates_is_partial(self):
+        assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "wip"}], end_complete=False)) == "partial"
+
+    def test_counted_failure_incomplete_is_failure(self):
+        assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "3 failed"}], end_complete=False)) == "failure"
+
+    def test_regression_2036_prose_fail_not_failure(self):
+        data = _json_log([
+            {"action": "compress", "outcome": "compression insufficient; test still fails"},
+            {"action": "verify", "outcome": "AGENTS.md 2791 B; markdownlint 0 errors"},
+        ])
+        assert extract_session_episode.json_outcome(data) == "success"
+
+    def test_milestone_from_task_and_action_and_string(self):
+        ev_task = extract_session_episode.json_events(_json_log([{"task": "Build X", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        ev_action = extract_session_episode.json_events(_json_log([{"action": "Refactor Y", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        ev_string = extract_session_episode.json_events(_json_log(["Reviewed PR 1766"]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "milestone" and e["content"] == "Build X" for e in ev_task)
+        assert any(e["type"] == "milestone" and e["content"] == "Refactor Y" for e in ev_action)
+        assert any(e["type"] == "milestone" and "Reviewed PR 1766" in e["content"] for e in ev_string)
+
+    def test_no_error_event_from_prose_fail(self):
+        events = extract_session_episode.json_events(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]), "2026-05-31T00:00:00+00:00")
+        assert not any(e["type"] == "error" for e in events)
+
+    def test_error_event_from_counted_failure(self):
+        events = extract_session_episode.json_events(_json_log([{"task": "t", "outcome": "2 failed"}]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "error" for e in events)
+
+    def test_string_worklog_does_not_crash(self):
+        m = extract_session_episode.json_metrics(_json_log(["touched 3 files", "ran tests"]))
+        assert m["files_changed"] == 3
+
+    def test_main_on_json_log_with_prose_fail(self, tmp_path, capsys):
+        log = tmp_path / "2026-05-31-session-9001.json"
+        log.write_text(json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])), encoding="utf-8")
+        rc = extract_session_episode.main([str(log), "--output-path", str(tmp_path / "ep")])
+        assert rc == 0
+        episode = json.loads(capsys.readouterr().out)
+        assert episode["outcome"] == "success"
+        assert not any(e["type"] == "error" for e in episode["events"])
