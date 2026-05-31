@@ -117,11 +117,16 @@
       "task": "Issue #1877 AC-1: build the variance-control harness to quantify Anthropic API determinism at temperature=0 on long context",
       "outcome": "Added scripts/eval/variance-control.py: runs N reps of one (fixture, agent) at temperature=0, computes verdict distribution, pass-rate variance, and normalized-Levenshtein response-text variance, and classifies the result against the issue's three branches. Reuses _scoring_engine._VERDICT_RE and AnthropicAPIAdapter; pure metrics are independently tested. AC-2 to AC-4 (live F002 run, committed report, ADR-058 note) require API spend and are left as the maintainer's deliberate step.",
       "evidence": "uv run pytest -> 30 passed; ruff clean; dry-run plan prints with no API calls"
+    },
+    {
+      "task": "Issue #1877 AC-2/3/4: run the live control and write up the finding (user authorized API spend)",
+      "outcome": "Ran the live N=20 control of (F002, security) at temperature=0 on claude-sonnet-4-6, ~7.4K input tokens/call, run 20260531T184905Z-60538bcf. Committed REPORT.md, summary.json, raw.jsonl, and FINDINGS.md (the ADR-058 follow-on note). Finding: text varies, verdict stable (ESCALATE x20, zero verdict variance; 20/20 unique responses, mean consecutive edit distance 0.64). Recommendation: gate AC-10 on verdict variance, not any-assertion pass-rate variance; the ADR amendment is left for architect ratification via adr-review.",
+      "evidence": "20/20 successful API calls, 0 errors; summary.json verdict_variance.stable=true; FINDINGS.md lints clean"
     }
   ],
-  "endingCommit": "0ae82a0b80e50aa40405b746c8fb2af0eaf0cd83",
+  "endingCommit": "18628fc32",
   "nextSteps": [
-    "Open PR with Refs #1877 (AC-1 only)",
-    "Maintainer runs the live F002 control (AC-2 to AC-4) with ANTHROPIC_API_KEY and commits the report + ADR-058 note"
+    "Flip PR #2162 to Fixes #1877 (all four ACs complete)",
+    "Architect ratifies the AC-10 amendment (gate on verdict variance) via adr-review, per ADR-058's ratification rule"
   ]
 }
