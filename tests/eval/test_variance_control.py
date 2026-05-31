@@ -199,6 +199,15 @@ class TestClassifyFinding:
             text, verdict, reps_answered=2, reps_total=2
         ).startswith("verdicts-unparseable")
 
+    def test_unparseable_takes_precedence_over_bit_identical(self):
+        # Bit-identical responses with no extractable verdict must surface the
+        # actionable parser failure, not "responses-bit-identical".
+        text = vc.response_text_variance(["same", "same"])
+        verdict = vc.verdict_distribution([None, None])
+        assert vc.classify_finding(
+            text, verdict, reps_answered=2, reps_total=2
+        ).startswith("verdicts-unparseable")
+
     def test_zero_answered_is_insufficient_data(self):
         text = vc.response_text_variance([])
         verdict = vc.verdict_distribution([])
@@ -342,6 +351,14 @@ class TestPathAndFixtureGuards:
         (fixtures / "BAD.json").write_text("[]", encoding="utf-8")
         with pytest.raises(ValueError, match="must be a JSON object"):
             vc._load_fixture("BAD")
+
+    def test_load_fixture_rejects_non_string_input(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(vc, "REPO_ROOT", tmp_path)
+        fixtures = tmp_path / vc.FIXTURES_DIR
+        fixtures.mkdir(parents=True)
+        (fixtures / "BAD2.json").write_text('{"input": 42}', encoding="utf-8")
+        with pytest.raises(ValueError, match="'input' must be a string"):
+            vc._load_fixture("BAD2")
 
     def test_generate_run_id_is_utc_token(self):
         import re as _re

@@ -187,6 +187,12 @@ def classify_finding(
             f"high-error-rate: only {reps_answered}/{reps_total} reps succeeded. "
             "Variance metrics are based on sparse data; investigate failures first."
         )
+    if verdict_var["modal_verdict"] == "<none>":
+        return (
+            "verdicts-unparseable: no answered rep produced an extractable verdict. "
+            "This is a parser or prompt-shape failure, not API verdict non-determinism; "
+            "inspect the raw responses and the output-shape instruction."
+        )
     if text_var["all_identical"]:
         return (
             "responses-bit-identical: the variance did not come from the API. "
@@ -196,12 +202,6 @@ def classify_finding(
         return (
             "text-varies-verdict-stable: the API has output-text non-determinism "
             "but the scorer is robust. Gate AC-10 on verdict variance, not text variance."
-        )
-    if verdict_var["modal_verdict"] == "<none>":
-        return (
-            "verdicts-unparseable: no answered rep produced an extractable verdict. "
-            "This is a parser or prompt-shape failure, not API verdict non-determinism; "
-            "inspect the raw responses and the output-shape instruction."
         )
     return (
         "verdicts-vary: the API is genuinely non-deterministic on long context. "
@@ -372,6 +372,11 @@ def _load_fixture(fixture_id: str) -> dict:
         )
     if "input" not in fixture:
         raise ValueError(f"fixture {fixture_id} missing required 'input' field")
+    if not isinstance(fixture["input"], str):
+        raise ValueError(
+            f"fixture {fixture_id} field 'input' must be a string, "
+            f"got {type(fixture['input']).__name__}"
+        )
     assertions = fixture.get("assertions")
     if assertions is not None and not isinstance(assertions, list):
         raise ValueError(
