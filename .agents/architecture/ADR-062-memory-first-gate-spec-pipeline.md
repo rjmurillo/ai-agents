@@ -28,7 +28,7 @@ protocol (the Step 3 supplemental traversal hook that may append a
 
 Step 0 had a similar shape and was justified by retrospective citation
 (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`). Step 0.5's
-rationale in `spec.md` references the memory skill at
+rationale in `.claude/commands/spec.md` references the memory skill at
 `.claude/skills/memory/SKILL.md` but no ADR authorizes the specific gate.
 
 Per `.claude/rules/governance.md`:
@@ -53,7 +53,7 @@ triggers that stop a spec from reaching Step 1. This ADR closes that gap.
   > protocol gates).
 - `.claude/commands/spec.md` Step 0.5 wires that BLOCKING declaration into the
   spec pipeline. The gate, its halt schema, its metrics tally, and its
-  supplemental traversal hook are fully specified in `spec.md` lines 142
+  supplemental traversal hook are fully specified in `.claude/commands/spec.md` lines 142
   through 354.
 - REQ-017 is the requirement of record for the gate behavior. It carries 13
   acceptance criteria (AC-01 through AC-13) and is the source of truth for what
@@ -118,7 +118,7 @@ running after Step 0 and before Step 1. This ADR codifies four binding points.
   requirement of record. AC-01 through AC-13 are the behavioral contract. This
   ADR cites REQ-017 rather than restating it, to avoid a second source of truth
   for the gate behavior.
-- `spec.md` Step 0 (First Principles Gate): structural precedent. Step 0 is a
+- `.claude/commands/spec.md` Step 0 (First Principles Gate): structural precedent. Step 0 is a
   BLOCKING gate with its own halt triggers (H1 through H5), its own halt block
   (`step0-halt`), and its own metrics file (`STEP-0-METRICS.md`). Step 0.5
   follows the same shape, which is why the `step0_5-halt` block is structurally
@@ -269,7 +269,7 @@ behavior).
 ## References
 
 - Issue #1971: this ADR's source of record (deferred from `/review` Arch Axis F2)
-- Issue #1951: REQ-017 source issue (added Step 0.5 to `spec.md`)
+- Issue #1951: REQ-017 source issue (added Step 0.5 to `.claude/commands/spec.md`)
 - Epic #1952: parent epic listing Step 0.5 as Phase 1 child
 - `.claude/skills/memory/SKILL.md`: `### Memory-First Gate (BLOCKING)` section
   (the decision driver)
