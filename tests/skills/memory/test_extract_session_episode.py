@@ -394,3 +394,16 @@ class TestArchiveFallback:
         data = {"session": {"number": 2, "date": "2026-05-31"}, "workLog": [], "endingCommit": ""}
         bundle = extract_session_episode.extract_from_json(data)
         assert bundle["metrics"]["errors"] >= 1
+
+
+class TestStepWorklogEntries:
+    """`{step, evidence}` work-log entries must yield milestone events (#2036)."""
+
+    def test_step_entry_becomes_milestone(self):
+        data = _json_log([{"step": "Migrated schema", "evidence": "psql ok"}])
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "milestone" and e["content"] == "Migrated schema" for e in events)
+
+    def test_step_entry_text_includes_evidence(self):
+        text = extract_session_episode._entry_text({"step": "Built X", "evidence": "3 failed"})
+        assert "Built X" in text and "3 failed" in text

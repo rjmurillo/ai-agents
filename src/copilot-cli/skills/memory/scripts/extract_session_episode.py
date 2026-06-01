@@ -384,14 +384,21 @@ def _entry_field(entry: Any, key: str) -> str:
 def _entry_title(entry: Any) -> str:
     """Milestone content for a work-log entry: task, else action, else outcome.
 
-    Work-log entries appear in three shapes across the log history: a bare
-    string, ``{action, outcome}`` (older), and ``{task, outcome, evidence}``
-    (newer). All three are handled; a string entry is its own title.
+    Work-log entries appear in several shapes across the log history: a bare
+    string, ``{action, outcome}`` (older), ``{task, outcome, evidence}``
+    (newer), and ``{step, evidence}``. All are handled; a string entry is its
+    own title.
     """
     if isinstance(entry, str):
         return entry.strip()
     if isinstance(entry, dict):
-        return str(entry.get("task") or entry.get("action") or entry.get("outcome") or "").strip()
+        return str(
+            entry.get("task")
+            or entry.get("action")
+            or entry.get("step")
+            or entry.get("outcome")
+            or ""
+        ).strip()
     return ""
 
 
@@ -402,7 +409,7 @@ def _entry_text(entry: Any) -> str:
     if isinstance(entry, dict):
         return " ".join(
             str(entry.get(k) or "")
-            for k in ("task", "action", "outcome", "evidence", "result")
+            for k in ("task", "action", "step", "outcome", "evidence", "result")
         )
     return ""
 
