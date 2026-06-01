@@ -50,7 +50,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
 
-1. Read the diff (`git diff` against detected base branch).
+1. Read the diff with three-dot range syntax (`git diff "origin/$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch and the remote-tracking ref is used because the local base branch may not exist in fresh clones) so the human axes evaluate the same change set as the diff-scoped gates in step 4.
 2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 3. **Run 6 canonical axes**, in order. For each axis, load the canonical prompt for `{role}` via the path resolution above, then invoke the matching `Task(subagent_type=...)` agent (analyst, architect, qa, security, devops, roadmap) with that prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register these role subagent types in its `Task` enum (e.g., Copilot CLI today), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity.
    - axis 1: `analyst`
@@ -59,10 +59,10 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - axis 4: `security`
    - axis 5: `devops`
    - axis 6: `roadmap`
-4. **Run 3 chained skill axes** (local-only; CI does not run these):
+4. **Run 3 chained skill axes** (local-only; CI does not run these). Scope axes 8 and 9 to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
    - axis 7: Skill(skill="code-qualities-assessment")
-   - axis 8: Skill(skill="golden-principles")
-   - axis 9: Skill(skill="taste-lints")
+   - axis 8: Skill(skill="golden-principles"), invoking `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"`
+   - axis 9: Skill(skill="taste-lints"), invoking `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"`
 5. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from the verdict library (resolved per "Path resolution") to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
 6. **Merge verdicts** via `merge_verdicts(["v1", ..., "v9"])`. Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`.
 7. **Emit findings table** (see Output below).
