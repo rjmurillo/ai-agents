@@ -1,16 +1,48 @@
 {
   "id": "episode-2026-05-09-session-1826",
   "session": "2026-05-09-session-1826",
-  "timestamp": "2026-05-09T22:17:30.418630+00:00",
-  "outcome": "partial",
-  "task": "M1 spec formalization (REQ/DESIGN/TASK) and gitignore + doc-accuracy artifact dir",
+  "timestamp": "2026-05-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "M1 spec: skill catalog prune REQ-006/DESIGN-006/TASK-006, action slate plan",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-09T22:17:30.418630+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Session continued from 1825; spec-generator wrote REQ-006/DESIGN-006/TASK-006 (later renamed to REQ-007/DESIGN-007/TASK-007 after merge with main). 2 commits landed before continuation to session 1827.",
+      "content": "requirements-interview for M1 (doc-coverage + doc-sync + workflow prune)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "spec-generator: write REQ-006/DESIGN-006/TASK-006",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Write action slate plan",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Analyst gap review + critic pre-mortem (parallel)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "SkillForge overlap check",
       "caused_by": [],
       "leads_to": []
     }
