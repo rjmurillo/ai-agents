@@ -341,16 +341,37 @@ class TestGetDiffFiles:
         result = get_diff_files("main")
         assert result == []
 
-    def test_returns_empty_when_git_missing(self) -> None:
-        with patch.object(mod.subprocess, "run", side_effect=FileNotFoundError):
+    def test_returns_sorted_changed_files(self) -> None:
+        # get_diff_files sorts for deterministic, mode-consistent output.
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="z.py\na.py\nm.py\n",
+        )
+        with patch.object(mod.subprocess, "run", return_value=completed):
             result = get_diff_files("main")
-        assert result == []
+        assert result == ["a.py", "m.py", "z.py"]
 
-    def test_returns_empty_on_unknown_base(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_when_git_missing(self) -> None:
+        with patch.object(mod.subprocess, "run", side_effect=FileNotFoundError):
+            with pytest.raises(RuntimeError):
+                get_diff_files("main")
+
+    def test_raises_on_unknown_base(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # An unknown base makes git exit non-zero. That is a failure, not an
+        # empty diff: returning [] would let a standards pre-flight pass without
+        # linting. The function must surface the failure.
         _make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
-        result = get_diff_files("does-not-exist")
-        assert result == []
+        with pytest.raises(RuntimeError):
+            get_diff_files("does-not-exist")
+
+    def test_rejects_dash_base(self) -> None:
+        # CWE-88: a base starting with "-" would be parsed by git as an option.
+        with pytest.raises(ValueError):
+            get_diff_files("--output=/tmp/pwn")
+
+    def test_rejects_empty_base(self) -> None:
+        with pytest.raises(ValueError):
+            get_diff_files("")
 
     def test_drops_traversal_paths(self) -> None:
         completed = subprocess.CompletedProcess(
@@ -366,9 +387,16 @@ class TestMainDiffScope:
 
     def test_diff_scope_scans_only_changed_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _make_repo_with_diff(tmp_path)
-        # Pre-existing oversized file on the base would fail a whole-tree scan,
-        # but it is not in the diff so --diff-scope must ignore it.
-        (tmp_path / "base.py").write_text("z = 1\n")
+        # Commit an oversized file on the base. A whole-tree scan would flag it,
+        # but it is not in the feature diff so --diff-scope must ignore it. The
+        # file is committed (not just left in the working tree) so the test
+        # would catch a regression where scoping silently scans the whole tree.
+        _run_git(tmp_path, "checkout", "main")
+        (tmp_path / "legacy.py").write_text("x = 1\n" * 501)
+        _run_git(tmp_path, "add", "legacy.py")
+        _run_git(tmp_path, "commit", "-m", "oversized file on main")
+        _run_git(tmp_path, "checkout", "feature")
+        _run_git(tmp_path, "rebase", "main")
         monkeypatch.chdir(tmp_path)
         with patch("sys.argv", ["taste_lints.py", "--diff-scope", "main"]):
             result = main()
@@ -384,6 +412,21 @@ class TestMainDiffScope:
         with patch("sys.argv", ["taste_lints.py", "--diff-scope", "main"]):
             result = main()
         assert result == EXIT_VIOLATIONS
+
+    def test_diff_scope_unknown_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A git failure must surface as EXIT_ERROR, never a false EXIT_SUCCESS.
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["taste_lints.py", "--diff-scope", "does-not-exist"]):
+            result = main()
+        assert result == EXIT_ERROR
+
+    def test_diff_scope_dash_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["taste_lints.py", "--diff-scope=--bad"]):
+            result = main()
+        assert result == EXIT_ERROR
 
 
 class TestIsSafePath:

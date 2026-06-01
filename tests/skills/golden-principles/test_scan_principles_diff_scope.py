@@ -20,6 +20,7 @@ mod = import_skill_script(".claude/skills/golden-principles/scripts/scan_princip
 get_diff_files = mod.get_diff_files
 main = mod.main
 EXIT_SUCCESS = mod.EXIT_SUCCESS
+EXIT_ERROR = mod.EXIT_ERROR
 EXIT_VIOLATIONS = mod.EXIT_VIOLATIONS
 
 
@@ -64,16 +65,28 @@ class TestGetDiffFiles:
         result = get_diff_files("main")
         assert result == []
 
-    def test_returns_empty_when_git_missing(self) -> None:
+    def test_raises_when_git_missing(self) -> None:
         with patch.object(mod.subprocess, "run", side_effect=FileNotFoundError):
-            result = get_diff_files("main")
-        assert result == []
+            with pytest.raises(RuntimeError):
+                get_diff_files("main")
 
-    def test_returns_empty_on_unknown_base(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_on_unknown_base(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # An unknown base makes git exit non-zero. That is a failure, not an
+        # empty diff: returning [] would let a standards pre-flight pass without
+        # scanning. The function must surface the failure.
         _make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
-        result = get_diff_files("does-not-exist")
-        assert result == []
+        with pytest.raises(RuntimeError):
+            get_diff_files("does-not-exist")
+
+    def test_rejects_dash_base(self) -> None:
+        # CWE-88: a base starting with "-" would be parsed by git as an option.
+        with pytest.raises(ValueError):
+            get_diff_files("--output=/tmp/pwn")
+
+    def test_rejects_empty_base(self) -> None:
+        with pytest.raises(ValueError):
+            get_diff_files("")
 
     def test_drops_traversal_paths(self) -> None:
         completed = subprocess.CompletedProcess(
@@ -112,3 +125,18 @@ class TestMainDiffScope:
         with patch("sys.argv", ["scan_principles.py", "--diff-scope", "main"]):
             result = main()
         assert result == EXIT_VIOLATIONS
+
+    def test_diff_scope_unknown_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A git failure must surface as EXIT_ERROR, never a false EXIT_SUCCESS.
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["scan_principles.py", "--diff-scope", "does-not-exist"]):
+            result = main()
+        assert result == EXIT_ERROR
+
+    def test_diff_scope_dash_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["scan_principles.py", "--diff-scope=--bad"]):
+            result = main()
+        assert result == EXIT_ERROR

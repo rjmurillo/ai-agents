@@ -112,9 +112,17 @@ def get_diff_files(base: str) -> list[str]:
     """Collect files changed in the diff against a base branch.
 
     Derives the list from `git diff --name-only <base>...HEAD`. Path traversal
-    candidates (CWE-22) are dropped. Returns an empty list when git is missing
-    or the command fails.
+    candidates (CWE-22) are dropped and the result is sorted.
+
+    Raises:
+        ValueError: ``base`` is empty or starts with ``-`` (CWE-88 argument
+            injection: a leading dash would be parsed by git as an option).
+        RuntimeError: git is unavailable or the diff command fails (for example
+            an unknown base). A git failure must not be mistaken for an empty
+            diff, which would let a standards pre-flight pass without scanning.
     """
+    if not base or base.startswith("-"):
+        raise ValueError(f"invalid --diff-scope base: {base!r}")
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{base}...HEAD"],
@@ -123,8 +131,12 @@ def get_diff_files(base: str) -> list[str]:
             encoding="utf-8",
             errors="ignore",
         )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return []
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is not available to compute --diff-scope") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"git diff failed for base {base!r} (exit {exc.returncode})"
+        ) from exc
     files = [f for f in result.stdout.strip().split("\n") if f]
     return sorted(f for f in files if is_safe_path(f))
 
@@ -482,7 +494,11 @@ def main() -> int:
 
     files: list[str] = []
     if args.diff_scope:
-        files = get_diff_files(args.diff_scope)
+        try:
+            files = get_diff_files(args.diff_scope)
+        except (ValueError, RuntimeError) as exc:
+            print(f"golden-principles: {exc}", file=sys.stderr)
+            return EXIT_ERROR
     elif args.directory:
         files = get_repo_files(args.directory)
     elif args.files:
