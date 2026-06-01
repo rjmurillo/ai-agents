@@ -23,7 +23,7 @@
       "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Fact stored via store_memory about Copilot hook path anchoring" },
       "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "No markdown files changed in final diff; N/A" },
       "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "generate_hooks.py (fix + lint cleanups) + regenerated hooks.json + new test_generate_hooks_plugin_root.py + plugin.json version bump committed" },
-      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "ruff + mypy clean on changed files; pytest tests/build_scripts/test_generate_hooks_plugin_root.py -> 1 passed; existing test_generate_hooks.py -> 90 passed; build_all.py --check clean" }
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "ruff + mypy clean on changed files; pytest tests/build_scripts/test_generate_hooks_plugin_root.py -> 1 passed; existing test_generate_hooks.py -> 90 passed; build_all.py --check clean; parallel_validation: Code Review 0 comments, CodeQL 0 alerts" }
     }
   },
   "workLog": [
