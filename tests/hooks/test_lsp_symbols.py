@@ -147,7 +147,7 @@ class TestIsCodeSymbolNegative:
 
 class TestStripZeroWidth:
     def test_strips_zwsp(self):
-        assert strip_zero_width("foo​bar") == "foobar"
+        assert strip_zero_width("foo\u200bbar") == "foobar"
 
     def test_strips_bom(self):
         assert strip_zero_width("﻿hello") == "hello"
@@ -200,11 +200,11 @@ class TestGrepPredicates:
 
     def test_zero_width_evasion_in_binary_name_no_boundary(self):
         # grep​Foo -> grepFoo after strip: no word boundary, not a grep
-        assert is_grep_search("grep​Foo") is False
+        assert is_grep_search("grep\u200bFoo") is False
 
     def test_zero_width_then_space_still_grep(self):
         # grep​ Foo -> grep Foo after strip: boundary preserved
-        assert is_grep_search("grep​ Foo") is True
+        assert is_grep_search("grep\u200b Foo") is True
 
     def test_is_git_grep_true(self):
         assert is_git_grep("git grep Foo") is True
@@ -274,8 +274,8 @@ class TestExtractPatternAndTarget:
         assert cmd == "ls -la"
 
     def test_zero_width_stripped_from_command(self):
-        parts, cmd = extract_pattern_and_target('grep "Foo​Bar"')
-        assert "​" not in cmd
+        parts, cmd = extract_pattern_and_target('grep "Foo\u200bBar"')
+        assert "\u200b" not in cmd
         assert parts == ["FooBar"]
 
     def test_escaped_double_quotes_unescaped(self):

@@ -127,7 +127,7 @@ class TestFindGlobSymbols:
 
     def test_zero_width_stripped_before_detection(self):
         # A zero-width space inside the symbol must not hide it from detection.
-        assert guard.find_glob_symbols("*User​Service*") == ["UserService"]
+        assert guard.find_glob_symbols("*User\u200bService*") == ["UserService"]
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +394,7 @@ class TestModuleAsScript:
         import subprocess
 
         result = subprocess.run(
-            ["python3", _HOOK_PATH],
+            [sys.executable, _HOOK_PATH],
             input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "x"}}),
             capture_output=True,
             text=True,
@@ -405,7 +405,7 @@ class TestModuleAsScript:
         import subprocess
 
         result = subprocess.run(
-            ["python3", _HOOK_PATH],
+            [sys.executable, _HOOK_PATH],
             input=_glob_input("*SessionManager*"),
             capture_output=True,
             text=True,
