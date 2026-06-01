@@ -5,7 +5,16 @@
   "outcome": "success",
   "task": "Remediate all findings from PR",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-01-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "[x] Session log completed",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

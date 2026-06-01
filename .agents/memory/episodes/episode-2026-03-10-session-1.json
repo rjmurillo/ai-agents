@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:00.267276+00:00",
+      "timestamp": "2026-03-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified Phase 1 completion",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:00.267276+00:00",
+      "timestamp": "2026-03-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Created session log",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:00.267276+00:00",
+      "timestamp": "2026-03-10T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 72c7cd67",
       "caused_by": [],

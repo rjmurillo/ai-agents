@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:02.714362+00:00",
+      "timestamp": "2026-05-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Analyzed duplicate spec IDs: REQ/DESIGN/TASK-009 (orphan-ref-validator vs retro-fixes-pr-1965) and REQ/DESIGN/TASK-011 (audit vs m5-bot-cascade)",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:02.714362+00:00",
+      "timestamp": "2026-05-25T00:00:00+00:00",
       "type": "milestone",
       "content": "Renamed retro-fixes triple REQ/DESIGN/TASK-009->012 and m5-bot-cascade 011->013; updated frontmatter and internal refs in spec files and plan file",
       "caused_by": [],

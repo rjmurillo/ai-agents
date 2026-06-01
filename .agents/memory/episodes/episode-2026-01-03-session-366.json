@@ -5,7 +5,32 @@
   "outcome": "success",
   "task": "[Migrated from markdown]",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-01-03T00:00:00+00:00",
+      "type": "test",
+      "content": "- Removed obsolete comment reference in `build/scripts/Invoke-PesterTests.ps1`",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-01-03T00:00:00+00:00",
+      "type": "test",
+      "content": "- `build/scripts/Invoke-PesterTests.ps1` - Removed example comment",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-01-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "This work completes the skill frontmatter standardization effort",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:00.702269+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified PR 1791 state: OPEN, MERGEABLE, BLOCKED; 1 unresolved Copilot comment on AGENTS.md:24",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:00.702269+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Checked main filesystem for Validate-PRReadiness.ps1 - found stray local file (misleading); verified via git ls-tree: file DELETED on both main and PR branch by migration commit a333cb70",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:00.702269+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Confirmed pre_pr.py at scripts/validation/pre_pr.py is canonical Python replacement per ADR-042",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:00.702269+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Updated AGENTS.md:24: Validate-PRReadiness.ps1 -> python3 scripts/validation/pre_pr.py",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:00.702269+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Budget validation passed: AGENTS.md 2845/3000, total 5550/6600",
       "caused_by": [],

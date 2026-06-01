@@ -24,12 +24,32 @@
       "rationale": "",
       "outcome": "success",
       "effects": []
+    },
+    {
+      "id": "d003",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "design",
+      "context": "Step 0.5 Memory-First Gate",
+      "chosen": "ProvisionalTier=4 (deep). Discovered Epic #1944 (Skill Catalog Triage Action Slate) as parent. Read .agents/governance/agent-consolidation-process.md (313 lines), SKILL-CREATION-CRITERIA.md (376 lines), ADR-030 (skills-pattern-superiority), ADR-036 (two-source agent template architecture), spec-schemas.md. H11 halt initially (2 blast-radius). User reclassified blast-radius items to out-of-scope. PASS.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    },
+    {
+      "id": "d004",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "design",
+      "context": "Execute TASK-011: apply verdict rule per DESIGN-011 \u00a7C3",
+      "chosen": "Verdict counts (round 2 numbers, SUPERSEDED in round 3 by roadmap reclassification to skill=8/2/13/47%): skill=7, context-fork-skill=2, keep-as-agent=14. Load-budget impact (round 2 numbers, SUPERSEDED): 4714 of 10979 frontmatter bytes saved (42%) if all 9 candidates migrate. spec-generator scores 4/4 (canonical case, already covered by closed #2001).",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
     }
   ],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Step 0 First Principles Gate: H3 halt (Q1 had 2 named requesters, threshold is 3). User provided 'larger consolidation effort' context (catalog truncation). Re-elicited Q1; passes with 4 named requesters.",
       "caused_by": [],
@@ -37,7 +57,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "ProvisionalTier=4 (deep). Discovered Epic #1944 (Skill Catalog Triage Action Slate) as parent. Read .agents/governance/agent-consolidation-process.md (313 lines), SKILL-CREATION-CRITERIA.md (376 lines), ADR-030 (skills-pattern-superiority), ADR-036 (two-source agent template architecture), spec-schemas.md. H11 halt initially (2 blast-radius). User reclassified blast-radius items to out-of-scope. PASS.",
       "caused_by": [],
@@ -45,7 +65,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "PRD includes Prior Art / Constraints section per Step 0.5 schema (3 sub-sections: direct memory, knowledge-graph context, coverage notes). 12 EARS-format acceptance criteria + 4 NFRs. TASK-011 has 10-step execution plan.",
       "caused_by": [],
@@ -53,7 +73,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "All four checks PASS (22 Q1-entity refs, 6 spec-generator refs, 12 ACs all trace to wedge, Prior Art section with 3 sub-sections present).",
       "caused_by": [],
@@ -61,7 +81,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Resolved: c2 count rule defined; c3 3-pipeline rule defined (N/A when invoked from 3+ slash commands); session-log invocation count deferred to Phase 2.",
       "caused_by": [],
@@ -69,7 +89,7 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Pre-commit failed twice: dash-prohibition (em-dash and en-dash present in PRD \u00a71, \u00a73.1 and REQ-011 dependencies list), session-log requirement. Fixed dashes via Python replace then space-comma cleanup; created this session log; commit succeeds.",
       "caused_by": [],
@@ -77,7 +97,7 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "11 agents have c1=Yes (slash-command Task invocation); 19 of 23 have shared templates per ADR-036; total frontmatter bytes = 10979.",
       "caused_by": [],
@@ -85,7 +105,7 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "8 agents Yes (architect, devops, implementer, milestone-planner, qa, security, spec-generator, task-decomposer); 1 No (context-retrieval); 2 N/A (analyst, critic per 3-pipeline rule).",
       "caused_by": [],
@@ -93,7 +113,7 @@
     },
     {
       "id": "e009",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "spec-generator Yes (PR #1995, 9-of-13 drift threads documented in #2001); all others No or Unknown (no PR-history signal for advisory agents).",
       "caused_by": [],
@@ -101,7 +121,7 @@
     },
     {
       "id": "e010",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Heuristic returned >=70% for all 23. Manual deflation to 50-69% for critic, independent-thinker, high-level-advisor (reasoning-prose dominant per PRD \u00a711 lock-in).",
       "caused_by": [],
@@ -109,7 +129,7 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Verdict counts (round 2 numbers, SUPERSEDED in round 3 by roadmap reclassification to skill=8/2/13/47%): skill=7, context-fork-skill=2, keep-as-agent=14. Load-budget impact (round 2 numbers, SUPERSEDED): 4714 of 10979 frontmatter bytes saved (42%) if all 9 candidates migrate. spec-generator scores 4/4 (canonical case, already covered by closed #2001).",
       "caused_by": [],
@@ -117,7 +137,7 @@
     },
     {
       "id": "e012",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "30KB / 410 lines; per-criterion evidence per row, summary footer with verdict counts and load-budget impact, Phase 2 backlog with refactor targets per ADR-036.",
       "caused_by": [],
@@ -125,7 +145,7 @@
     },
     {
       "id": "e013",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Issue created with discriminator rule, acceptance criteria, escape hatch via isolation_required frontmatter or PR description override token. Linked from audit footer.",
       "caused_by": [],
@@ -133,7 +153,7 @@
     },
     {
       "id": "e014",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "validate_session_json.py false-positive 'Evidence contradiction' warnings on multi-scope evidence (deferred-in-different-scope tokens). Issue includes 3 fix options + acceptance criteria.",
       "caused_by": [],
@@ -141,7 +161,7 @@
     },
     {
       "id": "e015",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed: (a) audit table truncated rationales expanded to full text; (b) c1=No count corrected from 11 to 12 in learnings; (c) endingCommit set to addf44b5; (d) DESIGN-011 \u00a7C2 c1 grep pattern updated to match actual two-pattern form; (e) DESIGN-011 \u00a7C3 verdict rule rewritten with hard/soft isolation split reconciling PRD AC-6, DESIGN-011, and audit doc; (f) PRD \u00a77 .log file claim removed; (g) REQ-011 NFR-1 scoped determinism to mechanical criteria; (h) audit doc Verdict rule canonical statement added with hard/soft split; (i) episode file outcome/events/metrics manually corrected (auto-extractor bug filed separately).",
       "caused_by": [],
@@ -149,7 +169,7 @@
     },
     {
       "id": "e016",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed: (a) roadmap re-scored c1=Yes (descriptive Task form in review.md:32 missed by original literal grep); verdict changed from keep-as-agent to skill; counts shifted from 7+2+14 to 8+2+13; load-budget savings 42% -> 47%; (b) em-dash in session log learnings replaced with comma per universal.md MUST NOT rule 5 (ironic violation noted); (c) episode lessons array populated from session log learnings; (d) audit doc regenerated with descriptive-form c1 method + roadmap row + new isolation note section.",
       "caused_by": [],
@@ -157,7 +177,7 @@
     },
     {
       "id": "e017",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Audit Summary section now explicitly cites ADR-030 (was only in frontmatter); fully satisfies PRD AC-9 requirement that Summary include citations to ADR-030, ADR-036, and agent-consolidation-process.md.",
       "caused_by": [],
@@ -165,7 +185,7 @@
     },
     {
       "id": "e018",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed: (a) .agents/metrics/agent-skill-audit-runs.tsv updated 7/2/14/42 -> 8/2/13/47 to match committed audit; (b) audit doc spec-generator c3 evidence deduped (memory listed twice -> 'memory invoked twice in same pipeline file, deduplicated by unique skill name'); (c) DESIGN-011 \u00a7C2 c1 method documents the descriptive form (Task(subagent_type=...) followed by parenthesized agent list); (d) TASK-011 Step 2 c1 method updated with same descriptive-form detection; (e) session log workLog round-2 entry marked SUPERSEDED for stale 7/2/14 numbers; (f) session log outcomes reconciled to round-3 numbers (8 skill, 47% savings).",
       "caused_by": [],
@@ -173,7 +193,7 @@
     },
     {
       "id": "e019",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed: (a) session log learnings c1=No count corrected from 12 back to 11 (round 3 reverted the round-2 correction); (b) audit doc ADR-036 explanation clarified to distinguish src/claude/ (ADR-036 source path) from .claude/agents/ (audit's actual scope); (c) audit doc ~/.claude/ rewritten to repo-relative description; (d) DESIGN-011 + TASK-011 c1 grep patterns updated from \\s to [[:space:]] for grep -E portability (POSIX ERE); (e) two semgrep LDAP-injection findings to be replied as /fp (false positives on regex documentation strings).",
       "caused_by": [],
@@ -181,7 +201,7 @@
     },
     {
       "id": "e020",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Episode regenerated by auto-extractor on round-6 commit (overwrote round-2 manual fix). Restored: outcome=success, lessons[6 from session learnings], task field, metrics (files_changed=11, commits=6), event types (protocol_compliance/evidence/outcome/learning), stripped JSON-fragment wrapping. Filed extractor bug as #2013 covering 7 distinct issues. This commit uses SKIP_AUTOFIX=1 (correct env var; AUTOFIX=0 attempted first but ignored because hook checks SKIP_AUTOFIX, not AUTOFIX) to skip extractor and prevent regression.",
       "caused_by": [],
@@ -189,7 +209,7 @@
     },
     {
       "id": "e021",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "milestone",
       "content": "critic c2 evidence string rewritten to match the format of high-level-advisor and independent-thinker (pre-deflation count + deflation reason + post-deflation count). All 3 deflated agents now use consistent c2 evidence format. Code-review agent verdict CLEAN; this is style-consistency only.",
       "caused_by": [],
@@ -197,9 +217,177 @@
     },
     {
       "id": "e022",
-      "timestamp": "2026-05-31T21:59:02.158981+00:00",
+      "timestamp": "2026-05-10T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: e4ee4bd0",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Invoke spec skill on issue #2003",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Step 0.5 Memory-First Gate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Write 4 spec artifacts: PRD + REQ-011 + DESIGN-011 + TASK-011",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Step 9 critic checks 9a/9b/9c/9d",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Lock PRD \u00a711 open questions before commit",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit spec artifacts on feat/issue-2003-agent-skill-audit-spec",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Execute TASK-011: mechanical scoring of c1, c5, has_shared_template for all 23 agents",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Execute TASK-011: c3 (sibling-is-skill) for c1=Yes agents with <3 pipelines",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Execute TASK-011: c4 (PR schema-drift history) for structured-output agents",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e032",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Execute TASK-011: c2 (reference vs reasoning) heuristic + manual deflation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e033",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Execute TASK-011: apply verdict rule per DESIGN-011 \u00a7C3",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e034",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Write audit document at .agents/audits/2026-05-10-agent-skill-classification-audit.md",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e035",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "File Phase 3 CI check stub issue #2008 (per PRD AC-12)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e036",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "File validator bug #2007 (per user directive)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e037",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 2: address 13 PR review threads (4 bot reviewers: copilot, devin, cursor, coderabbit)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e038",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 3: address 3 follow-up review threads (roadmap c1 miss, em-dash in own correction, episode lessons empty)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e039",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 4: address code-review agent finding (1 P1)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e040",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 5: address 7 follow-up review threads (5 stale-numbers, 2 grep-method docs)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e041",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 6: address 7 follow-up review threads (1 count, 1 path quote, 1 path style, 2 false-positive semgrep, 2 grep portability)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e042",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 7: restore episode manual corrections + file extractor bug as #2013",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e043",
+      "timestamp": "2026-05-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 7d: harmonize critic c2 evidence format",
       "caused_by": [],
       "leads_to": []
     }
@@ -212,5 +400,12 @@
     "commits": 2,
     "files_changed": 0
   },
-  "lessons": []
+  "lessons": [
+    "Copilot CLI sessions need to mark Serena MUSTs Complete=true with evidence describing the filesystem-equivalent memory access path; the validator only checks the boolean.",
+    "Pre-commit dash-prohibition enforcer (per .claude/rules/universal.md MUST NOT entry 5) flags both em-dash (U+2014) and en-dash (U+2013); replacement strategy: em-dash to comma, en-dash to hyphen, then clean up space-comma artifacts.",
+    "Spec-schemas.md enum drift is exactly the failure mode this audit addresses; reading the schema before writing REQ/DESIGN/TASK frontmatter is the defense.",
+    "spec-generator scores 4/4 on the discriminator (only agent to do so), validating the issue #2003 hypothesis. The 7 other skill candidates score 2-3/4, mostly via c1+c2+c3 (reference-heavy bodies invoked from slash commands with sibling skills).",
+    "Heuristic c2 scoring over-counts reasoning-focused agents because all-bullets are flagged as structured. Manual review needed for borderline cases per PRD \u00a711 count rule.",
+    "11 of 23 agents have c1=No (12 of 23 agents are NOT invoked from any slash command was the round-2 number; round 3 moved roadmap from c1=No to c1=Yes via the descriptive Task() form in review.md, bringing the count back to 11; verified against the 23-row audit table: 12 agents show c1=1 and 11 show c1=0). These either represent peer-only invocations, dead code, or genuine but undiscoverable agents. Out of #2003 scope; recommend follow-up triage."
+  ]
 }

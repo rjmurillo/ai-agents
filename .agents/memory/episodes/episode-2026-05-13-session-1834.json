@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:02.432320+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified unresolved review comments and confirmed two actionable items remained.",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:02.432320+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Updated TASK-011 frontmatter status to done and updated date to 2026-05-13.",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:02.432320+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Updated episode metrics to non-zero values aligned with completed session activity.",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:02.432320+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Validated changed files with json.tool and validate_session_json.py.",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:02.432320+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Post-push validation flagged episode-1834 extractor fallback output as inconsistent; hand-corrected episode metadata to match this session's successful outcome and real file/commit activity.",
       "caused_by": [],
@@ -48,7 +48,7 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-05-31T21:59:02.432320+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 5516f771",
       "caused_by": [],

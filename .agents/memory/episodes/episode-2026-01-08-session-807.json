@@ -5,7 +5,32 @@
   "outcome": "success",
   "task": "[Migrated from markdown]",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-01-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix 3 session logs in-place (add missing sections, complete checklists)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-01-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": ".agents/sessions/2026-01-07-session-131.md (added Session Info, Work Log, completed MUST items)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-01-08T00:00:00+00:00",
+      "type": "milestone",
+      "content": ".agents/sessions/2026-01-08-session-806.md (added Protocol Compliance header, Session Info, Work Log, completed MUST items)",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

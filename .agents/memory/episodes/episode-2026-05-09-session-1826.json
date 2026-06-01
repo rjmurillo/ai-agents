@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:01.676292+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
       "content": "PRD complete. 5 EARS ACs. User confirmed all 3 key decisions (delete scripts, delete dead tests, delete entire workflow dir).",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:01.676292+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
       "content": "3 artifacts at .agents/specs/{requirements,design,tasks}/REQ/DESIGN/TASK-006-skill-catalog-prune-m1.md",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:01.676292+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
       "content": ".agents/plans/active/PLAN-skill-catalog-triage-action-slate.md with M1-M4 milestones, dependencies, decision log",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:01.676292+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
       "content": "4 gaps found: workflow copilot copy not in ACs, AC3 weak, residual ref sweep missing as AC, TASK-AC5/AC6 not in REQ. Gaps documented in commit body; spec refinement deferred to implementer.",
       "caused_by": [],
@@ -40,9 +40,49 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:01.676292+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
       "content": "Phase 0 triage prevents duplicate creation; NOT same as pairwise redundancy detection in #1932. No overlap.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "requirements-interview for M1 (doc-coverage + doc-sync + workflow prune)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "spec-generator: write REQ-006/DESIGN-006/TASK-006",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Write action slate plan",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Analyst gap review + critic pre-mortem (parallel)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "SkillForge overlap check",
       "caused_by": [],
       "leads_to": []
     }

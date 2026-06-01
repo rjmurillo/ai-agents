@@ -5,7 +5,112 @@
   "outcome": "success",
   "task": "ship voice + builder-ethos + search-before-building + claude-model-patches rules and the outputDirs multi-target generator",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add voice rule to .claude/rules/voice.md",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add builder-ethos and search-before-building rules with three-layer search model",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Extend generate_rules.py to support outputDirs (list) for dual-target output",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update copilot-cli.yaml rules stanza to outputDirs: [.github/instructions, src/copilot-cli/instructions]",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merge main into branch to pick up #2052 (agents -> agents/ subdir) and the YAML quoting fix in generate_agents_common",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Address VS Code diagnostics on rule files (contradictions, ambiguities, persona conflicts)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Narrow prompt_eval_gate.py _AGENT_PATTERNS regex post-#2052 to stop false positives on generated mirrors",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add claude-model-patches.md (Claude-family behavioral nudges: todo discipline, think-before-heavy, dedicated-tools-over-bash)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update test_outputDirs_writes_to_every_target assertion to match quoted-applyTo format from #2052",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix env arg order in .githooks/pre-push pytest invocation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Structural fixes to .claude/commands/autofix-pr.md and .claude/skills/book-to-skill/SKILL.md for SkillForge validator",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Add outputDirs to validate_templates_schema.py RULES_KEYS and validate the list shape",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-05-25T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconcile .github/plugin/marketplace.json count to 82 reusable skills",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

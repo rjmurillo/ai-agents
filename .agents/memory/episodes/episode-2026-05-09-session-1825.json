@@ -3,9 +3,82 @@
   "session": "2026-05-09-session-1825",
   "timestamp": "2026-05-09T00:00:00+00:00",
   "outcome": "success",
-  "task": "spec/build/test/review/ship cycle for issue #1926 Step 0 First Principles Gate; PR #1931 with 18 commits; round-2 review comments from coderabbitai+cursor addressed",
+  "task": "skill triage eval - 15 suspect skills evaluated, prune/consolidate slate identified",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Configure workspace per CONTRIBUTING.md",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branch off main: feat/skill-eval-triage",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inventory eval infra and skill catalog",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pick 15 suspect skills (deprecated + cluster overlap)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Author tests/evals/skills/triage-prompts.json",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dry-run eval",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Live eval run (background, ~15min)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Synthesize findings",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update Serena memory",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

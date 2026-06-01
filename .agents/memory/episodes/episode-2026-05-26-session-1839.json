@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:02.916995+00:00",
+      "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Read templates/agents/implementer.shared.md (257 LOC)",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:02.916995+00:00",
+      "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Added Plan Validation Protocol section (A6: 3 to 5, A1: 4 to 5)",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:02.916995+00:00",
+      "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Added failure-mode trigger conditions to Handoff (A7: 4 to 5)",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:02.916995+00:00",
+      "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed MD032/MD012 lint errors in new list block",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:02.916995+00:00",
+      "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran python3 build/generate_agents.py",
       "caused_by": [],
@@ -48,7 +48,7 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-05-31T21:59:02.916995+00:00",
+      "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Rubric rescore: 32/35 (A tier)",
       "caused_by": [],
@@ -56,7 +56,7 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-05-31T21:59:02.916995+00:00",
+      "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: cbd7c796",
       "caused_by": [],

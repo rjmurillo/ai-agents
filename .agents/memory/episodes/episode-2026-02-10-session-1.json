@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:58:59.512537+00:00",
+      "timestamp": "2026-02-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Session created as skeleton during branch work",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:58:59.512537+00:00",
+      "timestamp": "2026-02-10T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 0d58c1cb",
       "caused_by": [],

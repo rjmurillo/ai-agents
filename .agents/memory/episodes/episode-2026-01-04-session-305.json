@@ -2,10 +2,51 @@
   "id": "episode-2026-01-04-session-305",
   "session": "2026-01-04-session-305",
   "timestamp": "2026-01-04T00:00:00+00:00",
-  "outcome": "partial",
+  "outcome": "success",
   "task": "[Migrated from markdown]",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-01-04T00:00:00+00:00",
+      "type": "error",
+      "content": "- **Objective**: Conduct structured retrospective on PR #760 failures to extract atomic learnings",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-01-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Completed Phase 0-6 of structured retrospective protocol",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-01-04T00:00:00+00:00",
+      "type": "error",
+      "content": "- Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-01-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Security fixes require adversarial testing before claiming complete",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-01-04T00:00:00+00:00",
+      "type": "error",
+      "content": "| MUST | Run markdown lint | [x] | 23 errors in pre-existing files (not session artifacts) |",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

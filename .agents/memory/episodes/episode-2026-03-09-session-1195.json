@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:00.050899+00:00",
+      "timestamp": "2026-03-09T00:00:00+00:00",
       "type": "milestone",
       "content": "Read CRITICAL-CONTEXT.md and AGENTS.md",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:00.050899+00:00",
+      "timestamp": "2026-03-09T00:00:00+00:00",
       "type": "milestone",
       "content": "Assessed worktree \u2014 partial changes already applied from prior session attempt",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:00.050899+00:00",
+      "timestamp": "2026-03-09T00:00:00+00:00",
       "type": "milestone",
       "content": "Verified traceability chain for sample specs (S-007 acceptance criterion)",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:00.050899+00:00",
+      "timestamp": "2026-03-09T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran markdownlint on changed files",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:00.050899+00:00",
+      "timestamp": "2026-03-09T00:00:00+00:00",
       "type": "milestone",
       "content": "Created session log and committed all changes",
       "caused_by": [],

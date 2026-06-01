@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Fetched PR #2009 context: OPEN, mergeable=CONFLICTING, 3 unresolved review threads (cursor[bot] x1, devin-ai-integration[bot] x2), 47 already resolved.",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Thread r3216531500 (cursor, audit L437): c1=No triage list named 9 of 11 c1=0 agents. Verified against the 23-row audit table: orchestrator and retrospective also have c1=0. Fixed: added both to the list; noted orchestrator is hard-isolation (keep-as-agent regardless).",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Thread r3216540433 (devin, PRD L92): section 3.2 invariant only covered verdict=skill. Applied the suggested three-clause invariant (skill if score>=2 and isolation=none; context-fork-skill if score>=2 and isolation=soft; keep-as-agent if isolation=hard or score<2), matching audit L56-58 and DESIGN-011 L116-118.",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Thread r3216540483 (devin, session JSON L221): claimed 'the 7 other skill candidates' is stale and should be 8. Verified: the audit table has 8 verdict=skill rows including spec-generator, so '7 other' is correct; devin miscounted '8+2 total' (8 skill + 2 context-fork = 10 candidates) as '8 other'. Replying won't-fix with the count breakdown.",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Committed fixes + session log; replied to and resolved all 3 threads.",
       "caused_by": [],
@@ -48,7 +48,7 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Note: PR was CONFLICTING with main; user merged main into the branch (commit 2486c7c8) and added the commit-limit-bypass label.",
       "caused_by": [],
@@ -56,7 +56,7 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 11: corrected session-log endingCommit (6b338e9c) per Copilot. The pre-commit episode extractor (.claude/skills/memory/scripts/extract_session_episode.py) parses session logs as markdown; since logs are now JSON it emits outcome=failure, empty task, error-typed evidence events, and a wrong commit count. Same shape affects episodes 1830/1831/1832 from main. Hand-corrected episode-2026-05-13-session-1833.json and committed with SKIP_AUTOFIX=1 so the extractor does not regenerate the buggy version. Extractor rewrite tracked separately, out of scope here.",
       "caused_by": [],
@@ -64,7 +64,7 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 11: replied to and resolved the 5 new threads (4 episode/session-log metadata + 1 TASK-011 status).",
       "caused_by": [],
@@ -72,7 +72,7 @@
     },
     {
       "id": "e009",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 11: TASK-011 status changed todo -> done and updated to 2026-05-13 because Phase 1 deliverables are complete in this PR. DESIGN-011/REQ-011 remain draft; parent-child status mismatch is INFO-only in scripts/validation/traceability.py, and spec graduation is tracked separately.",
       "caused_by": [],
@@ -80,7 +80,7 @@
     },
     {
       "id": "e010",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 12: reworded TAC-7 in TASK-011 to include the session-protocol artifacts the work session necessarily produces (.agents/sessions/, .agents/memory/episodes/) and to scope the no-src/ invariant to the audit step (the src/ delta in the PR is merge propagation from main) (Copilot). Updated the PR description Changes section to disclose the src/copilot-cli/skills/spec/SKILL.md regen carried in from the main merge (Copilot).",
       "caused_by": [],
@@ -88,7 +88,7 @@
     },
     {
       "id": "e011",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 13: PRD Connected-Context line 28 ('src/claude/agents/ in-scope') reconciled with the audit methodology and with the same-tree adjudication of src/copilot-cli/agents/ and src/vs-code-agents/. There is no src/claude/agents/ subdirectory; agents live at src/claude/*.md, downstream of templates/agents/. Adjudication corrected to out-of-scope-as-directly-audited; dual-source presence remains verified via the has_shared_template column per ADR-036 (Copilot).",
       "caused_by": [],
@@ -96,7 +96,7 @@
     },
     {
       "id": "e012",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 13: TASK-011 Files-Affected line 155 ('No modifications to ... src/') reworded with the same merge-propagation exception as TAC-7 (Copilot).",
       "caused_by": [],
@@ -104,7 +104,7 @@
     },
     {
       "id": "e013",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 13: session-1834 missing top-level endingCommit; set to 97136e85 (the last commit on that session in this PR) (Copilot).",
       "caused_by": [],
@@ -112,7 +112,7 @@
     },
     {
       "id": "e014",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 13: devin flagged session-1832 outcomes/learnings as flat string arrays vs schema 'object' shape, and developmentPhase as a bare string vs schema 'object with current enum'. validate_session_json.py passes 1832 (and 1833, 1834), so the schema/validator divergence is a pre-existing repo-wide issue, not a 2009 regression. Won't-fix in this PR; recommended a separate alignment pass.",
       "caused_by": [],
@@ -120,7 +120,7 @@
     },
     {
       "id": "e015",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 14: episode-1833 re-hand-corrected after fd95690f (copilot-swe-agent[bot] commit) re-ran the buggy extractor on the rebased branch and overwrote round-11's correction with outcome=failure/empty-task/error-events/commits=9. Commit this round with SKIP_AUTOFIX=1 to keep the correction (Copilot).",
       "caused_by": [],
@@ -128,7 +128,7 @@
     },
     {
       "id": "e016",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 14: audit L104 spec-generator c1 citation `.claude/commands/spec.md:365` corrected to `:366` after PR #1901's buy-vs-build step-4a inserted into spec.md shifted the Task(subagent_type='spec-generator') invocation down by one line. Spot-checked adjacent c1 citations (ship.md:15, test.md:72, build.md:27, plan.md:17/18, test.md:33/60/96/84, review.md:32, plan.md:21, memory-explore.md:11): all still resolve correctly (Copilot).",
       "caused_by": [],
@@ -136,7 +136,7 @@
     },
     {
       "id": "e017",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 14: session-1834 endingCommit changed 97136e85 -> 5516f771 to align with the episode's hand-curated commit reference; 5516f771 is the commit that produced session-1834's deliverables, while 97136e85 was a follow-up metadata correction (Copilot).",
       "caused_by": [],
@@ -144,7 +144,7 @@
     },
     {
       "id": "e018",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "milestone",
       "content": "Round 14: PR description Verdict-counts table and load-budget impact reconciled with the audit's round-3 numbers (skill 7 -> 8 with roadmap added; keep-as-agent 14 -> 13; below-threshold 11 -> 10; load-budget 4714/42% -> 5186/47%; '9 candidates' -> '10 candidates' in next-steps). This addresses the Validate Spec Coverage workflow's COMPLETENESS_VERDICT=PARTIAL on PR description vs audit drift.",
       "caused_by": [],
@@ -152,7 +152,7 @@
     },
     {
       "id": "e019",
-      "timestamp": "2026-05-31T21:59:02.363754+00:00",
+      "timestamp": "2026-05-13T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 6b338e9c",
       "caused_by": [],

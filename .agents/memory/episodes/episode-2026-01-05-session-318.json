@@ -4,8 +4,36 @@
   "timestamp": "2026-01-05T00:00:00+00:00",
   "outcome": "success",
   "task": "[Migrated from markdown]",
-  "decisions": [],
-  "events": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-01-05T00:00:00+00:00",
+      "type": "recovery",
+      "context": "Task 2: Remediation Planning",
+      "chosen": "Task 2: Remediation Planning",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-01-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Task 1: Data Collection",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-01-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Task 2: Remediation Planning",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,

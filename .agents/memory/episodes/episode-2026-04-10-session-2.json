@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "timestamp": "2026-04-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Cherry-picked retrospective from fix/668-exit-code-workflows to new branch",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "timestamp": "2026-04-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Built detect_stale_pr_comments.py with 26 tests",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "timestamp": "2026-04-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Evaluated 4 skill candidates in parallel",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:00.406274+00:00",
+      "timestamp": "2026-04-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Rewrote retrospective with honest accounting",
       "caused_by": [],

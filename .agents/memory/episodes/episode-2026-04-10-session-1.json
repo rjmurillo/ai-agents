@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:00.339101+00:00",
+      "timestamp": "2026-04-10T00:00:00+00:00",
       "type": "milestone",
       "content": "Created retrospective artifact for PR #1589",
       "caused_by": [],

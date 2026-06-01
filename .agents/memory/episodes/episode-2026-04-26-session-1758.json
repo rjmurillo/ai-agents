@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:00.838250+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Identified 3 unresolved PR #1721 threads; all from rjmurillo: (1) SESSION-PROTOCOL.md path broken, (2) orchestrator.md path broken, (3) wiki/ directory alien to repo",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:00.838250+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Deleted wiki/concepts/Session Capture Protocol.md and wiki/ directory; updated 6 cross-references to .serena/memories/session/session-capture-protocol.md",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:00.838250+00:00",
+      "timestamp": "2026-04-26T00:00:00+00:00",
       "type": "milestone",
       "content": "Stripped external file/Serena-memory refs from all 5 distributed agent files (templates/+src/+.claude/agents/); inline Capture/Skip content is self-sufficient for vendored use",
       "caused_by": [],

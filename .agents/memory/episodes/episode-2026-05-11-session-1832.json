@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "Spec authored",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "TDD red phase",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "TDD green phase",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "Memory and session log",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "PR open and self-apply gate (TASK-011-04)",
       "caused_by": [],
@@ -48,7 +48,7 @@
     },
     {
       "id": "e006",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "PR review address (round 1)",
       "caused_by": [],
@@ -56,7 +56,7 @@
     },
     {
       "id": "e007",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "PR review rounds 2-9",
       "caused_by": [],
@@ -64,7 +64,7 @@
     },
     {
       "id": "e008",
-      "timestamp": "2026-05-31T21:59:02.226947+00:00",
+      "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: d8aee7ed",
       "caused_by": [],

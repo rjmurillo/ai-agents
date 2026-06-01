@@ -8,7 +8,7 @@
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-31T21:59:02.512859+00:00",
+      "timestamp": "2026-05-18T00:00:00+00:00",
       "type": "milestone",
       "content": "Ran caveman-compress on AGENTS.md; file already terse, minimal gain (3228 to 3221 B, still over 3072 cap)",
       "caused_by": [],
@@ -16,7 +16,7 @@
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-31T21:59:02.512859+00:00",
+      "timestamp": "2026-05-18T00:00:00+00:00",
       "type": "milestone",
       "content": "Analyzed test_workspace_limits.py; identified 3072 B hard cap; measured candidate with lossless rewording + Agents roster removal",
       "caused_by": [],
@@ -24,7 +24,7 @@
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-31T21:59:02.512859+00:00",
+      "timestamp": "2026-05-18T00:00:00+00:00",
       "type": "milestone",
       "content": "Applied changes to AGENTS.md: dropped Agents roster (user-approved), lossless rewording, restored Autonomy Guardrail label after review caught terminology drift",
       "caused_by": [],
@@ -32,7 +32,7 @@
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-31T21:59:02.512859+00:00",
+      "timestamp": "2026-05-18T00:00:00+00:00",
       "type": "milestone",
       "content": "Created issue #2034; verified 7 open PRs CI-red on test_per_file_limit[AGENTS.md]; posted evidence comment to #2034",
       "caused_by": [],
@@ -40,7 +40,7 @@
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-31T21:59:02.512859+00:00",
+      "timestamp": "2026-05-18T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 37803f7a",
       "caused_by": [],
