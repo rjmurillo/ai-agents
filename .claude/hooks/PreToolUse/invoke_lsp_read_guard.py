@@ -182,7 +182,10 @@ def _decide_block(message: str, file_path: str) -> int:
         _emit_warn(message)
         _note(f"warn-mode advisory for {file_path}")
         return 0
-    print(message, file=sys.stderr)
+    # Emit guidance on stdout for agent visibility (sibling-guard parity,
+    # ADR-062); keep a short stderr note for the structured log.
+    print(message)
+    _note(f"blocked Read {file_path}")
     return 2
 
 
