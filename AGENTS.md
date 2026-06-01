@@ -14,6 +14,7 @@ Read first, reason second. Pre-training last resort.
 |ADRs: `.agents/architecture/ADR-*.md`
 |Protocol: `.agents/SESSION-PROTOCOL.md`
 |Skills: `.claude/skills/{name}/SKILL.md`
+|Generators (edit source, not output): `.agents/governance/GENERATOR-FILES.md`
 
 ## Session Gates
 
