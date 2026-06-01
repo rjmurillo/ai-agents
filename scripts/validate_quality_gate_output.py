@@ -25,7 +25,20 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 _SCHEMA_PATH = _PROJECT_ROOT / ".agents" / "schemas" / "pr-quality-gate-output.schema.json"
 
 VALID_VERDICTS = frozenset({"PASS", "WARN", "CRITICAL_FAIL"})
-VALID_AGENTS = frozenset({"security", "qa", "analyst", "architect", "devops", "roadmap"})
+VALID_AGENTS = frozenset(
+    {
+        "security",
+        "qa",
+        "analyst",
+        "architect",
+        "devops",
+        "roadmap",
+        "reliability",
+        "observability",
+        "agent-safety",
+        "decision-rigor",
+    }
+)
 VALID_SEVERITIES = frozenset({"critical", "high", "medium", "low"})
 REQUIRED_FIELDS = frozenset({"verdict", "message", "agent", "timestamp", "findings"})
 REQUIRED_FINDING_FIELDS = frozenset({"severity", "category", "description"})
