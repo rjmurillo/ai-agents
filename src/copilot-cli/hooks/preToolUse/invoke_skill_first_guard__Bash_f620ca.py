@@ -163,6 +163,7 @@ def _original_main(stdin_bytes):
     import json
     import os
     import re
+    import shlex
     import sys
     from pathlib import Path
 
@@ -193,7 +194,12 @@ def _original_main(stdin_bytes):
     from hook_utilities import get_project_directory  # noqa: E402
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
-    _GH_COMMAND_PATTERN = re.compile(r"\bgh\s+(\w+)\s+(\w+)")
+    # Leading tokens that wrap another command. Skipping them (and their option
+    # flags) keeps `env FOO=bar gh ...`, `sudo -E gh ...`, `nohup gh ...`,
+    # `time gh ...`, `exec gh ...`, and `command gh ...` resolving to the gh
+    # invocation rather than the wrapper, so a skill-backed gh call cannot be
+    # hidden behind a shell dispatcher.
+    _TRANSPARENT_PREFIXES = frozenset({"env", "sudo", "nohup", "time", "exec", "command"})
 
     # Stage 1: Exact mapping of gh operation/action to skill scripts
     SKILL_MAPPINGS: dict[str, dict[str, dict[str, str]]] = {
@@ -272,23 +278,143 @@ def _original_main(stdin_bytes):
     }
 
 
+    def _is_env_assignment(token: str) -> bool:
+        """True for a leading VAR=value environment assignment (not an option/path)."""
+        return "=" in token and not token.startswith(("-", "/"))
+
+
+    def _command_word_basename(token: str) -> str:
+        """Reduce a command token to its bare executable name.
+
+        Strips any path prefix across POSIX and Windows separators and a trailing
+        .exe so /usr/bin/gh, .\\gh, C:\\bin\\gh, and gh.exe all reduce to gh.
+        """
+        base = re.split(r"[\\/]", token)[-1]
+        if base.lower().endswith(".exe"):
+            base = base[: -len(".exe")]
+        return base
+
+
+    def _tokenize_command(command: str) -> list[str]:
+        """Tokenize a full shell command, quote-aware and separator-aware.
+
+        `punctuation_chars` makes the lexer emit shell control operators
+        (`&&`, `||`, `|`, `|&`, `;`, `&`, redirections) as their own tokens while
+        honoring quotes, so a separator inside a quoted argument
+        (`--title "a | gh issue list"`) stays part of that argument and never
+        splits the command (issue #2111). POSIX grouping collapses a quoted
+        `VAR='x y'` assignment into one token; disabling escape keeps a Windows
+        path such as C:\\bin\\gh intact for basename extraction.
+        """
+        lex = shlex.shlex(command, posix=True, punctuation_chars=";()<>|&")
+        lex.whitespace_split = True
+        lex.escape = ""
+        return list(lex)
+
+
+    # Tokens emitted by the punctuation-aware lexer that begin a new command
+    # context. A gh invocation must be the command word of a segment, so segments
+    # are delimited by these operator tokens. Only real command separators and
+    # subshell grouping qualify; redirection operators (`<`, `>`, `>>`, `<<`) do
+    # not start a new command, so they stay inert inside their segment and a
+    # redirection target is never mistaken for a command word.
+    _SEGMENT_OPERATORS = frozenset({";", "|", "||", "&", "&&", "|&", "(", ")"})
+
+    # A gh operation/action must be a bare subcommand word. Rejecting anything else
+    # keeps path-traversal operands such as `..` or `../../etc` out of the skill
+    # lookup, which joins these values into filesystem paths and glob patterns
+    # (CWE-22).
+    _OPERAND_RE = re.compile(r"^\w[\w-]*$")
+
+
+    def _split_segments(tokens: list[str]) -> list[list[str]]:
+        """Partition a token stream into command segments on operator tokens."""
+        segments: list[list[str]] = []
+        current: list[str] = []
+        for token in tokens:
+            if token in _SEGMENT_OPERATORS:
+                if current:
+                    segments.append(current)
+                    current = []
+                continue
+            current.append(token)
+        if current:
+            segments.append(current)
+        return segments
+
+
+    def _gh_args_for_segment(tokens: list[str]) -> list[str] | None:
+        """Return the tokens after `gh` if this segment's command word is gh.
+
+        Anchors on the command actually being a `gh` invocation rather than text
+        that merely mentions a gh subcommand inside a quoted argument, which the
+        previous whole-string regex match flagged as a false positive (issue #2111).
+        Returns the tokens following `gh`, or None when the segment does not invoke gh.
+        """
+        idx = 0
+        n = len(tokens)
+        while idx < n:
+            token = tokens[idx]
+            if token in _TRANSPARENT_PREFIXES:
+                # Skip the wrapper, then any of its option flags and (for env)
+                # VAR=value assignments, so `sudo -E gh`, `env -i gh`, and
+                # `env FOO=bar gh` all reach the real command word.
+                idx += 1
+                while idx < n and (tokens[idx].startswith("-") or _is_env_assignment(tokens[idx])):
+                    idx += 1
+                continue
+            # Leading VAR=value environment assignments with no wrapper.
+            if _is_env_assignment(token):
+                idx += 1
+                continue
+            break
+        if idx >= n:
+            return None
+        if _command_word_basename(tokens[idx]) != "gh":
+            return None
+        return tokens[idx + 1:]
+
+
     def parse_gh_command(command: str) -> dict[str, str] | None:
         """Parse a gh command into operation and action components.
+
+        Tokenizes the command quote-aware, splits it into segments on shell
+        operators, and inspects each segment's command word. Only a real `gh`
+        invocation (gh as the command, not as quoted argument text) whose
+        operation and action are bare subcommand words yields a match.
 
         Returns dict with 'operation', 'action', 'full_command' or None.
         """
         if not command:
             return None
 
-        match = _GH_COMMAND_PATTERN.search(command)
-        if not match:
-            return None
+        try:
+            tokens = _tokenize_command(command)
+        except ValueError:
+            # Unbalanced quotes: we cannot reliably locate shell operator
+            # boundaries. Re-splitting a naive whitespace tokenization on operator
+            # tokens would reintroduce the issue #2111 false positives, because a
+            # separator that was meant to live inside the unterminated quote
+            # becomes a boundary again and manufactures a spurious gh segment.
+            # Treat the whole command as one segment so only its actual command
+            # word can match.
+            segments = [command.split()]
+        else:
+            segments = _split_segments(tokens)
 
-        return {
-            "operation": match.group(1),
-            "action": match.group(2),
-            "full_command": command,
-        }
+        for segment in segments:
+            gh_args = _gh_args_for_segment(segment)
+            if gh_args is None:
+                continue
+            positional = [tok for tok in gh_args if not tok.startswith("-")]
+            if len(positional) >= 2 and _OPERAND_RE.match(positional[0]) and _OPERAND_RE.match(positional[1]):
+                return {
+                    "operation": positional[0],
+                    "action": positional[1],
+                    "full_command": command,
+                }
+
+        return None
 
 
     def find_skill_script(

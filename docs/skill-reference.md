@@ -66,11 +66,7 @@ Fixes session protocol validation failures in GitHub Actions. Diagnoses and repa
 
 ### session
 
-Session management and protocol compliance. Provides session lifecycle operations and status queries.
-
-### session-qa-eligibility
-
-Checks investigation session QA skip eligibility per ADR-034. Validates whether a session qualifies for reduced QA gates.
+Session management and protocol compliance. Provides session lifecycle operations and investigation-only QA skip eligibility checks per ADR-034. Absorbs the former session-qa-eligibility skill (Issue #1946).
 
 ### session-migration
 

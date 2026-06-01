@@ -161,6 +161,124 @@ class TestExtractTodosFromDiff:
         result = extract_todos_from_diff(diff, 3)
         assert len(result) == 2
 
+    def test_ignores_prose_followup_in_code_comment(self) -> None:
+        """Issue #1852: a keyword mid-sentence inside a comment is prose, not an action."""
+        diff = (
+            "diff --git a/src/auth.py b/src/auth.py\n"
+            "+# This change addresses the follow-up from the security review\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_plain_prose_line(self) -> None:
+        """Issue #1852: a non-comment prose line mentioning the keyword is not an action."""
+        diff = (
+            "diff --git a/src/auth.py b/src/auth.py\n"
+            "+    raise ValueError('see the todo list for context')\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_keyword_in_markdown(self) -> None:
+        """Issue #1852: prose-oriented files are skipped entirely."""
+        diff = (
+            "diff --git a/docs/plan.md b/docs/plan.md\n"
+            "+- TODO: a roadmap bullet, not a code action comment\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_bare_prose_followup_in_code_file(self) -> None:
+        """Issue #1852: a bare English sentence on an added code line is not an action.
+
+        Reproduces the exact false-positive class from PR #1851: narrative prose
+        using "follow-up" as a noun, with no comment leader, must yield zero
+        opportunities.
+        """
+        diff = (
+            "diff --git a/src/auth.py b/src/auth.py\n"
+            "+ should be addressed in a follow-up to clarify the scope\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_followup_paragraph_in_markdown(self) -> None:
+        """Issue #1852: a markdown paragraph mentioning "follow-up" is prose, not an action.
+
+        Reproduces the debate-log artifact that originally tripped the bot: a
+        documentation paragraph naming "follow-up issue" must be skipped because
+        the file is prose-oriented.
+        """
+        diff = (
+            "diff --git a/docs/notes.md b/docs/notes.md\n"
+            "+Found a follow-up issue that we should file later.\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_yaml_list_marker_in_code_file(self) -> None:
+        """A leading single hyphen is a YAML/markdown list marker, not a comment
+        leader, so a bullet in a code file is not treated as an action comment."""
+        diff = (
+            "diff --git a/config/pipeline.yaml b/config/pipeline.yaml\n"
+            "+- follow-up: schedule the next stage here\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_detects_sql_double_dash_comment(self) -> None:
+        """A double-dash SQL/Haskell comment leader is recognized so a real TODO
+        in that syntax is still flagged."""
+        diff = (
+            "diff --git a/migrations/001.sql b/migrations/001.sql\n"
+            "+-- TODO: add an index on the created_at column\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 1
+
+    def test_detects_inline_trailing_todo(self) -> None:
+        """An action keyword in an inline trailing comment is still detected."""
+        diff = (
+            "diff --git a/src/util.py b/src/util.py\n"
+            "+    value = compute()  # TODO: revisit once the API stabilizes\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
+    def test_detects_double_hash_leader(self) -> None:
+        """A repeated comment leader ('## TODO') is still detected (PR #2173)."""
+        diff = (
+            "diff --git a/src/main.py b/src/main.py\n"
+            "+## TODO: stacked comment leader\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
+    def test_detects_jsdoc_block_leader(self) -> None:
+        """A JSDoc-style '/** TODO' leader is detected (PR #2173)."""
+        diff = (
+            "diff --git a/src/app.ts b/src/app.ts\n"
+            "+/** TODO: document this export */\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
+    def test_detects_triple_slash_leader(self) -> None:
+        """A '/// TODO' doc-comment leader is detected (PR #2173)."""
+        diff = (
+            "diff --git a/src/lib.ts b/src/lib.ts\n"
+            "+/// TODO: add doc comment\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
+    def test_inline_leader_inside_url_not_masked(self) -> None:
+        """A '#' inside a URL must not mask a real trailing comment (PR #2173)."""
+        diff = (
+            "diff --git a/src/net.py b/src/net.py\n"
+            '+    url = "https://example.com/#hash"  # TODO: change this\n'
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
     def test_empty_diff(self) -> None:
         result = extract_todos_from_diff("", 1)
         assert len(result) == 0

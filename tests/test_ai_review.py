@@ -1113,6 +1113,13 @@ class TestGetLabelsFromAIOutput:
     def test_empty_array(self):
         assert get_labels_from_ai_output('{"labels":[]}') == []
 
+    def test_whitespace_only_label_in_array(self):
+        # REQ-008-07: a label that is only whitespace inside a non-empty array
+        # is skipped, not emitted. Exercises the per-label whitespace guard
+        # (verdict.py:257-258) that the empty-array case at line 251 does not
+        # reach, since the array_content here ("  ") is non-empty.
+        assert get_labels_from_ai_output('{"labels":["  "]}') == []
+
     def test_missing_key(self):
         assert get_labels_from_ai_output('{"milestone":"v1"}') == []
 
