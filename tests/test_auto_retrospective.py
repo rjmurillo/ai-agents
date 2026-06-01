@@ -196,13 +196,15 @@ class TestRetroSkeletonText(unittest.TestCase):
         return retro_path.read_text(encoding="utf-8")
 
     def test_skeleton_carries_fill_instruction(self):
-        """Each placeholder section tells the reader to run /retro to fill it."""
+        """Each placeholder section tells the reader to run the retrospective agent."""
         with tempfile.TemporaryDirectory() as tmp:
             content = self._generate(Path(tmp), "2026-04-20")
 
-            self.assertIn("Run /retro to populate this section", content)
+            self.assertIn("Run the retrospective agent to populate this section", content)
             # One instruction per placeholder section (4 sections total).
-            self.assertEqual(content.count("Run /retro to populate this section"), 4)
+            self.assertEqual(
+                content.count("Run the retrospective agent to populate this section"), 4
+            )
 
     def test_skeleton_marked_unfilled_in_banner(self):
         """The header banner flags the file as an unfilled skeleton, not a result."""
