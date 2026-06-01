@@ -252,8 +252,12 @@ These paths qualify for investigation-only QA exemption:
 | `.agents/retrospective/` | Learnings and retrospective documents |
 | `.serena/memories/` | Cross-session context storage |
 | `.agents/security/` | Security assessments and reviews |
+| `.agents/memory/` | Memory store artifacts |
+| `.agents/architecture/REVIEW-*` | Architecture review notes |
+| `.agents/critique/` | Critique and review documents |
+| `.agents/memory/episodes/` | Episodic memory records |
 
-**Important**: This allowlist is defined by ADR-034 (Investigation Session QA Exemption). The patterns in `test_investigation_eligibility.py` are validated by Pester tests to ensure they match the ADR specification.
+**Important**: This allowlist is defined by ADR-034 (Investigation Session QA Exemption). The canonical patterns live in `.claude/skills/session/scripts/test_investigation_eligibility.py` (`_ALLOWLIST_PATTERNS`), which matches `scripts/modules/investigation_allowlist.py` per Issue #840. Tests validate the patterns against the ADR specification.
 
 ---
 
@@ -291,6 +295,12 @@ python3 .claude/skills/session/scripts/test_investigation_eligibility.py
 
 ---
 
+## Consolidation Note
+
+This skill is the single owner of investigation-only QA eligibility checks. The former `session-qa-eligibility` skill was folded into this skill (Issue #1946); its `Test-InvestigationEligibility` interface and ADR-034 allowlist now live here. Use this skill for all eligibility checks.
+
+---
+
 ## Related
 
 | Reference | Description |
@@ -299,4 +309,4 @@ python3 .claude/skills/session/scripts/test_investigation_eligibility.py
 | [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
 | [validate_session_json.py](../../../scripts/validate_session_json.py) | Validates session JSON format (separate from eligibility) |
-| [test_investigation_eligibility.py](tests/test_investigation_eligibility.py) | Pytest tests ensuring pattern consistency |
+| [test_investigation_eligibility.py](tests/test_session_eligibility.py) | Pytest tests ensuring pattern consistency |
