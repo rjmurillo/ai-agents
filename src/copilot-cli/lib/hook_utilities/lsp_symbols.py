@@ -130,14 +130,18 @@ _GREP_BARE_PASCAL = re.compile(
 _STRIP_METACHARS = re.compile(r"[*+?^${}()\[\]\\]")
 
 
-def strip_zero_width(s: str) -> str:
-    """Remove zero-width / formatting chars (kit ``ZERO_WIDTH`` strip)."""
-    if not s:
+def strip_zero_width(s: object) -> str:
+    """Remove zero-width / formatting chars (kit ``ZERO_WIDTH`` strip).
+
+    Accepts ``object`` and fails open (returns "") for non-string input, since
+    hook payloads are untrusted JSON that may carry non-string values.
+    """
+    if not isinstance(s, str) or not s:
         return ""
     return _ZERO_WIDTH.sub("", s)
 
 
-def is_code_symbol(s: str) -> bool:
+def is_code_symbol(s: object) -> bool:
     """Return True if ``s`` looks like a code symbol (kit ``isCodeSymbol``).
 
     Faithful port: length floor, whitespace/metachar rejection, allowlist, then
@@ -169,29 +173,31 @@ def is_code_symbol(s: str) -> bool:
     return is_camel or is_pascal or is_dotted or is_snake
 
 
-def is_grep_search(command: str) -> bool:
+def is_grep_search(command: object) -> bool:
     """True if ``command`` invokes a blocked grep-family binary.
 
     Kit: ``/\\b(grep|rg|ag|ack)\\b/i`` extended to egrep/fgrep per ADR-062.
     Zero-width chars are stripped first to prevent ``grep\\u200BFoo`` evasion.
+    Accepts ``object`` and fails open (False) for non-string input.
     """
-    if not command:
+    if not isinstance(command, str) or not command:
         return False
     cleaned = strip_zero_width(command)
     return bool(_GREP_FAMILY.search(cleaned))
 
 
-def is_git_grep(command: str) -> bool:
+def is_git_grep(command: object) -> bool:
     """True if ``command`` is a ``git grep`` (history search, always allowed).
 
     Kit: ``/\\bgit\\s+grep\\b/i`` (``bash-grep-block.js:28``).
+    Accepts ``object`` and fails open (False) for non-string input.
     """
-    if not command:
+    if not isinstance(command, str) or not command:
         return False
     return bool(_GIT_GREP.search(strip_zero_width(command)))
 
 
-def extract_pattern_and_target(command: str) -> tuple[list[str], str]:
+def extract_pattern_and_target(command: object) -> tuple[list[str], str]:
     """Extract candidate symbol parts and the raw target text from a grep cmd.
 
     Ports the kit's pattern extraction (``bash-grep-block.js:32-49``): match the
@@ -204,7 +210,7 @@ def extract_pattern_and_target(command: str) -> tuple[list[str], str]:
         ``(parts, command)`` where ``parts`` may be empty (no extractable
         pattern) and ``command`` is the zero-width-stripped input.
     """
-    if not command:
+    if not isinstance(command, str) or not command:
         return [], ""
     cleaned_cmd = strip_zero_width(command)
     unescaped = cleaned_cmd.replace('\\"', '"')
