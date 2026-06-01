@@ -257,7 +257,7 @@ These paths qualify for investigation-only QA exemption:
 | `.agents/critique/` | Critique and review documents |
 | `.agents/memory/episodes/` | Episodic memory records |
 
-**Important**: This allowlist is defined by ADR-034 (Investigation Session QA Exemption). The canonical patterns live in `.claude/skills/session/scripts/test_investigation_eligibility.py` (`_ALLOWLIST_PATTERNS`), which matches `scripts/modules/investigation_allowlist.py` per Issue #840. Tests validate the patterns against the ADR specification.
+**Important**: This allowlist is defined by ADR-034 (Investigation Session QA Exemption). The canonical patterns live in the session skill eligibility script (`_ALLOWLIST_PATTERNS`). Issue #840 tracks the relationship with the shared allowlist module under `scripts/modules/`. Tests validate the patterns against the ADR specification.
 
 ---
 
@@ -309,4 +309,4 @@ This skill is the single owner of investigation-only QA eligibility checks. The 
 | [SESSION-PROTOCOL.md](../../../.agents/SESSION-PROTOCOL.md) | Session start/end requirements (Phase 2.5) |
 | [Issue #662](https://github.com/rjmurillo/ai-agents/issues/662) | Create QA skip eligibility check skill |
 | [validate_session_json.py](../../../scripts/validate_session_json.py) | Validates session JSON format (separate from eligibility) |
-| [test_investigation_eligibility.py](tests/test_session_eligibility.py) | Pytest tests ensuring pattern consistency |
+| [test_session_eligibility.py](tests/test_session_eligibility.py) | Pytest tests ensuring pattern consistency |
