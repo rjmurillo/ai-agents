@@ -30,18 +30,28 @@ _ACTION_REF = (
 def _load_workflow() -> dict[str, Any]:
     """Parse the workflow YAML into a dict."""
     with _WORKFLOW_PATH.open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        loaded = yaml.safe_load(handle)
+    if not isinstance(loaded, dict):
+        raise ValueError(
+            f"Expected {_WORKFLOW_PATH} to parse as a mapping, "
+            f"got {type(loaded).__name__}"
+        )
+    return loaded
 
 
 def _find_step(workflow: dict[str, Any], step_name: str) -> dict[str, Any] | None:
     """Return the first step matching step_name across all jobs, or None."""
     jobs = workflow.get("jobs")
-    jobs = {} if jobs is None else jobs
+    if not isinstance(jobs, dict):
+        return None
     for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
         steps = job.get("steps")
-        steps = [] if steps is None else steps
+        if not isinstance(steps, list):
+            continue
         for step in steps:
-            if step.get("name") == step_name:
+            if isinstance(step, dict) and step.get("name") == step_name:
                 return step
     return None
 
