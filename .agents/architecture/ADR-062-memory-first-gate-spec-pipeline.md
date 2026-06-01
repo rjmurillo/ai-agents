@@ -126,7 +126,7 @@ running after Step 0 and before Step 1. This ADR codifies four binding points.
 - `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`: the cost
   evidence. PR #1887 spent 69 commits and 11-plus review rounds because the M4
   evidence rule was designed against an imagined contract instead of the
-  canonical `validate_session_json.py:CONTRADICTION_PATTERNS` regex. That is
+  canonical `scripts/validate_session_json.py:CONTRADICTION_PATTERNS` regex. That is
   precisely the failure Step 0.5 prevents: the proposer did not search for the
   canonical source before writing the spec.
 - `.claude/rules/canonical-source-mirror.md`: the rule that the M4 episode
@@ -168,7 +168,7 @@ Step 0.5 block and the Step 9 check 9d clause reverts to the Step 0-only
 pipeline. No data migration is required; the metrics file is review-only and its
 absence does not block `/spec`.
 
-Step 0's kill criteria (`spec.md` lines 127 through 134, documented as
+Step 0's kill criteria (documented as
 `REQ-016-13` in
 `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md`)
 extend to Step 0.5. At 30 invocations, the gate is reviewed
