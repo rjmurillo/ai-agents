@@ -15,6 +15,14 @@ export async function appendMarkerBlock(
   block: string,
   dryRun: boolean,
 ): Promise<void> {
+  if (!block.includes(BEGIN_MARKER) || !block.includes(END_MARKER)) {
+    throw new Error(
+      "appendMarkerBlock requires the block to contain both " +
+        `${BEGIN_MARKER} and ${END_MARKER}; the idempotency check relies on ` +
+        "them.",
+    );
+  }
+
   if (dryRun) return;
 
   const dir = dirname(filePath);
@@ -39,7 +47,9 @@ export async function appendMarkerBlock(
 
   let blockToWrite = block;
   if (detectedCrlf) {
-    blockToWrite = blockToWrite.replace(/\n/g, "\r\n");
+    // Match optional CR so a block already using CRLF does not become
+    // corrupted \r\r\n line endings.
+    blockToWrite = blockToWrite.replace(/\r?\n/g, "\r\n");
   }
 
   let result: string;
