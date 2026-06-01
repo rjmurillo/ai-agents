@@ -222,8 +222,24 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # Pin to SHA matches claude.yml and rjmurillo-bot.yml.
-      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.103
+      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.133
+      #
+      # Failure isolation (Issue #2015):
+      #   This workflow is async, best-effort, and never blocks merge (see the
+      #   header and the "Async by design" hard constraint in the prompt). The
+      #   agent run depends on the CLAUDE_CODE_OAUTH_TOKEN secret and on the
+      #   Anthropic API. When the token is expired or the API is unavailable,
+      #   the action returns a hard error (observed: "401 Invalid authentication
+      #   credentials"). Without continue-on-error, that one transient or
+      #   credential failure paints the "Run retrospective agent" check red on
+      #   every PR, training contributors to treat the check as expected-red and
+      #   eroding signal across the rest of the CI fleet.
+      #   continue-on-error: true keeps the failure observable as a step
+      #   annotation while letting the check report success, matching the
+      #   best-effort contract. The annotation, not a red check, is the signal a
+      #   maintainer acts on (for example, to rotate the OAuth token).
       - name: Run retrospective via Claude Code
+        continue-on-error: true
         uses: anthropics/claude-code-action@787c5a0ce96a9a6cfb050ea0c8f4c05f2447c251 # v1.0.133
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

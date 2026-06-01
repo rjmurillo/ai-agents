@@ -1,16 +1,16 @@
 {
   "id": "episode-2026-03-01-session-1194",
   "session": "2026-03-01-session-1194",
-  "timestamp": "2026-03-04T04:28:10.430509+00:00",
-  "outcome": "partial",
-  "task": "",
+  "timestamp": "2026-03-01T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Complete PowerShell-to-Python migration across .claude/ directory per ADR-042",
   "decisions": [],
   "events": [
     {
-      "id": "e002",
-      "timestamp": "2026-03-04T04:28:10.428870+00:00",
-      "type": "test",
-      "content": "\"Address any remaining test failures in CI environment\"",
+      "id": "e001",
+      "timestamp": "2026-03-01T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: a23f9cc6",
       "caused_by": [],
       "leads_to": []
     }
@@ -18,7 +18,7 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
+    "errors": 0,
     "recoveries": 0,
     "commits": 2,
     "files_changed": 0
