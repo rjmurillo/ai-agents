@@ -29,14 +29,14 @@ When you detect a rewrite-for-improvement decision, the critic MUST get answers 
 
 ## Halt Rule
 
-If the proposer can answer only question 2 (the v0 win) and cannot answer 1, 3, and 4, **halt the decision**. Do not rubber-stamp it. Return verdict ESCALATE or REVISE with the missing questions named.
+If the proposer can answer only question 2 (the v0 win) and cannot answer 1, 3, and 4, **halt the decision**. Do not rubber-stamp it. Return verdict ESCALATE (the v0-only case is the strongest halt: there is no engineering evidence yet) with the missing questions named. Partial-answer cases map to REVISE per the table below.
 
 The rewrite is being evaluated on a marketing graph, not an engineering graph. The proposer has measured the rewrite against an empty surface and projected nothing about what happens when the features come back.
 
 | Answered | Verdict |
 |----------|---------|
 | Only #2 (v0 win) | HALT: ESCALATE. v0 alone is not evidence. |
-| #1, #2, #3, #4 | Proceed to normal critique. Math is done. |
+| #1, #2, #3, #4 | Math is done. Proceed to normal critique only after also resolving #5 below; an unanswered #5 caps the verdict at a flagged STAND, not a clean one. |
 | #1, #2, #3 but no #4 | REVISE: add the regression budget before approval. |
 | #1, #2 but no #3 (and/or no #4) | HALT: REVISE. The v1 projection is the load-bearing number; the v0 win alone is not engineering evidence. |
 | #5 unanswered | Flag: the friction that caused the original problem is unaddressed. |

@@ -97,7 +97,7 @@ After execution:
 - [ ] Contrarian perspective generated (Step 5)
 - [ ] Final verdict is one of: STAND, REVISE, ESCALATE
 - [ ] Inversion analysis covers at least 3 failure modes
-- [ ] Rewrite-regression check applied as a halt criterion when the decision is a rewrite, refactor, or migration justified by improvement. Evaluate this check during verification (Steps 3 and 4), before settling on a verdict: a STAND verdict is not valid while the rewrite-regression halt is open. If the proposer can answer only the v0 win and not the baseline, the v1 projection, and the regression plan, HALT the decision (ESCALATE or REVISE) rather than rubber-stamp it. See [Rewrite-Regression Check](references/rewrite-regression-check.md).
+- [ ] Rewrite-regression check applied as a halt criterion when the decision is a rewrite, refactor, or migration justified by improvement. Evaluate this check during verification (Steps 3 and 4), before settling on a verdict: a STAND verdict is not valid while the rewrite-regression halt is open. If the proposer can answer only the v0 win and not the baseline, the v1 projection, and the regression plan, HALT the decision: ESCALATE when only the v0 win exists, REVISE for partial-answer cases per the reference table, rather than rubber-stamp it. See [Rewrite-Regression Check](references/rewrite-regression-check.md).
 
 ## References
 
