@@ -419,6 +419,29 @@ class TestArchiveFallback:
         bundle = extract_session_episode.extract_from_json(data)
         assert bundle["metrics"]["errors"] >= 1
 
+    def test_metrics_sourced_from_markdown_archive(self, tmp_path, monkeypatch):
+        """Markdown-only archive recovery must source metrics from the archive,
+        not the sparse primary stub (#2170 thread GAzip)."""
+        md = tmp_path / "2026-05-31-session-2.md"
+        md.write_text(
+            "# Session\n"
+            "- Milestone: Implemented the parser\n"
+            "Commit a1b2c3d4 landed the change\n"
+            "5 files changed\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(extract_session_episode, "_find_archive_json", lambda sid: None)
+
+        def fake_md(session_id):
+            p = tmp_path / f"{session_id}.md"
+            return p if p.is_file() else None
+
+        monkeypatch.setattr(extract_session_episode, "_find_archive_markdown", fake_md)
+        data = {"session": {"number": 2, "date": "2026-05-31"}, "workLog": [], "endingCommit": ""}
+        bundle = extract_session_episode.extract_from_json(data)
+        assert bundle["metrics"]["commits"] >= 1
+        assert bundle["metrics"]["files_changed"] == 5
+
     def test_truthy_empty_worklog_still_uses_archive(self, tmp_path, monkeypatch):
         archive = tmp_path / "2026-05-31-session-2.json"
         archive.write_text(json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8")
@@ -460,6 +483,40 @@ class TestStepWorklogEntries:
     def test_summary_included_in_entry_text(self):
         text = extract_session_episode._entry_text({"step": 2, "summary": "Ran 3 failed checks"})
         assert "Ran 3 failed checks" in text
+
+
+class TestJsonLessonsObjectShape:
+    """`_json_lessons` flattens the schema object shape (#2170 thread GAzih)."""
+
+    def test_object_patterns_and_avoidances(self):
+        data = {"learnings": {
+            "patterns": [
+                {"pattern": "Save pending state before reset",
+                 "context": "lost data at boundaries",
+                 "application": "Always checkpoint first"},
+            ],
+            "avoidances": [
+                {"antipattern": "Resetting mid-loop",
+                 "consequence": "dropped items",
+                 "correction": "Defer the reset"},
+            ],
+        }}
+        out = extract_session_episode._json_lessons(data)
+        assert "Save pending state before reset. Always checkpoint first" in out
+        assert "Avoid: Resetting mid-loop. Defer the reset" in out
+
+    def test_list_shape_still_supported(self):
+        data = {"learnings": ["Lesson one", {"text": "Lesson two"}]}
+        assert extract_session_episode._json_lessons(data) == ["Lesson one", "Lesson two"]
+
+    def test_unknown_shape_returns_empty(self):
+        assert extract_session_episode._json_lessons({"learnings": "nope"}) == []
+
+    def test_object_learnings_pass_lesson_filter(self):
+        # Object-shaped lessons must survive _dedupe_lessons' junk filter.
+        data = {"learnings": {"patterns": [{"pattern": "Prefer fail-closed gates"}]}}
+        out = extract_session_episode._json_lessons(data)
+        assert all(extract_session_episode._is_lesson_text(t) for t in out)
 
 
 class TestJsonCommitMetric:

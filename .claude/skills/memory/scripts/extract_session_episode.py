@@ -626,19 +626,50 @@ def json_metrics(data: dict) -> dict:
     return metrics
 
 
+def _learning_entry_text(item: dict) -> str:
+    """Render one structured learning entry as a single lesson string.
+
+    Handles three shapes: the list-of-dict shorthand (``text``/``content``/
+    ``lesson``), schema ``patterns`` entries (``pattern`` + ``application``), and
+    schema ``avoidances`` entries (``antipattern`` + ``correction``).
+    """
+    for key in ("text", "content", "lesson"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    if "antipattern" in item or "correction" in item:
+        anti = str(item.get("antipattern") or "").strip()
+        corr = str(item.get("correction") or "").strip()
+        parts = [f"Avoid: {anti}" if anti else "", corr]
+    else:
+        parts = [str(item.get("pattern") or "").strip(), str(item.get("application") or "").strip()]
+    return ". ".join(p for p in parts if p)
+
+
 def _json_lessons(data: dict) -> list[str]:
-    """Extract lessons/learnings from JSON session log."""
+    """Extract lessons/learnings from JSON session log.
+
+    ``learnings`` may be a list (strings or ``{text}`` dicts) or the schema's
+    object shape with ``patterns`` and ``avoidances`` arrays; both are flattened
+    to lesson strings so object-shaped learnings still reach episode JSON.
+    """
     raw = data.get("learnings", [])
-    if not isinstance(raw, list):
+    if isinstance(raw, list):
+        items = raw
+    elif isinstance(raw, dict):
+        items = _as_list(raw.get("patterns")) + _as_list(raw.get("avoidances"))
+    else:
         return []
     lessons: list[str] = []
-    for item in raw:
+    for item in items:
         if isinstance(item, str):
-            lessons.append(item.strip())
+            text = item.strip()
         elif isinstance(item, dict):
-            text = str(item.get("text") or item.get("content") or item.get("lesson") or "").strip()
-            if text:
-                lessons.append(text)
+            text = _learning_entry_text(item)
+        else:
+            text = ""
+        if text:
+            lessons.append(text)
     return lessons
 
 
@@ -908,6 +939,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
     metrics_source = data
+    md_metrics: dict | None = None
 
     has_events = any(e.get("type") in ("milestone", "test", "error") for e in events)
     # A commit event is the session's own signal. It does not gate archive
@@ -956,6 +988,11 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         if not has_own_events:
                             md_events = parse_events(md_lines, session_ts)
                             events = _filter_markdown_events(md_events)
+                            # Metrics must follow the event source: when events
+                            # come from the markdown archive, derive metrics from
+                            # the same archive (rigorous counted-failure logic,
+                            # not the sparse primary stub).
+                            md_metrics = _markdown_archive_metrics(md_lines)
                         if not decisions:
                             decisions = parse_decisions(md_lines, session_ts)
                         if not lessons:
@@ -966,15 +1003,31 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     additional_worklogs = (
         _as_list(metrics_source.get("workLog")) if metrics_source is not data else None
     )
+    metrics = md_metrics if md_metrics is not None else json_metrics(metrics_source)
     return {
         "timestamp": session_ts,
         "task": str(session.get("objective") or "").strip(),
         "outcome": json_outcome(data, additional_worklogs),
         "decisions": decisions,
         "events": events,
-        "metrics": json_metrics(metrics_source),
+        "metrics": metrics,
         "lessons": lessons,
     }
+
+
+def _markdown_archive_metrics(md_lines: list[str]) -> dict:
+    """Metrics for a markdown archive, reusing the JSON path's rigorous
+    counted-failure and SHA logic rather than ``parse_metrics``.
+
+    ``parse_metrics`` counts a failure for every line containing the substring
+    ``error``/``fail``/``exception``, which inflates error counts on narrative
+    prose (the same defect fixed for the JSON path in thread GANjI). Treating
+    each markdown line as work-log evidence and routing it through
+    ``json_metrics`` applies the counted-failure regex and distinct-SHA logic,
+    so commits, errors, and files reflect real signal.
+    """
+    pseudo = {"workLog": [{"summary": line} for line in md_lines]}
+    return json_metrics(pseudo)
 
 
 def build_parser() -> argparse.ArgumentParser:
