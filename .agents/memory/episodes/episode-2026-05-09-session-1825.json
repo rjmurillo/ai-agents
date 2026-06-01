@@ -1,48 +1,80 @@
 {
   "id": "episode-2026-05-09-session-1825",
   "session": "2026-05-09-session-1825",
-  "timestamp": "2026-05-09T23:14:21.269854+00:00",
+  "timestamp": "2026-05-09T00:00:00+00:00",
   "outcome": "success",
-  "task": "",
+  "task": "skill triage eval - 15 suspect skills evaluated, prune/consolidate slate identified",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-09T21:49:44.237332+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"markdownlint-cli2 exercised on .agents/analysis/skill-triage-2026-05-09.md (excluded by config glob !.agents/** so 0 file lint, 0 errors); analysis report follows standard markdown structure\"",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Configure workspace per CONTRIBUTING.md",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-09T21:49:44.237332+00:00",
-      "type": "test",
-      "content": "{\"step\": \"Configure workspace per CONTRIBUTING.md\", \"outcome\": \"core.hooksPath set, .venv created, dev deps installed, Pester 5.7.1 verified\"},",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branch off main: feat/skill-eval-triage",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-09T23:14:21.267327+00:00",
-      "type": "commit",
-      "content": "Commit: 9adfcdae",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Inventory eval infra and skill catalog",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-09T23:14:21.267327+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"pre-commit hook ran markdownlint-cli2 on every commit (15 commits); 0 errors. Em-dashes removed from all 13 changed files in round-2 fix.\"",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pick 15 suspect skills (deprecated + cluster overlap)",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-09T23:14:21.267327+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"pytest tests/commands/ passes 59/59; security-scan 0 vulns; golden-principles 0 violations; taste-lints 0 errors.\"",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Author tests/evals/skills/triage-prompts.json",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Dry-run eval",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Live eval run (background, ~15min)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Synthesize findings",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Update Serena memory",
       "caused_by": [],
       "leads_to": []
     }

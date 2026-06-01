@@ -1,0 +1,21 @@
+# Code owners for security-sensitive review machinery.
+#
+# These paths define the criteria and prompts that gate every PR. A change to
+# them changes what the review agents and CI accept, so they require explicit
+# owner review. Refs #1967.
+#
+# Note: the former `.claude/review-axes/` was moved to
+# `.claude/skills/review/references/` in PR #2043; pin the current path.
+
+# Canonical /review axis criteria (CI prompts are generated from these).
+/.claude/skills/review/references/        @rjmurillo
+
+# Generated CI review prompts (pr-quality gate, per role).
+/.github/prompts/pr-quality-gate-*.md     @rjmurillo
+/.github/prompts/pr-quality.*.prompt.md   @rjmurillo
+
+# Shared library backing the AI review gates. The canonical package lives under
+# scripts/; .claude/lib/ is the synced copy (scripts/sync_plugin_lib.py). Pin
+# both so gate-logic changes (verdict.py merge rules) cannot bypass owner review.
+/scripts/ai_review_common/                @rjmurillo
+/.claude/lib/ai_review_common/            @rjmurillo
