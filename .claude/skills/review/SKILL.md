@@ -50,7 +50,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
 
-1. Read the diff (`git diff` against detected base branch).
+1. Read the diff with three-dot range syntax (`git diff "$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch) so the human axes evaluate the same change set as the diff-scoped gates in step 4.
 2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
 3. **Run 6 canonical axes**, in order. For each axis, load the canonical prompt for `{role}` via the path resolution above, then invoke the matching `Task(subagent_type=...)` agent (analyst, architect, qa, security, devops, roadmap) with that prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register these role subagent types in its `Task` enum (e.g., Copilot CLI today), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity.
    - axis 1: `analyst`
