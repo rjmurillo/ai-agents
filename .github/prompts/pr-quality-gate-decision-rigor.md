@@ -132,8 +132,9 @@ Each finding MUST be reported with these structured fields:
 
 - **severity**: one of `critical`, `high`, `medium`, `low` (matches the JSON schema field used in the body section above; treat `critical` as a CRITICAL_FAIL trigger and `high` as a WARN trigger). Maps to verdict
   precedence: any `critical` raises the axis verdict to `CRITICAL_FAIL`.
-- **category**: short keyword identifying the failure class (e.g. `coupling`,
-  `error-handling`, `command-injection`, `missing-test`). Used for clustering.
+- **category**: short keyword identifying the failure class, drawn from the
+  axis `category` enum in the JSON schema above (e.g. `assumptions`, `claims`,
+  `alternatives`). Used for clustering.
 - **location**: `file:line` (or `file:line-range`). Required for every finding.
 - **recommendation**: one-sentence imperative fix the author can act on.
 Top-level (NOT per-finding; the schema rejects `verdict` inside
