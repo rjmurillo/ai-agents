@@ -32,6 +32,7 @@ describe("CLI init (integration)", () => {
     expect(output).toContain("Usage: ai-agents init");
     expect(output).toContain("--force");
     expect(output).toContain("--dry-run");
+    expect(output).toContain("--target");
   });
 
   test("unknown command exits with error", async () => {
@@ -43,5 +44,34 @@ describe("CLI init (integration)", () => {
     await proc.exited;
     expect(proc.exitCode).not.toBe(0);
     expect(stderr).toContain("Unknown command");
+  });
+
+  test("init reports the selected target in its startup line", async () => {
+    // The CLI prints the resolved target before vendoring runs. We assert the
+    // log line and the dry-run no-write contract, not the exit code: the exit
+    // code depends on the bundle/assets dir existing, which is a packaging
+    // concern outside this flag's behavior.
+    const proc = Bun.spawn(
+      ["bun", "run", "src/cli.ts", "init", testDir, "--dry-run", "--target", "copilot"],
+      { cwd: join(import.meta.dir, ".."), stdout: "pipe" },
+    );
+    const output = await new Response(proc.stdout).text();
+    await proc.exited;
+    expect(output).toContain("target=copilot");
+    // dry-run touches nothing on disk
+    await expect(
+      access(join(testDir, ".github", "copilot-instructions.md")),
+    ).rejects.toThrow();
+  });
+
+  test("init --target with an invalid value exits with config error", async () => {
+    const proc = Bun.spawn(
+      ["bun", "run", "src/cli.ts", "init", testDir, "--target", "gemini"],
+      { cwd: join(import.meta.dir, ".."), stderr: "pipe" },
+    );
+    const stderr = await new Response(proc.stderr).text();
+    await proc.exited;
+    expect(proc.exitCode).toBe(2);
+    expect(stderr).toContain('Invalid --target "gemini"');
   });
 });
