@@ -284,8 +284,9 @@ behavior).
 - Epic #1952: parent epic listing Step 0.5 as Phase 1 child
 - `.claude/skills/memory/SKILL.md`: `### Memory-First Gate (BLOCKING)` section
   (the decision driver)
-- `.claude/commands/spec.md`: Step 0.5 specification (lines 142 through 354) and
-  Step 0 kill criteria (lines 127 through 134)
+- `.claude/commands/spec.md`: Step 0.5 specification (lines 142 through 354)
+- `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md`
+  (`REQ-016-13`): Step 0 kill criteria, canonical source
 - `.agents/specs/requirements/REQ-017-spec-memory-first-gate.md`: gate behavior
   source of truth (AC-01 through AC-13)
 - `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`: cost evidence
