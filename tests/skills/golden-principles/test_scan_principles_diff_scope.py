@@ -147,6 +147,15 @@ class TestMainDiffScope:
             result = main()
         assert result == EXIT_ERROR
 
+    def test_diff_scope_empty_base_returns_error(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # An empty base (e.g. ship/review passing "$BASE_BRANCH" while unset) must
+        # error, not silently fall through to a full-repository scan.
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["scan_principles.py", "--diff-scope", ""]):
+            result = main()
+        assert result == EXIT_ERROR
+
     def test_diff_scope_catches_violation_from_subdirectory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         # Diff paths are repo-root-relative; anchoring them to the git root means
         # the scan still finds them when cwd is a subdirectory. Without the

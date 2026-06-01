@@ -176,7 +176,7 @@ def get_diff_files(base: str) -> list[str]:
         raise RuntimeError(
             f"git diff failed for base {base!r} (exit {exc.returncode})"
         ) from exc
-    files = [f for f in result.stdout.strip().split("\n") if f]
+    files = [f for f in result.stdout.splitlines() if f]
     return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
 
 def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
@@ -532,7 +532,7 @@ def main() -> int:
     rules = parse_rules(args.rules)
 
     files: list[str] = []
-    if args.diff_scope:
+    if args.diff_scope is not None:
         try:
             files = get_diff_files(args.diff_scope)
         except (ValueError, RuntimeError) as exc:
