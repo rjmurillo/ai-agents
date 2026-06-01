@@ -1,11 +1,36 @@
 {
   "id": "episode-2026-04-27-session-1760",
   "session": "2026-04-27-session-1760",
-  "timestamp": "2026-04-29T04:02:16.350746+00:00",
-  "outcome": "partial",
-  "task": "",
+  "timestamp": "2026-04-27T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Port world-model-diagnostic skill from upstream (issue #1805)",
   "decisions": [],
-  "events": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-04-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ported world-model-diagnostic skill from upstream OpenClaw catalog. Stripped OpenClaw branding (author, version suffix, metadata.openclaw block). Replaced lily-memory/memory_search/memory_store with Serena/Forgetful per AGENTS.md and ADR-007. Replaced ~/.openclaw/workspace/diagnostics path with .agents/analysis/diagnostics/. Reset version to 1.0.0. Frontmatter validates; size 293 lines (within 500). Companion skills referenced as in-flight issues (#1802, #1803, #1806) per issue scope.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-04-27T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR review follow-up: shortened description to 183 chars, fixed Phase 1 memory query sequence, added memory tooling fallback, added output self-check gate, added Verification section. Created eval suite (6 knowledge-integration prompts + 6 behavioral scenarios). Ran SkillForge analysis.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-04-27T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e7b604df",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
@@ -14,7 +39,5 @@
     "commits": 1,
     "files_changed": 0
   },
-  "lessons": [
-    "\"Evidence\": \"Deferred; lessons captured in PR description\""
-  ]
+  "lessons": []
 }
