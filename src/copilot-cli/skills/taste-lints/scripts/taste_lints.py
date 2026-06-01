@@ -92,6 +92,27 @@ def get_staged_files() -> list[str]:
         return []
 
 
+def get_diff_files(base: str) -> list[str]:
+    """Get list of files changed in the diff against a base branch.
+
+    Derives the list from `git diff --name-only <base>...HEAD`. Path traversal
+    candidates (CWE-22) are dropped. Returns an empty list when git is missing
+    or the command fails.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base}...HEAD"],
+            capture_output=True,
+            check=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+        files = [f for f in result.stdout.strip().split("\n") if f]
+        return [f for f in files if is_safe_path(f)]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+
+
 def get_files_from_directory(directory: str) -> list[str]:
     """Recursively get scannable files from a directory."""
     files = []
@@ -473,6 +494,11 @@ def main() -> int:
         help="Lint git staged files",
     )
     parser.add_argument(
+        "--diff-scope",
+        metavar="BASE_BRANCH",
+        help="Lint only files changed in 'git diff --name-only BASE_BRANCH...HEAD'",
+    )
+    parser.add_argument(
         "--directory", "-d",
         help="Lint all scannable files in directory",
     )
@@ -491,6 +517,8 @@ def main() -> int:
     files: list[str] = []
     if args.git_staged:
         files = get_staged_files()
+    elif args.diff_scope:
+        files = get_diff_files(args.diff_scope)
     elif args.directory:
         files = get_files_from_directory(args.directory)
     elif args.files:
