@@ -26,6 +26,12 @@
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_false_completion_gate.py",
             "timeout": 5,
             "statusMessage": "Checking for false completion claims without verification (#1703)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_bash_grep_guard.py",
+            "timeout": 5,
+            "statusMessage": "Enforcing LSP-first over bash grep on code symbols (ADR-062, conditional)"
           }
         ]
       },
@@ -156,6 +162,61 @@
             "statusMessage": "Verifying architect review for ADR files (BLOCKING)"
           }
         ]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_grep_guard.py",
+            "timeout": 5,
+            "statusMessage": "Enforcing LSP-first over Grep on code symbols (ADR-062, conditional)"
+          }
+        ]
+      },
+      {
+        "matcher": "Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_glob_guard.py",
+            "timeout": 5,
+            "statusMessage": "Enforcing LSP-first over symbol-shaped Glob (ADR-062, conditional)"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_read_guard.py",
+            "timeout": 5,
+            "statusMessage": "Enforcing LSP-first navigation before code Read (ADR-062, graduated)"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_pre_delegation_guard.py",
+            "timeout": 5,
+            "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
+          }
+        ]
+      },
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PreToolUse/invoke_lsp_pre_delegation_guard.py",
+            "timeout": 5,
+            "statusMessage": "Requiring pre-resolved LSP context for delegated implementation agents (ADR-062)"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -195,6 +256,12 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/SessionStart/invoke_context_loader.py",
             "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/SessionStart/invoke_lsp_session_reset.py",
+            "timeout": 5,
+            "statusMessage": "Resetting LSP-gate state for the new session (ADR-062)"
           }
         ]
       }
@@ -266,6 +333,28 @@
             "command": "python3 -u .claude/hooks/PostToolUse/invoke_observation_sync.py",
             "timeout": 30,
             "statusMessage": "Syncing observation memories to Forgetful"
+          }
+        ]
+      },
+      {
+        "matcher": "^(mcp__serena__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|mcp__plugin_[^_]*serena[^_]*__(find_symbol|find_referencing_symbols|get_symbols_overview|find_implementations|get_diagnostics_for_file)|LSP)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_lsp_usage_tracker.py",
+            "timeout": 5,
+            "statusMessage": "Tracking LSP navigation calls for the LSP-first gate (ADR-062)"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -u .claude/hooks/PostToolUse/invoke_lsp_read_tracker.py",
+            "timeout": 5,
+            "statusMessage": "Tracking Read operations for the LSP-first gate (ADR-062)"
           }
         ]
       }
