@@ -811,7 +811,8 @@ def _generate_report(
                 {
                     "level": "error",
                     "message": (
-                        "more than 30% of fixtures flaky; methodology unstable"
+                        "flaky fixture count reached the N-aware halt "
+                        "threshold; methodology unstable"
                     ),
                     "flaky_fixtures": aggregate.flaky_fixtures_detected,
                     "report_json": str(json_path),
