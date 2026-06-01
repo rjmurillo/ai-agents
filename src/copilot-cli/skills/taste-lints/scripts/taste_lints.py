@@ -92,12 +92,40 @@ def get_staged_files() -> list[str]:
         return []
 
 
+def _git_root() -> str:
+    """Return the absolute path of the git working tree root.
+
+    Raises:
+        RuntimeError: git is unavailable or the command fails (for example when
+            run outside a repository). Surfacing the failure stops the gate from
+            silently anchoring diff paths to the wrong place and linting zero
+            files.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            check=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is not available to compute --diff-scope") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"git rev-parse --show-toplevel failed (exit {exc.returncode})"
+        ) from exc
+    return result.stdout.strip()
+
+
 def get_diff_files(base: str) -> list[str]:
     """Get list of files changed in the diff against a base branch.
 
     Derives the list from `git diff --name-only <base>...HEAD`. Path traversal
-    candidates (CWE-22) are dropped and the result is sorted so output ordering
-    is deterministic and consistent with the directory and staged modes.
+    candidates (CWE-22) are dropped, paths are anchored to the git root so they
+    resolve regardless of the process working directory, and the result is
+    sorted so output ordering is deterministic and consistent with the directory
+    and staged modes.
 
     Raises:
         ValueError: ``base`` is empty or starts with ``-`` (CWE-88 argument
@@ -108,6 +136,7 @@ def get_diff_files(base: str) -> list[str]:
     """
     if not base or base.startswith("-"):
         raise ValueError(f"invalid --diff-scope base: {base!r}")
+    root = _git_root()
     try:
         result = subprocess.run(
             ["git", "diff", "--name-only", f"{base}...HEAD"],
@@ -123,7 +152,7 @@ def get_diff_files(base: str) -> list[str]:
             f"git diff failed for base {base!r} (exit {exc.returncode})"
         ) from exc
     files = [f for f in result.stdout.strip().split("\n") if f]
-    return sorted(f for f in files if is_safe_path(f))
+    return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
 
 
 def get_files_from_directory(directory: str) -> list[str]:
