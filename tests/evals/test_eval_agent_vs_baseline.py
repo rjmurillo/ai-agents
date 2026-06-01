@@ -1558,6 +1558,29 @@ class TestReportAggregatorNAwareHalt:
         # Stable subset is the 5 non-flaky fixtures; agent always passes.
         assert result.agent_recall == 1.0
 
+    def test_flag_and_continue_crossing_serialized_and_warned(self, tmp_path):
+        # The crossing must survive to report.json and REPORT.md so the
+        # "flag" in flag-and-continue is not lost when the process exits.
+        records = _records_with_flaky_subset(total=10, flaky=5)
+        aggregate = ReportAggregator(
+            records,
+            model_id="claude-sonnet-4-6",
+            bootstrap_iterations=200,
+            flag_only_on_flaky_halt=True,
+        ).aggregate()
+        json_path, md_path = ReportWriter(tmp_path / "reports").write(
+            aggregate=aggregate,
+            run_id="r1",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=10.0,
+        )
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["flaky_halt_threshold_crossed"] is True
+        assert "30%" in md_path.read_text(encoding="utf-8")
+
 
 class TestReportAggregatorCost:
     def test_cost_uses_pricing_constants(self):
@@ -1647,6 +1670,7 @@ class TestReportWriter:
             "flakiness",
             "flaky_fixtures_detected",
             "flaky_fixtures_excluded",
+            "flaky_halt_threshold_crossed",
             "total_tokens_in",
             "total_tokens_out",
             "wall_clock_seconds",

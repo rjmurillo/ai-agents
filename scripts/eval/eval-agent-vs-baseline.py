@@ -837,6 +837,29 @@ def _generate_report(
             file=sys.stderr,
         )
         return EXIT_LOGIC
+    if aggregate.flaky_halt_threshold_crossed:
+        # Flag-and-continue: the flaky count crossed AC-10's "more than
+        # 30%" gate but the halt was suppressed. Surface the crossing so
+        # the flag in "flag-and-continue" is not lost when the process
+        # exits; the run still completes on the stable subset.
+        print(
+            json.dumps(
+                {
+                    "level": "warning",
+                    "event": "flaky_halt_threshold_crossed",
+                    "message": (
+                        "flaky fixture count crossed the N-aware halt "
+                        "threshold but flag-and-continue suppressed the "
+                        "halt; verdict is provisional"
+                    ),
+                    "flaky_fixtures": aggregate.flaky_fixtures_detected,
+                    "flaky_fixtures_excluded": aggregate.flaky_fixtures_excluded,
+                    "report_json": str(json_path),
+                    "report_md": str(md_path),
+                }
+            ),
+            file=sys.stderr,
+        )
     print(
         json.dumps(
             {
