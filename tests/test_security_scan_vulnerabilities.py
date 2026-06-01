@@ -159,71 +159,103 @@ def test_python_patterns_match(
 
 
 @pytest.mark.parametrize(
-    ("line", "description"),
+    ("line", "description", "severity"),
     [
         (
             'Invoke-Expression "run $thing"',
             "Invoke-Expression with variable interpolation",
+            "CRITICAL",
         ),
         (
             "Invoke-Expression $userInput",
             "Invoke-Expression with potentially unvalidated input",
+            "CRITICAL",
         ),
         (
             "& $commandPath",
             "Call operator with potentially unvalidated command",
+            "HIGH",
         ),
         (
             "Start-Process notepad -ArgumentList $userArgs",
             "Start-Process with potentially unvalidated arguments",
+            "HIGH",
         ),
     ],
 )
-def test_powershell_patterns_match(line: str, description: str) -> None:
+def test_powershell_patterns_match(
+    line: str, description: str, severity: str
+) -> None:
     assert description in _descriptions_for("powershell", line)
+    info = next(
+        i
+        for i in scanner.CWE78_PATTERNS["powershell"]
+        if i["description"] == description
+    )
+    assert info["severity"] == severity
 
 
 @pytest.mark.parametrize(
-    ("line", "description"),
+    ("line", "description", "severity"),
     [
-        ('eval "$cmd"', "eval with variable expansion"),
+        ('eval "$cmd"', "eval with variable expansion", "CRITICAL"),
         (
             "result=$( $userCommand )",
             "Command substitution with potentially unvalidated input",
+            "CRITICAL",
         ),
         (
             "result=`$userInput`",
             "Backtick command substitution with potentially unvalidated input",
+            "CRITICAL",
         ),
         (
             "echo $unquoted",
             "Unquoted variable expansion (potential word splitting/injection)",
+            "MEDIUM",
         ),
     ],
 )
-def test_bash_patterns_match(line: str, description: str) -> None:
+def test_bash_patterns_match(line: str, description: str, severity: str) -> None:
     assert description in _descriptions_for("bash", line)
+    info = next(
+        i
+        for i in scanner.CWE78_PATTERNS["bash"]
+        if i["description"] == description
+    )
+    assert info["severity"] == severity
 
 
 @pytest.mark.parametrize(
-    ("line", "description"),
+    ("line", "description", "severity"),
     [
         (
             "Process.Start(userCommand);",
             "Process.Start with potentially unvalidated command",
+            "HIGH",
         ),
         (
             'var psi = new ProcessStartInfo { Arguments = $"-c {y}" };',
             "ProcessStartInfo with interpolated arguments",
+            "HIGH",
         ),
         (
             "var p = new Process() { FileName = userCmd };",
             "Process with potentially unvalidated FileName",
+            "HIGH",
         ),
     ],
 )
-def test_csharp_patterns_match(line: str, description: str) -> None:
+def test_csharp_patterns_match(
+    line: str, description: str, severity: str
+) -> None:
     assert description in _descriptions_for("csharp", line)
+    info = next(
+        i
+        for i in scanner.CWE78_PATTERNS["csharp"]
+        if i["description"] == description
+    )
+    assert info["severity"] == severity
 
 
 # ---------------------------------------------------------------------------
@@ -591,3 +623,50 @@ def test_main_git_staged_no_files_exits_error(
     captured = capsys.readouterr()
     assert code == scanner.EXIT_ERROR
     assert "No files to scan" in captured.out
+
+
+def test_main_json_format_in_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Arrange: a vulnerable file so the JSON envelope carries a finding.
+    name = _write(tmp_path, "vuln.py", "subprocess.run(cmd, shell=True)\n")
+    # Act: exercise format_json_output() in-process (subprocess-only before).
+    code = _run_main_in_process(
+        monkeypatch, "--format", "json", name, cwd=tmp_path
+    )
+    captured = capsys.readouterr()
+    # Assert: pinned envelope shape, a CWE-78 finding, and the delegated-CWE map.
+    assert code == scanner.EXIT_VULNERABILITIES
+    data = json.loads(captured.out)
+    assert data["schema_version"] == scanner._JSON_SCHEMA_VERSION
+    assert data["files_scanned"] == 1
+    assert data["summary"]["total"] >= 1
+    assert data["summary"]["by_cwe"].get("CWE-78", 0) >= 1
+    assert any(v["cwe"] == "CWE-78" for v in data["vulnerabilities"])
+    assert data["summary"]["delegated_cwes"]["CWE-22"]["tool"] == "codeql"
+
+
+def test_main_directory_scan_in_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Arrange: a nested project dir with one vulnerable file, so the successful
+    # get_directory_files() walk is exercised in-process (subprocess-only before).
+    proj = tmp_path / "proj"
+    (proj / "pkg").mkdir(parents=True)
+    (proj / "pkg" / "vuln.py").write_text(
+        "subprocess.run(cmd, shell=True)\n", encoding="utf-8"
+    )
+    (proj / "notes.txt").write_text("not scannable\n", encoding="utf-8")
+    # Act: cwd is tmp_path so the relative --directory passes the containment guard.
+    code = _run_main_in_process(
+        monkeypatch, "--directory", "proj", cwd=tmp_path
+    )
+    captured = capsys.readouterr()
+    # Assert: the directory walk found and scanned only the supported file and
+    # reported the CWE-78 finding.
+    assert code == scanner.EXIT_VULNERABILITIES
+    assert "CWE-78" in captured.out
