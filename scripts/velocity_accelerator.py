@@ -62,11 +62,48 @@ class Opportunity:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
-# Patterns to detect in changed files (TODO, FIXME, HACK, XXX, FOLLOW-UP)
-ACTION_COMMENT_PATTERN = re.compile(
-    r"^\+.*\b(TODO|FIXME|HACK|XXX|FOLLOW[- ]?UP)\b[:\s]*(.*)",
-    re.IGNORECASE | re.MULTILINE,
+# Action keywords that mark follow-up work in a code comment.
+_ACTION_KEYWORD_PATTERN = re.compile(
+    r"\b(TODO|FIXME|HACK|XXX|FOLLOW[- ]?UP)\b[:\s-]*(.*)",
+    re.IGNORECASE,
 )
+
+# Comment leaders for the languages this repo ships. A keyword counts as an
+# action comment only when it starts the comment text or follows one of these,
+# so English prose that merely contains "follow-up" or "todo" mid-sentence is
+# not matched (issue #1852).
+_COMMENT_LEADERS = ("#", "//", "/*", "*", "<!--", "--", ";", '"""', "'''")
+
+# Prose-oriented file types are skipped entirely: their keyword mentions are
+# almost always narrative, not action comments (issue #1852).
+_NON_CODE_SUFFIXES = frozenset({".md", ".markdown", ".txt", ".rst", ".adoc"})
+
+
+def _match_action_comment(added_content: str) -> tuple[str, str] | None:
+    """Return (tag, comment) when an added line is an action comment.
+
+    ``added_content`` is the diff line with its leading '+' removed. A keyword
+    matches only at the start of the (optionally comment-led) content, or
+    immediately after an inline comment leader, so prose mentioning the keyword
+    mid-sentence is ignored.
+    """
+    stripped = added_content.lstrip()
+    for leader in _COMMENT_LEADERS:
+        if stripped.startswith(leader):
+            stripped = stripped[len(leader):].lstrip()
+            break
+    match = _ACTION_KEYWORD_PATTERN.match(stripped)
+    if match:
+        return match.group(1).upper(), match.group(2).strip()
+    # Inline trailing comment, e.g. "value = compute()  # TODO: revisit".
+    for leader in ("#", "//", "<!--"):
+        idx = added_content.find(leader)
+        if idx != -1:
+            tail = added_content[idx + len(leader):].lstrip()
+            match = _ACTION_KEYWORD_PATTERN.match(tail)
+            if match:
+                return match.group(1).upper(), match.group(2).strip()
+    return None
 
 COMPLEXITY_KEYWORDS = {
     "high": [
@@ -142,10 +179,16 @@ def extract_todos_from_diff(diff: str, pr_number: int) -> list[Opportunity]:
             current_file = parts[1] if len(parts) > 1 else ""
             continue
 
-        match = ACTION_COMMENT_PATTERN.match(line)
-        if match:
-            tag = match.group(1).upper()
-            comment = match.group(2).strip()
+        # Only added lines; skip the +++ file header.
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        # Skip prose-oriented files: their keyword mentions are narrative.
+        if current_file and Path(current_file).suffix.lower() in _NON_CODE_SUFFIXES:
+            continue
+
+        matched = _match_action_comment(line[1:])
+        if matched:
+            tag, comment = matched
             opp_type = (
                 OpportunityType.FIXME_FOLLOWUP
                 if tag == "FIXME"

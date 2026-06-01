@@ -161,6 +161,40 @@ class TestExtractTodosFromDiff:
         result = extract_todos_from_diff(diff, 3)
         assert len(result) == 2
 
+    def test_ignores_prose_followup_in_code_comment(self) -> None:
+        """Issue #1852: a keyword mid-sentence inside a comment is prose, not an action."""
+        diff = (
+            "diff --git a/src/auth.py b/src/auth.py\n"
+            "+# This change addresses the follow-up from the security review\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_plain_prose_line(self) -> None:
+        """Issue #1852: a non-comment prose line mentioning the keyword is not an action."""
+        diff = (
+            "diff --git a/src/auth.py b/src/auth.py\n"
+            "+    raise ValueError('see the todo list for context')\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_keyword_in_markdown(self) -> None:
+        """Issue #1852: prose-oriented files are skipped entirely."""
+        diff = (
+            "diff --git a/docs/plan.md b/docs/plan.md\n"
+            "+- TODO: a roadmap bullet, not a code action comment\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_detects_inline_trailing_todo(self) -> None:
+        """An action keyword in an inline trailing comment is still detected."""
+        diff = (
+            "diff --git a/src/util.py b/src/util.py\n"
+            "+    value = compute()  # TODO: revisit once the API stabilizes\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
     def test_empty_diff(self) -> None:
         result = extract_todos_from_diff("", 1)
         assert len(result) == 0
