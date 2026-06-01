@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from math import ceil
 from typing import Iterable
 
 from _eval_agent_types import RunRecord
@@ -39,12 +38,12 @@ CI_UPPER_PERCENTILE = 97.5
 # rerun. The 0.30 fraction is normative at large N; do not adjust without
 # an ADR amendment.
 FLAKY_FIXTURE_HALT_FRACTION = 0.30
-# Small-N floor for the halt count. At N=10 a fixed 30% fraction halts on
-# 4 flaky fixtures, which is too tight: a couple of flaky fixtures should
-# not invalidate a small corpus. The N-aware count below raises the floor
-# so that small corpora tolerate more flakiness in absolute terms while the
-# 30% fraction still governs at large N. See ADR-058 (N-aware halt
-# threshold note) and Issue #1878.
+# Small-N floor for the halt count. At N=10 the strict "more than 30%"
+# gate halts on 4 flaky fixtures, which is too tight: a couple of flaky
+# fixtures should not invalidate a small corpus. The N-aware count below
+# raises the floor so that small corpora tolerate more flakiness in
+# absolute terms while the 30% gate still governs at large N. See ADR-058
+# (N-aware halt threshold note) and Issue #1878.
 FLAKY_HALT_SMALL_N_FLOOR = 5
 # REQ-004 AC-10: a fixture is flaky when its pass rate disagrees on >=2 of
 # 5 contingency reps for the same (prompt_sha, fixture_set_sha).
@@ -54,16 +53,26 @@ CONTINGENCY_PERSISTENT_THRESHOLD = 2
 def _flaky_halt_count(fixture_count: int) -> int:
     """Minimum flaky-fixture count that halts the methodology.
 
-    N-aware threshold: `max(ceil(0.30 * N), min(5, N // 2))`. The first
-    term is the normative 30% fraction (rounded up); it governs at large N.
-    The second term is a small-N floor that tolerates a couple of flaky
-    fixtures in a tiny corpus. The methodology halts when the flaky count
-    is greater than or equal to this value.
+    N-aware threshold: `max(floor(0.30 * N) + 1, min(5, N // 2))`. The
+    first term is the strict "more than 30%" gate from REQ-004 AC-10 and
+    ADR-058: a flaky share of exactly 30% does NOT halt, only a share
+    strictly greater than 30% does. It governs at large N. The second
+    term is a small-N floor that tolerates a couple of flaky fixtures in a
+    tiny corpus. The methodology halts when the flaky count is greater
+    than or equal to this value.
 
-    Worked values: N=2 -> max(1, 1)=1; N=10 -> max(3, 5)=5 (so 4 flaky of
-    10 does NOT halt); N=30 -> max(9, 5)=9 (the 30% fraction wins).
+    The fraction term is computed with integer arithmetic so an exact 30%
+    boundary is handled without float rounding (N=30 -> halt at 10, not 9;
+    N=20 -> 7; N=10 -> 4, but the small-N floor of 5 wins there).
+
+    Worked values: N=2 -> max(1, 1)=1; N=10 -> max(4, 5)=5 (so 4 flaky of
+    10 does NOT halt); N=30 -> max(10, 5)=10 (the strict 30% gate wins).
     """
-    fraction_term = ceil(FLAKY_FIXTURE_HALT_FRACTION * fixture_count)
+    if fixture_count <= 0:
+        return 0
+    halt_percent = round(FLAKY_FIXTURE_HALT_FRACTION * 100)
+    # Smallest integer strictly greater than 30% of N ("more than 30%").
+    fraction_term = (halt_percent * fixture_count) // 100 + 1
     floor_term = min(FLAKY_HALT_SMALL_N_FLOOR, fixture_count // 2)
     return max(fraction_term, floor_term)
 

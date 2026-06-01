@@ -6,7 +6,7 @@ Change class: Documentation of an already-implemented, scoped change to an exist
 
 ## Subject of Review
 
-The note records that `ReportAggregator` halts when the flaky-fixture count reaches `max(ceil(0.30 * N), min(5, N // 2))` instead of using a fixed 30 percent fraction. The 30 percent fraction stays normative at large N. A small-N floor (5 at N=10) keeps a couple of flaky fixtures from halting a tiny corpus. A flag-and-continue mode is exposed on the aggregator. Implementation lives at `scripts/eval/_report_aggregator.py:_flaky_halt_count`.
+The note records that `ReportAggregator` halts when the flaky-fixture count reaches `max(floor(0.30 * N) + 1, min(5, N // 2))` instead of using a fixed 30 percent fraction. The strict "more than 30%" gate stays normative at large N (a flaky share of exactly 30% does not halt; for example N=30 halts at 10, not 9). A small-N floor (5 at N=10) keeps a couple of flaky fixtures from halting a tiny corpus. A flag-and-continue mode is exposed on the aggregator. Implementation lives at `scripts/eval/_report_aggregator.py:_flaky_halt_count`.
 
 ## Phase 0: Related Work
 

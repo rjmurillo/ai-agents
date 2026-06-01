@@ -1470,19 +1470,20 @@ def _records_with_flaky_subset(
 
 class TestFlakyHaltCount:
     def test_small_n_floor_applies_at_n10(self):
-        # N=10: max(ceil(3.0), min(5, 5)) = max(3, 5) = 5.
+        # N=10: max(floor(3.0)+1, min(5, 5)) = max(4, 5) = 5.
         assert _flaky_halt_count(10) == 5
 
     def test_fraction_governs_at_large_n(self):
-        # N=30: max(ceil(9.0), min(5, 15)) = max(9, 5) = 9.
-        assert _flaky_halt_count(30) == 9
+        # N=30: max(floor(9.0)+1, min(5, 15)) = max(10, 5) = 10.
+        # Strict "more than 30%": 9 of 30 is exactly 30% and does NOT halt.
+        assert _flaky_halt_count(30) == 10
 
     def test_tiny_corpus_floor_is_one(self):
-        # N=2: max(ceil(0.6)=1, min(5, 1)=1) = 1.
+        # N=2: max(floor(0.6)+1=1, min(5, 1)=1) = 1.
         assert _flaky_halt_count(2) == 1
 
     def test_zero_n_returns_zero_inputs_only(self):
-        # ceil(0)=0, min(5, 0)=0 → 0. The aggregator guards N>0 separately.
+        # N<=0 short-circuits to 0. The aggregator guards N>0 separately.
         assert _flaky_halt_count(0) == 0
 
 
@@ -1519,16 +1520,16 @@ class TestReportAggregatorNAwareHalt:
         assert result.flaky_fixtures_excluded == []
 
     def test_large_n_preserves_thirty_percent(self):
-        # N=30, halt count 9. 8 flaky < 9 → no halt; 9 flaky → halt.
+        # N=30, halt count 10. 9 flaky (exactly 30%) → no halt; 10 → halt.
         no_halt = ReportAggregator(
-            _records_with_flaky_subset(total=30, flaky=8),
+            _records_with_flaky_subset(total=30, flaky=9),
             model_id="claude-sonnet-4-6",
             bootstrap_iterations=100,
         ).aggregate()
         assert no_halt.halt_due_to_flakiness is False
         assert no_halt.flaky_halt_threshold_crossed is False
         halted = ReportAggregator(
-            _records_with_flaky_subset(total=30, flaky=9),
+            _records_with_flaky_subset(total=30, flaky=10),
             model_id="claude-sonnet-4-6",
             bootstrap_iterations=100,
         ).aggregate()
