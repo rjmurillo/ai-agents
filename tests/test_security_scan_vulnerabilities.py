@@ -467,6 +467,13 @@ def test_cli_json_output_reports_findings(tmp_path: Path) -> None:
     assert payload["vulnerabilities"][0]["cwe"] == "CWE-78"
     assert payload["summary"]["by_cwe"]["CWE-78"] == 1
     assert payload["exit_code"] == scanner.EXIT_VULNERABILITIES
+    # Pin the JSON envelope contract so schema changes are deliberate and
+    # reviewable for this security-critical scanner: the version marker and the
+    # delegated-CWE map that tells consumers CWE-22 is handled by CodeQL, not here.
+    assert payload["schema_version"] == scanner._JSON_SCHEMA_VERSION
+    delegated = payload["summary"]["delegated_cwes"]["CWE-22"]
+    assert delegated["tool"] == "codeql"
+    assert delegated["workflow"] == ".github/workflows/codeql-analysis.yml"
 
 
 def test_cli_suppressed_finding_exits_success(tmp_path: Path) -> None:
@@ -497,3 +504,90 @@ def test_cli_output_file_written(tmp_path: Path) -> None:
     assert out.exists()
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert len(payload["vulnerabilities"]) == 1
+
+
+# In-process CLI (main) coverage.
+#
+# The exit-code tests above run the scanner as a subprocess, which exercises the
+# real entry point but does not count toward in-process line coverage for this
+# security-critical module. The tests below invoke `scanner.main()` directly with
+# a patched argv so the argument handling, the --cwe delegation notice, and the
+# path-traversal guard are covered in-process. `main()` calls `sys.exit()`, so
+# each case asserts on the raised `SystemExit`.
+
+
+def _run_main_in_process(
+    monkeypatch: pytest.MonkeyPatch, *args: str, cwd: Path
+) -> int:
+    """Invoke scanner.main() in-process under cwd with argv=args; return exit code."""
+    monkeypatch.chdir(cwd)
+    monkeypatch.setattr(sys, "argv", ["scan_vulnerabilities.py", *args])
+    with pytest.raises(SystemExit) as excinfo:
+        scanner.main()
+    code = excinfo.value.code
+    return 0 if code is None else int(code)
+
+
+def test_main_cwe22_warns_and_notes_delegation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Arrange: a clean supported file so the scan succeeds with no findings.
+    _write(tmp_path, "clean.py", 'subprocess.run(["ls", "-l"])\n')
+    # Act
+    code = _run_main_in_process(monkeypatch, "--cwe", "22", "clean.py", cwd=tmp_path)
+    captured = capsys.readouterr()
+    # Assert: --cwe 22 is accepted (no error exit) but warns on stderr and notes
+    # the CodeQL delegation in stdout, so a zero-finding result is not mistaken
+    # for path-traversal coverage.
+    assert code == scanner.EXIT_SUCCESS
+    assert "WARNING: --cwe 22" in captured.err
+    assert "CWE-22: delegated to CodeQL" in captured.out
+
+
+def test_main_unsupported_cwe_exits_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _write(tmp_path, "clean.py", 'subprocess.run(["ls", "-l"])\n')
+    code = _run_main_in_process(monkeypatch, "--cwe", "99", "clean.py", cwd=tmp_path)
+    captured = capsys.readouterr()
+    assert code == scanner.EXIT_ERROR
+    assert "not supported by this" in captured.err
+
+
+def test_main_directory_path_traversal_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Arrange: cwd is a nested dir so "../" escapes the allowed base.
+    work = tmp_path / "work"
+    work.mkdir()
+    # Act
+    code = _run_main_in_process(monkeypatch, "--directory", "../outside", cwd=work)
+    captured = capsys.readouterr()
+    # Assert: containment check rejects the escaping --directory with EXIT_ERROR.
+    assert code == scanner.EXIT_ERROR
+    assert "Path traversal" in captured.err
+
+
+def test_main_git_staged_scans_staged_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Arrange: a vulnerable staged file, with get_staged_files stubbed so the test
+    # does not depend on a real git index.
+    name = _write(tmp_path, "staged.py", "subprocess.run(cmd, shell=True)\n")
+    monkeypatch.setattr(scanner, "get_staged_files", lambda: [name])
+    # Act
+    code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
+    captured = capsys.readouterr()
+    # Assert: --git-staged feeds the staged file into the scan and reports CWE-78.
+    assert code == scanner.EXIT_VULNERABILITIES
+    assert "CWE-78" in captured.out
+
+
+def test_main_git_staged_no_files_exits_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(scanner, "get_staged_files", lambda: [])
+    code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
+    captured = capsys.readouterr()
+    assert code == scanner.EXIT_ERROR
+    assert "No files to scan" in captured.out
