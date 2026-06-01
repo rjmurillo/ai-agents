@@ -1,8 +1,9 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
-
-const BEGIN_MARKER = "<!-- ai-agents:begin -->";
-const END_MARKER = "<!-- ai-agents:end -->";
+import { join } from "node:path";
+import {
+  BEGIN_MARKER,
+  END_MARKER,
+  appendMarkerBlock,
+} from "./append-marker-block.js";
 
 const GENERIC_BLOCK = `${BEGIN_MARKER}
 # ai-agents Harness
@@ -47,49 +48,6 @@ export async function mergeClaudeMd(
   targetDir: string,
   dryRun: boolean,
 ): Promise<void> {
-  if (dryRun) return;
-
   const filePath = join(targetDir, "CLAUDE.md");
-  const dir = dirname(filePath);
-  await mkdir(dir, { recursive: true });
-
-  let existing = "";
-  let detectedCrlf = false;
-  try {
-    const raw = await readFile(filePath);
-    existing = raw.toString("utf-8");
-    detectedCrlf = existing.includes("\r\n");
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw err;
-    }
-    // File does not exist yet, proceed with empty existing content
-  }
-
-  if (existing.includes(BEGIN_MARKER) && existing.includes(END_MARKER)) {
-    return;
-  }
-
-  let block = GENERIC_BLOCK;
-  if (detectedCrlf) {
-    block = block.replace(/\n/g, "\r\n");
-  }
-
-  let result: string;
-  if (existing.length === 0) {
-    result = block + "\n";
-  } else {
-    const lineEnding = detectedCrlf ? "\r\n" : "\n";
-    const trimmed = existing.endsWith(lineEnding) ? existing : existing + lineEnding;
-    result = trimmed + lineEnding + block + lineEnding;
-  }
-
-  if (detectedCrlf) {
-    // Equivalent to /(?<!\r)\n/g but avoids negative lookbehind for
-    // broader engine compatibility: match optional CR + LF and
-    // unconditionally rewrite to CRLF (\r\n is an identity, \n is fixed).
-    result = result.replace(/\r?\n/g, "\r\n");
-  }
-
-  await writeFile(filePath, result, "utf-8");
+  await appendMarkerBlock(filePath, GENERIC_BLOCK, dryRun);
 }

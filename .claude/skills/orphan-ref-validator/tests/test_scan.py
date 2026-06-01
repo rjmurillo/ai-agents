@@ -216,6 +216,42 @@ def test_ac3_existing_script_path_yields_no_finding(fake_repo):
     assert [f for f in result.findings if f.kind == "script_path"] == []
 
 
+# ---------- AC3 broad (PR2, issue #1994): .ps1 script paths ----------
+
+
+def test_ac3_broad_ps1_script_extractor():
+    """SCRIPT_REF_RE matches a backticked .ps1 path under a scanned prefix."""
+    text = "Old `scripts/Validate-SessionEnd.ps1` orphan."
+    refs = list(extract_script_refs(text))
+    assert refs == [(1, "scripts/Validate-SessionEnd.ps1")]
+
+
+def test_ac3_broad_non_script_suffix_not_matched():
+    """A backticked path with a non-script suffix is not a script_path ref."""
+    text = "See `scripts/notes.txt` and `scripts/data.json`."
+    assert list(extract_script_refs(text)) == []
+
+
+def test_ac3_broad_missing_ps1_yields_critical_finding(fake_repo):
+    target = fake_repo / "docs" / "spec.md"
+    write(target, "Call `scripts/Validate-Gone.ps1` before push.\n")
+    result = scan([target], fake_repo)
+    script_findings = [f for f in result.findings if f.kind == "script_path"]
+    assert len(script_findings) == 1
+    assert script_findings[0].referenced_entity == "scripts/Validate-Gone.ps1"
+    assert script_findings[0].severity == "critical"
+    assert result.verdict == "CRITICAL_FAIL"
+
+
+def test_ac3_broad_existing_ps1_yields_no_finding(fake_repo):
+    target = fake_repo / "docs" / "spec.md"
+    real = fake_repo / "scripts" / "Validate-Here.ps1"
+    write(real, "# real ps1\n")
+    write(target, "Call `scripts/Validate-Here.ps1` before push.\n")
+    result = scan([target], fake_repo)
+    assert [f for f in result.findings if f.kind == "script_path"] == []
+
+
 # ---------- AC4: count_claim detection ----------
 
 
@@ -243,6 +279,110 @@ def test_ac4_count_only_in_manifest_files(fake_repo):
     write(target, "We have 99 reusable skills.\n")
     result = scan([target], fake_repo)
     assert [f for f in result.findings if f.kind == "count_claim"] == []
+
+
+# ---------- AC4 --enforce-counts opt-in (PR2, issue #1994) ----------
+
+
+def test_enforce_counts_default_off_emits_no_count_finding(fake_repo):
+    """Default scan() (enforce_counts=False) extracts but does not emit
+    count_claim findings, preserving the canonical-source-mirror contract."""
+    plugin = fake_repo / ".claude-plugin" / "marketplace.json"
+    write(plugin, '{"description": "Catalog has 99 reusable skills."}')
+    result = scan([plugin], fake_repo)
+    assert [f for f in result.findings if f.kind == "count_claim"] == []
+    assert result.verdict == "PASS"
+
+
+def test_enforce_counts_on_emits_critical_on_divergence(fake_repo):
+    """With enforce_counts=True a divergent single-plugin count claim
+    (claimed 99, actual 2) in a plugin.json yields a critical count_claim
+    finding."""
+    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
+    write(plugin, '{"description": "Catalog has 99 reusable skills."}')
+    result = scan([plugin], fake_repo, enforce_counts=True)
+    count_findings = [f for f in result.findings if f.kind == "count_claim"]
+    assert len(count_findings) == 1
+    f = count_findings[0]
+    assert f.severity == "critical"
+    assert f.referenced_entity == "99 reusable skill"
+    assert f.expected == "99"
+    assert f.actual == "2"
+    assert result.verdict == "CRITICAL_FAIL"
+
+
+def test_enforce_counts_skips_multiplugin_marketplace(fake_repo):
+    """With enforce_counts=True a divergent count claim in a multi-plugin
+    marketplace.json is NOT emitted: enumerate_count enumerates the .claude/
+    tree only, so per-plugin marketplace claims cannot be validated against it.
+    Coverage for marketplace.json stays delegated to the canonical
+    build/scripts/validate_marketplace_counts.py."""
+    catalog = fake_repo / ".claude-plugin" / "marketplace.json"
+    write(
+        catalog,
+        '{"plugins": ['
+        '{"name": "claude-agents", "description": "Has 99 reusable skills."},'
+        '{"name": "project-toolkit", "description": "Has 7 reusable skills."}'
+        "]}",
+    )
+    result = scan([catalog], fake_repo, enforce_counts=True)
+    assert [f for f in result.findings if f.kind == "count_claim"] == []
+    assert result.verdict == "PASS"
+
+
+def test_enforce_counts_on_no_finding_when_count_matches(fake_repo):
+    """With enforce_counts=True a matching count claim (2 == 2) in a
+    plugin.json yields no finding."""
+    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
+    write(plugin, '{"description": "Catalog has 2 reusable skills."}')
+    result = scan([plugin], fake_repo, enforce_counts=True)
+    assert [f for f in result.findings if f.kind == "count_claim"] == []
+    assert result.verdict == "PASS"
+
+
+def test_enforce_counts_on_warns_when_count_undeterminable(tmp_path):
+    """With enforce_counts=True a count claim in a repo whose target dir is
+    absent yields a non-blocking warn finding, not a crash."""
+    repo = tmp_path / "no-skills"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    plugin = repo / ".claude" / ".claude-plugin" / "plugin.json"
+    write(plugin, '{"description": "Catalog has 7 reusable skills."}')
+    result = scan([plugin], repo, enforce_counts=True)
+    count_findings = [f for f in result.findings if f.kind == "count_claim"]
+    assert len(count_findings) == 1
+    assert count_findings[0].severity == "warn"
+    assert result.verdict == "WARN"
+
+
+def test_enforce_counts_cli_flag_flips_exit_code(fake_repo, capsys):
+    """The --enforce-counts CLI flag threads into scan(): a divergent count
+    claim in a plugin.json returns exit 0 without the flag and exit 1 with
+    it."""
+    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
+    write(plugin, '{"description": "Catalog has 99 reusable skills."}')
+    rc_off = main([
+        "--targets", str(plugin),
+        "--repo-root", str(fake_repo),
+    ])
+    assert rc_off == 0
+    capsys.readouterr()
+    rc_on = main([
+        "--targets", str(plugin),
+        "--repo-root", str(fake_repo),
+        "--enforce-counts",
+    ])
+    assert rc_on == 1
+
+
+def test_enforce_counts_default_off_via_cli(fake_repo):
+    """parse_args defaults enforce_counts to False so the bare CLI keeps the
+    delegated (no count_claim emission) behavior."""
+    args = _scan.parse_args([
+        "--targets", str(fake_repo / "x.md"),
+        "--repo-root", str(fake_repo),
+    ])
+    assert args.enforce_counts is False
 
 
 # ---------- AC5: envelope + verdict ----------

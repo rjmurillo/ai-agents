@@ -1,6 +1,8 @@
 {
   "name": "project-toolkit",
   "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and reusable skills for Claude Code workflows",
-  "version": "0.4.27",
-  "author": { "name": "rjmurillo" }
+  "version": "0.4.72",
+  "author": {
+    "name": "rjmurillo"
+  }
 }

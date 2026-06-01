@@ -185,10 +185,11 @@ class TestMain:
             "get_unaddressed_comments.get_unresolved_review_threads",
             return_value=[],
         ):
-            rc = main(["--pull-request", "42"])
+            rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["TotalCount"] == 0
+        assert output["Success"] is True
+        assert output["Data"]["TotalCount"] == 0
 
     def test_bot_comment_new_state(self, capsys):
         raw_comments = [
@@ -220,8 +221,149 @@ class TestMain:
             "get_unaddressed_comments.get_unresolved_review_threads",
             return_value=unresolved_threads,
         ):
-            rc = main(["--pull-request", "42"])
+            rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["TotalCount"] == 1
-        assert output["Comments"][0]["LifecycleState"] == "NEW"
+        assert output["Data"]["TotalCount"] == 1
+        assert output["Data"]["Comments"][0]["LifecycleState"] == "NEW"
+
+
+# ---------------------------------------------------------------------------
+# Tests: output format (json / human / auto)
+# ---------------------------------------------------------------------------
+
+
+def _patch_empty_pr():
+    """Patches that drive main() through the zero-comment path."""
+    return (
+        patch("get_unaddressed_comments.assert_gh_authenticated"),
+        patch(
+            "get_unaddressed_comments.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch("get_unaddressed_comments.gh_api_paginated", return_value=[]),
+        patch(
+            "get_unaddressed_comments.get_unresolved_review_threads",
+            return_value=[],
+        ),
+    )
+
+
+class TestOutputFormat:
+    def test_default_is_auto(self):
+        args = build_parser().parse_args(["--pull-request", "1"])
+        assert args.output_format == "auto"
+
+    def test_json_emits_standard_envelope(self, capsys):
+        auth, repo, paged, threads = _patch_empty_pr()
+        with auth, repo, paged, threads:
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert output["Error"] is None
+        assert "Data" in output
+        assert "Metadata" in output
+        assert output["Metadata"]["Script"] == "get_unaddressed_comments.py"
+        assert output["Data"]["TotalCount"] == 0
+
+    def test_human_emits_text_summary_not_json(self, capsys):
+        auth, repo, paged, threads = _patch_empty_pr()
+        with auth, repo, paged, threads:
+            rc = main(["--pull-request", "42", "--output-format", "human"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "PR #42" in out
+        assert "comments needing action" in out
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(out)
+
+    def test_auto_emits_json_when_stdout_not_tty(self, capsys):
+        """capsys redirects stdout, so auto resolves to json."""
+        auth, repo, paged, threads = _patch_empty_pr()
+        with auth, repo, paged, threads:
+            rc = main(["--pull-request", "42", "--output-format", "auto"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert output["Data"]["TotalCount"] == 0
+
+    def test_auto_emits_human_when_stdout_is_tty(self, capsys):
+        """When stdout is a TTY and not CI, auto resolves to human."""
+        auth, repo, paged, threads = _patch_empty_pr()
+        env = {"CI": "", "GITHUB_ACTIONS": "", "TF_BUILD": ""}
+        with auth, repo, paged, threads, patch.dict(
+            "os.environ", env, clear=False
+        ), patch("sys.stdout.isatty", return_value=True):
+            rc = main(["--pull-request", "42", "--output-format", "auto"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "PR #42" in out
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(out)
+
+
+# ---------------------------------------------------------------------------
+# Tests: envelope Data shape and actionable-count summary
+# ---------------------------------------------------------------------------
+
+
+def _result_with(comments: list[dict]) -> dict:
+    """Build a get_unaddressed_comments-style result for the given comments."""
+    return {
+        "Success": True,
+        "PullRequest": 42,
+        "Owner": "o",
+        "Repo": "r",
+        "TotalCount": len(comments),
+        "LifecycleStateCounts": {},
+        "DiscussionSubStateCounts": {},
+        "DomainCounts": {},
+        "AuthorSummary": [],
+        "Comments": comments,
+    }
+
+
+class TestEnvelopeData:
+    def test_data_omits_redundant_inner_success(self, capsys):
+        """The envelope already carries top-level Success; Data must not
+        duplicate it (matches the get_pr_context.py contract).
+        """
+        result = _result_with([{"NeedsAction": True}])
+        with patch("get_unaddressed_comments.assert_gh_authenticated"), patch(
+            "get_unaddressed_comments.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_unaddressed_comments.get_unaddressed_comments",
+            return_value=result,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert "Success" not in output["Data"]
+
+    def test_summary_uses_actionable_count_not_total(self, capsys):
+        """With --no-only-unaddressed the returned set includes non-actionable
+        comments; the human summary must count only NeedsAction items.
+        """
+        comments = [
+            {"NeedsAction": True},
+            {"NeedsAction": False},
+            {"NeedsAction": True},
+        ]
+        result = _result_with(comments)
+        with patch("get_unaddressed_comments.assert_gh_authenticated"), patch(
+            "get_unaddressed_comments.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_unaddressed_comments.get_unaddressed_comments",
+            return_value=result,
+        ):
+            rc = main(
+                ["--pull-request", "42", "--no-only-unaddressed",
+                 "--output-format", "human"]
+            )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "2 comments needing action" in out

@@ -1,50 +1,48 @@
 {
+  "id": "episode-2026-01-05-session-318",
+  "session": "2026-01-05-session-318",
+  "timestamp": "2026-01-05T00:00:00+00:00",
+  "outcome": "success",
   "task": "Session 318: Merge Velocity Analysis",
   "decisions": [
-    "Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
-    "Prioritized fixing validation scripts (markdown linting and session validation) ahead of lower-impact tooling issues."
+    {
+      "chosen": "Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
+      "id": "d001"
+    },
+    {
+      "chosen": "Prioritized fixing validation scripts (markdown linting and session validation) ahead of lower-impact tooling issues.",
+      "id": "d002"
+    }
   ],
-  "id": "episode-2026-01-05-session-318",
-  "timestamp": "2026-01-05T20:35:52.2485204+00:00",
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-01-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Task 1: Data Collection",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-01-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Task 2: Remediation Planning",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
   "metrics": {
-    "files_changed": 2,
     "duration_minutes": 0,
-    "errors": 1,
-    "recoveries": 0,
     "tool_calls": 0,
-    "commits": 1
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
   },
   "lessons": [
     "Tooling instability (flaky CI and unreliable automation) is a major bottleneck for merge velocity.",
     "A Draft PR policy is effective for surfacing work-in-progress early while protecting the main branch from unstable changes.",
     "Standardizing pre-merge validation flows reduces lead time by minimizing back-and-forth on failing checks."
-  ],
-  "outcome": "success",
-  "session": "2026-01-05-session-318",
-  "events": [
-    {
-      "id": "e001",
-      "content": "**Status**: Complete",
-      "leads_to": [],
-      "caused_by": [],
-      "type": "milestone",
-      "timestamp": "2026-01-05T20:35:52.1879333+00:00"
-    },
-    {
-      "id": "e002",
-      "content": "**Status**: Complete",
-      "leads_to": [],
-      "caused_by": [],
-      "type": "milestone",
-      "timestamp": "2026-01-05T20:35:52.1956743+00:00"
-    },
-    {
-      "id": "e003",
-      "content": "| MUST | Run markdown lint | [x] | npx markdownlint-cli2: 0 errors |",
-      "leads_to": [],
-      "caused_by": [],
-      "type": "milestone",
-      "timestamp": "2026-01-05T20:35:52.1966015+00:00"
-    }
   ]
 }

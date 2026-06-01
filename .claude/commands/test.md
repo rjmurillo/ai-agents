@@ -81,6 +81,8 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 5: Developer Experience (DX)
 
+Invoke Skill(skill="orphan-ref-validator"). Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors `/build` Mandatory Exit Gate 4 (per `.claude/commands/build.md:56`) so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count drift is owned by the canonical `build/scripts/validate_marketplace_counts.py` (which the skill's `COUNT_CLAIM_RE` mirrors but does not duplicate emission); pass `--enforce-counts` only when you want single-plugin count_claim emission directly from the skill. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
+
 Task(subagent_type="critic"): You are a developer advocate reviewing from the consumer perspective. Would a new contributor understand this code? Would the API frustrate or delight? Evaluate:
 
 1. **API ergonomics** - Consumer perspective. Are signatures intuitive? Error messages helpful?

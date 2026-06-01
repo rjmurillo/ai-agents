@@ -54,6 +54,7 @@ if __package__ in (None, ""):
         enumerate_count,
         enumerate_skills,
         is_manifest_file,
+        is_marketplace_manifest,
         reset_count_cache,
     )
     from envelope import (
@@ -77,6 +78,7 @@ else:
         enumerate_count,
         enumerate_skills,
         is_manifest_file,
+        is_marketplace_manifest,
         reset_count_cache,
     )
     from .envelope import (
@@ -159,8 +161,14 @@ def scan_file(
     refs_checked += skill_script_refs
 
     if is_manifest_file(target_path):
+        # Count enforcement is single-plugin scoped: enumerate_count only
+        # enumerates the .claude/ tree. marketplace.json catalogs are
+        # multi-plugin (or describe the copilot tree), so enforcing their
+        # per-plugin claims against .claude/* yields false positives. Skip
+        # emission for them; refs are still counted for coverage.
+        file_enforce = enforce_counts and not is_marketplace_manifest(target_path)
         count_findings, count_refs = _check_count_claims(
-            text, rel, repo_root, enforce_counts
+            text, rel, repo_root, file_enforce
         )
         findings.extend(count_findings)
         refs_checked += count_refs
@@ -344,6 +352,7 @@ def scan(
     targets: list[Path],
     repo_root: Path,
     max_findings: int = MAX_FINDINGS,
+    enforce_counts: bool = False,
 ) -> ScanResult:
     """Scan all targets relative to repo_root.
 
@@ -356,6 +365,11 @@ def scan(
     catalogs. When reached, scanning halts early and a synthetic warning
     finding records the truncation so the operator can re-scan with
     narrower targets.
+
+    ``enforce_counts`` opts into single-plugin count_claim emission. Default
+    off keeps marketplace.json multi-plugin coverage delegated to the
+    canonical ``build/scripts/validate_marketplace_counts.py`` per
+    ``.claude/rules/canonical-source-mirror.md``.
     """
     reset_count_cache()
     repo_root = repo_root.resolve()
@@ -388,6 +402,7 @@ def scan(
                     path,
                     repo_root,
                     known_skills,
+                    enforce_counts=enforce_counts,
                     skill_catalog_present=skill_catalog_present,
                 )
                 # Reserve one slot for the synthetic truncation finding so
@@ -440,6 +455,18 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Also scan .claude/skills/*/SKILL.md (opt-in until preexisting drift is cleaned).",
+    )
+    parser.add_argument(
+        "--enforce-counts",
+        action="store_true",
+        default=False,
+        help=(
+            "Emit count_claim findings for plugin-manifest count claims that "
+            "diverge from working-tree state (single-plugin scope). Default off: "
+            "marketplace.json multi-plugin coverage is delegated to the canonical "
+            "build/scripts/validate_marketplace_counts.py per "
+            ".claude/rules/canonical-source-mirror.md."
+        ),
     )
     parser.add_argument(
         "--repo-root",
@@ -535,7 +562,7 @@ def main(argv: list[str] | None = None) -> int:
             target_strs.extend(OPT_IN_SKILL_TARGETS)
     targets = [Path(t) for t in target_strs]
     try:
-        result = scan(targets, repo_root)
+        result = scan(targets, repo_root, enforce_counts=args.enforce_counts)
         print(render_envelope(result, args.output))
     except Exception as exc:
         # Catch-all so an unexpected runtime crash (filesystem races, encoding

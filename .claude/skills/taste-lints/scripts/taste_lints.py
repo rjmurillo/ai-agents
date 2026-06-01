@@ -76,7 +76,11 @@ def is_safe_path(filepath: str) -> bool:
 
 
 def get_staged_files() -> list[str]:
-    """Get list of staged files from git."""
+    """Get the sorted list of staged files from git.
+
+    Output is sorted so ordering is deterministic and consistent with the
+    diff-scope and directory modes.
+    """
     try:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -84,12 +88,87 @@ def get_staged_files() -> list[str]:
             check=True,
             encoding="utf-8",
             errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
         )
-        files = [f for f in result.stdout.strip().split("\n") if f]
+        files = [f for f in result.stdout.splitlines() if f]
         # Filter out any paths with traversal attempts (CWE-22)
-        return [f for f in files if is_safe_path(f)]
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        return sorted(f for f in files if is_safe_path(f))
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return []
+
+
+# Bound git subprocess calls so a hung or wedged git process cannot stall the
+# diff-scope pre-flight indefinitely.
+_GIT_TIMEOUT_SECONDS = 30
+
+
+def _git_root() -> str:
+    """Return the absolute path of the git working tree root.
+
+    Raises:
+        RuntimeError: git is unavailable, times out, or the command fails (for
+            example when run outside a repository). Surfacing the failure stops
+            the gate from silently anchoring diff paths to the wrong place and
+            linting zero files.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            check=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is not available to compute --diff-scope") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("git rev-parse --show-toplevel timed out") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"git rev-parse --show-toplevel failed (exit {exc.returncode})"
+        ) from exc
+    return result.stdout.strip()
+
+
+def get_diff_files(base: str) -> list[str]:
+    """Get list of files changed in the diff against a base branch.
+
+    Derives the list from `git diff --name-only <base>...HEAD`. Path traversal
+    candidates (CWE-22) are dropped, paths are anchored to the git root so they
+    resolve regardless of the process working directory, and the result is
+    sorted so output ordering is deterministic and consistent with the directory
+    and staged modes.
+
+    Raises:
+        ValueError: ``base`` is empty or starts with ``-`` (CWE-88 argument
+            injection: a leading dash would be parsed by git as an option).
+        RuntimeError: git is unavailable or the diff command fails (for example
+            an unknown base). A git failure must not be mistaken for an empty
+            diff, which would let a standards pre-flight pass without linting.
+    """
+    if not base or base.startswith("-"):
+        raise ValueError(f"invalid --diff-scope base: {base!r}")
+    root = _git_root()
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base}...HEAD"],
+            capture_output=True,
+            check=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("git is not available to compute --diff-scope") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git diff timed out for base {base!r}") from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"git diff failed for base {base!r} (exit {exc.returncode})"
+        ) from exc
+    files = [f for f in result.stdout.splitlines() if f]
+    return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
 
 
 def get_files_from_directory(directory: str) -> list[str]:
@@ -473,6 +552,11 @@ def main() -> int:
         help="Lint git staged files",
     )
     parser.add_argument(
+        "--diff-scope",
+        metavar="BASE_BRANCH",
+        help="Lint only files changed in 'git diff --name-only BASE_BRANCH...HEAD'",
+    )
+    parser.add_argument(
         "--directory", "-d",
         help="Lint all scannable files in directory",
     )
@@ -491,6 +575,12 @@ def main() -> int:
     files: list[str] = []
     if args.git_staged:
         files = get_staged_files()
+    elif args.diff_scope is not None:
+        try:
+            files = get_diff_files(args.diff_scope)
+        except (ValueError, RuntimeError) as exc:
+            print(f"taste-lints: {exc}", file=sys.stderr)
+            return EXIT_ERROR
     elif args.directory:
         files = get_files_from_directory(args.directory)
     elif args.files:

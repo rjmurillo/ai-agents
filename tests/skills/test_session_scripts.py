@@ -5,7 +5,9 @@ Covers:
 - complete_session_log.py
 - get_validation_errors.py
 - convert_session_to_json.py
-- test_investigation_eligibility.py
+
+The session skill's test_investigation_eligibility.py is covered by its
+co-located suite at .claude/skills/session/tests/test_session_eligibility.py.
 """
 
 import json
@@ -22,14 +24,12 @@ _session_init = _project_root / ".claude" / "skills" / "session-init" / "scripts
 _session_end = _project_root / ".claude" / "skills" / "session-end" / "scripts"
 _log_fixer = _project_root / ".claude" / "skills" / "session-log-fixer" / "scripts"
 _migration = _project_root / ".claude" / "skills" / "session-migration" / "scripts"
-_qa_eligibility = _project_root / ".claude" / "skills" / "session-qa-eligibility" / "scripts"
 
 for _p in (
     str(_session_init),
     str(_session_end),
     str(_log_fixer),
     str(_migration),
-    str(_qa_eligibility),
 ):
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -683,125 +683,3 @@ Reviewed and approved the PR changes with extensive documentation.
             sys.argv = ["convert_session_to_json.py", "--help"]
             mod.main()
         assert exc.value.code == 0
-
-
-# ---------------------------------------------------------------------------
-# test_investigation_eligibility
-# ---------------------------------------------------------------------------
-
-class TestInvestigationEligibility:
-    """Tests for test_investigation_eligibility module."""
-
-    def _import(self):
-        import importlib
-        import test_investigation_eligibility as mod
-        importlib.reload(mod)
-        return mod
-
-    def test_file_matches_sessions_dir(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist(".agents/sessions/2024-01-01-session-1.json") is True
-
-    def test_file_matches_analysis_dir(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist(".agents/analysis/report.md") is True
-
-    def test_file_matches_serena_memories(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist(".serena/memories/my-note.md") is True
-
-    def test_file_matches_retrospective(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist(".agents/retrospective/retro.md") is True
-
-    def test_file_matches_adr_review(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist(".agents/architecture/REVIEW-001.md") is True
-
-    def test_file_does_not_match_src(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist("src/main.py") is False
-
-    def test_file_does_not_match_github_workflow(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist(".github/workflows/ci.yml") is False
-
-    def test_file_does_not_match_scripts(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist("scripts/deploy.py") is False
-
-    def test_windows_path_normalized(self):
-        mod = self._import()
-        assert mod.file_matches_allowlist(".agents\\sessions\\test.json") is True
-
-    def test_get_staged_files_success(self):
-        mod = self._import()
-        proc = make_proc(stdout=".agents/sessions/test.json\nother.py", returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            files, ok = mod.get_staged_files()
-        assert ok is True
-        assert ".agents/sessions/test.json" in files
-
-    def test_get_staged_files_git_failure(self):
-        mod = self._import()
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            files, ok = mod.get_staged_files()
-        assert ok is False
-        assert files == []
-
-    def test_get_staged_files_empty_output(self):
-        mod = self._import()
-        proc = make_proc(stdout="", returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            files, ok = mod.get_staged_files()
-        assert ok is True
-        assert files == []
-
-    def test_main_eligible(self, capsys):
-        import importlib
-        import test_investigation_eligibility as mod
-        importlib.reload(mod)
-        proc = make_proc(stdout=".agents/sessions/test.json", returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            mod.main()
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
-        assert parsed["Eligible"] is True
-        assert parsed["Violations"] == []
-
-    def test_main_not_eligible(self, capsys):
-        import importlib
-        import test_investigation_eligibility as mod
-        importlib.reload(mod)
-        proc = make_proc(stdout=".agents/sessions/test.json\nsrc/main.py", returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            mod.main()
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
-        assert parsed["Eligible"] is False
-        assert "src/main.py" in parsed["Violations"]
-
-    def test_main_git_error_returns_eligible_false(self, capsys):
-        import importlib
-        import test_investigation_eligibility as mod
-        importlib.reload(mod)
-        with patch("subprocess.run", side_effect=FileNotFoundError):
-            with pytest.raises(SystemExit) as exc:
-                mod.main()
-        assert exc.value.code == 0
-        captured = capsys.readouterr()
-        parsed = json.loads(captured.out)
-        assert parsed["Eligible"] is False
-        assert "Error" in parsed
-
-    def test_main_always_exits_0(self):
-        import importlib
-        import test_investigation_eligibility as mod
-        importlib.reload(mod)
-        proc = make_proc(stdout="src/main.py", returncode=0)
-        with patch("subprocess.run", return_value=proc):
-            # Should not raise SystemExit with non-zero code
-            try:
-                mod.main()
-            except SystemExit as e:
-                assert e.code == 0

@@ -50,6 +50,18 @@ class TestParseGhCommand:
         assert result["operation"] == "pr"
         assert result["action"] == "list"
 
+    def test_handles_posix_path_prefixed_gh(self) -> None:
+        result = parse_gh_command("/usr/local/bin/gh pr view 1")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
+    def test_handles_windows_path_prefixed_gh(self) -> None:
+        result = parse_gh_command("C:\\tools\\bin\\gh pr view 1")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
 
 class TestFindSkillScript:
     def test_exact_match_found(self, tmp_path: Path) -> None:
