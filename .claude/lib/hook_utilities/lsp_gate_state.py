@@ -1,4 +1,4 @@
-"""Gate-state management for ADR-062 conditional LSP-first enforcement.
+"""Canonical: scripts/hook_utilities/lsp_gate_state.py. Sync via scripts/sync_plugin_lib.py.
 
 Ported from the claude-code-lsp-enforcement-kit (nesaminua, MIT, v2.3.2),
 files ``kit/hooks/lsp-usage-tracker.js`` and ``kit/hooks/lsp-session-reset.js``.

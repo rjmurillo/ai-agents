@@ -18,6 +18,7 @@ from scripts.hook_utilities.lsp_gate_state import (
     FREE_READS,
     NAV_REQUIRED,
     WARN_AT,
+    normalize_path,
     read_state,
     record_nav,
     record_read,
@@ -245,13 +246,16 @@ class TestRecordRead:
     def test_appends_unique_files(self):
         record_read(_CWD, "a.py")
         state = record_read(_CWD, "b.py")
-        assert state["read_files"] == ["a.py", "b.py"]
+        assert state["read_files"] == [
+            normalize_path("a.py", _CWD),
+            normalize_path("b.py", _CWD),
+        ]
         assert state["read_count"] == 2
 
     def test_dedupes(self):
         record_read(_CWD, "a.py")
         state = record_read(_CWD, "a.py")
-        assert state["read_files"] == ["a.py"]
+        assert state["read_files"] == [normalize_path("a.py", _CWD)]
         assert state["read_count"] == 1
 
     def test_empty_file_path_not_appended(self):
