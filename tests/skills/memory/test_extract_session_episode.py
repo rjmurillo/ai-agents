@@ -488,3 +488,137 @@ class TestDecisionVerbs:
     def test_prioritize_is_a_decision(self):
         data = _json_log([{"evidence": "prioritized correctness over throughput"}])
         assert extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00")
+
+
+class TestMergePreserving:
+    """merge_preserving never drops existing richer data and is idempotent (#2170)."""
+
+    @staticmethod
+    def _stub():
+        return {
+            "id": "episode-2026-01-08-session-807",
+            "session": "2026-01-08-session-807",
+            "timestamp": "2026-01-08T00:00:00+00:00",
+            "outcome": "success",
+            "task": "[Migrated from markdown]",
+            "decisions": [],
+            "events": [],
+            "metrics": {"duration_minutes": 0, "tool_calls": 0, "errors": 0,
+                        "recoveries": 0, "commits": 0, "files_changed": 0},
+            "lessons": [],
+        }
+
+    @staticmethod
+    def _rich():
+        return {
+            "id": "episode-2026-01-08-session-807",
+            "session": "2026-01-08-session-807",
+            "timestamp": "2026-01-08T12:20:10.97-06:00",
+            "outcome": "success",
+            "task": "Session 807 real work",
+            "decisions": [{"id": "d001", "type": "tradeoff", "context": "parser",
+                           "chosen": "streaming", "rationale": "memory", "outcome": "success", "effects": []}],
+            "events": [{"id": "e001", "timestamp": "2026-01-08T12:20:10.93-06:00",
+                        "type": "milestone", "content": "did the thing", "caused_by": [], "leads_to": []}],
+            "metrics": {"duration_minutes": 0, "tool_calls": 0, "errors": 3,
+                        "recoveries": 0, "commits": 0, "files_changed": 7},
+            "lessons": ["curated lesson one"],
+        }
+
+    def test_stub_new_keeps_existing_content(self):
+        merged = extract_session_episode.merge_preserving(
+            self._stub(), self._rich(), session_id="2026-01-08-session-807"
+        )
+        assert merged["task"] == "Session 807 real work"
+        assert [e["content"] for e in merged["events"]] == ["did the thing"]
+        assert merged["lessons"] == ["curated lesson one"]
+        assert len(merged["decisions"]) == 1
+
+    def test_metrics_take_per_key_max(self):
+        merged = extract_session_episode.merge_preserving(
+            self._stub(), self._rich(), session_id="2026-01-08-session-807"
+        )
+        assert merged["metrics"]["errors"] == 3
+        assert merged["metrics"]["files_changed"] == 7
+
+    def test_event_timestamps_normalized_to_session_midnight(self):
+        merged = extract_session_episode.merge_preserving(
+            self._stub(), self._rich(), session_id="2026-01-08-session-807"
+        )
+        assert merged["events"][0]["timestamp"] == "2026-01-08T00:00:00+00:00"
+
+    def test_placeholder_task_yields_but_real_new_task_wins(self):
+        new = self._stub()
+        new["task"] = "fresh real task"
+        merged = extract_session_episode.merge_preserving(
+            new, self._rich(), session_id="2026-01-08-session-807"
+        )
+        assert merged["task"] == "fresh real task"
+
+    def test_lessons_union_appends_new_uniques(self):
+        new = self._stub()
+        new["lessons"] = ["curated lesson one", "brand new lesson"]
+        merged = extract_session_episode.merge_preserving(
+            new, self._rich(), session_id="2026-01-08-session-807"
+        )
+        assert merged["lessons"] == ["curated lesson one", "brand new lesson"]
+
+    def test_idempotent_second_merge_is_noop(self):
+        sid = "2026-01-08-session-807"
+        once = extract_session_episode.merge_preserving(self._stub(), self._rich(), session_id=sid)
+        twice = extract_session_episode.merge_preserving(self._stub(), once, session_id=sid)
+        assert twice == once
+        assert json.dumps(twice) == json.dumps(once)
+
+    def test_no_wallclock_when_no_deterministic_date(self):
+        new = {"timestamp": "", "events": [], "decisions": [], "lessons": [], "metrics": {}}
+        existing = {"timestamp": "", "events": [
+            {"id": "e001", "timestamp": "garbage", "type": "milestone", "content": "x",
+             "caused_by": [], "leads_to": []}], "decisions": [], "lessons": [], "metrics": {}}
+        merged = extract_session_episode.merge_preserving(new, existing, session_id="")
+        assert merged["events"][0]["timestamp"] == "garbage"
+
+
+class TestPreserveCli:
+    """--preserve end-to-end and flag exclusivity (#2170)."""
+
+    def _write_log(self, tmp_path, sha="bbbbbbb1234"):
+        log = tmp_path / "2026-01-08-session-807.json"
+        log.write_text(json.dumps({
+            "session": {"date": "2026-01-08"},
+            "workLog": [{"task": "fresh extraction milestone"}],
+            "endingCommit": sha,
+        }), encoding="utf-8")
+        return log
+
+    def test_preserve_merges_existing_file(self, tmp_path):
+        out = tmp_path / "episodes"
+        out.mkdir()
+        ep = out / "episode-2026-01-08-session-807.json"
+        ep.write_text(json.dumps({
+            "id": "episode-2026-01-08-session-807",
+            "session": "2026-01-08-session-807",
+            "timestamp": "2026-01-08T00:00:00+00:00",
+            "outcome": "success", "task": "old curated task",
+            "decisions": [], "events": [], "lessons": ["keep me"],
+            "metrics": {"errors": 5},
+        }), encoding="utf-8")
+        log = self._write_log(tmp_path)
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
+        assert rc == 0
+        result = json.loads(ep.read_text(encoding="utf-8"))
+        assert "keep me" in result["lessons"]
+        assert result["metrics"]["errors"] == 5
+
+    def test_force_and_preserve_are_mutually_exclusive(self, tmp_path):
+        log = self._write_log(tmp_path)
+        with pytest.raises(SystemExit):
+            extract_session_episode.main([str(log), "--force", "--preserve"])
+
+    def test_preserve_fails_on_invalid_existing_json(self, tmp_path):
+        out = tmp_path / "episodes"
+        out.mkdir()
+        (out / "episode-2026-01-08-session-807.json").write_text("{not json", encoding="utf-8")
+        log = self._write_log(tmp_path)
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
+        assert rc == 1

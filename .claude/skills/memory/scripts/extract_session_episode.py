@@ -587,6 +587,139 @@ def _json_lessons(data: dict) -> list[str]:
     return lessons
 
 
+_PLACEHOLDER_VALUES = {"", "[migrated from markdown]", "unknown", "untitled"}
+
+
+def _is_placeholder(value: Any) -> bool:
+    """True when a scalar field carries no real information."""
+    return str(value or "").strip().lower() in _PLACEHOLDER_VALUES
+
+
+def _norm(value: Any) -> str:
+    """Normalize text for dedupe keys: collapse whitespace and lowercase."""
+    return " ".join(str(value or "").split()).lower()
+
+
+def _deterministic_date(session_id: str, *timestamps: Any) -> str | None:
+    """Pick a stable YYYY-MM-DD for event normalization.
+
+    Preference order keeps committed fixtures idempotent: the session id date
+    first (always present and stable), then any timestamp that already carries a
+    date. Never falls back to wall-clock ``now()``.
+    """
+    match = re.search(r"(\d{4}-\d{2}-\d{2})", session_id or "")
+    if match:
+        return match.group(1)
+    for ts in timestamps:
+        text = str(ts or "").strip()
+        if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+            return text[:10]
+    return None
+
+
+def _dedupe_lessons(existing: list, new: list) -> list[str]:
+    """Union lessons by normalized text, existing first, append new uniques."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in list(existing) + list(new):
+        key = _norm(item)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
+
+
+def _dedupe_decisions(existing: list, new: list) -> list[dict]:
+    """Union decisions by (chosen, context, type); reassign ids by order."""
+    out: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+    for dec in list(existing) + list(new):
+        entry = _as_dict(dec)
+        key = (_norm(entry.get("chosen")), _norm(entry.get("context")), _norm(entry.get("type")))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(dict(entry))
+    for i, entry in enumerate(out, 1):
+        entry["id"] = f"d{i:03d}"
+    return out
+
+
+def _dedupe_events(existing: list, new: list, midnight: str | None) -> list[dict]:
+    """Union events by (type, content); normalize timestamps; reassign ids."""
+    out: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    for evt in list(existing) + list(new):
+        entry = _as_dict(evt)
+        key = (_norm(entry.get("type")), _norm(entry.get("content")))
+        if key in seen:
+            continue
+        seen.add(key)
+        entry = dict(entry)
+        if midnight:
+            entry["timestamp"] = midnight
+        out.append(entry)
+    for i, entry in enumerate(out, 1):
+        entry["id"] = f"e{i:03d}"
+    return out
+
+
+def _merge_metrics(new: dict, existing: dict) -> dict:
+    """Per-key max so regeneration never zeroes a previously counted metric.
+
+    Key order follows ``new`` first (a fixed extractor order) then any
+    existing-only keys, so serialized output is deterministic and idempotent.
+    """
+    out: dict[str, Any] = {}
+    ordered_keys = list(new) + [k for k in existing if k not in new]
+    for key in ordered_keys:
+        nv = new.get(key, 0)
+        ev = existing.get(key, 0)
+        if isinstance(nv, (int, float)) and isinstance(ev, (int, float)):
+            out[key] = max(nv, ev)
+        else:
+            out[key] = nv if nv else ev
+    return out
+
+
+def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict:
+    """Merge a freshly extracted episode over an existing one without data loss.
+
+    Read-modify-write semantics for regeneration: fresh extraction is the base,
+    but existing richer content survives. Lists union (existing first) by stable
+    content keys so curated decisions/events/lessons are never dropped, metrics
+    take the per-key max, placeholder task/outcome yield to existing real values,
+    and event timestamps normalize to the deterministic session date so output is
+    idempotent. Applying twice is a no-op.
+    """
+    existing = _as_dict(existing)
+    date = _deterministic_date(
+        session_id, new.get("timestamp"), existing.get("timestamp")
+    )
+    midnight = f"{date}T00:00:00+00:00" if date else None
+
+    merged = dict(new)
+    merged["timestamp"] = midnight or new.get("timestamp") or existing.get("timestamp")
+    if _is_placeholder(new.get("task")) and not _is_placeholder(existing.get("task")):
+        merged["task"] = existing.get("task")
+    if _is_placeholder(new.get("outcome")) and not _is_placeholder(existing.get("outcome")):
+        merged["outcome"] = existing.get("outcome")
+    merged["lessons"] = _dedupe_lessons(
+        _as_list(existing.get("lessons")), _as_list(new.get("lessons"))
+    )
+    merged["decisions"] = _dedupe_decisions(
+        _as_list(existing.get("decisions")), _as_list(new.get("decisions"))
+    )
+    merged["events"] = _dedupe_events(
+        _as_list(existing.get("events")), _as_list(new.get("events")), midnight
+    )
+    merged["metrics"] = _merge_metrics(
+        _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
+    )
+    return merged
+
+
 def _repo_root() -> Path:
     """Locate the repository root by walking up to the nearest `.agents` dir.
 
@@ -759,9 +892,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-path", type=Path, default=None,
         help="Output directory for episode JSON",
     )
-    parser.add_argument(
+    write_mode = parser.add_mutually_exclusive_group()
+    write_mode.add_argument(
         "--force", action="store_true",
         help="Overwrite existing episode file if it exists",
+    )
+    write_mode.add_argument(
+        "--preserve", action="store_true",
+        help=(
+            "Read-modify-write an existing episode file, merging fresh "
+            "extraction over it without dropping richer existing data"
+        ),
     )
     return parser
 
@@ -856,14 +997,39 @@ def main(argv: list[str] | None = None) -> int:
     # Write episode file
     episode_file = output_path / f"episode-{session_id}.json"
 
-    if episode_file.exists() and not args.force:
-        print(
-            json.dumps({
-                "Error": f"Episode file already exists: {episode_file}. Use --force to overwrite.",
-            }),
-            file=sys.stderr,
-        )
-        return 1
+    if episode_file.exists():
+        if args.preserve:
+            try:
+                existing_raw = json.loads(episode_file.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as e:
+                print(
+                    json.dumps({
+                        "Error": f"--preserve requires a readable existing episode: {e}",
+                    }),
+                    file=sys.stderr,
+                )
+                return 1
+            if not isinstance(existing_raw, dict):
+                print(
+                    json.dumps({
+                        "Error": "--preserve requires the existing episode to be a JSON object.",
+                    }),
+                    file=sys.stderr,
+                )
+                return 1
+            episode = merge_preserving(episode, existing_raw, session_id=session_id)
+            decisions = episode["decisions"]
+            events = episode["events"]
+            lessons = episode["lessons"]
+            outcome = episode["outcome"]
+        elif not args.force:
+            print(
+                json.dumps({
+                    "Error": f"Episode file already exists: {episode_file}. Use --force to overwrite or --preserve to merge.",
+                }),
+                file=sys.stderr,
+            )
+            return 1
 
     try:
         episode_file.write_text(
