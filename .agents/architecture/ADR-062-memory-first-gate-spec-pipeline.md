@@ -181,10 +181,15 @@ against four criteria:
 4. 30 consecutive passes with zero halts (recalibration trigger, not a kill).
 
 If any kill criterion fires, the gate is loosened or removed in a follow-on PR.
-The `STEP-0.5-METRICS.md` tally is the data source for this review. REQ-017
-defers the Step 0.5 kill-criteria review schedule to a named owner; this ADR
-records that the Step 0 criteria are the interim standard until that schedule
-lands.
+The `STEP-0.5-METRICS.md` tally (one line per invocation: timestamp, pass/fail,
+halt reason) is the data source for criteria 1 and 4, which are derivable from
+the per-invocation pass/fail and halt records. Criteria 2 (bypass rate) and 3
+(author abandonment) are defined in `REQ-016-13` against Step 0 and are not
+captured by the Step 0.5 tally format; measuring them for Step 0.5 requires
+separate instrumentation. REQ-017 defers the Step 0.5 kill-criteria review
+schedule, and that Step 0.5-specific instrumentation, to a named owner. Until
+that lands, the Step 0 criteria are the interim standard and criteria 2 and 3
+are tracked at the Step 0 level.
 
 ## Vendor Lock-In
 
