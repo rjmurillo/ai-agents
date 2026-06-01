@@ -89,14 +89,17 @@ running after Step 0 and before Step 1. This ADR codifies four binding points.
    layered together produce the `## Prior Art / Constraints` block that Step 6
    carries into the PRD as its first section.
 
-3. **Halt triggers split into two families.** H6 through H10 encode the
-   BLOCKING change types from the Investigation Protocol table in
-   `.claude/skills/memory/SKILL.md` (remove an ADR constraint, bypass a
-   protocol, delete more than 100 lines, refactor a complex component, change a
-   validator or hook) when memory search returns no prior art. H11 fires when
-   adjudicated blast-radius entities meet the threshold (2 in human mode, 3 in
-   auto mode). Auto-mode raises the H11 threshold to reduce false halts on
-   automated pipelines.
+3. **Halt triggers split into two families.** H6 through H9 encode the
+   memory-search BLOCKING change types from the Investigation Protocol table
+   in `.claude/skills/memory/SKILL.md` (remove an ADR constraint, bypass a
+   protocol, delete more than 100 lines, refactor a complex component): each
+   fires when memory search returns no prior art for the change. H10 is a
+   separate `.claude/commands/spec.md` halt that fires when a validator,
+   linter, hook, or shared-infrastructure component is changed without a
+   prior-art citation in the PriorArtBlock. H11 fires when adjudicated
+   blast-radius entities meet the threshold (2 in human mode, 3 in auto mode).
+   Auto-mode raises the H11 threshold to reduce false halts on automated
+   pipelines.
 
 4. **The gate degrades, never silently skips.** When Forgetful MCP or a skill
    is unavailable, the gate records a coverage note and continues. It does not
@@ -205,10 +208,13 @@ Two of the three gate skills depend on Forgetful MCP:
 ADR-007 already classifies Forgetful as supplementary and local-only, with
 Serena as the canonical layer that travels with the repository. The gate
 inherits that posture: it never blocks on Forgetful availability. The lock-in
-risk is bounded because the BLOCKING path (H6 through H10, the change-type
-triggers) runs against memory search, which degrades to Serena. Only the
-blast-radius discovery (H11) and the deep traversal lose coverage when Forgetful
-is absent, and both degrade to coverage notes rather than false passes.
+risk is bounded because the BLOCKING change-type triggers run against memory
+search, which degrades to Serena: H6 through H9 fire on a no-result memory
+search, and H10 checks for a prior-art citation in the PriorArtBlock that
+memory search produces. Both paths degrade to Serena-only lexical search rather
+than failing. Only the blast-radius discovery (H11) and the deep traversal lose
+coverage when Forgetful is absent, and both degrade to coverage notes rather
+than false passes.
 
 If Forgetful is replaced or retired, the gate continues to function on Serena
 alone with reduced traversal depth. The exit cost is the loss of multi-hop
