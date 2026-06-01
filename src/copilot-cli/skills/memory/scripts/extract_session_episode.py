@@ -652,20 +652,27 @@ def _filter_markdown_events(events: list[dict]) -> list[dict]:
 def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     """Build the episode component bundle from a JSON session log.
 
-    When `archive_fallback` is True and the JSON workLog is empty, attempts to
-    locate and parse the corresponding archive file (JSON first, then markdown)
-    to preserve rich event/decision/lesson data from migrated sessions.
+    When `archive_fallback` is True and the JSON workLog yields no meaningful
+    signal (no milestone/test/error events, no decisions, no lessons, even if
+    the workLog list is technically non-empty, e.g. ``[{}]`` or whitespace
+    stubs), attempts to locate and parse the corresponding archive file (JSON
+    first, then markdown) to preserve rich event/decision/lesson data from
+    migrated sessions.
     """
     session_ts = json_timestamp(data)
     session = _as_dict(data.get("session"))
-    work_log = _as_list(data.get("workLog"))
 
     events = json_events(data, session_ts)
     decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
     metrics_source = data
 
-    if archive_fallback and not work_log:
+    primary_has_signal = (
+        any(e.get("type") in ("milestone", "test", "error") for e in events)
+        or bool(decisions)
+        or bool(lessons)
+    )
+    if archive_fallback and not primary_has_signal:
         session_num = session.get("number")
         session_date = str(session.get("date") or "").strip()
         if session_num is not None and str(session_num).strip() and session_date:
