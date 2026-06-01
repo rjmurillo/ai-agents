@@ -1,6 +1,8 @@
 {
   "name": "project-toolkit",
   "description": "25 agent definitions, 81 reusable skills, 52 lifecycle hooks for GitHub Copilot CLI workflows",
-  "version": "0.4.38",
-  "author": { "name": "rjmurillo" }
+  "version": "0.4.74",
+  "author": {
+    "name": "rjmurillo"
+  }
 }
