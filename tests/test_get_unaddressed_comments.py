@@ -301,3 +301,69 @@ class TestOutputFormat:
         assert "PR #42" in out
         with pytest.raises(json.JSONDecodeError):
             json.loads(out)
+
+
+# ---------------------------------------------------------------------------
+# Tests: envelope Data shape and actionable-count summary
+# ---------------------------------------------------------------------------
+
+
+def _result_with(comments: list[dict]) -> dict:
+    """Build a get_unaddressed_comments-style result for the given comments."""
+    return {
+        "Success": True,
+        "PullRequest": 42,
+        "Owner": "o",
+        "Repo": "r",
+        "TotalCount": len(comments),
+        "LifecycleStateCounts": {},
+        "DiscussionSubStateCounts": {},
+        "DomainCounts": {},
+        "AuthorSummary": [],
+        "Comments": comments,
+    }
+
+
+class TestEnvelopeData:
+    def test_data_omits_redundant_inner_success(self, capsys):
+        """The envelope already carries top-level Success; Data must not
+        duplicate it (matches the get_pr_context.py contract).
+        """
+        result = _result_with([{"NeedsAction": True}])
+        with patch("get_unaddressed_comments.assert_gh_authenticated"), patch(
+            "get_unaddressed_comments.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_unaddressed_comments.get_unaddressed_comments",
+            return_value=result,
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert "Success" not in output["Data"]
+
+    def test_summary_uses_actionable_count_not_total(self, capsys):
+        """With --no-only-unaddressed the returned set includes non-actionable
+        comments; the human summary must count only NeedsAction items.
+        """
+        comments = [
+            {"NeedsAction": True},
+            {"NeedsAction": False},
+            {"NeedsAction": True},
+        ]
+        result = _result_with(comments)
+        with patch("get_unaddressed_comments.assert_gh_authenticated"), patch(
+            "get_unaddressed_comments.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_unaddressed_comments.get_unaddressed_comments",
+            return_value=result,
+        ):
+            rc = main(
+                ["--pull-request", "42", "--no-only-unaddressed",
+                 "--output-format", "human"]
+            )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "2 comments needing action" in out

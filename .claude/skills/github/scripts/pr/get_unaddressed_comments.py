@@ -385,11 +385,20 @@ def main(argv: list[str] | None = None) -> int:
         only_unaddressed=args.only_unaddressed,
     )
 
+    # TotalCount is the size of the returned comment set, which includes
+    # non-actionable comments when --no-only-unaddressed is passed. Count the
+    # NeedsAction flag directly so the human summary always reflects the
+    # actionable subset and matches the stderr line emitted upstream.
+    actionable_count = sum(1 for c in result["Comments"] if c["NeedsAction"])
+    # The output envelope already carries a top-level Success, so drop the
+    # inner copy to avoid a redundant Data.Success (matches get_pr_context.py).
+    data = {k: v for k, v in result.items() if k != "Success"}
+
     summary = (
-        f"PR #{args.pull_request}: {result['TotalCount']} comments needing action"
+        f"PR #{args.pull_request}: {actionable_count} comments needing action"
     )
     write_skill_output(
-        result,
+        data,
         output_format=fmt,
         human_summary=summary,
         status="PASS",
