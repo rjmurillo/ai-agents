@@ -191,8 +191,8 @@ class TestRetroSkeletonText(unittest.TestCase):
 
     def _generate(self, tmp_path: Path, today: str) -> str:
         retro_path = invoke_auto_retrospective.generate_retrospective(tmp_path, today)
-        self.assertIsNotNone(retro_path)
-        assert retro_path is not None
+        if retro_path is None:
+            self.fail("generate_retrospective returned None")
         return retro_path.read_text(encoding="utf-8")
 
     def test_skeleton_carries_fill_instruction(self):
