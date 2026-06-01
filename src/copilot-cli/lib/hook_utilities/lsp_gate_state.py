@@ -242,8 +242,11 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
     if not file_path:
         return False
     try:
-        resolved = Path(file_path).resolve()
         root = Path(project_dir).resolve()
+        candidate = Path(file_path)
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        resolved = candidate.resolve()
     except (OSError, ValueError):
         return False
 
@@ -276,13 +279,17 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
 def normalize_path(file_path: str, cwd: str) -> str:
     """Normalize a file path to a stable resolved form for deduplication.
 
-    Resolves to absolute path so relative and absolute paths for the same file
-    match. Returns the original path on resolution failure (fail-open).
+    Relative paths are anchored to ``cwd`` (not the process working directory)
+    before resolving, so the same tool-supplied path always maps to one key.
+    Returns the original path on resolution failure (fail-open).
     """
     if not file_path:
         return file_path
     try:
-        return str(Path(file_path).resolve())
+        candidate = Path(file_path)
+        if not candidate.is_absolute():
+            candidate = Path(cwd) / candidate
+        return str(candidate.resolve())
     except (OSError, ValueError):
         return file_path
 
