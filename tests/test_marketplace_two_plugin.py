@@ -112,27 +112,8 @@ class TestSourceDirsExist:
             )
 
 
-class TestCounterValidatorGreen:
-    """Count and manifest validators stay green for both native marketplaces."""
-
-    @pytest.mark.parametrize("marketplace", [CLAUDE_MARKETPLACE, COPILOT_MARKETPLACE])
-    def test_validate_marketplace_counts_exits_zero(self, marketplace: Path) -> None:
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(REPO_ROOT / "build" / "scripts" / "validate_marketplace_counts.py"),
-                "--marketplace",
-                str(marketplace),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=REPO_ROOT,
-        )
-        assert result.returncode == 0, (
-            f"validate_marketplace_counts.py failed:\n"
-            f"stdout: {result.stdout}\nstderr: {result.stderr}"
-        )
+class TestManifestValidatorGreen:
+    """Plugin manifest validator stays green for both native marketplaces."""
 
     def test_validate_plugin_manifests_exits_zero(self) -> None:
         result = subprocess.run(

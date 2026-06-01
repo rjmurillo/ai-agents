@@ -106,9 +106,9 @@ jobs:
           mkdir -p artifacts
           pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
-      - name: Pin ai_review_common.verdict coverage at 98% (REQ-008-07)
+      - name: Pin ai_review_common.verdict coverage at 100% (REQ-008-07)
         if: steps.should-run.outputs.skip != 'true'
-        run: pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=98
+        run: pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
 
       # Issue #2063 (revised): module-name form is the canonical form for this
       # repository. The file-path form (--cov=.claude/skills/.../*.py) was
