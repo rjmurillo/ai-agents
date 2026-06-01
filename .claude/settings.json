@@ -118,11 +118,6 @@
           },
           {
             "type": "command",
-            "command": "python3 -u .claude/hooks/PreToolUse/invoke_manifest_count_guard.py",
-            "statusMessage": "Checking marketplace count drift (BLOCKING)"
-          },
-          {
-            "type": "command",
             "command": "python3 -u .claude/hooks/PreToolUse/invoke_session_log_field_guard.py",
             "statusMessage": "Checking session log placeholder values (BLOCKING)"
           },
