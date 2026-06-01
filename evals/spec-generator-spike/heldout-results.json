@@ -1,0 +1,226 @@
+{
+  "eval_type": "prompt-change",
+  "adr": "ADR-057",
+  "model": "claude-sonnet-4-20250514",
+  "source": "explicit: /tmp/sg-before.md -> .claude/skills/spec-generator/SKILL.md",
+  "runs_per_scenario": 3,
+  "security_critical": false,
+  "comparison": {
+    "before_score": 1.0,
+    "after_score": 1.0,
+    "delta": 0.0,
+    "scenario_count": 3,
+    "api_calls": 18,
+    "est_tokens": 63000
+  },
+  "gate": {
+    "verdict": "PASS",
+    "passed": true,
+    "security_critical": false,
+    "criteria": {
+      "no_regression": true,
+      "has_improvement": true,
+      "no_unexplained_regressions": true,
+      "no_high_flakiness": true
+    },
+    "improvements": [],
+    "regressions": [],
+    "flaky_scenarios": [],
+    "high_flakiness_scenarios": [],
+    "before_score": 1.0,
+    "after_score": 1.0,
+    "delta": 0.0
+  },
+  "detail": {
+    "before": [
+      {
+        "scenario_id": "H1-priority-high-unnamed",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "Priority value 'high' is not in the allowed range. Valid priority values are: critical, important, normal, low",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Priority value 'high' is not in the allowed range. Valid priority values are: critical, important, normal, low\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Priority value 'high' is not in the allowed range. Valid priority values are: critical, important, normal, low",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Priority value 'high' is not in the allowed range. Valid priority values are: critical, important, normal, low\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Priority value 'high' is not in the allowed range. Valid priority values are: critical, important, normal, low",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Priority value 'high' is not in the allowed range. Valid priority values are: critical, important, normal, low\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "H2-task-status-pending-unnamed",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "Status 'pending' is not in the allowed task status values. Valid statuses are: not_started, in_progress, blocked, done, cancelled.",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Status 'pending' is not in the allowed task status values. Valid statuses are: not_started, in_progress, blocked, done, cancelled.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Status 'pending' is not in the allowed task status values. Valid statuses are: not_started, in_progress, blocked, done, cancelled",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Status 'pending' is not in the allowed task status values. Valid statuses are: not_started, in_progress, blocked, done, cancelled\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Status 'pending' is not in the allowed task status values. Valid statuses are: not_started, in_progress, blocked, done, cancelled.",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Status 'pending' is not in the allowed task status values. Valid statuses are: not_started, in_progress, blocked, done, cancelled.\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "H3-category-infra-unnamed",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "Category 'infra' is not in the allowed list of categories (functional, non-functional, constraint, interface, data)",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Category 'infra' is not in the allowed list of categories (functional, non-functional, constraint, interface, data)\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Category 'infra' is not in the allowed list of categories (functional, non-functional, constraint, interface, data)",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Category 'infra' is not in the allowed list of categories (functional, non-functional, constraint, interface, data)\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "Category 'infra' is not in the allowed list of categories (functional, non-functional, constraint, interface, data)",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"Category 'infra' is not in the allowed list of categories (functional, non-functional, constraint, interface, data)\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ],
+    "after": [
+      {
+        "scenario_id": "H1-priority-high-unnamed",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "priority value 'high' is invalid; allowed values are P0, P1, P2",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"priority value 'high' is invalid; allowed values are P0, P1, P2\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "priority value 'high' is invalid; allowed values are P0, P1, P2",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"priority value 'high' is invalid; allowed values are P0, P1, P2\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "priority value 'high' is invalid; allowed values are P0, P1, P2",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"priority value 'high' is invalid; allowed values are P0, P1, P2\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "H2-task-status-pending-unnamed",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "status value 'pending' is not in allowed enum values for task type. Task status must be one of: todo, in-progress, blocked, done, cancelled",
+            "raw": "```json\n{\"verdict\": \"REJECT\", \"reason\": \"status value 'pending' is not in allowed enum values for task type. Task status must be one of: todo, in-progress, blocked, done, cancelled\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "status value 'pending' is not in allowed enum values for task type. Task status must be one of: todo, in-progress, blocked, done, cancelled",
+            "raw": "```json\n{\"verdict\": \"REJECT\", \"reason\": \"status value 'pending' is not in allowed enum values for task type. Task status must be one of: todo, in-progress, blocked, done, cancelled\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "status value 'pending' is not in allowed enum values for task type. Task status must be one of: todo, in-progress, blocked, done, cancelled",
+            "raw": "```json\n{\"verdict\": \"REJECT\", \"reason\": \"status value 'pending' is not in allowed enum values for task type. Task status must be one of: todo, in-progress, blocked, done, cancelled\"}\n```",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      },
+      {
+        "scenario_id": "H3-category-infra-unnamed",
+        "passes": 3,
+        "runs": 3,
+        "pass_rate": 1.0,
+        "passed": true,
+        "flaky": false,
+        "per_run": [
+          {
+            "verdict": "REJECT",
+            "reason": "category value 'infra' is not in allowed enum values: functional, non-functional, constraint",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"category value 'infra' is not in allowed enum values: functional, non-functional, constraint\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "category value 'infra' is not in allowed enum values: functional, non-functional, constraint",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"category value 'infra' is not in allowed enum values: functional, non-functional, constraint\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          },
+          {
+            "verdict": "REJECT",
+            "reason": "category value 'infra' is not in allowed enum values: functional, non-functional, constraint",
+            "raw": "{\"verdict\": \"REJECT\", \"reason\": \"category value 'infra' is not in allowed enum values: functional, non-functional, constraint\"}",
+            "passed": true,
+            "model_used": "claude-sonnet-4-20250514"
+          }
+        ]
+      }
+    ]
+  }
+}

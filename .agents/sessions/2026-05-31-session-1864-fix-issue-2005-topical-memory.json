@@ -1,0 +1,47 @@
+{
+  "session": {
+    "number": 1864,
+    "date": "2026-05-31",
+    "branch": "feat/2005-topical-memory-hook",
+    "startingCommit": "ec49950a9",
+    "objective": "Fix issue 2005: topical memory injection PreToolUse hook on Write/Edit"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "mcp__serena__initial_instructions activated; Serena re-asserted each turn" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Read Serena Instructions Manual via initial_instructions" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md auto-injected (read-only per ADR-014)" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "github + session-init skill scripts; build_all/generate_hooks/validate_marketplace_counts used" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Skill-first routing; modeled the hook on invoke_correction_applier.py" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": ".claude/rules/*.md loaded; release-it.md (fast hook, bounded integration point, graceful no-op) and code-quality.md (table-driven topic keying) applied; per the posted #2005 decision" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "Serena memory index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/2005-topical-memory-hook" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "Isolated worktree /tmp/wt-2005 off origin/main" },
+      "gitStatusVerified": { "level": "SHOULD", "Complete": true, "Evidence": "git status verified; 8 files (hook + 2 registries + test + generated copilot mirror + counts)" },
+      "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "ec49950a9" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "All Start MUST gates complete; uv run pytest tests/hooks/test_topical_memory_injection.py reports 22 passed; ruff clean" },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Serena memories written earlier this session; no new memory needed for this hook" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "This PR changes Python + JSON only; no authored markdown" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Work head e0e9c3ffb; session log committed last" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "uv run pytest -> 22 passed; ruff clean; validate_marketplace_counts up to date (52 hooks); validate_plugin_version_bump OK" },
+      "tasksUpdated": { "level": "SHOULD", "Complete": true, "Evidence": "Tracked in workLog" },
+      "retrospectiveInvoked": { "level": "SHOULD", "Complete": false, "Evidence": "" }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #2005: memory-as-passive-reference fails when the writing path skips a memory read (PR #2004)",
+      "outcome": "Added a non-blocking PreToolUse hook on Write|Edit that derives a topic from the file path and surfaces top-3 topical .serena/memories as advisory context (2KB cap, 80ms deadline, filesystem-only). Registered in settings.json (canonical, drives copilot generation) and hooks.json (plugin manifest); regenerated the copilot mirror; hook count 51 to 52.",
+      "evidence": "uv run pytest -> 22 passed; ruff clean; copilot mirror generated; marketplace counts validate at 52 hooks"
+    }
+  ],
+  "endingCommit": "e0e9c3ffba4a93d03826b1998aa90c3fd5c3ad2c",
+  "nextSteps": [
+    "Open PR with Fixes #2005",
+    "Continue the ready-now batch: #1918, #1908, #2001, #1728"
+  ]
+}

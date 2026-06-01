@@ -57,6 +57,8 @@ ScanResult = _scan.ScanResult
 extract_count_claims = _scan.extract_count_claims
 extract_script_refs = _scan.extract_script_refs
 extract_skill_refs = _scan.extract_skill_refs
+extract_skill_script_refs = _scan.extract_skill_script_refs
+_check_skill_script_refs = _scan._check_skill_script_refs
 enumerate_count = _scan.enumerate_count
 enumerate_skills = _scan.enumerate_skills
 main = _scan.main
@@ -722,3 +724,34 @@ def test_main_emits_error_envelope_on_unexpected_runtime_failure(
     assert payload["Error"]["Type"] == "General"
     assert "simulated filesystem race" in payload["Error"]["Message"]
     assert "RuntimeError" in payload["Error"]["Message"]
+
+
+class TestSkillScriptRefs:
+    """Issue #1987: orphan references to .claude/skills/**/scripts/**.py,
+    backticked or as a bare `python3 ...` command."""
+
+    def test_bare_command_wrong_name_flagged(self, tmp_path):
+        scripts = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
+        scripts.mkdir(parents=True)
+        (scripts / "get_unresolved_review_threads.py").write_text("# real\n")
+        text = "python3 .claude/skills/github/scripts/pr/get_unresolved_threads.py --pull-request 1"
+        findings, checked = _check_skill_script_refs(text, "doc.md", tmp_path)
+        assert checked == 1
+        assert [f.kind for f in findings] == ["script_path"]
+        assert findings[0].severity == "critical"
+
+    def test_correct_name_not_flagged(self, tmp_path):
+        scripts = tmp_path / ".claude" / "skills" / "github" / "scripts" / "pr"
+        scripts.mkdir(parents=True)
+        (scripts / "get_unresolved_review_threads.py").write_text("# real\n")
+        text = "`.claude/skills/github/scripts/pr/get_unresolved_review_threads.py`"
+        findings, _ = _check_skill_script_refs(text, "doc.md", tmp_path)
+        assert findings == []
+
+    def test_extract_handles_both_forms(self):
+        assert list(extract_skill_script_refs("python3 .claude/skills/x/scripts/y.py")) == [
+            (1, ".claude/skills/x/scripts/y.py")
+        ]
+        assert list(extract_skill_script_refs("`src/copilot-cli/skills/x/scripts/y.py`")) == [
+            (1, "src/copilot-cli/skills/x/scripts/y.py")
+        ]

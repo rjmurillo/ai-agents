@@ -1,0 +1,28 @@
+{
+  "scenarios": [
+    {
+      "id": "H1-priority-high-unnamed",
+      "desc": "A requirement frontmatter is presented with priority: high (a value the skill does not name in its drift list).",
+      "input": "You are about to finalize this requirement frontmatter before writing the file:\n---\ntype: requirement\nid: REQ-001\ntitle: Audit logging\nstatus: approved\npriority: high\ncategory: functional\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if any field value is out of the allowed range; ACCEPT only if every field is valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "REJECT",
+      "rationale": "priority must be P0/P1/P2; 'high' is invalid and is NOT in the SKILL's named-drift list, so this tests generalization via the enum table."
+    },
+    {
+      "id": "H2-task-status-pending-unnamed",
+      "desc": "A task frontmatter is presented with status: pending (a value the skill does not name in its drift list).",
+      "input": "You are about to finalize this task frontmatter before writing the file:\n---\ntype: task\nid: TASK-001\ntitle: Wire the audit sink\nstatus: pending\npriority: P1\ncomplexity: S\nrelated:\n  - DESIGN-001\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if any field value is out of the allowed range; ACCEPT only if every field is valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "REJECT",
+      "rationale": "task status must be todo/in-progress/blocked/done/cancelled; 'pending' is invalid and NOT named in the SKILL drift list."
+    },
+    {
+      "id": "H3-category-infra-unnamed",
+      "desc": "A requirement frontmatter is presented with category: infra (a value the skill does not name in its drift list).",
+      "input": "You are about to finalize this requirement frontmatter before writing the file:\n---\ntype: requirement\nid: REQ-002\ntitle: Rotate signing keys\nstatus: draft\npriority: P2\ncategory: infra\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if any field value is out of the allowed range; ACCEPT only if every field is valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "REJECT",
+      "rationale": "category must be functional/non-functional/constraint; 'infra' is invalid and NOT named in the SKILL drift list."
+    }
+  ]
+}
