@@ -239,6 +239,29 @@ def parse_events(lines: list[str], timestamp: str | None = None) -> list[dict]:
                 "leads_to": [],
             }
 
+        # Bold status markers (archive convention): the milestone rule above
+        # excludes list markers followed by `**`, so an archived status bullet
+        # like `- **Status**: COMPLETE` is otherwise dropped. Recognize a
+        # completed status field as a milestone. The field name is restricted to
+        # a status vocabulary so objective/decision sentences that merely begin
+        # with "Complete ..." do not misfire. Refs PR #2170 (thread GA722).
+        elif re.match(
+            r'^[-*]\s+\*\*(?:status|result|outcome|state|resolution)\*\*\s*:\s*'
+            r'(complete|completed|done|success|finished)\b',
+            line,
+            re.IGNORECASE,
+        ):
+            event_index += 1
+            content = re.sub(r'^[-*]\s*', '', line.strip())
+            evt = {
+                "id": f"e{event_index:03d}",
+                "timestamp": ts,
+                "type": "milestone",
+                "content": content,
+                "caused_by": [],
+                "leads_to": [],
+            }
+
         # Test events
         if re.search(r'test[s]?\s+(pass|fail|run)', line, re.IGNORECASE) or 'Pester' in line:
             event_index += 1
@@ -370,6 +393,13 @@ _DECISION_RE = re.compile(
     r"design decision|approach|reclassif)",
     re.IGNORECASE,
 )
+# Defect-inventory qualifiers: an "N errors" tally describing a pre-existing
+# backlog (lint debt, baseline findings) is not a count of failures this
+# session produced. Refs PR #2170 (thread GA72x).
+_DEFECT_INVENTORY_RE = re.compile(
+    r"pre-?existing|existing files|baseline|backlog|already (?:present|there)",
+    re.IGNORECASE,
+)
 
 
 def _as_dict(value: Any) -> dict:
@@ -382,14 +412,20 @@ def _valid_fail_match(text: str) -> "re.Match[str] | None":
 
     Rejects matches where the keyword is "error(s)" and the count falls in the
     HTTP status range (100-599); "404 errors"/"500 errors" are status-code
-    language, not failure counts. "#"-prefixed refs are already excluded by the
-    _FAIL_COUNT_RE lookbehind. Refs PR #2170 (thread GANjI).
+    language, not failure counts. Also rejects "error(s)" tallies qualified as
+    defect inventory ("23 errors in pre-existing files"): a lint or baseline
+    backlog is not a count of failures this session produced. "#"-prefixed refs
+    are already excluded by the _FAIL_COUNT_RE lookbehind.
+    Refs PR #2170 (threads GANjI, GA72x).
     """
     for match in _FAIL_COUNT_RE.finditer(text):
         count = int(match.group(1))
         keyword = match.group(2).lower()
-        if keyword.startswith("error") and 100 <= count <= 599:
-            continue
+        if keyword.startswith("error"):
+            if 100 <= count <= 599:
+                continue
+            if _DEFECT_INVENTORY_RE.search(text):
+                continue
         return match
     return None
 
@@ -939,7 +975,6 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     decisions = json_decisions(data, session_ts)
     lessons = _json_lessons(data)
     metrics_source = data
-    md_metrics: dict | None = None
 
     has_events = any(e.get("type") in ("milestone", "test", "error") for e in events)
     # A commit event is the session's own signal. It does not gate archive
@@ -988,11 +1023,15 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         if not has_own_events:
                             md_events = parse_events(md_lines, session_ts)
                             events = _filter_markdown_events(md_events)
-                            # Metrics must follow the event source: when events
-                            # come from the markdown archive, derive metrics from
-                            # the same archive (rigorous counted-failure logic,
-                            # not the sparse primary stub).
-                            md_metrics = _markdown_archive_metrics(md_lines)
+                            # Metrics are NOT derived from markdown-archive prose.
+                            # Unstructured lines would let _collect_shas count any
+                            # hex run and _FILES_RE count any "N files" phrase,
+                            # inflating commits/files (thread GA721). Metrics stay
+                            # sourced from structured signal only: the primary
+                            # JSON workLog + endingCommit, or a structured JSON
+                            # archive (handled in the json-archive branch above).
+                            # The markdown archive contributes events, decisions,
+                            # and lessons (narrative recovery), not metrics.
                         if not decisions:
                             decisions = parse_decisions(md_lines, session_ts)
                         if not lessons:
@@ -1003,7 +1042,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     additional_worklogs = (
         _as_list(metrics_source.get("workLog")) if metrics_source is not data else None
     )
-    metrics = md_metrics if md_metrics is not None else json_metrics(metrics_source)
+    metrics = json_metrics(metrics_source)
     return {
         "timestamp": session_ts,
         "task": str(session.get("objective") or "").strip(),
@@ -1013,21 +1052,6 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
         "metrics": metrics,
         "lessons": lessons,
     }
-
-
-def _markdown_archive_metrics(md_lines: list[str]) -> dict:
-    """Metrics for a markdown archive, reusing the JSON path's rigorous
-    counted-failure and SHA logic rather than ``parse_metrics``.
-
-    ``parse_metrics`` counts a failure for every line containing the substring
-    ``error``/``fail``/``exception``, which inflates error counts on narrative
-    prose (the same defect fixed for the JSON path in thread GANjI). Treating
-    each markdown line as work-log evidence and routing it through
-    ``json_metrics`` applies the counted-failure regex and distinct-SHA logic,
-    so commits, errors, and files reflect real signal.
-    """
-    pseudo = {"workLog": [{"summary": line} for line in md_lines]}
-    return json_metrics(pseudo)
 
 
 def build_parser() -> argparse.ArgumentParser:

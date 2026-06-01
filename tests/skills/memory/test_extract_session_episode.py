@@ -131,6 +131,21 @@ class TestParseEvents:
         milestones = [e for e in result if e["type"] == "milestone"]
         assert len(milestones) >= 1
 
+    def test_bold_status_marker_is_milestone(self):
+        """Archived bullets like `- **Status**: COMPLETE` are milestones; the
+        plain milestone rule skips list markers followed by `**` (#2170 GA722)."""
+        lines = ["- **Status**: COMPLETE"]
+        result = extract_session_episode.parse_events(lines)
+        milestones = [e for e in result if e["type"] == "milestone"]
+        assert len(milestones) == 1
+        assert "Status" in milestones[0]["content"]
+
+    def test_bold_status_in_progress_not_milestone(self):
+        """A non-completed bold status is not a milestone."""
+        lines = ["- **Status**: IN PROGRESS"]
+        result = extract_session_episode.parse_events(lines)
+        assert not any(e["type"] == "milestone" for e in result)
+
     def test_headings_excluded(self):
         lines = ["# Error Handling Section"]
         result = extract_session_episode.parse_events(lines)
@@ -419,15 +434,17 @@ class TestArchiveFallback:
         bundle = extract_session_episode.extract_from_json(data)
         assert bundle["metrics"]["errors"] >= 1
 
-    def test_metrics_sourced_from_markdown_archive(self, tmp_path, monkeypatch):
-        """Markdown-only archive recovery must source metrics from the archive,
-        not the sparse primary stub (#2170 thread GAzip)."""
+    def test_markdown_archive_does_not_inflate_metrics(self, tmp_path, monkeypatch):
+        """Markdown-archive recovery contributes events, not metrics. Prose SHAs
+        and "N files" phrases must NOT inflate commits/files (#2170 thread
+        GA721). Metrics stay sourced from the structured primary JSON."""
         md = tmp_path / "2026-05-31-session-2.md"
         md.write_text(
             "# Session\n"
-            "- Milestone: Implemented the parser\n"
-            "Commit a1b2c3d4 landed the change\n"
-            "5 files changed\n",
+            "- **Status**: COMPLETE\n"
+            "See https://example.com/commit/a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0\n"
+            "Reviewed 185 files across the repository\n"
+            "Found 23 errors in pre-existing files\n",
             encoding="utf-8",
         )
         monkeypatch.setattr(extract_session_episode, "_find_archive_json", lambda sid: None)
@@ -439,8 +456,13 @@ class TestArchiveFallback:
         monkeypatch.setattr(extract_session_episode, "_find_archive_markdown", fake_md)
         data = {"session": {"number": 2, "date": "2026-05-31"}, "workLog": [], "endingCommit": ""}
         bundle = extract_session_episode.extract_from_json(data)
-        assert bundle["metrics"]["commits"] >= 1
-        assert bundle["metrics"]["files_changed"] == 5
+        # Sparse primary (empty workLog, no endingCommit) -> zero metrics despite
+        # prose mentioning a SHA, "185 files", and "23 errors".
+        assert bundle["metrics"]["commits"] == 0
+        assert bundle["metrics"]["files_changed"] == 0
+        assert bundle["metrics"]["errors"] == 0
+        # The bold status marker is still recovered as a narrative milestone.
+        assert any(e.get("type") == "milestone" for e in bundle["events"])
 
     def test_truthy_empty_worklog_still_uses_archive(self, tmp_path, monkeypatch):
         archive = tmp_path / "2026-05-31-session-2.json"
@@ -851,6 +873,29 @@ class TestFailCountFilter:
             {"action": "ci", "outcome": "3 failed"},
             {"action": "http", "outcome": "saw 404 errors from upstream"},
             {"action": "ref", "outcome": "closed #760 failures backlog"},
+        ])
+        assert extract_session_episode.json_metrics(data)["errors"] == 3
+
+    def test_defect_inventory_not_counted(self):
+        """"N errors" describing a pre-existing/baseline backlog is defect
+        inventory, not session failures (#2170 thread GA72x)."""
+        for s in [
+            "23 errors in pre-existing files",
+            "markdownlint reported 40 errors in existing files",
+            "12 errors from the baseline scan",
+            "8 errors already present in the backlog",
+        ]:
+            assert extract_session_episode._valid_fail_match(s) is None, s
+
+    def test_real_failures_still_counted_alongside_inventory_words(self):
+        """A genuine "N failed" tally is counted even if inventory words appear;
+        the guard only relaxes the "error" keyword."""
+        assert extract_session_episode._valid_fail_match("3 failed in baseline suite") is not None
+
+    def test_metrics_errors_excludes_defect_inventory(self):
+        data = _json_log([
+            {"action": "lint", "outcome": "23 errors in pre-existing files"},
+            {"action": "ci", "outcome": "3 failed"},
         ])
         assert extract_session_episode.json_metrics(data)["errors"] == 3
 
