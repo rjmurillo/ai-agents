@@ -1249,9 +1249,13 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
             echo_warning "Skipping episode extraction: script path is a symlink"
         elif [ -f "$EPISODE_EXTRACT_SCRIPT" ]; then
             if set_python_cmd; then
-                # Run episode extraction
-                # Guard against set -e aborting the hook on non-blocking extraction failures
-                EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --force 2>&1 || true)
+                # Run episode extraction.
+                # Use --preserve (non-destructive merge) so re-staging a session
+                # log cannot silently overwrite a richer existing episode file.
+                # Refs #2193: previously --force was unconditional, dropping
+                # curated decisions/lessons on every commit that touched a log.
+                # Guard against set -e aborting the hook on non-blocking extraction failures.
+                EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --preserve 2>&1 || true)
                 EXTRACT_EXIT=$?
 
                 if [ $EXTRACT_EXIT -eq 0 ]; then
@@ -1276,7 +1280,7 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
                     echo_warning "Episode extraction failed (non-blocking):"
                     echo "$EXTRACT_OUTPUT" | head -5
                     echo_info "  Session log will still be committed."
-                    echo_info "  Extract manually: python3 .claude/skills/memory/scripts/extract_session_episode.py \"$STAGED_SESSION_LOG\" --force"
+                    echo_info "  Extract manually: python3 .claude/skills/memory/scripts/extract_session_episode.py \"$STAGED_SESSION_LOG\" --preserve"
                 fi
             else
                 echo_warning "Python 3 not available. Skipping episode extraction."
