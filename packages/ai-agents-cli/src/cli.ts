@@ -38,7 +38,7 @@ async function writeTargetBlocks(
   }
 }
 
-// Reject any --target value outside the known set with a clear, typed error.
+// Reject any --target value outside the known set with a clear error message.
 export function parseTarget(value: string): Target {
   if ((TARGETS as readonly string[]).includes(value)) {
     return value as Target;
