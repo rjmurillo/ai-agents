@@ -72,9 +72,12 @@ _ACTION_KEYWORD_PATTERN = re.compile(
 # action comment only when it starts the comment text or follows one of these,
 # so English prose that merely contains "follow-up" or "todo" mid-sentence is
 # not matched (issue #1852).
-# Punctuation characters that can begin a comment leader, used to strip a
-# leading run regardless of repetition (e.g. "##", "///", "/**", "<!--").
-_LEADER_CHARS = "#/*-;!<>"
+# Recognized comment-leader prefixes. A leading run is stripped so the keyword
+# is reached after "#", "##", "//", "///", "/*", "/**", "<!--", "--"
+# (SQL/Haskell/Ada), ";" (Lisp/asm), or "!" (Fortran). A single "-" is NOT a
+# comment leader: it is a YAML/markdown list marker, so prose bullets such as
+# "- Follow-up: ..." are not misread as comments (issue #1852).
+_COMMENT_LEADER_RE = re.compile(r"^(?:<!--|--|//|/\*|[#/*;!]+)+")
 
 # Prose-oriented file types are skipped entirely: their keyword mentions are
 # almost always narrative, not action comments (issue #1852).
@@ -99,7 +102,7 @@ def _match_action_comment(added_content: str) -> tuple[str, str] | None:
             stripped = stripped[len(quote):].lstrip()
             break
     else:
-        stripped = stripped.lstrip(_LEADER_CHARS).lstrip()
+        stripped = _COMMENT_LEADER_RE.sub("", stripped).lstrip()
     match = _ACTION_KEYWORD_PATTERN.match(stripped)
     if match:
         return match.group(1).upper(), match.group(2).strip()

@@ -211,6 +211,24 @@ class TestExtractTodosFromDiff:
         )
         assert len(extract_todos_from_diff(diff, 1)) == 0
 
+    def test_ignores_yaml_list_marker_in_code_file(self) -> None:
+        """A leading single hyphen is a YAML/markdown list marker, not a comment
+        leader, so a bullet in a code file is not treated as an action comment."""
+        diff = (
+            "diff --git a/config/pipeline.yaml b/config/pipeline.yaml\n"
+            "+- follow-up: schedule the next stage here\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_detects_sql_double_dash_comment(self) -> None:
+        """A double-dash SQL/Haskell comment leader is recognized so a real TODO
+        in that syntax is still flagged."""
+        diff = (
+            "diff --git a/migrations/001.sql b/migrations/001.sql\n"
+            "+-- TODO: add an index on the created_at column\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 1
+
     def test_detects_inline_trailing_todo(self) -> None:
         """An action keyword in an inline trailing comment is still detected."""
         diff = (
