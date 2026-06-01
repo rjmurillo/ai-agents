@@ -115,7 +115,7 @@ def check_workflow_rate_limit(
     ]
 
     for resource, threshold in resource_thresholds.items():
-        resource_data = rate_limit.get("resources", {}).get(resource)
+        resource_data = (rate_limit.get("resources") or {}).get(resource)
         passed, entry, row = _evaluate_resource(resource, threshold, resource_data)
         if not passed:
             all_passed = False
@@ -127,5 +127,7 @@ def check_workflow_rate_limit(
         success=all_passed,
         resources=resources,
         summary_markdown="\n".join(summary_lines),
-        core_remaining=rate_limit.get("resources", {}).get("core", {}).get("remaining", 0),
+        core_remaining=((rate_limit.get("resources") or {}).get("core") or {}).get(
+            "remaining", 0
+        ),
     )
