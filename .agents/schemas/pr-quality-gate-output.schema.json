@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/rjmurillo/ai-agents/schemas/pr-quality-gate-output.schema.json",
   "title": "PR Quality Gate Output",
-  "description": "Standardized output format for PR quality gate agents (security, QA, analyst, architect, DevOps, roadmap)",
+  "description": "Standardized output format for PR quality gate agents (security, QA, analyst, architect, DevOps, roadmap, reliability, observability, agent-safety, decision-rigor)",
   "type": "object",
   "required": ["verdict", "message", "agent", "timestamp", "findings"],
   "additionalProperties": false,
@@ -19,7 +19,7 @@
     },
     "agent": {
       "type": "string",
-      "enum": ["security", "qa", "analyst", "architect", "devops", "roadmap"],
+      "enum": ["security", "qa", "analyst", "architect", "devops", "roadmap", "reliability", "observability", "agent-safety", "decision-rigor"],
       "description": "Which quality gate agent produced this output"
     },
     "timestamp": {
