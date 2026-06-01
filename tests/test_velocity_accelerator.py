@@ -185,6 +185,32 @@ class TestExtractTodosFromDiff:
         )
         assert len(extract_todos_from_diff(diff, 1)) == 0
 
+    def test_ignores_bare_prose_followup_in_code_file(self) -> None:
+        """Issue #1852: a bare English sentence on an added code line is not an action.
+
+        Reproduces the exact false-positive class from PR #1851: narrative prose
+        using "follow-up" as a noun, with no comment leader, must yield zero
+        opportunities.
+        """
+        diff = (
+            "diff --git a/src/auth.py b/src/auth.py\n"
+            "+ should be addressed in a follow-up to clarify the scope\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
+    def test_ignores_followup_paragraph_in_markdown(self) -> None:
+        """Issue #1852: a markdown paragraph mentioning "follow-up" is prose, not an action.
+
+        Reproduces the debate-log artifact that originally tripped the bot: a
+        documentation paragraph naming "follow-up issue" must be skipped because
+        the file is prose-oriented.
+        """
+        diff = (
+            "diff --git a/docs/notes.md b/docs/notes.md\n"
+            "+Found a follow-up issue that we should file later.\n"
+        )
+        assert len(extract_todos_from_diff(diff, 1)) == 0
+
     def test_detects_inline_trailing_todo(self) -> None:
         """An action keyword in an inline trailing comment is still detected."""
         diff = (
