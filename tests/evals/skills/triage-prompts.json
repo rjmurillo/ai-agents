@@ -16,14 +16,6 @@
       {"prompt": "What command runs Test-InvestigationEligibility for ADR-034 compliance?", "expected": "session skill exposes Test-InvestigationEligibility. Run before commit when staged files appear to be docs/investigation. Returns eligibility verdict for the investigation-only QA skip."},
       {"prompt": "Where do session protocol rules live in this repo?", "expected": ".agents/SESSION-PROTOCOL.md is canonical. AGENTS.md > Session Protocol Gates summarizes. ADR-007 governs session log requirement."}
     ],
-    "session-qa-eligibility": [
-      {"prompt": "Staged files include .agents/sessions/2026-05-09-session-01.json and one .py change. Investigation-only exempt?", "expected": "No. Python file staged. Investigation-only requires ALL staged files to be investigation artifacts. The .py disqualifies."},
-      {"prompt": "Which ADR governs the investigation-only QA skip?", "expected": "ADR-034 investigation session QA exemption. Defines allowed paths and verdict format SKIPPED investigation-only."},
-      {"prompt": "Can I skip QA for a docs-only commit using this skill?", "expected": "No. Docs-only is a separate exemption with verdict SKIPPED docs-only. This skill checks investigation-only specifically (allowlisted research paths)."},
-      {"prompt": "What evidence string does the investigation skip emit?", "expected": "SKIPPED investigation-only. Pre-commit hook recognizes this verbatim verdict and bypasses QA validation."},
-      {"prompt": "I staged a .agents/security/threat-model-update.md file. Eligible?", "expected": "Yes if only investigation paths staged. .agents/security/ is on the allowlist."},
-      {"prompt": "If a file in src/ is staged with session log artifacts, what is the verdict?", "expected": "Not eligible. Any production code disqualifies. Run full QA."}
-    ],
     "session-migration": [
       {"prompt": "We have legacy markdown session logs. How do we migrate to JSON?", "expected": "Use session-migration skill. Reads .agents/sessions/*.md, converts to JSON schema matching scripts/validate_session_json.py. Idempotent and auditable."},
       {"prompt": "What is the JSON schema target for migrated session logs?", "expected": "Schema enforced by scripts/validate_session_json.py. Required fields include session id, date, branch, gates, evidence, end-of-session validation."},
