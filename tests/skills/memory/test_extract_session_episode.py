@@ -656,6 +656,31 @@ class TestMergePreserving:
         )
         assert merged["lessons"] == ["curated lesson one", "brand new lesson"]
 
+    def test_preserve_drops_json_fragment_lessons(self):
+        # GAo-h: previously committed episodes carry JSON-fragment junk in
+        # lessons; --preserve must filter them out, not union them forward.
+        existing = self._rich()
+        existing["lessons"] = [
+            '"retrospectiveInvoked": {"level": "SHOULD", "Complete": false}',
+            '"Evidence": "Deferred; lessons captured in PR description"',
+            "Real prose lesson worth keeping",
+        ]
+        new = self._stub()
+        new["lessons"] = ["A fresh genuine lesson"]
+        merged = extract_session_episode.merge_preserving(
+            new, existing, session_id="2026-01-08-session-807"
+        )
+        assert merged["lessons"] == [
+            "Real prose lesson worth keeping",
+            "A fresh genuine lesson",
+        ]
+
+    def test_dedupe_lessons_keeps_prose_mentioning_evidence(self):
+        result = extract_session_episode._dedupe_lessons(
+            ["The extractor mis-classifies Evidence strings as outcomes"], []
+        )
+        assert result == ["The extractor mis-classifies Evidence strings as outcomes"]
+
     def test_idempotent_second_merge_is_noop(self):
         sid = "2026-01-08-session-807"
         once = extract_session_episode.merge_preserving(self._stub(), self._rich(), session_id=sid)

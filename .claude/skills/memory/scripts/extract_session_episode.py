@@ -670,11 +670,35 @@ def _deterministic_date(session_id: str, *timestamps: Any) -> str | None:
     return None
 
 
+_JSON_FRAGMENT_RE = re.compile(r'^\s*"[^"]+"\s*:')
+
+
+def _is_lesson_text(item: Any) -> bool:
+    """Reject serialized JSON key/value fragments mis-captured as lessons.
+
+    Older extraction runs stringified protocol-gate blobs ("retrospectiveInvoked":
+    {...}), evidence fields ("Evidence": "..."), and work-log entries ("action":
+    "...") into the lessons list. With --preserve those survive the union and keep
+    polluting reflexion memory. A genuine lesson is prose; a JSON fragment starts
+    with a quoted key followed by a colon. Refs PR #2170 (thread GAo-h).
+    """
+    text = str(item).strip()
+    if not text:
+        return False
+    return not _JSON_FRAGMENT_RE.match(text)
+
+
 def _dedupe_lessons(existing: list, new: list) -> list[str]:
-    """Union lessons by normalized text, existing first, append new uniques."""
+    """Union lessons by normalized text, existing first, append new uniques.
+
+    Drops JSON-fragment junk (see ``_is_lesson_text``) from both sides so a
+    --preserve regeneration cleans previously committed pollution.
+    """
     out: list[str] = []
     seen: set[str] = set()
     for item in list(existing) + list(new):
+        if not _is_lesson_text(item):
+            continue
         key = _norm(item)
         if not key or key in seen:
             continue
