@@ -354,7 +354,8 @@ _PASS_COUNT_RE = re.compile(r"\b(\d+)\s+(?:passed|passing)\b", re.IGNORECASE)
 _SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 _FILES_RE = re.compile(r"\b(\d+)\s+files?\b", re.IGNORECASE)
 _DECISION_RE = re.compile(
-    r"\b(chose|decided|selected|opted|design decision|approach|reclassif)",
+    r"\b(chose|decided|selected|opted|adopt|prioriti|"
+    r"design decision|approach|reclassif)",
     re.IGNORECASE,
 )
 

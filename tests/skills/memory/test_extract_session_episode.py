@@ -476,3 +476,15 @@ class TestArchiveGatedOnEvents:
         assert any(e.get("type") == "milestone" for e in bundle["events"])
         assert calls == [], "archive must not be consulted when primary has events"
         assert bundle["decisions"] == []
+
+
+class TestDecisionVerbs:
+    """Decision detection covers adopt/prioritize wording (#2036)."""
+
+    def test_adopt_is_a_decision(self):
+        data = _json_log([{"evidence": "adopt the streaming parser for large logs"}])
+        assert extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00")
+
+    def test_prioritize_is_a_decision(self):
+        data = _json_log([{"evidence": "prioritized correctness over throughput"}])
+        assert extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00")
