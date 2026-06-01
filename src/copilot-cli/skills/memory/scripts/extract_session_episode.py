@@ -411,8 +411,9 @@ def _entry_title(entry: Any) -> str:
 
     Work-log entries appear in several shapes across the log history: a bare
     string, ``{action, outcome}`` (older), ``{task, outcome, evidence}``
-    (newer), and ``{step, evidence}``. All are handled; a string entry is its
-    own title.
+    (newer), ``{step, summary}``, and ``{step, evidence}``. All are handled; a
+    string entry is its own title. A numeric ``step`` is an ordinal index, not
+    a label, so ``summary`` is preferred ahead of it.
     """
     if isinstance(entry, str):
         return entry.strip()
@@ -420,6 +421,7 @@ def _entry_title(entry: Any) -> str:
         return str(
             entry.get("task")
             or entry.get("action")
+            or entry.get("summary")
             or entry.get("step")
             or entry.get("outcome")
             or ""
@@ -434,7 +436,7 @@ def _entry_text(entry: Any) -> str:
     if isinstance(entry, dict):
         return " ".join(
             str(entry.get(k) or "")
-            for k in ("task", "action", "step", "outcome", "evidence", "result")
+            for k in ("task", "action", "summary", "step", "outcome", "evidence", "result")
         )
     return ""
 

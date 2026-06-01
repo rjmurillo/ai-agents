@@ -421,6 +421,22 @@ class TestStepWorklogEntries:
         text = extract_session_episode._entry_text({"step": "Built X", "evidence": "3 failed"})
         assert "Built X" in text and "3 failed" in text
 
+    def test_numeric_step_prefers_summary_for_title(self):
+        title = extract_session_episode._entry_title({"step": 1, "summary": "Authored REQ-005"})
+        assert title == "Authored REQ-005"
+
+    def test_numeric_step_summary_becomes_milestone(self):
+        data = _json_log([{"step": 1, "summary": "Authored REQ-005"}])
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        assert any(
+            e["type"] == "milestone" and e["content"] == "Authored REQ-005" for e in events
+        )
+        assert not any(e["type"] == "milestone" and e["content"] == "1" for e in events)
+
+    def test_summary_included_in_entry_text(self):
+        text = extract_session_episode._entry_text({"step": 2, "summary": "Ran 3 failed checks"})
+        assert "Ran 3 failed checks" in text
+
 
 class TestArchiveGateAndRoot:
     """Decisions must not block event recovery; repo root resolves via marker (#2036)."""
