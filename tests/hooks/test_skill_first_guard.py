@@ -95,6 +95,35 @@ class TestParseGhCommand:
         assert parse_gh_command("high pr view 1") is None
         assert parse_gh_command("/usr/bin/weigh pr list") is None
 
+    def test_wrapper_prefixes_with_options_still_parsed(self) -> None:
+        """gh behind transparent wrappers with their own option flags is caught.
+
+        Regression for the skills-first bypass: sudo -E gh, env -i gh, nohup gh,
+        and time gh must all resolve to the gh command word so the guard nudges.
+        """
+        for cmd in (
+            "sudo -E gh pr view 1",
+            "env -i gh issue list",
+            "env FOO=bar gh pr view 1",
+            "nohup gh pr view 1",
+            "time gh issue list",
+        ):
+            result = parse_gh_command(cmd)
+            assert result is not None, cmd
+
+    def test_quoted_env_assignment_with_spaces_still_parsed(self) -> None:
+        """A quoted env assignment that contains spaces must not misalign the
+        command-word lookup; the following gh is still detected."""
+        result = parse_gh_command("VAR='x y' gh pr view 1")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
+    def test_gh_exe_and_path_basename_parsed(self) -> None:
+        """gh.exe (Windows) and absolute-path gh resolve by basename."""
+        for cmd in ("gh.exe pr view 1", "/usr/local/bin/gh issue list", r"C:\bin\gh pr view 1"):
+            assert parse_gh_command(cmd) is not None, cmd
+
 
 class TestFindSkillScript:
     """Tests for skill script lookup."""

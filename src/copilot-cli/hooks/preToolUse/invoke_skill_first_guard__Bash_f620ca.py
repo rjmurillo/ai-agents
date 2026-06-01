@@ -200,9 +200,10 @@ def _original_main(stdin_bytes):
     # false positive (issue #2111).
     _SHELL_SEPARATORS = re.compile(r"&&|\|\||[;|\n]")
 
-    # Leading tokens that wrap another command. Skipping them keeps
-    # `env FOO=bar gh ...` and `sudo gh ...` resolving to the gh invocation.
-    _TRANSPARENT_PREFIXES = frozenset({"env", "sudo"})
+    # Leading tokens that wrap another command. Skipping them (and their option
+    # flags) keeps `env FOO=bar gh ...`, `sudo -E gh ...`, `nohup gh ...`, and
+    # `time gh ...` resolving to the gh invocation rather than the wrapper.
+    _TRANSPARENT_PREFIXES = frozenset({"env", "sudo", "nohup", "time"})
 
     # Stage 1: Exact mapping of gh operation/action to skill scripts
     SKILL_MAPPINGS: dict[str, dict[str, dict[str, str]]] = {
@@ -281,6 +282,37 @@ def _original_main(stdin_bytes):
     }
 
 
+    def _is_env_assignment(token: str) -> bool:
+        """True for a leading VAR=value environment assignment (not an option/path)."""
+        return "=" in token and not token.startswith(("-", "/"))
+
+
+    def _command_word_basename(token: str) -> str:
+        """Reduce a command token to its bare executable name.
+
+        Strips any path prefix across POSIX and Windows separators and a trailing
+        .exe so /usr/bin/gh, .\\gh, C:\\bin\\gh, and gh.exe all reduce to gh.
+        """
+        base = re.split(r"[\\/]", token)[-1]
+        if base.lower().endswith(".exe"):
+            base = base[: -len(".exe")]
+        return base
+
+
+    def _tokenize_segment(seg: str) -> list[str]:
+        """Split a shell segment into tokens, preserving path separators.
+
+        Uses POSIX-style grouping (quotes are honored and stripped, so a quoted
+        `VAR='x y'` assignment stays one token and a quoted argument never becomes
+        the command word) while disabling backslash escaping, so a Windows path
+        such as C:\\bin\\gh survives intact for basename extraction.
+        """
+        lex = shlex.shlex(seg, posix=True)
+        lex.whitespace_split = True
+        lex.escape = ""
+        return list(lex)
+
+
     def _gh_args_for_segment(segment: str) -> list[str] | None:
         """Return the tokens after `gh` if this segment's command word is gh.
 
@@ -293,32 +325,31 @@ def _original_main(stdin_bytes):
         if not seg:
             return None
         try:
-            tokens = shlex.split(seg)
+            tokens = _tokenize_segment(seg)
         except ValueError:
             # Unbalanced quotes: fall back to whitespace split. Still anchored on
             # the command word, so a quoted argument cannot trip the guard.
             tokens = seg.split()
         idx = 0
-        while idx < len(tokens):
+        n = len(tokens)
+        while idx < n:
             token = tokens[idx]
-            # Skip leading VAR=value environment assignments and transparent
-            # wrapper commands (env, sudo) so the real command word is reached.
-            if ("=" in token and not token.startswith(("-", "/"))) or token in _TRANSPARENT_PREFIXES:
+            if token in _TRANSPARENT_PREFIXES:
+                # Skip the wrapper, then any of its option flags and (for env)
+                # VAR=value assignments, so `sudo -E gh`, `env -i gh`, and
+                # `env FOO=bar gh` all reach the real command word.
+                idx += 1
+                while idx < n and (tokens[idx].startswith("-") or _is_env_assignment(tokens[idx])):
+                    idx += 1
+                continue
+            # Leading VAR=value environment assignments with no wrapper.
+            if _is_env_assignment(token):
                 idx += 1
                 continue
             break
-        if idx >= len(tokens):
+        if idx >= n:
             return None
-        # Identify the command word's basename from the raw whitespace-split token,
-        # not the shlex token: POSIX shlex consumes backslashes as escapes, which
-        # would mangle a Windows path (C:\bin\gh) before the basename is taken. The
-        # raw token preserves separators, so /usr/bin/gh, .\gh, and C:\bin\gh all
-        # reduce to gh. shlex tokens are still used for the returned args so quoted
-        # argument handling (issue #2111) is preserved.
-        raw_tokens = seg.split()
-        raw_word = raw_tokens[idx] if idx < len(raw_tokens) else tokens[idx]
-        command_word = re.split(r"[\\/]", raw_word)[-1]
-        if command_word != "gh":
+        if _command_word_basename(tokens[idx]) != "gh":
             return None
         return tokens[idx + 1:]
 
