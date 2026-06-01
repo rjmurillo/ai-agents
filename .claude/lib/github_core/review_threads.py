@@ -17,23 +17,37 @@ from .log_safety import safe_log_str
 logger = logging.getLogger(__name__)
 
 
+def _thread_is_unresolved(thread: dict) -> bool:
+    """Return True only when a thread is explicitly not resolved.
+
+    A missing ``isResolved`` key defaults to resolved (True), and an explicit
+    ``null`` (``None``) from the GraphQL payload is treated the same way, so a
+    malformed or absent value never silently counts as unresolved.
+    """
+    resolved = thread.get("isResolved", True)
+    if resolved is None:
+        resolved = True
+    return not resolved
+
+
 def count_unresolved_threads(thread_nodes: list[dict]) -> int:
     """Count threads whose ``isResolved`` is False.
 
     Single authoritative definition of "unresolved" (DRY): the merge-ready
     inline-page filter and the paginated-helper post-filter MUST share this
-    rule. If the rule changes (e.g., treating an outdated thread differently),
-    one edit propagates everywhere. The default for missing ``isResolved`` is
-    True so a malformed thread does not silently count as unresolved.
+    rule via ``_thread_is_unresolved``. If the rule changes (e.g., treating an
+    outdated thread differently), one edit propagates everywhere. A missing or
+    ``null`` ``isResolved`` defaults to resolved so a malformed thread does not
+    silently count as unresolved.
     """
-    return sum(1 for t in thread_nodes if not t.get("isResolved", True))
+    return sum(1 for t in thread_nodes if _thread_is_unresolved(t))
 
 
 def filter_unresolved_threads(thread_nodes: list[dict]) -> list[dict]:
     """Return only threads whose ``isResolved`` is False. See
     ``count_unresolved_threads`` for the canonical definition.
     """
-    return [t for t in thread_nodes if not t.get("isResolved", True)]
+    return [t for t in thread_nodes if _thread_is_unresolved(t)]
 
 
 def transform_review_thread(thread: dict, include_comments: bool = False) -> dict:
@@ -59,13 +73,13 @@ def transform_review_thread(thread: dict, include_comments: bool = False) -> dic
 
     result: dict = {
         "thread_id": thread.get("id"),
-        "is_resolved": thread.get("isResolved", False),
-        "is_outdated": thread.get("isOutdated", False),
+        "is_resolved": thread.get("isResolved") is True,
+        "is_outdated": thread.get("isOutdated") is True,
         "path": thread.get("path"),
         "line": thread.get("line"),
         "start_line": thread.get("startLine"),
         "diff_side": thread.get("diffSide"),
-        "comment_count": comments_data.get("totalCount", 0),
+        "comment_count": comments_data.get("totalCount") or 0,
         "first_comment_id": first.get("databaseId") if first else None,
         "first_comment_author": (
             first.get("author", {}).get("login") if first and first.get("author") else None
@@ -139,8 +153,12 @@ def _log_structural_missing(
     owner: str, repo: str, pull_request: int,
     pages_seen: int, aggregated_count: int, reason: str,
 ) -> None:
-    """Emit the structured ``op=review_threads_failed`` line for a missing
-    structural field. Centralizes the four greppable failure reasons.
+    """Emit the structured ``op=review_threads_failed`` line for a structural
+    problem in the GraphQL response. Centralizes the greppable failure reasons,
+    which currently include ``pr_not_found``, ``field_missing``,
+    ``nodes_missing``, ``structural_failure``, and ``cursor_missing``. Not every
+    reason denotes a strictly missing field; ``structural_failure`` covers a
+    malformed-but-present structure.
     """
     logger.warning(
         "op=review_threads_failed pr=%d owner=%s repo=%s "

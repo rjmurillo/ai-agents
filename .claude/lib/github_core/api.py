@@ -370,9 +370,9 @@ def _collect_prs_with_comments(
         if updated_at < since:
             return matched, True
 
-        threads = pr.get("reviewThreads", {}).get("nodes", [])
+        threads = (pr.get("reviewThreads") or {}).get("nodes") or []
         has_comments = any(
-            len(t.get("comments", {}).get("nodes", [])) > 0 for t in threads
+            len((t.get("comments") or {}).get("nodes") or []) > 0 for t in threads
         )
         if has_comments:
             matched.append(pr)
