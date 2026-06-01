@@ -603,8 +603,10 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
 
 
 def json_metrics(data: dict) -> dict:
-    ending = str(data.get("endingCommit") or "").strip()
-    commit_count = 1 if _SHA_RE.fullmatch(ending) else 0
+    # Count every distinct commit the session documents (ending commit plus any
+    # SHAs in work-log evidence), not just the ending commit. Excludes the
+    # starting commit (the base, not a commit the session produced).
+    commit_count = len(_collect_shas(data, include_starting=False))
     metrics = {
         "duration_minutes": 0,
         "tool_calls": 0,

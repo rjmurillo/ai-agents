@@ -462,6 +462,37 @@ class TestStepWorklogEntries:
         assert "Ran 3 failed checks" in text
 
 
+class TestJsonCommitMetric:
+    """`json_metrics["commits"]` counts every distinct documented commit (#2170)."""
+
+    def test_counts_ending_and_worklog_shas(self):
+        data = _json_log([
+            {"task": "Commit A", "outcome": "1234abc. Added parser"},
+            {"task": "Commit B", "outcome": "5678def0. Fixed lint"},
+        ])
+        # endingCommit bbbbbbb1234 + two work-log SHAs = 3 distinct.
+        assert extract_session_episode.json_metrics(data)["commits"] == 3
+
+    def test_dedupes_repeated_sha(self):
+        data = _json_log([
+            {"task": "Commit A", "outcome": "1234abc. Added parser"},
+            {"task": "Re-reference", "evidence": "see 1234abc for details"},
+        ])
+        # endingCommit + one distinct work-log SHA (1234abc counted once) = 2.
+        assert extract_session_episode.json_metrics(data)["commits"] == 2
+
+    def test_no_sha_yields_zero(self):
+        data = _json_log([{"task": "Investigated", "outcome": "no commit yet"}])
+        data["endingCommit"] = ""
+        assert extract_session_episode.json_metrics(data)["commits"] == 0
+
+    def test_excludes_starting_commit(self):
+        data = _json_log([{"task": "t", "outcome": "ok"}])
+        data["endingCommit"] = ""
+        # startingCommit "aaaaaaa" must not be counted.
+        assert extract_session_episode.json_metrics(data)["commits"] == 0
+
+
 class TestArchiveGateAndRoot:
     """Decisions must not block event recovery; repo root resolves via marker (#2036)."""
 
