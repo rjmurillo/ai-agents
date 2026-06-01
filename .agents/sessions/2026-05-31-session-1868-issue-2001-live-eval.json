@@ -1,0 +1,47 @@
+{
+  "session": {
+    "number": 1868,
+    "date": "2026-05-31",
+    "branch": "feat/2001-spec-generator-skill",
+    "startingCommit": "c9a99dc50",
+    "objective": "Issue 2001 live eval: run ADR-057 generation and held-out evals for spec-generator skill"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Serena re-asserted each turn" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "initial_instructions manual" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md auto-injected" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "skillScriptsListed": { "level": "MUST", "Complete": true, "Evidence": "eval-prompt-change.py, _anthropic_api.py; custom generation-eval driver" },
+      "usageMandatoryRead": { "level": "MUST", "Complete": true, "Evidence": "Studied harness judge_scenario before designing scenarios; user authorized live eval spend" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": "ADR-057 eval protocol; credential handling (gitignored .env copy, deleted after run, key never printed)" },
+      "memoriesLoaded": { "level": "MUST", "Complete": true, "Evidence": "Serena memory index loaded" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "feat/2001-spec-generator-skill (incl bot fix c9a99dc50)" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "Worktree /tmp/wt-2001" },
+      "gitStatusVerified": { "level": "SHOULD", "Complete": true, "Evidence": "git status verified" },
+      "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "c9a99dc50" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "Two live evals run (generation + harness) plus held-out generalization run; 4-lens adversarial adjudication; canonical eval-results record rewritten honestly" },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Eval findings captured in the eval-results record and spike artifacts" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "No authored markdown changed (JSON + py eval artifacts only)" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "Atomic commits, each <= 5 files" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "Generation eval agent 0/18 -> skill 13/18; harness before 20% -> after 100% (gate PASS); held-out shows skill cites canonical enums while agent confabulates; 20-case contract test 20 passed" },
+      "tasksUpdated": { "level": "SHOULD", "Complete": true, "Evidence": "Tracked in workLog" },
+      "retrospectiveInvoked": { "level": "SHOULD", "Complete": false, "Evidence": "" }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Run the live ADR-057 eval the user asked for on #2001 (spec-generator agent->skill), and adjudicate its trustworthiness.",
+      "outcome": "Ran two live before/after evals (model claude-sonnet-4, temp 0, 3 runs). Generation eval (independent validator grades emitted frontmatter): agent 0/18 valid, skill 13/18 (72%). Self-classification harness: before 20%, after 100%, gate PASS. A 4-lens adversarial workflow flagged the harness as partly circular (SKILL names the 4 reject cases), so I added a held-out generalization run (priority=high, status=pending, category=infra): both reject, but the agent rejects against hallucinated enum sets while the skill cites the canonical sets. Rewrote the canonical eval-results record to rank evidence (contract test + generation eval load-bearing; harness supporting/weaker), document the 72% residual (task related field with no design context), and list what the evidence does not prove.",
+      "evidence": "evals/spec-generator-spike/{generation,harness,heldout}-results.json; .agents/eval-results/2026-05-31-issue-2001-spec-generator-skill.json; pytest 20 passed"
+    }
+  ],
+  "endingCommit": "3b6f07678",
+  "nextSteps": [
+    "Comment on PR #2169 with the honest eval summary",
+    "Optionally add a held-out negative case to the committed contract test for regression coverage"
+  ]
+}

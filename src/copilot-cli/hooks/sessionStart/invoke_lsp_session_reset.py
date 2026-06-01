@@ -64,7 +64,6 @@ Exit Codes (Claude Hook Semantics, exempt from ADR-035):
 
 from __future__ import annotations
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -89,49 +88,33 @@ else:
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
-    sys.exit(2)
+    # Fail-open: SessionStart must never block session startup.
+    sys.exit(0)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
+from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.lsp_gate_state import reset_state  # noqa: E402
-
-
-def resolve_cwd(hook_input: object) -> str:
-    """Return the cwd to reset: the JSON ``cwd`` field if a string, else os.getcwd().
-
-    Mirrors the kit: ``let cwd = process.cwd(); if (data.cwd && typeof ===
-    'string') cwd = data.cwd``. Any non-dict input or non-string ``cwd`` falls
-    back to the process cwd.
-    """
-    if isinstance(hook_input, dict):
-        cwd = hook_input.get("cwd")
-        if isinstance(cwd, str) and cwd:
-            return cwd
-    return os.getcwd()
 
 
 def main() -> int:
     """Main hook entry point. Always returns 0 (SessionStart never blocks)."""
     try:
-        if os.environ.get("SKIP_LSP_GATE") == "true":
+        # Normalized check for consistent behavior with other ADR-062 guards.
+        if os.environ.get("SKIP_LSP_GATE", "").strip().lower() == "true":
             # Kill switch: bypass the gate entirely, leave state untouched.
             print("[SKIP] lsp-session-reset: SKIP_LSP_GATE=true", file=sys.stderr)
             return 0
 
-        cwd = os.getcwd()
-        if not sys.stdin.isatty():
-            raw = sys.stdin.read()
-            if raw.strip():
-                try:
-                    cwd = resolve_cwd(json.loads(raw))
-                except (ValueError, TypeError):
-                    # Malformed JSON: reset the process cwd (kit's silent path).
-                    cwd = os.getcwd()
+        # Use get_project_directory() to match the key used by the usage tracker
+        # and read guard. Using a different key (e.g. os.getcwd() or JSON cwd)
+        # would reset a different state file than the one guards actually use.
+        project_dir = get_project_directory()
 
-        ok = reset_state(cwd)
+        ok = reset_state(project_dir)
         mode = os.environ.get("LSP_GATE_MODE", "block")
         print(
-            f"lsp-session-reset: reset={ok} mode={mode} key=sha256(cwd)[:16]",
+            f"lsp-session-reset: reset={ok} mode={mode} key=sha256(project_dir)[:16]",
             file=sys.stderr,
         )
         return 0

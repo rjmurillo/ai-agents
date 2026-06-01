@@ -13,6 +13,7 @@ import pytest
 from scripts.ai_review_common import (
     assert_environment_variables,
     convert_to_json_escaped,
+    extract_verdict,
     format_collapsible_section,
     format_markdown_table_row,
     format_verdict_alert,
@@ -1112,6 +1113,13 @@ class TestGetLabelsFromAIOutput:
     def test_empty_array(self):
         assert get_labels_from_ai_output('{"labels":[]}') == []
 
+    def test_whitespace_only_label_in_array(self):
+        # REQ-008-07: a label that is only whitespace inside a non-empty array
+        # is skipped, not emitted. Exercises the per-label whitespace guard
+        # (verdict.py:257-258) that the empty-array case at line 251 does not
+        # reach, since the array_content here ("  ") is non-empty.
+        assert get_labels_from_ai_output('{"labels":["  "]}') == []
+
     def test_missing_key(self):
         assert get_labels_from_ai_output('{"milestone":"v1"}') == []
 
@@ -1222,3 +1230,51 @@ class TestJSONParsingIntegration:
         for inp in malicious:
             get_labels_from_ai_output(inp)
             get_milestone_from_ai_output(inp)
+
+
+# ---------------------------------------------------------------------------
+# Regression: security review output truncation (#2006)
+# ---------------------------------------------------------------------------
+
+# Captured from PR #2004's Security Review (run 25642461341): four PASS findings,
+# then output stopped mid-sentence during the 4th finding with NO verdict line.
+# With the verdict at the END, truncation drops it and the parser cannot recover
+# the verdict, so the CI action falls through to NEEDS_REVIEW and blocks the PR.
+_TRUNCATED_SECURITY_OUTPUT = (
+    "#### 1. Path Traversal Prevention - [PASS]\n"
+    "realpath() before startswith() check (CWE-22)\n\n"
+    "#### 2. Path Containment - [PASS]\n"
+    "validates path is within repo root\n\n"
+    "#### 3. Subprocess Security - [PASS]\n"
+    "All subprocess calls use list-based argv and explicit timeout=\n\n"
+    "#### 4. Exception Handling - [PASS]\n"
+    "**Location**: complete_session_log.py:383-399\n"
+    "The broad `except Exception`"
+)
+
+
+class TestSecurityTruncationRegression:
+    """#2006: the security prompt now emits the VERDICT on the first line, so a
+    review truncated by the output budget is still parseable."""
+
+    def test_trailing_verdict_lost_to_truncation_is_unparseable(self):
+        # Old shape: the verdict was a final line, so truncation leaves no
+        # ``Verdict:`` line. extract_verdict returns UNKNOWN, mirroring the CI
+        # action's fall-through to NEEDS_REVIEW (both mean "no verdict found").
+        assert extract_verdict(_TRUNCATED_SECURITY_OUTPUT) == "UNKNOWN"
+
+    def test_leading_verdict_survives_truncation(self):
+        # New shape (#2006): VERDICT first. Even when the findings below are cut
+        # off, the verdict is recovered by both verdict parsers.
+        leading = (
+            "VERDICT: PASS\nMESSAGE: No security issues found\n\n"
+            + _TRUNCATED_SECURITY_OUTPUT
+        )
+        assert extract_verdict(leading) == "PASS"
+        assert get_verdict(leading) == "PASS"
+
+    def test_single_leading_verdict_is_canonical(self):
+        # One leading verdict means the last-match-wins parsers return it
+        # unambiguously; there is no trailing duplicate to be truncated away.
+        leading = "VERDICT: CRITICAL_FAIL\nMESSAGE: SQL injection at db.py:12\n\nfindings"
+        assert extract_verdict(leading) == "CRITICAL_FAIL"

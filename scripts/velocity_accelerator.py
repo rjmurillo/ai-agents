@@ -62,11 +62,65 @@ class Opportunity:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
-# Patterns to detect in changed files (TODO, FIXME, HACK, XXX, FOLLOW-UP)
-ACTION_COMMENT_PATTERN = re.compile(
-    r"^\+.*\b(TODO|FIXME|HACK|XXX|FOLLOW[- ]?UP)\b[:\s]*(.*)",
-    re.IGNORECASE | re.MULTILINE,
+# Action keywords that mark follow-up work in a code comment.
+_ACTION_KEYWORD_PATTERN = re.compile(
+    r"\b(TODO|FIXME|HACK|XXX|FOLLOW[- ]?UP)\b[:\s-]*(.*)",
+    re.IGNORECASE,
 )
+
+# Comment leaders for the languages this repo ships. A keyword counts as an
+# action comment only when it starts the comment text or follows one of these,
+# so English prose that merely contains "follow-up" or "todo" mid-sentence is
+# not matched (issue #1852).
+# Recognized comment-leader prefixes. A leading run is stripped so the keyword
+# is reached after "#", "##", "//", "///", "/*", "/**", "<!--", "--"
+# (SQL/Haskell/Ada), ";" (Lisp/asm), or "!" (Fortran). A single "-" is NOT a
+# comment leader: it is a YAML/markdown list marker, so prose bullets such as
+# "- Follow-up: ..." are not misread as comments (issue #1852).
+_COMMENT_LEADER_RE = re.compile(r"^(?:<!--|--|//|/\*|[#/*;!]+)+")
+
+# Prose-oriented file types are skipped entirely: their keyword mentions are
+# almost always narrative, not action comments (issue #1852).
+_NON_CODE_SUFFIXES = frozenset({".md", ".markdown", ".txt", ".rst", ".adoc"})
+
+
+def _match_action_comment(added_content: str) -> tuple[str, str] | None:
+    """Return (tag, comment) when an added line is an action comment.
+
+    ``added_content`` is the diff line with its leading '+' removed. A keyword
+    matches only at the start of the (optionally comment-led) content, or
+    immediately after an inline comment leader, so prose mentioning the keyword
+    mid-sentence is ignored.
+    """
+    stripped = added_content.lstrip()
+    # Strip a leading run of comment-leader characters so the keyword is
+    # reached no matter how many leaders precede it: "#", "##", "//", "///",
+    # "/*", "/**", "<!--", "--", ";". Triple-quote docstring leaders are
+    # handled explicitly because they are quote characters, not punctuation.
+    for quote in ('"""', "'''"):
+        if stripped.startswith(quote):
+            stripped = stripped[len(quote):].lstrip()
+            break
+    else:
+        stripped = _COMMENT_LEADER_RE.sub("", stripped).lstrip()
+    match = _ACTION_KEYWORD_PATTERN.match(stripped)
+    if match:
+        return match.group(1).upper(), match.group(2).strip()
+    # Inline trailing comment, e.g. "value = compute()  # TODO: revisit". Scan
+    # every occurrence of each leader, not just the first, so a leader inside a
+    # string or URL (e.g. "https://x/#h") does not mask a later real comment.
+    for leader in ("#", "//", "<!--"):
+        start = 0
+        while True:
+            idx = added_content.find(leader, start)
+            if idx == -1:
+                break
+            tail = added_content[idx + len(leader):].lstrip()
+            match = _ACTION_KEYWORD_PATTERN.match(tail)
+            if match:
+                return match.group(1).upper(), match.group(2).strip()
+            start = idx + len(leader)
+    return None
 
 COMPLEXITY_KEYWORDS = {
     "high": [
@@ -142,10 +196,16 @@ def extract_todos_from_diff(diff: str, pr_number: int) -> list[Opportunity]:
             current_file = parts[1] if len(parts) > 1 else ""
             continue
 
-        match = ACTION_COMMENT_PATTERN.match(line)
-        if match:
-            tag = match.group(1).upper()
-            comment = match.group(2).strip()
+        # Only added lines; skip the +++ file header.
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        # Skip prose-oriented files: their keyword mentions are narrative.
+        if current_file and Path(current_file).suffix.lower() in _NON_CODE_SUFFIXES:
+            continue
+
+        matched = _match_action_comment(line[1:])
+        if matched:
+            tag, comment = matched
             opp_type = (
                 OpportunityType.FIXME_FOLLOWUP
                 if tag == "FIXME"

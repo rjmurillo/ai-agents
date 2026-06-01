@@ -1,40 +1,64 @@
 {
   "id": "episode-2026-05-26-session-1838",
   "session": "2026-05-26-session-1838",
-  "timestamp": "2026-05-26T03:58:03.203026+00:00",
+  "timestamp": "2026-05-26T00:00:00+00:00",
   "outcome": "success",
-  "task": "",
+  "task": "Phase 3 prompt discipline audit cycle: rewrite 10 priority targets per PR #2076 audit, one PR per target, rubric rescore + pre_pr.py + generate round-trip eval each cycle",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"Evidence\": \"markdownlint-cli2: 0 errors on templates/agents/orchestrator.shared.md and 2 generated files\"",
+      "timestamp": "2026-05-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fetched PR #2076 via github skill",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"Evidence\": \"pre_pr.py: 2 pre-existing failures (merge-resolver drift, lint on other files); 0 new failures from this change; lint 0 errors on changed files\"",
+      "timestamp": "2026-05-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read full audit doc from origin/main",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"evidence\": \"mcp__serena__replace_content: inserted before Core Behavior; think-before-routing directive with thinking trigger and failure-mode guidance\"",
+      "timestamp": "2026-05-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read rubric source from corpus",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-26T03:58:03.200586+00:00",
-      "type": "observation",
-      "content": "\"evidence\": \"2 pre-existing failures (merge-resolver drift 20.9%, lint on non-changed files); 0 new failures; lint 0 errors on changed files\"",
+      "timestamp": "2026-05-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branched feat/2003-phase3-audit-plan from origin/main",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated audit doc Phase 3 decision points + fixed 3 stale pwsh references",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-26T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrote Serena memory: prompting/phase3-prompt-discipline-audit-status",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-26T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e33d08f4",
       "caused_by": [],
       "leads_to": []
     }
@@ -45,7 +69,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 2,
-    "files_changed": 0
+    "files_changed": 73
   },
   "lessons": []
 }

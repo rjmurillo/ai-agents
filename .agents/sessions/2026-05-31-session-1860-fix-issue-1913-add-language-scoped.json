@@ -1,0 +1,127 @@
+{
+  "session": {
+    "number": 1860,
+    "date": "2026-05-31",
+    "branch": "feat/1913-language-rules",
+    "startingCommit": "389c1c6a3",
+    "objective": "Fix issue 1913: add language-scoped rules for C#, Python, PowerShell with generated Copilot instruction mirrors"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions activated project ai-agents; Serena re-asserted each turn"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual via initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected at session start and reviewed (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github and session-init skill scripts invoked; generate_rules.py used for instruction mirrors"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first and Serena-first routing followed; PowerShell anti-patterns drawn from repo Serena memories"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/*.md loaded via CLAUDE.md imports; universal.md (no em-dashes) and templates.md (regenerate after edit) applied; buy-vs-build skipped (passive-context docs, not a new module/scanner/validator)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory index loaded; powershell-* pitfall memories folded into the PowerShell rule anti-patterns"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1913-language-rules"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree at /tmp/wt-1913 on feat/1913-language-rules off origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; only the 3 canonical rules and their 6 generated mirrors changed"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "389c1c6a3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Start MUST gates complete; work landed across 3 atomic commits; 29 generator tests pass; all 9 files lint clean; install-parity OK"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memories written earlier this session (decision-merge-ready-blocked-vs-behind, workflow/worktree-session-init-writes-to-main); PowerShell pitfalls consumed from existing memories"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on all 9 new files reports 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work head ff30e6997; session log committed last"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "29 generator tests pass; install-parity and plugin-version-bump pass; only pre-existing markdown, agent-drift, and git-hooks environment failures remain, outside this diff"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in workLog and nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #1913: no language-tailored guardrails for the C#/Python/PowerShell working set",
+      "outcome": "Authored 3 lean canonical rules under .claude/rules/ (each <8KB, applyTo-scoped, 5+ anti-patterns, official-doc citations) and generated their Copilot instruction mirrors via generate_rules.py. AC8 single-source-of-truth satisfied by the existing generator (no symlinks).",
+      "evidence": "csharp 4858B / python 3947B / powershell 4330B; 29 test_generate_rules tests pass; 9/9 files lint clean; install-parity OK"
+    }
+  ],
+  "endingCommit": "ff30e6997c0427ad7fc238e01caea3caac770ea6",
+  "nextSteps": [
+    "Open PR with Fixes #1913",
+    "Optional follow-ups (issue out-of-scope): TypeScript/Go/Rust rules, framework-specific rules, the remaining open P1 capability work (vendor-portability cluster, agent->skill conversions, net-new agents)"
+  ]
+}

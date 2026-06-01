@@ -235,7 +235,8 @@ def _original_main(stdin_bytes):
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
         print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
-        sys.exit(2)
+        # Fail-open: a navigation guard must never wedge a turn on bootstrap failure.
+        sys.exit(0)
     if _lib_dir not in sys.path:
         sys.path.insert(0, _lib_dir)
 
@@ -246,6 +247,8 @@ def _original_main(stdin_bytes):
         WARN_AT,
         detect_providers,
         get_project_directory,
+        is_gated_target,
+        normalize_path,
         read_state,
     )
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
@@ -258,48 +261,6 @@ def _original_main(stdin_bytes):
     def _note(message: str) -> None:
         """Emit a structured one-line stderr note (no secrets, no payloads)."""
         print(f"lsp-read-guard: {message}", file=sys.stderr)
-
-
-    def is_gated_target(file_path: str, project_dir: str) -> bool:
-        """True if ``file_path`` is an in-repo, non-dotfile, non-scratch target.
-
-        ADR-062 Section 7 always-bypass set: out-of-repo paths, dotfiles, and
-        TMPDIR/scratch are never gated. Paths are resolved before comparison so
-        ``..`` traversal cannot escape the bypass (CWE-22 safe). A path that cannot
-        be resolved or compared degrades to NOT gated (fail-open: allow).
-        """
-        if not file_path:
-            return False
-        try:
-            resolved = Path(file_path).resolve()
-            root = Path(project_dir).resolve()
-        except (OSError, ValueError):
-            return False
-
-        # Out-of-repo targets are never gated.
-        if root not in resolved.parents and resolved != root:
-            return False
-
-        # Scratch under TMPDIR is never gated (mktemp staging).
-        tmpdir = os.environ.get("TMPDIR", "").strip()
-        if tmpdir:
-            try:
-                tmp_root = Path(tmpdir).resolve()
-                if tmp_root == resolved or tmp_root in resolved.parents:
-                    return False
-            except (OSError, ValueError):
-                return False
-
-        # Dotfiles and dot-directory members (.serena/, .git/, .agents/, ...) are
-        # not gated: they are config/state, not navigable source under this gate's
-        # intent, and the kit's path-bypass list covered the same shape.
-        try:
-            relative = resolved.relative_to(root)
-        except ValueError:
-            return False
-        if any(part.startswith(".") for part in relative.parts):
-            return False
-        return True
 
 
     def build_warmup_block(file_path: str, providers: list[str]) -> str:
@@ -387,7 +348,9 @@ def _original_main(stdin_bytes):
         state = read_state(project_dir)
         read_files = state["read_files"]
         nav_count = state["nav_count"]
-        already_read = file_path in read_files
+        # Normalize path for consistent dedup with the tracker's normalized storage.
+        normalized_path = normalize_path(file_path, project_dir)
+        already_read = normalized_path in read_files
         next_read_num = len(read_files) if already_read else len(read_files) + 1
 
         # Surgical tier: nav threshold met, or this exact file already read.

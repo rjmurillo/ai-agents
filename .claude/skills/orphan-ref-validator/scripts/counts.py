@@ -204,3 +204,20 @@ def _count_with_suffix(
 def is_manifest_file(path: Path) -> bool:
     """Return True if a path's basename matches the plugin/marketplace shapes."""
     return path.name in {"plugin.json", "marketplace.json"}
+
+
+def is_marketplace_manifest(path: Path) -> bool:
+    """Return True for a ``marketplace.json`` catalog manifest.
+
+    Count enforcement (``--enforce-counts``) is single-plugin scoped:
+    ``enumerate_count`` only enumerates the ``.claude/`` tree, but a
+    ``marketplace.json`` catalog is multi-plugin (``.claude-plugin/marketplace.json``
+    holds both ``claude-agents`` and ``project-toolkit``) or describes a
+    different tree (``.github/plugin/marketplace.json`` describes the
+    ``src/copilot-cli`` Copilot tree). Comparing those per-plugin claims against
+    the ``.claude/*`` enumeration yields false-positive ``count_claim`` findings,
+    so the caller skips enforcement for these files. Multi-plugin marketplace
+    coverage stays delegated to the canonical
+    ``build/scripts/validate_marketplace_counts.py``.
+    """
+    return path.name == "marketplace.json"

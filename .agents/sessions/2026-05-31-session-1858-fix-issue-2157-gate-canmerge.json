@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1858,
+    "date": "2026-05-31",
+    "branch": "fix/merge-ready-mergestate-gate",
+    "startingCommit": "e6fa83a93",
+    "objective": "Fix issue 2157: gate CanMerge on mergeStateStatus BEHIND in test_pr_merge_ready, keep BLOCKED non-blocking"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions activated project ai-agents; symbolic tools used earlier this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual via initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected at session start and reviewed (read-only per ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github and session-init skill scripts invoked (new_issue.py, post_issue_comment.py, new_session_log.py, build_all.py)"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first and Serena-first routing followed; raw gh blocked by guard and replaced with skill scripts"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/*.md loaded via CLAUDE.md imports; AGENTS.md boundaries applied (atomic commits, plugin bump, worktree isolation)"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory index loaded; wrote decision-merge-ready-blocked-vs-behind"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/merge-ready-mergestate-gate"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Isolated worktree at /tmp/wt-mr on fix/merge-ready-mergestate-gate off origin/main"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; only the 3 intended source files plus plugin manifests changed"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e6fa83a93"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Start MUST gates complete; work landed across 2 atomic commits; 29 unit tests pass"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote Serena memory decision-merge-ready-blocked-vs-behind"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint covered by pre_pr.py; this PR changes zero markdown files"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work head a7880e0e2; session log committed last"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "29 unit tests pass; plugin-version-bump passes for both manifests (exact versions in the plugin.json diff); only pre-existing markdown/agent-drift/git-hooks environment failures remain, outside this diff"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked in workLog and nextSteps"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #2157: test_pr_merge_ready CanMerge ignored mergeStateStatus, so a branch BEHIND base passed as ready (residual of closed #2048)",
+      "outcome": "Added a BEHIND gate to _evaluate_pr_state; BLOCKED stays non-blocking (auto-merge-on-approval) and is surfaced via MergeStateStatus. Filed issue #2157, logged the BLOCKED-vs-BEHIND decision to Serena.",
+      "evidence": "29 unit tests pass (2 new: BEHIND blocks, BLOCKED stays ready); build_all regenerates the copilot-cli copy; plugin manifests bumped"
+    }
+  ],
+  "endingCommit": "a7880e0e22bbf3f267d5950e7b6b4d747ffb0182",
+  "nextSteps": [
+    "Open PR with Fixes #2157",
+    "Proceed to issue #2013 (extract_session_episode defaults/overwrite) per user-selected batch"
+  ]
+}

@@ -267,19 +267,31 @@ def _original_main(stdin_bytes):
         """Extract candidate file targets from a grep command.
 
         Returns dotted file tokens and ``--include`` glob extensions found in the
-        command, in first-seen order with no duplicates. The result drives the
-        capability + availability check. An empty list means the command names no
-        file target (for example a piped ``echo x | grep Foo``), which the guard
-        treats as fail-open (allow).
+        grep segment (after any pipe), in first-seen order with no duplicates. The
+        result drives the capability + availability check. An empty list means the
+        command names no file target (for example a piped ``echo x | grep Foo``),
+        which the guard treats as fail-open (allow).
+
+        For piped commands like ``python script.py | grep Symbol``, only the segment
+        containing the grep command is scanned to avoid matching files that are
+        arguments to commands before the pipe (which are not grep's targets).
         """
+        grep_segment = command
+        if "|" in command:
+            segments = command.split("|")
+            for seg in segments:
+                if is_grep_search(seg):
+                    grep_segment = seg
+                    break
+
         targets: list[str] = []
         seen: set[str] = set()
-        for match in _FILE_TOKEN.finditer(command):
+        for match in _FILE_TOKEN.finditer(grep_segment):
             token = match.group(0)
             if token not in seen:
                 seen.add(token)
                 targets.append(token)
-        for match in _INCLUDE_GLOB.finditer(command):
+        for match in _INCLUDE_GLOB.finditer(grep_segment):
             token = f"x{match.group(1)}"
             if token not in seen:
                 seen.add(token)

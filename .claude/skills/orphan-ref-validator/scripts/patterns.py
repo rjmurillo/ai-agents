@@ -18,8 +18,27 @@ import re
 from typing import Iterable
 
 SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
+# Backticked repo-relative script references under the standard prefixes.
+# PR2 (issue #1994) broadens the suffix from ``.py`` only to ``.py`` or
+# ``.ps1``: PowerShell helpers under these prefixes are referenced in specs
+# (e.g. backticked `scripts/Validate-SessionEnd.ps1`) and went undetected.
+# This regex is NOT under the canonical-source-mirror contract; only
+# COUNT_CLAIM_RE / COUNT_LABEL_MAP mirror the canonical validator.
 SCRIPT_REF_RE = re.compile(
-    r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py)`"
+    r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
+    re.IGNORECASE,
+)
+# Skill-script references under .claude/skills/ or the copilot mirror, in
+# either backticked or bare `python3 .../foo.py` command form. The bare form is
+# intentional: issue #1987's failure was an unbackticked invocation of
+# .claude/skills/github/scripts/pr/get_unresolved_threads.py (the real script is
+# get_unresolved_review_threads.py). SCRIPT_REF_RE requires backticks and only
+# the build/scripts|scripts/validation|scripts prefixes, so it misses this
+# class. Existence is checked against the working tree; valid refs never flag.
+SKILL_SCRIPT_REF_RE = re.compile(
+    r"(?<![\w/])(?:\.claude|src/copilot-cli)/skills/[a-zA-Z0-9_-]+"
+    r"/scripts/[a-zA-Z0-9_/-]+\.py(?!\w)",
+    re.IGNORECASE,
 )
 
 # Mirrors COUNT_PATTERN and LABEL_MAP from
@@ -86,6 +105,22 @@ def extract_script_refs(text: str) -> Iterable[tuple[int, str]]:
             continue
         for match in SCRIPT_REF_RE.finditer(line):
             yield lineno, match.group(1)
+
+
+def extract_skill_script_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield ``(lineno, path)`` for skill-script references (.claude/skills or
+    the copilot mirror), backticked or bare. De-duplicated per line so a path
+    that appears backticked and inline is reported once."""
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if line_has_ignore_directive(line):
+            continue
+        seen: set[str] = set()
+        for match in SKILL_SCRIPT_REF_RE.finditer(line):
+            path = match.group(0)
+            if path in seen:
+                continue
+            seen.add(path)
+            yield lineno, path
 
 
 def extract_count_claims(text: str) -> Iterable[tuple[int, int, str]]:

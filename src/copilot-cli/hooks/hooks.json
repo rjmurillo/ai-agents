@@ -42,6 +42,13 @@
         "powershell": "py -3 -u \"./hooks/postToolUse/invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py\"",
         "timeoutSec": 5,
         "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/postToolUse/invoke_lsp_read_tracker__Read_852b43.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/postToolUse/invoke_lsp_read_tracker__Read_852b43.py\"",
+        "timeoutSec": 5,
+        "type": "command"
       }
     ],
     "preToolUse": [
@@ -137,6 +144,13 @@
         "type": "command"
       },
       {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_topical_memory_injection__Write_Edit_c39898.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_topical_memory_injection__Write_Edit_c39898.py\"",
+        "timeoutSec": 2,
+        "type": "command"
+      },
+      {
         "bash": "python3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_branch_context_guard__Bash_git_push_0e93bf.py\"",
@@ -162,13 +176,6 @@
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 90,
-        "type": "command"
-      },
-      {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_manifest_count_guard__Bash_git_push_0e93bf.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_manifest_count_guard__Bash_git_push_0e93bf.py\"",
-        "timeoutSec": 30,
         "type": "command"
       },
       {
@@ -238,6 +245,13 @@
         "bash": "python3 -u \"./hooks/preToolUse/invoke_lsp_pre_delegation_guard__Agent_5ce2e6.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_lsp_pre_delegation_guard__Agent_5ce2e6.py\"",
+        "timeoutSec": 5,
+        "type": "command"
+      },
+      {
+        "bash": "python3 -u \"./hooks/preToolUse/invoke_lsp_pre_delegation_guard__Task_7bb0dd.py\"",
+        "cwd": ".",
+        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_lsp_pre_delegation_guard__Task_7bb0dd.py\"",
         "timeoutSec": 5,
         "type": "command"
       }

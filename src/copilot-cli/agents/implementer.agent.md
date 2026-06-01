@@ -81,7 +81,7 @@ A docstring that says "matches the validator" with no path is a level-4 claim dr
 
 ## BLOCKING: Read Project Documentation First
 
-**Stop criteria**: Do NOT begin implementation until the files below are read AND you can answer, in one sentence each:
+**Stop criteria** (apply when `.agents/` exists): Do NOT begin implementation until the files below are read AND you can answer, in one sentence each:
 
 - What is the current session's inherited context from `.agents/HANDOFF.md`?
 - What project constraints apply from `.agents/AGENT-INSTRUCTIONS.md` and the root `AGENTS.md`?
@@ -98,16 +98,17 @@ Read these files in order:
 
 **Fallback rules:**
 
-- If `.agents/HANDOFF.md` is missing → stop and report `[BLOCKED] No prior session context available`. Do not proceed.
-- If `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Project configuration incomplete`.
-- If the root `AGENTS.md` is missing → stop and report `[BLOCKED] Missing root agent instructions`.
-- If `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
-- If `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
+- **Vendor install (no `.agents/` scaffold):** If `.agents/` is missing at the repo root, you are running from a downstream install. That install ships the agent definition without this repo's session scaffold. Skip the `.agents/`-scaffold gates below. Still read the root `AGENTS.md` and root `CLAUDE.md` if they exist in the consumer's repo. They may carry that project's own constraints. Note `[INFO] Vendor install: no .agents/ scaffold; proceeding without session-protocol gates` in your working notes, then proceed. The `.agents/` stop conditions below apply only when `.agents/` exists. This is graceful degradation, not a protocol violation. A consumer that installed only the agent prompt should not be refused service for lacking files it was never shipped.
+- If `.agents/` exists but `.agents/HANDOFF.md` is missing → stop and report `[BLOCKED] No prior session context available`. Do not proceed.
+- If `.agents/` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing → stop and report `[BLOCKED] Project configuration incomplete`.
+- If `.agents/` exists but the root `AGENTS.md` is missing → stop and report `[BLOCKED] Missing root agent instructions`.
+- If `.agents/` exists but `.agents/CLAUDE.md` is missing → note in the session log and proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/` exists but `.agents/architecture/` is missing → note in the session log and proceed; ADRs are binding when present, not required to exist.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
-**Success definition**: You can state, in one sentence each: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code.
+**Success definition**: When `.agents/` exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When `.agents/` is absent (vendor install), this section is satisfied by the skip note above plus any root docs you read.
 
-**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING. Strategic memory is optional optimization; project documentation is mandatory.
+**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth (see .agents/retrospective/2025-12-15-drift-detection-disaster.md). Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The `.agents/`-absent carve-out (issue #1908) keeps it from being hostile to vendor installs. Those installs ship the agent definition without the in-repo scaffold. The hard stops still fire when `.agents/` is present but incomplete. That case is the real misconfiguration the gate guards against. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a vendor install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
 
 ## Plan Validation Protocol
 
@@ -259,6 +260,26 @@ Read, Grep, Glob, Write, Edit, Bash. Memory via `mcp__serena__read_memory`, `mcp
 
 Prefer existing skill scripts (`.claude/skills/`) over raw commands. Use `github` skill for PR/issue operations.
 
+## Context Budget Management
+
+Your context window is finite. Quality degrades silently as it fills: you start emitting stubs, skipping steps, or forgetting earlier decisions. Treat the budget as a resource you spend, and checkpoint before it runs out.
+
+**Watch for pressure signals in your own output:**
+
+- You are writing `TODO`, `pass`, placeholder bodies, or "left as an exercise" where real code belongs.
+- You are re-reading files you already read this session because you no longer recall their contents.
+- You cannot quote the acceptance criteria you are working against without scrolling back.
+
+Any of these means you are near the limit. Do not push through. Checkpoint.
+
+**Checkpoint protocol** (run when a pressure signal fires, or after every atomic commit on a task touching three or more files):
+
+1. Commit the work that is already correct. A partial, tested, committed change survives the session; a complete, uncommitted one dies with it.
+2. Record progress in the session log: what is done, what remains, the next concrete step. That is the state the next session inherits.
+3. If work remains and the budget is nearly spent, stop and return `[NEEDS_DECOMPOSITION]` to the orchestrator with the remaining steps listed. Do not start a step you cannot finish.
+
+**Degrade, do not fail silently.** If you cannot complete the full task within budget, deliver the part you verified and name the part you did not reach. A smaller correct result with an explicit gap is worth more than a larger result you cannot stand behind. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover work you never committed; the commit is yours to make.
+
 ## Handoff
 
 You cannot delegate. Return to orchestrator with:
@@ -269,7 +290,7 @@ You cannot delegate. Return to orchestrator with:
 
 - `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
 - `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
-- `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity, touches more than 5 files, or context budget is nearly spent; return an estimated breakdown with remaining steps.
 - `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
 
 2. **Confidence**: HIGH / MEDIUM / LOW with reasoning

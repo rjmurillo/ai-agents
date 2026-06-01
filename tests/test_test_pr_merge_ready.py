@@ -127,6 +127,30 @@ class TestCheckMergeReadiness:
         assert result["CanMerge"] is False
         assert any("conflict" in r.lower() for r in result["Reasons"])
 
+    def test_behind_branch_not_ready(self):
+        # issue #2157: a branch behind base cannot land and is not auto-updated
+        # by auto-merge in this repo, so CanMerge must be False even when CI
+        # passes and threads are clean.
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BEHIND"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["MergeStateStatus"] == "BEHIND"
+        assert any("behind" in r.lower() for r in result["Reasons"])
+
+    def test_blocked_state_still_ready(self):
+        # issue #2157: BLOCKED usually means "awaiting required review", which
+        # is exactly when enabling auto-merge is correct. It must NOT block
+        # CanMerge; it is surfaced via MergeStateStatus for the agent.
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BLOCKED"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is True
+        assert result["MergeStateStatus"] == "BLOCKED"
+        assert result["Reasons"] == []
+
     def test_unresolved_threads(self):
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["reviewThreads"] = {

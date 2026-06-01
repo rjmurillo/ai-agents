@@ -255,7 +255,8 @@ def _original_main(stdin_bytes):
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
         print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
-        sys.exit(2)
+        # Fail-open: a navigation guard must never wedge a turn on bootstrap failure.
+        sys.exit(0)
     if _lib_dir not in sys.path:
         sys.path.insert(0, _lib_dir)
 
@@ -372,7 +373,8 @@ def _original_main(stdin_bytes):
     def main() -> int:
         """Main hook entry point. Returns exit code (0 = allow, 2 = block)."""
         # Kill switch (ADR-062 Section 6); mirrors SKIP_QA_GATE/SKIP_ADR_GATE.
-        if os.environ.get("SKIP_LSP_GATE") == "true":
+        # Normalized check for consistent behavior with other ADR-062 guards.
+        if os.environ.get("SKIP_LSP_GATE", "").strip().lower() == "true":
             return 0
 
         if skip_if_consumer_repo("lsp-pre-delegation-guard"):

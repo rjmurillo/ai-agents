@@ -16,6 +16,16 @@ You are reviewing a pull request for architectural design and system structure c
 - For dependency update PRs: evaluate the diff for internal consistency, not external ecosystem assumptions. If CI tests pass, the tooling works.
 - Base findings on what the code shows, not on recalled release schedules.
 
+## Reference Material
+
+Ground architectural findings in the project's design artifacts. All paths are under `.claude/` and ship with vendored installs:
+
+- `chestertons-fence` skill: invoke when the diff deletes or moves load-bearing code, a constraint, or an existing pattern. It checks that the change understands why the structure existed before removing it.
+- `decision-critic` skill: invoke when an ADR or a DESIGN-REVIEW is staged. It stress-tests the reasoning, surfaces hidden assumptions, and generates adversarial perspectives.
+- `cva-analysis` skill: invoke when the change introduces a new abstraction. It runs Commonality/Variability Analysis so the abstraction emerges from real requirements instead of being chosen up front.
+- `SkillForge` multi-lens framework (`.claude/skills/SkillForge/references/multi-lens-framework.md`): apply to cross-cutting decisions that span more than one module or context.
+- `.claude/rules/clean-architecture.md`, `.claude/rules/domain-driven-design.md`, `.claude/rules/enterprise-patterns.md`: cite the specific rule a finding maps to for bounded-context, anemic-domain, dependency-direction, and persistence-boundary concerns.
+
 ## Analysis Focus Areas
 
 ### 1. Design Pattern Adherence
