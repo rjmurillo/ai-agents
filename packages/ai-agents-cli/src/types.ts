@@ -1,3 +1,10 @@
+// Which harness instruction file(s) the inline block is appended to.
+// "claude" writes CLAUDE.md, "copilot" writes .github/copilot-instructions.md,
+// "both" writes both.
+export type Target = "claude" | "copilot" | "both";
+
+export const TARGETS: readonly Target[] = ["claude", "copilot", "both"];
+
 export interface BundleEntry {
   readonly relativePath: string;
   readonly size: number;

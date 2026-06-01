@@ -5,15 +5,15 @@ import {
   appendMarkerBlock,
 } from "./append-marker-block.js";
 
-const GENERIC_BLOCK = `${BEGIN_MARKER}
+const COPILOT_BLOCK = `${BEGIN_MARKER}
 # ai-agents Harness
 
 Vendored by [@rjmurillo/ai-agents](https://github.com/rjmurillo/ai-agents).
 
 ## Skill Routing
 
-When your request matches an available skill, invoke it using the Skill tool
-as your FIRST action. Skills provide specialized workflows.
+When your request matches an available skill, invoke it as your FIRST action.
+Skills provide specialized workflows.
 
 Key routing:
 - Bugs, errors -> /analyze
@@ -35,7 +35,7 @@ Key routing:
 
 ## Agents
 
-Use the Task tool with specialized agents:
+Delegate to specialized agents:
 - orchestrator: multi-step coordination
 - analyst: research and investigation
 - architect: design and ADRs
@@ -44,10 +44,10 @@ Use the Task tool with specialized agents:
 - qa: testing and verification
 ${END_MARKER}`;
 
-export async function mergeClaudeMd(
+export async function mergeCopilotInstructions(
   targetDir: string,
   dryRun: boolean,
 ): Promise<void> {
-  const filePath = join(targetDir, "CLAUDE.md");
-  await appendMarkerBlock(filePath, GENERIC_BLOCK, dryRun);
+  const filePath = join(targetDir, ".github", "copilot-instructions.md");
+  await appendMarkerBlock(filePath, COPILOT_BLOCK, dryRun);
 }
