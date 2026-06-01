@@ -83,11 +83,11 @@ Provide your analysis in this format:
 
 **Overall Reliability Score**: X/5
 
-### Stability Concerns
+### Findings
 
-| Severity | Concern | Location | Recommendation |
-|----------|---------|----------|----------------|
-| Critical/High/Medium/Low | [issue] | [file:line] | [fix] |
+| Severity | Category | Finding | Location | Recommendation |
+|----------|----------|---------|----------|----------------|
+| Critical/High/Medium/Low | [category] | [issue] | [file:line] | [fix] |
 
 ### Recommendations
 
