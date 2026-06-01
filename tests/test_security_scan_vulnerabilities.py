@@ -274,9 +274,7 @@ def test_safe_lines_not_flagged(language: str, line: str) -> None:
     assert _descriptions_for(language, line) == []
 
 
-def test_python_string_concat_pattern_requires_plus_inside_literal(
-    tmp_path: Path,
-) -> None:
+def test_python_string_concat_pattern_requires_plus_inside_literal() -> None:
     """Characterization: the 'string concatenation' regex fires only on a `+`
     inside the opening quoted argument, NOT on real concatenation.
 
