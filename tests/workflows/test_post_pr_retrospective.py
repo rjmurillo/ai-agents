@@ -35,8 +35,12 @@ def _load_workflow() -> dict[str, Any]:
 
 def _find_step(workflow: dict[str, Any], step_name: str) -> dict[str, Any] | None:
     """Return the first step matching step_name across all jobs, or None."""
-    for job in workflow.get("jobs", {}).values():
-        for step in job.get("steps", []):
+    jobs = workflow.get("jobs")
+    jobs = {} if jobs is None else jobs
+    for job in jobs.values():
+        steps = job.get("steps")
+        steps = [] if steps is None else steps
+        for step in steps:
             if step.get("name") == step_name:
                 return step
     return None
@@ -90,7 +94,9 @@ class TestAgentStepFailureIsolation:
         step = _find_step(workflow, _AGENT_STEP_NAME)
         assert step is not None
         # Act
-        token = step.get("with", {}).get("claude_code_oauth_token", "")
+        step_with = step.get("with")
+        step_with = {} if step_with is None else step_with
+        token = step_with.get("claude_code_oauth_token", "")
         # Assert: the token wiring is unchanged by the isolation fix
         assert "CLAUDE_CODE_OAUTH_TOKEN" in token
 
