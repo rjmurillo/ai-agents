@@ -66,6 +66,35 @@ class TestParseGhCommand:
         assert result is not None
         assert result["full_command"] == cmd
 
+    def test_gh_in_chain(self) -> None:
+        result = parse_gh_command("cd repo && gh pr view 7")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
+    def test_quoted_gh_subcommand_not_flagged(self) -> None:
+        """Issue #2111: a gh subcommand mentioned inside a quoted argument of a
+        non-gh command must NOT be treated as a gh invocation."""
+        assert parse_gh_command('python3 triage.py --title "gh issue list output"') is None
+        assert parse_gh_command("echo 'run gh pr view to inspect'") is None
+        assert parse_gh_command('grep -r "gh pr create" .') is None
+
+    def test_env_prefixed_gh_still_parsed(self) -> None:
+        """A real gh invocation behind an env assignment or sudo is still caught."""
+        result = parse_gh_command("GH_TOKEN=xyz gh pr view 1")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+        result2 = parse_gh_command("sudo gh issue list")
+        assert result2 is not None
+        assert result2["operation"] == "issue"
+        assert result2["action"] == "list"
+
+    def test_gh_substring_command_not_flagged(self) -> None:
+        """A command whose name merely ends in 'gh' is not gh."""
+        assert parse_gh_command("high pr view 1") is None
+        assert parse_gh_command("/usr/bin/weigh pr list") is None
+
 
 class TestFindSkillScript:
     """Tests for skill script lookup."""
@@ -179,6 +208,20 @@ class TestMainAllow:
 
     def test_invalid_json_fails_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
+        assert main() == 0
+
+    def test_allows_non_gh_command_quoting_gh_subcommand(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Issue #2111 end to end: a python invocation that quotes 'gh issue list'
+        is allowed even though an issue-list skill exists."""
+        script_dir = tmp_path / ".claude" / "skills" / "github" / "scripts" / "issue"
+        script_dir.mkdir(parents=True)
+        (script_dir / "list_issues.py").write_text("# stub")
+
+        monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+        data = json.dumps({"tool_input": {"command": 'python3 triage.py --body "gh issue list"'}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(data))
         assert main() == 0
 
 

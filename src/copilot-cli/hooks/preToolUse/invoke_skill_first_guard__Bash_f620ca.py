@@ -163,6 +163,7 @@ def _original_main(stdin_bytes):
     import json
     import os
     import re
+    import shlex
     import sys
     from pathlib import Path
 
@@ -193,7 +194,15 @@ def _original_main(stdin_bytes):
     from hook_utilities import get_project_directory  # noqa: E402
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
-    _GH_COMMAND_PATTERN = re.compile(r"\bgh\s+(\w+)\s+(\w+)")
+    # Shell statement separators that begin a new command context. A gh
+    # invocation is the command word of a segment, never text inside a quoted
+    # argument; matching the whole string with a regex flagged the latter as a
+    # false positive (issue #2111).
+    _SHELL_SEPARATORS = re.compile(r"&&|\|\||[;|\n]")
+
+    # Leading tokens that wrap another command. Skipping them keeps
+    # `env FOO=bar gh ...` and `sudo gh ...` resolving to the gh invocation.
+    _TRANSPARENT_PREFIXES = frozenset({"env", "sudo"})
 
     # Stage 1: Exact mapping of gh operation/action to skill scripts
     SKILL_MAPPINGS: dict[str, dict[str, dict[str, str]]] = {
@@ -272,23 +281,65 @@ def _original_main(stdin_bytes):
     }
 
 
+    def _gh_args_for_segment(segment: str) -> list[str] | None:
+        """Return the tokens after `gh` if this segment's command word is gh.
+
+        Anchors on the command actually being a `gh` invocation rather than text
+        that merely mentions a gh subcommand inside a quoted argument, which the
+        previous whole-string regex match flagged as a false positive (issue #2111).
+        Returns the tokens following `gh`, or None when the segment does not invoke gh.
+        """
+        seg = segment.strip()
+        if not seg:
+            return None
+        try:
+            tokens = shlex.split(seg)
+        except ValueError:
+            # Unbalanced quotes: fall back to whitespace split. Still anchored on
+            # the command word, so a quoted argument cannot trip the guard.
+            tokens = seg.split()
+        idx = 0
+        while idx < len(tokens):
+            token = tokens[idx]
+            # Skip leading VAR=value environment assignments and transparent
+            # wrapper commands (env, sudo) so the real command word is reached.
+            if ("=" in token and not token.startswith(("-", "/"))) or token in _TRANSPARENT_PREFIXES:
+                idx += 1
+                continue
+            break
+        if idx >= len(tokens):
+            return None
+        # Strip any path prefix: /usr/bin/gh -> gh.
+        if tokens[idx].rsplit("/", 1)[-1] != "gh":
+            return None
+        return tokens[idx + 1:]
+
+
     def parse_gh_command(command: str) -> dict[str, str] | None:
         """Parse a gh command into operation and action components.
+
+        Splits the command on shell separators and inspects each segment's command
+        word. Only a real `gh` invocation (gh as the command, not as quoted
+        argument text) yields a match.
 
         Returns dict with 'operation', 'action', 'full_command' or None.
         """
         if not command:
             return None
 
-        match = _GH_COMMAND_PATTERN.search(command)
-        if not match:
-            return None
+        for segment in _SHELL_SEPARATORS.split(command):
+            gh_args = _gh_args_for_segment(segment)
+            if gh_args is None:
+                continue
+            positional = [tok for tok in gh_args if not tok.startswith("-")]
+            if len(positional) >= 2:
+                return {
+                    "operation": positional[0],
+                    "action": positional[1],
+                    "full_command": command,
+                }
 
-        return {
-            "operation": match.group(1),
-            "action": match.group(2),
-            "full_command": command,
-        }
+        return None
 
 
     def find_skill_script(
