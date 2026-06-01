@@ -97,6 +97,7 @@ def _build_report_json(
         "flakiness": aggregate.flakiness,
         "flaky_fixtures_detected": aggregate.flaky_fixtures_detected,
         "flaky_fixtures_excluded": aggregate.flaky_fixtures_excluded,
+        "flaky_halt_threshold_crossed": aggregate.flaky_halt_threshold_crossed,
         "total_tokens_in": aggregate.total_tokens_in,
         "total_tokens_out": aggregate.total_tokens_out,
         "wall_clock_seconds": round(wall_clock_seconds, 2),
@@ -162,6 +163,14 @@ def _render_ci_section(aggregate: AggregateResult) -> str:
             "significance does not unblock the verdict, which is fixed at "
             "`halt-due-to-flakiness` until the variance source is "
             "investigated and the methodology is re-run.\n\n"
+        )
+    elif flaky_no_halt and aggregate.flaky_halt_threshold_crossed:
+        caveat = (
+            "**Warning**: the flaky-fixture count crossed AC-10's "
+            "\"more than 30%\" halt threshold, but flag-and-continue mode "
+            "suppressed the halt. Treat the delta below as provisional: the "
+            "methodology is near the instability boundary. Investigate the "
+            "variance source before relying on this verdict.\n\n"
         )
     elif flaky_no_halt:
         caveat = (
