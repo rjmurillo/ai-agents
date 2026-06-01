@@ -309,8 +309,16 @@ def _original_main(stdin_bytes):
             break
         if idx >= len(tokens):
             return None
-        # Strip any path prefix: /usr/bin/gh -> gh.
-        if tokens[idx].rsplit("/", 1)[-1] != "gh":
+        # Identify the command word's basename from the raw whitespace-split token,
+        # not the shlex token: POSIX shlex consumes backslashes as escapes, which
+        # would mangle a Windows path (C:\bin\gh) before the basename is taken. The
+        # raw token preserves separators, so /usr/bin/gh, .\gh, and C:\bin\gh all
+        # reduce to gh. shlex tokens are still used for the returned args so quoted
+        # argument handling (issue #2111) is preserved.
+        raw_tokens = seg.split()
+        raw_word = raw_tokens[idx] if idx < len(raw_tokens) else tokens[idx]
+        command_word = re.split(r"[\\/]", raw_word)[-1]
+        if command_word != "gh":
             return None
         return tokens[idx + 1:]
 
