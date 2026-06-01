@@ -59,10 +59,10 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - axis 4: `security`
    - axis 5: `devops`
    - axis 6: `roadmap`
-4. **Run 3 chained skill axes** (local-only; CI does not run these). Scope axes 8 and 9 to the PR diff by passing the base branch detected in step 1 as `--diff-scope`, so the gates evaluate only changed files, not the whole tree:
+4. **Run 3 chained skill axes** (local-only; CI does not run these). Scope axes 8 and 9 to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
    - axis 7: Skill(skill="code-qualities-assessment")
-   - axis 8: Skill(skill="golden-principles"), invoking `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope <base-branch>`
-   - axis 9: Skill(skill="taste-lints"), invoking `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope <base-branch>`
+   - axis 8: Skill(skill="golden-principles"), invoking `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "$BASE_BRANCH"`
+   - axis 9: Skill(skill="taste-lints"), invoking `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "$BASE_BRANCH"`
 5. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from the verdict library (resolved per "Path resolution") to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
 6. **Merge verdicts** via `merge_verdicts(["v1", ..., "v9"])`. Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`.
 7. **Emit findings table** (see Output below).
