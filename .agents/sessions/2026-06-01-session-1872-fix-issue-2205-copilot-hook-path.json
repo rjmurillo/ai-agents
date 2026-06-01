@@ -1,0 +1,41 @@
+{
+  "session": {
+    "number": 1872,
+    "date": "2026-06-01",
+    "branch": "copilot/fix-copilot-cli-pretooluse-hook",
+    "startingCommit": "5a85bc4",
+    "objective": "Fix issue 2205: Copilot CLI hook commands resolved scripts via cwd-relative ./hooks/... and failed because cwd is the user's working directory, not the plugin install location"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": { "level": "MUST", "Complete": true, "Evidence": "Serena project active for symbol search" },
+      "serenaInstructions": { "level": "MUST", "Complete": true, "Evidence": "Initial instructions reviewed" },
+      "handoffRead": { "level": "MUST", "Complete": true, "Evidence": "No HANDOFF.md present; repository context read instead" },
+      "sessionLogCreated": { "level": "MUST", "Complete": true, "Evidence": "This file" },
+      "branchVerified": { "level": "MUST", "Complete": true, "Evidence": "copilot/fix-copilot-cli-pretooluse-hook" },
+      "notOnMain": { "level": "MUST", "Complete": true, "Evidence": "Working on feature branch, not main" },
+      "constraintsRead": { "level": "MUST", "Complete": true, "Evidence": ".claude/rules and REQ-003 reviewed; canonical-source-mirror and minimal-change principles applied" },
+      "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "5a85bc4" }
+    },
+    "sessionEnd": {
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "Anchored generated hook commands to plugin root; regenerated hooks.json; added regression test" },
+      "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
+      "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Fact stored via store_memory about Copilot hook path anchoring" },
+      "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "No markdown files changed in final diff; N/A" },
+      "changesCommitted": { "level": "MUST", "Complete": true, "Evidence": "generate_hooks.py (fix + lint cleanups) + regenerated hooks.json + new test_generate_hooks_plugin_root.py + plugin.json version bump committed" },
+      "validationPassed": { "level": "MUST", "Complete": true, "Evidence": "ruff + mypy clean on changed files; pytest tests/build_scripts/test_generate_hooks_plugin_root.py -> 1 passed; existing test_generate_hooks.py -> 90 passed; build_all.py --check clean" }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Issue #2205: Copilot CLI preToolUse/sessionStart hooks failed on Windows with 'can't open file C:\\Users\\user\\hooks\\sessionStart\\...py: No such file or directory'. The generated hooks.json invoked scripts via python3 -u \"./hooks/<event>/<script>.py\" with cwd \".\", which Copilot CLI resolves against the user's working directory, not the vendored plugin install location.",
+      "outcome": "Changed build/scripts/generate_hooks.py:_build_copilot_entry to anchor script paths to the plugin install root using Copilot CLI's plugin-root environment variable. bash uses ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}} (parameter-expansion fallback to the Claude-compatible alias), powershell uses $env:COPILOT_PLUGIN_ROOT. Regenerated src/copilot-cli/hooks/hooks.json (command strings only; no reordering or script-body changes). Added regression test test_generator_anchors_script_path_to_plugin_root.",
+      "evidence": "Real-world Copilot CLI plugins (prp-core, dx-core, nowledge-mem, worktale) anchor hook commands with ${COPILOT_PLUGIN_ROOT}; GitHub docs confirm Copilot exposes ${COPILOT_PLUGIN_DATA} with ${CLAUDE_PLUGIN_DATA} alias. pytest tests/build_scripts/test_generate_hooks.py -> 91 passed."
+    }
+  ],
+  "nextSteps": [
+    "Bump src/copilot-cli/.claude-plugin/plugin.json 0.5.6 -> 0.5.7 so installs re-sync the corrected hooks.json (pre-push plugin-version-bump guard)",
+    "Run parallel validation (code review + CodeQL)",
+    "Empirically verify on a Windows Copilot CLI install that $env:COPILOT_PLUGIN_ROOT is populated for hook processes"
+  ]
+}

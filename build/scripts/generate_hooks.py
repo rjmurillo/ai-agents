@@ -5,7 +5,8 @@ Reads ``artifacts.hooks`` from a platform YAML, parses Claude's
 ``settings.json`` ``hooks`` object, copies each registered Python script
 under ``.claude/hooks/`` into the Copilot output tree, and emits a
 ``hooks.json`` with the Copilot wire shape (``version: 1`` wrapper,
-lowercase event names, no ``matcher`` field, ``cwd``-relative invocation).
+lowercase event names, no ``matcher`` field, and script invocations
+anchored to the plugin root via ``${COPILOT_PLUGIN_ROOT}``).
 
 Each Claude hook with a ``matcher`` is wrapped in a tiny Python shim
 that buffers stdin once, classifies the matcher, and either dispatches
@@ -111,7 +112,7 @@ MATCHER_BARE = "bare"
 # Pattern that recognizes the tool-glob shape `Tool(args*)`.
 # Matches Bash(...), mcp__serena__write_memory(...), etc. Identifier rules
 # match Python identifiers (REQ-003-007: ``[A-Za-z_][A-Za-z0-9_]*``).
-import re as _re
+import re as _re  # noqa: E402
 
 _TOOL_GLOB_RE = _re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$")
 
@@ -422,7 +423,10 @@ def _has_main_function_and_epilogue(body: str) -> bool:
     has_main = _re.search(r"^def\s+main\s*\(", body, _re.MULTILINE) is not None
     if not has_main:
         return False
-    return _MAIN_EPILOGUE_RE.search(body) is not None or _MAIN_EPILOGUE_TRY_RE.search(body) is not None
+    return (
+        _MAIN_EPILOGUE_RE.search(body) is not None
+        or _MAIN_EPILOGUE_TRY_RE.search(body) is not None
+    )
 
 
 def _has_fail_open_handler(body: str) -> bool:
@@ -494,7 +498,8 @@ def _wrap_body_in_function(body: str) -> str:
                 "    try:\n"
                 "        return main()\n"
                 "    except Exception as _exc:\n"
-                "        sys.stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\\n')\n"
+                "        sys.stderr.write('[WARNING] hook error "
+                "(fail-open): ' + str(_exc) + '\\n')\n"
                 "        return 0\n"
             )
         else:
@@ -924,7 +929,7 @@ def _matcher_suffix(matcher: str | None) -> str:
     sanitized = _re.sub(r"[^A-Za-z0-9]+", "_", matcher).strip("_")
     if len(sanitized) > 48:
         sanitized = sanitized[:48].rstrip("_")
-    digest = hashlib.sha1(matcher.encode("utf-8")).hexdigest()[:6]  # noqa: S324
+    digest = hashlib.sha1(matcher.encode("utf-8"), usedforsecurity=False).hexdigest()[:6]
     if sanitized:
         return f"{sanitized}_{digest}"
     return digest
@@ -986,15 +991,31 @@ def _build_copilot_entry(
 ) -> dict[str, Any]:
     """Emit a single Copilot hook entry.
 
+    The script path is anchored to the plugin install location via the
+    ``COPILOT_PLUGIN_ROOT`` environment variable (Copilot CLI exposes a
+    ``CLAUDE_PLUGIN_ROOT`` alias for Claude-plugin compatibility, used as
+    a fallback). Copilot CLI runs hooks with ``cwd`` set to the user's
+    working directory, NOT the plugin root, so a ``./hooks/...`` relative
+    path resolves under the user's home/project and fails with
+    "No such file or directory" (issue #2205). Anchoring at the plugin
+    root makes the invocation work regardless of where the user launched
+    ``copilot`` from.
+
     The ``bash`` and ``powershell`` keys both invoke ``python3``. RQ #4
     in REQ-003 flags a Windows PATH risk for ``python3``; using ``py -3``
     on Windows handles the case where only ``python.exe`` is on PATH.
+    The two keys use shell-native environment-variable syntax: POSIX
+    ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}`` (parameter-expansion
+    fallback) for ``bash`` and ``$env:COPILOT_PLUGIN_ROOT`` for
+    ``powershell``.
     """
-    rel = f"./hooks/{target_event}/{script_name}"
+    rel = f"hooks/{target_event}/{script_name}"
+    bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
+    powershell_root = "$env:COPILOT_PLUGIN_ROOT"
     return {
         "type": "command",
-        "bash": f'python3 -u "{rel}"',
-        "powershell": f'py -3 -u "{rel}"',
+        "bash": f'python3 -u "{bash_root}/{rel}"',
+        "powershell": f'py -3 -u "{powershell_root}/{rel}"',
         "cwd": ".",
         "timeoutSec": timeout_sec,
     }
@@ -1003,7 +1024,7 @@ def _build_copilot_entry(
 # --- Driver ---------------------------------------------------------------
 
 
-def _iter_hooks(groups: list[Any]) -> "Iterable[tuple[dict[str, Any], dict[str, Any]]]":
+def _iter_hooks(groups: list[Any]) -> Iterable[tuple[dict[str, Any], dict[str, Any]]]:
     """Yield ``(group, hook)`` pairs from a Claude-side groups list.
 
     Skips entries that are not dicts (defensive against malformed
