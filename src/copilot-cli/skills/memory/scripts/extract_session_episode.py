@@ -441,6 +441,25 @@ def _entry_text(entry: Any) -> str:
     return ""
 
 
+# Fields that carry the entry's own label/intent. Decision detection scans only
+# these so narrative ``evidence``/``result`` prose mentioning "adopt" or
+# "prioritize" does not manufacture spurious decisions (the ``outcome`` field is
+# excluded too because it is a status, not the decision wording).
+_DECISION_SIGNAL_FIELDS = ("task", "action", "summary", "step")
+
+# Status words that describe how a step ended, not what was decided.
+_STATUS_WORDS = {"success", "ok", "done", "complete", "completed", "passed"}
+
+
+def _decision_signal_text(entry: Any) -> str:
+    """Label/intent text of a work-log entry, used to detect a decision."""
+    if isinstance(entry, str):
+        return entry
+    if isinstance(entry, dict):
+        return " ".join(str(entry.get(k) or "") for k in _DECISION_SIGNAL_FIELDS)
+    return ""
+
+
 def looks_like_json_session(content: str) -> dict[str, Any] | None:
     """Return the parsed object when content is a JSON session log, else None."""
     try:
@@ -557,17 +576,20 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
     idx = 0
     for entry in _as_list(data.get("workLog")):
         text = _entry_text(entry)
-        if not _DECISION_RE.search(text):
+        if not _DECISION_RE.search(_decision_signal_text(entry)):
             continue
         title = _entry_title(entry)
         outcome = _entry_field(entry, "outcome").strip()
+        # Prefer the decision label; fall back to the outcome only when it is
+        # not a bare status word ("success", "ok", ...).
+        chosen = title or (outcome if outcome.lower() not in _STATUS_WORDS else "")
         idx += 1
         decisions.append({
             "id": f"d{idx:03d}",
             "timestamp": now_iso,
             "type": get_decision_type(text),
             "context": title,
-            "chosen": outcome or title,
+            "chosen": chosen,
             "rationale": _entry_field(entry, "evidence").strip(),
             "outcome": "success",
             "effects": [],

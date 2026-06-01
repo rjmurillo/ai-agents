@@ -450,10 +450,10 @@ class TestArchiveGateAndRoot:
             return p if p.is_file() else None
 
         monkeypatch.setattr(extract_session_episode, "_find_archive_json", fake_find)
-        # Primary log: a decision (via evidence prose) but no milestone events.
+        # Primary log: a decision (via action label) but no milestone events.
         data = {
             "session": {"number": 2, "date": "2026-05-31"},
-            "workLog": [{"evidence": "chose approach A because it is simpler"}],
+            "workLog": [{"action": "chose approach A because it is simpler"}],
             "endingCommit": "",
         }
         bundle = extract_session_episode.extract_from_json(data)
@@ -495,15 +495,33 @@ class TestArchiveGatedOnEvents:
 
 
 class TestDecisionVerbs:
-    """Decision detection covers adopt/prioritize wording (#2036)."""
+    """Decision detection covers adopt/prioritize wording in signal fields (#2036, #2170).
+
+    Decisions are detected from the entry's own label fields (task/action/
+    summary/step), not from narrative ``evidence``/``result`` prose, so migrated
+    prose mentioning "adopt"/"prioritize" does not manufacture spurious
+    decisions (Cursor BugBot GAYz0).
+    """
 
     def test_adopt_is_a_decision(self):
-        data = _json_log([{"evidence": "adopt the streaming parser for large logs"}])
+        data = _json_log([{"action": "adopt the streaming parser for large logs"}])
         assert extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00")
 
     def test_prioritize_is_a_decision(self):
-        data = _json_log([{"evidence": "prioritized correctness over throughput"}])
+        data = _json_log([{"summary": "prioritized correctness over throughput"}])
         assert extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00")
+
+    def test_evidence_only_keyword_is_not_a_decision(self):
+        # Keyword lives only in narrative evidence/result, not a label field.
+        data = _json_log([{"task": "Ran tests", "evidence": "adopt the new approach"}])
+        assert extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00") == []
+
+    def test_chosen_prefers_label_over_status_outcome(self):
+        data = _json_log([{"action": "Selected the fail-closed option", "outcome": "success"}])
+        decisions = extract_session_episode.json_decisions(data, "2026-05-31T00:00:00+00:00")
+        assert decisions
+        assert decisions[0]["chosen"] == "Selected the fail-closed option"
+        assert decisions[0]["chosen"].lower() != "success"
 
 
 class TestMergePreserving:
