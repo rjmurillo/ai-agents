@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -56,7 +57,11 @@ class TestGetDiffFiles:
         _make_repo_with_diff(tmp_path)
         monkeypatch.chdir(tmp_path)
         result = get_diff_files("main")
-        assert result == ["changed.py"]
+        # Paths are anchored to the git root so they resolve from any cwd.
+        assert len(result) == 1
+        assert os.path.isabs(result[0])
+        assert result[0].endswith("/changed.py")
+        assert os.path.isfile(result[0])
 
     def test_returns_empty_when_no_changes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         _make_repo_with_diff(tmp_path)
@@ -92,9 +97,10 @@ class TestGetDiffFiles:
         completed = subprocess.CompletedProcess(
             args=[], returncode=0, stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
         )
-        with patch.object(mod.subprocess, "run", return_value=completed):
+        with patch.object(mod, "_git_root", return_value="/repo"), \
+                patch.object(mod.subprocess, "run", return_value=completed):
             result = get_diff_files("main")
-        assert result == ["changed.py"]
+        assert result == ["/repo/changed.py"]
 
 
 class TestMainDiffScope:
@@ -140,3 +146,18 @@ class TestMainDiffScope:
         with patch("sys.argv", ["scan_principles.py", "--diff-scope=--bad"]):
             result = main()
         assert result == EXIT_ERROR
+
+    def test_diff_scope_catches_violation_from_subdirectory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Diff paths are repo-root-relative; anchoring them to the git root means
+        # the scan still finds them when cwd is a subdirectory. Without the
+        # anchor the file would be skipped and the gate would pass falsely.
+        _make_repo_with_diff(tmp_path)
+        (tmp_path / "added.sh").write_text("echo added\n")
+        _run_git(tmp_path, "add", "added.sh")
+        _run_git(tmp_path, "commit", "-m", "add shell script")
+        subdir = tmp_path / "nested"
+        subdir.mkdir()
+        monkeypatch.chdir(subdir)
+        with patch("sys.argv", ["scan_principles.py", "--diff-scope", "main"]):
+            result = main()
+        assert result == EXIT_VIOLATIONS
