@@ -14,5 +14,8 @@
 /.github/prompts/pr-quality-gate-*.md     @rjmurillo
 /.github/prompts/pr-quality.*.prompt.md   @rjmurillo
 
-# Shared library backing the AI review gates.
+# Shared library backing the AI review gates. The canonical package lives under
+# scripts/; .claude/lib/ is the synced copy (scripts/sync_plugin_lib.py). Pin
+# both so gate-logic changes (verdict.py merge rules) cannot bypass owner review.
+/scripts/ai_review_common/                @rjmurillo
 /.claude/lib/ai_review_common/            @rjmurillo
