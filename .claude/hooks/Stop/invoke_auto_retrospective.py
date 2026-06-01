@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Stop hook: Writes a placeholder retrospective skeleton on session end (fill via /retro).
+Stop hook: Writes a placeholder retrospective skeleton on session end (fill via the retrospective agent).
 
 Creates an unfilled retrospective skeleton in .agents/retrospective/ and
 updates docs/retros/INDEX.md with a new entry. The skeleton is a prompt to
-run /retro, not a completed retrospective; its sections stay empty until a
+run the retrospective agent, not a completed retrospective; its sections stay empty until a
 reviewer populates them.
 
 Hook Type: Stop (non-blocking, always exits 0)
@@ -318,7 +318,7 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
 
 > UNFILLED SKELETON written by invoke_auto_retrospective.py (Stop hook).
 > The sections below are empty placeholders, not a completed retrospective.
-> Run /retro to populate them, then delete this banner.
+> Run the retrospective agent to populate them, then delete this banner.
 
 ## Session Context
 
@@ -326,19 +326,19 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
 
 ## What Went Well
 
-- _UNFILLED. Run /retro to populate this section._
+- _UNFILLED. Run the retrospective agent to populate this section._
 
 ## What Could Improve
 
-- _UNFILLED. Run /retro to populate this section._
+- _UNFILLED. Run the retrospective agent to populate this section._
 
 ## Key Learnings
 
-- _UNFILLED. Run /retro to populate this section._
+- _UNFILLED. Run the retrospective agent to populate this section._
 
 ## Failure Patterns
 
-- _UNFILLED. Run /retro to populate this section (check .agents/failure-modes/)._
+- _UNFILLED. Run the retrospective agent to populate this section (check .agents/failure-modes/)._
 """
 
     retro_path.write_text(content, encoding="utf-8")
