@@ -195,9 +195,11 @@ def _original_main(stdin_bytes):
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
     # Leading tokens that wrap another command. Skipping them (and their option
-    # flags) keeps `env FOO=bar gh ...`, `sudo -E gh ...`, `nohup gh ...`, and
-    # `time gh ...` resolving to the gh invocation rather than the wrapper.
-    _TRANSPARENT_PREFIXES = frozenset({"env", "sudo", "nohup", "time"})
+    # flags) keeps `env FOO=bar gh ...`, `sudo -E gh ...`, `nohup gh ...`,
+    # `time gh ...`, `exec gh ...`, and `command gh ...` resolving to the gh
+    # invocation rather than the wrapper, so a skill-backed gh call cannot be
+    # hidden behind a shell dispatcher.
+    _TRANSPARENT_PREFIXES = frozenset({"env", "sudo", "nohup", "time", "exec", "command"})
 
     # Stage 1: Exact mapping of gh operation/action to skill scripts
     SKILL_MAPPINGS: dict[str, dict[str, dict[str, str]]] = {

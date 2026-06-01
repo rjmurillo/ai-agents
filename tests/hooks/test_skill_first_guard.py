@@ -111,6 +111,21 @@ class TestParseGhCommand:
             result = parse_gh_command(cmd)
             assert result is not None, cmd
 
+    def test_exec_and_command_dispatchers_still_parsed(self) -> None:
+        """gh behind a shell dispatcher (exec, command) is still caught.
+
+        Regression for the skills-first bypass where exec gh pr view and
+        command gh issue list treated the dispatcher as the command word and
+        never reached gh, letting raw GitHub CLI through when a skill exists.
+        """
+        for cmd in (
+            "exec gh pr view 1",
+            "command gh issue list",
+            "command -p gh pr view 1",
+        ):
+            result = parse_gh_command(cmd)
+            assert result is not None, cmd
+
     def test_quoted_env_assignment_with_spaces_still_parsed(self) -> None:
         """A quoted env assignment that contains spaces must not misalign the
         command-word lookup; the following gh is still detected."""
