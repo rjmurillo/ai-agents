@@ -447,3 +447,32 @@ class TestArchiveGateAndRoot:
     def test_repo_root_finds_agents_marker(self):
         root = extract_session_episode._repo_root()
         assert (root / ".agents").is_dir()
+
+
+class TestArchiveGatedOnEvents:
+    """A primary log with its own events must not pull archive decisions/lessons (#2036)."""
+
+    def test_events_present_skips_archive(self, tmp_path, monkeypatch):
+        archive = tmp_path / "2026-05-31-session-2.json"
+        archive.write_text(
+            json.dumps(_json_log([{"evidence": "chose approach B because faster"}])),
+            encoding="utf-8",
+        )
+        calls = []
+
+        def fake_find(session_id):
+            calls.append(session_id)
+            p = tmp_path / f"{session_id}.json"
+            return p if p.is_file() else None
+
+        monkeypatch.setattr(extract_session_episode, "_find_archive_json", fake_find)
+        # Primary log has a milestone of its own and no decisions/lessons.
+        data = {
+            "session": {"number": 2, "date": "2026-05-31"},
+            "workLog": [{"task": "Did the work", "outcome": "ok"}],
+            "endingCommit": "",
+        }
+        bundle = extract_session_episode.extract_from_json(data)
+        assert any(e.get("type") == "milestone" for e in bundle["events"])
+        assert calls == [], "archive must not be consulted when primary has events"
+        assert bundle["decisions"] == []

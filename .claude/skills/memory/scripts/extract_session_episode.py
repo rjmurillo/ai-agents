@@ -667,12 +667,13 @@ def _filter_markdown_events(events: list[dict]) -> list[dict]:
 def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     """Build the episode component bundle from a JSON session log.
 
-    When `archive_fallback` is True and the JSON workLog yields no meaningful
-    signal (no milestone/test/error events, no decisions, no lessons, even if
-    the workLog list is technically non-empty, e.g. ``[{}]`` or whitespace
-    stubs), attempts to locate and parse the corresponding archive file (JSON
-    first, then markdown) to preserve rich event/decision/lesson data from
-    migrated sessions.
+    When `archive_fallback` is True and the primary JSON log yields no events
+    of its own (no milestone/test/error, even if the workLog list is
+    technically non-empty, e.g. ``[{}]`` or whitespace stubs), attempts to
+    locate and parse the corresponding archive file (JSON first, then markdown)
+    to preserve rich event/decision/lesson data from migrated sessions. A log
+    that already has its own events keeps its own decisions and lessons; the
+    archive is not consulted for them.
     """
     session_ts = json_timestamp(data)
     session = _as_dict(data.get("session"))
@@ -683,8 +684,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     metrics_source = data
 
     has_events = any(e.get("type") in ("milestone", "test", "error") for e in events)
-    primary_complete = has_events and bool(decisions) and bool(lessons)
-    if archive_fallback and not primary_complete:
+    if archive_fallback and not has_events:
         session_num = session.get("number")
         session_date = str(session.get("date") or "").strip()
         if session_num is not None and str(session_num).strip() and session_date:
