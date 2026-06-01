@@ -86,7 +86,7 @@ def get_staged_files() -> list[str]:
             errors="ignore",
             timeout=_GIT_TIMEOUT_SECONDS,
         )
-        files = [f for f in result.stdout.strip().split("\n") if f]
+        files = [f for f in result.stdout.splitlines() if f]
         # Filter out any paths with traversal attempts (CWE-22)
         return [f for f in files if is_safe_path(f)]
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
@@ -163,7 +163,7 @@ def get_diff_files(base: str) -> list[str]:
         raise RuntimeError(
             f"git diff failed for base {base!r} (exit {exc.returncode})"
         ) from exc
-    files = [f for f in result.stdout.strip().split("\n") if f]
+    files = [f for f in result.stdout.splitlines() if f]
     return sorted(os.path.join(root, f) for f in files if is_safe_path(f))
 
 
@@ -571,7 +571,7 @@ def main() -> int:
     files: list[str] = []
     if args.git_staged:
         files = get_staged_files()
-    elif args.diff_scope:
+    elif args.diff_scope is not None:
         try:
             files = get_diff_files(args.diff_scope)
         except (ValueError, RuntimeError) as exc:
