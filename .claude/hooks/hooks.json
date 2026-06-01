@@ -78,6 +78,12 @@
             "type": "command",
             "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_security_gate.py\"",
             "statusMessage": "Checking security gate for auth files (ADR-033)"
+          },
+          {
+            "type": "command",
+            "command": "python3 -u \"${CLAUDE_PLUGIN_ROOT}/hooks/PreToolUse/invoke_topical_memory_injection.py\"",
+            "timeout": 2,
+            "statusMessage": "Surfacing topical memories (advisory, issue #2005)"
           }
         ]
       },

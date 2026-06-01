@@ -1,0 +1,44 @@
+{
+  "scenarios": [
+    {
+      "id": "S1-priority-medium",
+      "desc": "A requirement frontmatter is presented with priority: medium.",
+      "input": "You are about to finalize this requirement frontmatter before writing the file:\n---\ntype: requirement\nid: REQ-001\ntitle: Password reset\nstatus: approved\npriority: medium\ncategory: functional\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if any field value is out of the allowed range; ACCEPT only if every field is valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "REJECT",
+      "rationale": "priority must be P0/P1/P2; medium is invalid."
+    },
+    {
+      "id": "S2-category-tooling",
+      "desc": "A requirement frontmatter is presented with category: tooling.",
+      "input": "You are about to finalize this requirement frontmatter before writing the file:\n---\ntype: requirement\nid: REQ-002\ntitle: Config linter\nstatus: draft\npriority: P2\ncategory: tooling\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if any field value is out of the allowed range; ACCEPT only if every field is valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "REJECT",
+      "rationale": "category must be functional/non-functional/constraint; tooling is invalid."
+    },
+    {
+      "id": "S3-task-status-ready",
+      "desc": "A task frontmatter is presented with status: ready.",
+      "input": "You are about to finalize this task frontmatter before writing the file:\n---\ntype: task\nid: TASK-001\ntitle: Reset endpoint\nstatus: ready\npriority: P1\ncomplexity: XS\nrelated:\n  - DESIGN-001\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if any field value is out of the allowed range; ACCEPT only if every field is valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "REJECT",
+      "rationale": "task status must be todo/in-progress/blocked/done/cancelled; ready is invalid."
+    },
+    {
+      "id": "S4-design-missing-priority",
+      "desc": "A design frontmatter is presented with no priority field.",
+      "input": "You are about to finalize this design frontmatter before writing the file:\n---\ntype: design\nid: DESIGN-001\ntitle: Session state machine\nstatus: approved\nrelated:\n  - REQ-001\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if a required field is missing or any value is out of range; ACCEPT only if every required field is present and valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "REJECT",
+      "rationale": "design requires priority (P0/P1/P2); it is missing."
+    },
+    {
+      "id": "S5-valid-requirement",
+      "desc": "A fully valid requirement frontmatter is presented.",
+      "input": "You are about to finalize this requirement frontmatter before writing the file:\n---\ntype: requirement\nid: REQ-001\ntitle: Encrypt data at rest\nstatus: approved\npriority: P0\ncategory: non-functional\ncreated: 2026-05-31\nupdated: 2026-05-31\n---\nDecide whether this frontmatter passes your schema rules. REJECT if any field value is out of the allowed range or a required field is missing; ACCEPT only if every field is valid.",
+      "verdict_options": ["REJECT", "ACCEPT"],
+      "expected_verdict": "ACCEPT",
+      "rationale": "Every field is valid; no-regression check that the skill does not over-reject."
+    }
+  ]
+}
