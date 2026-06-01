@@ -33,8 +33,9 @@ rationale in `spec.md` references the memory skill at
 
 Per `.claude/rules/governance.md`:
 
-> "Significant governance changes... MUST be accompanied by an Architecture
-> Decision Record."
+> **ADR required**. Significant governance changes (new rules, policy
+> reversals, removed constraints) MUST be accompanied by an Architecture
+> Decision Record in `.agents/architecture/`.
 
 `ADR-007-memory-first-architecture.md` declares the memory-first principle
 ("Memory retrieval MUST precede reasoning in all agent workflows"). It does not
@@ -46,8 +47,10 @@ triggers that stop a spec from reaching Step 1. This ADR closes that gap.
 - `.claude/skills/memory/SKILL.md` declares the Memory-First Gate as BLOCKING
   under the `### Memory-First Gate (BLOCKING)` section ("Before changing
   existing systems, you MUST..."). It states the rationale verbatim:
-  "<50% compliance with 'check memory first' guidance. Making it BLOCKING
-  achieves 100% compliance (same pattern as session protocol gates)."
+
+  > **Why BLOCKING**: <50% compliance with "check memory first" guidance.
+  > Making it BLOCKING achieves 100% compliance (same pattern as session
+  > protocol gates).
 - `.claude/commands/spec.md` Step 0.5 wires that BLOCKING declaration into the
   spec pipeline. The gate, its halt schema, its metrics tally, and its
   supplemental traversal hook are fully specified in `spec.md` lines 142
@@ -139,7 +142,7 @@ running after Step 0 and before Step 1. This ADR codifies four binding points.
 |-------------|------|------|----------------|
 | Post-hoc check (validate prior-art after Step 1) | No gate friction before clarification; proposer drafts freely | Discovers ADR collisions after design work is sunk; same late-feedback cost ADR-054 cites for CI-only security findings | A backward-looking check is worthless if it runs after the design is committed; the PR #1887 cost was incurred precisely because the search ran (if at all) too late |
 | Merge into Step 0 (one combined gate) | Single gate, less prose, one metrics file | Conflates forward-looking demand ("is this wanted") with backward-looking prior art ("do we know why the current state exists"); a proposer can pass demand and still skip recall | The two questions are distinct and fail independently; merging them hides which gate a halt came from and breaks the clean H1-H5 vs H6-H11 split |
-| Centralized middleware (one memory-first gate for all lifecycle commands) | DRY; `/plan`, `/build`, `/test` would inherit the gate for free | No second consumer exists yet; premature abstraction (per `philosophy-of-software-design.md`); the per-command halt schema and tier-gated depth are tuned to `/spec`'s Step 0 inputs | YAGNI; promoting the gate to other commands is explicitly out of scope for REQ-017; build the seam when the second consumer appears, not before |
+| Centralized middleware (one memory-first gate for all lifecycle commands) | DRY; `/plan`, `/build`, `/test` would inherit the gate for free | No second consumer exists yet; premature abstraction (per `.claude/rules/philosophy-of-software-design.md`); the per-command halt schema and tier-gated depth are tuned to `/spec`'s Step 0 inputs | YAGNI; promoting the gate to other commands is explicitly out of scope for REQ-017; build the seam when the second consumer appears, not before |
 | Advisory gate (warn, do not halt) | Zero blast radius; proposer keeps control | The memory skill measured <50% compliance with advisory "check memory first" guidance; advisory reproduces the exact failure the BLOCKING declaration was written to fix | The whole point of the gate is 100% compliance; advisory is the status quo the gate replaces |
 
 ### Trade-offs
@@ -165,8 +168,10 @@ Step 0.5 block and the Step 9 check 9d clause reverts to the Step 0-only
 pipeline. No data migration is required; the metrics file is review-only and its
 absence does not block `/spec`.
 
-Step 0's kill criteria (`spec.md` lines 127 through 134, documented in
-`REQ-006-13`) extend to Step 0.5. At 30 invocations, the gate is reviewed
+Step 0's kill criteria (`spec.md` lines 127 through 134, documented as
+`REQ-016-13` in
+`.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md`)
+extend to Step 0.5. At 30 invocations, the gate is reviewed
 against four criteria:
 
 1. False-positive rate at or above 30 percent (halts followed by re-invocation
