@@ -273,11 +273,16 @@ def parse_lessons(lines: list[str]) -> list[str]:
         m = re.match(r'^\s*[-*]\s+(.+)$', line)
         if in_lessons_section and m:
             lessons.append(m.group(1).strip())
-        elif (
-            re.search(r'lesson|learned|takeaway|note for future', line, re.IGNORECASE)
-            and not line.startswith('#')
+        elif m and re.match(
+            r'(?:lessons?\s+learned|lessons?|learned|takeaways?|note\s+for\s+future)\b',
+            m.group(1),
+            re.IGNORECASE,
         ):
-            lessons.append(line.strip())
+            # Outside a Lessons section, only collect bullets whose content
+            # *starts* with a lesson keyword. A substring match anywhere on the
+            # line pulls in protocol-gate evidence prose ("lessons captured in
+            # the PR description") and checklist items, polluting the episode.
+            lessons.append(m.group(1).strip())
 
     return list(dict.fromkeys(lessons))
 
@@ -879,6 +884,10 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     metrics_source = data
 
     has_events = any(e.get("type") in ("milestone", "test", "error") for e in events)
+    # A commit event is the session's own signal. It does not gate archive
+    # consultation (a thin stub may still need archived decisions/lessons), but
+    # it must never be overwritten by archived events.
+    has_own_events = has_events or any(e.get("type") == "commit" for e in events)
     if archive_fallback and not has_events:
         session_num = session.get("number")
         session_date = str(session.get("date") or "").strip()
@@ -896,7 +905,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                         archive_events = json_events(archive_data, session_ts)
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
-                        if not has_events:
+                        if not has_own_events:
                             events = archive_events
                             metrics_source = archive_data
                         if not decisions:
@@ -908,6 +917,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
             has_events = any(
                 e.get("type") in ("milestone", "test", "error") for e in events
             )
+            has_own_events = has_events or any(e.get("type") == "commit" for e in events)
             if not has_events or not decisions or not lessons:
                 archive_md_path = next(
                     (p for sid in candidates if (p := _find_archive_markdown(sid)) and p.is_file()),
@@ -917,7 +927,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     try:
                         md_content = archive_md_path.read_text(encoding="utf-8")
                         md_lines = md_content.splitlines()
-                        if not has_events:
+                        if not has_own_events:
                             md_events = parse_events(md_lines, session_ts)
                             events = _filter_markdown_events(md_events)
                         if not decisions:

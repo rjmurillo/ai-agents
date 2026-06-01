@@ -151,9 +151,33 @@ class TestParseLessons:
         assert len(result) >= 2
 
     def test_inline_lessons(self):
-        lines = ["Important lesson: always check return codes"]
+        # A bullet whose content begins with a lesson keyword is collected even
+        # outside a Lessons section.
+        lines = ["- Lesson: always check return codes"]
         result = extract_session_episode.parse_lessons(lines)
-        assert len(result) >= 1
+        assert result == ["Lesson: always check return codes"]
+
+    def test_evidence_prose_not_collected_as_lesson(self):
+        # GAgue: protocol-gate evidence and checklist items mention "lessons"
+        # mid-line but are not lessons. They must not pollute the episode.
+        lines = [
+            "- **Evidence**: lessons captured in the PR description",
+            "- Documents lesson learned for future protocol enforcement",
+            "- Skills memory updated with lessons learned",
+            "**P2 - Copilot C2**: Added lessons field to episode metadata",
+        ]
+        result = extract_session_episode.parse_lessons(lines)
+        assert result == []
+
+    def test_section_bullets_still_collected_when_prose_present(self):
+        lines = [
+            "- Evidence: lessons captured in the PR description",
+            "## Lessons Learned",
+            "- Always validate input first",
+            "## End",
+        ]
+        result = extract_session_episode.parse_lessons(lines)
+        assert result == ["Always validate input first"]
 
     def test_deduplication(self):
         lines = [
@@ -463,6 +487,41 @@ class TestArchiveGateAndRoot:
     def test_repo_root_finds_agents_marker(self):
         root = extract_session_episode._repo_root()
         assert (root / ".agents").is_dir()
+
+    def test_commit_only_log_keeps_commit_when_archive_exists(self, tmp_path, monkeypatch):
+        # GAgua: a log whose only event is its own commit must not have that
+        # commit overwritten by archived events. Decisions/lessons still recover.
+        archive = tmp_path / "2026-05-31-session-2.json"
+        archive.write_text(
+            json.dumps(
+                _json_log(
+                    [
+                        {"task": "archived work", "outcome": "5 passed"},
+                        {"action": "chose approach A because it is simpler"},
+                    ]
+                )
+            ),
+            encoding="utf-8",
+        )
+
+        def fake_find(session_id):
+            p = tmp_path / f"{session_id}.json"
+            return p if p.is_file() else None
+
+        monkeypatch.setattr(extract_session_episode, "_find_archive_json", fake_find)
+        # Primary log: no milestone/test/error, only an ending commit.
+        data = {
+            "session": {"number": 2, "date": "2026-05-31"},
+            "workLog": [],
+            "endingCommit": "abc1234",
+        }
+        bundle = extract_session_episode.extract_from_json(data)
+        commits = [e for e in bundle["events"] if e.get("type") == "commit"]
+        assert commits, "own commit event must survive archive recovery"
+        assert not any(
+            e.get("type") == "milestone" for e in bundle["events"]
+        ), "archive events must not replace the session's own commit event"
+        assert bundle["decisions"], "archived decisions should still be recovered"
 
 
 class TestArchiveGatedOnEvents:
