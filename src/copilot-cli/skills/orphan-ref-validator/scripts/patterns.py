@@ -18,8 +18,15 @@ import re
 from typing import Iterable
 
 SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
+# Backticked repo-relative script references under the standard prefixes.
+# PR2 (issue #1994) broadens the suffix from ``.py`` only to ``.py`` or
+# ``.ps1``: PowerShell helpers under these prefixes are referenced in specs
+# (e.g. backticked `scripts/Validate-SessionEnd.ps1`) and went undetected.
+# This regex is NOT under the canonical-source-mirror contract; only
+# COUNT_CLAIM_RE / COUNT_LABEL_MAP mirror the canonical validator.
 SCRIPT_REF_RE = re.compile(
-    r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.py)`"
+    r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
+    re.IGNORECASE,
 )
 # Skill-script references under .claude/skills/ or the copilot mirror, in
 # either backticked or bare `python3 .../foo.py` command form. The bare form is
