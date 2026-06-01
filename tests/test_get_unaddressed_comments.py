@@ -185,10 +185,11 @@ class TestMain:
             "get_unaddressed_comments.get_unresolved_review_threads",
             return_value=[],
         ):
-            rc = main(["--pull-request", "42"])
+            rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["TotalCount"] == 0
+        assert output["Success"] is True
+        assert output["Data"]["TotalCount"] == 0
 
     def test_bot_comment_new_state(self, capsys):
         raw_comments = [
@@ -220,8 +221,83 @@ class TestMain:
             "get_unaddressed_comments.get_unresolved_review_threads",
             return_value=unresolved_threads,
         ):
-            rc = main(["--pull-request", "42"])
+            rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["TotalCount"] == 1
-        assert output["Comments"][0]["LifecycleState"] == "NEW"
+        assert output["Data"]["TotalCount"] == 1
+        assert output["Data"]["Comments"][0]["LifecycleState"] == "NEW"
+
+
+# ---------------------------------------------------------------------------
+# Tests: output format (json / human / auto)
+# ---------------------------------------------------------------------------
+
+
+def _patch_empty_pr():
+    """Patches that drive main() through the zero-comment path."""
+    return (
+        patch("get_unaddressed_comments.assert_gh_authenticated"),
+        patch(
+            "get_unaddressed_comments.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch("get_unaddressed_comments.gh_api_paginated", return_value=[]),
+        patch(
+            "get_unaddressed_comments.get_unresolved_review_threads",
+            return_value=[],
+        ),
+    )
+
+
+class TestOutputFormat:
+    def test_default_is_auto(self):
+        args = build_parser().parse_args(["--pull-request", "1"])
+        assert args.output_format == "auto"
+
+    def test_json_emits_standard_envelope(self, capsys):
+        auth, repo, paged, threads = _patch_empty_pr()
+        with auth, repo, paged, threads:
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert output["Error"] is None
+        assert "Data" in output
+        assert "Metadata" in output
+        assert output["Metadata"]["Script"] == "get_unaddressed_comments.py"
+        assert output["Data"]["TotalCount"] == 0
+
+    def test_human_emits_text_summary_not_json(self, capsys):
+        auth, repo, paged, threads = _patch_empty_pr()
+        with auth, repo, paged, threads:
+            rc = main(["--pull-request", "42", "--output-format", "human"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "PR #42" in out
+        assert "comments needing action" in out
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(out)
+
+    def test_auto_emits_json_when_stdout_not_tty(self, capsys):
+        """capsys redirects stdout, so auto resolves to json."""
+        auth, repo, paged, threads = _patch_empty_pr()
+        with auth, repo, paged, threads:
+            rc = main(["--pull-request", "42", "--output-format", "auto"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is True
+        assert output["Data"]["TotalCount"] == 0
+
+    def test_auto_emits_human_when_stdout_is_tty(self, capsys):
+        """When stdout is a TTY and not CI, auto resolves to human."""
+        auth, repo, paged, threads = _patch_empty_pr()
+        env = {"CI": "", "GITHUB_ACTIONS": "", "TF_BUILD": ""}
+        with auth, repo, paged, threads, patch.dict(
+            "os.environ", env, clear=False
+        ), patch("sys.stdout.isatty", return_value=True):
+            rc = main(["--pull-request", "42", "--output-format", "auto"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "PR #42" in out
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(out)
