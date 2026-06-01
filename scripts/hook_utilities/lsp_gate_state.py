@@ -91,8 +91,17 @@ def _state_dir() -> Path:
 
 
 def _cwd_key(cwd: str) -> str:
-    """Return the per-cwd state key: sha256(cwd) truncated to 16 hex chars."""
-    digest = hashlib.sha256(cwd.encode("utf-8")).hexdigest()
+    """Return the per-cwd state key: sha256(normalized cwd) truncated to 16 hex chars.
+
+    The path is resolved before hashing so different spellings of the same
+    physical directory (relative segments, symlinks, trailing slashes) map to
+    one key, keeping the session-reset hook and the guards in agreement.
+    """
+    try:
+        normalized = str(Path(cwd).resolve())
+    except (OSError, ValueError):
+        normalized = cwd
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     return digest[:16]
 
 

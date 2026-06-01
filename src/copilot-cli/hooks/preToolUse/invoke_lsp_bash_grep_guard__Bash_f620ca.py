@@ -253,7 +253,7 @@ def _original_main(stdin_bytes):
     # Extensions are anchored at a word boundary so ``foo.pyc`` does not match ``.py``.
     _FILE_TOKEN = re.compile(
         r"[\w./\\-]+\.(?:py|ts|tsx|js|jsx|mjs|cjs|sh|ps1|psm1|go|rs|java|kt|swift|"
-        r"vue|svelte|cpp|c|h|hpp|md|json|ya?ml|toml)\b",
+        r"vue|svelte|cpp|c|h|hpp|md|json|ya?ml|toml)\b(?!\.\w)",
         re.IGNORECASE,
     )
 
@@ -299,6 +299,28 @@ def _original_main(stdin_bytes):
         return targets
 
 
+    def _resolve_in_repo(target: str, project_dir: str) -> Path | None:
+        """Resolve ``target`` under the repo root, or None if it escapes the repo.
+
+        Out-of-repo targets must never be gated; returning None keeps the fail-open
+        contract even when the target has a navigable extension and a provider
+        exists. Resolution failures also return None (fail-open).
+        """
+        try:
+            repo_root = Path(project_dir).resolve()
+            candidate = Path(target)
+            resolved = (
+                candidate.resolve(strict=False)
+                if candidate.is_absolute()
+                else (repo_root / candidate).resolve(strict=False)
+            )
+        except (OSError, ValueError):
+            return None
+        if not resolved.is_relative_to(repo_root):
+            return None
+        return resolved
+
+
     def _navigable_target_with_provider(
         targets: list[str], project_dir: str
     ) -> str | None:
@@ -310,6 +332,9 @@ def _original_main(stdin_bytes):
         target qualifies, which the guard treats as fail-open.
         """
         for target in targets:
+            resolved = _resolve_in_repo(target, project_dir)
+            if resolved is None:
+                continue
             if not is_code_target(target, SYMBOL_NAVIGATION):
                 continue
             if detect_providers(target, SYMBOL_NAVIGATION, project_dir):
