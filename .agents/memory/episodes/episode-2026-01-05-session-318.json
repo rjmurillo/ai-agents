@@ -12,16 +12,6 @@
     {
       "chosen": "Prioritized fixing validation scripts (markdown linting and session validation) ahead of lower-impact tooling issues.",
       "id": "d002"
-    },
-    {
-      "id": "d003",
-      "timestamp": "2026-01-05T00:00:00+00:00",
-      "type": "recovery",
-      "context": "Task 2: Remediation Planning",
-      "chosen": "Task 2: Remediation Planning",
-      "rationale": "",
-      "outcome": "success",
-      "effects": []
     }
   ],
   "events": [

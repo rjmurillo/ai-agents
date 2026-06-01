@@ -4,28 +4,7 @@
   "timestamp": "2026-05-10T00:00:00+00:00",
   "outcome": "success",
   "task": "Issue #2003: spec the Phase 1 agent-skill classification audit and execute TASK-011 to produce the audit deliverable. Address user constraint: too many agents and skills loaded, Claude Code is truncating the catalog at session start.",
-  "decisions": [
-    {
-      "id": "d001",
-      "timestamp": "2026-05-10T00:00:00+00:00",
-      "type": "design",
-      "context": "Step 0.5 Memory-First Gate",
-      "chosen": "ProvisionalTier=4 (deep). Discovered Epic #1944 (Skill Catalog Triage Action Slate) as parent. Read .agents/governance/agent-consolidation-process.md (313 lines), SKILL-CREATION-CRITERIA.md (376 lines), ADR-030 (skills-pattern-superiority), ADR-036 (two-source agent template architecture), spec-schemas.md. H11 halt initially (2 blast-radius). User reclassified blast-radius items to out-of-scope. PASS.",
-      "rationale": "",
-      "outcome": "success",
-      "effects": []
-    },
-    {
-      "id": "d002",
-      "timestamp": "2026-05-10T00:00:00+00:00",
-      "type": "design",
-      "context": "Execute TASK-011: apply verdict rule per DESIGN-011 \u00a7C3",
-      "chosen": "Verdict counts (round 2 numbers, SUPERSEDED in round 3 by roadmap reclassification to skill=8/2/13/47%): skill=7, context-fork-skill=2, keep-as-agent=14. Load-budget impact (round 2 numbers, SUPERSEDED): 4714 of 10979 frontmatter bytes saved (42%) if all 9 candidates migrate. spec-generator scores 4/4 (canonical case, already covered by closed #2001).",
-      "rationale": "",
-      "outcome": "success",
-      "effects": []
-    }
-  ],
+  "decisions": [],
   "events": [
     {
       "id": "e001",

@@ -4,18 +4,7 @@
   "timestamp": "2026-05-11T00:00:00+00:00",
   "outcome": "success",
   "task": "Add FM-10 (Silent Defaults and Guard-Clause Suppression) to FAILURE-MODES.md, anchoring on PR #1965 round-9/11 retro evidence and external corroboration from daniel.haxx.se 2026-05-11",
-  "decisions": [
-    {
-      "id": "d001",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "design",
-      "context": "Audit existing FAILURE-MODES.md structure",
-      "chosen": "Found FM-1 through FM-8 existing; verified FM-9 reserved by issue #1919 (confident-incorrectness). Decided to add FM-10 with FM-9 marked as reserved-for-#1919 in Index.",
-      "rationale": "",
-      "outcome": "success",
-      "effects": []
-    }
-  ],
+  "decisions": [],
   "events": [
     {
       "id": "e001",
