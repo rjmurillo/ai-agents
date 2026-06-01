@@ -1,80 +1,64 @@
 {
   "id": "episode-2026-05-11-session-1833",
   "session": "2026-05-11-session-1833",
-  "timestamp": "2026-05-12T08:59:19.364203+00:00",
-  "outcome": "failure",
-  "task": "",
+  "timestamp": "2026-05-11T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Add FM-10 (Silent Defaults and Guard-Clause Suppression) to FAILURE-MODES.md, anchoring on PR #1965 round-9/11 retro evidence and external corroboration from daniel.haxx.se 2026-05-11",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"branch\": \"fix/fm-10-silent-defaults-failure-mode\",",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Audit existing FAILURE-MODES.md structure",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"objective\": \"Add FM-10 (Silent Defaults and Guard-Clause Suppression) to FAILURE-MODES.md, anchoring on PR #1965 round-9/11 retro evidence and external corroboration from daniel.haxx.se 2026-05-11\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cross-reference open issues for adjacent work",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"git branch --show-current run before commit, output: fix/fm-10-silent-defaults-failure-mode. Branch created off freshly-pulled main per richard-repo-conventions skill.\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pull external corroboration from daniel.haxx.se 2026-05-11",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"On fix/fm-10-silent-defaults-failure-mode at commit time (verified via git branch --show-current).\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Draft FM-10 entry following FM-1..FM-8 format",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"Single-file FAILURE-MODES.md edit + session log + 91-line addition. Diff verified before commit. PR-size lint reports 3/50 files.\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Index update",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e006",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"Knowledge captured in canonical home (FAILURE-MODES.md itself) which is the project's authoritative location for failure-mode taxonomy. FM-10 entry contains full description, trigger, evidence, detection, enforcement pattern; cross-referenced from FAILURE-MODES.md Index. No additional Serena memory file created because the doc itself IS the memory; duplicating would create FM-10's own anti-pattern (parallel sources of truth).\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-commit hook surfaced em-dash prohibition",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e007",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"FM-10 entry IS the retrospective for PR #1965 round-9/11 fixes. The doc captures the failure pattern, trigger, evidence, and enforcement pattern that retros normally surface. Cross-references .agents/retrospective/2026-05-10-pr-1965-review-axes-convergence.md as primary source.\"",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"step\": \"Audit existing FAILURE-MODES.md structure\",",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-05-12T08:59:19.360246+00:00",
-      "type": "error",
-      "content": "\"outcome\": \"Identified #1991 (M5 strict parsing), #1992 (M1 ad-hoc len(threads) pattern), #2006 (security NEEDS_REVIEW false positive) as evidence anchors; #1919 as adjacent failure mode.\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-commit hook required JSON session log per ADR-042",
       "caused_by": [],
       "leads_to": []
     }
@@ -82,7 +66,7 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 9,
+    "errors": 0,
     "recoveries": 0,
     "commits": 1,
     "files_changed": 0
