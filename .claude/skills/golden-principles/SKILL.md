@@ -62,7 +62,7 @@ python3 .claude/skills/golden-principles/scripts/scan_principles.py
 python3 .claude/skills/golden-principles/scripts/scan_principles.py --directory .claude/skills/
 
 # Scope to a pull request diff (only files changed vs the base branch)
-python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "$BASE_BRANCH"
+python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"
 
 # Run specific rules only
 python3 .claude/skills/golden-principles/scripts/scan_principles.py --rules script-language,skill-frontmatter

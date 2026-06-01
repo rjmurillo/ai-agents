@@ -18,9 +18,9 @@ Task(subagent_type="devops"): You are a release engineer. Run all 5 pre-flight c
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff?
 3. **Review complete** - Has /review been run on this branch? Any unresolved Critical findings? Check review logs.
 4. **Tests passing** - All tests green? No skipped tests without justification?
-5. **Standards clean** - Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints"), scoped to the PR diff. Both pass? Determine the PR base branch from `gh pr view --json baseRefName -q .baseRefName` (fall back to the ship target from $ARGUMENTS, default `main`, when no PR exists yet), store it in `BASE_BRANCH`, and pass it quoted so the gates scan only changed files:
-   - `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "$BASE_BRANCH"`
-   - `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "$BASE_BRANCH"`
+5. **Standards clean** - Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints"), scoped to the PR diff. Both pass? Determine the PR base branch from `gh pr view --json baseRefName -q .baseRefName` (fall back to the ship target from $ARGUMENTS, default `main`, when no PR exists yet), store it in `BASE_BRANCH`, and pass the remote-tracking ref `origin/$BASE_BRANCH` quoted so the gates scan only changed files (the base often exists only as a remote-tracking ref in fresh clones and CI checkouts):
+   - `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"`
+   - `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"`
    This keeps the gate blast radius equal to the diff, not the whole tree, so a pre-existing violation elsewhere does not block this ship.
 
 ## Process
