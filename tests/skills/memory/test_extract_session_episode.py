@@ -420,3 +420,30 @@ class TestStepWorklogEntries:
     def test_step_entry_text_includes_evidence(self):
         text = extract_session_episode._entry_text({"step": "Built X", "evidence": "3 failed"})
         assert "Built X" in text and "3 failed" in text
+
+
+class TestArchiveGateAndRoot:
+    """Decisions must not block event recovery; repo root resolves via marker (#2036)."""
+
+    def test_decisions_do_not_block_archive_events(self, tmp_path, monkeypatch):
+        archive = tmp_path / "2026-05-31-session-2.json"
+        archive.write_text(json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8")
+
+        def fake_find(session_id):
+            p = tmp_path / f"{session_id}.json"
+            return p if p.is_file() else None
+
+        monkeypatch.setattr(extract_session_episode, "_find_archive_json", fake_find)
+        # Primary log: a decision (via evidence prose) but no milestone events.
+        data = {
+            "session": {"number": 2, "date": "2026-05-31"},
+            "workLog": [{"evidence": "chose approach A because it is simpler"}],
+            "endingCommit": "",
+        }
+        bundle = extract_session_episode.extract_from_json(data)
+        assert bundle["decisions"], "primary decision should be preserved"
+        assert any(e.get("type") == "milestone" for e in bundle["events"]), "archive events should still be recovered"
+
+    def test_repo_root_finds_agents_marker(self):
+        root = extract_session_episode._repo_root()
+        assert (root / ".agents").is_dir()

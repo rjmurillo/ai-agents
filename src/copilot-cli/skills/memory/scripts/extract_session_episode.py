@@ -586,6 +586,22 @@ def _json_lessons(data: dict) -> list[str]:
     return lessons
 
 
+def _repo_root() -> Path:
+    """Locate the repository root by walking up to the nearest `.agents` dir.
+
+    The script is distributed verbatim at two depths: the canonical
+    `.claude/skills/memory/scripts/` copy and the generated
+    `src/copilot-cli/skills/memory/scripts/` mirror. A fixed number of
+    `.parent` hops cannot be correct at both depths, so search upward for the
+    `.agents` marker and fall back to a four-hop default when it is absent.
+    """
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / ".agents").is_dir():
+            return parent
+    return here.parent.parent.parent.parent
+
+
 def _find_archive_file(session_id: str, extension: str) -> Path | None:
     """Find an archive file for a session ID with the given extension.
 
@@ -593,8 +609,7 @@ def _find_archive_file(session_id: str, extension: str) -> Path | None:
     for files matching the session ID pattern. Returns the shortest-named match
     (preferring exact matches) to ensure deterministic selection across platforms.
     """
-    script_dir = Path(__file__).resolve().parent
-    base_archive = script_dir.parent.parent.parent.parent / ".agents" / "archive"
+    base_archive = _repo_root() / ".agents" / "archive"
     archive_dirs = [base_archive / "sessions", base_archive / "session"]
     pattern = f"{session_id}*.{extension}"
     for archive_dir in archive_dirs:
@@ -667,12 +682,9 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
     lessons = _json_lessons(data)
     metrics_source = data
 
-    primary_has_signal = (
-        any(e.get("type") in ("milestone", "test", "error") for e in events)
-        or bool(decisions)
-        or bool(lessons)
-    )
-    if archive_fallback and not primary_has_signal:
+    has_events = any(e.get("type") in ("milestone", "test", "error") for e in events)
+    primary_complete = has_events and bool(decisions) and bool(lessons)
+    if archive_fallback and not primary_complete:
         session_num = session.get("number")
         session_date = str(session.get("date") or "").strip()
         if session_num is not None and str(session_num).strip() and session_date:
@@ -686,25 +698,22 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     archive_content = archive_json_path.read_text(encoding="utf-8")
                     archive_data = looks_like_json_session(archive_content)
                     if archive_data and _as_list(archive_data.get("workLog")):
-                        metrics_source = archive_data
                         archive_events = json_events(archive_data, session_ts)
                         archive_decisions = json_decisions(archive_data, session_ts)
                         archive_lessons = _json_lessons(archive_data)
-                        has_worklog_events = any(
-                            e.get("type") in ("milestone", "test", "error") for e in events
-                        )
-                        if not has_worklog_events:
+                        if not has_events:
                             events = archive_events
+                            metrics_source = archive_data
                         if not decisions:
                             decisions = archive_decisions
                         if not lessons:
                             lessons = archive_lessons
                 except (OSError, json.JSONDecodeError):
                     pass
-            has_worklog_events = any(
+            has_events = any(
                 e.get("type") in ("milestone", "test", "error") for e in events
             )
-            if not has_worklog_events or not decisions or not lessons:
+            if not has_events or not decisions or not lessons:
                 archive_md_path = next(
                     (p for sid in candidates if (p := _find_archive_markdown(sid)) and p.is_file()),
                     None,
@@ -713,7 +722,7 @@ def extract_from_json(data: dict, *, archive_fallback: bool = True) -> dict:
                     try:
                         md_content = archive_md_path.read_text(encoding="utf-8")
                         md_lines = md_content.splitlines()
-                        if not has_worklog_events:
+                        if not has_events:
                             md_events = parse_events(md_lines, session_ts)
                             events = _filter_markdown_events(md_events)
                         if not decisions:
@@ -775,11 +784,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_path:
         output_path = args.output_path
     else:
-        script_dir = Path(__file__).resolve().parent
-        output_path = (
-            script_dir.parent.parent.parent.parent
-            / ".agents" / "memory" / "episodes"
-        )
+        output_path = _repo_root() / ".agents" / "memory" / "episodes"
 
     # Read session log
     try:
