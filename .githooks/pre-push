@@ -388,7 +388,16 @@ if [ -n "$CHANGED_MD" ]; then
                 record_pass "Markdown lint (${#MD_FILES[@]} files)"
             else
                 echo_info "  Markdown issues found:"
-                grep -E '^[^/].*:.*MD[0-9]+' "$LINT_OUTPUT" 2>/dev/null | head -10 || head -10 "$LINT_OUTPUT"
+                # Without `set -o pipefail`, a `grep ... | head || head`
+                # pipeline takes its exit status from the final `head`, which
+                # returns 0 even when grep matched nothing, so the `||`
+                # fallback never fired (issue #1924). Test grep explicitly and
+                # branch.
+                if grep -qE '^[^/].*:.*MD[0-9]+' "$LINT_OUTPUT" 2>/dev/null; then
+                    grep -E '^[^/].*:.*MD[0-9]+' "$LINT_OUTPUT" 2>/dev/null | head -10
+                else
+                    head -10 "$LINT_OUTPUT"
+                fi
                 rm -f "$LINT_OUTPUT"
                 record_fail "Markdown lint"
                 echo_info "  Fix: npx markdownlint-cli2 --fix <files>"
