@@ -14,7 +14,7 @@ from redact_secrets import main, redact  # noqa: E402
 
 class TestTokenShapesRedacted:
     def test_bearer_token(self):
-        r = redact("auth header: Bearer abc123DEF456ghijkl")
+        r = redact("auth header: Bearer abc123DEF456ghijkl+/=")
         assert "[redacted: bearer-token]" in r.text
         assert "abc123DEF456ghijkl" not in r.text
         assert "bearer-token" in r.reasons
@@ -44,6 +44,18 @@ class TestTokenShapesRedacted:
         assert "[redacted: email]" in r.text
         assert "alice@corp.example.com" not in r.text
 
+    def test_email_single_label_domain(self):
+        # Single-label corporate forms (Alice@corp) carry PII too.
+        r = redact("contact Alice@corp now")
+        assert "[redacted: email]" in r.text
+        assert "Alice@corp" not in r.text
+        assert "now" in r.text
+
+    def test_email_unicode_local_part(self):
+        r = redact("ping café@example.com please")
+        assert "[redacted: email]" in r.text
+        assert "café@example.com" not in r.text
+
     def test_private_key_block(self):
         key = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----"
         r = redact(f"here:\n{key}\nafter")
@@ -51,9 +63,24 @@ class TestTokenShapesRedacted:
         assert "MIIEowIBAAKCAQEA" not in r.text
         assert "after" in r.text
 
+    def test_truncated_private_key_block(self):
+        # A pasted BEGIN line plus key material with no END marker must still
+        # be redacted (cursor: truncated PEM blocks not redacted).
+        truncated = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAtruncated"
+        r = redact(f"leaked:\n{truncated}")
+        assert "[redacted: private-key]" in r.text
+        assert "MIIEowIBAAKCAQEAtruncated" not in r.text
+
     def test_long_hex_secret(self):
         r = redact("hash " + "a" * 40 + " value")
         assert "[redacted: hex-secret]" in r.text
+
+    def test_long_hex_secret_after_word_char(self):
+        # A 32+ hex run immediately after `_` has no \b boundary; the rule must
+        # still redact it (cursor: long hex after word chars).
+        r = redact("token_" + "a" * 40 + " value")
+        assert "[redacted: hex-secret]" in r.text
+        assert "a" * 40 not in r.text
 
 
 class TestRealisticHaltBlockEvidence:
@@ -109,3 +136,10 @@ class TestCli:
 
     def test_too_many_args_is_usage_error(self):
         assert main(["a", "b"]) == 2
+
+    def test_invalid_utf8_file_is_usage_error(self, tmp_path):
+        # Invalid UTF-8 must surface as ADR-035 exit code 2, not a traceback
+        # (cursor: invalid UTF-8 crashes CLI).
+        p = tmp_path / "bad.bin"
+        p.write_bytes(b"\xff\xfe leaked Bearer abc123def456ghi789")
+        assert main([str(p)]) == 2

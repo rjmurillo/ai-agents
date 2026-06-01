@@ -34,7 +34,8 @@ from dataclasses import dataclass
 # specific match is not pre-empted by the generic hex rule.
 _RULES: list[tuple[str, re.Pattern[str]]] = [
     ("private-key", re.compile(
-        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----"
+        r".*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|\Z)",
         re.DOTALL)),
     ("github-token", re.compile(r"\b(?:ghp|ghs|gho|ghu|ghr)_[A-Za-z0-9]{36,}\b")),
     ("github-pat", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{22,}\b")),
@@ -42,9 +43,14 @@ _RULES: list[tuple[str, re.Pattern[str]]] = [
     ("aws-access-key-id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("slack-token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")),
-    ("bearer-token", re.compile(r"\bBearer\s+[A-Za-z0-9._\-]{8,}", re.IGNORECASE)),
-    ("email", re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")),
-    ("hex-secret", re.compile(r"\b[0-9a-fA-F]{32,}\b")),
+    ("bearer-token", re.compile(r"\bBearer\s+[A-Za-z0-9._\-+/=~]{8,}", re.IGNORECASE)),
+    # Unicode-aware local part and single-label domains (e.g. Alice@corp) are
+    # matched: the TLD suffix is optional. This over-redacts handle-like shapes
+    # such as foo@bar, which is the safe failure mode for untrusted free-text.
+    ("email", re.compile(r"[\w.%+\-]+@[\w\-]+(?:\.[\w\-]+)*", re.UNICODE)),
+    # A 32+ hex run anywhere, even immediately after a word char like `_`; the
+    # lookarounds bound the run by hex chars rather than \b word boundaries.
+    ("hex-secret", re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{32,}(?![0-9a-fA-F])")),
 ]
 
 _PLACEHOLDER = "[redacted: {reason}]"
@@ -89,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         text = open(args[0], encoding="utf-8").read() if args else sys.stdin.read()
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"redact_secrets: cannot read input: {exc}", file=sys.stderr)
         return 2
     sys.stdout.write(redact(text).text)
