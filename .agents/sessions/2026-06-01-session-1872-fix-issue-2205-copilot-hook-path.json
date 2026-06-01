@@ -18,7 +18,7 @@
       "startingCommitNoted": { "level": "SHOULD", "Complete": true, "Evidence": "5a85bc4" }
     },
     "sessionEnd": {
-      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "Anchored generated hook commands to plugin root; regenerated hooks.json; added regression test" },
+      "checklistComplete": { "level": "MUST", "Complete": true, "Evidence": "Anchored generated hook commands to plugin root; regenerated hooks.json; added regression test; pre-push gates pass" },
       "handoffPreserved": { "level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified" },
       "serenaMemoryUpdated": { "level": "MUST", "Complete": true, "Evidence": "Fact stored via store_memory about Copilot hook path anchoring" },
       "markdownLintRun": { "level": "MUST", "Complete": true, "Evidence": "No markdown files changed in final diff; N/A" },
