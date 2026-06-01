@@ -951,6 +951,13 @@ class TestCountUnresolvedThreads:
         nodes = [{}, {"id": "x"}]
         assert count_unresolved_threads(nodes) == 0
 
+    def test_explicit_null_isResolved_defaults_to_resolved(self):
+        """An explicit null isResolved from the GraphQL payload is treated the
+        same as a missing field (resolved), so it is not counted as unresolved.
+        """
+        nodes = [{"isResolved": None}, {"id": "x", "isResolved": None}]
+        assert count_unresolved_threads(nodes) == 0
+
 
 class TestFilterUnresolvedThreads:
     def test_returns_only_unresolved(self):
@@ -972,6 +979,7 @@ class TestFilterUnresolvedThreads:
             {"isResolved": False},
             {},
             {"isResolved": False},
+            {"isResolved": None},
         ]
         assert count_unresolved_threads(nodes) == len(filter_unresolved_threads(nodes))
 
@@ -1435,6 +1443,17 @@ class TestCheckWorkflowRateLimit:
         with patch("subprocess.run", return_value=_completed(stdout=RATE_LIMIT_ALL_OK)):
             result = check_workflow_rate_limit()
         assert isinstance(result, RateLimitResult)
+
+    def test_null_resources_does_not_crash(self):
+        """An explicit null ``resources`` from the API must not raise. Every
+        resource reads as missing (warns, fails) and core_remaining is 0.
+        """
+        payload = json.dumps({"resources": None})
+        with patch("subprocess.run", return_value=_completed(stdout=payload)):
+            with pytest.warns(UserWarning):
+                result = check_workflow_rate_limit()
+        assert result.success is False
+        assert result.core_remaining == 0
 
 
 # ---------------------------------------------------------------------------

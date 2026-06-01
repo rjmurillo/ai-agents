@@ -9,9 +9,14 @@ from pathlib import Path
 import pytest
 
 from ..scripts.extract_session_episode import (
+    extract_from_json,
     get_decision_type,
     get_session_id_from_path,
     get_session_outcome,
+    json_events,
+    json_metrics,
+    json_outcome,
+    looks_like_json_session,
     main,
     parse_decisions,
     parse_events,
@@ -350,3 +355,143 @@ class TestMainFunction:
         episode = json.loads(captured.out)
         assert "id" in episode
         assert "session" in episode
+
+
+def _gate(complete: bool) -> dict:
+    return {"level": "MUST", "Complete": complete, "Evidence": "x"}
+
+
+def _json_log(work_log: list[dict], *, end_complete: bool = True) -> dict:
+    gate = _gate(end_complete)
+    return {
+        "session": {
+            "number": 1,
+            "date": "2026-05-31",
+            "branch": "feat/x",
+            "startingCommit": "aaaaaaa",
+            "objective": "Do the thing",
+        },
+        "protocolCompliance": {
+            "sessionStart": {},
+            "sessionEnd": {
+                "checklistComplete": gate,
+                "changesCommitted": gate,
+                "validationPassed": gate,
+            },
+        },
+        "workLog": work_log,
+        "endingCommit": "bbbbbbb1234",
+        "nextSteps": [],
+    }
+
+
+class TestLooksLikeJsonSession:
+    def test_detects_json_session(self):
+        content = json.dumps(_json_log([{"task": "t", "outcome": "o", "evidence": "e"}]))
+        assert looks_like_json_session(content) is not None
+
+    def test_markdown_is_none(self):
+        assert looks_like_json_session("# Heading\n**Status**: Done\n") is None
+
+    def test_unrelated_json_is_none(self):
+        assert looks_like_json_session('{"foo": 1}') is None
+
+
+class TestJsonOutcome:
+    def test_all_gates_complete_is_success(self):
+        data = _json_log([{"task": "t", "outcome": "shipped", "evidence": "20 passed"}])
+        assert json_outcome(data) == "success"
+
+    def test_incomplete_gates_is_partial(self):
+        data = _json_log([{"task": "t", "outcome": "wip"}], end_complete=False)
+        assert json_outcome(data) == "partial"
+
+    def test_counted_failure_with_incomplete_gates_is_failure(self):
+        data = _json_log([{"task": "t", "outcome": "3 failed"}], end_complete=False)
+        assert json_outcome(data) == "failure"
+
+    def test_regression_2036_substring_fail_does_not_force_failure(self):
+        # The exact #2036 corruption: prose "test still fails" and "0 errors"
+        # must NOT be read as failures when the session-end gates are complete.
+        data = _json_log([
+            {"action": "compress", "outcome": "compression insufficient; test still fails"},
+            {"action": "verify", "outcome": "AGENTS.md 2791 B; markdownlint 0 errors"},
+        ])
+        assert json_outcome(data) == "success"
+
+
+class TestJsonEvents:
+    def test_milestone_from_task(self):
+        events = json_events(_json_log([{"task": "Build X", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "milestone" and e["content"] == "Build X" for e in events)
+
+    def test_milestone_from_action_legacy_schema(self):
+        events = json_events(_json_log([{"action": "Refactor Y", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "milestone" and e["content"] == "Refactor Y" for e in events)
+
+    def test_test_event_from_passed_count(self):
+        events = json_events(_json_log([{"task": "t", "outcome": "ok", "evidence": "24 passed"}]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "test" for e in events)
+
+    def test_no_error_event_from_prose_fail(self):
+        events = json_events(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]), "2026-05-31T00:00:00+00:00")
+        assert not any(e["type"] == "error" for e in events)
+
+    def test_error_event_from_counted_failure(self):
+        events = json_events(_json_log([{"task": "t", "outcome": "2 failed"}]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "error" for e in events)
+
+    def test_commit_event_from_ending_commit(self):
+        events = json_events(_json_log([{"task": "t", "outcome": "o"}]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "commit" for e in events)
+
+    def test_milestone_from_string_entry(self):
+        # Some logs store workLog as a list of bare strings (e.g. session 1766).
+        events = json_events(_json_log(["Reviewed PR 1766: 5 unresolved threads"]), "2026-05-31T00:00:00+00:00")
+        assert any(e["type"] == "milestone" and "Reviewed PR 1766" in e["content"] for e in events)
+
+
+class TestStringWorkLog:
+    def test_outcome_success_when_gates_complete(self):
+        assert json_outcome(_json_log(["did a thing", "did another"])) == "success"
+
+    def test_metrics_do_not_crash(self):
+        m = json_metrics(_json_log(["touched 3 files", "ran tests"]))
+        assert m["files_changed"] == 3
+
+    def test_main_on_string_worklog(self, tmp_path, capsys):
+        log = tmp_path / "2026-05-31-session-9002.json"
+        log.write_text(json.dumps(_json_log(["did a thing", "shipped it"])), encoding="utf-8")
+        rc = main([str(log), "--output-path", str(tmp_path / "ep")])
+        assert rc == 0
+        episode = json.loads(capsys.readouterr().out)
+        assert episode["outcome"] == "success"
+        assert sum(1 for e in episode["events"] if e["type"] == "milestone") == 2
+
+
+class TestJsonMetrics:
+    def test_errors_zero_when_no_counted_failure(self):
+        m = json_metrics(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]))
+        assert m["errors"] == 0
+
+    def test_files_changed_parsed(self):
+        m = json_metrics(_json_log([{"task": "t", "outcome": "ok", "evidence": "7 files changed"}]))
+        assert m["files_changed"] == 7
+
+
+class TestExtractFromJsonEndToEnd:
+    def test_bundle_shape(self):
+        bundle = extract_from_json(_json_log([{"task": "Ship it", "outcome": "done", "evidence": "20 passed"}]))
+        assert bundle["outcome"] == "success"
+        assert bundle["task"] == "Do the thing"
+        assert bundle["timestamp"].startswith("2026-05-31")
+        assert bundle["lessons"] == []
+
+    def test_main_on_json_log(self, tmp_path, capsys):
+        log = tmp_path / "2026-05-31-session-9001.json"
+        log.write_text(json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])), encoding="utf-8")
+        rc = main([str(log), "--output-path", str(tmp_path / "ep")])
+        assert rc == 0
+        episode = json.loads(capsys.readouterr().out)
+        assert episode["outcome"] == "success"
+        assert not any(e["type"] == "error" for e in episode["events"])

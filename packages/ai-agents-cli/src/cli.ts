@@ -7,11 +7,13 @@ import { FsBundleSource } from "./io/bundle-source-fs.js";
 import { FsTargetEmitter } from "./target/emitter-fs.js";
 import { init } from "./init.js";
 import { mergeClaudeMd } from "./target/merge-claude-md.js";
+import { mergeCopilotInstructions } from "./target/merge-copilot-instructions.js";
 import { writeAgentsMd } from "./target/write-agents-md.js";
 import { writeVersionPin } from "./target/version-pin.js";
-import type { BundleEntry, TargetContext } from "./types.js";
+import { TARGETS, type BundleEntry, type Target, type TargetContext } from "./types.js";
 
 const VERSION = "0.1.0";
+const DEFAULT_TARGET: Target = "claude";
 
 export interface RunInitOptions {
   targetDir: string;
@@ -19,6 +21,31 @@ export interface RunInitOptions {
   dryRun: boolean;
   assetsDir: string;
   version: string;
+  target?: Target;
+}
+
+// Append the inline harness block to the instruction file(s) the target selects.
+async function writeTargetBlocks(
+  targetDir: string,
+  target: Target,
+  dryRun: boolean,
+): Promise<void> {
+  if (target === "claude" || target === "both") {
+    await mergeClaudeMd(targetDir, dryRun);
+  }
+  if (target === "copilot" || target === "both") {
+    await mergeCopilotInstructions(targetDir, dryRun);
+  }
+}
+
+// Reject any --target value outside the known set with a clear error message.
+export function parseTarget(value: string): Target {
+  if ((TARGETS as readonly string[]).includes(value)) {
+    return value as Target;
+  }
+  throw new Error(
+    `Invalid --target "${value}". Expected one of: ${TARGETS.join(", ")}.`,
+  );
 }
 
 // Exported for tests: wires the vendoring pipeline end-to-end.
@@ -43,7 +70,11 @@ export async function runInit(opts: RunInitOptions): Promise<number> {
   if (code !== 0) return code;
 
   if (!opts.dryRun) {
-    await mergeClaudeMd(target.targetDir, opts.dryRun);
+    await writeTargetBlocks(
+      target.targetDir,
+      opts.target ?? DEFAULT_TARGET,
+      opts.dryRun,
+    );
     await writeAgentsMd(target.targetDir, opts.dryRun);
     await writeVersionPin(
       target.targetDir,
@@ -69,6 +100,7 @@ async function main(): Promise<number> {
     options: {
       force: { type: "boolean", default: false },
       "dry-run": { type: "boolean", default: false },
+      target: { type: "string", default: DEFAULT_TARGET },
       yes: { type: "boolean", short: "y", default: false },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", default: false },
@@ -93,6 +125,8 @@ async function main(): Promise<number> {
         "Options:",
         "  --force       Overwrite existing files that diverge from snapshot",
         "  --dry-run     Show what would be written without touching disk",
+        "  --target T    Instruction file(s) to update: claude, copilot, or both",
+        "                (default: claude)",
         "  -y, --yes     Skip confirmation prompts",
         "  -h, --help    Show this help message",
         "  --version     Print the CLI version and exit",
@@ -113,8 +147,17 @@ async function main(): Promise<number> {
   const force = values.force ?? false;
   const dryRun = values["dry-run"] ?? false;
 
+  let target: Target;
+  try {
+    target = parseTarget(values.target ?? DEFAULT_TARGET);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`${message}\n`);
+    return 2;
+  }
+
   process.stdout.write(
-    `ai-agents init: target=${targetDir} force=${force} dryRun=${dryRun}\n`,
+    `ai-agents init: dir=${targetDir} target=${target} force=${force} dryRun=${dryRun}\n`,
   );
 
   return runInit({
@@ -123,6 +166,7 @@ async function main(): Promise<number> {
     dryRun,
     assetsDir: resolveAssetsDir(),
     version: VERSION,
+    target,
   });
 }
 
