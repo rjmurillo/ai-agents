@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -106,6 +107,26 @@ def get_repo_files(directory: str) -> list[str]:
             if is_safe_path(filepath):
                 files.append(filepath)
     return sorted(files)
+
+def get_diff_files(base: str) -> list[str]:
+    """Collect files changed in the diff against a base branch.
+
+    Derives the list from `git diff --name-only <base>...HEAD`. Path traversal
+    candidates (CWE-22) are dropped. Returns an empty list when git is missing
+    or the command fails.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", f"{base}...HEAD"],
+            capture_output=True,
+            check=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
+    files = [f for f in result.stdout.strip().split("\n") if f]
+    return sorted(f for f in files if is_safe_path(f))
 
 def check_script_language(filepath: str, lines: list[str]) -> list[Violation]:
     """GP-001: No new .sh or .bash files."""
@@ -439,6 +460,11 @@ def main() -> int:
         help="Scan all files in directory (default: repo root)",
     )
     parser.add_argument(
+        "--diff-scope",
+        metavar="BASE_BRANCH",
+        help="Scan only files changed in 'git diff --name-only BASE_BRANCH...HEAD'",
+    )
+    parser.add_argument(
         "--format", choices=("text", "json"), default="text",
         help="Output format (default: text)",
     )
@@ -455,7 +481,9 @@ def main() -> int:
     rules = parse_rules(args.rules)
 
     files: list[str] = []
-    if args.directory:
+    if args.diff_scope:
+        files = get_diff_files(args.diff_scope)
+    elif args.directory:
         files = get_repo_files(args.directory)
     elif args.files:
         files = args.files

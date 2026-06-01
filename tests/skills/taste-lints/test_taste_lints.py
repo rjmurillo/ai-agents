@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -28,6 +29,7 @@ format_json = mod.format_json
 parse_rules = mod.parse_rules
 main = mod.main
 is_safe_path = mod.is_safe_path
+get_diff_files = mod.get_diff_files
 LintResult = mod.LintResult
 Violation = mod.Violation
 EXIT_SUCCESS = mod.EXIT_SUCCESS
@@ -294,6 +296,92 @@ class TestMain:
         test_file = tmp_path / "big_file.py"
         test_file.write_text("x = 1\n" * 501)
         with patch("sys.argv", ["taste_lints.py", str(test_file)]):
+            result = main()
+        assert result == EXIT_VIOLATIONS
+
+
+def _run_git(repo: Path, *args: str) -> None:
+    """Run a git command in the given repo, failing loudly on error."""
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+    )
+
+
+def _make_repo_with_diff(repo: Path) -> None:
+    """Create a git repo on a feature branch with one file changed vs main."""
+    _run_git(repo, "init", "-b", "main")
+    _run_git(repo, "config", "user.email", "test@example.com")
+    _run_git(repo, "config", "user.name", "Test")
+    (repo / "base.py").write_text("x = 1\n")
+    _run_git(repo, "add", "base.py")
+    _run_git(repo, "commit", "-m", "base")
+    _run_git(repo, "checkout", "-b", "feature")
+    (repo / "changed.py").write_text("y = 2\n")
+    _run_git(repo, "add", "changed.py")
+    _run_git(repo, "commit", "-m", "change")
+
+
+class TestGetDiffFiles:
+    """Tests for diff-scoped file selection (--diff-scope)."""
+
+    def test_returns_only_changed_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        result = get_diff_files("main")
+        assert result == ["changed.py"]
+
+    def test_returns_empty_when_no_changes(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        _run_git(tmp_path, "checkout", "main")
+        monkeypatch.chdir(tmp_path)
+        result = get_diff_files("main")
+        assert result == []
+
+    def test_returns_empty_when_git_missing(self) -> None:
+        with patch.object(mod.subprocess, "run", side_effect=FileNotFoundError):
+            result = get_diff_files("main")
+        assert result == []
+
+    def test_returns_empty_on_unknown_base(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        result = get_diff_files("does-not-exist")
+        assert result == []
+
+    def test_drops_traversal_paths(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
+        )
+        with patch.object(mod.subprocess, "run", return_value=completed):
+            result = get_diff_files("main")
+        assert result == ["changed.py"]
+
+
+class TestMainDiffScope:
+    """Tests for the --diff-scope main entry path."""
+
+    def test_diff_scope_scans_only_changed_files(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        # Pre-existing oversized file on the base would fail a whole-tree scan,
+        # but it is not in the diff so --diff-scope must ignore it.
+        (tmp_path / "base.py").write_text("z = 1\n")
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["taste_lints.py", "--diff-scope", "main"]):
+            result = main()
+        assert result == EXIT_SUCCESS
+
+    def test_diff_scope_flags_violation_in_changed_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _make_repo_with_diff(tmp_path)
+        oversized = tmp_path / "changed.py"
+        oversized.write_text("y = 2\n" * 501)
+        _run_git(tmp_path, "add", "changed.py")
+        _run_git(tmp_path, "commit", "-m", "grow")
+        monkeypatch.chdir(tmp_path)
+        with patch("sys.argv", ["taste_lints.py", "--diff-scope", "main"]):
             result = main()
         assert result == EXIT_VIOLATIONS
 
