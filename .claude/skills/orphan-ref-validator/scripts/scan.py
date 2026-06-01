@@ -54,6 +54,7 @@ if __package__ in (None, ""):
         enumerate_count,
         enumerate_skills,
         is_manifest_file,
+        is_marketplace_manifest,
         reset_count_cache,
     )
     from envelope import (
@@ -77,6 +78,7 @@ else:
         enumerate_count,
         enumerate_skills,
         is_manifest_file,
+        is_marketplace_manifest,
         reset_count_cache,
     )
     from .envelope import (
@@ -159,8 +161,14 @@ def scan_file(
     refs_checked += skill_script_refs
 
     if is_manifest_file(target_path):
+        # Count enforcement is single-plugin scoped: enumerate_count only
+        # enumerates the .claude/ tree. marketplace.json catalogs are
+        # multi-plugin (or describe the copilot tree), so enforcing their
+        # per-plugin claims against .claude/* yields false positives. Skip
+        # emission for them; refs are still counted for coverage.
+        file_enforce = enforce_counts and not is_marketplace_manifest(target_path)
         count_findings, count_refs = _check_count_claims(
-            text, rel, repo_root, enforce_counts
+            text, rel, repo_root, file_enforce
         )
         findings.extend(count_findings)
         refs_checked += count_refs

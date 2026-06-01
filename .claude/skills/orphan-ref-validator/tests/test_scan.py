@@ -296,8 +296,9 @@ def test_enforce_counts_default_off_emits_no_count_finding(fake_repo):
 
 def test_enforce_counts_on_emits_critical_on_divergence(fake_repo):
     """With enforce_counts=True a divergent single-plugin count claim
-    (claimed 99, actual 2) yields a critical count_claim finding."""
-    plugin = fake_repo / ".claude-plugin" / "marketplace.json"
+    (claimed 99, actual 2) in a plugin.json yields a critical count_claim
+    finding."""
+    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
     write(plugin, '{"description": "Catalog has 99 reusable skills."}')
     result = scan([plugin], fake_repo, enforce_counts=True)
     count_findings = [f for f in result.findings if f.kind == "count_claim"]
@@ -310,10 +311,29 @@ def test_enforce_counts_on_emits_critical_on_divergence(fake_repo):
     assert result.verdict == "CRITICAL_FAIL"
 
 
+def test_enforce_counts_skips_multiplugin_marketplace(fake_repo):
+    """With enforce_counts=True a divergent count claim in a multi-plugin
+    marketplace.json is NOT emitted: enumerate_count enumerates the .claude/
+    tree only, so per-plugin marketplace claims cannot be validated against it.
+    Coverage for marketplace.json stays delegated to the canonical
+    build/scripts/validate_marketplace_counts.py."""
+    catalog = fake_repo / ".claude-plugin" / "marketplace.json"
+    write(
+        catalog,
+        '{"plugins": ['
+        '{"name": "claude-agents", "description": "Has 99 reusable skills."},'
+        '{"name": "project-toolkit", "description": "Has 7 reusable skills."}'
+        "]}",
+    )
+    result = scan([catalog], fake_repo, enforce_counts=True)
+    assert [f for f in result.findings if f.kind == "count_claim"] == []
+    assert result.verdict == "PASS"
+
+
 def test_enforce_counts_on_no_finding_when_count_matches(fake_repo):
-    """With enforce_counts=True a matching count claim (2 == 2) yields no
-    finding."""
-    plugin = fake_repo / ".claude-plugin" / "marketplace.json"
+    """With enforce_counts=True a matching count claim (2 == 2) in a
+    plugin.json yields no finding."""
+    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
     write(plugin, '{"description": "Catalog has 2 reusable skills."}')
     result = scan([plugin], fake_repo, enforce_counts=True)
     assert [f for f in result.findings if f.kind == "count_claim"] == []
@@ -326,7 +346,7 @@ def test_enforce_counts_on_warns_when_count_undeterminable(tmp_path):
     repo = tmp_path / "no-skills"
     repo.mkdir()
     (repo / ".git").mkdir()
-    plugin = repo / ".claude-plugin" / "marketplace.json"
+    plugin = repo / ".claude" / ".claude-plugin" / "plugin.json"
     write(plugin, '{"description": "Catalog has 7 reusable skills."}')
     result = scan([plugin], repo, enforce_counts=True)
     count_findings = [f for f in result.findings if f.kind == "count_claim"]
@@ -337,8 +357,9 @@ def test_enforce_counts_on_warns_when_count_undeterminable(tmp_path):
 
 def test_enforce_counts_cli_flag_flips_exit_code(fake_repo, capsys):
     """The --enforce-counts CLI flag threads into scan(): a divergent count
-    claim returns exit 0 without the flag and exit 1 with it."""
-    plugin = fake_repo / ".claude-plugin" / "marketplace.json"
+    claim in a plugin.json returns exit 0 without the flag and exit 1 with
+    it."""
+    plugin = fake_repo / ".claude" / ".claude-plugin" / "plugin.json"
     write(plugin, '{"description": "Catalog has 99 reusable skills."}')
     rc_off = main([
         "--targets", str(plugin),
