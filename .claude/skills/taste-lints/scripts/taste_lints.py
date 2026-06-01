@@ -84,22 +84,28 @@ def get_staged_files() -> list[str]:
             check=True,
             encoding="utf-8",
             errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
         )
         files = [f for f in result.stdout.strip().split("\n") if f]
         # Filter out any paths with traversal attempts (CWE-22)
         return [f for f in files if is_safe_path(f)]
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return []
+
+
+# Bound git subprocess calls so a hung or wedged git process cannot stall the
+# diff-scope pre-flight indefinitely.
+_GIT_TIMEOUT_SECONDS = 30
 
 
 def _git_root() -> str:
     """Return the absolute path of the git working tree root.
 
     Raises:
-        RuntimeError: git is unavailable or the command fails (for example when
-            run outside a repository). Surfacing the failure stops the gate from
-            silently anchoring diff paths to the wrong place and linting zero
-            files.
+        RuntimeError: git is unavailable, times out, or the command fails (for
+            example when run outside a repository). Surfacing the failure stops
+            the gate from silently anchoring diff paths to the wrong place and
+            linting zero files.
     """
     try:
         result = subprocess.run(
@@ -108,9 +114,12 @@ def _git_root() -> str:
             check=True,
             encoding="utf-8",
             errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
         raise RuntimeError("git is not available to compute --diff-scope") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("git rev-parse --show-toplevel timed out") from exc
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(
             f"git rev-parse --show-toplevel failed (exit {exc.returncode})"
@@ -144,9 +153,12 @@ def get_diff_files(base: str) -> list[str]:
             check=True,
             encoding="utf-8",
             errors="ignore",
+            timeout=_GIT_TIMEOUT_SECONDS,
         )
     except FileNotFoundError as exc:
         raise RuntimeError("git is not available to compute --diff-scope") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git diff timed out for base {base!r}") from exc
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(
             f"git diff failed for base {base!r} (exit {exc.returncode})"
