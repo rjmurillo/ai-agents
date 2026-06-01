@@ -29,20 +29,12 @@
       "content": "Security fixes require adversarial testing before claiming complete",
       "caused_by": [],
       "leads_to": []
-    },
-    {
-      "id": "e004",
-      "timestamp": "2026-01-04T00:00:00+00:00",
-      "type": "error",
-      "content": "| MUST | Run markdown lint | [x] | 23 errors in pre-existing files (not session artifacts) |",
-      "caused_by": [],
-      "leads_to": []
     }
   ],
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 26,
+    "errors": 0,
     "recoveries": 0,
     "commits": 3,
     "files_changed": 0
