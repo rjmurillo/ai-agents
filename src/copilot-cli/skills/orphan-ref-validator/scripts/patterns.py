@@ -25,7 +25,8 @@ SKILL_REF_RE = re.compile(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+)+)`")
 # This regex is NOT under the canonical-source-mirror contract; only
 # COUNT_CLAIM_RE / COUNT_LABEL_MAP mirror the canonical validator.
 SCRIPT_REF_RE = re.compile(
-    r"`((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.(?:py|ps1))`"
+    r"`(?<![\w/])((?:build/scripts|scripts/validation|scripts)/[a-zA-Z0-9_/-]+\.(?:py|ps1))(?!\w)`",
+    re.IGNORECASE,
 )
 # Skill-script references under .claude/skills/ or the copilot mirror, in
 # either backticked or bare `python3 .../foo.py` command form. The bare form is
