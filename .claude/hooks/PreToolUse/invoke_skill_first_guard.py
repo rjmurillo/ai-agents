@@ -51,12 +51,6 @@ if _lib_dir not in sys.path:
 from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 
-# Shell statement separators that begin a new command context. A gh
-# invocation is the command word of a segment, never text inside a quoted
-# argument; matching the whole string with a regex flagged the latter as a
-# false positive (issue #2111).
-_SHELL_SEPARATORS = re.compile(r"&&|\|\||[;|\n]")
-
 # Leading tokens that wrap another command. Skipping them (and their option
 # flags) keeps `env FOO=bar gh ...`, `sudo -E gh ...`, `nohup gh ...`, and
 # `time gh ...` resolving to the gh invocation rather than the wrapper.
@@ -156,21 +150,52 @@ def _command_word_basename(token: str) -> str:
     return base
 
 
-def _tokenize_segment(seg: str) -> list[str]:
-    """Split a shell segment into tokens, preserving path separators.
+def _tokenize_command(command: str) -> list[str]:
+    """Tokenize a full shell command, quote-aware and separator-aware.
 
-    Uses POSIX-style grouping (quotes are honored and stripped, so a quoted
-    `VAR='x y'` assignment stays one token and a quoted argument never becomes
-    the command word) while disabling backslash escaping, so a Windows path
-    such as C:\\bin\\gh survives intact for basename extraction.
+    `punctuation_chars` makes the lexer emit shell control operators
+    (`&&`, `||`, `|`, `|&`, `;`, `&`, redirections) as their own tokens while
+    honoring quotes, so a separator inside a quoted argument
+    (`--title "a | gh issue list"`) stays part of that argument and never
+    splits the command (issue #2111). POSIX grouping collapses a quoted
+    `VAR='x y'` assignment into one token; disabling escape keeps a Windows
+    path such as C:\\bin\\gh intact for basename extraction.
     """
-    lex = shlex.shlex(seg, posix=True)
+    lex = shlex.shlex(command, posix=True, punctuation_chars=";()<>|&")
     lex.whitespace_split = True
     lex.escape = ""
     return list(lex)
 
 
-def _gh_args_for_segment(segment: str) -> list[str] | None:
+# Tokens emitted by the punctuation-aware lexer that begin a new command
+# context. A gh invocation must be the command word of a segment, so segments
+# are delimited by these operator tokens.
+_SEGMENT_OPERATORS = frozenset({";", "|", "||", "&", "&&", "|&", "(", ")", "<", ">", ">>", "<<"})
+
+# A gh operation/action must be a bare subcommand word. Rejecting anything else
+# keeps path-traversal operands such as `..` or `../../etc` out of the skill
+# lookup, which joins these values into filesystem paths and glob patterns
+# (CWE-22).
+_OPERAND_RE = re.compile(r"^\w[\w-]*$")
+
+
+def _split_segments(tokens: list[str]) -> list[list[str]]:
+    """Partition a token stream into command segments on operator tokens."""
+    segments: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in _SEGMENT_OPERATORS:
+            if current:
+                segments.append(current)
+                current = []
+            continue
+        current.append(token)
+    if current:
+        segments.append(current)
+    return segments
+
+
+def _gh_args_for_segment(tokens: list[str]) -> list[str] | None:
     """Return the tokens after `gh` if this segment's command word is gh.
 
     Anchors on the command actually being a `gh` invocation rather than text
@@ -178,15 +203,6 @@ def _gh_args_for_segment(segment: str) -> list[str] | None:
     previous whole-string regex match flagged as a false positive (issue #2111).
     Returns the tokens following `gh`, or None when the segment does not invoke gh.
     """
-    seg = segment.strip()
-    if not seg:
-        return None
-    try:
-        tokens = _tokenize_segment(seg)
-    except ValueError:
-        # Unbalanced quotes: fall back to whitespace split. Still anchored on
-        # the command word, so a quoted argument cannot trip the guard.
-        tokens = seg.split()
     idx = 0
     n = len(tokens)
     while idx < n:
@@ -214,21 +230,29 @@ def _gh_args_for_segment(segment: str) -> list[str] | None:
 def parse_gh_command(command: str) -> dict[str, str] | None:
     """Parse a gh command into operation and action components.
 
-    Splits the command on shell separators and inspects each segment's command
-    word. Only a real `gh` invocation (gh as the command, not as quoted
-    argument text) yields a match.
+    Tokenizes the command quote-aware, splits it into segments on shell
+    operators, and inspects each segment's command word. Only a real `gh`
+    invocation (gh as the command, not as quoted argument text) whose
+    operation and action are bare subcommand words yields a match.
 
     Returns dict with 'operation', 'action', 'full_command' or None.
     """
     if not command:
         return None
 
-    for segment in _SHELL_SEPARATORS.split(command):
+    try:
+        tokens = _tokenize_command(command)
+    except ValueError:
+        # Unbalanced quotes: fall back to a naive whitespace split. Still
+        # anchored on the command word, so a quoted argument cannot trip it.
+        tokens = command.split()
+
+    for segment in _split_segments(tokens):
         gh_args = _gh_args_for_segment(segment)
         if gh_args is None:
             continue
         positional = [tok for tok in gh_args if not tok.startswith("-")]
-        if len(positional) >= 2:
+        if len(positional) >= 2 and _OPERAND_RE.match(positional[0]) and _OPERAND_RE.match(positional[1]):
             return {
                 "operation": positional[0],
                 "action": positional[1],

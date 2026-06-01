@@ -124,6 +124,30 @@ class TestParseGhCommand:
         for cmd in ("gh.exe pr view 1", "/usr/local/bin/gh issue list", r"C:\bin\gh pr view 1"):
             assert parse_gh_command(cmd) is not None, cmd
 
+    def test_quoted_separator_not_split(self) -> None:
+        """A shell separator inside a quoted argument must not split the command
+        and reintroduce the issue #2111 false positive."""
+        assert parse_gh_command('python3 t.py --title "a | gh issue list"') is None
+        assert parse_gh_command('echo x --body "... && gh pr view"') is None
+
+    def test_pipe_ampersand_operator_segments(self) -> None:
+        """The `|&` operator is one separator token; the gh after it is caught."""
+        result = parse_gh_command("cmd |& gh pr view")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
+    def test_traversal_operands_rejected(self) -> None:
+        """operation/action must be bare subcommand words so traversal operands
+        like `..` never reach the path-joining skill lookup (CWE-22)."""
+        assert parse_gh_command("gh .. ..") is None
+        assert parse_gh_command("gh ../../etc passwd") is None
+        assert parse_gh_command("gh pr ..") is None
+        assert parse_gh_command("gh . view") is None
+        # A traversal token as a later positional argument is fine; the real
+        # subcommand words still resolve.
+        assert parse_gh_command("gh pr view ..") is not None
+
 
 class TestFindSkillScript:
     """Tests for skill script lookup."""
