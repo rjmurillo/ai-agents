@@ -384,7 +384,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 
    - Tier 2 + Clear: standard acceptance-criteria spec (CRUD or pure UI).
    - Tier 2 + Complex: probe-sense-respond spec; build the smallest experiment first, then specify the rest from what the experiment reveals.
-   - Tier 4 + Chaotic: halt (see below).
+   - Any tier + Chaotic: halt (see below).
 
    **Halt condition (Chaotic domain)**: when `cynefin-classifier` classifies the domain as Chaotic, halt and do not proceed to Step 4. A Chaotic domain has no stable cause-and-effect to specify against; specifying before stabilizing bakes in assumptions that the next incident invalidates. Recommend stabilization work first, then re-invoke `/spec` once the domain settles into Complex or Complicated. Emit the recommendation as a single line: "Domain is Chaotic; stabilize before specifying. Re-invoke /spec after the system reaches a steady state." All other domain classifications (Clear, Complicated, Complex) are soft annotations that flow into the PRD; only Chaotic halts.
 
@@ -392,7 +392,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
 
    #### Step 4 provenance and dependency gates
 
-   Before the buy-vs-build gate (Step 4a) and before any spec proposes changing a shared component, run two skills in order so ownership is established first and dependency choices are scrutinized second.
+   Before generating artifacts, run two skills that bracket the buy-vs-build gate (Step 4a): ownership is established first (before Step 4a), then dependency choices are scrutinized second (after Step 4a). They do not run back to back; the Step 4a verdict falls between them, so the numbered order below is logical sequence, not adjacency.
 
    1. **Ownership first (`analysis-provenance`)**. Before the spec proposes changing any validator, linter, hook, or shared infrastructure component, invoke Skill(skill="analysis-provenance") to identify who owns it. The skill reports provenance as UPSTREAM, LOCAL, VENDOR, or UNKNOWN, plus the owner and last-touched signal. Emit an ownership block carried into the PRD's Prior Art / Constraints section: `<component>: provenance <UPSTREAM|LOCAL|VENDOR|UNKNOWN>; owner <name-or-team-or-none>`. This runs BEFORE Skill(skill="buy-vs-build-framework") at Step 4a: you cannot make a sound build/buy decision about a component until you know whether it is yours to change. **Halt condition**: provenance returns UNKNOWN (no identifiable owner) for a shared component the spec proposes to change; halt and request ownership escalation before continuing.
    2. **Dependency scrutiny (`programming-advisor`)**. When the spec proposes a new external dependency (a library, SaaS, or OSS package), invoke Skill(skill="programming-advisor") to evaluate it. Output: a dependency assessment (maintenance, license, supply-chain, fit) carried into the PRD. This fires after the Step 4a buy-vs-build verdict resolves to build-with-a-dependency or buy; it does not fire when the codebase search at Step 4 already found a usable in-repo solution. **Halt condition**: the buy-vs-build verdict at Step 4a is "buy" but no vendor evaluation was performed; halt and complete the evaluation before generating artifacts.
@@ -443,7 +443,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    For Tier 4-5 specs, an ADR is mandatory and its review is BLOCKING (AGENTS.md fires the adr-review skill on any ADR create/edit). After the REQ/DESIGN/TASK files are generated:
 
    1. Invoke Skill(skill="adr-generator") to produce `ADR-NNN-{slug}.md`. The ADR cross-references the driving REQ; the REQ cross-references the ADR as the architectural decision it implements. Maintain this bidirectional ADR<->REQ link: the ADR names the REQ id in its context, and the REQ names the ADR id in its rationale.
-   2. Immediately invoke Skill(skill="adr-review") as a BLOCKING gate. The verdict gates the spec from advancing to Step 7. **Halt condition**: `adr-review` returns REQUEST_CHANGES; halt and do not proceed to Step 7 until the ADR is revised and re-reviewed. A second halt fires if the new ADR contradicts an existing ADR (the `incoherence` skill at Step 7 also catches this); resolve the contradiction or amend the existing ADR before continuing.
+   2. Immediately invoke Skill(skill="adr-review") as a BLOCKING gate. The verdict gates the spec from advancing to Step 7. **Halt condition**: `adr-review` returns REQUEST_CHANGES; halt and do not proceed to Step 7 until the ADR is revised and re-reviewed. A second halt fires if the new ADR contradicts an existing ADR (the `doc-accuracy` skill at Step 7 also catches this); resolve the contradiction or amend the existing ADR before continuing.
 
    Tier scope difference: Tier 4 produces a single-decision ADR (single-team architectural). Tier 5 produces a governance-level ADR with broader impact; the Tier 5 governance review explicitly cites the ADR and the `adr-review` verdict. Tiers 1-3 do NOT auto-generate an ADR (over-application produces ADR sprawl).
 
@@ -496,16 +496,16 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
    Each entry follows the documented contract literally: bare `{file_path}:{line_or_section}` with no backticks. When `{line_or_section}` is not a line number, quote it (for example, `"validity"`). `{what changes}` is a single phrase. The worked example pins the exact byte-level shape that future checklist linters will pattern-match against; do not paraphrase the separator or drop `--`.
 
    The checklist surfaces 17 sites for a single token. Without it, the implementer discovers each one through a separate bot-review round trip.
-7. **Analyst review (incoherence + golden-principles, then gap check)**. Run two skills in sequence before the gap-and-ambiguity check, each gating the spec from advancing to Step 8:
+7. **Analyst review (doc-accuracy + golden-principles, then gap check)**. Run two skills in sequence before the gap-and-ambiguity check, each gating the spec from advancing to Step 8:
 
-   1. Invoke Skill(skill="incoherence") to scan for contradictions between the spec and existing docs, ADRs, and code. Common case: the spec proposes behavior that contradicts a documented ADR constraint or an existing design doc. **Halt condition**: `incoherence` finds a contradiction with an existing ADR; halt and require an explicit ADR amendment proposal before continuing (do not silently override the ADR).
+   1. Invoke Skill(skill="doc-accuracy") to scan for contradictions between the spec and existing docs, ADRs, and code. Common case: the spec proposes behavior that contradicts a documented ADR constraint or an existing design doc. **Halt condition**: `doc-accuracy` finds a contradiction with an existing ADR; halt and require an explicit ADR amendment proposal before continuing (do not silently override the ADR).
    2. Invoke Skill(skill="golden-principles") to scan the spec's design proposals for SOLID, KISS, DRY, and YAGNI violations (CLAUDE.md already declares these as standards; making them explicit here catches violations before they ship). **Halt condition**: `golden-principles` finds a violation; halt and require either a justification recorded in the PRD or a design change.
 
-   Then Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague. Integrate the `incoherence` and `golden-principles` findings into your verdict; these checks are additive to the existing gap-and-ambiguity review, not a replacement for it.
+   Then Task(subagent_type="analyst"): You are a requirements analyst. Your job is to find gaps, ambiguities, and untestable requirements. Review every PRD section, not just acceptance criteria. For each requirement, ask: can this be verified pass/fail? Flag anything vague. Integrate the `doc-accuracy` and `golden-principles` findings into your verdict; these checks are additive to the existing gap-and-ambiguity review, not a replacement for it.
 8. Invoke Skill(skill="decision-critic"): challenge assumptions before committing
 9. Task(subagent_type="critic"): You are a skeptical reviewer. **For the pre-mortem portion, invoke Skill(skill="pre-mortem") explicitly** rather than running an ad-hoc pre-mortem inline. The skill runs prospective-hindsight analysis with a structured methodology: assume the spec ships and fails, then work backward. Map its output into the PRD's Failure Modes section: failure scenarios (specific), failure modes (categorized), early warning signs (named), and prevention measures. **Pre-mortem halt condition**: if `pre-mortem` identifies a failure mode the spec does not address (no mitigation and no acceptance criterion that checks for it), flag it for the proposer. The pre-mortem skill is additive; the four binary drift checks below still run.
 
-   Then run four binary checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c/9d is FAIL. Checks 9a/9b/9c validate Step 0 (forward-looking demand) drift. Check 9d validates Step 0.5 (backward-looking prior art) elicitation. For Tier 5 specs, also run the operating-model drift check (9e below).
+   Then run the binary drift checks against the final PRD; the critic SHALL NOT return APPROVED while any of 9a/9b/9c/9d is FAIL, and for Tier 5 specs the critic SHALL NOT return APPROVED while 9e is FAIL. Checks 9a/9b/9c validate Step 0 (forward-looking demand) drift. Check 9d validates Step 0.5 (backward-looking prior art) elicitation. For Tier 5 specs, also run the operating-model drift check (9e below).
 
    - **Check 9a, Demand Reality drift**:
      - PASS: PRD acceptance criteria, user stories, OR success metric reference at least one entity (person, team, system, metric, ticket, file path) named in Step 0 Q1.
@@ -549,7 +549,7 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 - **User stories** (who, action, observable outcome)
 - **Data model** (entities, identity, invariants, lifecycle)
 - **Integrations** (external systems, failure modes, idempotency)
-- **Failure modes** (retries, partial failures, conflicts, replay, schema evolution; populated from the Step 9 `pre-mortem` skill: failure scenarios, modes, early warnings, prevention)
+- **Failure modes** (retries, partial failures, conflicts, replay, schema evolution; initially drafted at Step 2 and written into the artifacts at Step 6, then augmented in place by the Step 9 `pre-mortem` skill: failure scenarios, modes, early warnings, prevention)
 - **Security** (authn, authz, secrets, PII, input validation; populated from the Step 6 `threat-modeling` skill: threats, trust boundaries, abuse cases, mitigations; or an explicit "no security surface" justification at Tier 1-2)
 - **Observability** (logs, metrics, traces, alerts; populated from the Step 6 `slo-designer` skill: SLIs, SLOs, error budgets, alert thresholds; or a lightweight "what metric proves this works" line at Tier 1-2)
 - **Acceptance criteria** (numbered, EARS syntax, each independently testable as pass/fail)
