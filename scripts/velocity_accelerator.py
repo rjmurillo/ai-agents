@@ -72,7 +72,9 @@ _ACTION_KEYWORD_PATTERN = re.compile(
 # action comment only when it starts the comment text or follows one of these,
 # so English prose that merely contains "follow-up" or "todo" mid-sentence is
 # not matched (issue #1852).
-_COMMENT_LEADERS = ("#", "//", "/*", "*", "<!--", "--", ";", '"""', "'''")
+# Punctuation characters that can begin a comment leader, used to strip a
+# leading run regardless of repetition (e.g. "##", "///", "/**", "<!--").
+_LEADER_CHARS = "#/*-;!<>"
 
 # Prose-oriented file types are skipped entirely: their keyword mentions are
 # almost always narrative, not action comments (issue #1852).
@@ -88,21 +90,33 @@ def _match_action_comment(added_content: str) -> tuple[str, str] | None:
     mid-sentence is ignored.
     """
     stripped = added_content.lstrip()
-    for leader in _COMMENT_LEADERS:
-        if stripped.startswith(leader):
-            stripped = stripped[len(leader):].lstrip()
+    # Strip a leading run of comment-leader characters so the keyword is
+    # reached no matter how many leaders precede it: "#", "##", "//", "///",
+    # "/*", "/**", "<!--", "--", ";". Triple-quote docstring leaders are
+    # handled explicitly because they are quote characters, not punctuation.
+    for quote in ('"""', "'''"):
+        if stripped.startswith(quote):
+            stripped = stripped[len(quote):].lstrip()
             break
+    else:
+        stripped = stripped.lstrip(_LEADER_CHARS).lstrip()
     match = _ACTION_KEYWORD_PATTERN.match(stripped)
     if match:
         return match.group(1).upper(), match.group(2).strip()
-    # Inline trailing comment, e.g. "value = compute()  # TODO: revisit".
+    # Inline trailing comment, e.g. "value = compute()  # TODO: revisit". Scan
+    # every occurrence of each leader, not just the first, so a leader inside a
+    # string or URL (e.g. "https://x/#h") does not mask a later real comment.
     for leader in ("#", "//", "<!--"):
-        idx = added_content.find(leader)
-        if idx != -1:
+        start = 0
+        while True:
+            idx = added_content.find(leader, start)
+            if idx == -1:
+                break
             tail = added_content[idx + len(leader):].lstrip()
             match = _ACTION_KEYWORD_PATTERN.match(tail)
             if match:
                 return match.group(1).upper(), match.group(2).strip()
+            start = idx + len(leader)
     return None
 
 COMPLEXITY_KEYWORDS = {

@@ -195,6 +195,46 @@ class TestExtractTodosFromDiff:
         assert len(result) == 1
         assert result[0].metadata["tag"] == "TODO"
 
+    def test_detects_double_hash_leader(self) -> None:
+        """A repeated comment leader ('## TODO') is still detected (PR #2173)."""
+        diff = (
+            "diff --git a/src/main.py b/src/main.py\n"
+            "+## TODO: stacked comment leader\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
+    def test_detects_jsdoc_block_leader(self) -> None:
+        """A JSDoc-style '/** TODO' leader is detected (PR #2173)."""
+        diff = (
+            "diff --git a/src/app.ts b/src/app.ts\n"
+            "+/** TODO: document this export */\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
+    def test_detects_triple_slash_leader(self) -> None:
+        """A '/// TODO' doc-comment leader is detected (PR #2173)."""
+        diff = (
+            "diff --git a/src/lib.ts b/src/lib.ts\n"
+            "+/// TODO: add doc comment\n"
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
+    def test_inline_leader_inside_url_not_masked(self) -> None:
+        """A '#' inside a URL must not mask a real trailing comment (PR #2173)."""
+        diff = (
+            "diff --git a/src/net.py b/src/net.py\n"
+            '+    url = "https://example.com/#hash"  # TODO: change this\n'
+        )
+        result = extract_todos_from_diff(diff, 1)
+        assert len(result) == 1
+        assert result[0].metadata["tag"] == "TODO"
+
     def test_empty_diff(self) -> None:
         result = extract_todos_from_diff("", 1)
         assert len(result) == 0
