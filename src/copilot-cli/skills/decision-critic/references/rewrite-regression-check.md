@@ -38,7 +38,7 @@ The rewrite is being evaluated on a marketing graph, not an engineering graph. T
 | Only #2 (v0 win) | HALT: ESCALATE. v0 alone is not evidence. |
 | #1, #2, #3, #4 | Math is done. Proceed to normal critique only after also resolving #5 below; an unanswered #5 caps the verdict at a flagged STAND, not a clean one. |
 | #1, #2, #3 but no #4 | REVISE: add the regression budget before approval. |
-| #1, #2 but no #3 (and/or no #4) | HALT: REVISE. The v1 projection is the load-bearing number; the v0 win alone is not engineering evidence. |
+| #1, #2 but no #3 (and/or no #4) | HALT: REVISE. The v1 projection is the load-bearing number; baseline and v0 alone cannot show whether the rewrite holds up once every feature returns. |
 | #5 unanswered | Flag: the friction that caused the original problem is unaddressed. |
 
 This is not a ban on rewrites. The check is "have you done the math," not "do not rewrite."
