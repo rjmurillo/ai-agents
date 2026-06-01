@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "claude-agents",
-      "description": "25 specialized agent definitions with templates and governance for Claude Code",
+      "description": "Specialized agent definitions with templates and governance for Claude Code",
       "source": "./src/claude"
     },
     {

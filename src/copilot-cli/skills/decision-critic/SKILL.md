@@ -97,14 +97,19 @@ After execution:
 - [ ] Contrarian perspective generated (Step 5)
 - [ ] Final verdict is one of: STAND, REVISE, ESCALATE
 - [ ] Inversion analysis covers at least 3 failure modes
+- [ ] Rewrite-regression check applied as a halt criterion when the decision is a rewrite, refactor, or migration justified by improvement. Evaluate this check during verification (Steps 3 and 4), before settling on a verdict: a STAND verdict is not valid while the rewrite-regression halt is open. If the proposer can answer only the v0 win and not the baseline, the v1 projection, and the regression plan, HALT the decision: ESCALATE when only the v0 win exists, REVISE for partial-answer cases per the reference table, rather than rubber-stamp it. See [Rewrite-Regression Check](references/rewrite-regression-check.md).
 
 ## References
 
 - [Chesterton's Fence](references/mental-models-chestertons-fence.md) - Understand why something exists before removing or changing it
+- [Conway's Law](references/mental-models-conways-law.md) - System structure mirrors org communication structure; apply when a diff crosses a module boundary
 - [Gall's Law](references/mental-models-galls-law.md) - Complex working systems evolved from simple working systems
 - [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope boundaries for incremental improvement decisions
+- [Brandolini's Law](references/critical-thinking-brandolinis-law.md) - Refutation costs more than assertion; allocate review burden by claim asymmetry
+- [Falsifiability](references/critical-thinking-falsifiability.md) - Reject claims with no measurable success criterion
 - [Survivorship Bias](references/critical-thinking-survivorship-bias.md) - Avoid drawing conclusions from winners while ignoring failures
 - [Systems Thinking](references/strategic-thinking-systems-thinking.md) - Trace second-order effects and feedback loops in decisions
+- [Rewrite-Regression Check](references/rewrite-regression-check.md) - Halt criterion for "v0 was faster, v1 is worse" rewrites
 
 ## Academic Grounding
 

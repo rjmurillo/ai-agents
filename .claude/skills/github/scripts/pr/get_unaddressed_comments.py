@@ -20,7 +20,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import sys
@@ -48,6 +47,11 @@ from github_core.api import (  # noqa: E402
     get_unresolved_review_threads,
     gh_api_paginated,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
 )
 
 # ---------------------------------------------------------------------------
@@ -360,6 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-only-unaddressed", action="store_false", dest="only_unaddressed",
         help="Include all comments with full lifecycle state info",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -370,6 +375,7 @@ def main(argv: list[str] | None = None) -> int:
     resolved = resolve_repo_params(args.owner, args.repo)
     owner = resolved.owner
     repo = resolved.repo
+    fmt = get_output_format(args.output_format)
 
     result = get_unaddressed_comments(
         owner,
@@ -379,7 +385,25 @@ def main(argv: list[str] | None = None) -> int:
         only_unaddressed=args.only_unaddressed,
     )
 
-    print(json.dumps(result, indent=2))
+    # TotalCount is the size of the returned comment set, which includes
+    # non-actionable comments when --no-only-unaddressed is passed. Count the
+    # NeedsAction flag directly so the human summary always reflects the
+    # actionable subset and matches the stderr line emitted upstream.
+    actionable_count = sum(1 for c in result["Comments"] if c["NeedsAction"])
+    # The output envelope already carries a top-level Success, so drop the
+    # inner copy to avoid a redundant Data.Success (matches get_pr_context.py).
+    data = {k: v for k, v in result.items() if k != "Success"}
+
+    summary = (
+        f"PR #{args.pull_request}: {actionable_count} comments needing action"
+    )
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=summary,
+        status="PASS",
+        script_name="get_unaddressed_comments.py",
+    )
     return 0
 
 

@@ -24,11 +24,11 @@ Use this skill when:
 
 - You have a voice transcript, stream-of-consciousness note, or brain dump that contains many ideas mixed with noise.
 - You need a deterministic procedure to triage which ideas merit deeper analysis.
-- You want a permanent, structured artifact that downstream agents (analyst, spec-generator) can consume.
+- You want a permanent, structured artifact that the analyst agent or the spec-generator skill can consume.
 
 Use a different skill when:
 
-- The input is already structured (specs, ADRs, code). Use the analyst or spec-generator agents instead.
+- The input is already structured (specs, ADRs, code). Use the analyst agent or the spec-generator skill instead.
 - You only need a one-off summary. Use a generic summarizer.
 
 ## Workspace Layout

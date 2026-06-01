@@ -240,7 +240,6 @@ AGENT_TIERS = {
     "explainer": "integration",
     "task-decomposer": "integration",
     "retrospective": "integration",
-    "spec-generator": "integration",
     "adr-generator": "integration",
     "backlog-generator": "integration",
     "janitor": "integration",

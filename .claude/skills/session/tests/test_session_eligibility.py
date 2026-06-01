@@ -55,6 +55,10 @@ class TestFileMatchesAllowlist:
         mod = _load_module()
         assert mod._file_matches_allowlist(".agents/critique/plan.md")
 
+    def test_agents_memory_episodes(self):
+        mod = _load_module()
+        assert mod._file_matches_allowlist(".agents/memory/episodes/episode-2026-01-01.json")
+
     def test_code_file_rejected(self):
         mod = _load_module()
         assert not mod._file_matches_allowlist("scripts/main.py")
@@ -135,3 +139,15 @@ class TestMainFunction:
         assert result == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Eligible"] is True
+
+
+class TestAllowlistIntegrity:
+    def test_all_patterns_compile(self):
+        import re
+        mod = _load_module()
+        for pattern in mod._ALLOWLIST_PATTERNS:
+            re.compile(pattern)
+
+    def test_patterns_and_display_aligned(self):
+        mod = _load_module()
+        assert len(mod._ALLOWLIST_PATTERNS) == len(mod._ALLOWLIST_DISPLAY)
