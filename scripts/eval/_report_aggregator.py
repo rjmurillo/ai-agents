@@ -34,13 +34,47 @@ BOOTSTRAP_ITERATIONS = 10000
 CI_LOWER_PERCENTILE = 2.5
 CI_UPPER_PERCENTILE = 97.5
 # ADR-058 §"halt-due-to-flakiness" outcome / REQ-004 AC-10: methodology
-# halts when more than 30% of fixtures are marked flaky after the
-# contingency rerun. The 0.30 fraction is normative; do not adjust without
+# halts when too many fixtures are marked flaky after the contingency
+# rerun. The 0.30 fraction is normative at large N; do not adjust without
 # an ADR amendment.
 FLAKY_FIXTURE_HALT_FRACTION = 0.30
+# Small-N floor for the halt count. At N=10 the strict "more than 30%"
+# gate halts on 4 flaky fixtures, which is too tight: a couple of flaky
+# fixtures should not invalidate a small corpus. The N-aware count below
+# raises the floor so that small corpora tolerate more flakiness in
+# absolute terms while the 30% gate still governs at large N. See ADR-058
+# (N-aware halt threshold note) and Issue #1878.
+FLAKY_HALT_SMALL_N_FLOOR = 5
 # REQ-004 AC-10: a fixture is flaky when its pass rate disagrees on >=2 of
 # 5 contingency reps for the same (prompt_sha, fixture_set_sha).
 CONTINGENCY_PERSISTENT_THRESHOLD = 2
+
+
+def _flaky_halt_count(fixture_count: int) -> int:
+    """Minimum flaky-fixture count that halts the methodology.
+
+    N-aware threshold: `max(floor(0.30 * N) + 1, min(5, N // 2))`. The
+    first term is the strict "more than 30%" gate from REQ-004 AC-10 and
+    ADR-058: a flaky share of exactly 30% does NOT halt, only a share
+    strictly greater than 30% does. It governs at large N. The second
+    term is a small-N floor that tolerates a couple of flaky fixtures in a
+    tiny corpus. The methodology halts when the flaky count is greater
+    than or equal to this value.
+
+    The fraction term is computed with integer arithmetic so an exact 30%
+    boundary is handled without float rounding (N=30 -> halt at 10, not 9;
+    N=20 -> 7; N=10 -> 4, but the small-N floor of 5 wins there).
+
+    Worked values: N=2 -> max(1, 1)=1; N=10 -> max(4, 5)=5 (so 4 flaky of
+    10 does NOT halt); N=30 -> max(10, 5)=10 (the strict 30% gate wins).
+    """
+    if fixture_count <= 0:
+        return 0
+    halt_percent = round(FLAKY_FIXTURE_HALT_FRACTION * 100)
+    # Smallest integer strictly greater than 30% of N ("more than 30%").
+    fraction_term = (halt_percent * fixture_count) // 100 + 1
+    floor_term = min(FLAKY_HALT_SMALL_N_FLOOR, fixture_count // 2)
+    return max(fraction_term, floor_term)
 
 
 class EmptyRunError(Exception):
@@ -79,6 +113,11 @@ class AggregateResult:
     error_count: int
     halt_due_to_flakiness: bool
     tokens_estimated: bool = True
+    # True when the flaky count reached the N-aware halt count. When the
+    # aggregator runs in flag-and-continue mode, `halt_due_to_flakiness`
+    # stays False but this flag records that the threshold was crossed, so
+    # the caller can surface the warning without invalidating the run.
+    flaky_halt_threshold_crossed: bool = False
 
 
 def _records_by_fixture_variant(
@@ -262,11 +301,18 @@ class ReportAggregator:
         model_id: str,
         bootstrap_iterations: int = BOOTSTRAP_ITERATIONS,
         rng: random.Random | None = None,
+        flag_only_on_flaky_halt: bool = False,
     ) -> None:
         self._records = records
         self._model_id = model_id
         self._iterations = bootstrap_iterations
         self._rng = rng or random.Random(42)
+        # Flag-and-continue: when True, crossing the N-aware halt count does
+        # not set `halt_due_to_flakiness`. The flaky fixtures are excluded
+        # and the run continues, with `flaky_halt_threshold_crossed` set so
+        # the caller can warn. Default False preserves the hard-halt
+        # behavior the methodology assumes.
+        self._flag_only_on_flaky_halt = flag_only_on_flaky_halt
 
     def aggregate(self) -> AggregateResult:
         if not self._records:
@@ -280,13 +326,17 @@ class ReportAggregator:
         flaky_ids = _detect_flaky_fixtures(per_fixture)
         all_fixture_ids = sorted({fid for fid, _ in grouped.keys()})
 
-        # Halt condition: > 30% of fixtures flaky → unstable methodology.
-        halt = (
-            len(all_fixture_ids) > 0
-            and (len(flaky_ids) / len(all_fixture_ids)) > FLAKY_FIXTURE_HALT_FRACTION
-        )
+        # Halt condition: flaky count reaches the N-aware halt count →
+        # unstable methodology. The N-aware count raises the small-N floor
+        # so a tiny corpus is not halted by a couple of flaky fixtures.
+        fixture_count = len(all_fixture_ids)
+        halt_count = _flaky_halt_count(fixture_count) if fixture_count > 0 else 0
+        threshold_crossed = fixture_count > 0 and len(flaky_ids) >= halt_count
+        # Flag-and-continue mode records the crossing but does not halt.
+        halt = threshold_crossed and not self._flag_only_on_flaky_halt
 
-        # Stable subset for delta calculation. When ≤30% flaky, exclude them.
+        # Stable subset for delta calculation. When the run does not halt,
+        # exclude the flaky fixtures and continue on the stable subset.
         excluded = list(flaky_ids) if not halt and flaky_ids else []
         stable_ids = [fid for fid in all_fixture_ids if fid not in set(excluded)]
 
@@ -342,6 +392,7 @@ class ReportAggregator:
             error_count=error_count,
             halt_due_to_flakiness=halt,
             tokens_estimated=tokens_estimated,
+            flaky_halt_threshold_crossed=threshold_crossed,
         )
 
 

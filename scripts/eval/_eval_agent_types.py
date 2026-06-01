@@ -176,6 +176,7 @@ class Report:
     pricing_rate_as_of: str
     flaky_fixtures_detected: list[str] = field(default_factory=list)
     flaky_fixtures_excluded: list[str] = field(default_factory=list)
+    flaky_halt_threshold_crossed: bool = False
     tokens_estimated: bool = True
     recommendation: RecommendationLiteral | None = None
     recommendation_default: str | None = None
