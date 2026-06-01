@@ -655,11 +655,24 @@ def _dedupe_lessons(existing: list, new: list) -> list[str]:
 
 
 def _dedupe_decisions(existing: list, new: list) -> list[dict]:
-    """Union decisions by (chosen, context, type); reassign ids by order."""
+    """Union decisions by (chosen, context, type); reassign ids by order.
+
+    Legacy episodes stored decisions as plain strings. ``_as_dict`` would turn
+    those into ``{}`` and silently drop the human-authored text, collapsing all
+    string decisions into one empty object. Coerce a string decision to its
+    ``chosen`` summary so the dedup key and output retain the content.
+    Refs PR #2170 (thread GASBG).
+    """
+    def coerce(dec: Any) -> dict:
+        if isinstance(dec, str):
+            text = dec.strip()
+            return {"chosen": text} if text else {}
+        return _as_dict(dec)
+
     out: list[dict] = []
     seen: set[tuple[str, str, str]] = set()
     for dec in list(existing) + list(new):
-        entry = _as_dict(dec)
+        entry = coerce(dec)
         key = (_norm(entry.get("chosen")), _norm(entry.get("context")), _norm(entry.get("type")))
         if key in seen:
             continue

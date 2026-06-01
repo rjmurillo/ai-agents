@@ -658,3 +658,30 @@ class TestFailCountFilter:
     def test_outcome_not_failure_from_status_code(self):
         data = _json_log([{"action": "x", "outcome": "404 errors in logs"}], end_complete=False)
         assert extract_session_episode.json_outcome(data) == "partial"
+
+
+class TestStringDecisionPreservation:
+    """_dedupe_decisions must preserve legacy string decisions (PR #2170, GASBG)."""
+
+    def test_string_decisions_keep_text(self):
+        out = extract_session_episode._dedupe_decisions(
+            ["Adopted a Draft PR policy.", "Prioritized validation scripts."], []
+        )
+        chosen = [d.get("chosen") for d in out]
+        assert "Adopted a Draft PR policy." in chosen
+        assert "Prioritized validation scripts." in chosen
+        assert all(d.get("id") for d in out)
+
+    def test_distinct_strings_not_collapsed(self):
+        out = extract_session_episode._dedupe_decisions(["A decision", "B decision"], [])
+        assert len(out) == 2
+
+    def test_blank_string_decision_dropped(self):
+        out = extract_session_episode._dedupe_decisions(["   ", "Real decision"], [])
+        assert [d.get("chosen") for d in out if d.get("chosen")] == ["Real decision"]
+
+    def test_string_and_dict_mix_dedupes(self):
+        out = extract_session_episode._dedupe_decisions(
+            ["Shared text"], [{"chosen": "Shared text"}]
+        )
+        assert len(out) == 1
