@@ -1,64 +1,72 @@
 {
   "id": "episode-2026-05-11-session-1832",
   "session": "2026-05-11-session-1832",
-  "timestamp": "2026-05-11T07:47:59.039472+00:00",
-  "outcome": "failure",
-  "task": "",
+  "timestamp": "2026-05-11T00:00:00+00:00",
+  "outcome": "success",
+  "task": "REQ-011 M5 bot-cascade pre-push warning Phase 5c (TDD-first implementation)",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-11T07:47:59.036048+00:00",
-      "type": "error",
-      "content": "\"Evidence\": \"markdownlint-cli2 v0.22.1 ran via pre-commit hook on every staged commit; the markdown files touched by commits 1bb5395f (specs), 4ed01651 (specs revised), 426e89d3 (none) reported 0 errors. Hook output line: 'SUCCESS: Markdown files OK.'\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Spec authored",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-11T07:47:59.036048+00:00",
-      "type": "test",
-      "content": "\"Evidence\": \"All tests pass in tests/hooks/test_bot_cascade_warning.py; bash -n .githooks/pre-push clean. (Exact test count intentionally not pinned in narrative evidence; it grows as the contract evolves. See test file for current count.)\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "TDD red phase",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "TDD green phase",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-11T07:47:59.036048+00:00",
-      "type": "error",
-      "content": "\"evidence\": \"Structural tests pinning the Phase 5c contract; all fail against a hook without Phase 5c; commit 3e749bd9\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Memory and session log",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e005",
-      "timestamp": "2026-05-11T07:47:59.036048+00:00",
-      "type": "commit",
-      "content": "Commit: d8aee7ed",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR open and self-apply gate (TASK-011-04)",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e006",
-      "timestamp": "2026-05-11T07:47:59.036048+00:00",
-      "type": "error",
-      "content": "\"evidence\": \"PR #2011 opened. Self-apply paths exercised across iterations: SKIP no-PR (pre-PR), PASS all-green (post-open), WARN unresolved (every bot-scan round), PASS recent-review-old, SKIP gh-api-failure (which surfaced the --slurp incompatibility bug).\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR review address (round 1)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR review rounds 2-9",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e008",
-      "timestamp": "2026-05-11T07:47:59.036048+00:00",
-      "type": "test",
-      "content": "\"evidence\": \"Clustered the round-1 bot threads by root cause; patched hook (no-fail-open on gh pr view; success+complete trust gate; explicit exit codes), tests (assert phase_5b_pos>=0; new outcome-token test), spec docs (DESIGN-011 test strategy revised to structural; TASK-011 sections completed). All tests pass.\"",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-05-11T07:47:59.036048+00:00",
-      "type": "test",
-      "content": "\"evidence\": \"Round 2: STEP-0.5 header, docstring AC label, memory count flex, session evidence accuracy. Round 3: reviews pagination, type-validate unresolved_count, PARSE_ERROR sentinel. Round 4: tighten structural tests to non-comment lines, SKIP-reason classification from stderr, bool-subclass guard, removed backtick command-substitution bug in embedded Python, TASK-011 status done. Round 5: further test tightening (warn/skip messages on non-comment lines), purged hard-coded test counts from docs, fixed double-exit-code in unclassified SKIP, REQ-011-02 requirement statement extended to success+complete, bash resolved-path in syntax test. Round 6: self-apply gate caught that gh's --slurp is incompatible with --jq (the round-3 pagination fix was wrong); replaced with --paginate plus a per-page --jq emitting one timestamp per bot review, then sort/tail in a separate step so the exit code reflects the gh call; Phase 5c now PASSes correctly. Round 7: tightened the auth-classifier regex (bare 'auth' matched 'author' substring), purged remaining hard-coded counts and the incorrect --slurp mention from session-log and episode evidence. All tests pass; bash -n clean throughout. Round 8: robust exit-code capture (cursor), fixed Phase 5b test extraction boundary so it no longer captures Phase 5c code under stubbed python3 (devin). Round 9: corrected DESIGN-011 trade-off 1 (Phase 5b is blocking, Phase 5c is not; rephrased to phase-integration pattern) and the risks-table mitigation (references TASK-011-04 self-apply gate, not the structural tests). All tests pass; bash -n clean throughout.\"",
+      "timestamp": "2026-05-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d8aee7ed",
       "caused_by": [],
       "leads_to": []
     }
@@ -66,13 +74,10 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 5,
+    "errors": 0,
     "recoveries": 0,
     "commits": 8,
     "files_changed": 0
   },
-  "lessons": [
-    "\"Evidence\": \"Created .serena/memories/implementation/implementation-009-req011-tdd-first-shipment.md capturing TDD-first lessons and comment-vs-call grep trap\"",
-    "\"Evidence\": \"Lessons captured in implementation-009; PR #1989 retrospective referenced as source for Phase 5c contracts\""
-  ]
+  "lessons": []
 }
