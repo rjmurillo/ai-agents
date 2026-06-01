@@ -50,9 +50,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 2,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 0
   },
   "lessons": []

@@ -10,7 +10,7 @@
       "id": "e001",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Identified pr-quality-gate-{analyst,architect,qa,security,devops,roadmap}.md + session-protocol-check.md as in-scope. Other prompts (issue-*, spec-*, metrics-*) out of scope for PR review.",
+      "content": "Read 7 CI prompts in .github/prompts/",
       "caused_by": [],
       "leads_to": []
     },
@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Verdicts: qa BLOCKED (3 findings); analyst WARN (4 findings); roadmap WARN (3 findings); architect PASS (2 low); security PASS; devops PASS (3 info); session-protocol-check COMPLIANT.",
+      "content": "Dispatched 7 parallel adversarial subagents (one per CI prompt)",
       "caused_by": [],
       "leads_to": []
     },
@@ -26,7 +26,7 @@
       "id": "e003",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Critical: triage-prompts.json eval orphans, REQ-007-AC5 unenforceable, doc-accuracy description tense. Important: ADR-040 stale enumeration, plugin.json stale counts, PLAN decision log gap (workflow PRUNE rationale), REQ-007 deferred section.",
+      "content": "Synthesized findings into priority slate (7 fixes)",
       "caused_by": [],
       "leads_to": []
     },
@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "7993ed9f. Converted workflow/doc-coverage/doc-sync blocks to negative-routing fixtures. Updated codebase-documenter cross-refs.",
+      "content": "Commit A: tests/evals/skills/triage-prompts.json",
       "caused_by": [],
       "leads_to": []
     },
@@ -42,7 +42,7 @@
       "id": "e005",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "f937a114. Reworded 'Consolidates X' to 'replaced the former X (deleted 2026-05-09)'. Mirrored to src/copilot-cli/ + docs/SKILL-AUTHORING.md. Added 'text' lang identifier to two pre-existing unfenced code blocks.",
+      "content": "Commit B: doc-accuracy description tense + MD040 lint fix",
       "caused_by": [],
       "leads_to": []
     },
@@ -50,7 +50,7 @@
       "id": "e006",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "a3c82a66. AC5 now points at generate_skills.py round-trip idempotence (not nonexistent detect_skill_drift.py). Deferred section lists 4 items routed to follow-up PRs.",
+      "content": "Commit C: REQ-007 AC5 + Deferred section + session 1828 log",
       "caused_by": [],
       "leads_to": []
     },
@@ -58,7 +58,7 @@
       "id": "e007",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "ADR-040:119 doc-sync removed from Tier 2 list, count 12->11, percentage 44.4%->42.3%. plugin.json: dropped literal '23 agents, 23 slash commands, 35 lifecycle hooks, 69 reusable skills' since real counts are 25/24/30/67.",
+      "content": "Commit D: ADR-040 + plugin.json factual count corrections",
       "caused_by": [],
       "leads_to": []
     },
@@ -66,7 +66,7 @@
       "id": "e008",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "adfe9f5d. Documented reversal of analysis F3 (KEEP as deprecation guide) -> spec/plan PRUNE. Cited migration table in docs/workflow-commands.md as the surviving documentation surface.",
+      "content": "Commit E: PLAN Decision Log workflow PRUNE rationale",
       "caused_by": [],
       "leads_to": []
     },
@@ -74,7 +74,7 @@
       "id": "e009",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Verdicts: qa APPROVED, roadmap PASS, analyst WARN (3 NEW regressions), architect WARN (1 NEW regression). Architect/analyst flagged: triage-prompts.json doc-accuracy fixture hedge ('may be redundant'); ADR-040 Tier 1/3 percentages stale after Tier 2 changed denominator from 27 to 26.",
+      "content": "Round 2 verification: 7 adversarial agents re-run",
       "caused_by": [],
       "leads_to": []
     },
@@ -82,7 +82,7 @@
       "id": "e010",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "4e077b50. Strengthened doc-accuracy fixture (deleted, not 'may be redundant'). Recalculated ADR-040 Tier 1 (40.7%->42.3%) and Tier 3 (14.8%->15.4%) on /26 denominator. Added historical caveat to ADR S356 section.",
+      "content": "Commit F: Round 2 fix-loop",
       "caused_by": [],
       "leads_to": []
     },
@@ -90,7 +90,7 @@
       "id": "e011",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Both PASS. Math sums to 100%. No regressions. Recursion complete.",
+      "content": "Round 3 verification: analyst + architect re-run",
       "caused_by": [],
       "leads_to": []
     },
@@ -98,7 +98,7 @@
       "id": "e012",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Convergence model: CI=backstop, /review=primary. Sub-issue native linking via GraphQL addSubIssue. Vendor-survival constraint baked into every child.",
+      "content": "Filed epic #1933 + 7 sub-issues (#1934-#1940) for lifecycle-gate convergence",
       "caused_by": [],
       "leads_to": []
     },
@@ -106,7 +106,7 @@
       "id": "e013",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ready to push.",
+      "content": "/ship pre-flight: PASS_ALL across 5 checks (pipeline, security, review, tests, standards)",
       "caused_by": [],
       "leads_to": []
     },
@@ -114,132 +114,12 @@
       "id": "e014",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "Failures traced to 2 root causes: (a) orphan Python tests at tests/workflow/test_{get_agent_history,sync_session_documentation}.py target deleted .claude/skills/workflow/scripts/ files; (b) marketplace.json count assertions stale after plugin manifest count drop.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e015",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Deleted orphan tests/workflow/ Python tests (3 files). Auto-regenerated .claude-plugin/marketplace.json (70->67 skills) and .github/plugin/marketplace.json (82->79 skills) via build/scripts/validate_marketplace_counts.py --fix. Verified test_validate_marketplace_counts passes (18 tests). These are the same orphan-ref class of failures that issue #1939 (orphan-ref-validator skill) is designed to catch pre-commit.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e016",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Read 7 CI prompts in .github/prompts/",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e017",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Dispatched 7 parallel adversarial subagents (one per CI prompt)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e018",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Synthesized findings into priority slate (7 fixes)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e019",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Commit A: tests/evals/skills/triage-prompts.json",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e020",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Commit B: doc-accuracy description tense + MD040 lint fix",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e021",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Commit C: REQ-007 AC5 + Deferred section + session 1828 log",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e022",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Commit D: ADR-040 + plugin.json factual count corrections",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e023",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Commit E: PLAN Decision Log workflow PRUNE rationale",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e024",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Round 2 verification: 7 adversarial agents re-run",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e025",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Commit F: Round 2 fix-loop",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e026",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Round 3 verification: analyst + architect re-run",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e027",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Filed epic #1933 + 7 sub-issues (#1934-#1940) for lifecycle-gate convergence",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e028",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
-      "content": "/ship pre-flight: PASS_ALL across 5 checks (pipeline, security, review, tests, standards)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e029",
-      "timestamp": "2026-05-09T00:00:00+00:00",
-      "type": "milestone",
       "content": "Pre-push hook BLOCKED: 73 pytest failures + 71/50 file count overage",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e030",
+      "id": "e015",
       "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
       "content": "Commit G: pre-push fixes",
@@ -250,10 +130,12 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
-    "recoveries": 0,
-    "commits": 5,
-    "files_changed": 53
+    "errors": 2,
+    "recoveries": 2,
+    "commits": 9,
+    "files_changed": 77
   },
-  "lessons": []
+  "lessons": [
+    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in commit messages and adversarial agent reports.\"}"
+  ]
 }

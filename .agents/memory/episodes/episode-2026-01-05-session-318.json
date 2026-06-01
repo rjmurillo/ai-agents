@@ -3,10 +3,13 @@
   "session": "2026-01-05-session-318",
   "timestamp": "2026-01-05T00:00:00+00:00",
   "outcome": "success",
-  "task": "[Migrated from markdown]",
+  "task": "Session 318: Merge Velocity Analysis",
   "decisions": [
     {
-      "id": "d001",
+      "id": "d001"
+    },
+    {
+      "id": "d002",
       "timestamp": "2026-01-05T00:00:00+00:00",
       "type": "recovery",
       "context": "Task 2: Remediation Planning",
@@ -37,10 +40,14 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 1,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 0
+    "commits": 1,
+    "files_changed": 2
   },
-  "lessons": []
+  "lessons": [
+    "Tooling instability (flaky CI and unreliable automation) is a major bottleneck for merge velocity.",
+    "A Draft PR policy is effective for surfacing work-in-progress early while protecting the main branch from unstable changes.",
+    "Standardizing pre-merge validation flows reduces lead time by minimizing back-and-forth on failing checks."
+  ]
 }

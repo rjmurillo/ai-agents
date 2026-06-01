@@ -3,13 +3,13 @@
   "session": "2026-01-07-session-131",
   "timestamp": "2026-01-07T00:00:00+00:00",
   "outcome": "success",
-  "task": "[Migrated from markdown]",
+  "task": "Analysis Session: PR Number Extraction Gap",
   "decisions": [],
   "events": [],
   "metrics": {
-    "duration_minutes": 0,
+    "duration_minutes": 15,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 2,
     "recoveries": 0,
     "commits": 0,
     "files_changed": 0

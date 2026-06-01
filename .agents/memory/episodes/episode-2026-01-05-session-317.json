@@ -3,7 +3,7 @@
   "session": "2026-01-05-session-317",
   "timestamp": "2026-01-05T00:00:00+00:00",
   "outcome": "partial",
-  "task": "[Migrated from markdown]",
+  "task": "2026-01-05-session-317: PR #795 Spec Validation Remediation",
   "decisions": [],
   "events": [
     {
@@ -26,9 +26,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 7,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 6,
     "files_changed": 0
   },
   "lessons": []

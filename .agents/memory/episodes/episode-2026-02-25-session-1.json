@@ -44,7 +44,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 2,
     "files_changed": 0
   },
   "lessons": []

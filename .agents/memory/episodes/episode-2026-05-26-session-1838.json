@@ -10,7 +10,7 @@
       "id": "e001",
       "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Read templates/agents/orchestrator.shared.md (244 LOC)",
+      "content": "Fetched PR #2076 via github skill",
       "caused_by": [],
       "leads_to": []
     },
@@ -18,7 +18,7 @@
       "id": "e002",
       "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added Reasoning Protocol section (A6: 3 to 5)",
+      "content": "Read full audit doc from origin/main",
       "caused_by": [],
       "leads_to": []
     },
@@ -26,7 +26,7 @@
       "id": "e003",
       "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added Output Bounds table (A2: 3 to 5)",
+      "content": "Read rubric source from corpus",
       "caused_by": [],
       "leads_to": []
     },
@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added skip/ask boundary to Never delegate blind (A1: 4 to 5)",
+      "content": "Branched feat/2003-phase3-audit-plan from origin/main",
       "caused_by": [],
       "leads_to": []
     },
@@ -42,7 +42,7 @@
       "id": "e005",
       "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Ran python3 build/generate_agents.py",
+      "content": "Updated audit doc Phase 3 decision points + fixed 3 stale pwsh references",
       "caused_by": [],
       "leads_to": []
     },
@@ -50,68 +50,12 @@
       "id": "e006",
       "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "milestone",
-      "content": "Rubric rescore: 33/35 (A tier)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-05-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Ran pre_pr.py validation",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-05-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fetched PR #2076 via github skill",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-05-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Read full audit doc from origin/main",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-05-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Read rubric source from corpus",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-05-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Branched feat/2003-phase3-audit-plan from origin/main",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-05-26T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Updated audit doc Phase 3 decision points + fixed 3 stale pwsh references",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-05-26T00:00:00+00:00",
-      "type": "milestone",
       "content": "Wrote Serena memory: prompting/phase3-prompt-discipline-audit-status",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e014",
+      "id": "e007",
       "timestamp": "2026-05-26T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: e33d08f4",
@@ -124,7 +68,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 73
   },
   "lessons": []

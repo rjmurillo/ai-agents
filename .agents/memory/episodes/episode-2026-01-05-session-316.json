@@ -3,7 +3,7 @@
   "session": "2026-01-05-session-316",
   "timestamp": "2026-01-05T00:00:00+00:00",
   "outcome": "partial",
-  "task": "[Migrated from markdown]",
+  "task": "Session 316: Implement Claude Code Hooks",
   "decisions": [],
   "events": [
     {
@@ -154,9 +154,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 13,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 0
   },
   "lessons": []

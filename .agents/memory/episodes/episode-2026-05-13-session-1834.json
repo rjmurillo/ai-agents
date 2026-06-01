@@ -4,7 +4,12 @@
   "timestamp": "2026-05-13T00:00:00+00:00",
   "outcome": "success",
   "task": "Address remaining PR #2009 review comments on TASK-011 status and episode metrics consistency",
-  "decisions": [],
+  "decisions": [
+    {
+      "id": "d001",
+      "summary": "Applied minimal metadata-only fixes requested by unresolved reviewer threads: mark TASK-011 done and correct episode metrics to avoid contradictory session telemetry."
+    }
+  ],
   "events": [
     {
       "id": "e001",
@@ -56,12 +61,14 @@
     }
   ],
   "metrics": {
-    "duration_minutes": 0,
-    "tool_calls": 0,
+    "duration_minutes": 35,
+    "tool_calls": 11,
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 0
+    "files_changed": 4
   },
-  "lessons": []
+  "lessons": [
+    "Episode files generated from JSON session logs still need manual verification because the extractor can misclassify evidence lines as errors and zero out metrics."
+  ]
 }

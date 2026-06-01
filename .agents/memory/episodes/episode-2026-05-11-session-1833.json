@@ -7,16 +7,6 @@
   "decisions": [
     {
       "id": "d001",
-      "timestamp": "2026-05-31T21:59:02.294534+00:00",
-      "type": "implementation",
-      "context": "Found FM-1 through FM-8 existing; verified FM-9 reserved by issue #1919 (confident-incorrectness). Decided to add FM-10 with FM-9 marked as reserved-for-#1919 in Index.",
-      "chosen": "Found FM-1 through FM-8 existing; verified FM-9 reserved by issue #1919 (confident-incorrectness). Decided to add FM-10 with FM-9 marked as reserved-for-#1919 in Index.",
-      "rationale": "",
-      "outcome": "success",
-      "effects": []
-    },
-    {
-      "id": "d002",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "design",
       "context": "Audit existing FAILURE-MODES.md structure",
@@ -31,7 +21,7 @@
       "id": "e001",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
-      "content": "Found FM-1 through FM-8 existing; verified FM-9 reserved by issue #1919 (confident-incorrectness). Decided to add FM-10 with FM-9 marked as reserved-for-#1919 in Index.",
+      "content": "Audit existing FAILURE-MODES.md structure",
       "caused_by": [],
       "leads_to": []
     },
@@ -39,7 +29,7 @@
       "id": "e002",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
-      "content": "Identified #1991 (M5 strict parsing), #1992 (M1 ad-hoc len(threads) pattern), #2006 (security NEEDS_REVIEW false positive) as evidence anchors; #1919 as adjacent failure mode.",
+      "content": "Cross-reference open issues for adjacent work",
       "caused_by": [],
       "leads_to": []
     },
@@ -47,7 +37,7 @@
       "id": "e003",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
-      "content": "Stenberg's 'How AI Analyzers Differ from Traditional Tools' section names comment-vs-code drift detection; included as external anchor for FM-10's human-facing variant.",
+      "content": "Pull external corroboration from daniel.haxx.se 2026-05-11",
       "caused_by": [],
       "leads_to": []
     },
@@ -55,7 +45,7 @@
       "id": "e004",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
-      "content": "Description, Trigger (with code samples for try/except, value-or-default, parser fall-through, verdict laundering), Evidence (PR #1965 round-9/11 commit SHAs cited), Detection (table of mechanisms by phase), Enforcement Pattern (anti-pattern to replacement table), 'Why this is FM-10 not FM-4' disambiguator, References list.",
+      "content": "Draft FM-10 entry following FM-1..FM-8 format",
       "caused_by": [],
       "leads_to": []
     },
@@ -63,7 +53,7 @@
       "id": "e005",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
-      "content": "Added FM-9 reserved-marker row and FM-10 row to Index table.",
+      "content": "Index update",
       "caused_by": [],
       "leads_to": []
     },
@@ -71,68 +61,12 @@
       "id": "e006",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
-      "content": "Replaced 7 U+2014 instances with semicolons (one with colon for list-introduction context); zero em/en dashes remain.",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Created this file. First attempt marked some MUSTs as Complete=false honestly; validator (correctly per FM-10 principles) rejected. Re-wrote with real evidence for steps actually performed (HANDOFF read, Serena memories enumerated, branch verified, etc.).",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Audit existing FAILURE-MODES.md structure",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Cross-reference open issues for adjacent work",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Pull external corroboration from daniel.haxx.se 2026-05-11",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Draft FM-10 entry following FM-1..FM-8 format",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Index update",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-05-11T00:00:00+00:00",
-      "type": "milestone",
       "content": "Pre-commit hook surfaced em-dash prohibition",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e014",
+      "id": "e007",
       "timestamp": "2026-05-11T00:00:00+00:00",
       "type": "milestone",
       "content": "Pre-commit hook required JSON session log per ADR-042",
@@ -143,9 +77,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 9,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 0
   },
   "lessons": []

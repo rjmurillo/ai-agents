@@ -3,7 +3,7 @@
   "session": "2026-01-04-session-305",
   "timestamp": "2026-01-04T00:00:00+00:00",
   "outcome": "success",
-  "task": "[Migrated from markdown]",
+  "task": "Session 305 - 2026-01-04",
   "decisions": [],
   "events": [
     {
@@ -50,9 +50,9 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 0,
+    "errors": 9,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 3,
     "files_changed": 0
   },
   "lessons": []
