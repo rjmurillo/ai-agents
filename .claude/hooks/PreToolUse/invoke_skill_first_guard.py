@@ -171,8 +171,11 @@ def _tokenize_command(command: str) -> list[str]:
 
 # Tokens emitted by the punctuation-aware lexer that begin a new command
 # context. A gh invocation must be the command word of a segment, so segments
-# are delimited by these operator tokens.
-_SEGMENT_OPERATORS = frozenset({";", "|", "||", "&", "&&", "|&", "(", ")", "<", ">", ">>", "<<"})
+# are delimited by these operator tokens. Only real command separators and
+# subshell grouping qualify; redirection operators (`<`, `>`, `>>`, `<<`) do
+# not start a new command, so they stay inert inside their segment and a
+# redirection target is never mistaken for a command word.
+_SEGMENT_OPERATORS = frozenset({";", "|", "||", "&", "&&", "|&", "(", ")"})
 
 # A gh operation/action must be a bare subcommand word. Rejecting anything else
 # keeps path-traversal operands such as `..` or `../../etc` out of the skill
@@ -245,11 +248,18 @@ def parse_gh_command(command: str) -> dict[str, str] | None:
     try:
         tokens = _tokenize_command(command)
     except ValueError:
-        # Unbalanced quotes: fall back to a naive whitespace split. Still
-        # anchored on the command word, so a quoted argument cannot trip it.
-        tokens = command.split()
+        # Unbalanced quotes: we cannot reliably locate shell operator
+        # boundaries. Re-splitting a naive whitespace tokenization on operator
+        # tokens would reintroduce the issue #2111 false positives, because a
+        # separator that was meant to live inside the unterminated quote
+        # becomes a boundary again and manufactures a spurious gh segment.
+        # Treat the whole command as one segment so only its actual command
+        # word can match.
+        segments = [command.split()]
+    else:
+        segments = _split_segments(tokens)
 
-    for segment in _split_segments(tokens):
+    for segment in segments:
         gh_args = _gh_args_for_segment(segment)
         if gh_args is None:
             continue

@@ -163,6 +163,38 @@ class TestParseGhCommand:
         # subcommand words still resolve.
         assert parse_gh_command("gh pr view ..") is not None
 
+    def test_redirection_target_not_a_command_word(self) -> None:
+        """Redirection operators do not start a new command, so a redirect
+        target that happens to be `gh` is not treated as a gh invocation."""
+        assert parse_gh_command("echo data > gh") is None
+        assert parse_gh_command("echo foo > ghfile.txt") is None
+        # A real gh invocation that redirects its own output still matches.
+        result = parse_gh_command("gh pr view 1 > out.txt")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
+    def test_unbalanced_quote_fallback_no_false_positive(self) -> None:
+        """When quotes are unbalanced the tokenizer raises and the whole command
+        is treated as a single segment, so an operator that was meant to live
+        inside the unterminated quote cannot manufacture a spurious gh segment
+        (issue #2111)."""
+        assert parse_gh_command('python3 t.py --title "a | gh issue list') is None
+        assert parse_gh_command('echo x --body "... && gh pr view') is None
+        # A genuinely malformed but real gh invocation is still anchored on its
+        # command word and detected.
+        result = parse_gh_command('gh pr view "unterminated')
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
+    def test_subshell_group_still_detected(self) -> None:
+        """A gh invocation inside subshell grouping parentheses is detected."""
+        result = parse_gh_command("( gh pr view 1 )")
+        assert result is not None
+        assert result["operation"] == "pr"
+        assert result["action"] == "view"
+
 
 class TestFindSkillScript:
     """Tests for skill script lookup."""
