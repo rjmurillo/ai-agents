@@ -6,10 +6,15 @@
   "task": "Session 318: Merge Velocity Analysis",
   "decisions": [
     {
+      "chosen": "Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "id": "d001"
     },
     {
-      "id": "d002",
+      "chosen": "Prioritized fixing validation scripts (markdown linting and session validation) ahead of lower-impact tooling issues.",
+      "id": "d002"
+    },
+    {
+      "id": "d003",
       "timestamp": "2026-01-05T00:00:00+00:00",
       "type": "recovery",
       "context": "Task 2: Remediation Planning",
