@@ -178,6 +178,8 @@ There is no single threshold. The threshold is the CI lower bound > 0 in conjunc
 
 These criteria are normative. The ADR does not soften "scrap" into "needs more work" or "halt-due-to-flakiness" into a soft pass. Each outcome is a real outcome and the methodology treats it as such. `halt-due-to-flakiness` is in particular not a path to graduation; it is a halt that requires variance investigation before another verdict-grade run is attempted.
 
+**N-aware halt threshold (Issue #1878)**: the halt fires when the flaky-fixture count reaches `max(ceil(0.30 * N), min(5, N // 2))`, so the normative 30% fraction governs at large N while a small-N floor keeps a couple of flaky fixtures from halting a tiny corpus (at N=10 the floor is 5, so 4 flaky no longer halts). `ReportAggregator` also exposes a flag-and-continue mode that records the crossing without halting; see `scripts/eval/_report_aggregator.py:_flaky_halt_count`.
+
 ### Decision Owner and SLA
 
 The architect role owns the graduate / audit / scrap / halt-due-to-flakiness decision via Tier 3 architecture review. The decision MUST be ratified in PR review by an architect-tier reviewer before the verdict is committed.
