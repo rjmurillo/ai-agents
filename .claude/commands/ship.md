@@ -18,7 +18,10 @@ Task(subagent_type="devops"): You are a release engineer. Run all 5 pre-flight c
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff?
 3. **Review complete** - Has /review been run on this branch? Any unresolved Critical findings? Check review logs.
 4. **Tests passing** - All tests green? No skipped tests without justification?
-5. **Standards clean** - Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints"). Both pass?
+5. **Standards clean** - Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints"), scoped to the PR diff. Both pass? Pass the PR base branch (the target from $ARGUMENTS, default `main`) so the gates scan only changed files:
+   - `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope <base-branch>`
+   - `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope <base-branch>`
+   This keeps the gate blast radius equal to the diff, not the whole tree, so a pre-existing violation elsewhere does not block this ship.
 
 ## Process
 
