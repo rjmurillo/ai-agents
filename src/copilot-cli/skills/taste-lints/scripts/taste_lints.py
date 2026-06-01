@@ -76,7 +76,11 @@ def is_safe_path(filepath: str) -> bool:
 
 
 def get_staged_files() -> list[str]:
-    """Get list of staged files from git."""
+    """Get the sorted list of staged files from git.
+
+    Output is sorted so ordering is deterministic and consistent with the
+    diff-scope and directory modes.
+    """
     try:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
@@ -88,7 +92,7 @@ def get_staged_files() -> list[str]:
         )
         files = [f for f in result.stdout.splitlines() if f]
         # Filter out any paths with traversal attempts (CWE-22)
-        return [f for f in files if is_safe_path(f)]
+        return sorted(f for f in files if is_safe_path(f))
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
         return []
 

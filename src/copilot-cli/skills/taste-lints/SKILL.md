@@ -79,7 +79,7 @@ Skills exceeding 500 lines need progressive disclosure refactoring.
 python3 .claude/skills/taste-lints/scripts/taste_lints.py --git-staged
 
 # Scope to a pull request diff (only files changed vs the base branch)
-python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "$BASE_BRANCH"
+python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"
 
 # Scan specific files
 python3 .claude/skills/taste-lints/scripts/taste_lints.py path/to/file.py
