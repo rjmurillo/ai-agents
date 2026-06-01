@@ -34,7 +34,7 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 3,
+    "errors": 0,
     "recoveries": 0,
     "commits": 7,
     "files_changed": 0

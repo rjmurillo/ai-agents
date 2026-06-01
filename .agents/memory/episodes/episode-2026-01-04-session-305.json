@@ -9,21 +9,13 @@
     {
       "id": "e001",
       "timestamp": "2026-01-04T00:00:00+00:00",
-      "type": "error",
-      "content": "- **Objective**: Conduct structured retrospective on PR #760 failures to extract atomic learnings",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e002",
-      "timestamp": "2026-01-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Completed Phase 0-6 of structured retrospective protocol",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e003",
+      "id": "e002",
       "timestamp": "2026-01-04T00:00:00+00:00",
       "type": "error",
       "content": "- Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
@@ -31,7 +23,7 @@
       "leads_to": []
     },
     {
-      "id": "e004",
+      "id": "e003",
       "timestamp": "2026-01-04T00:00:00+00:00",
       "type": "milestone",
       "content": "Security fixes require adversarial testing before claiming complete",
@@ -39,7 +31,7 @@
       "leads_to": []
     },
     {
-      "id": "e005",
+      "id": "e004",
       "timestamp": "2026-01-04T00:00:00+00:00",
       "type": "error",
       "content": "| MUST | Run markdown lint | [x] | 23 errors in pre-existing files (not session artifacts) |",
@@ -50,7 +42,7 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 9,
+    "errors": 0,
     "recoveries": 0,
     "commits": 3,
     "files_changed": 0

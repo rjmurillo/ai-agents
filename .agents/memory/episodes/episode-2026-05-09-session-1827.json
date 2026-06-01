@@ -50,7 +50,7 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 1,
+    "errors": 0,
     "recoveries": 1,
     "commits": 6,
     "files_changed": 4

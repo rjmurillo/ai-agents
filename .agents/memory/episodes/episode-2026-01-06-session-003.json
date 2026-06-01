@@ -9,7 +9,7 @@
   "metrics": {
     "duration_minutes": 5,
     "tool_calls": 0,
-    "errors": 6,
+    "errors": 0,
     "recoveries": 0,
     "commits": 26,
     "files_changed": 0
