@@ -622,3 +622,39 @@ class TestPreserveCli:
         log = self._write_log(tmp_path)
         rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
         assert rc == 1
+
+
+class TestFailCountFilter:
+    """_FAIL_COUNT_RE + _valid_fail_match must not count issue refs or HTTP status
+    codes as failures (PR #2170, thread GANjI)."""
+
+    def test_counted_failure_matches(self):
+        for s in ["3 failed", "fixed 2 errors", "4 failures", "101 failed"]:
+            assert extract_session_episode._valid_fail_match(s) is not None, s
+
+    def test_issue_ref_not_counted(self):
+        for s in ["#760 failures", "PR #760 failures", "see #404 errors"]:
+            assert extract_session_episode._valid_fail_match(s) is None, s
+
+    def test_http_status_not_counted(self):
+        for s in ["404 errors", "500 errors", "fixed 404 errors", "got 503 error"]:
+            assert extract_session_episode._valid_fail_match(s) is None, s
+
+    def test_metrics_errors_excludes_status_and_refs(self):
+        data = _json_log([
+            {"action": "ci", "outcome": "3 failed"},
+            {"action": "http", "outcome": "saw 404 errors from upstream"},
+            {"action": "ref", "outcome": "closed #760 failures backlog"},
+        ])
+        assert extract_session_episode.json_metrics(data)["errors"] == 3
+
+    def test_no_error_event_from_status_code(self):
+        events = extract_session_episode.json_events(
+            _json_log([{"action": "x", "outcome": "endpoint returned 404 errors"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
+        assert not any(e["type"] == "error" for e in events)
+
+    def test_outcome_not_failure_from_status_code(self):
+        data = _json_log([{"action": "x", "outcome": "404 errors in logs"}], end_complete=False)
+        assert extract_session_episode.json_outcome(data) == "partial"

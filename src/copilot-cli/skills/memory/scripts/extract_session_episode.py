@@ -349,7 +349,14 @@ def get_session_outcome(metadata: dict, events: list[dict]) -> str:
 # A counted failure ("3 failed", "2 errors") is a real failure signal; a bare
 # substring "fails"/"error" inside prose is not. Requiring [1-9]\d* avoids the
 # "0 errors" false positive that corrupted episodes under the markdown path.
-_FAIL_COUNT_RE = re.compile(r"\b([1-9]\d*)\s+(?:failed|failures|errors?)\b", re.IGNORECASE)
+# The (?<![#\w]) lookbehind excludes '#'-prefixed identifiers (issue/PR/comment
+# refs like "#760 failures") and digits glued to a preceding word. Group 2
+# captures the keyword so callers can reject HTTP-status-shaped error counts.
+# Refs PR #2170 (thread GANjI): leading numbers that are issue refs or status
+# codes must not inflate metrics.errors.
+_FAIL_COUNT_RE = re.compile(
+    r"(?<![#\w])([1-9]\d*)\s+(failed|failures|errors?)\b", re.IGNORECASE
+)
 _PASS_COUNT_RE = re.compile(r"\b(\d+)\s+(?:passed|passing)\b", re.IGNORECASE)
 _SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 _FILES_RE = re.compile(r"\b(\d+)\s+files?\b", re.IGNORECASE)
@@ -363,6 +370,23 @@ _DECISION_RE = re.compile(
 def _as_dict(value: Any) -> dict:
     """Coerce a possibly-null JSON value to a dict (explicit null -> {})."""
     return value if isinstance(value, dict) else {}
+
+
+def _valid_fail_match(text: str) -> "re.Match[str] | None":
+    """First counted-failure match that is a real failure tally, else None.
+
+    Rejects matches where the keyword is "error(s)" and the count falls in the
+    HTTP status range (100-599); "404 errors"/"500 errors" are status-code
+    language, not failure counts. "#"-prefixed refs are already excluded by the
+    _FAIL_COUNT_RE lookbehind. Refs PR #2170 (thread GANjI).
+    """
+    for match in _FAIL_COUNT_RE.finditer(text):
+        count = int(match.group(1))
+        keyword = match.group(2).lower()
+        if keyword.startswith("error") and 100 <= count <= 599:
+            continue
+        return match
+    return None
 
 
 def _as_list(value: Any) -> list:
@@ -483,7 +507,7 @@ def json_outcome(data: dict, additional_worklogs: list | None = None) -> str:
         worklogs_to_check = worklogs_to_check + additional_worklogs
 
     explicit_failure = any(
-        _FAIL_COUNT_RE.search(_entry_text(e)) for e in worklogs_to_check
+        _valid_fail_match(_entry_text(e)) is not None for e in worklogs_to_check
     )
 
     if explicit_failure and not all_complete:
@@ -515,7 +539,7 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
         text = _entry_text(entry)
         if _PASS_COUNT_RE.search(text):
             add("test", (_entry_field(entry, "evidence") or _entry_field(entry, "outcome") or text).strip())
-        if _FAIL_COUNT_RE.search(text):
+        if _valid_fail_match(text):
             add("error", text.strip())
 
     ending = str(data.get("endingCommit") or "")
@@ -562,7 +586,7 @@ def json_metrics(data: dict) -> dict:
     }
     for entry in _as_list(data.get("workLog")):
         text = _entry_text(entry)
-        fail = _FAIL_COUNT_RE.search(text)
+        fail = _valid_fail_match(text)
         if fail:
             metrics["errors"] += int(fail.group(1))
         files = _FILES_RE.search(text)
@@ -792,7 +816,7 @@ def _filter_markdown_events(events: list[dict]) -> list[dict]:
     for evt in events:
         if evt.get("type") == "error":
             content = evt.get("content", "")
-            if not _FAIL_COUNT_RE.search(content):
+            if not _valid_fail_match(content):
                 continue
         filtered.append(evt)
     return filtered
