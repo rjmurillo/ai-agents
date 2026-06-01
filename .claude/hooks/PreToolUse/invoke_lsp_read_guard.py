@@ -182,9 +182,10 @@ def _decide_block(message: str, file_path: str) -> int:
         _emit_warn(message)
         _note(f"warn-mode advisory for {file_path}")
         return 0
-    # Emit guidance on stdout for agent visibility (sibling-guard parity,
-    # ADR-062); keep a short stderr note for the structured log.
+    # Emit guidance on stdout (user transcript, sibling-guard parity) and on
+    # stderr (the agent-visible channel for exit-2 PreToolUse blocks, ADR-062).
     print(message)
+    print(message, file=sys.stderr)
     _note(f"blocked Read {file_path}")
     return 2
 

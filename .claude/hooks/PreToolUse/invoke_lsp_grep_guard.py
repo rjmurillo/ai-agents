@@ -197,7 +197,7 @@ def _bypassed() -> bool:
     """Allow without evaluating: consumer repo or the SKIP_LSP_GATE kill switch (ADR-062)."""
     if skip_if_consumer_repo(_HOOK_NAME):
         return True
-    if os.environ.get("SKIP_LSP_GATE", "").lower() == "true":
+    if os.environ.get("SKIP_LSP_GATE", "").strip().lower() == "true":
         print(f"{_HOOK_NAME}: SKIP_LSP_GATE set, allowing", file=sys.stderr)
         return True
     return False

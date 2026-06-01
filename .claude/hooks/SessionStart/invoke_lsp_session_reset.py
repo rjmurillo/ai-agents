@@ -3,12 +3,14 @@
 
 Claude Code SessionStart hook. The trusted lifecycle reset signal for the
 conditional LSP-first enforcement layer: it clears the gate-state file for the
-current cwd so a new session always begins in "needs warmup", never inheriting
+resolved project directory so a new session always begins in "needs warmup",
+never inheriting
 "surgical mode" (nav_count >= NAV_REQUIRED) from prior work.
 
 State is owned by the PostToolUse usage tracker and lives OUTSIDE the git
 working tree (``scripts/hook_utilities/lsp_gate_state.py``). This hook only
-calls ``reset_state(cwd)`` for the current cwd; reset is idempotent and never
+calls ``reset_state(project_dir)`` for the resolved project directory (from
+``get_project_directory()``); reset is idempotent and never
 raises (fail-open). Reset is driven solely by this SessionStart signal, not by
 agent-controllable input.
 
