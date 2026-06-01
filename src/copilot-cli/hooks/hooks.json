@@ -158,13 +158,6 @@
         "type": "command"
       },
       {
-        "bash": "python3 -u \"./hooks/preToolUse/invoke_manifest_count_guard__Bash_git_push_0e93bf.py\"",
-        "cwd": ".",
-        "powershell": "py -3 -u \"./hooks/preToolUse/invoke_manifest_count_guard__Bash_git_push_0e93bf.py\"",
-        "timeoutSec": 30,
-        "type": "command"
-      },
-      {
         "bash": "python3 -u \"./hooks/preToolUse/invoke_session_log_field_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"./hooks/preToolUse/invoke_session_log_field_guard__Bash_git_push_0e93bf.py\"",

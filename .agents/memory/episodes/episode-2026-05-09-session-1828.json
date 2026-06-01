@@ -1,40 +1,128 @@
 {
   "id": "episode-2026-05-09-session-1828",
   "session": "2026-05-09-session-1828",
-  "timestamp": "2026-05-10T00:02:50.249712+00:00",
+  "timestamp": "2026-05-09T00:00:00+00:00",
   "outcome": "success",
-  "task": "",
+  "task": "/pr-quality:all adversarial fix-loop on M1 PR: 7 CI gate findings remediated (eval orphans, REQ-007 AC5, doc-accuracy tense, ADR-040 enumeration, plugin.json counts, PLAN decision log)",
   "decisions": [],
   "events": [
     {
       "id": "e001",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
-      "type": "commit",
-      "content": "Commit: f937a114",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read 7 CI prompts in .github/prompts/",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "{\"step\": \"3 rounds /pr-quality:all adversarial review converged to PASS\", \"outcome\": \"Round 1: qa BLOCKED, analyst+roadmap WARN. Round 2: regressions found in Round 1 fixes. Round 3: clean.\"}",
+      "content": "Dispatched 7 parallel adversarial subagents (one per CI prompt)",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e003",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
-      "type": "test",
-      "content": "{\"step\": \"Pre-push hook BLOCKED: 73 pytest failures + 71/50 file count overage\", \"outcome\": \"Failures traced to 2 root causes: (a) orphan Python tests at tests/workflow/test_{get_agent_history,sync_session_documentation}.py target deleted .claude/skills/workflow/scripts/ files; (b) marketplace.json count assertions stale after plugin manifest count drop.\"},",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Synthesized findings into priority slate (7 fixes)",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e004",
-      "timestamp": "2026-05-10T00:02:50.246747+00:00",
+      "timestamp": "2026-05-09T00:00:00+00:00",
       "type": "milestone",
-      "content": "{\"step\": \"Commit G: pre-push fixes\", \"outcome\": \"Deleted orphan tests/workflow/ Python tests (3 files). Auto-regenerated .claude-plugin/marketplace.json (70->67 skills) and .github/plugin/marketplace.json (82->79 skills) via build/scripts/validate_marketplace_counts.py --fix. Verified test_validate_marketplace_counts passes (18 tests). These are the same orphan-ref class of failures that issue #1939 (orphan-ref-validator skill) is designed to catch pre-commit.\"}",
+      "content": "Commit A: tests/evals/skills/triage-prompts.json",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit B: doc-accuracy description tense + MD040 lint fix",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit C: REQ-007 AC5 + Deferred section + session 1828 log",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit D: ADR-040 + plugin.json factual count corrections",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit E: PLAN Decision Log workflow PRUNE rationale",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 2 verification: 7 adversarial agents re-run",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit F: Round 2 fix-loop",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 3 verification: analyst + architect re-run",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed epic #1933 + 7 sub-issues (#1934-#1940) for lifecycle-gate convergence",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "/ship pre-flight: PASS_ALL across 5 checks (pipeline, security, review, tests, standards)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pre-push hook BLOCKED: 73 pytest failures + 71/50 file count overage",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-05-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Commit G: pre-push fixes",
       "caused_by": [],
       "leads_to": []
     }
@@ -42,12 +130,10 @@
   "metrics": {
     "duration_minutes": 0,
     "tool_calls": 0,
-    "errors": 2,
+    "errors": 0,
     "recoveries": 2,
     "commits": 9,
     "files_changed": 77
   },
-  "lessons": [
-    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in commit messages and adversarial agent reports.\"}"
-  ]
+  "lessons": []
 }
