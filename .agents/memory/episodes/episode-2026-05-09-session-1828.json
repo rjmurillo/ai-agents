@@ -135,7 +135,5 @@
     "commits": 9,
     "files_changed": 77
   },
-  "lessons": [
-    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in commit messages and adversarial agent reports.\"}"
-  ]
+  "lessons": []
 }

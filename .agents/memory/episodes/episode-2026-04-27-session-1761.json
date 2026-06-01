@@ -134,7 +134,5 @@
     "commits": 8,
     "files_changed": 0
   },
-  "lessons": [
-    "\"Evidence\": \".serena/memories/skill-requirements-interview-pattern.md written with end-to-end /spec flow, SkillForge validator gotchas, and deferred-work pointers. Captures the pattern, the wiring (step 2 + step 6), the spec-generator handoff, and the lessons from PR #1812 review iterations.\""
-  ]
+  "lessons": []
 }

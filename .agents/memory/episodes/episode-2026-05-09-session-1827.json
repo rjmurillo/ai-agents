@@ -55,7 +55,5 @@
     "commits": 6,
     "files_changed": 4
   },
-  "lessons": [
-    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred. Lessons captured in this PR commit messages and analyst/critic gate findings.\"}"
-  ]
+  "lessons": []
 }

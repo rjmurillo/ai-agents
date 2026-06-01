@@ -79,8 +79,5 @@
     "commits": 8,
     "files_changed": 0
   },
-  "lessons": [
-    "\"Evidence\": \"Created .serena/memories/implementation/implementation-009-req011-tdd-first-shipment.md capturing TDD-first lessons and comment-vs-call grep trap\"",
-    "\"Evidence\": \"Lessons captured in implementation-009; PR #1989 retrospective referenced as source for Phase 5c contracts\""
-  ]
+  "lessons": []
 }

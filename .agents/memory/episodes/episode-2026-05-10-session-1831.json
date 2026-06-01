@@ -103,7 +103,5 @@
     "commits": 2,
     "files_changed": 82
   },
-  "lessons": [
-    "\"retrospectiveInvoked\": {\"level\": \"SHOULD\", \"Complete\": false, \"Evidence\": \"Retrospective deferred to PR-merge boundary; lessons captured in commit message and this session log.\"}"
-  ]
+  "lessons": []
 }
