@@ -25,6 +25,7 @@ _AGENT_STEP_NAME = "Run retrospective via Claude Code"
 _ACTION_REF = (
     "anthropics/claude-code-action@787c5a0ce96a9a6cfb050ea0c8f4c05f2447c251"
 )
+_OAUTH_TOKEN_EXPR = "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
 
 
 def _load_workflow() -> dict[str, Any]:
@@ -95,8 +96,9 @@ class TestAgentStepFailureIsolation:
         assert step is not None
         # Act
         uses = step.get("uses", "")
-        # Assert: failure isolation must not regress the SHA pin
-        assert uses.startswith(_ACTION_REF)
+        # Assert: exact pin so a path change (owner/repo/path@ref) is caught,
+        # not just the prefix
+        assert uses == _ACTION_REF
 
     def test_agent_step_still_wires_oauth_token(self) -> None:
         # Arrange
@@ -105,10 +107,10 @@ class TestAgentStepFailureIsolation:
         assert step is not None
         # Act
         step_with = step.get("with")
-        step_with = {} if step_with is None else step_with
-        token = step_with.get("claude_code_oauth_token", "")
         # Assert: the token wiring is unchanged by the isolation fix
-        assert "CLAUDE_CODE_OAUTH_TOKEN" in token
+        assert isinstance(step_with, dict)
+        token = step_with.get("claude_code_oauth_token", "")
+        assert token == _OAUTH_TOKEN_EXPR
 
 
 class TestFailureIsolationDetectionNegative:
