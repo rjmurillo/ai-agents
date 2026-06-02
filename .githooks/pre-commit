@@ -1249,9 +1249,12 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
             echo_warning "Skipping episode extraction: script path is a symlink"
         elif [ -f "$EPISODE_EXTRACT_SCRIPT" ]; then
             if set_python_cmd; then
-                # Run episode extraction
+                # Run episode extraction (non-destructive: merge over any existing
+                # episode instead of overwriting it). --preserve read-modify-writes
+                # the existing episode, keeping richer prior data (issue #2193).
+                # --force remains available for an intentional manual overwrite.
                 # Guard against set -e aborting the hook on non-blocking extraction failures
-                EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --force 2>&1 || true)
+                EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --preserve 2>&1 || true)
                 EXTRACT_EXIT=$?
 
                 if [ $EXTRACT_EXIT -eq 0 ]; then
