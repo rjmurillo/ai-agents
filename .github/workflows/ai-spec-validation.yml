@@ -162,8 +162,13 @@ jobs:
           # Note: Requires space after keyword (GitHub standard format: "Fixes #123")
           ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]+([[:alnum:]_-]+/[[:alnum:]_-]+)?#[0-9]+' | sed -E 's/^(Closes|Fixes|Resolves|Implements)[[:space:]]+//; s/^#//' | sort -u | tr '\n' ' ' || true)
 
+          # Detect explicit incremental PR markers (fix #2255).
+          # Parsing lives in a tested script per ADR-006.
+          INCREMENTAL_SCOPE=$(python3 .github/scripts/extract_incremental_scope.py "$PR_TITLE")
+
           echo "spec_refs=$SPEC_REFS" >> $GITHUB_OUTPUT
           echo "issue_refs=$ISSUE_REFS" >> $GITHUB_OUTPUT
+          echo "incremental_scope=$INCREMENTAL_SCOPE" >> $GITHUB_OUTPUT
 
           if [ -z "$SPEC_REFS" ] && [ -z "$ISSUE_REFS" ]; then
             echo "No spec references found in PR"
@@ -234,8 +239,13 @@ jobs:
       - name: Prepare Spec Context
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
         id: prepare-context
+        env:
+          INCREMENTAL_SCOPE: ${{ steps.spec-ref.outputs.incremental_scope }}
         run: |
-          # Create spec context string for additional-context input
+          # Create spec context string for additional-context input.
+          # When the PR title declares an incremental scope (e.g. "Phase 2
+          # of #1799"), inject that declaration so the AI agents evaluate
+          # only the claimed slice, not the full parent issue (fix #2255).
           if [ -f /tmp/spec-content.md ]; then
             SPEC_CONTENT=$(cat /tmp/spec-content.md)
             {
@@ -243,6 +253,16 @@ jobs:
               echo "## Specification Content"
               echo ""
               echo "$SPEC_CONTENT"
+              if [ -n "$INCREMENTAL_SCOPE" ]; then
+                echo ""
+                echo "## Incremental Scope Declaration"
+                echo ""
+                echo "This PR explicitly declares it implements: $INCREMENTAL_SCOPE"
+                echo "Evaluate coverage ONLY against the acceptance criteria"
+                echo "relevant to this declared scope. Criteria belonging to"
+                echo "other phases or future PRs are NOT expected to be covered"
+                echo "and must be treated as N/A for this evaluation."
+              fi
               echo "EOF_SPEC"
             } >> $GITHUB_OUTPUT
           else

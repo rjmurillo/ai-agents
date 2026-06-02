@@ -36,7 +36,15 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+# Legacy fallback: the Copilot-CLI artifact path. Superseded by platform-
+# config discovery (_find_platform_hook_artifacts) which reads this value
+# from templates/platforms/copilot-cli.yaml artifacts.hooks.outputConfig.
+# Kept so the validator degrades gracefully when the templates directory is
+# absent (e.g. a minimal checkout).
 _COPILOT_REL = Path("src/copilot-cli/hooks/hooks.json")
+
+# Claude's hooks.json is hand-authored and not covered by any platform yaml's
+# artifacts.hooks, so it remains an explicit constant.
 _CLAUDE_REL = Path(".claude/hooks/hooks.json")
 _COPILOT_FIELDS = ("bash", "powershell", "cwd")
 
@@ -44,6 +52,54 @@ _COPILOT_FIELDS = ("bash", "powershell", "cwd")
 _CLAUDE_ANCHOR = "${CLAUDE_PLUGIN_ROOT}"
 # A command that launches a hook script: references a `hooks/<...>.py` path.
 _HOOK_SCRIPT_RE = re.compile(r"hooks/\S*\.py")
+
+
+def _find_platform_hook_artifacts(repo_root: Path) -> tuple[list[Path], list[str]]:
+    """Return relative artifact paths and config errors for hook platforms.
+
+    Reads ``templates/platforms/*.yaml`` and collects every
+    ``artifacts.hooks.outputConfig`` value. When a new platform is added
+    (Cortex, Factory Droid, VS Code), its hooks.json appears here
+    automatically and the validator checks it on the next run, enforcing
+    fail-closed behaviour for new platforms (fix #2231 item 2).
+
+    Returns an empty artifact list when yaml is unavailable or when no platform
+    declares hooks, triggering the legacy _COPILOT_REL fallback.
+    """
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError:  # pragma: no cover
+        return [], []
+    platforms_dir = repo_root / "templates" / "platforms"
+    if not platforms_dir.is_dir():
+        return [], []
+    artifacts: list[Path] = []
+    errors: list[str] = []
+    for yaml_path in sorted(platforms_dir.glob("*.yaml")):
+        try:
+            cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError) as exc:
+            errors.append(f"cannot read/parse platform config {yaml_path}: {exc}")
+            continue
+        if not isinstance(cfg, dict):
+            errors.append(f"platform config must be a mapping: {yaml_path}")
+            continue
+        artifacts_cfg = cfg.get("artifacts")
+        if "artifacts" in cfg and not isinstance(artifacts_cfg, dict):
+            errors.append(f"platform artifacts must be a mapping: {yaml_path}")
+            continue
+        hooks_cfg = artifacts_cfg.get("hooks") if isinstance(artifacts_cfg, dict) else None
+        if (
+            isinstance(artifacts_cfg, dict)
+            and "hooks" in artifacts_cfg
+            and not isinstance(hooks_cfg, dict)
+        ):
+            errors.append(f"platform hooks must be a mapping: {yaml_path}")
+            continue
+        output_config = hooks_cfg.get("outputConfig") if isinstance(hooks_cfg, dict) else None
+        if isinstance(output_config, str) and output_config.strip():
+            artifacts.append(Path(output_config.strip()))
+    return artifacts, errors
 
 
 def _load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
@@ -97,14 +153,22 @@ def _check_copilot_entry(
     return violations
 
 
-def _check_copilot(repo_root: Path) -> tuple[int, list[str], int]:
-    """Return (count_checked, violations, config_error_code)."""
-    doc, err = _load_json(repo_root / _COPILOT_REL)
+def _check_copilot(
+    repo_root: Path,
+    artifact_rel: Path = _COPILOT_REL,
+) -> tuple[int, list[str], int]:
+    """Return (count_checked, violations, config_error_code).
+
+    ``artifact_rel`` is the repo-relative path to the platform's hooks.json.
+    Defaults to ``_COPILOT_REL`` for backwards compatibility; callers that
+    use ``_find_platform_hook_artifacts`` pass the discovered path instead.
+    """
+    doc, err = _load_json(repo_root / artifact_rel)
     if err is not None:
         return 0, [err], 2
     events = doc.get("hooks") if isinstance(doc, dict) else None
     if not isinstance(events, dict) or not events:
-        return 0, [f"no hook events in {_COPILOT_REL}"], 2
+        return 0, [f"no hook events in {artifact_rel}"], 2
     try:
         generate_hooks = _load_generator(repo_root)
     except ImportError as exc:
@@ -163,15 +227,33 @@ def _check_claude(repo_root: Path) -> tuple[int, list[str], int]:
 
 
 def validate(repo_root: Path) -> tuple[int, list[str]]:
-    """Validate both plugin hook artifacts. Returns (exit_code, messages)."""
+    """Validate all discovered plugin hook artifacts. Returns (exit_code, messages).
+
+    Copilot-side hook artifacts are discovered dynamically from
+    ``templates/platforms/*.yaml`` ``artifacts.hooks.outputConfig`` entries so
+    that a new platform fails closed when it ships a hooks.json with
+    unanchored entries (fix #2231 item 2).  Claude's hooks.json is
+    hand-authored and stays as an explicit constant.
+    """
     messages: list[str] = []
     violations: list[str] = []
     total_checked = 0
     has_violation = False
     has_config_error = False
 
-    for label, check in (("copilot", _check_copilot), ("claude", _check_claude)):
-        checked, results, config_code = check(repo_root)
+    # Discover platform hook artifacts from templates/platforms/*.yaml.
+    # Fall back to the hardcoded constant when discovery yields nothing.
+    platform_artifacts, platform_errors = _find_platform_hook_artifacts(repo_root)
+    if platform_errors:
+        has_config_error = True
+        messages.extend(platform_errors)
+        violations.extend(platform_errors)
+    if not platform_artifacts:
+        platform_artifacts = [_COPILOT_REL]  # legacy fallback
+
+    for artifact_rel in platform_artifacts:
+        label = str(artifact_rel)
+        checked, results, config_code = _check_copilot(repo_root, artifact_rel)
         total_checked += checked
         if config_code == 2:
             has_config_error = True
@@ -187,14 +269,29 @@ def validate(repo_root: Path) -> tuple[int, list[str]]:
                 f"{'entry' if checked == 1 else 'entries'} anchored correctly"
             )
 
+    checked, results, config_code = _check_claude(repo_root)
+    total_checked += checked
+    if config_code == 2:
+        has_config_error = True
+        messages.extend(results)
+        violations.extend(results)
+    elif results:
+        has_violation = True
+        messages.extend(results)
+        violations.extend(results)
+    else:
+        messages.append(
+            f"claude: {checked} hook "
+            f"{'entry' if checked == 1 else 'entries'} anchored correctly"
+        )
+
     if has_config_error:
         return 2, messages
     if has_violation:
         return 1, violations
+    entry_word = "entry" if total_checked == 1 else "entries"
     return 0, [
-        f"{total_checked} hook "
-        f"{'entry' if total_checked == 1 else 'entries'} "
-        "anchored correctly across both plugins"
+        f"{total_checked} hook {entry_word} anchored correctly across all plugins"
     ]
 
 

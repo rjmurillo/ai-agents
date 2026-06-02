@@ -150,6 +150,34 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\]"),  # markdown links
 ]
 
+# Inline citation-cue pattern for fix #2252.
+#
+# A backtick file path preceded immediately (within the same line) by one of
+# these citation cue words/phrases is a REFERENCE, not a change claim. Examples:
+#
+#   see `.claude/commands/spec.md`
+#   per `.agents/architecture/ADR-035-exit-code-standardization.md`
+#   e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`
+#   for example `scripts/validate_session_json.py`
+#   as documented in `scripts/ai_review_common/cache_guard.py`
+#
+# The pattern is matched globally and the matching span is replaced with
+# `<CITE>` before FILE_MENTION_PATTERNS runs. This prevents the path from
+# being collected as a change claim.
+#
+# INTENTIONALLY NARROW: the cue must appear on the SAME line as the path
+# and be separated only by optional whitespace / parentheses / colons.
+# This avoids suppressing list-item change claims that happen to follow
+# a citation on an adjacent line.
+_INLINE_CITATION_PATTERN = re.compile(
+    r"(?i)"
+    r"\b(?:see|per|e\.g\.|e\.g|eg\.|for example|as in|for instance"
+    r"|as documented in|referenced by|defined in|introduced in"
+    r"|cf\.|compare)"
+    r"[: \t(]*"
+    r"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*`",
+)
+
 # Summary text patterns that identify a <details> block as bot-generated
 # (Renovate, Dependabot). Matched case-insensitively against the inner text
 # of the <summary> tag. When a <details> block's summary matches any of these,
@@ -416,6 +444,12 @@ def _strip_informational_sections(description: str) -> str:
         text,
         flags=re.DOTALL | re.MULTILINE | re.IGNORECASE,
     )
+    # Strip inline citation cues so a backtick-wrapped path used as a
+    # reference example (e.g. "see `scripts/foo.py`", "per `ADR-035.md`")
+    # is not collected as a change claim. The citation pattern is narrow:
+    # the cue keyword must appear on the same line as the path (see
+    # _INLINE_CITATION_PATTERN for the full list of recognized cues).
+    text = _INLINE_CITATION_PATTERN.sub("<CITE>", text)
     return text
 
 

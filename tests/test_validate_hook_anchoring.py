@@ -99,3 +99,39 @@ def test_missing_files_are_config_error(tmp_path: Path) -> None:
     """Absent hook files are a config error (exit 2), not a false pass."""
     code, _ = gate.validate(tmp_path)
     assert code == 2
+
+
+def test_malformed_platform_yaml_is_config_error(tmp_path: Path) -> None:
+    """Platform config parse failures are config errors, not skipped inputs."""
+    platforms = tmp_path / "templates" / "platforms"
+    platforms.mkdir(parents=True)
+    (platforms / "broken.yaml").write_text("artifacts: [", encoding="utf-8")
+
+    code, messages = gate.validate(tmp_path)
+
+    assert code == 2
+    assert any("cannot read/parse platform config" in message for message in messages)
+
+
+def test_null_platform_artifacts_is_config_error(tmp_path: Path) -> None:
+    """Explicit null artifacts are config errors, not empty discovery."""
+    platforms = tmp_path / "templates" / "platforms"
+    platforms.mkdir(parents=True)
+    (platforms / "broken.yaml").write_text("artifacts:\n", encoding="utf-8")
+
+    code, messages = gate.validate(tmp_path)
+
+    assert code == 2
+    assert any("platform artifacts must be a mapping" in message for message in messages)
+
+
+def test_null_platform_hooks_is_config_error(tmp_path: Path) -> None:
+    """Explicit null hooks are config errors, not empty discovery."""
+    platforms = tmp_path / "templates" / "platforms"
+    platforms.mkdir(parents=True)
+    (platforms / "broken.yaml").write_text("artifacts:\n  hooks:\n", encoding="utf-8")
+
+    code, messages = gate.validate(tmp_path)
+
+    assert code == 2
+    assert any("platform hooks must be a mapping" in message for message in messages)
