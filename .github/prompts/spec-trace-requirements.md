@@ -88,8 +88,26 @@ VERDICT: PASS
 
 (or `VERDICT: PARTIAL` / `VERDICT: FAIL`). The CI extractor (`.github/actions/ai-review/action.yml`) anchors on a plain end-of-line `VERDICT: <TOKEN>` pattern; the bolded `> **VERDICT: PASS**` inside the alert block is for human readers and does NOT match the extractor (Refs PR #1965 sed anchor tightening).
 
+## Incremental Scope (fix #2255)
+
+If the additional context contains an `## Incremental Scope Declaration`, the PR
+explicitly delivers only a named slice (e.g. "Phase 2", "PR 1 of 3") of the full
+parent issue. Apply these rules:
+
+1. Mark any requirement that belongs to a **different** phase or is explicitly
+   outside the declared scope as `N/A`.
+2. Compute coverage percentage only over the non-N/A requirements.
+3. A PR that fully covers its declared slice with 100% non-N/A requirements COVERED
+   earns **PASS**, even though other phases remain NOT_COVERED.
+4. Do NOT penalize a PR for not implementing criteria outside its declared scope.
+5. When a requirement is ambiguously scoped, lean toward `N/A` rather than
+   `NOT_COVERED` — the author declared they are not claiming to cover it.
+
+If no `## Incremental Scope Declaration` is present, treat all requirements as
+in-scope and apply the normal verdict guidelines below.
+
 ## Verdict Guidelines
 
-- `PASS`: 100% of requirements COVERED
-- `PARTIAL`: >50% requirements covered, but some gaps
-- `FAIL`: <50% requirements covered OR critical requirements NOT_COVERED
+- `PASS`: 100% of in-scope requirements COVERED (N/A requirements excluded)
+- `PARTIAL`: >50% in-scope requirements covered, but some gaps
+- `FAIL`: <50% in-scope requirements covered OR critical in-scope requirements NOT_COVERED
