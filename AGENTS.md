@@ -25,10 +25,10 @@ Read first, reason second. Pre-training last resort.
 
 ## Boundaries
 
-**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run changed workflows pre-push (`SKIP_WORKFLOW_LOCAL_TEST=true` bypass)|Bump `plugin.json` (semver) on plugin source change
+**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run changed workflows pre-push (`SKIP_WORKFLOW_LOCAL_TEST=true` bypass)|Bump `plugin.json` (semver) on plugin source change|Verify customer-facing generated artifacts against the real runtime contract before release: runtime-contract test (not string-match) + committed-artifact gate (`.claude/rules/generated-artifacts.md`)
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
 **Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in working tree (`$TMPDIR`/`mktemp`)|Resolve security threads without fixing the vulnerability (CWE/OWASP/CVE) in code
+**Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in working tree (`$TMPDIR`/`mktemp`)|Resolve security threads without fixing the vulnerability (CWE/OWASP/CVE) in code|Ship a generated customer-facing artifact never executed in its target runtime (string-match/self-referential test does not count)
 
 ## Context Type Decision
 
