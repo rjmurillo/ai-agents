@@ -54,7 +54,8 @@ AGENT_PROMPT_DIRS = (
 )
 
 _MEMORY_SUBAGENT_HANDOFF = re.compile(
-    r"""subagent_type\s*=\s*['"]memory['"]"""
+    r"^subagent_type\s*:\s*['\"]?memory['\"]?\s*(?:#.*)?$",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 
