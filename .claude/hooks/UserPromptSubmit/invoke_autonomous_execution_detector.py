@@ -8,7 +8,12 @@ When detected, injects stricter protocol guards into context.
 
 Hook Type: UserPromptSubmit
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Always (educational injection, not blocking)
+    0 = Always for the educational injection logic (not blocking).
+    2 = Bootstrap failure only (plugin lib directory not found). A hook that
+        cannot locate its lib is a hard misconfiguration; it fails closed and
+        loud per ADR-066 D2 and ADR-063 Decision item 5, NOT fail-open. A
+        silent exit 0 would disable the hook and hide the misconfiguration
+        (launcher/hook fail-open rejected: issues #2230, #2271).
 """
 
 from __future__ import annotations
