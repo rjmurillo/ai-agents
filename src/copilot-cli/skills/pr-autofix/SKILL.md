@@ -106,11 +106,19 @@ This is the documented contract for the pre-review skip-check use case
 
 When invoking from autofix code, do ONE of:
 
-- Branch on the JSON `"merged"` field, not the exit code:
-  `python3 ... test_pr_merged.py --pull-request N | jq -e '.merged == true'`
-- Pass `--exit-zero-on-merged` so the script returns 0 for both merged and
-  not-merged PRs (JSON payload unchanged). Use this when wiring into a generic
-  `returncode != 0 -> failure` reader.
+```bash
+PR_NUMBER="123"
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" | jq -e '.merged == true'
+```
+
+or:
+
+```bash
+PR_NUMBER="123"
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" --exit-zero-on-merged
+```
+
+The flag returns 0 for both merged and not-merged PRs. JSON payload is unchanged.
 
 ## Completion Gate
 
