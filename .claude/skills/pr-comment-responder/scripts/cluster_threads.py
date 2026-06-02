@@ -227,8 +227,9 @@ def _identify_source_artifact(threads: list[Thread]) -> str | None:
     A cluster whose threads land on one path points at that file as the framing
     root cause. When the cluster spans several files (the round-7 asymmetry
     case: 8 paths, one framing), the most common path is the best single
-    pointer; ties resolve to the first path seen for determinism. Returns None
-    when no thread in the cluster carries a path.
+    pointer only if it has a unique lead. Ties return None so the report does
+    not steer the agent into an arbitrary file patch. Returns None when no
+    thread in the cluster carries a path.
     """
     counts: dict[str, int] = {}
     order: list[str] = []

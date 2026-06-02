@@ -379,10 +379,11 @@ class TestCli:
         assert result.returncode == 2
 
     def test_malformed_threads_file_exits_2(self):
-        relative_path, absolute_path = _write_repo_threads_file("malformed", "{not json")
+        absolute_path = _repo_root() / ".cluster-threads-malformed.json"
+        absolute_path.write_text("{not json", encoding="utf-8")
         try:
             result = self._run(
-                ["--pull-request", "1897", "--threads-file", relative_path],
+                ["--pull-request", "1897", "--threads-file", absolute_path.name],
             )
         finally:
             absolute_path.unlink(missing_ok=True)
