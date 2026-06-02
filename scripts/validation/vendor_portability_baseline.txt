@@ -1,0 +1,35 @@
+# Vendor-portability baseline (Issue #2050).
+# Pre-existing scripts that hard-code .agents/ or .claude/lib/ paths.
+# check_vendor_portability.py allows these but fails on NEW offenders.
+# Regenerate with: python3 scripts/validation/check_vendor_portability.py --update-baseline
+
+.claude/skills/adr-review/scripts/detect_adr_changes.py
+.claude/skills/chaos-experiment/scripts/generate_experiment.py
+.claude/skills/chaos-experiment/scripts/validate_experiment.py
+.claude/skills/chestertons-fence/scripts/investigate.py
+.claude/skills/context-optimizer/scripts/analyze_skill_placement.py
+.claude/skills/context-optimizer/scripts/compress_markdown_content.py
+.claude/skills/context-optimizer/scripts/extract_and_index.py
+.claude/skills/github/scripts/pr/new_pr.py
+.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py
+.claude/skills/golden-principles/scripts/scan_principles.py
+.claude/skills/memory/scripts/extract_session_episode.py
+.claude/skills/memory/scripts/update_causal_graph.py
+.claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
+.claude/skills/merge-resolver/tests/test_resolve_pr_conflicts.py
+.claude/skills/metrics/collect_metrics.py
+.claude/skills/orphan-ref-validator/scripts/envelope.py
+.claude/skills/orphan-ref-validator/scripts/scan.py
+.claude/skills/orphan-ref-validator/tests/test_scan.py
+.claude/skills/security-scan/scripts/scan_vulnerabilities.py
+.claude/skills/session-end/scripts/complete_session_log.py
+.claude/skills/session-end/scripts/rework_warning.py
+.claude/skills/session-init/scripts/new_session_log.py
+.claude/skills/session/scripts/test_investigation_eligibility.py
+.claude/skills/session/tests/test_session_eligibility.py
+.claude/skills/spec-generator/scripts/validate_spec_frontmatter.py
+.claude/skills/spec-generator/tests/test_validate_spec_frontmatter.py
+.claude/skills/steering-matcher/get_applicable_steering.py
+.claude/skills/steering-matcher/scripts/get_applicable_steering.py
+.claude/skills/threat-modeling/scripts/generate_threat_matrix.py
+.claude/skills/threat-modeling/scripts/validate_threat_model.py
