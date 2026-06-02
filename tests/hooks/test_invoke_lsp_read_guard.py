@@ -16,19 +16,12 @@ isolation and no test depends on a real state file.
 
 from __future__ import annotations
 
-import io
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK_DIR = REPO_ROOT / ".claude" / "hooks" / "PreToolUse"
@@ -144,7 +137,7 @@ class TestIsGatedTarget:
         monkeypatch.setattr(guard.Path, "relative_to", fake_relative_to)
         # Path is in-repo (so it passes the parents check) but relative_to raises.
         assert guard.is_gated_target(PY_TARGET, str(REPO_ROOT)) is False
-        setattr(guard.Path, "relative_to", real_relative_to)
+        guard.Path.relative_to = real_relative_to
 
 
 # ---------------------------------------------------------------------------
@@ -166,9 +159,10 @@ class TestMessageBuilders:
         assert "native LSP overview" not in msg
 
     def test_warn_message(self):
-        msg = guard.build_warn_message(PY_TARGET, 3)
+        msg = guard.build_warn_message(PY_TARGET, 3, 1)
         assert "WARNING (Read 3)" in msg
         assert "find_symbol" in msg
+        assert "You have 1 nav call; make 1 more call" in msg
 
     def test_hard_block_names_providers(self):
         msg = guard.build_hard_block(PY_TARGET, 4, 1, ["serena", "native_lsp"])
@@ -235,6 +229,21 @@ class TestEvaluateTiers:
         assert msg is None
         out = capsys.readouterr().out
         payload = json.loads(out.strip().splitlines()[0])
+        assert "WARNING (Read 3)" in payload["systemMessage"]
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_third_read_one_nav_warns_but_allows(self, mock_state, _mock_providers, capsys):
+        # Issue #2200: read 3 with a single nav must warn and allow, not block.
+        # Hard-block starts at read 4 (next_read_num > WARN_AT). The earlier bug
+        # gated soft-warn on nav_count == 0, so nav 1 fell through to hard-block.
+        mock_state.return_value = _state(
+            warmup_done=True, nav_count=1, read_files=["a.py", "b.py"]
+        )
+        code, msg = guard.evaluate(PY_TARGET, str(REPO_ROOT))
+        assert code == 0
+        assert msg is None
+        payload = json.loads(capsys.readouterr().out.strip().splitlines()[0])
         assert "WARNING (Read 3)" in payload["systemMessage"]
 
     @patch.object(guard, "detect_providers", return_value=["serena"])
