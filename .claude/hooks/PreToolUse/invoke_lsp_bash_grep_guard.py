@@ -186,9 +186,9 @@ def _directory_arguments(segment: str) -> list[str]:
     """Return directory-argument tokens in a grep segment, in order.
 
     Scans whitespace-delimited tokens after the grep token, skipping option
-    flags. A token is a directory argument when it is ``.``, ``./``, ``..``, an
-    absolute path, or ends with a path separator. A bare relative name (``src``)
-    without a slash is ambiguous (could be the pattern) and is excluded.
+    flags. The first non-flag token is the pattern; every later non-flag token
+    is an explicit path argument. Bare relative file and directory names are
+    retained so file targets do not fall back to repo-wide recursion.
     """
     tokens = segment.split()
     seen_grep = False
