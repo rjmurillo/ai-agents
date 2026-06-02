@@ -52,14 +52,9 @@ from pathlib import Path
 # so a reference to it inside the helper or via the helper is correct.
 _BANNED_PATH = re.compile(r"\.agents/|\.claude/lib/")
 
-# Indicators that a file routes paths through the portability helper.
-# Any of these substrings exempts the file (it is presumed to use the
-# helper's lazy-default / candidate resolution rather than a hard-coded dep).
-_HELPER_TOKENS: tuple[str, ...] = (
-    "import paths",
-    "from paths import",
-    "resolve_artifact_root",
-    "resolve_skill_resource",
+# Helper function names exposed by .claude/lib/paths.py.
+_HELPER_FUNCTIONS: frozenset[str] = frozenset(
+    {"resolve_artifact_root", "resolve_skill_resource"}
 )
 
 # Directories scanned for vendor-shipped scripts.
@@ -103,8 +98,20 @@ def scan_roots(repo_root: Path) -> list[Path]:
 
 
 def _routes_through_helper(content: str) -> bool:
-    """True when the file imports or calls the portability helper."""
-    return any(token in content for token in _HELPER_TOKENS)
+    """True when the file imports the portability helper."""
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name == "paths" for alias in node.names):
+                return True
+        if isinstance(node, ast.ImportFrom) and node.module == "paths":
+            if any(alias.name in _HELPER_FUNCTIONS for alias in node.names):
+                return True
+    return False
 
 
 def _docstring_lines(content: str) -> set[int]:

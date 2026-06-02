@@ -53,16 +53,7 @@ _PLUGIN_MARKER = Path(".claude-plugin") / "plugin.json"
 
 
 def _plugin_install_root() -> Path | None:
-    """Return the plugin install root, or None when no marker is found.
-
-    Prefers CLAUDE_PLUGIN_ROOT. Otherwise walks up from this file looking
-    for the `.claude-plugin/plugin.json` manifest marker, the same marker
-    `bootstrap.resolve_plugin_lib_dir` uses.
-    """
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if plugin_root:
-        return Path(plugin_root).resolve()
-
+    """Return the marker-discovered plugin install root, or None."""
     cur = Path(__file__).resolve().parent
     while True:
         if (cur / _PLUGIN_MARKER).is_file():

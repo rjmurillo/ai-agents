@@ -115,6 +115,19 @@ def test_hardcoded_agents_path_is_offender(fake_repo: Path) -> None:
     assert ".agents/" in offenders[0].excerpt
 
 
+def test_import_pathspec_does_not_exempt_offender(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/bar/scripts/pathspec_bad.py",
+        "import pathspec\n\nout = '.agents/analysis/x.md'\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/bar/scripts/pathspec_bad.py"
+
+
 def test_hardcoded_claude_lib_path_is_offender(fake_repo: Path) -> None:
     _write(
         fake_repo,

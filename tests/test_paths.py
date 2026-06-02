@@ -101,6 +101,19 @@ def test_skill_resource_env_beats_cwd(
     assert result == env_target.resolve()
 
 
+def test_skill_resource_env_miss_falls_back_to_install_root(
+    paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plugin_root = tmp_path / "plugin"
+    plugin_root.mkdir()
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(plugin_root))
+    monkeypatch.chdir(tmp_path)
+
+    result = paths.resolve_skill_resource("review", "SKILL.md")
+
+    assert result == (REPO_ROOT / ".claude" / "skills" / "review" / "SKILL.md").resolve()
+
+
 def test_skill_resource_accepts_path_relpath(
     paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
