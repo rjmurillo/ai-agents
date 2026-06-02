@@ -274,7 +274,7 @@ behavior).
   into `/spec`; documents the Forgetful dependency and Serena-first fallback)
 - ADR-054: Local Security Scanning (precedent for the shift-left, fail-early
   argument used against the post-hoc-check alternative)
-- ADR-063: Orchestrator Is a Deterministic Router (adjacent; same move from
+- ADR-064: Orchestrator Is a Deterministic Router (adjacent; same move from
   advisory prompt guidance to a deterministic gate with visible failure)
 
 ## References
