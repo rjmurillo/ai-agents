@@ -123,13 +123,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
         with:
-          python-version: '3.14'
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
 
       - name: Regenerate and validate agent files
         id: validate
+        continue-on-error: true
         shell: bash
         run: |
           echo "Running agent generation in validation mode..."
@@ -141,6 +144,7 @@ jobs:
 
       - name: Check plugin lib mirrors are in sync
         id: lib-mirror
+        continue-on-error: true
         shell: bash
         run: |
           echo "Checking scripts/ -> .claude/lib/ sync via sync_plugin_lib.py --check"
@@ -151,18 +155,23 @@ jobs:
 
       - name: Check plugin manifest version parity
         id: manifest-parity
+        continue-on-error: true
         shell: bash
         run: |
           echo "Checking .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json carry identical versions"
           python3 build/scripts/check_plugin_manifest_parity.py
 
       - name: Show diff on failure
-        if: failure()
+        if: >
+          always() &&
+          (steps.validate.outcome == 'failure' ||
+           steps.lib-mirror.outcome == 'failure' ||
+           steps.manifest-parity.outcome == 'failure')
         shell: bash
         env:
-          VALIDATE_CONCLUSION: ${{ steps.validate.conclusion }}
-          LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.conclusion }}
-          MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.conclusion }}
+          VALIDATE_CONCLUSION: ${{ steps.validate.outcome }}
+          LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.outcome }}
+          MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.outcome }}
         run: |
           echo ""
           echo "==========================================================="
@@ -214,13 +223,28 @@ jobs:
             git diff
           fi
 
+      - name: Fail when any drift check fails
+        if: >
+          always() &&
+          (steps.validate.outcome == 'failure' ||
+           steps.lib-mirror.outcome == 'failure' ||
+           steps.manifest-parity.outcome == 'failure')
+        shell: bash
+        run: |
+          echo "One or more drift checks failed. See the diff output above."
+          exit 1
+
       - name: Write job summary
         if: always()
         shell: bash
         env:
-          VALIDATE_CONCLUSION: ${{ steps.validate.conclusion }}
+          VALIDATE_CONCLUSION: ${{ steps.validate.outcome }}
+          LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.outcome }}
+          MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.outcome }}
         run: |
-          if [ "$VALIDATE_CONCLUSION" = "success" ]; then
+          if [ "$VALIDATE_CONCLUSION" = "success" ] && \
+             [ "$LIB_MIRROR_CONCLUSION" = "success" ] && \
+             [ "$MANIFEST_PARITY_CONCLUSION" = "success" ]; then
             {
               echo "## Agent Drift Detection Passed"
               echo ""
