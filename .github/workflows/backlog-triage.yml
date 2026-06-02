@@ -75,6 +75,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
       - name: Classify complexity and route area for issue #${{ matrix.number }}
         id: classify
         uses: ./.github/actions/ai-review
@@ -116,6 +121,11 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
 
       - name: Download triage results
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317 # v4
