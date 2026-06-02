@@ -327,8 +327,16 @@ def _shim_should_fire(payload):
         if isinstance(tool_args, str):
             try:
                 tool_args = _json.loads(tool_args)
-            except ValueError:
-                pass  # not valid JSON; leave as string for normalize
+            except ValueError as exc:
+                # Host sent a string that is not valid JSON. Log so
+                # the operator can diagnose; fall through to normalize
+                # which treats raw strings as-is (glob may not match).
+                print(
+                    "matcher-shim [{{}}]: toolArgs is not valid JSON: {{}}".format(
+                        _MATCHER, exc
+                    ),
+                    file=_sys.stderr,
+                )
         norm_args = _shim_normalize_args(tool_args)
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare

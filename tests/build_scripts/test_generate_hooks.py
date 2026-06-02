@@ -1308,6 +1308,44 @@ def test_shim_rejects_payload_missing_both_formats() -> None:
     assert "toolName" in proc.stderr  # error mentions both field names
 
 
+def test_shim_camelcase_tool_glob_non_match() -> None:
+    """camelCase payload where tool matches but args do NOT match the glob.
+
+    The hook must exit 0 (no fire), not crash. Guards against a regression
+    where camelCase payloads always fire regardless of args.
+    """
+    transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash(git commit*)")
+    proc = _run_shim(transformed, {
+        "toolName": "Bash",
+        "toolArgs": '{"command":"git push origin main"}'
+    })
+    assert proc.returncode == 0, proc.stderr
+    # The hook body should NOT have run (no "FIRED" output).
+    assert "FIRED" not in proc.stdout
+
+
+def test_shim_camelcase_malformed_json_toolargs() -> None:
+    """Malformed JSON in toolArgs logs a warning and does not crash.
+
+    The glob match operates on the raw string, which likely does not match
+    a command-oriented pattern. The hook should not fire and not crash.
+    """
+    transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash(git commit*)")
+    proc = _run_shim(transformed, {
+        "toolName": "Bash",
+        "toolArgs": '{"command": "git commit'  # truncated JSON
+    })
+    assert proc.returncode == 0, f"should not crash; stderr={proc.stderr}"
+    assert "toolArgs is not valid JSON" in proc.stderr
+
+
+def test_shim_snake_case_takes_precedence_over_camelcase() -> None:
+    """When both tool_name and toolName are present, snake_case wins."""
+    transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash")
+    proc = _run_shim(transformed, {"tool_name": "Bash", "toolName": "Edit"})
+    assert proc.returncode == 0, proc.stderr  # Bash matched, not Edit
+
+
 def test_all_generated_hooks_parse_as_python() -> None:
     """Every checked-in generated hook MUST compile.
 
