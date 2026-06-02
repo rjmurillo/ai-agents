@@ -712,7 +712,7 @@ class TestValidateGitHooksInstalled:
                 validate_git_hooks_installed(tmp_path)
 
     def test_not_skipped_when_ci_is_false(self, tmp_path: Path) -> None:
-        """CI=false or CI=0 should NOT skip the check (they are non-truthy)."""
+        """CI=false should not skip the check."""
         import os
 
         from scripts.validation.pre_pr import validate_git_hooks_installed
