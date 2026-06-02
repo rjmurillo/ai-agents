@@ -421,7 +421,7 @@ def _fetch_unresolved_threads_with_clients(
 
         try:
             data = gh_graphql(_REVIEW_THREADS_FOR_CLUSTERING_QUERY, variables)
-        except RuntimeError as exc:
+        except Exception as exc:
             _fail_fetch(str(exc), pull_request)
 
         repository = data.get("repository") or {}

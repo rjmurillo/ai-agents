@@ -506,3 +506,18 @@ class TestResolveLibDir:
         monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
         monkeypatch.setattr(os.path, "isdir", lambda path: path == "copilot-root/lib")
         assert mod._resolve_lib_dir() == "copilot-root/lib"
+
+    def test_non_runtime_fetch_failure_exits_3(self):
+        mod = _load_module()
+
+        def fake_graphql(query, variables):
+            raise TimeoutError("slow graphql")
+
+        try:
+            mod._fetch_unresolved_threads_with_clients(
+                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+            )
+        except SystemExit as exc:
+            assert exc.code == 3
+        else:
+            raise AssertionError("expected SystemExit")
