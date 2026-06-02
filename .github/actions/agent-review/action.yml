@@ -129,9 +129,6 @@ runs:
         additional-context: ${{ inputs.additional-context }}
 
     # Save results to cache directory for future runs.
-    # Issue #2195: only cache structurally valid verdicts so a transient
-    # truncation / network blip does not become a sticky failing check that
-    # cannot be cleared by `gh run rerun` for the same SHA.
     - name: Populate cache directory
       id: populate-cache
       if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
@@ -141,38 +138,7 @@ runs:
         VERDICT: ${{ steps.review.outputs.verdict }}
         FINDINGS: ${{ steps.review.outputs.findings }}
         INFRA_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
-      run: |
-        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
-          exit 1
-        fi
-        echo "cache_populated=false" >> "$GITHUB_OUTPUT"
-        # Only cache successful reviews (not infrastructure failures)
-        if [ "$INFRA_FAILURE" = "true" ]; then
-          echo "Skipping cache save: infrastructure failure"
-          exit 0
-        fi
-        # Issue #2195: skip caching when the verdict is empty. An empty verdict
-        # means the review never produced parseable output, so caching it would
-        # replay the bad result on every rerun.
-        if [ -z "$VERDICT" ]; then
-          echo "Skipping cache save: empty verdict (truncated or malformed AI output)"
-          exit 0
-        fi
-        # Issue #2195: NEEDS_REVIEW is the parser's fallback for unrecognized /
-        # malformed verdict tokens. Treat it as non-cacheable so a rerun can try
-        # a fresh API call instead of being pinned to the bad result.
-        if [ "$VERDICT" = "NEEDS_REVIEW" ]; then
-          echo "Skipping cache save: verdict is NEEDS_REVIEW (malformed AI output)"
-          exit 0
-        fi
-        CACHE_DIR="ai-review-cache/$AGENT"
-        mkdir -p "$CACHE_DIR"
-        printf '%s' "$VERDICT" > "$CACHE_DIR/verdict.txt"
-        printf '%s' "$FINDINGS" > "$CACHE_DIR/findings.txt"
-        printf '%s' "${INFRA_FAILURE:-false}" > "$CACHE_DIR/infrastructure-failure.txt"
-        echo "cache_populated=true" >> "$GITHUB_OUTPUT"
-        echo "Populated cache directory for $AGENT"
+      run: python3 scripts/ai_review_common/cache_guard.py
 
     - name: Save cache
       if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != '' && steps.populate-cache.outputs.cache_populated == 'true'

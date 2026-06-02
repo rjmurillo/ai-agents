@@ -1,35 +1,27 @@
-"""Regression tests for #2195 — `agent-review` must not cache malformed verdicts.
+"""Regression tests for #2195: malformed verdicts must not be cached.
 
-When the AI-review pipeline produces an empty verdict or one the parser cannot
-recognize (returned as ``NEEDS_REVIEW``), the composite action previously
-saved that result to the SHA-keyed cache. Subsequent reruns served the bad
-result from cache, so a transient truncation/network blip became a sticky
-failing check that could only be cleared by pushing a new commit or setting
+When the AI review pipeline produces an empty verdict or one the parser cannot
+recognize (returned as ``NEEDS_REVIEW``), the composite action previously saved
+that result to the SHA keyed cache. Subsequent reruns served the bad result
+from cache, so a transient truncation or network blip became a sticky failing
+check that could only be cleared by pushing a new commit or setting
 ``bypass-cache``.
-
-The fix is in ``.github/actions/agent-review/action.yml`` — the
-``Populate cache directory`` step must skip cache writes when the verdict
-fails structural validation, on top of the existing infrastructure-failure
-guard.
-
-These tests parse the YAML and assert each guard is present in the script so
-the regression cannot be reintroduced silently.
 """
 
 from __future__ import annotations
 
+import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
 import yaml
 
-ACTION_PATH = (
-    Path(__file__).resolve().parents[2]
-    / ".github"
-    / "actions"
-    / "agent-review"
-    / "action.yml"
-)
+from scripts.ai_review_common.cache_guard import populate_cache, skip_cache_reason
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+ACTION_PATH = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
+SCRATCH_ROOT = REPO_ROOT / ".pytest_cache" / "agent_review_cache_guards"
 
 
 @pytest.fixture(scope="module")
@@ -49,51 +41,79 @@ def populate_cache_step(action_yaml: dict) -> dict:
     return matches[0]
 
 
-@pytest.fixture(scope="module")
-def populate_cache_script(populate_cache_step: dict) -> str:
+@pytest.fixture
+def scratch_dir() -> Path:
+    SCRATCH_ROOT.mkdir(parents=True, exist_ok=True)
+    path = Path(tempfile.mkdtemp(prefix="case-", dir=SCRATCH_ROOT))
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+@pytest.mark.parametrize(
+    ("verdict", "infra_failure", "expected_reason"),
+    [
+        ("PASS", "true", "infrastructure failure"),
+        ("", "false", "empty verdict (truncated or malformed AI output)"),
+        ("NEEDS_REVIEW", "false", "verdict is NEEDS_REVIEW (malformed AI output)"),
+    ],
+)
+def test_populate_cache_skips_non_cacheable_results(
+    verdict: str,
+    infra_failure: str,
+    expected_reason: str,
+) -> None:
+    assert skip_cache_reason(verdict, infra_failure) == expected_reason
+
+
+def test_populate_cache_writes_valid_review(scratch_dir: Path) -> None:
+    github_output = scratch_dir / "github-output.txt"
+    cache_root = scratch_dir / "ai-review-cache"
+
+    populated = populate_cache(
+        agent="qa",
+        verdict="PASS",
+        findings="No issues found.",
+        infra_failure="false",
+        github_output=github_output,
+        cache_root=cache_root,
+    )
+
+    assert populated is True
+    assert (cache_root / "qa" / "verdict.txt").read_text(encoding="utf-8") == "PASS"
+    assert (
+        cache_root / "qa" / "findings.txt"
+    ).read_text(encoding="utf-8") == "No issues found."
+    assert github_output.read_text(encoding="utf-8") == "cache_populated=true\n"
+
+
+def test_populate_cache_does_not_write_skipped_review(scratch_dir: Path) -> None:
+    github_output = scratch_dir / "github-output.txt"
+    cache_root = scratch_dir / "ai-review-cache"
+
+    populated = populate_cache(
+        agent="qa",
+        verdict="NEEDS_REVIEW",
+        findings="Parser fallback.",
+        infra_failure="false",
+        github_output=github_output,
+        cache_root=cache_root,
+    )
+
+    assert populated is False
+    assert not (cache_root / "qa").exists()
+    assert github_output.read_text(encoding="utf-8") == "cache_populated=false\n"
+
+
+def test_populate_cache_step_delegates_to_python_script(populate_cache_step: dict) -> None:
     run = populate_cache_step.get("run")
-    assert isinstance(run, str) and run, "populate-cache step missing `run:` script"
-    return run
-
-
-def test_populate_cache_skips_infrastructure_failure(populate_cache_script: str) -> None:
-    """Pre-existing guard — kept to prevent regression."""
-    assert 'INFRA_FAILURE' in populate_cache_script
-    assert '"$INFRA_FAILURE" = "true"' in populate_cache_script
-
-
-def test_populate_cache_skips_empty_verdict(populate_cache_script: str) -> None:
-    """#2195: empty verdict means the review never produced output — do NOT cache."""
-    assert "-z \"${VERDICT}\"" in populate_cache_script or \
-        '-z "$VERDICT"' in populate_cache_script, (
-        "populate-cache step must skip caching when VERDICT is empty (#2195). "
-        "Current script:\n" + populate_cache_script
-    )
-
-
-def test_populate_cache_skips_needs_review_verdict(populate_cache_script: str) -> None:
-    """#2195: NEEDS_REVIEW is the parser's fallback for malformed/truncated output — do NOT cache."""
-    assert 'NEEDS_REVIEW' in populate_cache_script, (
-        "populate-cache step must skip caching when VERDICT == NEEDS_REVIEW (#2195). "
-        "Current script:\n" + populate_cache_script
-    )
-
-
-def test_populate_cache_logs_skip_reason(populate_cache_script: str) -> None:
-    """Operators need to see WHY caching was skipped so reruns are explainable."""
-    assert 'Skipping cache save' in populate_cache_script
+    assert run == "python3 scripts/ai_review_common/cache_guard.py"
 
 
 def test_no_save_cache_when_populate_skipped(action_yaml: dict) -> None:
-    """The `Save cache` step must be skipped whenever populate-cache was skipped,
-    otherwise actions/cache/save would persist a stale/empty cache directory."""
     steps = action_yaml["runs"]["steps"]
     save = [s for s in steps if s.get("name") == "Save cache"]
     assert len(save) == 1
     cond = save[0].get("if", "")
-    # Must gate on the populate step having actually populated the cache dir.
-    # We accept either a direct outputs check or a shared boolean.
-    assert "steps.populate-cache" in cond or "cache_populated" in cond, (
-        "Save cache `if:` must reference the populate-cache step's output so it "
-        "is skipped when populate-cache bailed out (#2195). Got: " + cond
-    )
+    assert "steps.populate-cache.outputs.cache_populated == 'true'" in cond
