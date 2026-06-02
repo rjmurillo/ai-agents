@@ -262,9 +262,6 @@ def split_github_repository(value: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
-DEFAULT_OWNER, DEFAULT_REPO = split_github_repository(os.environ.get("GITHUB_REPOSITORY", ""))
-
-
 def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
     """Build the Phase 2 AI-triage discovery payload.
 
@@ -324,8 +321,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Phase 1 mechanical issue triage scanner (ClawSweeper pattern).",
     )
-    parser.add_argument("--owner", default=os.environ.get("GH_REPO_OWNER", DEFAULT_OWNER))
-    parser.add_argument("--repo", default=os.environ.get("GH_REPO_NAME", DEFAULT_REPO))
+    parser.add_argument("--owner", default=os.environ.get("GH_REPO_OWNER", ""))
+    parser.add_argument("--repo", default=os.environ.get("GH_REPO_NAME", ""))
     parser.add_argument(
         "--stale-days", type=int, default=DEFAULT_STALE_DAYS,
         help=f"Days of inactivity to flag as stale (default: {DEFAULT_STALE_DAYS}).",
@@ -382,15 +379,19 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         repo_label = args.input
     else:
-        if not args.owner or not args.repo:
+        owner = args.owner
+        repo = args.repo
+        if args.ai and (not owner or not repo):
+            owner, repo = split_github_repository(os.environ.get("GITHUB_REPOSITORY", ""))
+        if not owner or not repo:
             print("--owner and --repo are required when --input is not set", file=sys.stderr)
             return 2
         try:
-            raw_issues = fetch_open_issues(args.owner, args.repo, limit=args.limit)
+            raw_issues = fetch_open_issues(owner, repo, limit=args.limit)
         except (RuntimeError, ValueError) as err:
             print(str(err), file=sys.stderr)
             return 3
-        repo_label = f"{args.owner}/{args.repo}"
+        repo_label = f"{owner}/{repo}"
 
     issues: list[IssueRecord] = []
     for raw in raw_issues:

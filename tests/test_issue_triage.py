@@ -483,6 +483,13 @@ class TestMain:
         payload = json.loads(capsys.readouterr().out)
         assert payload == {"include": [], "count": 0}
 
+    def test_ai_flag_uses_github_repository_default(self, monkeypatch, capsys):
+        monkeypatch.setenv("GITHUB_REPOSITORY", "octo/repo")
+        with patch("scripts.issue_triage.fetch_open_issues", return_value=[]):
+            rc = main(["--ai"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out) == {"include": [], "count": 0}
+
 
 class TestTriageReportDataclass:
     def test_default_has_findings_false(self):
