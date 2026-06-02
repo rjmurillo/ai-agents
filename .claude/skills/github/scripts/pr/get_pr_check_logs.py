@@ -101,7 +101,7 @@ def is_github_actions_url(url: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _unwrap_checks_payload(checks_data: dict[str, Any]) -> dict[str, Any] | None:
+def _unwrap_checks_payload(checks_data: dict[str, object]) -> dict[str, object] | None:
     """Return the checks payload, or None when the envelope is malformed."""
     if "Data" not in checks_data:
         return checks_data
