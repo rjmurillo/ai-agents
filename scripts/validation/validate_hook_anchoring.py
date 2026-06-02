@@ -54,8 +54,8 @@ _CLAUDE_ANCHOR = "${CLAUDE_PLUGIN_ROOT}"
 _HOOK_SCRIPT_RE = re.compile(r"hooks/\S*\.py")
 
 
-def _find_platform_hook_artifacts(repo_root: Path) -> list[Path]:
-    """Return relative artifact paths for all platforms that declare hooks.
+def _find_platform_hook_artifacts(repo_root: Path) -> tuple[list[Path], list[str]]:
+    """Return relative artifact paths and config errors for hook platforms.
 
     Reads ``templates/platforms/*.yaml`` and collects every
     ``artifacts.hooks.outputConfig`` value. When a new platform is added
@@ -63,30 +63,33 @@ def _find_platform_hook_artifacts(repo_root: Path) -> list[Path]:
     automatically and the validator checks it on the next run, enforcing
     fail-closed behaviour for new platforms (fix #2231 item 2).
 
-    Returns an empty list when yaml is unavailable or when no platform
+    Returns an empty artifact list when yaml is unavailable or when no platform
     declares hooks, triggering the legacy _COPILOT_REL fallback.
     """
     try:
         import yaml  # noqa: PLC0415
     except ImportError:  # pragma: no cover
-        return []
+        return [], []
     platforms_dir = repo_root / "templates" / "platforms"
     if not platforms_dir.is_dir():
-        return []
+        return [], []
     artifacts: list[Path] = []
+    errors: list[str] = []
     for yaml_path in sorted(platforms_dir.glob("*.yaml")):
         try:
             cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
+        except (OSError, yaml.YAMLError) as exc:
+            errors.append(f"cannot read/parse platform config {yaml_path}: {exc}")
             continue
         if not isinstance(cfg, dict):
+            errors.append(f"platform config must be a mapping: {yaml_path}")
             continue
-        output_config = (
-            cfg.get("artifacts", {}).get("hooks", {}).get("outputConfig")
-        )
+        artifacts_cfg = cfg.get("artifacts")
+        hooks_cfg = artifacts_cfg.get("hooks") if isinstance(artifacts_cfg, dict) else None
+        output_config = hooks_cfg.get("outputConfig") if isinstance(hooks_cfg, dict) else None
         if isinstance(output_config, str) and output_config.strip():
             artifacts.append(Path(output_config.strip()))
-    return artifacts
+    return artifacts, errors
 
 
 def _load_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
@@ -230,7 +233,11 @@ def validate(repo_root: Path) -> tuple[int, list[str]]:
 
     # Discover platform hook artifacts from templates/platforms/*.yaml.
     # Fall back to the hardcoded constant when discovery yields nothing.
-    platform_artifacts = _find_platform_hook_artifacts(repo_root)
+    platform_artifacts, platform_errors = _find_platform_hook_artifacts(repo_root)
+    if platform_errors:
+        has_config_error = True
+        messages.extend(platform_errors)
+        violations.extend(platform_errors)
     if not platform_artifacts:
         platform_artifacts = [_COPILOT_REL]  # legacy fallback
 
