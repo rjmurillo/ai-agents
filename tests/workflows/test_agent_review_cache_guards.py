@@ -17,7 +17,12 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.ai_review_common.cache_guard import populate_cache, skip_cache_reason
+import scripts.ai_review_common.cache_guard as cache_guard
+from scripts.ai_review_common.cache_guard import (
+    get_repo_root,
+    populate_cache,
+    skip_cache_reason,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ACTION_PATH = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
@@ -109,6 +114,43 @@ def test_populate_cache_does_not_write_skipped_review(scratch_dir: Path) -> None
 def test_populate_cache_step_delegates_to_python_script(populate_cache_step: dict) -> None:
     run = populate_cache_step.get("run")
     assert run == "python3 scripts/ai_review_common/cache_guard.py"
+
+
+def test_get_repo_root_resolves_to_marker_ancestor() -> None:
+    """get_repo_root walks up to an ancestor that holds .git or .claude."""
+    root = get_repo_root()
+
+    assert (root / ".git").exists() or (root / ".claude").exists()
+
+
+def test_default_cache_root_anchors_to_repo_not_cwd(
+    scratch_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for #2224: an unset cache_root anchors to the repo root, not
+    the process CWD, so the cache cannot be diverted by the working directory
+    a step happens to run from (CWE-22)."""
+    anchored_root = scratch_dir / "repo"
+    anchored_root.mkdir()
+    elsewhere = scratch_dir / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.setattr(cache_guard, "get_repo_root", lambda: anchored_root)
+    monkeypatch.chdir(elsewhere)
+    github_output = scratch_dir / "github-output.txt"
+
+    populated = populate_cache(
+        agent="qa",
+        verdict="PASS",
+        findings="No issues found.",
+        infra_failure="false",
+        github_output=github_output,
+    )
+
+    assert populated is True
+    assert (
+        anchored_root / "ai-review-cache" / "qa" / "verdict.txt"
+    ).read_text(encoding="utf-8") == "PASS"
+    assert not (elsewhere / "ai-review-cache").exists()
 
 
 def test_no_save_cache_when_populate_skipped(action_yaml: dict) -> None:

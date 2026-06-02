@@ -11,6 +11,22 @@ _AGENT_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 NON_CACHEABLE_VERDICTS = frozenset({"NEEDS_REVIEW"})
 
 
+def get_repo_root(start: Path | None = None) -> Path:
+    """Return the repository root by walking up from this module.
+
+    Anchors the default cache path to a stable base (the first ancestor that
+    contains ``.git`` or ``.claude``) instead of the process working
+    directory. A CWD-relative default is a path-traversal surface (CWE-22):
+    the cache then lands wherever the caller happens to run from. Falls back
+    to this module's own directory when no marker is found, never CWD.
+    """
+    here = (start or Path(__file__)).resolve()
+    for parent in here.parents:
+        if (parent / ".git").exists() or (parent / ".claude").exists():
+            return parent
+    return here.parent
+
+
 class CacheGuardConfigError(ValueError):
     """Raised when the cache guard receives invalid configuration."""
 
@@ -48,10 +64,18 @@ def populate_cache(
     findings: str,
     infra_failure: str,
     github_output: Path,
-    cache_root: Path = Path("ai-review-cache"),
+    cache_root: Path | None = None,
 ) -> bool:
-    """Populate the review cache only when the verdict is structurally valid."""
+    """Populate the review cache only when the verdict is structurally valid.
+
+    ``cache_root`` defaults to ``<repo_root>/ai-review-cache`` (anchored to
+    this module, not the process CWD) so the cache lands in a stable location
+    regardless of the working directory the action step runs from (CWE-22).
+    """
     safe_agent = validate_agent_name(agent)
+
+    if cache_root is None:
+        cache_root = get_repo_root() / "ai-review-cache"
 
     reason = skip_cache_reason(verdict, infra_failure)
     if reason is not None:
