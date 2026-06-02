@@ -100,6 +100,20 @@ jobs:
           enable-pester: false
           enable-git-hooks: false
 
+      # Issue #2194: ruff is configured in pyproject.toml ([tool.ruff]) but no CI
+      # workflow ran it. The repository has a pre-existing backlog of 2026 ruff
+      # findings (measured 2026-06-01 with ruff>=0.15.14), so this step is
+      # report-only (continue-on-error: true). It annotates the PR diff with
+      # findings via --output-format=github without blocking merges. Flip to a
+      # blocking gate (drop continue-on-error) once the backlog reaches zero.
+      # See pyproject.toml for the lint config; the invocation matches the
+      # baseline command `ruff check .`. ruff is installed via the
+      # setup-code-env action (uv pip install --system -e ".[dev]").
+      - name: Run ruff (report-only)
+        if: steps.should-run.outputs.skip != 'true'
+        continue-on-error: true
+        run: ruff check . --output-format=github
+
       - name: Run pytest
         if: steps.should-run.outputs.skip != 'true'
         run: |
