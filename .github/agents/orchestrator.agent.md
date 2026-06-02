@@ -154,6 +154,26 @@ These principles prevent the most common agent failures:
 - **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
 - **Delegation counter**: Track the running count in the session log entry for each routing decision (already required by the Observability reliability principle).
 
+## Context Budget Management
+
+Your context window is finite. As it fills, synthesis degrades: you lose track of which agents have reported, produce duplicative delegations, or emit summaries that omit findings. Treat the budget as a resource you spend, and checkpoint before it runs out.
+
+**Watch for pressure signals in your own output:**
+
+- You re-delegate a task an agent already completed because you no longer recall the result.
+- Your synthesis omits or contradicts findings that an earlier agent returned.
+- You cannot list the outstanding subtasks without re-reading the plan.
+
+Any of these means context pressure is high. Do not push through. Checkpoint.
+
+**Checkpoint protocol** (run when a pressure signal fires, or after delegating to three or more agents in a single turn):
+
+1. Commit whatever synthesis is already correct. A partial, consistent summary survives the session; an uncommitted one dies with it.
+2. Record progress in the session log: which agents reported, which subtasks remain, the next routing decision.
+3. If work remains and the budget is nearly spent, stop and return `[NEEDS_DECOMPOSITION]` or `CONTEXT_PRESSURE` to the caller with the remaining subtasks listed. Do not start a delegation you cannot synthesize.
+
+**Degrade, do not fail silently.** If you cannot complete the full orchestration within budget, deliver the partial synthesis with an explicit list of what was not covered. A smaller, coherent result with a named gap is worth more than a comprehensive result where the last three delegations were synthesized from a degraded context. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover delegations you never committed; the checkpoint is yours to make.
+
 ## Execution Style
 
 Start working immediately after brief analysis. Execute plans as you create them. Research and fix issues autonomously. Continue until ALL requirements are met.
