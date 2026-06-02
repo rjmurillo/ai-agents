@@ -240,6 +240,7 @@ def _original_main(stdin_bytes):
         SYMBOL_NAVIGATION,
         detect_providers,
         is_code_target,
+        repo_has_programming_provider,
     )
     from hook_utilities.lsp_symbols import (  # noqa: E402
         extract_pattern_and_target,
@@ -260,7 +261,91 @@ def _original_main(stdin_bytes):
     # `--include=GLOB` / `--include GLOB` extension hints (rg/grep file filters).
     _INCLUDE_GLOB = re.compile(r"--include[= ]\S*?(\.\w+)\b", re.IGNORECASE)
 
+    # Recursive-scan flags for grep (`grep -r`, `-R`, `--recursive`). When present,
+    # a grep with no explicit file target scans a directory tree, not stdin.
+    _RECURSIVE_FLAG = re.compile(r"(?:^|\s)(?:-[a-zA-Z]*[rR]\b|--recursive\b)")
+
+    # Grep-family binaries that default to recursively scanning the working tree
+    # even with no path argument (ripgrep, the silver searcher, ack). For these a
+    # bare ``rg Symbol`` is a repo-wide search.
+    _DEFAULT_RECURSIVE_BINARY = re.compile(r"\b(?:rg|ag|ack)\b", re.IGNORECASE)
+
+    # Sentinel target reported when the gated scope is a directory / the whole repo
+    # rather than a single navigable file. Used only in the guidance message.
+    _REPO_SCOPE_TARGET = "<repo>"
+
     _BLOCK_HEADER = "## BLOCKED: grep symbol search has an LSP-first alternative"
+
+
+    def _grep_segment(command: str) -> str:
+        """Return the pipe segment that contains the grep-family invocation.
+
+        For piped commands like ``python script.py | grep Symbol``, only the segment
+        containing the grep command is grep's actual target scope; files named before
+        the pipe are arguments to other commands. The first grep-bearing segment is
+        returned; an unpiped command is returned unchanged.
+        """
+        if "|" not in command:
+            return command
+        for seg in command.split("|"):
+            if is_grep_search(seg):
+                return seg
+        return command
+
+
+    def _is_directory_scope(command: str, project_dir: str) -> bool:
+        """True if the grep scans an in-repo directory tree, not named files / stdin.
+
+        A repo-wide or recursive grep names no navigable file extension, so the
+        per-target check allows it. This detects that scope so the caller can fall
+        back to the repo-level provider probe, while preserving the out-of-repo
+        fail-open contract.
+
+        A directory argument decides the scope when present: ``grep -r Sym src/`` is
+        in-repo, ``grep -r Sym /tmp`` is out-of-repo (allow). With no directory
+        argument, a recursive flag (``-r`` / ``-R`` / ``--recursive``) or a
+        default-recursive binary (``rg`` / ``ag`` / ``ack``) scans the working tree,
+        which is the repo, so it is in-repo. A plain ``grep Foo`` with neither reads
+        stdin (for example ``echo x | grep Foo``) and is NOT a directory scope.
+        """
+        segment = _grep_segment(command)
+        dir_args = _directory_arguments(segment)
+        if dir_args:
+            # An explicit directory argument fixes the scope. Gate only when at
+            # least one named directory resolves inside the repo.
+            return any(_resolve_in_repo(arg, project_dir) is not None for arg in dir_args)
+        # No directory argument: a recursive flag or default-recursive binary scans
+        # the working tree (the repo).
+        if _RECURSIVE_FLAG.search(segment):
+            return True
+        return bool(_DEFAULT_RECURSIVE_BINARY.search(segment))
+
+
+    def _directory_arguments(segment: str) -> list[str]:
+        """Return directory-argument tokens in a grep segment, in order.
+
+        Scans whitespace-delimited tokens after the grep token, skipping option
+        flags. A token is a directory argument when it is ``.``, ``./``, ``..``, an
+        absolute path, or ends with a path separator. A bare relative name (``src``)
+        without a slash is ambiguous (could be the pattern) and is excluded.
+        """
+        tokens = segment.split()
+        seen_grep = False
+        dirs: list[str] = []
+        for token in tokens:
+            if not seen_grep:
+                if is_grep_search(token):
+                    seen_grep = True
+                continue
+            if token.startswith("-"):
+                continue
+            if token in (".", "./", ".."):
+                dirs.append(token)
+            elif token.endswith("/"):
+                dirs.append(token)
+            elif token.startswith("/"):
+                dirs.append(token)
+        return dirs
 
 
     def _candidate_targets(command: str) -> list[str]:
@@ -276,13 +361,7 @@ def _original_main(stdin_bytes):
         containing the grep command is scanned to avoid matching files that are
         arguments to commands before the pipe (which are not grep's targets).
         """
-        grep_segment = command
-        if "|" in command:
-            segments = command.split("|")
-            for seg in segments:
-                if is_grep_search(seg):
-                    grep_segment = seg
-                    break
+        grep_segment = _grep_segment(command)
 
         targets: list[str] = []
         seen: set[str] = set()
@@ -363,20 +442,38 @@ def _original_main(stdin_bytes):
 
         targets = _candidate_targets(command)
         target = _navigable_target_with_provider(targets, project_dir)
-        if target is None:
-            return None
+        if target is not None:
+            return {"symbols": symbols, "target": target}
 
-        return {"symbols": symbols, "target": target}
+        # No explicit navigable file target. A recursive / directory-scoped grep
+        # (``grep -r Sym .``, ``rg Sym``) still scans navigable code repo-wide, so
+        # gate it when the repo has an active programming-language provider. A
+        # provider-less repo, or a plain stdin grep, stays fail-open.
+        if _is_directory_scope(command, project_dir) and repo_has_programming_provider(
+            project_dir
+        ):
+            return {"symbols": symbols, "target": _REPO_SCOPE_TARGET}
+
+        return None
 
 
     def build_guidance(symbols: list[str], target: str) -> str:
         """Build the LSP-first guidance block (shared by block and warn modes)."""
         symbol_list = ", ".join(symbols)
+        if target == _REPO_SCOPE_TARGET:
+            scope_line = (
+                "Target scope (repository-wide) has programming-language files an "
+                "LSP navigates directly."
+            )
+        else:
+            scope_line = (
+                f"Target file type ({Path(target).suffix}) has an LSP that navigates "
+                "symbols directly."
+            )
         return (
             f"\n{_BLOCK_HEADER}\n\n"
             f"Grep searched for code symbol(s): {symbol_list}\n"
-            f"Target file type ({Path(target).suffix}) has an LSP that navigates "
-            "symbols directly.\n\n"
+            f"{scope_line}\n\n"
             "### Use LSP-first navigation\n"
             "- Definition: `mcp__serena__find_symbol` (or the native `LSP` "
             "go-to-definition)\n"

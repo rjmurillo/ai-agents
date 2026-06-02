@@ -248,6 +248,7 @@ def _original_main(stdin_bytes):
         SYMBOL_NAVIGATION,
         detect_providers,
         is_code_target,
+        repo_has_programming_provider,
     )
     from hook_utilities.lsp_symbols import is_code_symbol  # noqa: E402
 
@@ -277,6 +278,52 @@ def _original_main(stdin_bytes):
         if glob and Path(glob).suffix:
             return glob
         return search_path
+
+
+    def _is_repo_wide_scope(search_path: str, glob: str) -> bool:
+        """True if the Grep scope is a directory tree, not a single file or glob.
+
+        The Grep tool scopes by ``path`` (a file or directory) and/or ``glob`` (for
+        example ``*.py``). A directory or repo-wide search names no navigable file
+        extension, so ``_select_target`` returns a directory path or an empty string
+        and the per-target capability check allows it. This detects that scope so the
+        caller can fall back to the repo-level provider probe.
+
+        Returns True when there is no extension-bearing ``glob`` (an explicit
+        ``*.md`` glob is the caller deliberately scoping to non-code; do not gate
+        that) AND the ``path`` is empty (repo-wide) or resolves inside the repo as a
+        directory. An out-of-repo path returns False (fail-open), as does a ``path``
+        that already names a file (handled by the per-target check, not here).
+        """
+        if glob and Path(glob).suffix:
+            return False
+        if not search_path:
+            return True
+        resolved = _resolve_in_repo(search_path)
+        if resolved is None:
+            return False
+        return resolved.is_dir()
+
+
+    def _resolve_in_repo(target: str) -> Path | None:
+        """Resolve ``target`` under the repo root, or None if it escapes the repo.
+
+        Out-of-repo targets must never be gated; returning None keeps the fail-open
+        contract. Resolution failures also return None (fail-open).
+        """
+        try:
+            repo_root = Path(get_project_directory()).resolve()
+            candidate = Path(target)
+            resolved = (
+                candidate.resolve(strict=False)
+                if candidate.is_absolute()
+                else (repo_root / candidate).resolve(strict=False)
+            )
+        except (OSError, ValueError):
+            return None
+        if not resolved.is_relative_to(repo_root):
+            return None
+        return resolved
 
 
     def find_code_symbols(pattern: str) -> list[str]:
@@ -364,16 +411,39 @@ def _original_main(stdin_bytes):
         symbols = find_code_symbols(pattern)
         if not symbols:
             return None
-        target = _select_target(
-            _coerce_str(tool_input.get("path")),
-            _coerce_str(tool_input.get("glob")),
-        )
-        if not is_code_target(target, SYMBOL_NAVIGATION):
-            return None
-        providers = detect_providers(target, SYMBOL_NAVIGATION, get_project_directory())
-        if not providers:
-            return None
-        return symbols, providers
+        search_path = _coerce_str(tool_input.get("path"))
+        glob = _coerce_str(tool_input.get("glob"))
+        target = _select_target(search_path, glob)
+        if is_code_target(target, SYMBOL_NAVIGATION):
+            providers = detect_providers(
+                target, SYMBOL_NAVIGATION, get_project_directory()
+            )
+            if not providers:
+                return None
+            return symbols, providers
+
+        # No navigable file/glob extension. A directory or repo-wide Grep
+        # (empty path, or a path that is an in-repo directory) still scans navigable
+        # code, so gate it when the repo has an active programming-language provider.
+        # An out-of-repo path or a provider-less repo stays fail-open.
+        if _is_repo_wide_scope(search_path, glob) and repo_has_programming_provider(
+            get_project_directory()
+        ):
+            return symbols, _repo_scope_providers()
+        return None
+
+
+    def _repo_scope_providers() -> list[str]:
+        """Providers to name in repo-wide guidance, via a representative .py file.
+
+        A repo-wide Grep has no single file extension, so the guidance uses the
+        provider list for a representative programming-language file (``.py``) to
+        name the right navigation tools. Falls back to ``['serena']`` if detection
+        returns nothing (it should not, since the caller already confirmed a
+        provider is active).
+        """
+        providers = detect_providers("x.py", SYMBOL_NAVIGATION, get_project_directory())
+        return providers or ["serena"]
 
 
     def main() -> int:
