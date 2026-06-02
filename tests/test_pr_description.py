@@ -195,3 +195,17 @@ class TestInlineCitationStripping:
         mentioned = extract(body)
         assert "scripts/foo.py" in mentioned
         assert "docs/retros/INDEX.md" not in mentioned
+
+    def test_from_change_claim_still_collected(self):
+        """The word from is a change cue, not a citation cue."""
+        extract = self._import_extract()
+        body = "Moved logic from `scripts/old.py` to `scripts/new.py`."
+        mentioned = extract(body)
+        assert "scripts/old.py" in mentioned
+        assert "scripts/new.py" in mentioned
+
+    def test_citation_cue_requires_word_boundary(self):
+        """Citation cues must not match suffixes of longer words."""
+        extract = self._import_extract()
+        body = "The proper `scripts/config.py` file is part of this change."
+        assert "scripts/config.py" in extract(body)

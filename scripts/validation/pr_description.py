@@ -171,9 +171,9 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 # a citation on an adjacent line.
 _INLINE_CITATION_PATTERN = re.compile(
     r"(?i)"
-    r"(?:see|per|e\.g\.|e\.g|eg\.|for example|as in|for instance"
-    r"|as documented in|referenced by|from|defined in|introduced in"
-    r"|like|similar to|cf\.|compare)"
+    r"\b(?:see|per|e\.g\.|e\.g|eg\.|for example|as in|for instance"
+    r"|as documented in|referenced by|defined in|introduced in"
+    r"|cf\.|compare)"
     r"[:\s(]*"
     r"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*`",
 )
