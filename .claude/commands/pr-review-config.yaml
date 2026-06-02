@@ -8,6 +8,15 @@ scripts:
     test_pr_merged: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}"
     get_review_threads: "python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}"
     get_unresolved_threads: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}"
+    # Settling gate. The one-shot get_unresolved_threads snapshot can read
+    # unresolved_count == 0 in the window between an agent resolving the last
+    # thread and the next bot (Copilot, Devin) scan landing 30-120s later. That
+    # window is exactly the PR #1965 "0 unresolved" lie. wait_for_unresolved_zero
+    # requires THREE consecutive complete-and-zero readings 180s apart before it
+    # exits 0, so a momentarily-true zero between bot scans does not pass. Run it
+    # before the completion gate when the PR has live bot reviewers. No copilot
+    # (PowerShell) equivalent exists; this settling step is Claude-only.
+    wait_for_settled_zero: "python3 .claude/skills/github/scripts/pr/wait_for_unresolved_zero.py --pull-request {number}"
     get_unaddressed_comments: "python3 .claude/skills/github/scripts/pr/get_unaddressed_comments.py --pull-request {number}"
     get_pr_checks: "python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {number}"
     add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --thread-id {thread_id} --body {body}"
