@@ -123,6 +123,14 @@ The five fields are:
 4. `test_failed`: name the rule that was violated (e.g., `Q3 specificity test conditions 1, 2, 3 all failed`).
 5. `deferral`: a single-line instruction telling the author what to do.
 
+**Redaction pre-emit (BLOCKING)**: the `answer` field carries the author's words verbatim, and the emitted block lands in git history (PR descriptions, session logs, and the `.agents/metrics/STEP-0-METRICS.md` tally). An author answer such as `Alice@corp on prod-east-12.internal blocked on Bearer abc...` would otherwise disclose a credential, email, or internal hostname for the life of the history (CWE-209 information exposure through a diagnostic message, CWE-532 sensitive data in a log). Before emitting the `step0-halt` block, run the `answer` field through the redactor and emit the redacted form:
+
+```bash
+python3 scripts/redact_secrets.py <file>      # or pipe the answer text on stdin
+```
+
+In Python: `from redact_secrets import redact; redact(answer).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `` `[redacted: <reason>]` ``. Redaction is a backstop, not a license to collect secrets: do not paste live credentials into Step 0 answers. The full policy is `.claude/rules/secret-redaction.md`; the redactor is `scripts/redact_secrets.py`.
+
 Downstream callers (orchestrators, review skills, CI gates) parse this block by its `step0-halt` info-string. Free-form prose halts that omit the fenced block are non-conforming and SHALL be re-emitted in this format.
 
 **Auto-mode behavior**: under auto-mode invocation (no human elicitation possible), the agent MUST halt with reason `STEP_0_REQUIRES_ELICITATION`, list each unanswered question, and return to the orchestrator. The agent MAY populate Step 0 from the source artifact (issue body, PR description) only when the source artifact contains the required structured fields verbatim. Free-form synthesis of Step 0 answers by the agent is prohibited. (Note: `STEP_0_REQUIRES_ELICITATION` is a prose convention in this version; no orchestrator caller currently parses it. Future iteration will add machine-readable halt protocol.)
@@ -317,6 +325,14 @@ Field semantics:
 3. `evidence`: factual record of what triggered the halt (matched entity names, search query that returned no result, etc.); single line, escape newlines as `\n`.
 4. `test_failed`: name the rule that was violated.
 5. `deferral`: a single-line instruction telling the proposer how to unblock and re-run.
+
+**Redaction pre-emit (BLOCKING)**: the `evidence` field carries the factual record that triggered the halt, which can include matched entity names, a quoted memory search, or text pasted from a ticket or log. The emitted block lands in git history (PR descriptions, session logs, metric tallies), so an `evidence` value that quotes `Alice@corp on prod-east-12.internal blocked on Bearer abc...` would disclose a credential, email, or internal hostname for the life of the history (CWE-209 information exposure through a diagnostic message, CWE-532 sensitive data in a log). Before emitting the `step0_5-halt` block, run the `evidence` field through the redactor and emit the redacted form:
+
+```bash
+python3 scripts/redact_secrets.py <file>      # or pipe the evidence text on stdin
+```
+
+In Python: `from redact_secrets import redact; redact(evidence).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `` `[redacted: <reason>]` ``. This mirrors the Step 0 `answer` redaction rule above; the same `scripts/redact_secrets.py` redactor and `.claude/rules/secret-redaction.md` policy apply. Redaction is a backstop, not a license to collect secrets.
 
 Free-form prose halts that omit the `step0_5-halt` info-string are non-conforming and SHALL be re-emitted in this format. Downstream callers (orchestrators, review skills, CI gates) parse this block by its info-string. The Step 0.5 halt block is structurally identical to Step 0's `step0-halt` block (same five fields) except for the info-string and the `check` field replacing `question`.
 

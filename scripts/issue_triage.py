@@ -16,14 +16,21 @@ classifies issues against deterministic, scriptable rules (no LLM):
   label can advance).
 
 The script is read-only by design: it emits a JSON or human-readable report
-and never mutates GitHub state. Phase 2 (LLM triage, #2260) and Phase 3
-(recommendation execution, #2261) are out of scope and tracked separately.
+and never mutates GitHub state.
 
 Incremental scan: with ``--state-file`` the scanner persists the run
 timestamp and, on the next run, restricts the GitHub query to issues updated
 since the last run (``updated:>TIMESTAMP``). ``--full-scan`` ignores the
 state file. ``--since`` overrides both. This keeps repeated runs cheap and
 lets multiple scanners process disjoint issue sets in parallel.
+
+The ``--ai`` flag drives Phase 2 (LLM triage). It emits a GitHub Actions
+matrix of open issues that a scheduled workflow (.github/workflows/
+backlog-triage.yml) fans out to .github/actions/ai-review, one invocation
+per issue, for structured complexity, area routing, dependency, scope, and
+evidence classification. The model call lives in the workflow; this script
+only produces the work list. Phase 3 (recommendation execution / auto-close)
+remains out of scope and read-only.
 
 Exit codes follow ADR-035:
     0 - Success: scan completed (findings may exist)
@@ -463,8 +470,10 @@ def fetch_open_issues(
     array. Raises ``RuntimeError`` on failure so ``main`` can map an exit code.
     """
 
-    if not 1 <= limit <= 1000:
-        raise ValueError("limit must be between 1 and 1000")
+    if not 0 <= limit <= 1000:
+        raise ValueError("limit must be between 0 and 1000")
+    if limit == 0:
+        return []
 
     cmd = [
         "gh", "issue", "list",
@@ -488,13 +497,12 @@ def fetch_open_issues(
     return data
 
 
-def fetch_linked_prs(owner: str, repo: str, number: int) -> tuple[tuple[int, str], ...]:
-    """Return (pr_number, state) for PRs cross-referenced from an issue timeline.
+class LinkedPrFetchError(RuntimeError):
+    """Raised when linked-PR timeline data cannot be fetched or parsed."""
 
-    Uses the issue timeline REST endpoint. Best-effort: returns an empty tuple
-    on any error so a single bad lookup does not abort the scan. This is the
-    only per-issue call and runs only under ``--check-linked-prs``.
-    """
+
+def fetch_linked_prs(owner: str, repo: str, number: int) -> tuple[tuple[int, str], ...]:
+    """Return (pr_number, state) for PRs cross-referenced from an issue timeline."""
 
     cmd = [
         "gh", "api",
@@ -504,10 +512,14 @@ def fetch_linked_prs(owner: str, repo: str, number: int) -> tuple[tuple[int, str
     try:
         raw = _run_gh(cmd)
         events = json.loads(raw or "[]")
-    except (RuntimeError, json.JSONDecodeError, ValueError, TypeError):
-        return ()
+    except (RuntimeError, json.JSONDecodeError, ValueError, TypeError) as err:
+        raise LinkedPrFetchError(
+            f"failed to fetch linked PRs for issue #{number}: {err}"
+        ) from err
     if not isinstance(events, list):
-        return ()
+        raise LinkedPrFetchError(
+            f"failed to fetch linked PRs for issue #{number}: non-list timeline"
+        )
 
     pairs: list[tuple[int, str]] = []
     for event in events:
@@ -538,7 +550,7 @@ def load_scan_state(path: str) -> str | None:
     except (OSError, json.JSONDecodeError, ValueError):
         return None
     last_run = data.get("last_run") if isinstance(data, dict) else None
-    if isinstance(last_run, str) and last_run:
+    if isinstance(last_run, str) and last_run and ISO_TIMESTAMP_PATTERN.match(last_run):
         return last_run
     return None
 
@@ -551,6 +563,45 @@ def save_scan_state(path: str, timestamp: str) -> None:
     state_path.write_text(
         json.dumps({"last_run": timestamp}, indent=2) + "\n", encoding="utf-8"
     )
+
+
+def split_github_repository(value: str) -> tuple[str, str]:
+    """Return owner and repo from a GitHub repository slug, or blank values."""
+
+    parts = value.split("/")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return "", ""
+    return parts[0], parts[1]
+
+
+def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
+    """Build the Phase 2 AI-triage discovery payload.
+
+    The ``--ai`` flag drives Phase 2 of the ClawSweeper pattern (issue #1799):
+    a scheduled workflow fans this matrix out to ``.github/actions/ai-review``,
+    one invocation per open issue, for structured complexity, area routing,
+    dependency, scope, and evidence classification. The mechanical scan stays
+    Python-side; YAML only fans out (ADR-006). This function does not call the
+    model; it produces the work list the workflow consumes.
+
+    Returns a dict with ``include`` (the matrix rows) and ``count`` so the
+    caller can gate the matrix job on whether any issues exist.
+    """
+
+    include = [{"number": issue.number, "title": issue.title} for issue in issues]
+    return {"include": include, "count": len(include)}
+
+
+def write_ai_github_outputs(matrix: dict[str, object], output_path: str) -> None:
+    """Write matrix metadata to GitHub Actions output format."""
+
+    include = matrix.get("include")
+    count = int(matrix.get("count") or 0)
+    github_matrix = {"include": include if isinstance(include, list) else []}
+    with Path(output_path).open("a", encoding="utf-8") as handle:
+        handle.write(f"matrix={json.dumps(github_matrix)}\n")
+        handle.write(f"has-issues={str(count > 0).lower()}\n")
+        handle.write(f"count={count}\n")
 
 
 def format_human(report: TriageReport) -> str:
@@ -615,11 +666,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--limit", type=int, default=300,
-        help="Max issues to fetch from the API (1-1000, default: 300).",
+        help="Max issues to fetch from the API (0-1000, default: 300).",
     )
     parser.add_argument(
         "--format", choices=["json", "human"], default="human",
         help="Output format (default: human).",
+    )
+    parser.add_argument(
+        "--ai", action="store_true",
+        help="Emit a GitHub Actions matrix of open issues for Phase 2 AI triage "
+             "(structured classification via .github/actions/ai-review). "
+             "Overrides --format; prints a JSON matrix payload.",
     )
     parser.add_argument(
         "--input", default="",
@@ -645,6 +702,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--check-linked-prs", action="store_true",
         help="Fetch each issue's timeline to detect merged/closed linked PRs. "
              "Adds one API call per issue; off by default to keep scans fast.",
+    )
+    parser.add_argument(
+        "--github-output",
+        default="",
+        help="Optional GitHub output file for matrix, has-issues, and count values.",
     )
     return parser.parse_args(argv)
 
@@ -680,7 +742,12 @@ def _enrich_linked_prs(
 
     enriched: list[IssueRecord] = []
     for issue in issues:
-        linked = fetch_linked_prs(owner, repo, issue.number)
+        try:
+            linked = fetch_linked_prs(owner, repo, issue.number)
+        except LinkedPrFetchError as err:
+            raise _InputError(
+                3, f"failed to fetch linked PRs for issue #{issue.number}: {err}"
+            ) from err
         enriched.append(replace(issue, linked_prs=linked))
     return enriched
 
@@ -703,6 +770,12 @@ def _validate_args(args: argparse.Namespace) -> int | None:
     if not 0.0 <= args.dup_threshold <= 1.0:
         print("--dup-threshold must be between 0.0 and 1.0", file=sys.stderr)
         return 2
+    if not 0 <= args.limit <= 1000:
+        print("--limit must be between 0 and 1000", file=sys.stderr)
+        return 2
+    if args.since and not ISO_TIMESTAMP_PATTERN.match(args.since):
+        print(f"Invalid --since timestamp format: {args.since}", file=sys.stderr)
+        return 2
     return None
 
 
@@ -716,19 +789,28 @@ def _obtain_raw_issues(
             return load_issues_from_input(args.input), str(args.input)
         except (OSError, ValueError, json.JSONDecodeError) as err:
             raise _InputError(2, f"Failed to read --input file: {err}") from err
-    if not args.owner or not args.repo:
+
+    owner = args.owner
+    repo = args.repo
+    if args.ai and (not owner or not repo):
+        owner, repo = split_github_repository(os.environ.get("GITHUB_REPOSITORY", ""))
+    if not owner or not repo:
         raise _InputError(
             2, "--owner and --repo are required when --input is not set"
         )
+
     try:
-        raw = fetch_open_issues(args.owner, args.repo, limit=args.limit, since=since)
-    except (RuntimeError, ValueError) as err:
+        raw = fetch_open_issues(owner, repo, limit=args.limit, since=since)
+    except ValueError as err:
+        raise _InputError(2, str(err)) from err
+    except RuntimeError as err:
         raise _InputError(3, str(err)) from err
-    return raw, f"{args.owner}/{args.repo}"
+    return raw, f"{owner}/{repo}"
 
 
 def _parse_records(raw_issues: list[dict[str, Any]]) -> list[IssueRecord]:
     """Parse raw issue dicts into records, skipping (and warning on) malformed ones."""
+
 
     issues: list[IssueRecord] = []
     for raw in raw_issues:
@@ -765,7 +847,18 @@ def main(argv: list[str] | None = None) -> int:
 
     issues = _parse_records(raw_issues)
     if args.check_linked_prs and not args.input and args.owner and args.repo:
-        issues = _enrich_linked_prs(issues, args.owner, args.repo)
+        try:
+            issues = _enrich_linked_prs(issues, args.owner, args.repo)
+        except _InputError as exc:
+            print(exc.message, file=sys.stderr)
+            return exc.code
+
+    if args.ai:
+        matrix = build_ai_matrix(issues)
+        if args.github_output:
+            write_ai_github_outputs(matrix, args.github_output)
+        print(json.dumps(matrix))
+        return 0
 
     report = build_report(
         issues,
@@ -780,7 +873,11 @@ def main(argv: list[str] | None = None) -> int:
     # Persist the run timestamp only after a successful scan, so a failed run
     # does not advance the watermark and skip issues next time.
     if args.state_file and not args.input:
-        save_scan_state(args.state_file, report.timestamp)
+        try:
+            save_scan_state(args.state_file, report.timestamp)
+        except OSError as err:
+            print(f"Failed to write --state-file: {err}", file=sys.stderr)
+            return 2
 
     return 0
 

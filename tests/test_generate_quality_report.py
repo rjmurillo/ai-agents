@@ -101,8 +101,8 @@ class TestBuildParser:
                      "REF_NAME", "SHA", "FINAL_VERDICT"]:
             monkeypatch.delenv(env, raising=False)
         for agent in _AGENTS:
-            monkeypatch.delenv(f"{agent.upper()}_VERDICT", raising=False)
-            monkeypatch.delenv(f"{agent.upper()}_CATEGORY", raising=False)
+            monkeypatch.delenv(f"{_mod.agent_env_name(agent)}_VERDICT", raising=False)
+            monkeypatch.delenv(f"{_mod.agent_env_name(agent)}_CATEGORY", raising=False)
         args = build_parser().parse_args([])
         assert args.run_id == ""
 
@@ -149,6 +149,10 @@ class TestMain:
         report = (report_dir / "pr-quality-report.md").read_text()
         assert "| Security |" in report
         assert "| QA |" in report
+        assert "| Reliability |" in report
+        assert "| Observability |" in report
+        assert "| Agent Safety |" in report
+        assert "| Decision Rigor |" in report
 
     def test_report_contains_run_details(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)

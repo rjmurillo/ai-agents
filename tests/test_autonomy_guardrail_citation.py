@@ -2,11 +2,14 @@
 
 The autonomy rule lives canonically in `AGENTS.md > Boundaries > Autonomy
 Guardrail`. Each agent that participates in the guardrail (critic, implementer,
-memory, orchestrator, qa, security) must carry a one-line citation pointing
+orchestrator, qa, security) must carry a one-line citation pointing
 back to AGENTS.md so the rule is visible at the prompt boundary.
 
 This test pins that contract so a future template edit cannot silently drop
-the citation. If a new agent joins the guardrail, add it to ``CITATION_AGENTS``.
+the citation. If a new agent joins the guardrail, add it to ``CITATION_AGENTS``;
+when an agent is retired, remove it. The `memory` agent was retired in Issue
+#2102 (its skill-shaped duties moved to the `memory` skill), so it no longer
+appears here.
 """
 
 from __future__ import annotations
@@ -20,7 +23,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CITATION_AGENTS = (
     "critic",
     "implementer",
-    "memory",
     "orchestrator",
     "qa",
     "security",

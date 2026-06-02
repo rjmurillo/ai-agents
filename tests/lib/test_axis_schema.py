@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REVIEW_AXES_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 
 CANONICAL_ROLES: tuple[str, ...] = (
+    "spec-compliance",
     "analyst",
     "architect",
     "qa",
@@ -30,6 +31,7 @@ CANONICAL_ROLES: tuple[str, ...] = (
     "observability",
     "agent-safety",
     "decision-rigor",
+    "code-quality",
 )
 
 

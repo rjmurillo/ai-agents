@@ -138,6 +138,26 @@ You have direct access to:
 - **Bash**: Execute commands
 - **cloudmcp-manager memory tools**: Cross-session context
 
+## Context Budget Management
+
+Your context window is finite. Quality degrades silently as it fills: synthesis gets shallow, you re-delegate work an agent already returned, or you lose the handoff context a downstream agent needs. Treat the budget as a resource you spend, and checkpoint before it runs out.
+
+**Watch for pressure signals in your own output:**
+
+- Your synthesis is collapsing into "analyst said X, architect said Y" because you can no longer hold the full set of returns in view to resolve conflicts.
+- You are about to re-delegate a task you already routed this session because you no longer recall the agent returned it.
+- You cannot restate the original task and its success criteria without scrolling back.
+
+Any of these means you are near the limit. Do not push through. Checkpoint.
+
+**Checkpoint protocol** (run when a pressure signal fires, or before fanning out a new parallel routing wave):
+
+1. Synthesize and persist the work that is already complete. Returns you have not yet folded into a coherent output die with the session; a partial synthesis recorded in the session log survives it.
+2. Record progress in the session log per the Session Capture Protocol: delegations returned, conflicts resolved, the next concrete routing step. That is the state the next session inherits.
+3. If work remains and the budget is nearly spent, stop and hand the remaining route plan to the next session through the per-issue handoff. Do not open a delegation you cannot synthesize.
+
+**Degrade, do not fail silently.** If you cannot synthesize the full set of returns within budget, deliver the synthesis you can stand behind and name the returns you did not reach. A smaller coherent output with an explicit gap beats a wider one you cannot make coherent. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover synthesis you never recorded; the record is yours to write.
+
 ## Reliability Principles
 
 These principles prevent the most common agent failures:
@@ -1293,7 +1313,7 @@ Retrospective agent returns output containing `## Retrospective Handoff` section
 ┌─────────────────────────────────────────────────────────────┐
 │ Step 3: Persist Memory Updates (IF memory updates exist)    │
 │   - Use cloudmcp-manager memory tools directly              │
-│   - OR route to memory agent for complex updates            │
+│   - OR route to memory skill for complex updates            │
 │   - Create/update entities in specified files               │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -1369,7 +1389,7 @@ mcp__cloudmcp-manager__memory-add_observations
 }
 ```
 
-For complex updates, route to memory agent.
+For complex updates, route to memory skill.
 
 #### Step 4: Git Operations
 

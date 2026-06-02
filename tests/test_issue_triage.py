@@ -22,7 +22,9 @@ from scripts.issue_triage import (
     PRIORITY_LABEL_PREFIX,
     IssueFinding,
     IssueRecord,
+    LinkedPrFetchError,
     TriageReport,
+    build_ai_matrix,
     build_report,
     check_state_consistency,
     classify,
@@ -43,6 +45,8 @@ from scripts.issue_triage import (
     parse_iso_timestamp,
     parse_issue_record,
     save_scan_state,
+    split_github_repository,
+    write_ai_github_outputs,
 )
 
 
@@ -298,10 +302,68 @@ class TestFormatHuman:
         assert text.count("(none)") == 7
 
 
+class TestBuildAiMatrix:
+    def test_empty_input_yields_empty_matrix(self):
+        matrix = build_ai_matrix([])
+        assert matrix == {"include": [], "count": 0}
+
+    def test_rows_carry_number_and_title(self, now):
+        issues = [
+            make_issue(number=10, title="add backlog triage", base=now),
+            make_issue(number=11, title="route by area", base=now),
+        ]
+        matrix = build_ai_matrix(issues)
+        assert matrix["count"] == 2
+        assert matrix["include"] == [
+            {"number": 10, "title": "add backlog triage"},
+            {"number": 11, "title": "route by area"},
+        ]
+
+    def test_matrix_round_trips_to_json(self, now):
+        matrix = build_ai_matrix([make_issue(number=7, title="t", base=now)])
+        payload = json.loads(json.dumps(matrix))
+        assert payload["count"] == 1
+        assert payload["include"][0]["number"] == 7
+
+    def test_matrix_omits_labels_and_timestamps(self, now):
+        issue = make_issue(
+            number=5, title="t", base=now, labels=("priority:P0", "area-x"),
+        )
+        matrix = build_ai_matrix([issue])
+        row = matrix["include"][0]
+        assert set(row.keys()) == {"number", "title"}
+
+    def test_github_outputs_strip_non_matrix_count(self, tmp_path: Path, now):
+        output_path = tmp_path / "github-output.txt"
+        matrix = build_ai_matrix([make_issue(number=7, title="t", base=now)])
+        write_ai_github_outputs(matrix, str(output_path))
+        lines = output_path.read_text().splitlines()
+        assert json.loads(lines[0].removeprefix("matrix=")) == {
+            "include": [{"number": 7, "title": "t"}],
+        }
+        assert "has-issues=true" in lines
+        assert "count=1" in lines
+
+
+class TestGitHubRepositoryDefaults:
+    def test_split_github_repository_accepts_owner_repo(self):
+        assert split_github_repository("octo/repo") == ("octo", "repo")
+
+    @pytest.mark.parametrize("value", ["not-a-slug", "owner/", "/repo", "owner/repo/extra"])
+    def test_split_github_repository_rejects_invalid_slug(self, value):
+        assert split_github_repository(value) == ("", "")
+
+
 class TestFetchOpenIssues:
+    def test_zero_limit_returns_empty_without_gh_call(self):
+        with patch("scripts.issue_triage.subprocess.run") as run:
+            payload = fetch_open_issues("o", "r", limit=0)
+        assert payload == []
+        assert not run.called
+
     def test_rejects_invalid_limit(self):
         with pytest.raises(ValueError):
-            fetch_open_issues("o", "r", limit=0)
+            fetch_open_issues("o", "r", limit=-1)
         with pytest.raises(ValueError):
             fetch_open_issues("o", "r", limit=10_000)
 
@@ -413,6 +475,21 @@ class TestMain:
         assert payload["issues_scanned"] == 1
         assert "skipping malformed issue" in captured.err
 
+    def test_invalid_limit_returns_config_error(self, capsys):
+        rc = main(["--owner", "o", "--repo", "r", "--limit", "-1"])
+        assert rc == 2
+        assert "limit" in capsys.readouterr().err
+
+    def test_invalid_since_returns_config_error(self, capsys):
+        rc = main(["--owner", "o", "--repo", "r", "--since", "2026-06-01"])
+        assert rc == 2
+        assert "--since" in capsys.readouterr().err
+
+    def test_zero_limit_emits_empty_report(self, capsys):
+        rc = main(["--owner", "o", "--repo", "r", "--limit", "0"])
+        assert rc == 0
+        assert "Issues scanned: 0" in capsys.readouterr().out
+
     def test_external_failure_returns_exit_three(self, capsys):
         with patch(
             "scripts.issue_triage.fetch_open_issues",
@@ -425,6 +502,54 @@ class TestMain:
     def test_default_stale_days_constant(self):
         args = parse_args(["--owner", "o", "--repo", "r"])
         assert args.stale_days == DEFAULT_STALE_DAYS
+
+    def test_ai_flag_emits_matrix(self, tmp_path: Path, capsys):
+        path = tmp_path / "issues.json"
+        path.write_text(
+            json.dumps(
+                [
+                    {
+                        "number": 42,
+                        "title": "needs triage",
+                        "updatedAt": "2026-04-27T00:00:00Z",
+                        "labels": [],
+                    },
+                ]
+            )
+        )
+        rc = main(["--input", str(path), "--ai"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["count"] == 1
+        assert payload["include"] == [{"number": 42, "title": "needs triage"}]
+
+    def test_ai_flag_overrides_format(self, tmp_path: Path, capsys):
+        path = tmp_path / "issues.json"
+        path.write_text(json.dumps([]))
+        rc = main(["--input", str(path), "--ai", "--format", "human"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {"include": [], "count": 0}
+
+    def test_ai_flag_uses_github_repository_default(self, monkeypatch, capsys):
+        monkeypatch.setenv("GITHUB_REPOSITORY", "octo/repo")
+        with patch("scripts.issue_triage.fetch_open_issues", return_value=[]):
+            rc = main(["--ai"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out) == {"include": [], "count": 0}
+
+    def test_ai_github_output_still_prints_json(self, tmp_path: Path, capsys):
+        issues_path = tmp_path / "issues.json"
+        output_path = tmp_path / "github-output.txt"
+        issues_path.write_text(json.dumps([{
+            "number": 1,
+            "title": "needs triage",
+            "updatedAt": "2026-04-27T00:00:00Z",
+        }]))
+        rc = main(["--input", str(issues_path), "--ai", "--github-output", str(output_path)])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["count"] == 1
+        assert "has-issues=true" in output_path.read_text()
 
 
 class TestTriageReportDataclass:
@@ -503,6 +628,16 @@ class TestLinkedPRStatus:
         report = build_report(issues, repo="o/r", now=now, stale_days=0)
         assert [f.number for f in report.linked_pr_advance] == [7]
 
+    def test_check_linked_prs_failure_returns_external_error(self, capsys):
+        with patch("scripts.issue_triage.fetch_open_issues", return_value=[{
+            "number": 1,
+            "title": "needs check",
+            "updatedAt": "2026-04-27T00:00:00Z",
+        }]), patch("scripts.issue_triage.fetch_linked_prs", side_effect=LinkedPrFetchError("boom")):
+            rc = main(["--owner", "o", "--repo", "r", "--check-linked-prs"])
+        assert rc == 3
+        assert "linked PRs" in capsys.readouterr().err
+
 
 class TestDuplicateDetection:
     def test_identical_titles_match(self):
@@ -568,6 +703,11 @@ class TestIncrementalScan:
         bad.write_text("not json", encoding="utf-8")
         assert load_scan_state(str(bad)) is None
 
+    def test_load_invalid_timestamp_returns_none(self, tmp_path):
+        bad = tmp_path / "bad.json"
+        bad.write_text(json.dumps({"last_run": "2026-06-01"}), encoding="utf-8")
+        assert load_scan_state(str(bad)) is None
+
     def test_save_then_load_roundtrip(self, tmp_path):
         path = str(tmp_path / "state" / "scan.json")
         save_scan_state(path, "2026-06-02T00:00:00Z")
@@ -616,6 +756,16 @@ class TestIncrementalScan:
             ])
         assert rc == 0
         assert load_scan_state(str(state)) is not None
+
+    def test_main_state_write_failure_returns_config_error(self, capsys):
+        with patch("scripts.issue_triage.fetch_open_issues", return_value=[]), \
+             patch("scripts.issue_triage.save_scan_state", side_effect=OSError("nope")):
+            rc = main([
+                "--owner", "o", "--repo", "r",
+                "--state-file", "scan.json", "--format", "json",
+            ])
+        assert rc == 2
+        assert "--state-file" in capsys.readouterr().err
 
     def test_explicit_since_overrides_state_file(self, tmp_path):
         state = tmp_path / "scan.json"
