@@ -271,8 +271,8 @@ def _cluster_size(cluster: Report) -> int:
     """Read a cluster's ``size`` as an int for sorting.
 
     The value is always the ``len(members)`` int stored in ``cluster_threads``;
-    the explicit int() narrows the ``object`` value type so the sort key is typed
-    and mypy's no-any-return rule is satisfied without a cast.
+    the isinstance check narrows the ``object`` value type so the sort key is
+    typed and mypy's no-any-return rule is satisfied without a cast.
     """
     size = cluster["size"]
     return size if isinstance(size, int) else 0
@@ -486,14 +486,16 @@ def _fetch_unresolved_threads(owner: str, repo: str, pull_request: int) -> list[
 def _resolve_lib_dir() -> str:
     """Locate the plugin ``lib`` directory for github_core imports.
 
-    Resolution order: ``CLAUDE_PLUGIN_ROOT`` env, ``GITHUB_WORKSPACE`` env, then
-    a path relative to this file. Exits 2 (config error per ADR-035) when no
-    candidate directory exists, so a misconfigured install fails loudly rather
-    than importing nothing.
+    Resolution order: ``COPILOT_PLUGIN_ROOT`` env, ``CLAUDE_PLUGIN_ROOT`` env,
+    ``GITHUB_WORKSPACE`` env, then a path relative to this file. Exits 2
+    (config error per ADR-035) when no candidate directory exists, so a
+    misconfigured install fails loudly rather than importing nothing.
     """
     import os
 
-    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get(
+        "CLAUDE_PLUGIN_ROOT",
+    )
     workspace = os.environ.get("GITHUB_WORKSPACE")
     if plugin_root:
         lib_dir = os.path.join(plugin_root, "lib")

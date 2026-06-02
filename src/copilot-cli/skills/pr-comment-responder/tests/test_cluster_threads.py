@@ -496,3 +496,13 @@ class TestFetchUnresolvedThreads:
             assert exc.code == 3
         else:
             raise AssertionError("expected SystemExit")
+
+
+class TestResolveLibDir:
+    def test_resolve_lib_dir_prefers_copilot_plugin_root(self, monkeypatch):
+        mod = _load_module()
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "copilot-root")
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        monkeypatch.setattr(os.path, "isdir", lambda path: path == "copilot-root/lib")
+        assert mod._resolve_lib_dir() == "copilot-root/lib"
