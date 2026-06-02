@@ -81,9 +81,10 @@ are out of scope here and tracked separately under issue #2139.
 
 - **Why commands were built this way?** Claude Code shipped `.claude/commands/`
   as the native slash-command surface before Copilot CLI was a target. The
-  lifecycle commands (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`)
-  and the PR-quality batch were authored there because that was the only
-  surface that fired as a slash command at the time.
+  lifecycle command files (`/spec`, `/plan`, `/build`, `/test`, `/ship`) and the
+  PR-quality batch were authored there because that was the only surface that
+  fired as a slash command at the time. `/review` is already a skill, not a
+  command file.
 - **What alternatives were considered?** The `command-to-skill` bridge
   (REQ-003-001) was the first attempt to reach Copilot CLI: keep authoring in
   `.claude/commands/` and generate Copilot skills from it. The bridge works for
@@ -143,8 +144,9 @@ are out of scope here and tracked separately under issue #2139.
      `forgetful-memory-explore`, `forgetful-memory-list`,
      `forgetful-memory-save`, `forgetful-memory-search`.
    - Top-level commands keep their bare names (`spec`, `plan`, `build`, `test`,
-     `review`, `ship`, `research`, `pr-autofix`, `pr-review`, `push-pr`,
-     `validate-pr-description`, `context-hub-setup`).
+     `ship`, `research`, `pr-autofix`, `pr-review`, `push-pr`,
+     `validate-pr-description`, `context-hub-setup`). `/review` is already a
+     skill and is not part of the command migration inventory.
 
    The `pr-quality-` prefix disambiguates the batch-review entry points from the
    same-named review agents (`analyst`, `architect`, `devops`, `qa`, `roadmap`,
@@ -231,8 +233,9 @@ sub-directory that Copilot CLI cannot read.
 
 - `CLAUDE.md` and `pr-review-config.yaml` stay where they are; they were never
   commands.
-- The lifecycle commands keep their bare names (`/spec`, `/plan`, `/build`,
-  `/test`, `/review`, `/ship`), so muscle memory for those is unaffected.
+- The lifecycle command files keep their bare names (`/spec`, `/plan`,
+  `/build`, `/test`, `/ship`), so muscle memory for those is unaffected.
+  `/review` already remains available as a skill.
 
 ## Impact on Dependent Components
 
