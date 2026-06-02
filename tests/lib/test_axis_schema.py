@@ -31,6 +31,7 @@ CANONICAL_ROLES: tuple[str, ...] = (
     "observability",
     "agent-safety",
     "decision-rigor",
+    "code-quality",
 )
 
 
