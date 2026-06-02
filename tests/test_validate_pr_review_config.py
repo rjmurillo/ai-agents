@@ -25,6 +25,7 @@ VALID_CONFIG: dict = {
             "get_pr_checks": "python3 script.py",
             "add_thread_reply": "python3 script.py",
             "add_thread_reply_resolve": "python3 script.py",
+            "wait_for_settled_zero": "python3 script.py",
             "resolve_thread": "python3 script.py",
         },
         "copilot": {
@@ -288,6 +289,43 @@ class TestValidateConfig:
         assert any("add_thread_reply_resolve" in e for e in errors)
         # Copilot section doesn't need this key
         assert not any("copilot" in e and "add_thread_reply_resolve" in e for e in errors)
+
+    def test_missing_wait_for_settled_zero_claude_code_only(self) -> None:
+        # Issue #1992: wait_for_settled_zero wires the settling wrapper into
+        # the config layer. Requiring it here stops the wrapper from drifting
+        # back into orphaned dead code. It is claude_code-only (no PowerShell
+        # equivalent), so its absence must fail only the claude_code section.
+        config = copy.deepcopy(VALID_CONFIG)
+        del config["scripts"]["claude_code"]["wait_for_settled_zero"]
+        errors = validate_config(config)
+        assert any("wait_for_settled_zero" in e for e in errors)
+        assert not any(
+            "copilot" in e and "wait_for_settled_zero" in e for e in errors
+        )
+
+    def test_copilot_section_does_not_require_wait_for_settled_zero(self) -> None:
+        # Edge: the copilot section has no wait_for_settled_zero key by design.
+        # A valid config (claude_code has it, copilot does not) must pass.
+        config = copy.deepcopy(VALID_CONFIG)
+        assert "wait_for_settled_zero" not in config["scripts"]["copilot"]
+        errors = validate_config(config)
+        assert errors == []
+
+    def test_live_config_file_wires_wait_for_settled_zero(self) -> None:
+        # Edge/integration: the shipped config on disk must carry the key so
+        # the wrapper stays wired. Guards against the orphan regression the
+        # validator change is meant to prevent.
+        import yaml
+
+        config_path = (
+            _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+        )
+        with open(config_path) as f:
+            live = yaml.safe_load(f)
+        assert (
+            "wait_for_settled_zero" in live["scripts"]["claude_code"]
+        ), "wait_for_unresolved_zero.py must be wired into the config layer"
+        assert validate_config(live) == []
 
     def test_missing_invocation_limits_field(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)

@@ -24,7 +24,7 @@ updated: 2026-05-10
 
 Two review prompt families drift independently. CI runs 6 axes from `.github/prompts/pr-quality-gate-{role}.md`. `/review` runs 5 inline axes in `.claude/commands/review.md`. PR `feat/skill-eval-triage` saw `/review` PASS while `/pr-quality:all` BLOCKED, producing two recursive fix-loops, 5 extra commits, and 4 Round-2 regressions. Root cause documented in `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`. This requirement set establishes a single canonical source for all review axes and enforces parity between local and CI evaluation.
 
-CVA summary: 6 canonical axes share role identity, PR diff evaluation, structured findings schema, and verdict token (PASS/WARN/CRITICAL_FAIL/UNKNOWN). Variabilities are evaluation focus (9 domains), invocation mechanism (prompt-load vs Skill()), and CI counterpart presence (6 yes / 3 no). Abstraction decision: no new abstraction layer. `ai_review_common.py:merge_verdicts` captures verdict-token commonality; 6/3 family split encoded as explicit type discriminator in `/review` prose.
+CVA summary: 11 canonical axes share role identity, PR diff evaluation, structured findings schema, and verdict token handling. Variabilities are evaluation focus, invocation mechanism (Stage-1 prompt, Stage-2 prompt, or Skill()), and CI counterpart presence. Abstraction decision: no new abstraction layer. `ai_review_common.py:merge_verdicts` captures verdict-token commonality; the Stage-1, Stage-2, and chained-skill split is encoded as explicit type discriminator in `/review` prose.
 
 ---
 
@@ -32,20 +32,22 @@ CVA summary: 6 canonical axes share role identity, PR diff evaluation, structure
 
 ### Requirement Statement
 
-WHEN a maintainer commits `.claude/review-axes/{role}.md` for any of the six roles (analyst, architect, qa, security, devops, roadmap)
+WHEN a maintainer commits `.claude/skills/review/references/{role}.md` for any canonical role (spec-compliance, analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor)
 THE SYSTEM SHALL preserve YAML frontmatter fields `name`, `role`, `version`, `description` AND body sections `Grounding Rules`, `Analysis Focus Areas`, `Output Schema`
 SO THAT canonical axis files are self-contained and serve as the single source of truth for both local `/review` and generated CI prompts.
 
 ### Acceptance Criteria
 
-- [ ] Six files exist: `.claude/review-axes/analyst.md`, `.claude/review-axes/architect.md`, `.claude/review-axes/qa.md`, `.claude/review-axes/security.md`, `.claude/review-axes/devops.md`, `.claude/review-axes/roadmap.md`.
+- [ ] Eleven files exist under `.claude/skills/review/references/`: `spec-compliance.md`, `analyst.md`, `architect.md`, `qa.md`, `security.md`, `devops.md`, `roadmap.md`, `reliability.md`, `observability.md`, `agent-safety.md`, and `decision-rigor.md`.
 - [ ] Each file contains YAML frontmatter with keys: `name`, `role`, `version`, `description`.
 - [ ] Each file contains body sections titled exactly: `Grounding Rules`, `Analysis Focus Areas`, `Output Schema`.
 - [ ] `Output Schema` specifies fields: `severity`, `category`, `location`, `recommendation`, `verdict`.
-- [ ] `verdict` tokens authored by the agent in canonical Output Schema: `PASS`, `WARN`, `CRITICAL_FAIL`. The agent never authors `UNKNOWN` itself; `UNKNOWN` is reserved for `/review`'s parser when an axis output is unparseable. Parser-recognized token vocabulary (consumed by `extract_verdict` and `merge_verdicts`): `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `UNKNOWN`. Amended PR #1965 (cluster F) per critic Finding 3: original AC conflated authored vs parsed token sets.
+- [ ] `verdict` tokens authored by non-spec canonical axes in Output Schema: `PASS`, `WARN`, `CRITICAL_FAIL`. The `spec-compliance` axis MAY author `UNKNOWN` as the parseable token for INCONCLUSIVE when no spec is linked. For all other axes, `UNKNOWN` is reserved for `/review`'s parser when an axis output is unparseable. Parser-recognized token vocabulary (consumed by `extract_verdict` and `merge_verdicts`): `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `UNKNOWN`. Amended PR #1965 (cluster F) per critic Finding 3: original AC conflated authored vs parsed token sets.
 - [ ] Schema-validation fixture at `tests/` asserts exact section-title strings (literal match, not substring): `"## Grounding Rules"`, `"## Analysis Focus Areas"`, `"## Output Schema"` must be present as level-2 headings in each canonical file. A maintainer renaming any section title fails CI.
 - [ ] Body content (Grounding Rules + Analysis Focus Areas sections) seeded from the corresponding `.github/prompts/pr-quality-gate-{role}.md` at time of creation. CI source files have no frontmatter and no Output Schema; these are added during seed, not copied verbatim. A migration-validation script (`scripts/validation/validate_seed_parity.py`) computes SHA-256 of the seeded body (excluding frontmatter and Output Schema) and compares against SHA-256 of the source CI prompt body; the script exits 1 if any mismatch. This script runs as part of TASK-008-01 and its output is attached to the PR.
 - [ ] No file under `.github/prompts/pr-quality-gate-{role}.md` is hand-edited after this feature ships; all edits flow through canonical.
+- [ ] **Amended issue #1905 (Stage-1 spec-compliance axis)**: the canonical set includes a seventh quality-gate role, `spec-compliance`, plus the four later-added review axes (`reliability`, `observability`, `agent-safety`, `decision-rigor`). The live canonical directory is `.claude/skills/review/references/` (the repo moved here from the spec-original `.claude/review-axes/`; `tests/lib/test_axis_schema.py` and `tests/lib/conftest.py` enforce the live path and the full role set). `spec-compliance` is the Stage-1 gating axis: input is the PR diff plus linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria); it emits `PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN` (the parseable token for INCONCLUSIVE when no spec is linked). It reads spec docs that a CI context may lack, so it emits `UNKNOWN` when spec docs are unavailable and lets the caller decide how to gate that verdict. In `/review`, `UNKNOWN` is Stage-1 local-gating. It does not introduce a new verdict token: `INCONCLUSIVE` reuses `UNKNOWN` so `extract_verdict`/`merge_verdicts` (REQ-008-05) are untouched.
+- [ ] **Short-circuit AC (issue #1905)**: WHEN `/review` runs, `spec-compliance` runs first. WHEN its verdict is `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE), the 10 Stage-2 canonical axes and 3 chained skills SHALL be marked `SKIPPED`, the final verdict SHALL be the Stage-1 verdict, and only the Stage-1 findings SHALL be emitted. WHEN its verdict is `PASS` or `WARN`, the 10 Stage-2 canonical axes and 3 chained skills run and merge with the Stage-1 verdict. Authorized by repo-owner batch decision on issue #1905 (2026-05-31), which supersedes the issue's original AC1 (INCONCLUSIVE-proceeds) with INCONCLUSIVE-gates.
 
 ### Rationale
 
@@ -62,12 +64,12 @@ None. This is the root artifact.
 ### Requirement Statement
 
 WHEN `python3 build/scripts/generate_pr_quality_prompts.py` runs
-THE SYSTEM SHALL read each `.claude/review-axes/{role}.md` canonical file, write `.github/prompts/pr-quality-gate-{role}.md` atomically (tmp file + fsync + rename), emit structured stdout (`key=value`), and exit with ADR-035 codes (0=ok, 1=logic, 2=config)
+THE SYSTEM SHALL read each `.claude/skills/review/references/{role}.md` canonical file, write `.github/prompts/pr-quality-gate-{role}.md` atomically (tmp file + fsync + rename), emit structured stdout (`key=value`), and exit with ADR-035 codes (0=ok, 1=logic, 2=config)
 SO THAT generation is idempotent (zero diff on re-run against an already-up-to-date tree) and partial crashes leave no corrupt output.
 
 ### Acceptance Criteria
 
-- [ ] Transform algorithm is fully declarative: (a) strip YAML frontmatter keys `name`, `role`, `version`, `description` from canonical file before output; (b) prepend a static 3-line CI header consisting of the lines `<!-- GENERATED -- DO NOT EDIT -->`, `<!-- Source: .claude/review-axes/{role}.md -->`, `<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->` followed by a blank line; (c) emit canonical body unchanged. No timestamps, no SHAs, no environment-dependent tokens in output. Any time-varying token in the header breaks idempotency and is prohibited. Header uses hyphens, not em-dashes, per `.claude/rules/universal.md` MUST NOT 5.
+- [ ] Transform algorithm is fully declarative: (a) strip YAML frontmatter keys `name`, `role`, `version`, `description` from canonical file before output; (b) prepend a static 3-line CI header consisting of the lines `<!-- GENERATED -- DO NOT EDIT -->`, `<!-- Source: .claude/skills/review/references/{role}.md -->`, `<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->` followed by a blank line; (c) emit canonical body unchanged. No timestamps, no SHAs, no environment-dependent tokens in output. Any time-varying token in the header breaks idempotency and is prohibited. Header uses hyphens, not em-dashes, per `.claude/rules/universal.md` MUST NOT 5.
 - [ ] Running the generator twice in sequence produces zero git diff on `.github/prompts/`.
 - [ ] Generator writes to a `.tmp` file, calls `fsync`, then renames atomically; no partial output survives a crash mid-write.
 - [ ] Generator emits `key=value` lines to stdout for each processed role (e.g., `role=analyst status=ok`).
@@ -91,7 +93,7 @@ Atomic writes prevent corrupt CI prompts if the generator is interrupted. Idempo
 
 ### Requirement Statement
 
-WHEN canonical `.claude/review-axes/{role}.md` and generated `.github/prompts/pr-quality-gate-{role}.md` diverge at `git push`
+WHEN canonical `.claude/skills/review/references/{role}.md` and generated `.github/prompts/pr-quality-gate-{role}.md` diverge at `git push`
 THE SYSTEM SHALL block the push via `.githooks/pre-push` emitting a unified diff and exit code 1
 SO THAT divergence is caught at the author's terminal before CI is invoked.
 
@@ -124,15 +126,15 @@ Pre-push hook gives immediate feedback (seconds) at the author's terminal. CI jo
 ### Requirement Statement
 
 WHEN `/review` runs
-THE SYSTEM SHALL load all 6 canonical axis files from `.claude/review-axes/`, evaluate the PR diff against each, chain `Skill(skill="code-qualities-assessment")`, `Skill(skill="golden-principles")`, and `Skill(skill="taste-lints")` producing 9 total verdicts, merge them via `merge_verdicts` from `.claude/lib/ai_review_common/`, and output a findings table with per-axis verdict and a final merged verdict with emoji
+THE SYSTEM SHALL load `spec-compliance` from `.claude/skills/review/references/` as the Stage-1 gate, load the remaining 10 canonical axis files from that directory as Stage-2 axes, chain `Skill(skill="code-qualities-assessment")`, `Skill(skill="golden-principles")`, and `Skill(skill="taste-lints")`, merge the collected verdicts via `merge_verdicts` from `.claude/lib/ai_review_common/`, and output a findings table with per-axis verdict and a final merged verdict with emoji
 SO THAT `/review` local output matches what CI will surface, eliminating push-and-wait round-trips.
 
 ### Acceptance Criteria
 
-- [ ] `/review` loads axis definitions from `.claude/review-axes/` not from inline prose.
-- [ ] 6 canonical axes evaluated: analyst, architect, qa, security, devops, roadmap.
+- [ ] `/review` loads axis definitions from `.claude/skills/review/references/` not from inline prose.
+- [ ] `spec-compliance` runs as the Stage-1 gate, then 10 Stage-2 canonical axes run: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor.
 - [ ] 3 skill axes chained: `code-qualities-assessment`, `golden-principles`, `taste-lints`.
-- [ ] Total verdicts collected: 9 (6 + 3).
+- [ ] Total verdicts collected when Stage 2 runs: 14 (1 Stage-1 gate + 10 Stage-2 axes + 3 chained skills).
 - [ ] Verdicts merged via `merge_verdicts` from `.claude/lib/ai_review_common/`.
 - [ ] Merge rules: any `CRITICAL_FAIL`, `REJECTED`, or `FAIL` token yields `CRITICAL_FAIL`; any `WARN` yields `WARN`; all `PASS` yields `PASS`.
 - [ ] Output includes a findings table with columns: axis, verdict (with emoji from `get_verdict_emoji`), summary.
@@ -206,13 +208,13 @@ None. This module has no internal dependencies.
 
 ### Requirement Statement
 
-WHEN `/review` runs in a vendored install that contains only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` and `CLAUDE.md` (no `.agents/`, no `.github/`)
+WHEN `/review` runs in a vendored install that contains only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills}` and `CLAUDE.md` (no `.agents/`, no `.github/`)
 THE SYSTEM SHALL complete successfully and produce a valid findings table with merged verdict
 SO THAT project-toolkit plugin consumers and downstream installers receive the same review capability without needing the full repository structure.
 
 ### Acceptance Criteria
 
-- [ ] A `tests/integration/test_vendored_install.py` test copies only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills,review-axes}` plus `CLAUDE.md` to a `tmp_path` directory and asserts: (a) `import ai_review_common` succeeds from the copied `.claude/lib/`; (b) `merge_verdicts(["PASS"])` executes correctly from the copy; (c) all six `.claude/review-axes/{role}.md` files are present and pass schema validation (frontmatter keys, body sections). This test does NOT invoke the Claude Code harness or require a live model; it tests the Python surface and file structure only.
+- [ ] A `tests/integration/test_vendored_install.py` test copies only `.claude/{agents,commands,hooks,lib,rules,settings.json,skills}` plus `CLAUDE.md` to a `tmp_path` directory and asserts: (a) `import ai_review_common` succeeds from the copied `.claude/lib/`; (b) `merge_verdicts(["PASS"])` executes correctly from the copy; (c) all `.claude/skills/review/references/{role}.md` files are present and pass schema validation (frontmatter keys, body sections). This test does NOT invoke the Claude Code harness or require a live model; it tests the Python surface and file structure only.
 - [ ] No runtime dependency in `/review` prose, `.claude/lib/ai_review_common/`, or any canonical axis on `.agents/`, `.github/`, `scripts/`, or `tests/` paths. Verified by AST-based scan in `tests/integration/test_vendored_install.py::test_no_runtime_dependency_on_agents_or_scripts_in_lib` (no `ImportFrom`/`Import` targeting `agents`/`scripts` namespaces; no `Call` argument string starting with those prefixes). Documentation prose that mentions these paths in advisory form (e.g. "check `.agents/architecture/` when present") is allowed because vendored installs without those paths skip rather than fail. Amended PR #1965 per critic Finding 1: the original literal-grep AC was contradicted by the seeded CI prose; AST runtime check is the right contract.
 - [ ] A schema-validation fixture in `tests/` asserts each canonical file has all four frontmatter keys and all three body sections.
 
@@ -262,7 +264,7 @@ THE SYSTEM SHALL cite `.claude/lib/ai_review_common/` (Python module) and NOT `A
 SO THAT the canonical-source-mirror rule is satisfied and no reader is directed to a non-existent file.
 
 WHEN GitHub issue #1934 or epic #1933 body contains the text "7 axes" or cites `.claude/lib/AIReviewCommon` without the `.py` extension
-THE SYSTEM SHALL update those issue bodies via `gh issue edit` to reflect: 6 canonical axes, `ai_review_common.py` module, chained-skills extras approach
+THE SYSTEM SHALL update those issue bodies via `gh issue edit` to reflect: the canonical review axis set, `ai_review_common.py` module, and chained-skills extras approach
 SO THAT the issue tracker matches the implemented design.
 
 ### Acceptance Criteria
@@ -272,7 +274,7 @@ SO THAT the issue tracker matches the implemented design.
 - [ ] GitHub issue #1934 body does not contain the string "7 axes" after update.
 - [ ] GitHub issue #1934 body references `ai_review_common/verdict.py` explicitly.
 - [ ] GitHub epic #1933 body does not contain the string "7 axes" after update.
-- [ ] GitHub epic #1933 body references the chained-skills approach (6 canonical + 3 skills = 9 total).
+- [ ] GitHub epic #1933 body references the chained-skills approach layered on the canonical review axis set.
 - [ ] **NOTE (one-shot manual gate)**: these AC items are state-of-GitHub-issues claims, not file-tracked. They are verified once at PR merge time (via `gh issue view --json body` against the strings above) and not continuously. If issue body drift recurs post-merge, a follow-up issue must instrument the check (file at PR merge if not already present). Amended PR #1965 per critic Finding 4: original AC text was unfalsifiable post-merge; this addendum makes the verification window explicit.
 
 ### Rationale
