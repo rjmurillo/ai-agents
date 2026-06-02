@@ -24,6 +24,15 @@ environment: plugin manifests and `hooks.json`, copied hook scripts, agent and
 skill files a CLI loads, MCP configs, instruction mirrors. It does not bind
 artifacts consumed only inside this repo's own CI.
 
+The `applyTo` globs target the surfaces where these artifacts are authored,
+generated, and verified: the generator scripts, the templates they read, the
+Copilot CLI plugin tree, the instruction mirrors, the hook sources, and the
+runtime-contract tests. It is intentionally narrower than the full set of
+artifact classes named above. Already-generated agent, skill, and command
+outputs are governed at generation time by their own generators plus the
+canonical-source-mirror drift checks (see `.claude/rules/canonical-source-mirror.md`);
+this rule does not re-list every generated output tree in `applyTo`.
+
 ## The runtime contract is part of the artifact
 
 Every customer-facing artifact depends on a runtime contract: the working
