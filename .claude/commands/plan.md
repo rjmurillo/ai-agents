@@ -10,6 +10,10 @@ Plan: $ARGUMENTS
 
 If $ARGUMENTS is empty, check for recent /spec output in the conversation. If none found, ask the user what to plan.
 
+## If you arrived here without a spec, run the front-gate first
+
+Planning a spec that was never gated manufactures work. If there is no `/spec` output for this work (no requirement, no design, no testable acceptance criteria), do not decompose it into milestones yet. Run `/spec` first: it applies the front-gate (the six forcing questions, the `front-gate-before-pipeline` pattern) and confirms a named blocked user, a documented status quo, and a concrete observation before any downstream step runs. Return here once the spec exists. Skip this only when the user explicitly asks to plan an ungated idea and accepts that trade-off.
+
 ## Process
 
 1. Read the spec or issue

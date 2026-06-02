@@ -37,6 +37,7 @@ VALID_AGENTS = frozenset(
         "observability",
         "agent-safety",
         "decision-rigor",
+        "code-quality",
     }
 )
 VALID_SEVERITIES = frozenset({"critical", "high", "medium", "low"})

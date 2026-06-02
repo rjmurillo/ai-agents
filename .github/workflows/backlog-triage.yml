@@ -1,0 +1,162 @@
+name: Backlog Triage
+
+# Scheduled AI-powered backlog triage (ClawSweeper pattern, issue #1799).
+# Phase 2: scans the open-issue backlog and runs complexity classification +
+# area routing per issue via .github/actions/ai-review. Read-only: produces a
+# single summary artifact and step summary for human review. No labels are
+# applied and no issues are closed here. Mirrors the discover -> matrix ->
+# summarize shape of pr-maintenance.yml.
+
+on:
+  schedule:
+    # Weekly on Mondays at 7 AM UTC (after sprint planning, before standup).
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      max_issues:
+        description: 'Max open issues to triage'
+        type: number
+        default: 100
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: backlog-triage
+  cancel-in-progress: false
+
+env:
+  BACKLOG_MAX_ISSUES: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.max_issues) || '100' }}
+
+jobs:
+  # Job 1: Discover open issues to triage
+  discover-issues:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+      has-issues: ${{ steps.discover.outputs['has-issues'] }}
+      count: ${{ steps.discover.outputs.count }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Discover open issues for AI triage
+        id: discover
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: >-
+          python3 scripts/issue_triage.py
+          --limit "$BACKLOG_MAX_ISSUES"
+          --ai
+          --github-output "$GITHUB_OUTPUT"
+
+  # Job 2: Classify each issue in parallel (matrix strategy)
+  classify-issues:
+    needs: discover-issues
+    if: needs.discover-issues.outputs['has-issues'] == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      matrix: ${{ fromJson(needs.discover-issues.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 3
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Classify complexity and route area for issue #${{ matrix.number }}
+        id: classify
+        uses: ./.github/actions/ai-review
+        with:
+          agent: analyst
+          context-type: issue
+          issue-number: ${{ matrix.number }}
+          prompt-file: .github/prompts/issue-triage-categorize.md
+          timeout-minutes: 3
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+
+      - name: Record triage result for issue #${{ matrix.number }}
+        env:
+          ISSUE_NUMBER: ${{ matrix.number }}
+          ISSUE_TITLE: ${{ matrix.title }}
+          AI_VERDICT: ${{ steps.classify.outputs.verdict }}
+          AI_LABELS: ${{ steps.classify.outputs.labels }}
+          AI_FINDINGS: ${{ steps.classify.outputs.findings }}
+          OUTPUT: ${{ runner.temp }}/backlog-triage-${{ matrix.number }}.json
+        run: python3 scripts/backlog_triage_result.py --output "$OUTPUT"
+
+      - name: Upload triage result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backlog-triage-${{ matrix.number }}
+          path: ${{ runner.temp }}/backlog-triage-${{ matrix.number }}.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  # Job 3: Aggregate results into a single human-review summary
+  summarize:
+    needs: [discover-issues, classify-issues]
+    if: always() && needs.discover-issues.outputs['has-issues'] == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Download triage results
+        uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317 # v4
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/triage-results
+          pattern: backlog-triage-*
+          merge-multiple: true
+
+      - name: Build human-review summary
+        id: summary
+        continue-on-error: true
+        env:
+          RESULTS_DIR: ${{ runner.temp }}/triage-results
+          SUMMARY_PATH: ${{ runner.temp }}/backlog-triage-summary.md
+          EXPECTED_COUNT: ${{ needs.discover-issues.outputs.count }}
+        run: >-
+          python3 scripts/backlog_triage_summary.py
+          --results-dir "$RESULTS_DIR"
+          --output "$SUMMARY_PATH"
+          --github-step-summary "$GITHUB_STEP_SUMMARY"
+          --expected-count "$EXPECTED_COUNT"
+
+      - name: Upload backlog triage summary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backlog-triage-summary
+          path: ${{ runner.temp }}/backlog-triage-summary.md
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail on incomplete triage summary
+        if: steps.summary.outcome == 'failure'
+        run: exit 1
