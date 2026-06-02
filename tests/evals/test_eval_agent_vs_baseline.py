@@ -1309,7 +1309,7 @@ class TestReportAggregatorRecall:
         assert result.error_count == 1
 
     def test_recall_uses_assertion_count_not_fixture_count(self):
-        # One fixture, two assertions on the same response — recall denom
+        # One fixture, two assertions on the same response: recall denom
         # MUST be the assertion count (2), not the fixture count (1).
         record = RunRecord(
             fixture_id="F001",
@@ -2532,7 +2532,7 @@ class TestPerFixtureHaltThreshold:
         assert '"fixtures_with_errors": 1' in captured.err
         assert '"executed_fixtures": 5' in captured.err
         # Per-record values are also logged so operators can correlate; the
-        # per-record fraction here is well below 10% — proving the halt
+        # per-record fraction here is well below 10%, proving the halt
         # fired on the per-fixture rule, not the per-record one.
         assert '"error_count": 1' in captured.err
         assert '"executed_records": 30' in captured.err
