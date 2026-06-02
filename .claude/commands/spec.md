@@ -126,7 +126,7 @@ The five fields are:
 python3 scripts/redact_secrets.py <file>      # or pipe the answer text on stdin
 ```
 
-In Python: `from redact_secrets import redact; redact(answer).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `[redacted: <reason>]`. Redaction is a backstop, not a license to collect secrets: do not paste live credentials into Step 0 answers. The full policy is `.claude/rules/secret-redaction.md`; the redactor is `scripts/redact_secrets.py`.
+In Python: `from redact_secrets import redact; redact(answer).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `` `[redacted: <reason>]` ``. Redaction is a backstop, not a license to collect secrets: do not paste live credentials into Step 0 answers. The full policy is `.claude/rules/secret-redaction.md`; the redactor is `scripts/redact_secrets.py`.
 
 Downstream callers (orchestrators, review skills, CI gates) parse this block by its `step0-halt` info-string. Free-form prose halts that omit the fenced block are non-conforming and SHALL be re-emitted in this format.
 
@@ -329,7 +329,7 @@ Field semantics:
 python3 scripts/redact_secrets.py <file>      # or pipe the evidence text on stdin
 ```
 
-In Python: `from redact_secrets import redact; redact(evidence).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `[redacted: <reason>]`. This mirrors the Step 0 `answer` redaction rule above; the same `scripts/redact_secrets.py` redactor and `.claude/rules/secret-redaction.md` policy apply. Redaction is a backstop, not a license to collect secrets.
+In Python: `from redact_secrets import redact; redact(evidence).text`. Matched token shapes (private keys, GitHub/Stripe/AWS/Slack tokens, JWTs, `Bearer` headers, emails, hex secrets of 32 or more chars) become `` `[redacted: <reason>]` ``. This mirrors the Step 0 `answer` redaction rule above; the same `scripts/redact_secrets.py` redactor and `.claude/rules/secret-redaction.md` policy apply. Redaction is a backstop, not a license to collect secrets.
 
 Free-form prose halts that omit the `step0_5-halt` info-string are non-conforming and SHALL be re-emitted in this format. Downstream callers (orchestrators, review skills, CI gates) parse this block by its info-string. The Step 0.5 halt block is structurally identical to Step 0's `step0-halt` block (same five fields) except for the info-string and the `check` field replacing `question`.
 
