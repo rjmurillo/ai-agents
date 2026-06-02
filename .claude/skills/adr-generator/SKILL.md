@@ -110,6 +110,21 @@ If no ADRs or template files exist anywhere in the codebase:
 - Determine the next sequential number (zero-padded to match existing convention)
 - Verify no collision with existing files in that directory
 
+For this repo's canonical `.agents/architecture/` location, use the
+deterministic helper instead of eyeballing the directory (it also accounts
+for the #2228 allowlist of pre-existing duplicates):
+
+```bash
+python3 scripts/validation/check_adr_uniqueness.py --print-next
+```
+
+The same script is enforced as a merge-time CI gate
+(`.github/workflows/validate-adr-number-uniqueness.yml`, issue #2253), so a
+PR that picked a number which has since been merged by another branch will
+fail with a remediation message naming the next free value. Re-run
+`--print-next` and rename the file, the `# ADR-NNN:` heading, and any
+references before pushing.
+
 ### Phase G3: Generate
 
 Populate the detected template with gathered content:
