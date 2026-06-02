@@ -26,9 +26,27 @@ def _load_workflow() -> dict[str, Any]:
         return yaml.safe_load(handle)
 
 
+def _steps_from_workflow(workflow: Any) -> list[dict[str, Any]]:
+    if not isinstance(workflow, dict):
+        return []
+
+    jobs = workflow.get("jobs") or {}
+    if not isinstance(jobs, dict):
+        return []
+
+    test_job = jobs.get("test") or {}
+    if not isinstance(test_job, dict):
+        return []
+
+    steps = test_job.get("steps") or []
+    if not isinstance(steps, list):
+        return []
+
+    return [step for step in steps if isinstance(step, dict)]
+
+
 def _test_job_steps() -> list[dict[str, Any]]:
-    workflow = _load_workflow()
-    return workflow["jobs"]["test"]["steps"]
+    return _steps_from_workflow(_load_workflow())
 
 
 def _find_ruff_step() -> dict[str, Any] | None:
@@ -37,6 +55,31 @@ def _find_ruff_step() -> dict[str, Any] | None:
         if isinstance(run, str) and "ruff check" in run:
             return step
     return None
+
+
+class TestWorkflowStepExtraction:
+    """Edge: malformed workflow shapes produce no steps instead of errors."""
+
+    def test_missing_or_null_workflow_sections_return_empty_steps(self) -> None:
+        assert _steps_from_workflow(None) == []
+        assert _steps_from_workflow({"jobs": None}) == []
+        assert _steps_from_workflow({"jobs": {"test": None}}) == []
+        assert _steps_from_workflow({"jobs": {"test": {"steps": None}}}) == []
+
+    def test_non_mapping_steps_are_ignored(self) -> None:
+        workflow = {
+            "jobs": {
+                "test": {
+                    "steps": [
+                        "not-a-step",
+                        {"name": "Run ruff", "run": "ruff check . --output-format=github"},
+                    ]
+                }
+            }
+        }
+        assert _steps_from_workflow(workflow) == [
+            {"name": "Run ruff", "run": "ruff check . --output-format=github"}
+        ]
 
 
 class TestRuffStepPresence:
