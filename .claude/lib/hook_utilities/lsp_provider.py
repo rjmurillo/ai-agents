@@ -482,3 +482,96 @@ def is_code_target(target: str, capability: str) -> bool:
     if suffix in EXTENSION_TO_SERENA_LANGUAGE:
         return True
     return suffix in NATIVE_LSP_CODE_EXTENSIONS
+
+
+# Programming-language file extensions: the EXTENSION_TO_SERENA_LANGUAGE keys
+# whose serena language is a programming language (symbol-navigation capable).
+# This is the extension set a repo-wide grep would scan, used by the
+# directory-scope probe below.
+_PROGRAMMING_EXTENSIONS: frozenset[str] = frozenset(
+    suffix
+    for suffix, language in EXTENSION_TO_SERENA_LANGUAGE.items()
+    if language in PROGRAMMING_SERENA_LANGUAGES
+)
+
+# Directories a repo-wide scan must never descend into. These hold vendored or
+# generated code that no provider navigates and that would make the file probe
+# slow. Matched by directory name anywhere in the tree.
+_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+    }
+)
+
+# Upper bound on files inspected during a repo-wide scan. The probe returns as
+# soon as it finds one programming-language file with an available provider, so
+# this cap only bounds the worst case (a repo with no programming files at all).
+_SCAN_FILE_LIMIT = 20000
+
+
+def _first_programming_file_with_provider(repo_root: Path, project_dir: str) -> bool:
+    """True if any present programming-language file has an available provider.
+
+    Walks ``repo_root`` (skipping vendored/generated directories), and for the
+    first file whose extension is in ``_PROGRAMMING_EXTENSIONS`` confirms that
+    ``detect_providers`` reports a symbol-navigation provider for it. Returns on
+    the first match. Bounded by ``_SCAN_FILE_LIMIT`` files inspected.
+    """
+    inspected = 0
+    for dirpath, dirnames, filenames in os.walk(repo_root):
+        dirnames[:] = [d for d in dirnames if d not in _SCAN_SKIP_DIRS]
+        for filename in filenames:
+            inspected += 1
+            if inspected > _SCAN_FILE_LIMIT:
+                return False
+            suffix = Path(filename).suffix.lower()
+            if suffix not in _PROGRAMMING_EXTENSIONS:
+                continue
+            if detect_providers(filename, SYMBOL_NAVIGATION, project_dir):
+                return True
+    return False
+
+
+def repo_has_programming_provider(project_dir: str) -> bool:
+    """True if the repo has an active programming-language LSP provider.
+
+    Answers the directory-scope / repo-wide grep question the per-file checks
+    cannot: a search like ``grep -r Sym .`` names no navigable extension, so the
+    extension-keyed ``is_code_target`` / ``detect_providers`` path allows it even
+    when the repo is full of navigable code. This probe gates that case.
+
+    It intersects the repo's configured programming languages with the
+    programming-language files actually present, then confirms a provider (Serena
+    or native LSP) is available for at least one such file. A provider-less repo
+    or an empty/unreadable project dir returns False, preserving the fail-open
+    contract (release-it.md): a navigation gate must never wedge a turn.
+
+    Args:
+        project_dir: repo root. Must resolve to an existing directory; a missing
+            or unresolvable dir returns False (fail-open).
+
+    Returns:
+        True only when a programming-language provider is active for this repo.
+    """
+    if not project_dir:
+        return False
+    try:
+        repo_root = Path(project_dir).resolve(strict=False)
+    except (OSError, ValueError):
+        return False
+    if not repo_root.is_dir():
+        return False
+    # detect_providers settles availability per file: Serena requires a
+    # configured language plus a registered MCP server; native LSP needs only a
+    # programming-language extension. The scan stops at the first present file
+    # that has either, so a provider-less repo returns False (fail-open).
+    return _first_programming_file_with_provider(repo_root, str(repo_root))
