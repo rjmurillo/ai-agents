@@ -87,6 +87,7 @@ _CONTEXTUAL_SECTION_NAMES: tuple[str, ...] = (
     r"Test\s*Plan",
     r"Design\s*Decisions?",
     r"Related",
+    r"Related[ \t]+Files",
     r"Related[ \t]+Issues",
     r"References?",
     r"See\s*Also",
@@ -575,7 +576,15 @@ def validate_pr_description(
                     file=mentioned,
                     message=(
                         "Description claims this file was changed, "
-                        "but it's not in the PR diff"
+                        "but it's not in the PR diff. "
+                        "If this is a reference (not a change claim), silence it by "
+                        "one of: (a) wrap the path in a fenced code block (```), "
+                        "(b) place it inside a GitHub admonition (> [!NOTE]), or "
+                        "(c) move the citation under a contextual H2 heading "
+                        "(## References, ## Related Files, ## See Also, ## Notes, "
+                        "## Background, ## Evidence, ## Out of Scope). "
+                        f"For unrecoverable cases, apply the "
+                        f"'{DEFAULT_BYPASS_LABEL}' label to the PR."
                     ),
                 )
             )
