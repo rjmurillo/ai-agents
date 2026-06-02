@@ -37,9 +37,12 @@ jobs:
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
       has-issues: ${{ steps.discover.outputs.has-issues }}
+      count: ${{ steps.discover.outputs.count }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -69,6 +72,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Classify complexity and route area for issue #${{ matrix.number }}
         id: classify
@@ -109,6 +114,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Download triage results
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317 # v4
@@ -124,6 +131,7 @@ jobs:
           --results-dir "${{ runner.temp }}/triage-results"
           --output "${{ runner.temp }}/backlog-triage-summary.md"
           --github-step-summary "$GITHUB_STEP_SUMMARY"
+          --expected-count "${{ needs.discover-issues.outputs.count }}"
 
       - name: Upload backlog triage summary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

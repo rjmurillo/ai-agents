@@ -9,6 +9,7 @@ applies nothing and closes nothing.
 
 Exit codes follow ADR-035:
     0 - Success (an empty or missing results dir yields an empty-state report)
+    1 - Logic error (downloaded result count does not match discovery count)
 """
 
 from __future__ import annotations
@@ -34,6 +35,7 @@ class TriageResult:
     title: str
     verdict: str
     labels: tuple[str, ...]
+    findings: str
 
     @classmethod
     def from_raw(cls, raw: object) -> TriageResult | None:
@@ -57,6 +59,7 @@ class TriageResult:
             title=str(raw.get("title") or ""),
             verdict=verdict,
             labels=labels,
+            findings=str(raw.get("findings") or ""),
         )
 
 
@@ -100,13 +103,16 @@ def render_summary(results: list[TriageResult]) -> str:
 
     lines.append(f"Issues triaged: {len(results)}")
     lines.append("")
-    lines.append("| Issue | Title | Verdict | Suggested labels |")
-    lines.append("|-------|-------|---------|------------------|")
+    lines.append("| Issue | Title | Verdict | Suggested labels | Findings |")
+    lines.append("|-------|-------|---------|------------------|----------|")
     for result in results:
         title = _sanitize_cell(result.title)
         verdict = _sanitize_cell(result.verdict)
         labels_text = _sanitize_cell(", ".join(result.labels)) or "-"
-        lines.append(f"| #{result.number} | {title} | {verdict} | {labels_text} |")
+        findings = _sanitize_cell(result.findings) or "-"
+        lines.append(
+            f"| #{result.number} | {title} | {verdict} | {labels_text} | {findings} |"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -144,6 +150,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="",
         help="Optional GitHub step summary file to append the markdown report to.",
     )
+    parser.add_argument(
+        "--expected-count",
+        type=int,
+        default=-1,
+        help="Expected number of result JSON files. Negative disables count validation.",
+    )
     return parser.parse_args(argv)
 
 
@@ -153,14 +165,21 @@ def main(argv: list[str] | None = None) -> int:
     if not results_dir.is_dir():
         # No artifacts can mean every matrix job failed; emit an empty-state
         # report so the summarize job still produces a reviewable artifact.
-        summary = render_summary([])
+        results = []
     else:
-        summary = render_summary(load_results(results_dir))
+        results = load_results(results_dir)
+    summary = render_summary(results)
     Path(args.output).write_text(summary, encoding="utf-8")
     if args.github_step_summary:
         with Path(args.github_step_summary).open("a", encoding="utf-8") as handle:
             handle.write(summary)
     print(f"Wrote backlog triage summary to {args.output}")
+    if args.expected_count >= 0 and len(results) != args.expected_count:
+        print(
+            f"Downloaded {len(results)} triage results, expected {args.expected_count}",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

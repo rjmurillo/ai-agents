@@ -34,17 +34,30 @@ def _result(
     title: str = "t",
     verdict: str = "PASS",
     labels: tuple[str, ...] = (),
+    findings: str = "",
 ) -> TriageResult:
-    return TriageResult(number=number, title=title, verdict=verdict, labels=labels)
+    return TriageResult(
+        number=number, title=title, verdict=verdict, labels=labels, findings=findings,
+    )
 
 
 class TestTriageResultFromRaw:
     def test_maps_full_payload(self):
         result = TriageResult.from_raw(
-            {"number": 9, "title": "x", "verdict": "WARN", "labels": ["area-x"]}
+            {
+                "number": 9,
+                "title": "x",
+                "verdict": "WARN",
+                "labels": ["area-x"],
+                "findings": "complexity: low",
+            }
         )
         assert result == TriageResult(
-            number=9, title="x", verdict="WARN", labels=("area-x",)
+            number=9,
+            title="x",
+            verdict="WARN",
+            labels=("area-x",),
+            findings="complexity: low",
         )
 
     def test_non_dict_returns_none(self):
@@ -62,6 +75,7 @@ class TestTriageResultFromRaw:
         assert result.title == ""
         assert result.verdict == "UNKNOWN"
         assert result.labels == ()
+        assert result.findings == ""
 
     def test_non_list_labels_default_empty(self):
         result = TriageResult.from_raw({"number": 1, "labels": "oops"})
@@ -101,10 +115,18 @@ class TestRenderSummary:
 
     def test_renders_table_row(self):
         text = render_summary(
-            [_result(number=42, title="Add it", verdict="PASS", labels=("area-x",))]
+            [
+                _result(
+                    number=42,
+                    title="Add it",
+                    verdict="PASS",
+                    labels=("area-x",),
+                    findings="complexity: low",
+                )
+            ]
         )
         assert "Issues triaged: 1" in text
-        assert "| #42 | Add it | PASS | area-x |" in text
+        assert "| #42 | Add it | PASS | area-x | complexity: low |" in text
 
     def test_missing_labels_renders_dash(self):
         text = render_summary([_result(number=1, title="t", verdict="WARN")])
@@ -133,7 +155,7 @@ class TestMain:
         rc = main(["--results-dir", str(results_dir), "--output", str(out)])
         assert rc == 0
         body = out.read_text()
-        assert "| #1 | t | PASS |" in body
+        assert "| #1 | t | PASS | - | - |" in body
         assert "summary" in capsys.readouterr().out
 
     def test_missing_dir_writes_empty_state(self, tmp_path: Path):
@@ -154,4 +176,17 @@ class TestMain:
             "--github-step-summary", str(step_summary),
         ])
         assert rc == 0
-        assert "| #1 | t | UNKNOWN | - |" in step_summary.read_text()
+        assert "| #1 | t | UNKNOWN | - | - |" in step_summary.read_text()
+
+    def test_expected_count_mismatch_returns_logic_error(self, tmp_path: Path, capsys):
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _write_result(results_dir, "r.json", {"number": 1, "title": "t"})
+        out = tmp_path / "summary.md"
+        rc = main([
+            "--results-dir", str(results_dir),
+            "--output", str(out),
+            "--expected-count", "2",
+        ])
+        assert rc == 1
+        assert "expected 2" in capsys.readouterr().err
