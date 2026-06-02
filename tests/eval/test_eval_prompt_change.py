@@ -792,14 +792,58 @@ class TestAcceptanceGate:
         assert gate["passed"] is True
         assert "S1" in gate["improvements"]
 
-    def test_no_improvement_below_one_fails(self):
+    def test_no_improvement_no_regression_passes(self):
+        # Issue #2197: a no-delta change that does not regress PASSES even when
+        # pre-existing scenarios fail on the base ref (before_score < 1.0 with
+        # zero improvements). has_improvement is reported but is not gating.
+        # This reverses the old test_no_improvement_below_one_fails assertion:
+        # the gate now blocks regressions, not edits that fail to improve.
         before = [self._r("S1", False), self._r("S2", False)]
         after = [self._r("S1", False), self._r("S2", False)]
         comp = self._comparison(before, after)
         comp["delta"] = 0.0
         gate = eval_mod.acceptance_gate(comp)
-        assert gate["passed"] is False
+        assert gate["passed"] is True
+        assert gate["verdict"] == "PASS"
+        assert gate["criteria"]["no_regression"] is True
+        assert gate["criteria"]["no_unexplained_regressions"] is True
+        # has_improvement remains informational and False here.
         assert gate["criteria"]["has_improvement"] is False
+
+    def test_partial_base_failure_no_delta_passes(self):
+        # Issue #2197 regression repro: base ref has 5/7 passing (D13/D14 fail),
+        # a doc-consistency edit changes nothing. before_score == after_score,
+        # no regression, zero improvements. Must PASS, not block.
+        before = [
+            self._r("D1", True), self._r("D6", True), self._r("D7", True),
+            self._r("D9", True), self._r("D12", True),
+            self._r("D13", False), self._r("D14", False),
+        ]
+        after = [
+            self._r("D1", True), self._r("D6", True), self._r("D7", True),
+            self._r("D9", True), self._r("D12", True),
+            self._r("D13", False), self._r("D14", False),
+        ]
+        comp = self._comparison(before, after)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp)
+        assert gate["passed"] is True
+        assert gate["improvements"] == []
+        assert gate["regressions"] == []
+
+    def test_fail_introducing_change_still_fails(self):
+        # A change that flips a passing scenario to fail must still FAIL the
+        # gate: after_score < before_score and the regression is recorded.
+        before = [self._r("S1", True), self._r("S2", True), self._r("S3", False)]
+        after = [self._r("S1", True), self._r("S2", False), self._r("S3", False)]
+        comp = self._comparison(before, after)
+        comp["delta"] = -1 / 3
+        gate = eval_mod.acceptance_gate(comp)
+        assert gate["passed"] is False
+        assert gate["verdict"] == "FAIL"
+        assert gate["criteria"]["no_regression"] is False
+        assert gate["criteria"]["no_unexplained_regressions"] is False
+        assert "S2" in gate["regressions"]
 
     def test_security_critical_requires_100_percent(self):
         before = [self._r("S1", True, pass_rate=1.0, runs=5)]
@@ -818,6 +862,30 @@ class TestAcceptanceGate:
         gate = eval_mod.acceptance_gate(comp, security_critical=True)
         assert gate["passed"] is True
         assert gate["criteria"]["security_all_runs_pass"] is True
+
+    def test_security_critical_no_improvement_full_pass_passes(self):
+        # Issue #2197: the relaxation does not weaken the security tier. A
+        # security-critical change with zero improvements still PASSES when it
+        # does not regress and every run passes (100% pass rate preserved).
+        before = [self._r("S1", True, pass_rate=1.0, runs=5)]
+        after = [self._r("S1", True, pass_rate=1.0, runs=5)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp, security_critical=True)
+        assert gate["passed"] is True
+        assert gate["criteria"]["security_all_runs_pass"] is True
+
+    def test_security_critical_partial_pass_still_blocks(self):
+        # Issue #2197: even with no regression (before==after score), a run
+        # that does not reach 100% pass rate MUST still block under the
+        # security tier. The 100%-pass requirement is untouched.
+        before = [self._r("S1", True, pass_rate=1.0, runs=5)]
+        after = [self._r("S1", True, pass_rate=0.6, runs=5)]
+        comp = self._comparison(before, after, before_score=1.0, after_score=1.0)
+        comp["delta"] = 0.0
+        gate = eval_mod.acceptance_gate(comp, security_critical=True)
+        assert gate["passed"] is False
+        assert gate["criteria"]["security_all_runs_pass"] is False
 
     def test_high_flakiness_fails_gate(self):
         # 30% pass rate => fail rate 70% > 40% threshold => blocked
@@ -1074,8 +1142,8 @@ class TestMainCLI:
         ])
         with pytest.raises(SystemExit) as exc:
             eval_mod.main()
-        # Gate passes because before==after==1.0 satisfies has_improvement
-        # via the before_score==1.0 clause
+        # Gate passes because before==after==1.0: no regression, no flip
+        # pass->fail (Issue #2197: improvement is not a hard requirement)
         assert exc.value.code == 0
         result = json.loads(out_path.read_text())
         assert result["gate"]["verdict"] == "PASS"

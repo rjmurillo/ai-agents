@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-06-01-session-1872",
+  "session": "2026-06-01-session-1872",
+  "timestamp": "2026-06-01T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue 2205: Copilot CLI hook commands resolved scripts via cwd-relative ./hooks/... and failed because cwd is the user's working directory, not the plugin install location",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-01T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Issue #2205: Copilot CLI preToolUse/sessionStart hooks failed on Windows with 'can't open file C:\\Users\\user\\hooks\\sessionStart\\...py: No such file or directory'. The generated hooks.json invoked scripts via python3 -u \"./hooks/<event>/<script>.py\" with cwd \".\", which Copilot CLI resolves against the user's working directory, not the vendored plugin install location.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-01T00:00:00+00:00",
+      "type": "test",
+      "content": "Real-world Copilot CLI plugins (prp-core, dx-core, nowledge-mem, worktale) anchor hook commands with ${COPILOT_PLUGIN_ROOT}; GitHub docs confirm Copilot exposes ${COPILOT_PLUGIN_DATA} with ${CLAUDE_PLUGIN_DATA} alias. pytest tests/build_scripts/test_generate_hooks.py -> 91 passed.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
