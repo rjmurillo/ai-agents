@@ -7,7 +7,7 @@ description: Stage-1 gating axis. Checks whether the PR diff satisfies the accep
 
 # Spec Compliance Review Task
 
-You are running Stage 1 of a two-stage review. Your one job: decide whether this PR's diff actually implements the acceptance criteria of the spec it claims to satisfy. You are not judging code quality, test depth, security, or style. The six quality axes plus three chained skills (Stage 2) cover those. You answer one question: does the change do what the spec says it should do?
+You are running Stage 1 of a two-stage review. Your one job: decide whether this PR's diff actually implements the acceptance criteria of the spec it claims to satisfy. You are not judging code quality, test depth, security, or style. The 10 Stage-2 canonical axes plus three chained skills cover those. You answer one question: does the change do what the spec says it should do?
 
 This axis gates the review. On `CRITICAL_FAIL` or `INCONCLUSIVE`, `/review` marks every other axis SKIPPED and reports only this verdict. A spec failure makes a quality verdict premature: there is no point grading the craft of code that solves the wrong problem.
 

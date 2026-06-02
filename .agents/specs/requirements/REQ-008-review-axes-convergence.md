@@ -32,17 +32,17 @@ CVA summary: 6 canonical axes share role identity, PR diff evaluation, structure
 
 ### Requirement Statement
 
-WHEN a maintainer commits `.claude/review-axes/{role}.md` for any of the six roles (analyst, architect, qa, security, devops, roadmap)
+WHEN a maintainer commits `.claude/skills/review/references/{role}.md` for any canonical role (spec-compliance, analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor)
 THE SYSTEM SHALL preserve YAML frontmatter fields `name`, `role`, `version`, `description` AND body sections `Grounding Rules`, `Analysis Focus Areas`, `Output Schema`
 SO THAT canonical axis files are self-contained and serve as the single source of truth for both local `/review` and generated CI prompts.
 
 ### Acceptance Criteria
 
-- [ ] Six files exist: `.claude/review-axes/analyst.md`, `.claude/review-axes/architect.md`, `.claude/review-axes/qa.md`, `.claude/review-axes/security.md`, `.claude/review-axes/devops.md`, `.claude/review-axes/roadmap.md`.
+- [ ] Eleven files exist under `.claude/skills/review/references/`: `spec-compliance.md`, `analyst.md`, `architect.md`, `qa.md`, `security.md`, `devops.md`, `roadmap.md`, `reliability.md`, `observability.md`, `agent-safety.md`, and `decision-rigor.md`.
 - [ ] Each file contains YAML frontmatter with keys: `name`, `role`, `version`, `description`.
 - [ ] Each file contains body sections titled exactly: `Grounding Rules`, `Analysis Focus Areas`, `Output Schema`.
 - [ ] `Output Schema` specifies fields: `severity`, `category`, `location`, `recommendation`, `verdict`.
-- [ ] `verdict` tokens authored by the agent in canonical Output Schema: `PASS`, `WARN`, `CRITICAL_FAIL`. The agent never authors `UNKNOWN` itself; `UNKNOWN` is reserved for `/review`'s parser when an axis output is unparseable. Parser-recognized token vocabulary (consumed by `extract_verdict` and `merge_verdicts`): `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `UNKNOWN`. Amended PR #1965 (cluster F) per critic Finding 3: original AC conflated authored vs parsed token sets.
+- [ ] `verdict` tokens authored by non-spec canonical axes in Output Schema: `PASS`, `WARN`, `CRITICAL_FAIL`. The `spec-compliance` axis MAY author `UNKNOWN` as the parseable token for INCONCLUSIVE when no spec is linked. For all other axes, `UNKNOWN` is reserved for `/review`'s parser when an axis output is unparseable. Parser-recognized token vocabulary (consumed by `extract_verdict` and `merge_verdicts`): `PASS`, `WARN`, `CRITICAL_FAIL`, `REJECTED`, `FAIL`, `NEEDS_REVIEW`, `UNKNOWN`. Amended PR #1965 (cluster F) per critic Finding 3: original AC conflated authored vs parsed token sets.
 - [ ] Schema-validation fixture at `tests/` asserts exact section-title strings (literal match, not substring): `"## Grounding Rules"`, `"## Analysis Focus Areas"`, `"## Output Schema"` must be present as level-2 headings in each canonical file. A maintainer renaming any section title fails CI.
 - [ ] Body content (Grounding Rules + Analysis Focus Areas sections) seeded from the corresponding `.github/prompts/pr-quality-gate-{role}.md` at time of creation. CI source files have no frontmatter and no Output Schema; these are added during seed, not copied verbatim. A migration-validation script (`scripts/validation/validate_seed_parity.py`) computes SHA-256 of the seeded body (excluding frontmatter and Output Schema) and compares against SHA-256 of the source CI prompt body; the script exits 1 if any mismatch. This script runs as part of TASK-008-01 and its output is attached to the PR.
 - [ ] No file under `.github/prompts/pr-quality-gate-{role}.md` is hand-edited after this feature ships; all edits flow through canonical.
