@@ -16,19 +16,12 @@ isolation and no test depends on a real state file.
 
 from __future__ import annotations
 
-import io
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK_DIR = REPO_ROOT / ".claude" / "hooks" / "PreToolUse"
@@ -144,7 +137,7 @@ class TestIsGatedTarget:
         monkeypatch.setattr(guard.Path, "relative_to", fake_relative_to)
         # Path is in-repo (so it passes the parents check) but relative_to raises.
         assert guard.is_gated_target(PY_TARGET, str(REPO_ROOT)) is False
-        setattr(guard.Path, "relative_to", real_relative_to)
+        guard.Path.relative_to = real_relative_to
 
 
 # ---------------------------------------------------------------------------
