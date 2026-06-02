@@ -27,6 +27,7 @@ from scripts.detect_scope_explosion import (
     get_staged_new_files,
     main,
     report,
+    resolve_base_ref,
 )
 
 if TYPE_CHECKING:
@@ -101,16 +102,72 @@ class TestGetCurrentBranch:
             assert result is None
 
 
+class TestResolveBaseRef:
+    """Tests for resolve_base_ref function (Issue #2207)."""
+
+    def test_prefers_origin_when_available(self) -> None:
+        # origin/main resolves -> use it (worktrees may have stale local main).
+        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="abc123\n", stderr=""
+            )
+            assert resolve_base_ref("main") == "origin/main"
+            # First (and only) probe should target origin/<base>.
+            first_call_args = mock_run.call_args_list[0].args[0]
+            assert "origin/main^{commit}" in first_call_args
+
+    def test_falls_back_to_local_when_origin_missing(self) -> None:
+        # origin/main missing, local main present.
+        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                subprocess.CompletedProcess(args=[], returncode=128, stdout="", stderr=""),
+                subprocess.CompletedProcess(args=[], returncode=0, stdout="abc123\n", stderr=""),
+            ]
+            assert resolve_base_ref("main") == "main"
+
+    def test_returns_none_when_neither_exists(self) -> None:
+        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=128, stdout="", stderr=""
+            )
+            assert resolve_base_ref("main") is None
+
+
 class TestGetMergeBase:
     """Tests for get_merge_base function."""
 
+    def test_returns_none_when_base_ref_unresolvable(self) -> None:
+        with patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value=None
+        ):
+            result = get_merge_base("main")
+            assert result is None
+
     def test_returns_none_on_failure(self) -> None:
-        with patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+        # resolve_base_ref succeeds, but merge-base itself fails.
+        with patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"
+        ), patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
             mock_run.return_value = subprocess.CompletedProcess(
                 args=[], returncode=1, stdout="", stderr=""
             )
             result = get_merge_base("main")
             assert result is None
+
+    def test_uses_resolved_ref_for_merge_base(self) -> None:
+        # Regression for Issue #2207: must hand origin/main (not bare main) to git merge-base
+        # so stale local main in worktrees doesn't poison the diff.
+        with patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"
+        ), patch("scripts.detect_scope_explosion.subprocess.run") as mock_run:
+            mock_run.return_value = subprocess.CompletedProcess(
+                args=[], returncode=0, stdout="deadbeef1234\n", stderr=""
+            )
+            result = get_merge_base("main")
+            assert result == "deadbeef1234"
+            cmd = mock_run.call_args.args[0]
+            assert cmd[:3] == ["git", "merge-base", "HEAD"]
+            assert cmd[3] == "origin/main"
 
 
 class TestGetChangedFiles:

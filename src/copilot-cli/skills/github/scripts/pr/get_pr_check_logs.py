@@ -340,9 +340,25 @@ def main(argv: list[str] | None = None) -> int:
         if payload.get("Number") and pr_number == 0:
             pr_number = payload["Number"]
 
+        checks_value = payload.get("Checks")
+        if checks_value is None:
+            checks_list = []
+        elif isinstance(checks_value, list):
+            checks_list = checks_value
+        else:
+            write_skill_error(
+                "Checks response contains malformed Checks payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
+
         failing_checks = [
-            c for c in payload.get("Checks", [])
-            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            c for c in checks_list
+            if isinstance(c, dict)
+            and c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
 
     elif pr_number > 0:
@@ -392,9 +408,25 @@ def main(argv: list[str] | None = None) -> int:
                 script_name="get_pr_check_logs.py",
             )
             return 3
+        checks_value = payload.get("Checks")
+        if checks_value is None:
+            checks_list = []
+        elif isinstance(checks_value, list):
+            checks_list = checks_value
+        else:
+            write_skill_error(
+                "Checks response contains malformed Checks payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
+
         failing_checks = [
-            c for c in payload.get("Checks", [])
-            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            c for c in checks_list
+            if isinstance(c, dict)
+            and c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
     else:
         write_skill_error(
