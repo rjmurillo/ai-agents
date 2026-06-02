@@ -268,19 +268,6 @@ Any of these means context pressure is high. Do not push through. Checkpoint.
 
 **Degrade, do not fail silently.** If you cannot complete the full orchestration within budget, deliver the partial synthesis with an explicit list of what was not covered. A smaller, coherent result with a named gap is worth more than a comprehensive result where the last three delegations were synthesized from a degraded context. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover delegations you never committed; the checkpoint is yours to make.
 
-**Budget estimation for task dispatch:**
-
-| Task complexity | Estimated context cost | Routing guidance |
-|-----------------|----------------------|------------------|
-| Typo / single-line fix | 5-10K tokens | Route to one agent, standard context |
-| Single-file change | 20-50K tokens | One or two agents, standard context |
-| Multi-file feature | 50-150K tokens | Plan before delegating, may need checkpoint |
-| Architecture change | 150K+ tokens | Pre-split into sub-tasks before dispatching |
-
-When estimated cost exceeds 60% of remaining budget, split the task before delegating. Return `[NEEDS_DECOMPOSITION]` with the sub-tasks listed rather than starting work that will hit the wall.
-
-**Pre-splitting example:** A task says "add retry logic to all 8 API callers." Estimated cost: ~120K tokens (one agent reads, understands, edits 8 files + writes 8 test files). Split into: (1) agent reads all 8 callers and produces a retry-plan document listing each caller and its integration point (~20K), (2) implementer applies the plan to callers 1-4 with tests (~40K), (3) implementer applies the plan to callers 5-8 with tests (~40K). Each sub-task fits within budget. The plan document from step 1 is the handoff artifact that survives across sub-tasks.
-
 ## Anti-Patterns
 
 | Avoid | Why | Instead |
