@@ -18,9 +18,9 @@ agent fixes the framing root cause before the per-thread fix loop begins.
 
 Pipeline:
 
-1. Fetch unresolved threads (delegated to the github skill's
-   ``get_unresolved_review_threads.py`` so the GraphQL/pagination logic is not
-   duplicated; see Integration Points in .claude/rules/release-it.md).
+1. Fetch unresolved threads with a clustering-specific GraphQL query that
+   selects path and first-comment body fields, then map nodes through
+   ``github_core.review_threads.transform_review_thread``.
 2. Extract a "gist" (a set of load-bearing tokens) from each thread's first
    comment body.
 3. Cluster threads whose gists overlap (Jaccard similarity at or above
@@ -243,9 +243,11 @@ def _identify_source_artifact(threads: list[Thread]) -> str | None:
         counts[path] = counts.get(path, 0) + 1
     if not counts:
         return None
-    # max() is stable over the insertion-ordered keys, so a tie keeps the
-    # first-seen path rather than depending on dict hash order.
-    return max(order, key=lambda path: counts[path])
+    max_count = max(counts.values())
+    winners = [path for path in order if counts[path] == max_count]
+    if len(winners) != 1:
+        return None
+    return winners[0]
 
 
 def _shared_tokens(threads: list[Thread]) -> list[str]:
@@ -310,13 +312,19 @@ def cluster_threads(
     count = len(threads)
     gists = [extract_gist(t.get("first_comment_body")) for t in threads]
 
+    token_to_indices: dict[str, set[int]] = {}
+    for index, gist in enumerate(gists):
+        for token in gist:
+            token_to_indices.setdefault(token, set()).add(index)
+
     uf = _UnionFind(count)
     for i in range(count):
         if not gists[i]:
             continue
-        for j in range(i + 1, count):
-            if not gists[j]:
-                continue
+        candidates: set[int] = set()
+        for token in gists[i]:
+            candidates.update(token_to_indices[token])
+        for j in sorted(candidate for candidate in candidates if candidate > i):
             if gist_similarity(gists[i], gists[j]) >= similarity_threshold:
                 uf.union(i, j)
 
@@ -383,6 +391,11 @@ query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
 }"""
 
 
+def _fail_fetch(message: str, pull_request: int) -> None:
+    print(f"Could not fetch review threads for PR {pull_request}: {message}", file=sys.stderr)
+    sys.exit(3)
+
+
 def _fetch_unresolved_threads_with_clients(
     owner: str,
     repo: str,
@@ -408,22 +421,18 @@ def _fetch_unresolved_threads_with_clients(
         try:
             data = gh_graphql(_REVIEW_THREADS_FOR_CLUSTERING_QUERY, variables)
         except RuntimeError as exc:
-            print(
-                f"Could not fetch review threads for PR {pull_request}: {exc}",
-                file=sys.stderr,
-            )
-            sys.exit(3)
+            _fail_fetch(str(exc), pull_request)
 
         repository = data.get("repository") or {}
         pr_obj = repository.get("pullRequest")
         if not isinstance(pr_obj, dict):
-            break
+            _fail_fetch("missing pullRequest", pull_request)
         review_threads = pr_obj.get("reviewThreads")
         if not isinstance(review_threads, dict):
-            break
+            _fail_fetch("missing reviewThreads", pull_request)
         nodes = review_threads.get("nodes")
         if not isinstance(nodes, list):
-            break
+            _fail_fetch("missing reviewThreads nodes", pull_request)
 
         aggregated.extend(node for node in nodes if isinstance(node, dict))
 
@@ -432,8 +441,10 @@ def _fetch_unresolved_threads_with_clients(
             break
         cursor_obj = page_info.get("endCursor")
         if not isinstance(cursor_obj, str) or not cursor_obj:
-            break
+            _fail_fetch("missing pagination cursor", pull_request)
         cursor = cursor_obj
+    else:
+        _fail_fetch("pagination exceeded 50 pages", pull_request)
 
     unresolved = filter_unresolved_threads(aggregated)
     return [
@@ -522,6 +533,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _project_root() -> "Path":
+    from pathlib import Path
+    import os
+
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        root = Path(workspace).resolve()
+        if (root / "pyproject.toml").is_file():
+            return root
+
+    for candidate in Path(__file__).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+
+    print("Could not locate project root.", file=sys.stderr)
+    sys.exit(2)
+
+
 def _load_threads_from_file(path: str) -> list[Thread]:
     """Read threads from a JSON file (list or ``{"threads": [...]}``).
 
@@ -534,19 +563,20 @@ def _load_threads_from_file(path: str) -> list[Thread]:
     from pathlib import Path
 
     requested_path = Path(path)
+    project_root = _project_root()
     if requested_path.is_absolute():
-        threads_path = requested_path
-    else:
-        project_root = Path(__file__).resolve().parents[4]
-        threads_path = (project_root / requested_path).resolve()
-        try:
-            threads_path.relative_to(project_root)
-        except ValueError:
-            print(
-                f"Threads file {path} escapes project root.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+        print("Threads file must be repository-relative.", file=sys.stderr)
+        sys.exit(2)
+
+    threads_path = (project_root / requested_path).resolve()
+    try:
+        threads_path.relative_to(project_root)
+    except ValueError:
+        print(
+            f"Threads file {path} escapes project root.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     try:
         raw = json.loads(threads_path.read_text(encoding="utf-8"))

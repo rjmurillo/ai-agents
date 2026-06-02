@@ -21,6 +21,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 
@@ -34,6 +35,19 @@ def _load_module():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def _repo_root() -> Path:
+    for candidate in Path(_SCRIPT).resolve().parents:
+        if (candidate / "pyproject.toml").is_file():
+            return candidate
+    raise AssertionError("repo root not found")
+
+
+def _write_repo_threads_file(name: str, payload: object) -> tuple[str, Path]:
+    absolute_path = _repo_root() / f".cluster-threads-{name}.json"
+    absolute_path.write_text(json.dumps(payload), encoding="utf-8")
+    return absolute_path.name, absolute_path
 
 
 def _thread(thread_id: str, path: str, body: str) -> dict:
@@ -197,14 +211,13 @@ class TestClusterThreadsPr1897Regression:
         # 8 asymmetry + 2 harmful + 3 session-log + 1 aggregate + 2 evidence.
         assert report["thread_count"] == 16
 
-    def test_source_artifact_points_at_a_clustered_path(self):
+    def test_source_artifact_is_none_when_cluster_paths_tie(self):
         mod = _load_module()
         report = mod.cluster_threads(PR_1897_ROUND7_THREADS)
         top = report["clusters"][0]
-        # Every asymmetry thread lives under templates/agents/; the named
-        # artifact is one of those eight paths, not a non-cluster path.
-        assert top["source_artifact"] in top["paths"]
-        assert top["source_artifact"].startswith("templates/agents/")
+        # The asymmetry fixture spans eight paths with no winning file path, so
+        # returning None avoids steering the agent into an arbitrary file patch.
+        assert top["source_artifact"] is None
 
 
 class TestClusterThreadsThreshold:
@@ -278,13 +291,13 @@ class TestSourceArtifactIdentification:
         threads = [{"first_comment_body": "x"}, {"path": None, "first_comment_body": "y"}]
         assert mod._identify_source_artifact(threads) is None
 
-    def test_tie_keeps_first_seen_path(self):
+    def test_tie_returns_none(self):
         mod = _load_module()
         threads = [
             _thread("t0", "first.py", "a"),
             _thread("t1", "second.py", "b"),
         ]
-        assert mod._identify_source_artifact(threads) == "first.py"
+        assert mod._identify_source_artifact(threads) is None
 
 
 class TestTransitiveClustering:
@@ -313,60 +326,78 @@ class TestCli:
             input=input_text,
         )
 
-    def test_threads_file_path_produces_report(self, tmp_path):
-        threads_file = tmp_path / "threads.json"
-        threads_file.write_text(
-            json.dumps({"threads": PR_1897_ROUND7_THREADS}), encoding="utf-8",
+    def test_threads_file_path_produces_report(self):
+        relative_path, absolute_path = _write_repo_threads_file(
+            "object", {"threads": PR_1897_ROUND7_THREADS},
         )
-        result = self._run(
-            ["--pull-request", "1897", "--threads-file", str(threads_file)],
-        )
+        try:
+            result = self._run(
+                ["--pull-request", "1897", "--threads-file", relative_path],
+            )
+        finally:
+            absolute_path.unlink(missing_ok=True)
         assert result.returncode == 0
         report = json.loads(result.stdout)
         assert report["pull_request"] == 1897
         assert report["warning"] is True
         assert 8 in [c["size"] for c in report["clusters"]]
 
-    def test_bare_list_threads_file_is_accepted(self, tmp_path):
-        threads_file = tmp_path / "threads.json"
-        threads_file.write_text(
-            json.dumps(PR_1897_ROUND7_THREADS), encoding="utf-8",
+    def test_bare_list_threads_file_is_accepted(self):
+        relative_path, absolute_path = _write_repo_threads_file(
+            "list", PR_1897_ROUND7_THREADS,
         )
-        result = self._run(
-            ["--pull-request", "1897", "--threads-file", str(threads_file)],
-        )
+        try:
+            result = self._run(
+                ["--pull-request", "1897", "--threads-file", relative_path],
+            )
+        finally:
+            absolute_path.unlink(missing_ok=True)
         assert result.returncode == 0
         report = json.loads(result.stdout)
         assert report["thread_count"] == 16
 
-    def test_nonpositive_pull_request_exits_2(self, tmp_path):
-        threads_file = tmp_path / "threads.json"
-        threads_file.write_text("[]", encoding="utf-8")
+    def test_nonpositive_pull_request_exits_2(self):
+        relative_path, absolute_path = _write_repo_threads_file("empty", [])
+        try:
+            result = self._run(
+                ["--pull-request", "0", "--threads-file", relative_path],
+            )
+        finally:
+            absolute_path.unlink(missing_ok=True)
+        assert result.returncode == 2
+
+    def test_absolute_threads_file_exits_2(self):
         result = self._run(
-            ["--pull-request", "0", "--threads-file", str(threads_file)],
+            ["--pull-request", "1897", "--threads-file", str(_repo_root() / "x.json")],
         )
         assert result.returncode == 2
 
     def test_missing_threads_file_exits_2(self):
         result = self._run(
-            ["--pull-request", "1897", "--threads-file", "/no/such/file.json"],
+            ["--pull-request", "1897", "--threads-file", "no-such-file.json"],
         )
         assert result.returncode == 2
 
-    def test_malformed_threads_file_exits_2(self, tmp_path):
-        threads_file = tmp_path / "threads.json"
-        threads_file.write_text("{not json", encoding="utf-8")
-        result = self._run(
-            ["--pull-request", "1897", "--threads-file", str(threads_file)],
-        )
+    def test_malformed_threads_file_exits_2(self):
+        relative_path, absolute_path = _write_repo_threads_file("malformed", "{not json")
+        try:
+            result = self._run(
+                ["--pull-request", "1897", "--threads-file", relative_path],
+            )
+        finally:
+            absolute_path.unlink(missing_ok=True)
         assert result.returncode == 2
 
-    def test_threads_file_wrong_shape_exits_2(self, tmp_path):
-        threads_file = tmp_path / "threads.json"
-        threads_file.write_text(json.dumps({"threads": 42}), encoding="utf-8")
-        result = self._run(
-            ["--pull-request", "1897", "--threads-file", str(threads_file)],
+    def test_threads_file_wrong_shape_exits_2(self):
+        relative_path, absolute_path = _write_repo_threads_file(
+            "wrong-shape", {"threads": 42},
         )
+        try:
+            result = self._run(
+                ["--pull-request", "1897", "--threads-file", relative_path],
+            )
+        finally:
+            absolute_path.unlink(missing_ok=True)
         assert result.returncode == 2
 
     def test_missing_required_pull_request_exits_2(self):
@@ -440,6 +471,21 @@ class TestFetchUnresolvedThreads:
 
         def fake_graphql(query, variables):
             raise RuntimeError("network down")
+
+        try:
+            mod._fetch_unresolved_threads_with_clients(
+                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+            )
+        except SystemExit as exc:
+            assert exc.code == 3
+        else:
+            raise AssertionError("expected SystemExit")
+
+    def test_malformed_payload_exits_3(self):
+        mod = _load_module()
+
+        def fake_graphql(query, variables):
+            return {"repository": {"pullRequest": {"reviewThreads": {"nodes": None}}}}
 
         try:
             mod._fetch_unresolved_threads_with_clients(
