@@ -19,4 +19,4 @@ For any generator that emits a customer-facing artifact (plugin hooks.json, copi
 
 Before merging a generator or generated-artifact change, ask: if this artifact is wrong, does the customer get a degraded feature or a wedged environment? If wedged, the four steps above are mandatory.
 
-Related: `mem:feedback-hook-fail-open-architectural-layer`, `mem:decision-copilot-cli-hook-plugin-root-contract`.
+Related: `mem:decision-copilot-cli-hook-plugin-root-contract`.
