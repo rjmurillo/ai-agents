@@ -9,7 +9,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "build" / "scripts" / "check_plugin_manifest_parity.py"
-_WRAPPER = REPO_ROOT / "tests" / "_parity_helper_wrapper.py"
 
 
 def _make_wrapper(tmp_path: Path, *, claude_ver: str, copilot_ver: str) -> Path:
