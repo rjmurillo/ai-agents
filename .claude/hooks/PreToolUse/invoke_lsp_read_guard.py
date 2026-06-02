@@ -47,6 +47,11 @@ Stricter/looser/different than canonical
   read 4+ with ``nav_count < 2`` is a HARD BLOCK (the kit's "1 nav unlocks 4-5"
   middle step is dropped). Surgical (``nav_count >= 2``) allows all. This is
   STRICTER on reads 4-5 (the kit allowed them after 1 nav; this requires 2).
+  The Soft-warn tier therefore covers read 3 with ``nav_count < NAV_REQUIRED``
+  (nav 0 or 1), not only ``nav_count == 0``: hard-block starts at read 4
+  (``next_read_num > WARN_AT``), so read 3 always warns and allows (issue #2200).
+  This is LOOSER on read 3 than the kit, which blocks read 3 once nav>=1 leaves
+  its warn branch.
 - DIFFERENT conditioning: the kit gates by hard-coded code-extension regex and
   unconditionally blocks Warmup on any code file. This port gates ONLY when an
   overview-capable provider exists for the file type (``detect_providers`` non
@@ -229,8 +234,11 @@ def evaluate(file_path: str, project_dir: str) -> tuple[int, str | None]:
         _note(f"free-read {next_read_num}/{FREE_READS}, allow: {file_path}")
         return 0, None
 
-    # Soft-warn tier: read WARN_AT with no nav yet -> advisory, still allow.
-    if next_read_num == WARN_AT and nav_count == 0:
+    # Soft-warn tier: read WARN_AT with nav below NAV_REQUIRED -> advisory, still
+    # allow. ADR-062 Section 3 hard-blocks from read 4 (next_read_num > WARN_AT);
+    # read 3 with one nav must warn, not block (issue #2200). nav_count >=
+    # NAV_REQUIRED is already short-circuited by the surgical tier above.
+    if next_read_num == WARN_AT and nav_count < NAV_REQUIRED:
         _emit_warn(build_warn_message(file_path, next_read_num))
         _note(f"soft-warn read {next_read_num}, allow: {file_path}")
         return 0, None
