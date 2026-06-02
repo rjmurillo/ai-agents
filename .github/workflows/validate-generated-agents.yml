@@ -167,10 +167,10 @@ jobs:
         # `src/copilot-cli/.claude-plugin/plugin.json` must declare
         # identical `version` fields. Prevents the drift class where
         # one manifest bumps version but the other is forgotten.
-        # Exits 2 on mismatch, 0 on parity.
+        # Exits 1 on mismatch, 2 on malformed input, 0 on parity.
         run: |
-          echo "Running validate_plugin_manifests_version_parity.py..."
-          python3 build/scripts/validate_plugin_manifests_version_parity.py
+          echo "Running check_plugin_manifest_parity.py..."
+          python3 build/scripts/check_plugin_manifest_parity.py
 
       - name: Validate GitHub Actions SHA Pinning
         if: steps.should-run.outputs.skip != 'true'
