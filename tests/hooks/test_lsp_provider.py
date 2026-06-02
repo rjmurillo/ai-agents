@@ -461,3 +461,71 @@ class TestRepresentativeExtension:
             "python",
             "typescript",
         }
+
+
+# ---------------------------------------------------------------------------
+# Issue #2198: repo-level programming-provider probe (repo-wide grep gating)
+# ---------------------------------------------------------------------------
+
+
+class TestRepoHasProgrammingProvider:
+    def test_true_with_serena_python_file(self, tmp_path):
+        # A repo with python configured + serena MCP + a present .py file has a
+        # programming-language provider, so a repo-wide grep should gate.
+        _configured_project(tmp_path, ["python"])
+        (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is True
+
+    def test_true_via_native_lsp_without_serena(self, tmp_path):
+        # No serena MCP and an empty serena language list, but a .py file is
+        # navigable by the native LSP tier (no config needed).
+        _configured_project(tmp_path, [], serena=False)
+        (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is True
+
+    def test_true_via_native_lsp_only_extension_without_serena(self, tmp_path):
+        _configured_project(tmp_path, [], serena=False)
+        (tmp_path / "main.go").write_text("package main\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is True
+        assert lsp_provider.repo_programming_providers(str(tmp_path)) == ["native_lsp"]
+
+    def test_scan_limit_counts_only_programming_candidates(self, tmp_path, monkeypatch):
+        _configured_project(tmp_path, ["python"])
+        monkeypatch.setattr(lsp_provider, "_SCAN_FILE_LIMIT", 1)
+        for index in range(5):
+            (tmp_path / f"note-{index}.md").write_text("# note\n", encoding="utf-8")
+        (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is True
+
+    def test_false_when_no_programming_file_present(self, tmp_path):
+        # Configured + serena, but only markdown files present: markdown is not a
+        # programming language, so no symbol-navigation provider is active.
+        _configured_project(tmp_path, ["python", "markdown"])
+        (tmp_path / "README.md").write_text("# hi\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is False
+
+    def test_false_for_empty_dir(self, tmp_path):
+        _configured_project(tmp_path, ["python"])
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is False
+
+    def test_false_for_missing_project_dir(self, tmp_path):
+        missing = tmp_path / "does-not-exist"
+        assert lsp_provider.repo_has_programming_provider(str(missing)) is False
+
+    def test_false_for_empty_string(self):
+        assert lsp_provider.repo_has_programming_provider("") is False
+
+    def test_skips_vendored_directories(self, tmp_path):
+        # A .py file only under node_modules must not count: that tree is skipped.
+        _configured_project(tmp_path, ["python"])
+        vendored = tmp_path / "node_modules" / "pkg"
+        vendored.mkdir(parents=True)
+        (vendored / "mod.py").write_text("x = 1\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is False
+
+    def test_false_when_serena_present_but_no_mcp(self, tmp_path):
+        # Serena is unavailable and no programming-language files are present, so
+        # the repo-wide provider probe returns False and the guard fails open.
+        _configured_project(tmp_path, ["python"], serena=False)
+        (tmp_path / "notes.toml").write_text("a = 1\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is False
