@@ -114,6 +114,10 @@ class TestRenderSummary:
         text = render_summary([_result(number=1, title="a | b")])
         assert "a \\| b" in text
 
+    def test_backslash_before_pipe_is_preserved_as_text(self):
+        text = render_summary([_result(number=1, title="a \\ | b")])
+        assert "a \\\\ \\| b" in text
+
     def test_newline_in_title_is_collapsed(self):
         text = render_summary([_result(number=1, title="line1\nline2")])
         assert "line1 line2" in text
@@ -137,3 +141,17 @@ class TestMain:
         rc = main(["--results-dir", str(tmp_path / "absent"), "--output", str(out)])
         assert rc == 0
         assert "No issues were triaged" in out.read_text()
+
+    def test_appends_to_github_step_summary(self, tmp_path: Path):
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _write_result(results_dir, "r.json", {"number": 1, "title": "t"})
+        out = tmp_path / "summary.md"
+        step_summary = tmp_path / "step-summary.md"
+        rc = main([
+            "--results-dir", str(results_dir),
+            "--output", str(out),
+            "--github-step-summary", str(step_summary),
+        ])
+        assert rc == 0
+        assert "| #1 | t | UNKNOWN | - |" in step_summary.read_text()

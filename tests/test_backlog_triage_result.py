@@ -13,6 +13,7 @@ import pytest
 
 from scripts.backlog_triage_result import (
     MAX_FINDINGS_CHARS,
+    TRUNCATION_SUFFIX,
     build_result,
     main,
     parse_labels,
@@ -85,11 +86,11 @@ class TestBuildResult:
         with pytest.raises(ValueError, match="must be positive"):
             build_result({"ISSUE_NUMBER": "0"})
 
-    def test_truncates_long_findings(self):
+    def test_truncates_long_findings_to_max_length(self):
         long_text = "x" * (MAX_FINDINGS_CHARS + 100)
         result = build_result({"ISSUE_NUMBER": "1", "AI_FINDINGS": long_text})
-        assert result["findings"].endswith("... (truncated)")
-        assert len(result["findings"]) == MAX_FINDINGS_CHARS + len("... (truncated)")
+        assert result["findings"].endswith(TRUNCATION_SUFFIX)
+        assert len(result["findings"]) == MAX_FINDINGS_CHARS
 
 
 class TestMain:

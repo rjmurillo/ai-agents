@@ -8,8 +8,7 @@ Read-only: produces a report for human review. Suggests labels and complexity;
 applies nothing and closes nothing.
 
 Exit codes follow ADR-035:
-    0 - Success (an empty results dir yields an empty-state report, still 0)
-    2 - Config error (results dir missing or unreadable)
+    0 - Success (an empty or missing results dir yields an empty-state report)
 """
 
 from __future__ import annotations
@@ -119,7 +118,13 @@ def _sanitize_cell(text: str) -> str:
     hardening, not a security boundary; the values never reach a shell.
     """
 
-    return text.replace("|", "\\|").replace("\n", " ").replace("\r", " ").strip()
+    return (
+        text.replace("\\", "\\\\")
+        .replace("|", "\\|")
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .strip()
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -134,6 +139,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output", required=True,
         help="Path to write the markdown summary.",
     )
+    parser.add_argument(
+        "--github-step-summary",
+        default="",
+        help="Optional GitHub step summary file to append the markdown report to.",
+    )
     return parser.parse_args(argv)
 
 
@@ -147,6 +157,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         summary = render_summary(load_results(results_dir))
     Path(args.output).write_text(summary, encoding="utf-8")
+    if args.github_step_summary:
+        with Path(args.github_step_summary).open("a", encoding="utf-8") as handle:
+            handle.write(summary)
     print(f"Wrote backlog triage summary to {args.output}")
     return 0
 

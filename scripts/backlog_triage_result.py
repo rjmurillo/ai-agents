@@ -13,7 +13,7 @@ Input env vars (set by the workflow matrix step):
     AI_LABELS     Suggested labels as a JSON array string (area routing).
     AI_FINDINGS   Raw model output (complexity + routing rationale).
 
-Output: ``/tmp/backlog-triage-result.json`` (override with --output).
+Output: ``backlog-triage-result.json`` in the current directory (override with --output).
 
 Exit codes follow ADR-035:
     0 - Success
@@ -28,8 +28,9 @@ import os
 import sys
 from pathlib import Path
 
-DEFAULT_OUTPUT = "/tmp/backlog-triage-result.json"
+DEFAULT_OUTPUT = "backlog-triage-result.json"
 MAX_FINDINGS_CHARS = 4000
+TRUNCATION_SUFFIX = "... (truncated)"
 
 
 def parse_labels(raw: str) -> list[str]:
@@ -68,7 +69,8 @@ def build_result(env: dict[str, str]) -> dict[str, object]:
 
     findings = env.get("AI_FINDINGS") or ""
     if len(findings) > MAX_FINDINGS_CHARS:
-        findings = findings[:MAX_FINDINGS_CHARS] + "... (truncated)"
+        prefix_length = MAX_FINDINGS_CHARS - len(TRUNCATION_SUFFIX)
+        findings = findings[:prefix_length] + TRUNCATION_SUFFIX
 
     return {
         "number": number,
