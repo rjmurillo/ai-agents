@@ -1,6 +1,6 @@
 {
   "name": "project-toolkit",
-  "description": "24 agent definitions, 81 reusable skills, 52 lifecycle hooks for GitHub Copilot CLI workflows",
+  "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and reusable skills for Claude Code workflows",
   "version": "0.5.19",
   "author": {
     "name": "rjmurillo"
