@@ -52,11 +52,11 @@ All five commits live on `feat/skill-eval-triage`. SHAs and load-bearing message
 
 | # | SHA | Title | What it fixed |
 |---|-----|-------|---------------|
-| 1 | `7993ed9f` | `test(evals): convert deleted-skill triage prompts to negative-routing fixtures` | CI QA gate (Gate 1, F1) and analyst gate (F1, F5) flagged `tests/evals/skills/triage-prompts.json`: 18 expected-answer strings recommended deleted skills (workflow, doc-coverage, doc-sync) to evaluators as if active. Rewrote all 18 plus 2 codebase-documenter cross-references to redirect callers to `doc-accuracy` or lifecycle slash commands. Refs #1932. |
-| 2 | `f937a114` | `docs(doc-accuracy): clarify description as canonical replacement for deleted skills` | CI QA gate F3 and analyst gate F5 flagged stale present-tense phrasing in `doc-accuracy/SKILL.md`. Reworded to past-tense lineage referencing the 2026-05-09 M1 prune. Mirrored to `src/copilot-cli/skills/` and `docs/SKILL-AUTHORING.md` per the canonical-source-mirror rule. Also fixed pre-existing MD040 lint errors (fenced blocks missing a `text` language identifier). |
-| 3 | `a3c82a66` | `docs(spec): REQ-006 AC5 verifiable mechanism + Deferred section + session 1828 log` | CI QA gate F2 flagged REQ-006-AC5 naming a non-existent hook and script (`build/scripts/detect_skill_drift.py`). Repointed AC5 at the real mechanism: round-trip idempotence of `build/scripts/generate_skills.py`. Roadmap gate flagged deferred follow-ups listed in the session log but not in REQ-006; added a Deferred section. Session 1828 log included for the session-protocol gate. |
-| 4 | `adfe9f5d` | `docs(adr): ADR-040 + plugin.json + PLAN factual corrections from /pr-quality:all` | Three factual corrections (architect Important, analyst F3, roadmap WARN): ADR-040:119 listed `doc-sync` (deleted) at count 12 (44.4%), corrected to 11 skills (42.3%); `plugin.json` named literal "23 agents, 23 slash commands, 35 lifecycle hooks, 69 reusable skills", all four stale (real 25/24/30/67), so numeric assertions were dropped; PLAN Decision Log gap filled. |
-| 5 | `4e077b50` | `docs(adr): Round 2 fixes - ADR-040 percentage consistency + fixture hedge` | Round 2 surfaced regressions from the Round 1 fixes: ADR-040 Tier 2 had been recalculated to 42.3% (/26 denominator) while Tier 1 (40.7%) and Tier 3 (14.8%) still used /27; rows summed to 97.8% with mixed denominators. Recalculated all three tiers to /26 (42.3% / 42.3% / 15.4%, sum 100%). Added inline caveats on historical S356 counts. Removed hedging language from an eval fixture. |
+| 1 | 7993ed9f | `test(evals): convert deleted-skill triage prompts to negative-routing fixtures` | CI QA gate (Gate 1, F1) and analyst gate (F1, F5) flagged `tests/evals/skills/triage-prompts.json`: 18 expected-answer strings recommended deleted skills (workflow, doc-coverage, doc-sync) to evaluators as if active. Rewrote all 18 plus 2 codebase-documenter cross-references to redirect callers to `doc-accuracy` or lifecycle slash commands. Refs #1932. |
+| 2 | f937a114 | `docs(doc-accuracy): clarify description as canonical replacement for deleted skills` | CI QA gate F3 and analyst gate F5 flagged stale present-tense phrasing in `doc-accuracy/SKILL.md`. Reworded to past-tense lineage referencing the 2026-05-09 M1 prune. Mirrored to `src/copilot-cli/skills/` and `docs/SKILL-AUTHORING.md` per the canonical-source-mirror rule. Also fixed pre-existing MD040 lint errors (fenced blocks missing a `text` language identifier). |
+| 3 | a3c82a66 | `docs(spec): REQ-006 AC5 verifiable mechanism + Deferred section + session 1828 log` | CI QA gate F2 flagged REQ-006-AC5 naming a non-existent hook and script (`build/scripts/detect_skill_drift.py`). Repointed AC5 at the real mechanism: round-trip idempotence of `build/scripts/generate_skills.py`. Roadmap gate flagged deferred follow-ups listed in the session log but not in REQ-006; added a Deferred section. Session 1828 log included for the session-protocol gate. |
+| 4 | adfe9f5d | `docs(adr): ADR-040 + plugin.json + PLAN factual corrections from /pr-quality:all` | Three factual corrections (architect Important, analyst F3, roadmap WARN): ADR-040:119 listed `doc-sync` (deleted) at count 12 (44.4%), corrected to 11 skills (42.3%); `plugin.json` named literal "23 agents, 23 slash commands, 35 lifecycle hooks, 69 reusable skills", all four stale (real 25/24/30/67), so numeric assertions were dropped; PLAN Decision Log gap filled. |
+| 5 | 4e077b50 | `docs(adr): Round 2 fixes - ADR-040 percentage consistency + fixture hedge` | Round 2 surfaced regressions from the Round 1 fixes: ADR-040 Tier 2 had been recalculated to 42.3% (/26 denominator) while Tier 1 (40.7%) and Tier 3 (14.8%) still used /27; rows summed to 97.8% with mixed denominators. Recalculated all three tiers to /26 (42.3% / 42.3% / 15.4%, sum 100%). Added inline caveats on historical S356 counts. Removed hedging language from an eval fixture. |
 
 ### Round 1 adversarial verdicts (after `/review` PASS)
 
@@ -86,9 +86,9 @@ Round 2 surfaced 4 NEW regressions, all inside the Round 1 fixes. The denominato
 
 1. **`/build` through `/review`**: the M1 prune deleted skills (workflow, doc-coverage, doc-sync) and authored or edited fixtures, a SKILL.md description, REQ-006, ADR-040, and plugin.json. Several of those artifacts still described the pre-prune catalog. `/review` returned PASS or WARN-only on every axis.
 2. **Ad-hoc `/pr-quality:all` after `/review`**: invoked by hand as a sanity check. qa returned BLOCKED, analyst and roadmap WARN, architect PASS-with-2-low. 12 findings total. The local gate and the backstop disagreed.
-3. **Round 1 fixes (`7993ed9f`, `f937a114`, `a3c82a66`, `adfe9f5d`)**: addressed the 12 findings. One fix (commit 4) recalculated one cell of the ADR-040 percentage table.
+3. **Round 1 fixes (7993ed9f, f937a114, a3c82a66, adfe9f5d)**: addressed the 12 findings. One fix (commit 4) recalculated one cell of the ADR-040 percentage table.
 4. **`/pr-quality:all` Round 2**: caught that the single-cell recalculation had left the table internally inconsistent (mixed /26 and /27 denominators), plus a hedging-language regression in the eval fixture.
-5. **Round 2 fix (`4e077b50`)**: recomputed the entire table to a single denominator and removed the hedge. Clean.
+5. **Round 2 fix (4e077b50)**: recomputed the entire table to a single denominator and removed the hedge. Clean.
 
 ---
 
@@ -124,11 +124,11 @@ The Round 1 ADR-040 fix changed one tier's percentage to a new denominator (/26)
 
 | Affected area | Severity | Impact |
 |---------------|----------|--------|
-| Eval harness honesty | High | 18 expected-answer strings in `triage-prompts.json` recommended deleted skills to evaluators; the eval contract scored old-name references incorrectly until `7993ed9f`. |
-| ADR-040 factual accuracy | Medium | Tier enumeration and percentage table named a deleted skill and, after a partial fix, summed to 97.8% with inconsistent denominators. Two commits (`adfe9f5d`, `4e077b50`) to reach a consistent table. |
-| Spec enforceability | Medium | REQ-006 AC5 named a non-existent hook and script; the acceptance criterion was unverifiable until repointed at `generate_skills.py` idempotence (`a3c82a66`). |
-| Plugin manifest accuracy | Low | `plugin.json` carried four stale literal counts (23/23/35/69 vs real 25/24/30/67); numeric assertions dropped to stop future drift (`adfe9f5d`). |
-| Documentation lineage | Low | `doc-accuracy/SKILL.md` and its mirrors used present tense for deleted-skill replacement; reworded to past-tense lineage (`f937a114`). |
+| Eval harness honesty | High | 18 expected-answer strings in `triage-prompts.json` recommended deleted skills to evaluators; the eval contract scored old-name references incorrectly until 7993ed9f. |
+| ADR-040 factual accuracy | Medium | Tier enumeration and percentage table named a deleted skill and, after a partial fix, summed to 97.8% with inconsistent denominators. Two commits (adfe9f5d, 4e077b50) to reach a consistent table. |
+| Spec enforceability | Medium | REQ-006 AC5 named a non-existent hook and script; the acceptance criterion was unverifiable until repointed at `generate_skills.py` idempotence (a3c82a66). |
+| Plugin manifest accuracy | Low | `plugin.json` carried four stale literal counts (23/23/35/69 vs real 25/24/30/67); numeric assertions dropped to stop future drift (adfe9f5d). |
+| Documentation lineage | Low | `doc-accuracy/SKILL.md` and its mirrors used present tense for deleted-skill replacement; reworded to past-tense lineage (f937a114). |
 | Iteration cost | High | 5 commits across 2 adversarial rounds, with Round 2 introducing 4 regressions, where upfront re-read at `/build` time would have carried near-zero marginal cost. |
 
 ---
@@ -154,8 +154,8 @@ Every follow-up below is tracked by a child of epic #1933 or by an existing arti
 | Promote review concepts to vendor-safe `.claude/` paths | #1936 (Child 3), #1937 (Child 4) | Tracked |
 | `/ship` collapses to "did /review pass on this SHA?" so the strict local gate is the gate that ships | #1938 (Child 5) | Tracked |
 | `orphan-ref-validator` skill: catch text that names a deleted skill or stale count at write time | #1939 (Child 6), #1994 (Child 6 PR2: `--enforce-counts`, broad script-path, `/test` Gate 5 wiring) | Tracked; skill exists at `.claude/skills/orphan-ref-validator/` |
-| ADR-040 staleness was the proximate trigger for the architect and analyst findings | `.agents/architecture/ADR-040-skill-frontmatter-standardization.md` | Corrected in `adfe9f5d`, `4e077b50` |
-| Eval-harness orphan detection (longer-term fix for the deleted-skill fixture problem) | #1932 (referenced by `7993ed9f`) | Tracked |
+| ADR-040 staleness was the proximate trigger for the architect and analyst findings | `.agents/architecture/ADR-040-skill-frontmatter-standardization.md` | Corrected in adfe9f5d, 4e077b50 |
+| Eval-harness orphan detection (longer-term fix for the deleted-skill fixture problem) | #1932 (referenced by 7993ed9f) | Tracked |
 
 The canonical-source-mirror rule (`.claude/rules/canonical-source-mirror.md`) already encodes the FM-9 prevention pattern for "match/mirror/align" claims. The gap this PR exposed is that the rule did not yet bind skill-catalog references the way `orphan-ref-validator` (#1939) will.
 
