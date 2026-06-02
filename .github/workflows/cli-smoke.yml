@@ -135,8 +135,7 @@ jobs:
           npm init -y | Out-Null
           npm install --silent "$env:TARBALL" | Out-Null
           New-Item -ItemType Directory -Path demo | Out-Null
-          $bin = Join-Path "node_modules" ".bin" "ai-agents"
-          & $bin init demo --yes
+          npm exec -- ai-agents init demo --yes
           if ($LASTEXITCODE -ne 0) { throw "ai-agents init exited $LASTEXITCODE" }
           "demo=$(Join-Path $work 'demo')" >> $env:GITHUB_OUTPUT
           Pop-Location
@@ -195,9 +194,14 @@ jobs:
       - name: Report
         shell: bash
         env:
+          CHECK_PATHS_RESULT: ${{ needs.check-paths.result }}
           CLI_CHANGED: ${{ needs.check-paths.outputs.cli-changed }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
         run: |
+          if [ "$CHECK_PATHS_RESULT" != "success" ]; then
+            echo "::error::Check changed paths result: $CHECK_PATHS_RESULT"
+            exit 1
+          fi
           if [ "$CLI_CHANGED" != "true" ]; then
             echo "No CLI files changed - smoke matrix skipped."
             exit 0
