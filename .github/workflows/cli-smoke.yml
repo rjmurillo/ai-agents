@@ -136,11 +136,7 @@ jobs:
           npm install --silent "$env:TARBALL" | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "npm install exited $LASTEXITCODE" }
           New-Item -ItemType Directory -Path demo | Out-Null
-          $packageRoot = Join-Path "node_modules" "@rjmurillo" "ai-agents"
-          $packageJson = Join-Path $packageRoot "package.json"
-          $binRel = (Get-Content $packageJson | ConvertFrom-Json).bin."ai-agents"
-          $bin = Join-Path $packageRoot $binRel
-          node $bin init demo --yes
+          npm exec --yes --package "$env:TARBALL" -- ai-agents init demo --yes
           if ($LASTEXITCODE -ne 0) { throw "ai-agents init exited $LASTEXITCODE" }
           "demo=$(Join-Path $work 'demo')" >> $env:GITHUB_OUTPUT
           Pop-Location
