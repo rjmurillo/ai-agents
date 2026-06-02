@@ -13,7 +13,7 @@ covers what is testable in pure Python:
    .claude/-only checkout (no scripts/ or .agents/ on the path).
 2. merge_verdicts, get_verdict_emoji, extract_verdict execute correctly
    from the copied module.
-3. All 6 canonical axis files are present and pass schema validation.
+3. Every canonical axis file is present and passes schema validation.
 4. No path under .claude/lib/ai_review_common/ or .claude/skills/review/references/
    references .agents/, .github/, scripts/, or tests/ (vendored install
    would lack those).
@@ -90,10 +90,17 @@ def test_vendored_lib_directory_present(vendored_root: Path) -> None:
 
 
 def test_vendored_axes_directory_present(vendored_root: Path) -> None:
-    """All 6 canonical axes ship under .claude/skills/review/references/."""
+    """Every canonical axis ships under .claude/skills/review/references/.
+
+    Reuses CANONICAL_ROLES so the vendored-install contract tracks the
+    single authoritative axis list. Adding a new axis to that list (and a
+    `references/{role}.md` file) extends this assertion with no edit here.
+    """
+    from tests.lib.test_axis_schema import CANONICAL_ROLES
+
     axes = vendored_root / ".claude" / "skills" / "review" / "references"
     assert axes.is_dir()
-    for role in ("analyst", "architect", "qa", "security", "devops", "roadmap"):
+    for role in CANONICAL_ROLES:
         assert (axes / f"{role}.md").is_file(), f"missing axis: {role}.md"
 
 
@@ -250,8 +257,47 @@ def test_review_skill_loads_from_canonical_dir(vendored_root: Path) -> None:
 
 
 def test_review_skill_chains_skill_extras(vendored_root: Path) -> None:
-    """/review chains the 3 local-only skill axes after the 6 canonical axes."""
+    """/review chains the 3 local-only skill axes after the canonical axes."""
     review = vendored_root / ".claude" / "skills" / "review" / "SKILL.md"
     text = review.read_text(encoding="utf-8")
     for skill in ("code-qualities-assessment", "golden-principles", "taste-lints"):
         assert skill in text, f"/review missing skill chain: {skill}"
+
+
+def test_review_skill_names_every_canonical_axis(vendored_root: Path) -> None:
+    """/review prose names every canonical axis, including the 4 new ones (#2196).
+
+    The dead-file bug: the four axes added by PR #2179 (reliability,
+    observability, agent-safety, decision-rigor) shipped under references/
+    but were never named in the dispatcher, so /review never ran them.
+    This asserts the dispatcher enumerates the full canonical set.
+    """
+    from tests.lib.test_axis_schema import CANONICAL_ROLES
+
+    review = vendored_root / ".claude" / "skills" / "review" / "SKILL.md"
+    text = review.read_text(encoding="utf-8")
+    for role in CANONICAL_ROLES:
+        assert role in text, f"/review dispatcher does not name canonical axis: {role}"
+
+
+def test_review_skill_dispatches_by_discovery_not_fixed_count(
+    vendored_root: Path,
+) -> None:
+    """/review discovers axes from references/ rather than asserting a fixed count.
+
+    Negative guard: the stale "Run 6 canonical axes" header and the
+    "exactly 9 rows" contract both predate the four new axes. Their
+    return would resurrect the dead-file bug, so they must be absent.
+    Edge: the body must point at the discovery directory glob.
+    """
+    review = vendored_root / ".claude" / "skills" / "review" / "SKILL.md"
+    text = review.read_text(encoding="utf-8")
+    assert "Run 6 canonical axes" not in text, (
+        "/review still hardcodes the 6-axis dispatch header"
+    )
+    assert "exactly 9 rows" not in text, (
+        "/review output contract still asserts the stale 9-row count"
+    )
+    assert "references/*.md" in text, (
+        "/review must document axis discovery from references/*.md"
+    )
