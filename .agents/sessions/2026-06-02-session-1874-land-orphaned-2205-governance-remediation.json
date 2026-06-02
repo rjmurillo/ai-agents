@@ -83,7 +83,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Restored feedback-generated-artifact-runtime-verification + feedback-hook-fail-open-architectural-layer"
+        "Evidence": "Restored feedback-generated-artifact-runtime-verification (the separate fail-open memory was superseded by the prevention-first position and removed; see #2230 closed addressed-by-prevention)"
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -122,6 +122,6 @@
   "nextSteps": [
     "Open PR for this branch",
     "Land governance remediation in main",
-    "Follow-ups: #2230 launcher fail-open, #2231 CI sim, #2258 hook bug"
+    "Follow-ups: #2230 launcher fail-open (closed: rejected, addressed-by-prevention), #2231 CI sim, #2258 hook bug"
   ]
 }

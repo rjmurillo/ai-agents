@@ -98,7 +98,7 @@
 | Sad (Suboptimal) | 33-day detection window: no customer-facing runtime verification existed to catch the failure before customers did |
 | Sad | The existing CI gate validated the wrong property (JSON schema valid, `command` present) rather than the right one (command resolves under runtime cwd) |
 | Glad (Success) | Session 1873 empirically verified the env var contract, fixed PowerShell asymmetry, replaced self-referential test, added both a fast gate and an e2e test |
-| Glad | The fail-open shim design is correct for in-script errors; the problem is one layer above it and is now addressed at the command string level |
+| Glad | The launcher path bug is now prevented at the command string level (anchoring) and caught by the runtime-contract gate before release; the in-script handler was never the right place to catch a launcher failure |
 
 ---
 
@@ -130,7 +130,7 @@ The generator and its tests were built to satisfy structural requirements (REQ-0
 
 **Root Cause 1**: Customer-facing generated artifacts were shipped without any test that verified their behavior under the target runtime's actual invocation contract. Structural validation (schema, command field presence) was treated as sufficient. Runtime validation (does the command resolve from the runtime cwd?) was not defined as a requirement.
 
-**Root Cause 2**: The fail-open protection was implemented at the wrong architectural layer. In-script try/except catches Python exceptions; it cannot catch Python launcher failures (file not found, file not executable). A hook command whose path is wrong wedges the environment with no recovery except uninstall. There was no launcher-level graceful degradation.
+**Root Cause 2**: The protection against a broken hook was implemented at the wrong architectural layer. In-script try/except catches Python exceptions; it cannot catch Python launcher failures (file not found, file not executable). A hook command whose path is wrong wedges the environment with no recovery except uninstall. The fix is to prevent the bad command path at generation time and verify it before release (RC1 remediation), not to add a launcher-level fail-open that would silently disable the hook.
 
 ### Five Whys: Why Did the First Fix (Session 1872) Introduce New Defects?
 
@@ -275,27 +275,29 @@ expects) do not satisfy this requirement.
 
 ---
 
-### RC2 Remediation: Launcher-Level Graceful Degradation
+### RC2 Remediation: Prevent the Bad Launcher, Fail Loud If One Escapes
 
-**Root cause addressed**: RC2 (fail-open at wrong architectural layer)
+**Root cause addressed**: RC2 (protection implemented at the wrong architectural layer)
 
 **Target artifact**: `build/scripts/generate_hooks.py:_build_copilot_entry`
 
-**Change intent**: Add a launcher-level wrapper that tolerates a missing script file by logging to stderr and exiting 0 (fail-open). The wrapper can be a short bash/powershell inline that tests file existence before invoking Python:
+**Change intent**: Fix the failure at its source. The launcher command shape is
+fixed at generation time (anchor every path to the plugin root, RC1 remediation)
+and verified before release by the runtime-contract gate and the real-CLI smoke.
+A path bug is caught before it ships, not papered over at runtime.
 
-```bash
-# bash form with launcher-level graceful degradation:
-_HOOK="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/event/script.py"
-if [ -f "$_HOOK" ]; then python3 -u "$_HOOK"; else echo "[WARN] hook not found: $_HOOK" >&2; fi
-```
+**Rejected alternative: launcher-level fail-open.** An earlier proposal added a
+launcher wrapper that tests file existence and exits 0 with a warning when the
+script is missing. This is rejected. Exiting 0 on a broken launcher converts a
+loud, learnable failure into a silently disabled hook: the customer's hook
+protection is gone and no one finds out. That is the silent-failure anti-pattern.
+The correct posture for a hook is fail closed and loud: prevent the bad launcher
+from shipping, and if a novel launcher failure still escapes, surface it so it is
+detected and fixed rather than masked. Tracked and closed on this basis as issue
+#2230 (addressed-by-prevention).
 
-**Trade-off analysis**:
-- Pro: A path bug (wrong env var, wrong cwd, file missing after update) can no longer wedge the environment. Customers get a warning in stderr rather than a broken CLI.
-- Con: A genuinely missing hook (e.g., after a bad install) silently exits 0. This makes silent failures possible. Mitigation: write a meaningful warning message to stderr so the user sees the degradation.
-- Pro: The existing fail-open shim in-script remains effective for in-script failures. This is complementary, not redundant.
-- Verdict: The trade-off favors adding the launcher-level wrapper. An environment-wedging failure is categorically worse than a silent-skip failure. The warning message makes the degradation observable.
-
-**ADR review**: Not required as a code change. If this becomes a design principle about "all plugin hooks must have launcher-level graceful degradation," an ADR is warranted. Flag for architect review.
+**ADR review**: The runtime-contract verification decision is recorded in
+ADR-063. No launcher fail-open principle is adopted.
 
 ---
 
@@ -388,7 +390,7 @@ Create or confirm the following memories (session 1873 may have already created 
 
 1. `feedback-generated-artifact-runtime-verification` (NEW): "Generated artifacts shipped to customers (hooks.json, etc.) MUST have a runtime-contract test. Structural/schema tests are not sufficient. The runtime contract (cwd, env vars, process setup) must be documented in the generator docstring citing CLI version and empirical verification. Evidence: issue #2205, 33-day customer-wedge incident."
 
-2. `feedback-hook-fail-open-architectural-layer` (NEW): "The in-script fail-open shim catches Python exceptions. It cannot catch launcher-level failures (Python can't open the file). Hook command paths must be correct at the command string level. A launcher-level guard (test file exists before invoking Python) provides defense in depth against path bugs that would otherwise wedge customer environments. Evidence: issue #2205."
+2. (No separate fail-open memory.) The launcher-layer lesson is captured as a binding principle in `.claude/rules/generated-artifacts.md` and ADR-063: prevent the bad launcher at generation time, fail closed and loud if one escapes, never add a launcher fail-open that silently disables the hook. The earlier `feedback-hook-fail-open-architectural-layer` memory is removed as superseded by this prevention-first position (issue #2230, closed addressed-by-prevention).
 
 3. `feedback-self-referential-test-anti-pattern` (UPDATE existing feedback-canonical-source-first): "A test that calls a generator and asserts on the generator's own output is self-referential - it confirms the generator is internally consistent but does NOT verify behavior against the target runtime. This is the canonical-source-mirror anti-pattern at the test level. Evidence: session 1872 `test_generate_hooks_plugin_root.py`, issue #2205."
 
@@ -406,7 +408,7 @@ The table below is ordered by: (a) ability to prevent recurrence immediately, (b
 | 4 | Add FM #11 to FAILURE-MODES.md | `.agents/governance/FAILURE-MODES.md` | Institutional memory of this failure class | Human approval (governance.md MUST #1) | PENDING |
 | 5 | Create `generated-artifacts.md` rule | `.claude/rules/generated-artifacts.md` | Binding rule: generated artifacts need runtime-contract tests | Human review recommended | PENDING |
 | 6 | Add two lines to AGENTS.md Boundaries | `AGENTS.md` | "Generated artifacts MUST have runtime-contract test; Hook commands MUST be verified from non-plugin cwd before release" | None | PENDING |
-| 7 | Add launcher-level graceful degradation | `build/scripts/generate_hooks.py:_build_copilot_entry` | File-exists check before python3 invocation; exit 0 with warning if missing | Architect review recommended | PENDING |
+| 7 | Reject launcher-level fail-open; prevent at generation, fail loud if escaped | `build/scripts/generate_hooks.py:_build_copilot_entry` | No silent exit-0 wrapper; anchoring + runtime-contract gate prevent the bug; a novel launcher failure fails loud | Closed addressed-by-prevention (#2230) | REJECTED |
 | 8 | Add self-referential test anti-pattern example to canonical-source-mirror rule | `.claude/rules/canonical-source-mirror.md` | Prevent reoccurrence of the session 1872 self-referential test | None | PENDING |
 | 9 | Create ADR-063 for plugin hook runtime contract | `.agents/architecture/ADR-063-plugin-hook-runtime-contract.md` | Document the empirically verified Copilot CLI + Claude Code hook invocation contract | ADR review BLOCKING - do not create without adr-review | PENDING |
 | 10 | Create or update Serena memories (3 memories) | `.serena/memories/` | Institutional knowledge persistence | None | PENDING |
@@ -420,7 +422,7 @@ The table below is ordered by: (a) ability to prevent recurrence immediately, (b
 
 - The session 1873 three-layer defense (fast gate + runtime-contract test + e2e) is the right pattern for generated artifacts
 - Empirical verification against the actual CLI before shipping is the right standard
-- The fail-open shim in generated scripts remains correct for in-script errors; the new launcher-level guard complements it
+- The in-script handler covers in-script errors; a launcher path bug is prevented at generation and verified before release, not masked by a launcher fail-open
 
 ### Delta Change
 
