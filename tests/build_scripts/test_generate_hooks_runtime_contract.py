@@ -218,6 +218,29 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
     assert proc.returncode != 0, "bare relative path unexpectedly resolved"
 
 
+def test_anchor_is_load_bearing_when_no_plugin_root_var_set(tmp_path: Path) -> None:
+    """With neither plugin-root var set, the anchored path must NOT resolve.
+
+    This distinguishes "given the variable, the path resolves" (the positive
+    tests, which set the variable themselves) from "the variable is what makes it
+    resolve". With both vars unset the bash fallback expands to ``/hooks/...``
+    (absolute, off the filesystem root), which must not be a file. Without this
+    control the suite could pass while production breaks if a host CLI stopped
+    exporting the variable (the variable would not actually be load-bearing).
+    NB: this verifies path resolution, not that the host CLI *sets* the variable;
+    only the real-CLI e2e (tests/e2e/test_cli_hook_e2e.py) verifies vendor behavior.
+    """
+    doc = _generate(tmp_path)
+    userland = tmp_path / "userland"
+    env = _contract_env(copilot_root=None, claude_root=None)
+    entry = doc["hooks"]["sessionStart"][0]
+    resolved = _bash_resolve(_path_arg(entry["bash"]), env, userland)
+    assert not Path(resolved).is_file(), (
+        f"anchored path resolved with no plugin-root var set: {resolved!r}; "
+        "the env var is not load-bearing"
+    )
+
+
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
 def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
     """Every emitted powershell path resolves under pwsh, incl. the fallback."""
