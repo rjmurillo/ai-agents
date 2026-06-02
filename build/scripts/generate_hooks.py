@@ -323,7 +323,9 @@ def _shim_should_fire(payload):
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        tool_args = payload.get("tool_input", payload.get("toolArgs"))
+        tool_args = payload.get("tool_input")
+        if tool_args is None:
+            tool_args = payload.get("toolArgs")
         # camelCase payloads send toolArgs as a JSON string, not a parsed
         # object. Parse it so _shim_normalize_args can extract "command".
         if isinstance(tool_args, str):

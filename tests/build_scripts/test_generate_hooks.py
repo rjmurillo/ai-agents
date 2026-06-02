@@ -1339,6 +1339,34 @@ def test_shim_camelcase_malformed_json_toolargs() -> None:
     assert "toolArgs is not valid JSON" in proc.stderr
 
 
+def test_shim_tool_glob_null_tool_input_falls_back_to_toolargs() -> None:
+    """tool_input present-but-null MUST fall back to toolArgs (issue #2290).
+
+    Regression guard for the asymmetry flagged on PR #2293: the tool_name
+    read uses an explicit ``is None`` check, but tool_args used
+    ``payload.get("tool_input", payload.get("toolArgs"))``. ``dict.get``
+    returns the default only when the key is ABSENT, never when the value
+    is JSON null. A host that sends ``tool_input: null`` alongside a real
+    ``toolArgs`` string would otherwise drop the args, skip the glob match,
+    and silently fail to fire a tool-glob hook (fail-open by omission).
+    """
+    body = 'print("FIRED")\n'
+    transformed = generate_hooks.inject_shim(body, "Bash(git commit*)")
+    proc = _run_shim(
+        transformed,
+        {
+            "tool_name": "Bash",
+            "tool_input": None,
+            "toolArgs": '{"command":"git commit -m x"}',
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "FIRED" in proc.stdout, (
+        "shim dropped toolArgs when tool_input was null; "
+        f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+
+
 def test_shim_snake_case_takes_precedence_over_camelcase() -> None:
     """When both tool_name and toolName are present, snake_case wins."""
     transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash")
