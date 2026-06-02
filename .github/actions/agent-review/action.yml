@@ -17,6 +17,10 @@ inputs:
   agent:
     description: 'Agent name (canonical quality gate axis)'
     required: true
+  review-agent:
+    description: 'Copilot CLI agent to invoke; defaults to the quality gate axis name'
+    required: false
+    default: ''
   emoji:
     description: 'Emoji for agent display'
     required: true

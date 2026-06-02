@@ -516,6 +516,7 @@ jobs:
         uses: ./.github/actions/agent-review
         with:
           agent: reliability
+          review-agent: general-purpose
           emoji: 🛡️
           prompt-file: .github/prompts/pr-quality-gate-reliability.md
           should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
@@ -543,6 +544,7 @@ jobs:
         uses: ./.github/actions/agent-review
         with:
           agent: observability
+          review-agent: general-purpose
           emoji: 🔭
           prompt-file: .github/prompts/pr-quality-gate-observability.md
           should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
@@ -570,6 +572,7 @@ jobs:
         uses: ./.github/actions/agent-review
         with:
           agent: agent-safety
+          review-agent: general-purpose
           emoji: 🤖
           prompt-file: .github/prompts/pr-quality-gate-agent-safety.md
           should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
@@ -597,6 +600,7 @@ jobs:
         uses: ./.github/actions/agent-review
         with:
           agent: decision-rigor
+          review-agent: general-purpose
           emoji: ⚖️
           prompt-file: .github/prompts/pr-quality-gate-decision-rigor.md
           should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
