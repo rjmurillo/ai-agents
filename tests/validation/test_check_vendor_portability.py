@@ -74,6 +74,19 @@ def test_script_routing_through_helper_is_exempt(fake_repo: Path) -> None:
     assert offenders == []
 
 
+def test_script_using_paths_module_helper_is_exempt(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/portable_module.py",
+        "import paths\n\nroot = paths.resolve_artifact_root('analysis')\n"
+        "default = '.agents'\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
 def test_comments_with_upstream_paths_are_not_offenders(fake_repo: Path) -> None:
     _write(
         fake_repo,
@@ -126,6 +139,58 @@ def test_import_pathspec_does_not_exempt_offender(fake_repo: Path) -> None:
 
     assert len(offenders) == 1
     assert offenders[0].relpath == ".claude/skills/bar/scripts/pathspec_bad.py"
+
+
+def test_unused_paths_import_does_not_exempt_offender(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/bar/scripts/unused_paths.py",
+        "import paths\n\nout = '.agents/analysis/x.md'\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/bar/scripts/unused_paths.py"
+
+
+def test_standalone_agents_segment_is_offender(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/bar/scripts/standalone.py",
+        "out = os.path.join('.agents', 'analysis', 'x.md')\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/bar/scripts/standalone.py"
+
+
+def test_windows_claude_lib_path_is_offender(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/bar/scripts/windows.py",
+        r"spec = '.claude\\lib\\paths.py'" + "\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/bar/scripts/windows.py"
+
+
+def test_fstring_agents_path_is_offender(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/bar/scripts/fstring.py",
+        "out = f'.agents/{subdir}/x.md'\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/bar/scripts/fstring.py"
 
 
 def test_hardcoded_claude_lib_path_is_offender(fake_repo: Path) -> None:

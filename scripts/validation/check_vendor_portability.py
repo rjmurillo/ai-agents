@@ -11,7 +11,8 @@ hard-coding those paths instead of routing through the helper.
 
 What it flags:
   A Python file under a scanned skill-scripts root that contains a non-docstring
-  string literal with `.agents/` or `.claude/lib/` AND does not import the
+  string literal or f-string text with `.agents`, `.agents/`, `.agents\\`,
+  `.claude/lib`, or `.claude\\lib` AND does not import and use the
   portability helper (`paths`, exposing `resolve_artifact_root` /
   `resolve_skill_resource`). A file that imports the helper is assumed to
   resolve paths through it; the literal is then the documented lazy default
@@ -50,7 +51,10 @@ from pathlib import Path
 # `.claude/skills/` is intentionally NOT flagged: the `/review` pattern
 # resolves skill resources via the helper's `.claude/skills/...` candidate,
 # so a reference to it inside the helper or via the helper is correct.
-_BANNED_PATH = re.compile(r"\.agents/|\.claude/lib/")
+_BANNED_PATH = re.compile(r"\.agents(?:[\\/]+|['\"]|$)|\.claude[\\/]+lib(?:[\\/]+|['\"]|$)")
+_STRING_TOKEN_TYPES = {tokenize.STRING}
+if hasattr(tokenize, "FSTRING_MIDDLE"):
+    _STRING_TOKEN_TYPES.add(tokenize.FSTRING_MIDDLE)
 
 # Helper function names exposed by .claude/lib/paths.py.
 _HELPER_FUNCTIONS: frozenset[str] = frozenset(
@@ -98,19 +102,32 @@ def scan_roots(repo_root: Path) -> list[Path]:
 
 
 def _routes_through_helper(content: str) -> bool:
-    """True when the file imports the portability helper."""
+    """True when the file imports and uses the portability helper."""
     try:
         tree = ast.parse(content)
     except SyntaxError:
         return False
 
+    paths_aliases: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            if any(alias.name == "paths" for alias in node.names):
-                return True
+            for alias in node.names:
+                if alias.name == "paths":
+                    paths_aliases.add(alias.asname or "paths")
         if isinstance(node, ast.ImportFrom) and node.module == "paths":
             if any(alias.name in _HELPER_FUNCTIONS for alias in node.names):
                 return True
+
+    if not paths_aliases:
+        return False
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute):
+            continue
+        if node.attr not in _HELPER_FUNCTIONS:
+            continue
+        if isinstance(node.value, ast.Name) and node.value.id in paths_aliases:
+            return True
     return False
 
 
@@ -152,7 +169,7 @@ def _first_banned_line(content: str) -> tuple[int, str] | None:
     try:
         tokens = tokenize.generate_tokens(reader)
         for token in tokens:
-            if token.type != tokenize.STRING or token.start[0] in doc_lines:
+            if token.type not in _STRING_TOKEN_TYPES or token.start[0] in doc_lines:
                 continue
             if _BANNED_PATH.search(token.string):
                 return token.start[0], token.line.strip()
