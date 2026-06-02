@@ -132,7 +132,9 @@ jobs:
           New-Item -ItemType Directory -Path $work | Out-Null
           Push-Location $work
           npm init -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "npm init exited $LASTEXITCODE" }
           npm install --silent "$env:TARBALL" | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "npm install exited $LASTEXITCODE" }
           New-Item -ItemType Directory -Path demo | Out-Null
           $packageRoot = Join-Path "node_modules" "@rjmurillo" "ai-agents"
           $packageJson = Join-Path $packageRoot "package.json"
