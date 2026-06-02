@@ -35,17 +35,19 @@ MONOLITHS = (
 def top_level_sections(text: str) -> list[str]:
     """Return titles of fence-aware top-level ``## `` headings."""
     titles: list[str] = []
-    active_fence: str | None = None
+    active_fence: tuple[str, int] | None = None
     for line in text.split("\n"):
         stripped = line.strip()
-        fence_marker = stripped[:3]
-        if fence_marker in ("```", "~~~"):
-            if active_fence is None:
-                active_fence = fence_marker
-            elif active_fence == fence_marker:
+        if active_fence is None and stripped.startswith(("```", "~~~")):
+            marker = stripped[0]
+            active_fence = (marker, len(stripped) - len(stripped.lstrip(marker)))
+            continue
+        if active_fence is not None:
+            marker, minimum_length = active_fence
+            if stripped.startswith(marker * minimum_length) and set(stripped) == {marker}:
                 active_fence = None
             continue
-        if active_fence is None and line.startswith("## "):
+        if line.startswith("## "):
             titles.append(line[3:].strip())
     return titles
 
@@ -74,6 +76,18 @@ def test_top_level_sections_skips_fenced_headings() -> None:
         "## Fenced Not A Section\n"
         "```\n"
         "~~~\n"
+        "## Real Two\n"
+    )
+    assert top_level_sections(text) == ["Real One", "Real Two"]
+
+
+def test_top_level_sections_requires_bare_closing_fence() -> None:
+    text = (
+        "## Real One\n"
+        "```\n"
+        "```text\n"
+        "## Fenced Not A Section\n"
+        "```\n"
         "## Real Two\n"
     )
     assert top_level_sections(text) == ["Real One", "Real Two"]

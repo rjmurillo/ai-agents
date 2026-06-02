@@ -103,9 +103,9 @@ owner. The steering files and their scopes:
 | Impact Analysis (Agent Prompt Changes) | KEEP-IN-STEERING | Agent-prompt-change impact overlaps `agent-prompts.md` (`src/claude/**`); pointer only |
 | Commit Message Format | KEEP-IN-STEERING | Conventional-commit + Co-Authored-By rule already in `.claude/rules/universal.md` (`**`, `critical`); do not duplicate |
 | Markdown Formatting Standards | KEEP-IN-STEERING | `documentation.md` (`**/*.md`) is authoritative for markdown linting |
-| Session Log Template | PATH-SCOPED-RULE | `session-protocol.md` (`.agents/sessions/**`); JSON template lives with session rules |
-| HANDOFF.md Template | PATH-SCOPED-RULE | `memory-handoff.md` (`.agents/**`) |
-| Recommended Agent Workflows | PATH-SCOPED-RULE | `workflow-routing.md` |
+| Notes for Next Session | PATH-SCOPED-RULE | `memory-handoff.md`; session carry-forward guidance |
+| Session History | PATH-SCOPED-RULE | `session-protocol.md`; session log history belongs with session rules |
+| Files to Review | PATH-SCOPED-RULE | `memory-handoff.md`; context retrieval order and handoff dependencies |
 | Agent Invocation Reference | PATH-SCOPED-RULE | `agent-catalog.md`; delegation syntax |
 | Skill System | KEEP-IN-STEERING | `claude-skills.md` (`.claude/skills/**`) is authoritative for skill standards |
 | Traceability Rules | PATH-SCOPED-RULE | `memory-handoff.md`; cross-reference + entity-link requirements |
