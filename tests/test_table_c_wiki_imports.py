@@ -73,6 +73,49 @@ AXIS_CITATIONS: dict[str, tuple[str, ...]] = {
 
 LENS_HEADING = "## Why This Lens Applies In PR Review"
 
+REQUIRED_REFERENCE_SECTIONS: dict[str, tuple[str, ...]] = {
+    ".claude/skills/decision-critic/references/decision-pre-committed-metrics.md": (
+        "# Pre-Committed Metrics Force Honest Evaluation",
+        "## Principle",
+        "## The Three Instantiations",
+        "## Operating Consequences",
+        LENS_HEADING,
+        "## Source",
+    ),
+    ".claude/skills/security-scan/references/agent-memory-inference-leakage.md": (
+        "# Agent Unauthorized Memory Inference",
+        "## Principle",
+        "## The Audited Failure",
+        "## The Permission Distinction",
+        LENS_HEADING,
+        "## Source",
+    ),
+    ".claude/skills/security-scan/references/agent-guardrails-template.md": (
+        "# Agent Guardrails Template",
+        "## Principle",
+        "## The Four Laws Of Agent Safety",
+        "## How To Apply",
+        LENS_HEADING,
+        "## Source",
+    ),
+    ".claude/skills/observability/references/otel-semantic-conventions.md": (
+        "# OTel Semantic Conventions",
+        "## Principle",
+        "## What They Solve",
+        "## Attribute Namespaces",
+        LENS_HEADING,
+        "## Source",
+    ),
+    ".claude/skills/observability/references/distributed-systems-fallacies.md": (
+        "# 8 Fallacies of Distributed Computing",
+        "## Principle",
+        "## The Fallacies",
+        "## Mitigations",
+        LENS_HEADING,
+        "## Source",
+    ),
+}
+
 
 def _read(rel_path: str) -> str:
     return (REPO_ROOT / rel_path).read_text(encoding="utf-8")
@@ -113,12 +156,16 @@ def test_reference_has_lens_section(rel_path: str) -> None:
     )
 
 
-@pytest.mark.parametrize("rel_path", sorted(IMPORTED_REFERENCES))
-def test_reference_inlines_body(rel_path: str) -> None:
-    """AC1: the concept body is inlined, not a stub. Use a length floor."""
+@pytest.mark.parametrize(
+    ("rel_path", "required_sections"), sorted(REQUIRED_REFERENCE_SECTIONS.items())
+)
+def test_reference_inlines_body(
+    rel_path: str, required_sections: tuple[str, ...]
+) -> None:
+    """AC1: the concept body is inlined with its core structural sections."""
     body = _read(rel_path)
-    assert len(body) > 1200, f"{rel_path} appears to be a stub, not an inlined concept"
-    assert "## Principle" in body, f"{rel_path} missing the inlined Principle section"
+    missing = [section for section in required_sections if section not in body]
+    assert not missing, f"{rel_path} missing inlined concept sections: {missing}"
 
 
 @pytest.mark.parametrize("rel_path", sorted(IMPORTED_REFERENCES))
