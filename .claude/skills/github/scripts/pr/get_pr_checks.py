@@ -141,6 +141,69 @@ def normalize_check(ctx: dict) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
+# Deduplication of superseded check runs
+# ---------------------------------------------------------------------------
+#
+# GitHub keeps every check run for a check name on one commit, including older
+# runs that a newer run superseded (a re-run, or a debounce that cancels the
+# stale run). A stale FAILURE left alongside a fresh SUCCESS inflated
+# FailedCount and produced a false OverallState=FAILURE for PR #2201 even
+# though test_pr_merge_ready.py reported the PR ready. Refs Issue #2208.
+#
+# This mirrors the dedupe behavior in
+# .claude/skills/github/scripts/pr/test_pr_merge_ready.py: group by name and
+# keep the winning entry per group with precedence OK > PENDING > FAIL.
+# A passing entry from a re-run supersedes a prior failure ("OK if any SUCCESS
+# exists" per the PR #1887 retrospective). That script ranks by verdict, not by
+# a completedAt/startedAt timestamp, and the statusCheckRollup query here does
+# not fetch those timestamps; ranking by passing-state matches its contract
+# without a query change.
+#
+# Stricter/looser/different than canonical: test_pr_merge_ready.py treats a
+# CANCELLED-only group as no-opinion (SKIP) so it neither blocks nor counts as
+# passed. Here, normalize_check already maps CANCELLED into IsFailing (it is in
+# _FAILING_CONCLUSIONS), so a CANCELLED-only group surfaces as a failing check.
+# That preserves this script's long-standing CANCELLED semantics; the dedupe
+# only collapses duplicate names and prefers a passing or pending run when one
+# exists for the same name.
+
+# Precedence key: lower sorts first, so the winning entry is the minimum.
+_PASSING_RANK = 0
+_PENDING_RANK = 1
+_FAILING_RANK = 2
+
+
+def _check_rank(check: dict) -> int:
+    """Rank a normalized check by precedence: passing < pending < failing."""
+    if check.get("IsPassing"):
+        return _PASSING_RANK
+    if check.get("IsPending"):
+        return _PENDING_RANK
+    return _FAILING_RANK
+
+
+def dedupe_checks(checks: list[dict]) -> list[dict]:
+    """Collapse multiple runs of one check name to the winning entry.
+
+    Groups by ``Name`` and keeps the entry with the best precedence
+    (passing over pending over failing), so a re-run SUCCESS supersedes a
+    stale FAILURE on the same commit. The first-seen order of surviving
+    names is preserved. Names that appear once pass through unchanged.
+    """
+    best_by_name: dict[str, dict] = {}
+    order: list[str] = []
+    for check in checks:
+        name = check.get("Name", "")
+        current = best_by_name.get(name)
+        if current is None:
+            best_by_name[name] = check
+            order.append(name)
+        elif _check_rank(check) < _check_rank(current):
+            best_by_name[name] = check
+    return [best_by_name[name] for name in order]
+
+
+# ---------------------------------------------------------------------------
 # Query and parse
 # ---------------------------------------------------------------------------
 
@@ -191,6 +254,8 @@ def fetch_checks(
         check = normalize_check(ctx)
         if check:
             checks.append(check)
+
+    checks = dedupe_checks(checks)
 
     return {
         "Number": pr.get("number"),
