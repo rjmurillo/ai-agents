@@ -122,4 +122,16 @@ def test_null_platform_artifacts_is_config_error(tmp_path: Path) -> None:
     code, messages = gate.validate(tmp_path)
 
     assert code == 2
-    assert any("hooks file not found" in message for message in messages)
+    assert any("platform artifacts must be a mapping" in message for message in messages)
+
+
+def test_null_platform_hooks_is_config_error(tmp_path: Path) -> None:
+    """Explicit null hooks are config errors, not empty discovery."""
+    platforms = tmp_path / "templates" / "platforms"
+    platforms.mkdir(parents=True)
+    (platforms / "broken.yaml").write_text("artifacts:\n  hooks:\n", encoding="utf-8")
+
+    code, messages = gate.validate(tmp_path)
+
+    assert code == 2
+    assert any("platform hooks must be a mapping" in message for message in messages)

@@ -85,7 +85,17 @@ def _find_platform_hook_artifacts(repo_root: Path) -> tuple[list[Path], list[str
             errors.append(f"platform config must be a mapping: {yaml_path}")
             continue
         artifacts_cfg = cfg.get("artifacts")
+        if "artifacts" in cfg and not isinstance(artifacts_cfg, dict):
+            errors.append(f"platform artifacts must be a mapping: {yaml_path}")
+            continue
         hooks_cfg = artifacts_cfg.get("hooks") if isinstance(artifacts_cfg, dict) else None
+        if (
+            isinstance(artifacts_cfg, dict)
+            and "hooks" in artifacts_cfg
+            and not isinstance(hooks_cfg, dict)
+        ):
+            errors.append(f"platform hooks must be a mapping: {yaml_path}")
+            continue
         output_config = hooks_cfg.get("outputConfig") if isinstance(hooks_cfg, dict) else None
         if isinstance(output_config, str) and output_config.strip():
             artifacts.append(Path(output_config.strip()))
