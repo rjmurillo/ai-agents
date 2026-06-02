@@ -131,3 +131,67 @@ class TestOverall:
         r = json.loads(result.stdout)
         assert r["Success"] is False
         assert result.returncode == 1
+
+
+class TestInlineCitationStripping:
+    """Regression tests for #2252: inline citation cues must not produce false positives.
+
+    A backtick-wrapped file path preceded by a citation cue word (see, per, e.g.,
+    for example, as documented in, ...) is a reference, not a change claim, and
+    must not be collected by extract_mentioned_files.
+    """
+
+    @staticmethod
+    def _import_extract():
+        import importlib.util
+        import sys as _sys
+        pr_desc_path = str(
+            _REPO_ROOT / "scripts" / "validation" / "pr_description.py"
+        )
+        spec = importlib.util.spec_from_file_location("pr_desc_mod", pr_desc_path)
+        mod = importlib.util.module_from_spec(spec)
+        _sys.modules["pr_desc_mod"] = mod
+        spec.loader.exec_module(mod)
+        return mod.extract_mentioned_files
+
+    def test_see_citation_not_collected(self):
+        extract = self._import_extract()
+        body = "This PR updates the scheduler. See `scripts/foo.py` for prior art."
+        assert "scripts/foo.py" not in extract(body)
+
+    def test_per_citation_not_collected(self):
+        extract = self._import_extract()
+        body = "Exit codes per `scripts/validate_session_json.py` contract."
+        assert "scripts/validate_session_json.py" not in extract(body)
+
+    def test_eg_citation_not_collected(self):
+        extract = self._import_extract()
+        body = (
+            "The skill (e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`)"
+            " is not changed."
+        )
+        assert (
+            ".claude/skills/security-scan/scripts/scan_vulnerabilities.py" not in extract(body)
+        )
+
+    def test_for_example_citation_not_collected(self):
+        extract = self._import_extract()
+        body = "For example `docs/retros/INDEX.md` shows the pattern."
+        assert "docs/retros/INDEX.md" not in extract(body)
+
+    def test_real_change_claim_list_item_still_collected(self):
+        """A list-item change claim must NOT be suppressed by citation stripping."""
+        extract = self._import_extract()
+        body = "## Changes\n\n- `scripts/foo.py`: Updated scheduler logic\n"
+        assert "scripts/foo.py" in extract(body)
+
+    def test_reference_section_still_stripped_independently(self):
+        """## References section stripping still works alongside citation cue stripping."""
+        extract = self._import_extract()
+        body = (
+            "## Changes\n\n- `scripts/foo.py`: core change\n\n"
+            "## References\n\n`docs/retros/INDEX.md` prior retro\n"
+        )
+        mentioned = extract(body)
+        assert "scripts/foo.py" in mentioned
+        assert "docs/retros/INDEX.md" not in mentioned
