@@ -407,14 +407,22 @@ def acceptance_gate(
     comparison: dict[str, Any],
     security_critical: bool = False,
 ) -> dict[str, Any]:
-    """Apply ADR-057 three-criteria acceptance gate.
+    """Apply the ADR-057 acceptance gate.
 
-    Criteria:
-    1. after_score >= before_score (no regression)
-    2. Any targeted scenario moves from fail to pass
-    3. No scenario flips pass->fail without justification
+    The gate exists to block REGRESSIONS, not to mandate an improvement on
+    every edit. A change passes when it does not regress behavior:
 
-    Security-critical tier: all runs must pass (100% pass rate).
+    1. after_score >= before_score (no regression on existing scenarios)
+    2. No scenario flips pass->fail (no unexplained regression)
+    3. Flakiness on any scenario stays at or below the block threshold
+
+    has_improvement is computed and reported for visibility, but it is NOT
+    a hard pass requirement. Requiring an improvement on every edit
+    structurally blocked legitimate documentation-consistency changes whenever
+    a pre-existing scenario already failed on the base ref (before_score < 1.0
+    with zero targeted improvements). See ADR-057 (2026-06-01 relaxation note).
+
+    Security-critical tier: all runs must pass (100% pass rate). Unchanged.
     """
     before_results = comparison["before_results"]
     after_results = comparison["after_results"]
@@ -422,7 +430,6 @@ def acceptance_gate(
     # Criterion 1: no regression
     no_regression = comparison["after_score"] >= comparison["before_score"]
 
-    # Criterion 2: at least one improvement (or no failures to begin with)
     improvements = []
     regressions = []
     flaky_scenarios = []
@@ -436,9 +443,12 @@ def acceptance_gate(
         if a.get("flaky"):
             flaky_scenarios.append(sid)
 
+    # Informational only: whether the change moved any scenario fail->pass, or
+    # the base ref already passed everything. NOT a gating requirement (see
+    # the docstring and ADR-057).
     has_improvement = len(improvements) > 0 or comparison["before_score"] == 1.0
 
-    # Criterion 3: no unexplained regressions
+    # Criterion 2: no unexplained regressions
     no_unexplained_regressions = len(regressions) == 0
 
     # Security-critical: require 100% pass rate across all runs
@@ -449,7 +459,7 @@ def acceptance_gate(
                 security_pass = False
                 break
 
-    # Criterion 4: flakiness threshold (ADR-057 enforced)
+    # Criterion 3: flakiness threshold (ADR-057 enforced)
     high_flakiness_scenarios = []
     for a in after_results:
         if a.get("flaky") and a["runs"] > 1:
@@ -459,8 +469,12 @@ def acceptance_gate(
 
     no_high_flakiness = len(high_flakiness_scenarios) == 0
 
-    passed = (no_regression and has_improvement
-              and no_unexplained_regressions and no_high_flakiness)
+    # A non-regressing change passes even with zero improvements. A real
+    # regression still fails: a pass->fail flip drops after_score below
+    # before_score (no_regression=False) and populates regressions
+    # (no_unexplained_regressions=False).
+    passed = (no_regression and no_unexplained_regressions
+              and no_high_flakiness)
     if security_critical:
         passed = passed and security_pass
 

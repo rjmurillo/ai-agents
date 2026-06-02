@@ -75,11 +75,23 @@ Each evaluation consists of:
 
 ### Acceptance Gate
 
-A prompt change passes behavioral evaluation when all three criteria hold:
+The gate blocks regressions. It does not mandate an improvement on every edit. A prompt change passes behavioral evaluation when these criteria hold:
 
 1. `after_score >= before_score` (no regression on existing scenarios)
-2. Any scenario the change targets moves from fail to pass
-3. No scenario flips from pass to fail without explicit justification in the PR. Intentional trade-offs are acceptable when the PR documents the rationale.
+2. No scenario flips from pass to fail without explicit justification in the PR. Intentional trade-offs are acceptable when the PR documents the rationale.
+3. Flakiness on any scenario stays at or below the 40% block threshold.
+
+A change that targets a failing scenario SHOULD move it from fail to pass. This is recorded as `has_improvement` and surfaced in the gate output, but it is not a hard pass requirement (see the 2026-06-01 relaxation note below).
+
+#### Acceptance Gate Relaxation (2026-06-01, Issue #2197)
+
+The original gate required `has_improvement` (at least one fail-to-pass flip, or `before_score == 1.0`) as a hard pass condition. This structurally blocked any legitimate change to a prompt whose base ref already had a failing scenario. Example: a documentation-consistency edit to `.claude/commands/spec.md` introduces no behavioral change and no regression, but pre-existing scenarios D13 and D14 fail on `main` (`before_score` 5/7 < 1.0). With zero fail-to-pass flips, `has_improvement` was false and the gate returned FAIL even though the change regressed nothing.
+
+That outcome contradicts the gate's stated purpose: regression prevention (Decision Driver 2), not a mandate that every edit improve a score. The criterion "any scenario the change targets moves from fail to pass" was always conditional on the change targeting a scenario; it was never meant to apply to changes that target no scenario.
+
+Relaxation: `has_improvement` is dropped as a hard pass requirement in `eval-prompt-change.py acceptance_gate()`. The gate now passes when `no_regression AND no_unexplained_regressions AND no_high_flakiness` hold (plus the security-critical 100%-pass requirement when applicable). `has_improvement` is still computed and reported in the gate criteria for visibility.
+
+Regression blocking is preserved. A real pass-to-fail flip drops `after_score` below `before_score` (fails `no_regression`) and records the scenario in `regressions` (fails `no_unexplained_regressions`), so the gate still returns FAIL. The security-critical 100%-pass requirement is untouched: a security-critical run below 100% pass rate still blocks regardless of improvement state.
 
 #### Security-Critical Prompt Tier
 
