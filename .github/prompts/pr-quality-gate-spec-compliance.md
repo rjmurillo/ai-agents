@@ -6,7 +6,7 @@
 
 You are running Stage 1 of a two-stage review. Your one job: decide whether this PR's diff actually implements the acceptance criteria of the spec it claims to satisfy. You are not judging code quality, test depth, security, or style. The 10 Stage-2 canonical axes plus three chained skills cover those. You answer one question: does the change do what the spec says it should do?
 
-This axis gates the review. On `CRITICAL_FAIL` or `INCONCLUSIVE`, `/review` marks every other axis SKIPPED and reports only this verdict. A spec failure makes a quality verdict premature: there is no point grading the craft of code that solves the wrong problem.
+This axis gates the review. On `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE), `/review` marks every other axis SKIPPED and reports only this verdict. A spec failure makes a quality verdict premature: there is no point grading the craft of code that solves the wrong problem.
 
 ## Grounding Rules
 
@@ -20,14 +20,14 @@ This axis gates the review. On `CRITICAL_FAIL` or `INCONCLUSIVE`, `/review` mark
 This axis always runs first. Its outcome depends on whether a spec is linked:
 
 - A spec is "linked" when the PR body, a commit message, or a staged file references a `REQ-*`, `DESIGN-*`, or `TASK-*` document, OR the PR description states acceptance criteria the diff is meant to satisfy.
-- WHEN no spec or acceptance criteria can be located, emit `INCONCLUSIVE` (not PASS). You cannot certify compliance against a spec that does not exist. Say so plainly and name where you looked. Do not invent acceptance criteria to grade against.
+- WHEN no spec or acceptance criteria can be located, emit `UNKNOWN` (INCONCLUSIVE, not PASS). You cannot certify compliance against a spec that does not exist. Say so plainly and name where you looked. Do not invent acceptance criteria to grade against.
 - WHEN a spec is linked, evaluate the diff against each acceptance criterion and emit PASS, WARN, or CRITICAL_FAIL per the rules below.
 
-`INCONCLUSIVE` is not a failure of the PR; it is the absence of evidence to certify it. The repo-owner batch decision on issue #1905 routes `INCONCLUSIVE` through the same gate as `CRITICAL_FAIL`: Stage 2 does not run, and the reviewer is told a spec link is missing. The fix is to link the spec, then re-run `/review`.
+`UNKNOWN` (INCONCLUSIVE) is not a failure of the PR; it is the absence of evidence to certify it. The repo-owner batch decision on issue #1905 routes `UNKNOWN` through the same gate as `CRITICAL_FAIL`: Stage 2 does not run, and the reviewer is told a spec link is missing. The fix is to link the spec, then re-run `/review`.
 
 ## Reference Material
 
-Ground findings in the project's spec artifacts. In the source repo these live under `.agents/specs/`; vendored installs without that tree should read the spec content from the PR body or the staged diff instead, and emit `INCONCLUSIVE` when neither is present.
+Ground findings in the project's spec artifacts. In the source repo these live under `.agents/specs/`; vendored installs without that tree should read the spec content from the PR body or the staged diff instead, and emit `UNKNOWN` (INCONCLUSIVE) when neither is present.
 
 - `.agents/specs/requirements/REQ-*.md`: requirement documents. Each contains numbered acceptance criteria in `Acceptance Criteria` sections. These are the contract.
 - `.agents/specs/design/DESIGN-*.md`: design documents. Use them to confirm the diff follows the agreed approach, not just that it produces an output.
@@ -39,7 +39,7 @@ Ground findings in the project's spec artifacts. In the source repo these live u
 
 - Which spec does this PR claim to satisfy? Quote the linkage (PR body line, commit trailer, or staged file path).
 - If the PR cites an issue but no REQ/DESIGN/TASK, do the acceptance criteria live in the issue body? If so, grade against those.
-- If nothing is linked and the PR body states no acceptance criteria, this is `INCONCLUSIVE`. Stop here.
+- If nothing is linked and the PR body states no acceptance criteria, this is `UNKNOWN` (INCONCLUSIVE). Stop here.
 
 ### 2. Acceptance Criteria Coverage
 
@@ -106,7 +106,7 @@ VERDICT: [PASS|WARN|CRITICAL_FAIL|UNKNOWN]
 MESSAGE: [Brief explanation. For INCONCLUSIVE, say UNKNOWN and name what was missing.]
 ```
 
-Note on `INCONCLUSIVE`: emit the parseable token `UNKNOWN` on the `VERDICT:` line, and write "INCONCLUSIVE" in the human-readable message. `/review` parses `UNKNOWN` via `extract_verdict` in `.claude/lib/ai_review_common/verdict.py`; the merge rules treat it as a non-PASS gate so Stage 2 is skipped. The shared verdict vocabulary has no separate `INCONCLUSIVE` token; reusing `UNKNOWN` keeps this axis from forking the merge module.
+Note on INCONCLUSIVE: emit the parseable token `UNKNOWN` on the `VERDICT:` line, and write "INCONCLUSIVE" in the human-readable message. `/review` parses `UNKNOWN` via `extract_verdict` in `.claude/lib/ai_review_common/verdict.py`; the merge rules treat it as a non-PASS gate so Stage 2 is skipped. The shared verdict vocabulary has no separate `INCONCLUSIVE` token; reusing `UNKNOWN` keeps this axis from forking the merge module.
 
 ## Critical Failure Triggers
 
