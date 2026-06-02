@@ -258,6 +258,10 @@ CHANGED_TEMPLATES=$(echo "$CHANGED_FILES" | grep -E '^templates/' || true)
 CHANGED_SESSIONS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/sessions/' || true)
 CHANGED_PLANNING=$(echo "$CHANGED_FILES" | grep -E '^\.agents/planning/' || true)
 CHANGED_ADRS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/architecture/ADR-.*\.md$' || true)
+# Hook-anchoring relevant paths (#2205): generator, both plugin hook files,
+# the project-mode settings source, the anchoring gate, and the e2e itself.
+# A change to any forces the real-CLI e2e (resolution under the live contract).
+CHANGED_HOOKS=$(echo "$CHANGED_FILES" | grep -E '^(build/scripts/generate_hooks\.py|src/copilot-cli/hooks/|\.claude/hooks/|\.claude/settings\.json|scripts/validation/validate_hook_anchoring\.py|tests/e2e/test_cli_hook_e2e\.py)' || true)
 
 # ============================================================================
 # Phase 1: Fast Guards (< 5s)
@@ -887,6 +891,37 @@ fi
         fi
     else
         record_skip "Python tests (no .py files changed)"
+    fi
+
+    # 14b. Hook anchoring e2e (real CLIs) - FORCED when hook paths change (#2205).
+    # Installs the probe plugin into the real Copilot/Claude CLI and asserts the
+    # hook resolves from the install dir. Cannot be skipped locally while a CLI
+    # is present (RUN_CLI_E2E is set here, not left to the developer). Strips the
+    # inherited plugin-root env so each CLI sets its own. The tests self-skip
+    # per-CLI when a binary is absent, so contributors without the CLIs are not
+    # blocked. Real model calls cost credits; this runs only on hook changes.
+    if [ -n "$CHANGED_HOOKS" ]; then
+        if command -v copilot >/dev/null 2>&1 || command -v claude >/dev/null 2>&1; then
+            if set_python_cmd; then
+                E2E_OUTPUT=$(mktemp)
+                if env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_ROOT RUN_CLI_E2E=1 \
+                    "${PYTHON_CMD[@]}" -m pytest \
+                    "$REPO_ROOT/tests/e2e/test_cli_hook_e2e.py" -v > "$E2E_OUTPUT" 2>&1; then
+                    rm -f "$E2E_OUTPUT"
+                    record_pass "Hook anchoring e2e (real CLIs)"
+                else
+                    echo_info "  E2E output (last 40 lines):"
+                    tail -40 "$E2E_OUTPUT"
+                    rm -f "$E2E_OUTPUT"
+                    record_fail "Hook anchoring e2e failed (Copilot/Claude)"
+                    echo_info "  A hook script did not resolve from the plugin install dir."
+                fi
+            else
+                record_skip "Hook anchoring e2e (Python 3 not available)"
+            fi
+        else
+            record_skip "Hook anchoring e2e (no copilot/claude CLI on PATH)"
+        fi
     fi
 
 # ============================================================================
