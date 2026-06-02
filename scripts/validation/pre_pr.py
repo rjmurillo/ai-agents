@@ -12,6 +12,7 @@ Validation sequence:
     5. Design Review Frontmatter (validate DESIGN-REVIEW YAML frontmatter)
     6. Build Command Exit Gates (PR #1887 retrospective Layer 2)
     7. Canonical Citation Check (heuristic mirror-claim citation; soft warn)
+    7b. Spec Contradiction Check (PR/issue vs committed frontmatter; advisory)
     8. YAML Style (check YAML style with yamllint) [skip if --quick]
     9. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
    10. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
@@ -785,6 +786,45 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_spec_contradiction(repo_root: Path) -> bool:
+    """Advisory check for PR-description vs linked-issue vs code contradictions.
+
+    Wraps ``scripts/validation/spec_contradiction.py`` in ``--advisory`` mode,
+    so a heuristic false positive never blocks the local pre-PR cycle. The
+    script catches the PR #1897 round-7 loop locally (Issue #1894 claimed
+    ``model_tier: sonnet`` while the committed agent frontmatter shipped
+    ``model: opus``), which CI's "Validate Spec Coverage" gate surfaced only
+    after each push. Always returns True; the WARN output is the signal.
+
+    See Issue #1920 and the retrospective at
+    ``.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md``.
+    """
+    script = repo_root / "scripts" / "validation" / "spec_contradiction.py"
+    if not script.exists():
+        print("[WARNING] spec_contradiction.py not found (skipping)")
+        return True
+
+    base_ref = _resolve_branch_base_ref(repo_root)
+    cmd = [
+        sys.executable,
+        str(script),
+        "--repo-root",
+        str(repo_root),
+        "--advisory",
+    ]
+    if base_ref:
+        cmd.extend(["--base", base_ref])
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    if stdout.strip():
+        print(stdout.strip())
+    if stderr.strip():
+        print(stderr.strip(), file=sys.stderr)
+    # Advisory: the wrapped script already exits 0 under --advisory, so any
+    # non-zero exit here is a config error (e.g. could not resolve repo). Do
+    # not block the pre-PR cycle on it; surface the output and pass.
+    return True
+
+
 def validate_agent_drift(repo_root: Path) -> bool:
     """Detect agent semantic drift.
 
@@ -1197,6 +1237,15 @@ def main(argv: list[str] | None = None) -> int:
         "Em/en-dash Prohibition",
         state,
         lambda: validate_dash_prohibition(repo_root),
+    )
+
+    # 3.87 Spec Contradiction Check (advisory; Issue #1920). Catches the
+    # PR #1897 round-7 loop (linked issue claims one model tier, committed
+    # agent frontmatter ships another) locally instead of after each push.
+    run_validation(
+        "Spec Contradiction Check",
+        state,
+        lambda: validate_spec_contradiction(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)
