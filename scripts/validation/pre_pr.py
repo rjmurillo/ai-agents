@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 
-class MissingScriptSkip(Exception):
+class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
     """Raised by a validation when a referenced script is absent on disk.
 
     Per ADR-042 (Python migration), several legacy PowerShell validators were
@@ -547,6 +547,31 @@ def validate_planning_artifacts(repo_root: Path) -> bool:
     exit_code, _, _ = _run_subprocess(
         ["pwsh", "-NoProfile", "-File", str(script), "-FailOnError"]
     )
+    return exit_code == 0
+
+
+def validate_hook_anchoring(repo_root: Path) -> bool:
+    """Plugin hook files must anchor every script to the plugin root (#2205).
+
+    Covers both shipped plugin hook files: ``.claude/hooks/hooks.json`` (Claude,
+    ``${CLAUDE_PLUGIN_ROOT}``) and ``src/copilot-cli/hooks/hooks.json`` (Copilot).
+    Bare ``./hooks/...`` paths fail under either CLI because hooks run with
+    ``cwd`` set to the user's working directory, not the plugin install dir.
+    The Copilot shape is enforced against the generator, so this gate keeps the
+    anchored form the default and blocks a silent regression on either side.
+    """
+    script = repo_root / "scripts" / "validation" / "validate_hook_anchoring.py"
+    if not script.exists():
+        raise MissingScriptSkip("validate_hook_anchoring.py not present")
+
+    exit_code, stdout, stderr = _run_subprocess(
+        ["python3", str(script), "--repo-root", str(repo_root)]
+    )
+    if exit_code != 0:
+        # Surface the anchoring detail so the fix is actionable inline.
+        detail = stdout.rstrip() or stderr.rstrip()
+        if detail:
+            print(detail)
     return exit_code == 0
 
 
@@ -1267,6 +1292,14 @@ def main(argv: list[str] | None = None) -> int:
         "Plugin Version Bump",
         state,
         lambda: validate_plugin_version_bump(repo_root),
+    )
+
+    # 6c2. Hook Anchoring (Claude + Copilot plugin hooks.json must anchor to the
+    # plugin root; bare paths regressed Copilot CLI in #2205, same trap on Claude)
+    run_validation(
+        "Hook Anchoring (Claude + Copilot)",
+        state,
+        lambda: validate_hook_anchoring(repo_root),
     )
 
     # 6d. Git Hooks Installed (local clone must run the canonical .githooks;
