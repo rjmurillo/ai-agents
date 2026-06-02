@@ -52,9 +52,10 @@ Verify PR merge state using `scripts.copilot.test_pr_merged`. Exit code 0 = not 
 
 Before addressing comments, gather full context:
 
-1. **Review ALL comments**: Use `get_review_threads`, `get_unresolved_threads`, `get_unaddressed_comments`, and `get_pr_context` scripts from config.
-2. **Check merge eligibility**: Verify `mergeable=MERGEABLE` and no conflicts.
-3. **Review failing checks**: Use `get_pr_checks` script. Handle failures per `check_failure_actions` table in config.
+1. **Run Phase 0 thread clustering**: Use `cluster_threads` from config before the per-thread fix loop. If the JSON report has `warning: true`, surface the clusters in the verdict with `size`, `shared_tokens`, `source_artifact`, and `thread_ids`; stop the per-thread loop and fix the cluster-level framing or spec source first. Resume per-file patches only after that cluster-level fix is pushed.
+2. **Review ALL comments**: Use `get_review_threads`, `get_unresolved_threads`, `get_unaddressed_comments`, and `get_pr_context` scripts from config.
+3. **Check merge eligibility**: Verify `mergeable=MERGEABLE` and no conflicts.
+4. **Review failing checks**: Use `get_pr_checks` script. Handle failures per `check_failure_actions` table in config.
 
 ### Step 3: Create Worktrees (if --parallel)
 
