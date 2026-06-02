@@ -10,12 +10,12 @@ exist, so the skill fails or degrades silently. The fix (Phase 1) ships a
 hard-coding those paths instead of routing through the helper.
 
 What it flags:
-  A Python file under a scanned skill-scripts root that contains a string
-  literal with `.agents/` or `.claude/lib/` AND does not import the
+  A Python file under a scanned skill-scripts root that contains a non-docstring
+  string literal with `.agents/` or `.claude/lib/` AND does not import the
   portability helper (`paths`, exposing `resolve_artifact_root` /
   `resolve_skill_resource`). A file that imports the helper is assumed to
   resolve paths through it; the literal is then the documented lazy default
-  or prose, not a hard-coded dependency.
+  or prose, not a hard-coded dependency. Comments and docstrings are ignored.
 
 Baseline ratchet:
   131 files across 30+ skills already hard-code these paths (Issue #2050).
@@ -38,8 +38,11 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import argparse
+import ast
+import io
 import re
 import sys
+import tokenize
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -104,11 +107,50 @@ def _routes_through_helper(content: str) -> bool:
     return any(token in content for token in _HELPER_TOKENS)
 
 
+def _docstring_lines(content: str) -> set[int]:
+    """Return line numbers occupied by module, class, and function docstrings."""
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return set()
+
+    lines: set[int] = set()
+    nodes: list[ast.AST] = [tree]
+    nodes.extend(
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+    )
+    for node in nodes:
+        body = getattr(node, "body", [])
+        if not body:
+            continue
+        first = body[0]
+        if not (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+        ):
+            continue
+        start = first.lineno
+        end = getattr(first, "end_lineno", start)
+        lines.update(range(start, end + 1))
+    return lines
+
+
 def _first_banned_line(content: str) -> tuple[int, str] | None:
-    """Return (1-based line number, stripped line) of the first banned path."""
-    for idx, line in enumerate(content.splitlines(), start=1):
-        if _BANNED_PATH.search(line):
-            return idx, line.strip()
+    """Return the first banned path in a non-docstring string literal."""
+    doc_lines = _docstring_lines(content)
+    reader = io.StringIO(content).readline
+    try:
+        tokens = tokenize.generate_tokens(reader)
+        for token in tokens:
+            if token.type != tokenize.STRING or token.start[0] in doc_lines:
+                continue
+            if _BANNED_PATH.search(token.string):
+                return token.start[0], token.line.strip()
+    except tokenize.TokenError:
+        return None
     return None
 
 
@@ -127,9 +169,7 @@ def collect_offenders(repo_root: Path) -> list[Offender]:
                 continue
             try:
                 content = py_file.read_text(encoding="utf-8")
-            except OSError, UnicodeDecodeError:
-                continue
-            if not _BANNED_PATH.search(content):
+            except (OSError, UnicodeDecodeError):
                 continue
             if _routes_through_helper(content):
                 continue

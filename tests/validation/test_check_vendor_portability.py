@@ -74,6 +74,30 @@ def test_script_routing_through_helper_is_exempt(fake_repo: Path) -> None:
     assert offenders == []
 
 
+def test_comments_with_upstream_paths_are_not_offenders(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/comment.py",
+        "# writes to .agents/analysis when running upstream\nvalue = 'safe'\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_docstrings_with_upstream_paths_are_not_offenders(fake_repo: Path) -> None:
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/docstring.py",
+        '"""Mentions .claude/lib/paths.py in prose."""\n\nvalue = "safe"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
 # --- collect_offenders: negative (offending) -------------------------------
 
 

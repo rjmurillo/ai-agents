@@ -8,9 +8,8 @@ policies every skill needs so no script hard-codes an upstream-only path.
 Two policies:
 
 - `resolve_skill_resource(skill, relpath)` is the READ path. It locates a
-  file that ships inside the plugin (a reference doc, a helper script). The
-  candidate order mirrors the `/review` skill's documented "Path resolution
-  (harness-agnostic)" section in `.claude/skills/review/SKILL.md`:
+  file that ships inside the plugin (a reference doc, a helper script). This
+  helper uses this local candidate order:
     1. `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<relpath>` when CLAUDE_PLUGIN_ROOT
        is set by the harness.
     2. `.claude/skills/<skill>/<relpath>` resolved from the current working
@@ -27,17 +26,19 @@ Two policies:
   overridable by the `AI_AGENTS_ARTIFACT_ROOT` environment variable so a
   consumer can redirect every skill's output to one place.
 
-Stricter/looser/different than canonical:
-  The read-path candidate order is a strict mirror of the `/review` skill's
-  three-candidate chain (CLAUDE_PLUGIN_ROOT, `.claude/`, plugin-root-relative)
-  with the verbatim contract preserved. The write path is new (the `/review`
-  skill has no write artifact), modeled on `/spec` Step 0 writing
+Relationship to existing skills:
+  The read path uses a three-location fallback like `/review`, but the
+  environment variable and concrete resource paths are local to this helper.
+  `/review` documents `CLAUDE_SKILL_DIR` for its first candidate. This helper
+  uses `CLAUDE_PLUGIN_ROOT` because packaged plugin installs expose the plugin
+  root, not one skill directory. The write path is new (the `/review` skill has
+  no write artifact), modeled on `/spec` Step 0 writing
   `.agents/metrics/STEP-0-METRICS.md` lazily under the consumer cwd. The
   AI_AGENTS_ARTIFACT_ROOT override is added so the consumer, not the skill,
   owns the artifact location.
 
-Canonical read-path pattern: `.claude/skills/review/SKILL.md`,
-section "Path resolution (harness-agnostic)". Plugin-root marker reuse:
+Related sources: `.claude/skills/review/SKILL.md`, section "Path resolution
+(harness-agnostic)". Plugin-root marker reuse:
 `.claude/lib/bootstrap.py::resolve_plugin_lib_dir` (CLAUDE_PLUGIN_ROOT then
 the `.claude-plugin/plugin.json` walk-up). This file is a sibling write-path
 resolver to that read-path resolver per the Issue #2050 batch decision.
@@ -86,6 +87,17 @@ def _normalize_relpath(relpath: str | Path) -> Path:
     return rel
 
 
+def _normalize_skill_name(skill: str) -> str:
+    """Reject skill names that escape the skills directory."""
+    name = skill.strip()
+    if not name:
+        raise ValueError("skill must be a non-empty name")
+    rel = _normalize_relpath(name)
+    if len(rel.parts) != 1:
+        raise ValueError("skill must be a single directory name")
+    return rel.as_posix()
+
+
 def resolve_skill_resource(skill: str, relpath: str | Path) -> Path | None:
     """Resolve a read-only resource shipped inside a skill.
 
@@ -108,21 +120,20 @@ def resolve_skill_resource(skill: str, relpath: str | Path) -> Path | None:
         ValueError: When skill is empty or relpath is absolute or escapes
             the skill directory with `..`.
     """
-    if not skill or not skill.strip():
-        raise ValueError("skill must be a non-empty name")
+    skill_name = _normalize_skill_name(skill)
     rel = _normalize_relpath(relpath)
 
     candidates: list[Path] = []
 
     plugin_env = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_env:
-        candidates.append(Path(plugin_env).resolve() / "skills" / skill / rel)
+        candidates.append(Path(plugin_env).resolve() / "skills" / skill_name / rel)
 
-    candidates.append(Path.cwd() / ".claude" / "skills" / skill / rel)
+    candidates.append(Path.cwd() / ".claude" / "skills" / skill_name / rel)
 
     install_root = _plugin_install_root()
     if install_root is not None:
-        candidates.append(install_root / "skills" / skill / rel)
+        candidates.append(install_root / "skills" / skill_name / rel)
 
     for candidate in candidates:
         if candidate.is_file():

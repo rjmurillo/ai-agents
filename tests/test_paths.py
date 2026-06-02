@@ -137,6 +137,16 @@ def test_skill_resource_rejects_blank_skill(paths) -> None:
         paths.resolve_skill_resource("   ", "references/x.md")
 
 
+def test_skill_resource_rejects_absolute_skill(paths) -> None:
+    with pytest.raises(ValueError):
+        paths.resolve_skill_resource("/etc", "passwd")
+
+
+def test_skill_resource_rejects_skill_parent_traversal(paths) -> None:
+    with pytest.raises(ValueError):
+        paths.resolve_skill_resource("../escape", "secret.md")
+
+
 def test_skill_resource_rejects_absolute_relpath(paths) -> None:
     with pytest.raises(ValueError):
         paths.resolve_skill_resource("review", "/etc/passwd")
