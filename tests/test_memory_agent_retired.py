@@ -51,10 +51,15 @@ AGENT_PROMPT_DIRS = (
     REPO_ROOT / "templates" / "agents",
     REPO_ROOT / ".claude" / "agents",
     REPO_ROOT / "src" / "claude",
+    REPO_ROOT / "src" / "copilot-cli" / "agents",
+    REPO_ROOT / "src" / "vs-code-agents",
+    REPO_ROOT / ".github" / "agents",
 )
 
 _MEMORY_SUBAGENT_HANDOFF = re.compile(
-    r"^subagent_type\s*:\s*['\"]?memory['\"]?\s*(?:#.*)?$",
+    r"^\s*subagent_type\s*:\s*['\"]?memory['\"]?\s*(?:#.*)?$"
+    r"|Task\(\s*subagent_type\s*=\s*['\"]memory['\"]"
+    r"|runSubagent\([^)]*agentName\s*:\s*['\"]memory['\"]",
     re.MULTILINE | re.IGNORECASE,
 )
 
