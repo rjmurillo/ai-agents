@@ -27,13 +27,18 @@ workspace = os.environ.get(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
 )
 sys.path.insert(0, workspace)
+script_dir = os.path.dirname(__file__)
+sys.path.insert(0, script_dir)
 
-from scripts.ai_review_common import (  # noqa: E402
-    FAIL_VERDICTS,
+from quality_gate_agents import (  # noqa: E402
     QUALITY_GATE_AGENT_DISPLAY_NAMES,
     QUALITY_GATE_AGENTS,
     agent_arg_name,
     agent_env_name,
+)
+
+from scripts.ai_review_common import (  # noqa: E402
+    FAIL_VERDICTS,
     get_verdict_alert_type,
     get_verdict_emoji,
     initialize_ai_review,

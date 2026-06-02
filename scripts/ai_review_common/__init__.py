@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-from scripts.ai_review_common.feature_review import (
-    VALID_RECOMMENDATIONS,
-    get_feature_review_assignees,
-    get_feature_review_labels,
-    get_feature_review_recommendation,
-)
 from scripts.ai_review_common.issue_triage import (
     convert_to_json_escaped,
     format_collapsible_section,
@@ -21,6 +15,12 @@ from scripts.ai_review_common.issue_triage import (
     write_log_error,
     write_output,
     write_step_summary,
+)
+from scripts.ai_review_common.feature_review import (
+    VALID_RECOMMENDATIONS,
+    get_feature_review_assignees,
+    get_feature_review_labels,
+    get_feature_review_recommendation,
 )
 from scripts.ai_review_common.quality_gate import (
     FAIL_VERDICTS,
@@ -43,49 +43,7 @@ from scripts.ai_review_common.quality_gate import (
     spec_validation_failed,
 )
 
-QUALITY_GATE_AGENTS = (
-    "security",
-    "qa",
-    "analyst",
-    "architect",
-    "devops",
-    "roadmap",
-    "reliability",
-    "observability",
-    "agent-safety",
-    "decision-rigor",
-)
-
-QUALITY_GATE_AGENT_DISPLAY_NAMES = {
-    "security": "Security",
-    "qa": "QA",
-    "analyst": "Analyst",
-    "architect": "Architect",
-    "devops": "DevOps",
-    "roadmap": "Roadmap",
-    "reliability": "Reliability",
-    "observability": "Observability",
-    "agent-safety": "Agent Safety",
-    "decision-rigor": "Decision Rigor",
-}
-
-
-def agent_env_name(agent: str) -> str:
-    """Return the environment variable prefix for an agent name."""
-    return agent.upper().replace("-", "_")
-
-
-def agent_arg_name(agent: str) -> str:
-    """Return the argparse destination prefix for an agent name."""
-    return agent.replace("-", "_")
-
-
-
 __all__ = [
-    "agent_env_name",
-    "agent_arg_name",
-    "QUALITY_GATE_AGENT_DISPLAY_NAMES",
-    "QUALITY_GATE_AGENTS",
     "FAIL_VERDICTS",
     "SAFE_NAME_PATTERN",
     "VALID_RECOMMENDATIONS",
