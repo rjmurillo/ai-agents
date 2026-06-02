@@ -108,8 +108,10 @@ def _generate(tmp_path: Path) -> dict[str, object]:
 
 
 def _all_entries(doc: dict[str, object]) -> list[dict[str, str]]:
+    hooks = doc["hooks"]
+    assert isinstance(hooks, dict), "hooks must be a dict"
     entries: list[dict[str, str]] = []
-    for event_entries in doc["hooks"].values():  # type: ignore[attr-defined]
+    for event_entries in hooks.values():
         entries.extend(event_entries)
     assert entries, "fixture produced no hook entries"
     return entries
