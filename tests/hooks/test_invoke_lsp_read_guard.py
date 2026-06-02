@@ -159,9 +159,10 @@ class TestMessageBuilders:
         assert "native LSP overview" not in msg
 
     def test_warn_message(self):
-        msg = guard.build_warn_message(PY_TARGET, 3)
+        msg = guard.build_warn_message(PY_TARGET, 3, 1)
         assert "WARNING (Read 3)" in msg
         assert "find_symbol" in msg
+        assert "You have 1 nav calls; make 1 more call" in msg
 
     def test_hard_block_names_providers(self):
         msg = guard.build_hard_block(PY_TARGET, 4, 1, ["serena", "native_lsp"])

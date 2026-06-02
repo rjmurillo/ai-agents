@@ -293,14 +293,16 @@ def _original_main(stdin_bytes):
         return "\n".join(lines)
 
 
-    def build_warn_message(file_path: str, next_read_num: int) -> str:
+    def build_warn_message(file_path: str, next_read_num: int, nav_count: int) -> str:
         """Build the Soft-warn guidance (kit ``Gate 3`` warning, adapted)."""
+        remaining = NAV_REQUIRED - nav_count
+        plural = "call" if remaining == 1 else "calls"
         return (
             f"LSP-FIRST WARNING (Read {next_read_num}): consider symbol navigation.\n"
             "Use find_symbol / find_referencing_symbols before more Reads.\n"
-            f"The next Read is BLOCKED until you make {NAV_REQUIRED} nav calls (surgical mode)."
+            f"You have {nav_count} nav calls; make {remaining} more {plural} "
+            f"before Read {next_read_num + 1}."
         )
-
 
     def build_hard_block(
         file_path: str, next_read_num: int, nav_count: int, providers: list[str]
@@ -386,7 +388,7 @@ def _original_main(stdin_bytes):
         # read 3 with one nav must warn, not block (issue #2200). nav_count >=
         # NAV_REQUIRED is already short-circuited by the surgical tier above.
         if next_read_num == WARN_AT and nav_count < NAV_REQUIRED:
-            _emit_warn(build_warn_message(file_path, next_read_num))
+            _emit_warn(build_warn_message(file_path, next_read_num, nav_count))
             _note(f"soft-warn read {next_read_num}, allow: {file_path}")
             return 0, None
 
