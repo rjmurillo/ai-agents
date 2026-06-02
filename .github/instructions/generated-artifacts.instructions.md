@@ -76,22 +76,31 @@ as load-bearing as the artifact's bytes.
    regenerated cleanly" and "the schema validates" are not evidence the artifact
    works.
 
-## Blast radius: a launcher failure wedges the environment
+## Blast radius: a launcher failure must fail loud, not silently degrade
 
-A hook's in-script fail-open handler protects against exceptions raised by the
+A hook's in-script handler protects against exceptions raised by the
 script. It does nothing when the launcher (`python3 -u "<path>"`) fails before
 the script runs, which is exactly what a wrong path causes. For any artifact the
 host invokes as a command, a resolution failure is not a degraded feature; it can
 block the host entirely.
 
+The defense is prevention, not launcher-level fail-open. The MUST gates above
+(verify the contract, runtime-contract test, gate the committed artifact, real
+runtime smoke) stop a broken launcher from shipping in the first place. Making a
+broken launcher silently exit 0 does not fix the bug; it converts a loud,
+learnable failure into a silently disabled hook, so the customer's protection is
+gone and no one finds out. That is the silent-failure anti-pattern.
+
 ### SHOULD
 
-1. **Prefer launcher-level graceful degradation.** Where the host tolerates it,
-   shape the command so a missing or unresolved target degrades to a logged
-   no-op (warn to stderr, exit 0) instead of a hard error. A path bug should
-   become a warning in a log, never a wedged environment. Treat a change to the
-   launcher shape itself as architecture (it is the exact surface that caused the
-   incident); route it through architect review before shipping.
+1. **Prevent the bad launcher; if one escapes, fail loud.** The launcher shape is
+   fixed at generation time and verified by the gates above, so a path bug is
+   caught before release. If a novel launcher failure still escapes, it must fail
+   loud (surface the error) so it is detected and fixed, never masked by a silent
+   exit 0 that hides a disabled hook. Do not add a launcher wrapper that swallows
+   its own resolution failure. Treat any change to the launcher shape as
+   architecture (it is the exact surface that caused the incident); route it
+   through architect review before shipping.
 
 2. **Size the blast radius before you ship.** Ask: if this artifact is wrong, what
    breaks for the customer, and how do they recover? If the answer is "everything"
@@ -108,8 +117,9 @@ Before you merge a change to a generator or a customer-facing generated artifact
 - Did the artifact run end to end in the real runtime, or is the smoke documented
   and loud where CI cannot run it?
 - If this artifact is wrong, does the customer get a degraded feature or a wedged
-  environment? If the latter, is graceful degradation in place or flagged for
-  architect review?
+  environment? If the latter, are the MUST gates above in place so the bad
+  artifact cannot ship, and does a launcher failure fail loud rather than degrade
+  silently?
 
 If any answer is "no" or "not sure", fix it before review. A customer should
 never have to uninstall to recover from an artifact we generated.
@@ -118,7 +128,7 @@ never have to uninstall to recover from an artifact we generated.
 
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
-- `.claude/rules/release-it.md`. Fail-open hooks, graceful degradation.
+- `.claude/rules/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.
