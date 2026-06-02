@@ -680,8 +680,9 @@ if [ -n "$STAGED_MCP_FILE" ]; then
         elif [ -f "$MCP_SYNC_SCRIPT" ]; then
             if set_python_cmd; then
                 # Run sync script to sync all targets
-                SYNC_OUTPUT=$("${PYTHON_CMD[@]}" "$MCP_SYNC_SCRIPT" --sync-all --repo-root-override "$REPO_ROOT" 2>&1)
-                SYNC_EXIT=$?
+                # Guard against set -e (Issue #2258): a nonzero sync exit must
+                # be captured, not abort the hook at the substitution.
+                SYNC_OUTPUT=$("${PYTHON_CMD[@]}" "$MCP_SYNC_SCRIPT" --sync-all --repo-root-override "$REPO_ROOT" 2>&1) && SYNC_EXIT=0 || SYNC_EXIT=$?
 
                 if [ $SYNC_EXIT -eq 0 ]; then
                     # Stage generated files if they changed
@@ -741,8 +742,9 @@ if [ -n "$STAGED_AGENT_TEMPLATES" ]; then
         elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
             if set_python_cmd; then
                 # Run generator script
-                GENERATE_OUTPUT=$("${PYTHON_CMD[@]}" "$GENERATE_AGENTS_SCRIPT" 2>&1)
-                GENERATE_EXIT=$?
+                # Guard against set -e (Issue #2258): a nonzero generator exit
+                # must be captured, not abort the hook at the substitution.
+                GENERATE_OUTPUT=$("${PYTHON_CMD[@]}" "$GENERATE_AGENTS_SCRIPT" 2>&1) && GENERATE_EXIT=0 || GENERATE_EXIT=$?
 
                 if [ $GENERATE_EXIT -eq 0 ]; then
                     # Stage all generated agent files
@@ -827,9 +829,10 @@ if [ -n "$STAGED_SKILL_FILES" ]; then
                 # Get the skill directory (parent of SKILL.md)
                 skill_dir=$(dirname "$skill_md")
 
-                # Run validator on the skill directory and capture output
-                validator_output=$("${PYTHON_CMD[@]}" "$SKILL_VALIDATOR" "$skill_dir" 2>&1)
-                validator_exit=$?
+                # Run validator on the skill directory and capture output.
+                # Guard against set -e (Issue #2258): the validator exits
+                # nonzero on an invalid skill; capture it, do not abort here.
+                validator_output=$("${PYTHON_CMD[@]}" "$SKILL_VALIDATOR" "$skill_dir" 2>&1) && validator_exit=0 || validator_exit=$?
 
                 # Check if error is a Python system error (not a skill validation error)
                 if echo "$validator_output" | grep -q "failed to join paths"; then
@@ -1694,8 +1697,10 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
                 echo_warning "Memory cross-reference encountered issues (non-blocking)"
                 # Extract and show errors if jq is available
                 if command -v jq &> /dev/null; then
-                    errors=$(echo "$crossref_result" | jq -r '.Errors[]? // empty' 2>/dev/null)
-                    if [ -n "$errors" ]; then
+                    errors=$(echo "$crossref_result" | jq -r '.Errors[]? // empty' 2>/dev/null) && errors_exit=0 || errors_exit=$?
+                    if [ "$errors_exit" -ne 0 ]; then
+                        echo_warning "Could not parse memory cross-reference errors (jq exit $errors_exit)"
+                    elif [ -n "$errors" ]; then
                         echo_info "Errors: $errors"
                     fi
                 fi
@@ -1760,9 +1765,10 @@ if [ -n "$staged_adr_files" ]; then
         echo_warning "Skipping ADR detection: script path is a symlink"
     elif [ -f "$adr_detect_script" ]; then
         if set_python_cmd; then
-            # Run detection and capture output
-            adr_result=$("${PYTHON_CMD[@]}" "$adr_detect_script" --base-path "$REPO_ROOT" 2>&1)
-            adr_exit=$?
+            # Run detection and capture output.
+            # Guard against set -e (Issue #2258): a nonzero detection exit
+            # must be captured, not abort the hook at the substitution.
+            adr_result=$("${PYTHON_CMD[@]}" "$adr_detect_script" --base-path "$REPO_ROOT" 2>&1) && adr_exit=0 || adr_exit=$?
 
             if [ $adr_exit -eq 0 ]; then
                 # Check if changes were detected
@@ -1893,8 +1899,12 @@ if [ "$SKIP_SCOPE_CHECK" != "1" ]; then
         echo_warning "Skipping scope detection: script path is a symlink"
     elif [ -f "$SCOPE_DETECT_SCRIPT" ]; then
         if set_python_cmd; then
-            SCOPE_OUTPUT=$("${PYTHON_CMD[@]}" "$SCOPE_DETECT_SCRIPT" 2>&1)
-            SCOPE_EXIT=$?
+            # Guard against set -e: detect_scope_explosion.py exits 1 when a
+            # commit exceeds the file threshold. Without the `&& x=0 || x=$?`
+            # guard the substitution itself returns 1 under set -e and the hook
+            # dies HERE, before SCOPE_EXIT is captured and before the "Scope
+            # explosion detected" remediation can print (Issue #2258).
+            SCOPE_OUTPUT=$("${PYTHON_CMD[@]}" "$SCOPE_DETECT_SCRIPT" 2>&1) && SCOPE_EXIT=0 || SCOPE_EXIT=$?
             if [ $SCOPE_EXIT -eq 1 ]; then
                 echo ""
                 echo "$SCOPE_OUTPUT"
