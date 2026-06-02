@@ -86,7 +86,7 @@ Round 2 surfaced 4 NEW regressions, all inside the Round 1 fixes. The denominato
 
 1. **`/build` through `/review`**: the M1 prune deleted skills (workflow, doc-coverage, doc-sync) and authored or edited fixtures, a SKILL.md description, REQ-006, ADR-040, and plugin.json. Several of those artifacts still described the pre-prune catalog. `/review` returned PASS or WARN-only on every axis.
 2. **Ad-hoc `/pr-quality:all` after `/review`**: invoked by hand as a sanity check. qa returned BLOCKED, analyst and roadmap WARN, architect PASS-with-2-low. 12 findings total. The local gate and the backstop disagreed.
-3. **Round 1 fixes (`7993ed9f`, `f937a114`, `a3c82a66`, `adfe9f5d`)**: addressed the 11 findings. One fix (commit 4) recalculated one cell of the ADR-040 percentage table.
+3. **Round 1 fixes (`7993ed9f`, `f937a114`, `a3c82a66`, `adfe9f5d`)**: addressed the 12 findings. One fix (commit 4) recalculated one cell of the ADR-040 percentage table.
 4. **`/pr-quality:all` Round 2**: caught that the single-cell recalculation had left the table internally inconsistent (mixed /26 and /27 denominators), plus a hedging-language regression in the eval fixture.
 5. **Round 2 fix (`4e077b50`)**: recomputed the entire table to a single denominator and removed the hedge. Clean.
 
