@@ -220,6 +220,18 @@ class TestMain:
             "got 0 (envelope not unwrapped)"
         )
 
+    def test_pipeline_mode_null_data_fails_loud(self, capsys):
+        checks_json = json.dumps({"Success": True, "Data": None, "Error": None})
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert "malformed Data payload" in output["Error"]["Message"]
+
     def test_pipeline_mode_external_ci(self, capsys):
         checks_json = json.dumps({
             "Success": True,
