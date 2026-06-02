@@ -1,6 +1,6 @@
 ---
 name: pr-comment-responder
-version: 1.0.0
+version: 1.1.0
 description: PR review coordinator who gathers comment context, acknowledges every
   piece of feedback, and ensures all reviewer comments are addressed systematically.
   Triages by actionability, tracks thread conversations, and maps each comment to
@@ -63,6 +63,7 @@ See [references/workflow.md](references/workflow.md) Phase -1 for full details.
 
 | Operation | Script |
 |-----------|--------|
+| **Cluster threads by gist (Phase 0)** | `cluster_threads.py` |
 | **Context extraction** | `extract_github_context.py` |
 | PR metadata | `get_pr_context.py` |
 | Comments | `get_pr_review_comments.py --include-issue-comments` |
@@ -149,6 +150,39 @@ Use direct `post_pr_comment_reply.py` instead when:
 - You already know the exact response to post
 
 ## Process
+
+### Phase 0: Cluster Threads by Gist
+
+Before the per-thread fix loop, group unresolved threads by shared gist and
+surface clusters of 4 or more threads. A cluster of 4+ threads with the same
+gist is a single-source-of-truth violation: the same root cause (a framing or
+spec problem) restated on several files. Patching each file in turn does not
+close the cluster; retiring the framing in the source artifact once does.
+
+This step mechanizes the `feedback_bot_thread_clustering.md` mental model. It
+exists because PR #1897 round 7 surfaced 17 unresolved threads where 8 were the
+same "model_tier=opus contradicts cheaper-tier reviewer claim" framing on
+different files; rounds 5 and 6 patched per-file and did not collapse the
+cluster (see `.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md`).
+
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/pr-comment-responder/scripts"
+
+# Pass owner/repo/PR as separate quoted args (never concatenated; argv injection).
+python3 "$SCRIPTS_DIR/cluster_threads.py" \
+    --owner "$OWNER" --repo "$REPO" --pull-request "$PR_NUMBER"
+```
+
+The script fetches unresolved threads, clusters them by load-bearing token
+overlap, and emits a JSON report. When `"warning": true`, each entry in
+`clusters` names the cluster `size`, the `shared_tokens` that define the gist,
+and the `source_artifact` (the file most threads land on) most likely to be the
+framing root cause.
+
+**When a cluster of 4+ is reported: STOP the per-thread loop.** Fix the framing
+in the source artifact (template, PR description, or linked issue) first, push,
+and let the next bot rescan collapse the cluster. Only then proceed to Phase 1
+for the threads that remain.
 
 ### Phase 1: Context and Gather
 
