@@ -1,8 +1,7 @@
 # CLI Smoke Matrix (M7, REQ-4.1 to REQ-4.5)
 #
 # Proves the @rjmurillo/ai-agents CLI installs from a tarball and vendors a
-# clean kit on every supported platform. Mirrors the local flow verified in
-# packages/ai-agents-cli/tests/cli.test.ts:
+# clean kit on every supported platform. The local equivalent flow is:
 #   bun run scripts/build-bundle.ts  (reads repo-root .claude/)
 #   bun run build                    (emits dist/cli.js)
 #   npm pack                         (tarball ships dist/ + bundle/assets/)
@@ -153,6 +152,7 @@ jobs:
             @{ Path = (Join-Path $env:DEMO ".claude" "commands"); Type = "Container" },
             @{ Path = (Join-Path $env:DEMO ".claude" "skills"); Type = "Container" },
             @{ Path = (Join-Path $env:DEMO "CLAUDE.md"); Type = "Leaf" },
+            @{ Path = (Join-Path $env:DEMO "AGENTS.md"); Type = "Leaf" },
             @{ Path = (Join-Path $env:DEMO ".claude" ".ai-agents-version.json"); Type = "Leaf" }
           )
           $missing = $expected | Where-Object {
