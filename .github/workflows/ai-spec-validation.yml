@@ -169,10 +169,10 @@ jobs:
           # evaluate only the declared slice, not the full parent epic.
           INCREMENTAL_SCOPE=""
           if printf '%s\n' "$PR_TITLE" | grep -qiE \
-              'phase[[:space:]]+[0-9]+|pr[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+[0-9]+'; then
+              'phase[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+(#[0-9]+|[0-9]+)|pr[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+[0-9]+'; then
             INCREMENTAL_SCOPE=$(printf '%s\n' "$PR_TITLE" \
               | grep -oiE \
-                'phase[[:space:]]+[0-9]+([[:space:]]+of[[:space:]]+[0-9]+)?|pr[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+[0-9]+' \
+                'phase[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+(#[0-9]+|[0-9]+)|pr[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+[0-9]+' \
               | head -1 | tr -s ' ')
           fi
 
