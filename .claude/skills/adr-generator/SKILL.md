@@ -110,6 +110,21 @@ If no ADRs or template files exist anywhere in the codebase:
 - Determine the next sequential number (zero-padded to match existing convention)
 - Verify no collision with existing files in that directory
 
+For this repo's canonical `.agents/architecture/` location, use the
+deterministic helper instead of eyeballing the directory (it also accounts
+for the #2228 allowlist of pre-existing duplicates):
+
+```bash
+python3 scripts/validation/check_adr_uniqueness.py --print-next
+```
+
+The same script is enforced as a merge-time CI gate
+(`.github/workflows/validate-adr-number-uniqueness.yml`, issue #2253), so a
+PR that picked a number which has since been merged by another branch will
+fail with a remediation message naming the next free value. Re-run
+`--print-next` and rename the file, the `# ADR-NNN:` heading, and any
+references before pushing.
+
 ### Phase G3: Generate
 
 Populate the detected template with gathered content:
@@ -193,8 +208,8 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 
 ## References
 
-- [ADR Template](references/adr-template.md) — This project's canonical ADR document structure
-- [ADR Templates Catalog](references/adr-templates-catalog.md) — Comparison of Nygard, MADR, Alexandrian, Tyree & Akerman, and other formats
-- [AD Quality Frameworks](references/ad-quality-frameworks.md) — ASR Test, START (DoR), ecADR (DoD), anti-patterns, review checklist (Zimmermann)
-- [ADR Best Practices](references/adr-best-practices.md) — Writing guidance, lifecycle, naming conventions, teamwork advice
-- [Quality Checklist](references/quality-checklist.md) — Validation checklist for Phase G4
+- [ADR Template](references/adr-template.md): This project's canonical ADR document structure
+- [ADR Templates Catalog](references/adr-templates-catalog.md): Comparison of Nygard, MADR, Alexandrian, Tyree & Akerman, and other formats
+- [AD Quality Frameworks](references/ad-quality-frameworks.md): ASR Test, START (DoR), ecADR (DoD), anti-patterns, review checklist (Zimmermann)
+- [ADR Best Practices](references/adr-best-practices.md): Writing guidance, lifecycle, naming conventions, teamwork advice
+- [Quality Checklist](references/quality-checklist.md): Validation checklist for Phase G4
