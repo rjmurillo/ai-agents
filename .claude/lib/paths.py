@@ -10,8 +10,8 @@ Two policies:
 - `resolve_skill_resource(skill, relpath)` is the READ path. It locates a
   file that ships inside the plugin (a reference doc, a helper script). This
   helper uses this local candidate order:
-    1. `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<relpath>` when CLAUDE_PLUGIN_ROOT
-       is set by the harness.
+    1. `${COPILOT_PLUGIN_ROOT}/skills/<skill>/<relpath>` or
+       `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<relpath>` when set by the harness.
     2. `.claude/skills/<skill>/<relpath>` resolved from the current working
        directory (Claude Code project layout).
     3. `skills/<skill>/<relpath>` resolved relative to the plugin install
@@ -30,9 +30,9 @@ Relationship to existing skills:
   The read path uses a three-location fallback like `/review`, but the
   environment variable and concrete resource paths are local to this helper.
   `/review` documents `CLAUDE_SKILL_DIR` for its first candidate. This helper
-  uses `CLAUDE_PLUGIN_ROOT` because packaged plugin installs expose the plugin
-  root, not one skill directory. The write path is new (the `/review` skill has
-  no write artifact), modeled on `/spec` Step 0 writing
+  uses `COPILOT_PLUGIN_ROOT` or `CLAUDE_PLUGIN_ROOT` because packaged plugin
+  installs expose the plugin root, not one skill directory. The write path is
+  new (the `/review` skill has no write artifact), modeled on `/spec` Step 0 writing
   `.agents/metrics/STEP-0-METRICS.md` lazily under the consumer cwd. The
   AI_AGENTS_ARTIFACT_ROOT override is added so the consumer, not the skill,
   owns the artifact location.
@@ -50,6 +50,11 @@ import os
 from pathlib import Path
 
 _PLUGIN_MARKER = Path(".claude-plugin") / "plugin.json"
+
+
+def _plugin_root_env() -> str | None:
+    """Return the harness-provided plugin root, if any."""
+    return os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 
 
 def _plugin_install_root() -> Path | None:
@@ -95,7 +100,8 @@ def resolve_skill_resource(skill: str, relpath: str | Path) -> Path | None:
     """Resolve a read-only resource shipped inside a skill.
 
     Tries each candidate in order and returns the first that exists:
-      1. `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<relpath>`
+      1. `${COPILOT_PLUGIN_ROOT}/skills/<skill>/<relpath>` or
+         `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/<relpath>`
       2. `<cwd>/.claude/skills/<skill>/<relpath>`
       3. `<plugin install root>/skills/<skill>/<relpath>`
 
@@ -118,7 +124,7 @@ def resolve_skill_resource(skill: str, relpath: str | Path) -> Path | None:
 
     candidates: list[Path] = []
 
-    plugin_env = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    plugin_env = _plugin_root_env()
     if plugin_env:
         candidates.append(Path(plugin_env).resolve() / "skills" / skill_name / rel)
 

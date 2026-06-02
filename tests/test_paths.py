@@ -47,6 +47,7 @@ def paths():
 @pytest.fixture(autouse=True)
 def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure neither env var leaks in from the runner's environment."""
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
     monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
     monkeypatch.delenv("AI_AGENTS_ARTIFACT_ROOT", raising=False)
 
@@ -99,6 +100,26 @@ def test_skill_resource_env_beats_cwd(
     result = paths.resolve_skill_resource("review", "x.md")
 
     assert result == env_target.resolve()
+
+
+def test_skill_resource_prefers_copilot_plugin_root(
+    paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    copilot_root = tmp_path / "copilot"
+    claude_root = tmp_path / "claude"
+    copilot_target = copilot_root / "skills" / "review" / "x.md"
+    claude_target = claude_root / "skills" / "review" / "x.md"
+    copilot_target.parent.mkdir(parents=True)
+    claude_target.parent.mkdir(parents=True)
+    copilot_target.write_text("copilot", encoding="utf-8")
+    claude_target.write_text("claude", encoding="utf-8")
+    monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(copilot_root))
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
+    monkeypatch.chdir(tmp_path)
+
+    result = paths.resolve_skill_resource("review", "x.md")
+
+    assert result == copilot_target.resolve()
 
 
 def test_skill_resource_env_miss_falls_back_to_install_root(
