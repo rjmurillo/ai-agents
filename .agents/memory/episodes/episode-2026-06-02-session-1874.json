@@ -1,0 +1,91 @@
+{
+  "id": "episode-2026-06-02-session-1874",
+  "session": "2026-06-02-session-1874",
+  "timestamp": "2026-06-02T00:00:00+00:00",
+  "outcome": "success",
+  "task": "P1 triage and fixes: evaluate and fix 8 open P1 issues (#2256 #2255 #2252 #2231 #2230 #2224 #2222 #1728)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #2224 (CWE-22 cache_guard repo-root anchor) + 2 tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #2256 (get_pr_check_logs Data envelope unwrap) + test",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #2252 (pr_description inline citation-cue stripping) + 6 tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #2222 (build_all --check + manifest parity in drift CI) + 3 tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #2255 (spec-coverage incremental-slice scoping) prompts + workflow",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #2231 items 1+2 (glob hook-artifact discovery + Windows pwsh CI)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed #2230 (launcher fail-open) with prevent-don't-mask justification",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed #1728 (orchestrator Context Budget section + SESSION-STATE.md), closed with justification; removed fabricated token table per owner",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Filed #2267 (hand-maintained agent copies have no generator)",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
