@@ -11,8 +11,9 @@ Behavior:
 1. Read ``PR_BASE_REF`` from the environment (falls back to ``main``).
 2. ``git fetch --no-tags --depth=200`` then ``--unshallow`` so ``origin/<base>``
    resolves under a shallow checkout.
-3. Resolve the base: ``PUSH_BEFORE_SHA`` first (push events, full range), then
-   ``origin/<base>``, then ``HEAD^`` as last resort.
+3. Resolve the base via ``ci_runner_base.resolve_base``: prefer
+   ``origin/<base>`` for PR and feature-branch pushes, fall back to
+   ``PUSH_BEFORE_SHA`` for direct pushes to the base branch, then ``HEAD^``.
 4. Invoke the validator with the resolved base and forward its exit code.
 
 Exit codes follow the validator: 0 clean, 1 not-bumped, 2 config. Any error in
