@@ -249,6 +249,7 @@ def _original_main(stdin_bytes):
         detect_providers,
         is_code_target,
         repo_has_programming_provider,
+        repo_programming_providers,
     )
     from hook_utilities.lsp_symbols import is_code_symbol  # noqa: E402
 
@@ -442,8 +443,8 @@ def _original_main(stdin_bytes):
         returns nothing (it should not, since the caller already confirmed a
         provider is active).
         """
-        providers = detect_providers("x.py", SYMBOL_NAVIGATION, get_project_directory())
-        return providers or ["serena"]
+        providers = repo_programming_providers(get_project_directory())
+        return providers or ["native_lsp"]
 
 
     def main() -> int:

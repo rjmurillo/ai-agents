@@ -361,6 +361,21 @@ class TestIsRepoWideScope:
         assert guard._is_repo_wide_scope("README.md", "") is False
 
 
+class TestRepoScopeProviders:
+    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
+    @patch(
+        "invoke_lsp_grep_guard.repo_programming_providers",
+        return_value=["native_lsp"],
+    )
+    def test_uses_repo_programming_providers(self, _mock_providers, _mock_dir):
+        assert guard._repo_scope_providers() == ["native_lsp"]
+
+    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
+    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=[])
+    def test_falls_back_to_native_lsp(self, _mock_providers, _mock_dir):
+        assert guard._repo_scope_providers() == ["native_lsp"]
+
+
 # ---------------------------------------------------------------------------
 # Unit tests: _resolve_in_repo
 # ---------------------------------------------------------------------------
@@ -388,12 +403,14 @@ class TestResolveInRepo:
 
 class TestRepoWideGating:
     @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
+    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=["serena"])
     @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=True)
     @patch("invoke_lsp_grep_guard.detect_providers", return_value=["serena"])
     def test_repo_wide_blocks_when_provider_active(
         self,
         _mock_detect,
         _mock_repo,
+        _mock_repo_providers,
         _mock_dir,
         mock_stdin: Callable[[str], None],
         capsys,
