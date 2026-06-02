@@ -36,11 +36,6 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-try:
-    import yaml as _yaml
-except ImportError:  # pragma: no cover
-    _yaml = None  # type: ignore[assignment]
-
 # Legacy fallback: the Copilot-CLI artifact path. Superseded by platform-
 # config discovery (_find_platform_hook_artifacts) which reads this value
 # from templates/platforms/copilot-cli.yaml artifacts.hooks.outputConfig.
@@ -71,7 +66,9 @@ def _find_platform_hook_artifacts(repo_root: Path) -> list[Path]:
     Returns an empty list when yaml is unavailable or when no platform
     declares hooks, triggering the legacy _COPILOT_REL fallback.
     """
-    if _yaml is None:
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError:  # pragma: no cover
         return []
     platforms_dir = repo_root / "templates" / "platforms"
     if not platforms_dir.is_dir():
@@ -79,8 +76,8 @@ def _find_platform_hook_artifacts(repo_root: Path) -> list[Path]:
     artifacts: list[Path] = []
     for yaml_path in sorted(platforms_dir.glob("*.yaml")):
         try:
-            cfg = _yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
+            cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
             continue
         if not isinstance(cfg, dict):
             continue
