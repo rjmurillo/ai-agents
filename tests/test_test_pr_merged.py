@@ -49,6 +49,13 @@ class TestBuildParser:
     def test_valid_args(self):
         args = build_parser().parse_args(["--pull-request", "315"])
         assert args.pull_request == 315
+        assert args.exit_zero_on_merged is False
+
+    def test_exit_zero_on_merged_flag(self):
+        args = build_parser().parse_args(
+            ["--pull-request", "315", "--exit-zero-on-merged"],
+        )
+        assert args.exit_zero_on_merged is True
 
 
 # ---------------------------------------------------------------------------
@@ -145,3 +152,61 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1"])
             assert exc.value.code == 3
+
+    def test_pr_merged_with_exit_zero_flag_returns_0(self, capsys):
+        """--exit-zero-on-merged: merged PR returns 0 instead of 100 sentinel.
+
+        Regression for issue #2277: autonomous autofix agents treat any
+        nonzero exit as failure. The flag lets such callers opt in to
+        standard exit semantics while preserving the JSON payload.
+        """
+        graphql_data = {
+            "repository": {
+                "pullRequest": {
+                    "state": "MERGED",
+                    "merged": True,
+                    "mergedAt": "2025-01-01T00:00:00Z",
+                    "mergedBy": {"login": "admin"},
+                },
+            },
+        }
+        with patch(
+            "test_pr_merged.assert_gh_authenticated",
+        ), patch(
+            "test_pr_merged.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "test_pr_merged.gh_graphql",
+            return_value=graphql_data,
+        ):
+            rc = main(["--pull-request", "315", "--exit-zero-on-merged"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["merged"] is True
+        assert output["merged_by"] == "admin"
+
+    def test_pr_not_merged_with_exit_zero_flag_still_returns_0(self, capsys):
+        """--exit-zero-on-merged does not change the not-merged path."""
+        graphql_data = {
+            "repository": {
+                "pullRequest": {
+                    "state": "OPEN",
+                    "merged": False,
+                    "mergedAt": None,
+                    "mergedBy": None,
+                },
+            },
+        }
+        with patch(
+            "test_pr_merged.assert_gh_authenticated",
+        ), patch(
+            "test_pr_merged.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "test_pr_merged.gh_graphql",
+            return_value=graphql_data,
+        ):
+            rc = main(["--pull-request", "315", "--exit-zero-on-merged"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["merged"] is False
