@@ -1255,8 +1255,11 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
                 # Refs #2193: previously --force was unconditional, dropping
                 # curated decisions/lessons on every commit that touched a log.
                 # Guard against set -e aborting the hook on non-blocking extraction failures.
-                EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --preserve 2>&1 || true)
-                EXTRACT_EXIT=$?
+                if EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --preserve 2>&1); then
+                    EXTRACT_EXIT=0
+                else
+                    EXTRACT_EXIT=$?
+                fi
 
                 if [ $EXTRACT_EXIT -eq 0 ]; then
                     # Extract episode filename from output (last line with .json)
