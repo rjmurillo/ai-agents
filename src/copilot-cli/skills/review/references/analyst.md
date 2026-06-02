@@ -16,6 +16,12 @@ You are reviewing a pull request for code quality, impact, and architectural con
 - For dependency update PRs: evaluate the diff for internal consistency, not external ecosystem assumptions. If CI tests pass, the tooling works.
 - Base findings on what the code shows, not on recalled release schedules.
 
+## Reference Material
+
+Ground quality findings in the project's reasoning artifacts. All paths are under `.claude/` and ship with vendored installs:
+
+- Falsifiability (`.claude/skills/decision-critic/references/critical-thinking-falsifiability.md`): apply when a claim is asserted without a measurable success criterion. A "more maintainable" or "faster" claim with no metric, baseline, or failure condition is unfalsifiable; flag it as a finding and treat the benefit as unverified rather than accepting it on faith.
+
 ## Analysis Focus Areas
 
 ### 1. Code Quality Assessment
