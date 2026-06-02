@@ -147,11 +147,17 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
+          mirror_rc=0
+          build_rc=0
           echo "Checking scripts/ -> .claude/lib/ sync via sync_plugin_lib.py --check"
-          python3 scripts/sync_plugin_lib.py --check
+          python3 scripts/sync_plugin_lib.py --check || mirror_rc=$?
           echo ""
           echo "Checking .claude/lib/ -> src/copilot-cli/lib/ sync via build_all.py --check"
-          python3 build/scripts/build_all.py --check
+          python3 build/scripts/build_all.py --check || build_rc=$?
+          if [ "$mirror_rc" -ne 0 ]; then
+            exit "$mirror_rc"
+          fi
+          exit "$build_rc"
 
       - name: Check plugin manifest version parity
         id: manifest-parity
@@ -187,6 +193,10 @@ jobs:
 
           if [ "$VALIDATE_CONCLUSION" = "failure" ]; then
             python3 build/generate_agents.py
+          fi
+          if [ "$LIB_MIRROR_CONCLUSION" = "failure" ]; then
+            python3 scripts/sync_plugin_lib.py || true
+            python3 build/scripts/build_all.py || true
           fi
 
           # Show which files drifted
