@@ -513,13 +513,9 @@ def fetch_linked_prs(owner: str, repo: str, number: int) -> tuple[tuple[int, str
         raw = _run_gh(cmd)
         events = json.loads(raw or "[]")
     except (RuntimeError, json.JSONDecodeError, ValueError, TypeError) as err:
-        raise LinkedPrFetchError(
-            f"failed to fetch linked PRs for issue #{number}: {err}"
-        ) from err
+        raise LinkedPrFetchError(str(err)) from err
     if not isinstance(events, list):
-        raise LinkedPrFetchError(
-            f"failed to fetch linked PRs for issue #{number}: non-list timeline"
-        )
+        raise LinkedPrFetchError("non-list timeline")
 
     pairs: list[tuple[int, str]] = []
     for event in events:
