@@ -65,6 +65,17 @@ jobs:
       - name: Run plugin manifest schema check
         uses: ./.github/actions/validate-plugin-manifests
 
+      # The hook anchoring gate imports build/scripts/generate_hooks.py, which
+      # depends on PyYAML (pinned in pyproject.toml). Install it explicitly so
+      # the gate fails on a real anchoring violation, not on a missing module.
+      - name: Set up Python for hook anchoring gate
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Install hook anchoring gate dependencies
+        run: python3 -m pip install 'PyYAML==6.0.3'
+
       # Server-side enforcement of the hook-anchoring contract (issue #2205,
       # FM #11, ADR-063). The pre-push hook also runs this, but pre-push is
       # local and bypassable; this gate runs in CI on any plugin hooks.json or
