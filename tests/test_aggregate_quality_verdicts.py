@@ -31,7 +31,7 @@ get_category = _mod.get_category
 # Helpers
 # ---------------------------------------------------------------------------
 
-_AGENTS = ("security", "qa", "analyst", "architect", "devops", "roadmap")
+_AGENTS = _mod._AGENTS
 
 
 def _make_argv(verdicts: dict[str, str], infra: dict[str, str] | None = None) -> list[str]:

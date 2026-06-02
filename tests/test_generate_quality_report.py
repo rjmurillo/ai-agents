@@ -149,6 +149,10 @@ class TestMain:
         report = (report_dir / "pr-quality-report.md").read_text()
         assert "| Security |" in report
         assert "| QA |" in report
+        assert "| Reliability |" in report
+        assert "| Observability |" in report
+        assert "| Agent Safety |" in report
+        assert "| Decision Rigor |" in report
 
     def test_report_contains_run_details(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
