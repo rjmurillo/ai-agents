@@ -93,16 +93,55 @@ def test_sha_rejects_all_zero_sentinel() -> None:
 
 
 def test_resolve_base_prefers_origin_when_resolvable(monkeypatch) -> None:
+    """origin/<base_ref> is preferred when it resolves AND is not == HEAD.
+
+    Regression test for #2254: incremental feature-branch pushes must diff
+    against origin/main (the base branch), not PUSH_BEFORE_SHA (the previous
+    branch head, which may already contain the plugin bump).
+    """
+    monkeypatch.setenv("PUSH_BEFORE_SHA", "abc1234")  # would shadow if used
+
     def fake_run(cmd, *, check=False, timeout=60):
         if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "origin/main":
             return 0, "deadbeef\n", ""
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "HEAD":
+            return 0, "feedface\n", ""  # HEAD differs from origin/main
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "abc1234":
+            return 0, "abc1234\n", ""  # PUSH_BEFORE_SHA also resolves
         return 1, "", ""
 
     monkeypatch.setattr(base, "run", fake_run)
     assert base.resolve_base("main") == "origin/main"
 
 
-def test_resolve_base_falls_back_to_push_before_sha(monkeypatch) -> None:
+def test_resolve_base_falls_back_to_push_before_sha_when_origin_equals_head(
+    monkeypatch,
+) -> None:
+    """When origin/<base_ref> == HEAD (push directly to base branch), the
+    diff against origin yields nothing, so fall back to PUSH_BEFORE_SHA to
+    cover every commit in the push.
+    """
+    monkeypatch.setenv("PUSH_BEFORE_SHA", "abc1234")
+
+    def fake_run(cmd, *, check=False, timeout=60):
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "origin/main":
+            return 0, "samesha\n", ""
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "HEAD":
+            return 0, "samesha\n", ""  # HEAD == origin/main
+        if cmd[:3] == ["git", "rev-parse", "--verify"] and cmd[-1] == "abc1234":
+            return 0, "abc1234\n", ""
+        return 1, "", ""
+
+    monkeypatch.setattr(base, "run", fake_run)
+    assert base.resolve_base("main") == "abc1234"
+
+
+def test_resolve_base_falls_back_to_push_before_sha_when_origin_unresolvable(
+    monkeypatch,
+) -> None:
+    """When origin/<base_ref> does not resolve at all (network failure,
+    base ref deleted), still honour PUSH_BEFORE_SHA before HEAD^.
+    """
     monkeypatch.setenv("PUSH_BEFORE_SHA", "abc1234")
 
     def fake_run(cmd, *, check=False, timeout=60):

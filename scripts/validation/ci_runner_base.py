@@ -93,13 +93,35 @@ def resolve_base(base_ref: str) -> str | None:
     """Return the diff base, or None when no usable ref resolves.
 
     Order:
-      1. ``PUSH_BEFORE_SHA`` for push events: covers every commit
-         in the push, not just the last one. Checked first because
-         on push events ``origin/<base_ref>`` may equal ``HEAD``,
-         yielding an empty diff.
-      2. ``origin/<base_ref>`` if it resolves after the fetch.
+      1. ``origin/<base_ref>`` when it resolves AND differs from ``HEAD``.
+         This is the correct base for pull_request events and for incremental
+         pushes on feature branches: the gate enforces "strictly greater than
+         the version at the base ref", so the base is the base branch
+         (typically ``main``), not the previous tip of the feature branch.
+      2. ``PUSH_BEFORE_SHA`` when set and resolvable. Reserved for the case
+         where ``origin/<base_ref>`` equals ``HEAD`` (direct push to the base
+         branch yields an empty origin diff) or ``origin/<base_ref>`` cannot
+         be resolved (fetch failure, deleted base ref). Covers every commit
+         in the push, not just the last one.
       3. ``HEAD^`` as a last resort. Single-commit fallback only.
+
+    Regression note (#2254): Before the fix, ``PUSH_BEFORE_SHA`` was checked
+    first unconditionally, which false-failed feature-branch incremental
+    pushes whose previous tip already contained the version bump.
     """
+    rc_origin, origin_sha, _ = run(
+        ["git", "rev-parse", "--verify", "--quiet", f"origin/{base_ref}"], timeout=10
+    )
+    origin_resolves = rc_origin == 0
+    if origin_resolves:
+        rc_head, head_sha, _ = run(
+            ["git", "rev-parse", "--verify", "--quiet", "HEAD"], timeout=10
+        )
+        # Prefer origin/<base_ref> unless it equals HEAD (a direct push to the
+        # base branch, where the origin diff would be empty).
+        if rc_head != 0 or head_sha.strip() != origin_sha.strip():
+            return f"origin/{base_ref}"
+
     push_before = validate_sha(os.environ.get("PUSH_BEFORE_SHA", ""))
     if push_before is not None:
         rc, _, _ = run(
@@ -108,10 +130,9 @@ def resolve_base(base_ref: str) -> str | None:
         if rc == 0:
             return push_before
 
-    rc, _, _ = run(
-        ["git", "rev-parse", "--verify", "--quiet", f"origin/{base_ref}"], timeout=10
-    )
-    if rc == 0:
+    if origin_resolves:
+        # origin/<base_ref> resolved but equalled HEAD and PUSH_BEFORE_SHA was
+        # unusable; fall back to it anyway so callers get a defined base.
         return f"origin/{base_ref}"
 
     rc, _, _ = run(["git", "rev-parse", "--verify", "--quiet", "HEAD^"], timeout=10)
