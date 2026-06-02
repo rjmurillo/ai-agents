@@ -1233,6 +1233,105 @@ class TestValidatePRDescription:
         assert len(critical) == 1
         assert len(warnings) == 1
 
+    # ------------------------------------------------------------------
+    # Issue #2252 — Part A regression tests
+    # ------------------------------------------------------------------
+    def test_issue_2252_failure_message_is_actionable(self) -> None:
+        """The Check 1 failure message must enumerate the three silencing
+        mechanisms (fenced block, admonition, contextual H2 heading) and
+        name the bypass label so PR authors get concrete guidance."""
+        issues = validate_pr_description(
+            pr_files=["scripts/changed.py"],
+            mentioned_files=["scripts/missing.py"],
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        assert len(critical) == 1
+        msg = critical[0].message
+        # Silencing mechanisms
+        assert "fenced code block" in msg
+        assert "admonition" in msg
+        assert "contextual H2 heading" in msg
+        # Representative heading examples
+        assert "## Related Files" in msg
+        assert "## References" in msg
+        # Bypass label name (must come from DEFAULT_BYPASS_LABEL constant)
+        assert "description-validation-bypass" in msg
+
+    def test_issue_2252_pr_2214_shape_flagged_with_actionable_message(
+        self,
+    ) -> None:
+        """PR #2214 shape: a .claude/... reference path cited inside the
+        narrative of ## Per-file changes is currently a CRITICAL claim
+        (Part A does not flip the default). The test asserts the new
+        actionable message text so authors get concrete remediation."""
+        description = (
+            "## Per-file changes\n"
+            "- `scripts/foo.py`: rewires the loader so it picks up "
+            "`.claude/commands/spec.md` correctly when probing.\n"
+        )
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(
+            pr_files=["scripts/foo.py"],
+            mentioned_files=mentioned,
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        offenders = [i.file for i in critical]
+        assert ".claude/commands/spec.md" in offenders
+        msg = next(
+            i.message for i in critical if i.file == ".claude/commands/spec.md"
+        )
+        assert "## Related Files" in msg
+        assert "description-validation-bypass" in msg
+
+    def test_issue_2252_pr_2225_shape_flagged_with_actionable_message(
+        self,
+    ) -> None:
+        """PR #2225 shape: an ADR path cited inside ## Testing narrative is
+        still a CRITICAL claim under Part A; new message text must guide
+        the author to the silencing mechanisms."""
+        description = (
+            "## Testing\n"
+            "- Ran the new exit-code check; behavior matches "
+            "`.agents/architecture/ADR-035-exit-code-standardization.md`.\n"
+        )
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(
+            pr_files=["scripts/validation/pre_pr.py"],
+            mentioned_files=mentioned,
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        offenders = [i.file for i in critical]
+        assert (
+            ".agents/architecture/ADR-035-exit-code-standardization.md"
+            in offenders
+        )
+        msg = next(
+            i.message
+            for i in critical
+            if i.file
+            == ".agents/architecture/ADR-035-exit-code-standardization.md"
+        )
+        assert "fenced code block" in msg
+        assert "## Related Files" in msg
+        assert "description-validation-bypass" in msg
+
+    def test_issue_2252_related_files_heading_strips_reference(self) -> None:
+        """Positive test for change #1: when the same ADR reference is
+        moved under a `## Related Files` H2 heading, the stripper now
+        absorbs it and no CRITICAL fires."""
+        description = (
+            "## Summary\nTouches the validator.\n\n"
+            "## Related Files\n"
+            "- `.agents/architecture/ADR-035-exit-code-standardization.md`\n"
+        )
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(
+            pr_files=["scripts/validation/pre_pr.py"],
+            mentioned_files=mentioned,
+        )
+        critical = [i for i in issues if i.severity == "CRITICAL"]
+        assert critical == []
+
 
 # ---------------------------------------------------------------------------
 # print_results
