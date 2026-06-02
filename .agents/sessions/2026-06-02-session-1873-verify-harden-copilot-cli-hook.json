@@ -129,6 +129,10 @@
     {
       "task": "Deep incident retrospective and systemic remediation for the PR #2205 customer-wedge incident (delegated to the retrospective agent).",
       "outcome": "Retrospective agent produced .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md (P0): 33-day exposure (v0.3.0-v0.5.6), five-whys (RC1 no runtime verification, RC2 fail-open at wrong layer, RC3 confident-incorrectness in fix), FM #9 primary + FM #4 + proposed FM #11. Shipped non-gated remediation: new rule .claude/rules/generated-artifacts.md (commit acf91d93f), AGENTS.md boundaries, canonical-source-mirror.md amendment, regenerated instruction mirrors (commit 75853de99), Serena memories feedback-generated-artifact-runtime-verification and feedback-hook-fail-open-architectural-layer. Gated items flagged for review: FM #11 + ADR-063 (adr-review), launcher graceful-degradation (architect review), nightly release smoke (secrets/human)."
+    },
+    {
+      "task": "Formalize the protocol: ADR-063 (plugin hook runtime-contract verification) + FM #11, through the BLOCKING 6-agent adr-review gate.",
+      "outcome": "Created ADR-063 and FM #11; ran adr-review (architect/critic/independent-thinker/security/analyst/high-level-advisor): 2 Accept, 4 Disagree-and-Commit, 0 Block. Resolved the P0/P1 dissents: added a server-side CI anchoring gate to validate-plugin-manifests.yml (P0 CI gap); promoted launcher fail-open to ADR Decision item 5 tracked as issue #2230 with OPEN residual-risk (P0); added a load-bearing-var negative control to the runtime-contract test (P1 self-referential); added Reversibility/Vendor-lock-in section, verbatim contract quote, and three-layer test distinction (P1). Tracked remaining items in #2231. Debate log at .agents/critique/ADR-063-debate-log.md. ADR status Accepted. Verification: pytest runtime-contract 6 passed; validate_hook_anchoring PASS 94; ruff clean."
     }
   ],
   "endingCommit": "64506e8fa",

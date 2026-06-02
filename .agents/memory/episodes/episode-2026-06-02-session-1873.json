@@ -45,6 +45,22 @@
       "content": "Deep incident retrospective and systemic remediation for the PR #2205 customer-wedge incident (delegated to the retrospective agent).",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Formalize the protocol: ADR-063 (plugin hook runtime-contract verification) + FM #11, through the BLOCKING 6-agent adr-review gate.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "test",
+      "content": "Created ADR-063 and FM #11; ran adr-review (architect/critic/independent-thinker/security/analyst/high-level-advisor): 2 Accept, 4 Disagree-and-Commit, 0 Block. Resolved the P0/P1 dissents: added a server-side CI anchoring gate to validate-plugin-manifests.yml (P0 CI gap); promoted launcher fail-open to ADR Decision item 5 tracked as issue #2230 with OPEN residual-risk (P0); added a load-bearing-var negative control to the runtime-contract test (P1 self-referential); added Reversibility/Vendor-lock-in section, verbatim contract quote, and three-layer test distinction (P1). Tracked remaining items in #2231. Debate log at .agents/critique/ADR-063-debate-log.md. ADR status Accepted. Verification: pytest runtime-contract 6 passed; validate_hook_anchoring PASS 94; ruff clean.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
