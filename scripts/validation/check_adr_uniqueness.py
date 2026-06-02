@@ -49,7 +49,7 @@ def collect_adr_numbers(adr_dir: Path) -> dict[int, list[Path]]:
     for md in sorted(adr_dir.glob("ADR-*.md")):
         m = ADR_FILENAME_RE.match(md.name)
         if not m:
-            # e.g. ADR-EXAMPLE.md or other non-numeric variants — skip.
+            # e.g. ADR-EXAMPLE.md or other non-numeric variants, skip.
             continue
         by_number[int(m.group(1))].append(md)
     return by_number
@@ -63,7 +63,7 @@ def find_new_duplicates(
     return [
         (num, sorted(paths))
         for num, paths in sorted(by_number.items())
-        if len(paths) > 1 and num not in allowlist
+        if len(paths) > 1 and (num not in allowlist or len(paths) > 2)
     ]
 
 

@@ -96,7 +96,7 @@ def test_duplicate_outside_allowlist_fails_even_when_allowlisted_present(
     # Pre-existing dupe (allowlisted)
     _make_adr(adr_dir, 58, "agent-eval")
     _make_adr(adr_dir, 58, "context-corpus")
-    # New, post-merge dupe — must fail.
+    # New, post-merge dupe must fail.
     _make_adr(adr_dir, 80, "first")
     _make_adr(adr_dir, 80, "second")
 
@@ -119,6 +119,18 @@ def test_allowlist_suppresses_known_2228_duplicates(tmp_path: Path) -> None:
     result = _run(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "[PASS]" in result.stdout
+
+
+def test_new_duplicate_of_allowlisted_number_fails(tmp_path: Path) -> None:
+    adr_dir = _scaffold(tmp_path)
+    _make_adr(adr_dir, 58, "agent-eval")
+    _make_adr(adr_dir, 58, "context-corpus")
+    _make_adr(adr_dir, 58, "third-one")
+
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert "ADR-058" in result.stdout
+    assert "next free ADR number: 059" in result.stdout
 
 
 def test_readme_and_non_adr_files_are_ignored(tmp_path: Path) -> None:
