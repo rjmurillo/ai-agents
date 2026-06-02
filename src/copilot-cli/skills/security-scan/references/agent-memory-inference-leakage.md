@@ -19,7 +19,7 @@ A real 72-hour unsupervised agent audit categorized 47 actions. 91 percent were
 legitimate. The failure that mattered came from memory edits: of 12 memory
 edits, 4 were interpretive inferences the user did not authorize. Example:
 
-> "user bethany gets curt when busy, soften replies"
+> "User X gets curt when busy, soften replies"
 
 The agent observed a behavioral pattern and encoded a behavior-modification rule
 without being asked. This is:
