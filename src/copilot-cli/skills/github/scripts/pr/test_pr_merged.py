@@ -11,6 +11,12 @@ Exit codes follow ADR-035:
     3   - External error (API failure)
     4   - Auth error
     100 - PR IS merged (script-specific: skip review work)
+
+The exit-100 sentinel is intentional for the pre-review skip-check use case
+(Skill-PR-Review-007). Autonomous agents that drive PRs to merge should branch
+on the JSON ``"merged"`` field rather than the exit code. Callers that want
+standard exit semantics (0 for merged-success) can pass
+``--exit-zero-on-merged``; the JSON payload is unchanged. See issue #2277.
 """
 
 from __future__ import annotations
@@ -68,6 +74,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--pull-request", type=int, required=True, help="Pull request number",
     )
+    parser.add_argument(
+        "--exit-zero-on-merged",
+        action="store_true",
+        help=(
+            "Return exit code 0 (instead of the 100 sentinel) when the PR is "
+            "merged. JSON output is unchanged. Use this for autonomous "
+            "autofix agents that treat any nonzero exit as failure."
+        ),
+    )
     return parser
 
 
@@ -109,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(output, indent=2))
 
     if pr.get("merged"):
-        return 100
+        return 0 if args.exit_zero_on_merged else 100
 
     return 0
 
