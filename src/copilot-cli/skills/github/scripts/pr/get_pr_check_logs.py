@@ -313,11 +313,17 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        if checks_data.get("Number") and pr_number == 0:
-            pr_number = checks_data["Number"]
+        # get_pr_checks.py wraps its payload in a standard skill envelope:
+        # {"Success": true, "Data": {"Number": ..., "Checks": [...]}, ...}
+        # Tolerate both the enveloped form (new) and bare form (legacy / tests)
+        # by falling back to the top-level object when "Data" is absent.
+        payload = checks_data.get("Data", checks_data)
+
+        if payload.get("Number") and pr_number == 0:
+            pr_number = payload["Number"]
 
         failing_checks = [
-            c for c in checks_data.get("Checks", [])
+            c for c in payload.get("Checks", [])
             if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
 
@@ -357,8 +363,10 @@ def main(argv: list[str] | None = None) -> int:
             print(result.stdout)
             return 2
 
+        # Same envelope-tolerant unwrap as pipeline mode above
+        payload = checks_data.get("Data", checks_data)
         failing_checks = [
-            c for c in checks_data.get("Checks", [])
+            c for c in payload.get("Checks", [])
             if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
     else:
