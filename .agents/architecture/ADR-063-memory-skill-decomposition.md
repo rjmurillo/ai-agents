@@ -94,14 +94,19 @@ moves to Accepted.
    point. It must remain cheap to load. The debate selects whether it lives in
    the router (cheapest to reach, but couples the router to gate prose) or in a
    dedicated `memory-gate` sibling (cleaner boundary, one more hop). Either way
-   the gate keeps its current BLOCKING semantics per ADR-062.
+   the gate keeps its current BLOCKING semantics from
+   `ADR-062-memory-first-gate-spec-pipeline.md`. The repository currently also
+   contains `ADR-062-conditional-lsp-first-enforcement.md`; full filenames are
+   used here to avoid the existing numbering collision.
 
 4. **Boundaries from ADR-007, ADR-037, ADR-038, and ADR-056 are preserved.**
    The decomposition is a SKILL-surface change only. Serena remains the
-   canonical store and Forgetful the supplementary store (ADR-007). The router
-   pattern is preserved (ADR-037). The episode and causal schemas are unchanged
-   (ADR-038). Every sub-skill emits the standard output envelope (ADR-056).
-   Storage backends are out of scope.
+   canonical store and Forgetful the supplementary store (ADR-007). Each
+   sub-skill inherits ADR-007 Security Considerations, including memory data
+   classification and storage security rules. The router pattern is preserved
+   (ADR-037). The episode and causal schemas are unchanged (ADR-038). Every
+   sub-skill emits the standard output envelope (ADR-056). Storage backends are
+   out of scope.
 
 5. **No behavior change for callers.** Migration is name-preserving. Callers
    that invoke `memory` today continue to work because `memory` still resolves
@@ -155,7 +160,9 @@ moves to Accepted.
 - A decomposition adds skill files and a router hop. The router hop costs one
   extra delegation per call. Mitigation: the router stays thin (decision tree
   plus delegation only), so the hop is cheap and the per-operation context drops
-  far below 143 KB.
+  far below 143 KB. The M3 spec sets the exact context budget; the initial
+  target is router plus hot-path sub-skill under 20 KB unless measurement shows
+  the split needs a different bound.
 - Splitting by operation means a caller that needs two operations
   (search then extract) loads two sub-skills. For the common case (`/spec`
   Step 0.5 needs gate plus search) the two are co-located on the hot path, so
@@ -242,10 +249,18 @@ introduced because no new backend is added; this is a surface refactor.
 This ADR is the unit of decision. It records the decomposition decision; it does
 not implement the decomposition. Implementation is issue #1948 / M3, which owns
 the concrete migration plan, the per-call budget target, the eval tolerance, and
-the redistribution of the 11 reference files across the sub-skills. The
-cross-reference edit that adds this ADR to the `memory` SKILL.md frontmatter or
-top-of-body (issue #1947 AC6) is tracked separately so this PR stays a pure ADR
-DRAFT for the adr-review debate gate.
+the redistribution of the 11 reference files across the sub-skills. The target
+shape is 3 to 5 sub-skills; if M3 needs more, revisit the split axis before
+adding shallow pass-through skills. Each reference file travels with the
+sub-skill that invokes it. Shared references stay with the router only when the
+router uses them directly.
+
+Each sub-skill that depends on Forgetful must implement the graceful degradation
+table from ADR-007. Sub-skills that handle file paths must preserve the existing
+path traversal checks or import a shared validation utility. The cross-reference
+edit that adds this ADR to the `memory` SKILL.md frontmatter or top-of-body
+(issue #1947 AC6) is tracked separately so this PR stays a pure ADR DRAFT for
+the adr-review debate gate.
 
 ## Related Decisions
 
@@ -257,8 +272,10 @@ DRAFT for the adr-review debate gate.
   decomposed siblings inherit unchanged)
 - ADR-056: Skill Output Format Standardization (the output envelope every
   sub-skill must emit)
-- ADR-062: Memory-First Gate Is a BLOCKING Step in the Spec Pipeline (the gate
-  semantics the decomposition must keep)
+- `ADR-062-memory-first-gate-spec-pipeline.md`: Memory-First Gate Is a
+  BLOCKING Step in the Spec Pipeline (the gate semantics the decomposition must
+  keep). This repository also has `ADR-062-conditional-lsp-first-enforcement.md`,
+  so this ADR cites the full filename when it relies on gate semantics.
 
 ## References
 
@@ -267,6 +284,8 @@ DRAFT for the adr-review debate gate.
 - Issue #1948: M3 implementation (the decomposition this ADR authorizes but
   does not perform)
 - Epic #1944: parent epic
+- Issue #2228: follow-up to resolve the pre-existing ADR-058 and ADR-062
+  numbering collisions surfaced during adr-review
 - `.agents/analysis/skill-triage-2026-05-09.md`: finding F2 (143.6 KB size,
   +2.83 eval delta) and F4 (memory cluster table), the measurement driver
 - `.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`: Tier 2

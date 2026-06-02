@@ -35,7 +35,7 @@ ADR_PATH = PROJECT_ROOT / ".agents" / "architecture" / "ADR-063-memory-skill-dec
 # Mirrors detect_adr_changes.py:_get_adr_status (the adr-review detector).
 _STATUS_FRONTMATTER = re.compile(r"(?m)^status:\s*(.+)$")
 # U+2014 em-dash, U+2013 en-dash. Banned by .claude/rules/universal.md.
-_DASH_PATTERN = re.compile("[–—]")
+_DASH_PATTERN = re.compile("[\\u2013\\u2014]")
 
 
 @pytest.fixture(scope="module")
@@ -119,6 +119,9 @@ class TestRequiredCrossReferences:
         # constraints the issue requires; ADR-062 is the gate semantics to keep.
         assert adr_ref in adr_text, f"missing required cross-reference: {adr_ref}"
 
+    def test_gate_semantics_reference_uses_full_adr_062_filename(self, adr_text: str) -> None:
+        assert "ADR-062-memory-first-gate-spec-pipeline.md" in adr_text
+
     def test_links_to_implementation_issue_1948(self, adr_text: str) -> None:
         # The ADR records the decision; #1948 implements it. The boundary must
         # be explicit so a reader does not mistake the ADR for the change.
@@ -149,3 +152,9 @@ class TestScopeBoundary:
         # next reader does not chase the wrong constraint.
         assert "ADR-051" in adr_text
         assert "ADR-056" in adr_text
+
+    def test_review_findings_are_reflected_in_implementation_notes(self, adr_text: str) -> None:
+        lowered = adr_text.lower()
+        assert "3 to 5 sub-skills" in lowered
+        assert "graceful degradation" in lowered
+        assert "path traversal" in lowered
