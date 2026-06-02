@@ -230,7 +230,7 @@ Each `workLog` entry should be one or two sentences: lead with the action or dec
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
 - **Explicit handoffs**: never let context decay across agents
-- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst → context-retrieval if analyst errors)
+- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst → Skill('exploring-knowledge-graph') for context if analyst errors)
 - **Observability**: log routing decisions with rationale
 
 ## Constraints
