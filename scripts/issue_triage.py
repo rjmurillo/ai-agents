@@ -15,9 +15,10 @@ and never mutates GitHub state.
 The ``--ai`` flag drives Phase 2 (LLM triage). It emits a GitHub Actions
 matrix of open issues that a scheduled workflow (.github/workflows/
 backlog-triage.yml) fans out to .github/actions/ai-review, one invocation
-per issue, for complexity classification and area routing. The model call
-lives in the workflow; this script only produces the work list. Phase 3
-(recommendation execution / auto-close) remains out of scope and read-only.
+per issue, for structured complexity, area routing, dependency, scope, and
+evidence classification. The model call lives in the workflow; this script
+only produces the work list. Phase 3 (recommendation execution / auto-close)
+remains out of scope and read-only.
 
 Exit codes follow ADR-035:
     0 - Success: scan completed (findings may exist)

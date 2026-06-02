@@ -75,9 +75,9 @@ only when the issue is small and naturally combines with related work.
 
 ## Output Format
 
-Return the verdict and label lines first so the ai-review action can parse them.
-Then return one JSON object with the structured Phase 2 fields. Do not include
-markdown fences.
+Return parseable `VERDICT:` and `LABEL:` lines, plus one JSON object with the
+structured Phase 2 fields. Keep the lines near the JSON for readability. Do not
+include markdown fences.
 
 ```text
 VERDICT: PASS
