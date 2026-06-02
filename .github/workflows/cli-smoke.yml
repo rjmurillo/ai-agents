@@ -135,7 +135,9 @@ jobs:
           npm init -y | Out-Null
           npm install --silent "$env:TARBALL" | Out-Null
           New-Item -ItemType Directory -Path demo | Out-Null
-          npx --no-install ai-agents init demo --yes
+          $binDir = Join-Path (Get-Location) "node_modules" ".bin"
+          $env:PATH = "$binDir$([IO.Path]::PathSeparator)$env:PATH"
+          ai-agents init demo --yes
           if ($LASTEXITCODE -ne 0) { throw "ai-agents init exited $LASTEXITCODE" }
           "demo=$(Join-Path $work 'demo')" >> $env:GITHUB_OUTPUT
           Pop-Location
