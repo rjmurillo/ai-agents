@@ -40,6 +40,7 @@ _DASH_PATTERN = re.compile("[\\u2013\\u2014]")
 
 @pytest.fixture(scope="module")
 def adr_text() -> str:
+    assert ADR_PATH.is_file(), f"ADR file not found at canonical path: {ADR_PATH}"
     return ADR_PATH.read_text(encoding="utf-8")
 
 
@@ -98,7 +99,9 @@ class TestRequiredSections:
 class TestDraftStatusTriggersReview:
     def test_status_section_says_proposed(self, adr_text: str) -> None:
         # The literal Status section must read Proposed (DRAFT), not Accepted.
-        status_block = adr_text.split("## Status", 1)[1].split("##", 1)[0]
+        parts = adr_text.split("## Status", 1)
+        assert len(parts) > 1, "Missing '## Status' section"
+        status_block = parts[1].split("##", 1)[0]
         assert "Proposed" in status_block
         assert "Accepted" not in status_block
 

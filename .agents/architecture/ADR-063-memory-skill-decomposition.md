@@ -55,13 +55,13 @@ density improvement, cross-referencing, token counting).
 The skill-catalog triage
 (`.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`, Tier 2
 DECOMPOSE row 6) classifies `memory` as DECOMPOSE and marks M3 implementation
-blocked on this ADR. AGENTS.md lists architecture changes under "Ask First",
-and `.claude/rules/governance.md` requires an ADR for significant changes. A
-decomposition of this magnitude touches multiple downstream callers and admits
-several materially different shapes. Choosing a shape without a recorded
-decision means the choice rots silently, which is the exact failure mode the
-governance rule exists to prevent. This ADR records the decision; it does not
-implement it (implementation is issue #1948 / M3).
+blocked on this ADR. AGENTS.md lists architecture changes and new ADRs under
+"Ask First" and marks ADR Review as BLOCKING for ADR edits. A decomposition of
+this magnitude touches multiple downstream callers and admits several materially
+different shapes. Choosing a shape without a recorded decision means the choice
+rots silently, which is the exact failure mode the ADR Review gate exists to
+prevent. This ADR records the decision; it does not implement it (implementation
+is issue #1948 / M3).
 
 ## Decision
 
@@ -291,6 +291,7 @@ the adr-review debate gate.
 - `.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`: Tier 2
   DECOMPOSE row 6 and the M3 milestone (blocked on this ADR)
 - `.claude/skills/memory/SKILL.md`: the skill being decomposed
-- `.claude/rules/governance.md`: the rule requiring this ADR
+- AGENTS.md: the "Ask First" rule for architecture changes and new ADRs, plus
+  the ADR Review BLOCKING gate for ADR edits
 - `.claude/rules/philosophy-of-software-design.md`: the deep-vs-shallow module
   test that bounds which sub-skills are worth creating
