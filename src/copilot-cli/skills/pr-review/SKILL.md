@@ -45,9 +45,10 @@ Verify PR merge state using `scripts.claude_code.test_pr_merged`. Exit code 0 = 
 
 Before addressing comments, gather full context:
 
-1. **Review ALL comments**: Use `get_review_threads`, `get_unresolved_threads`, `get_unaddressed_comments`, and `get_pr_context` scripts from config.
-2. **Check merge eligibility**: Verify `mergeable=MERGEABLE` and no conflicts.
-3. **Review failing checks**: Use `get_pr_checks` script. Handle failures per `check_failure_actions` table in config.
+1. **Run Phase 0 thread clustering**: Use `cluster_threads` from config before the per-thread fix loop. If the JSON report has `warning: true`, surface the clusters in the verdict with `size`, `shared_tokens`, `source_artifact`, and `thread_ids`; stop the per-thread loop and fix the cluster-level framing or spec source first. Resume per-file patches only after that cluster-level fix is pushed.
+2. **Review ALL comments**: Use `get_review_threads`, `get_unresolved_threads`, `get_unaddressed_comments`, and `get_pr_context` scripts from config.
+3. **Check merge eligibility**: Verify `mergeable=MERGEABLE` and no conflicts.
+4. **Review failing checks**: Use `get_pr_checks` script. Handle failures per `check_failure_actions` table in config.
 
 After you resolve the last thread on a PR with live bot reviewers (Copilot, Devin), do NOT trust a single `get_unresolved_threads` snapshot. A bot scan can land 30 to 120 seconds after your push and reopen the count. Run the `wait_for_settled_zero` script from config to confirm the count has settled: it polls and exits 0 only after three consecutive complete-and-zero readings 180s apart. This closes the bot-settle gap that produced the PR #1965 "0 unresolved" lie. The completion gate below is a one-shot verdict and does not settle over time.
 
