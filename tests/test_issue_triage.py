@@ -491,6 +491,19 @@ class TestMain:
         assert rc == 0
         assert json.loads(capsys.readouterr().out) == {"include": [], "count": 0}
 
+    def test_ai_github_output_still_prints_json(self, tmp_path: Path, capsys):
+        issues_path = tmp_path / "issues.json"
+        output_path = tmp_path / "github-output.txt"
+        issues_path.write_text(json.dumps([{
+            "number": 1,
+            "title": "needs triage",
+            "updatedAt": "2026-04-27T00:00:00Z",
+        }]))
+        rc = main(["--input", str(issues_path), "--ai", "--github-output", str(output_path)])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["count"] == 1
+        assert "has-issues=true" in output_path.read_text()
+
 
 class TestTriageReportDataclass:
     def test_default_has_findings_false(self):

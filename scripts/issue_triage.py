@@ -404,9 +404,7 @@ def main(argv: list[str] | None = None) -> int:
         matrix = build_ai_matrix(issues)
         if args.github_output:
             write_ai_github_outputs(matrix, args.github_output)
-            print(f"Discovered {matrix['count']} open issues for triage")
-        else:
-            print(json.dumps(matrix))
+        print(json.dumps(matrix))
         return 0
 
     report = build_report(
