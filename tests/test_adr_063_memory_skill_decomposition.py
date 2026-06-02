@@ -10,8 +10,7 @@ depend on:
   Prior Art Investigation, Rationale with an Alternatives Considered table,
   Reversibility and Kill Criteria, Consequences, References).
 - Its status resolves to "proposed" via the adr-review detector contract
-  (no `status:` frontmatter line, which the detector defaults to "proposed"),
-  so the BLOCKING adr-review debate gate fires.
+  (`status: proposed`), so the BLOCKING adr-review debate gate fires.
 - It cross-references the boundary ADRs the issue requires (ADR-007, ADR-056)
   and the gate ADR (ADR-062).
 - It contains no em-dash (U+2014) or en-dash (U+2013) per universal.md.
@@ -110,9 +109,11 @@ class TestDraftStatusTriggersReview:
         # the ADR is treated as "proposed", which fires the BLOCKING gate.
         assert _resolve_status(adr_text) == "proposed"
 
-    def test_no_status_frontmatter_line(self, adr_text: str) -> None:
-        # Negative: a `status: accepted` frontmatter line would bypass the gate.
-        assert _STATUS_FRONTMATTER.search(adr_text) is None
+    def test_machine_readable_status_line_is_proposed(self, adr_text: str) -> None:
+        # Negative: `status: accepted` would bypass the debate gate too early.
+        match = _STATUS_FRONTMATTER.search(adr_text)
+        assert match is not None, "Missing machine-readable status line"
+        assert match.group(1).strip().lower() == "proposed"
 
 
 class TestRequiredCrossReferences:
