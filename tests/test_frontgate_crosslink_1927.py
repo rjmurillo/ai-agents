@@ -60,7 +60,7 @@ def test_research_callout_routes_to_spec(path: Path) -> None:
 def test_research_callout_precedes_phase_one() -> None:
     text = _read(RESEARCH_SOURCE)
     callout = text.index("## Front-gate first")
-    phase_one = text.index("Phase 1")
+    phase_one = text.index("Phase 1: RESEARCH")
     assert callout < phase_one, "Front-gate callout must appear before Phase 1 content"
 
 
