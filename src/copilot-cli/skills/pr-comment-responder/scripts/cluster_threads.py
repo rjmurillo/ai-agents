@@ -47,6 +47,7 @@ import argparse
 import json
 import re
 import sys
+from typing import NoReturn
 
 # A review thread in the canonical flat shape produced by
 # github_core.review_threads.transform_review_thread. Heterogeneous values
@@ -392,7 +393,7 @@ query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
 }"""
 
 
-def _fail_fetch(message: str, pull_request: int) -> None:
+def _fail_fetch(message: str, pull_request: int) -> NoReturn:
     print(f"Could not fetch review threads for PR {pull_request}: {message}", file=sys.stderr)
     sys.exit(3)
 
