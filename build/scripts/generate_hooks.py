@@ -307,15 +307,27 @@ def _shim_glob_match(args_glob, tool_args_norm):
 
 def _shim_should_fire(payload):
     kind, params = _shim_classify(_MATCHER)
-    tool_name = payload.get("tool_name")
+    # Support both VS Code-compatible snake_case (PascalCase event names)
+    # and native camelCase (camelCase event names) payloads.
+    # Copilot CLI sends snake_case when the event key is PascalCase,
+    # camelCase when the event key is camelCase. See issue #2290.
+    tool_name = payload.get("tool_name") or payload.get("toolName")
     if not isinstance(tool_name, str):
-        raise ValueError("hook input missing string `tool_name` field")
+        raise ValueError("hook input missing string `tool_name`/`toolName` field")
     if kind == "regex":
         return _re.fullmatch(params["pattern"], tool_name) is not None
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        norm_args = _shim_normalize_args(payload.get("tool_input"))
+        tool_args = payload.get("tool_input", payload.get("toolArgs"))
+        # camelCase payloads send toolArgs as a JSON string, not a parsed
+        # object. Parse it so _shim_normalize_args can extract "command".
+        if isinstance(tool_args, str):
+            try:
+                tool_args = _json.loads(tool_args)
+            except (ValueError, TypeError):
+                pass  # leave as string for normalize to handle
+        norm_args = _shim_normalize_args(tool_args)
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare
     return tool_name == params["toolName"]

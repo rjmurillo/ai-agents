@@ -57,8 +57,8 @@ artifacts:
     outputConfig: "plugin/hooks/hooks.json"
     outputScripts: "plugin/hooks"
     eventRemap:
-      SessionStart: sessionStart
-      PreToolUse: preToolUse
+      SessionStart: SessionStart
+      PreToolUse: PreToolUse
     eventDrop: []
     matcherPolicy: "inline-script-shim"
     versionField: 1
@@ -182,7 +182,7 @@ def test_sessionstart_bash_command_launches_the_script(tmp_path: Path) -> None:
     plugin_root = str(tmp_path / "plugin")
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
-    entry = doc["hooks"]["sessionStart"][0]  # matcher-less: copied verbatim
+    entry = doc["hooks"]["SessionStart"][0]  # matcher-less: copied verbatim
     proc = subprocess.run(
         ["bash", "-c", entry["bash"]],
         env=env,
@@ -204,7 +204,7 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
     # Reconstruct the regression: strip the plugin-root anchor, keep the path.
-    bare = 'python3 -u "./hooks/sessionStart/init.py"'
+    bare = 'python3 -u "./hooks/SessionStart/init.py"'
     proc = subprocess.run(
         ["bash", "-c", bare],
         env=env,
@@ -234,7 +234,7 @@ def test_anchor_is_load_bearing_when_no_plugin_root_var_set(tmp_path: Path) -> N
     doc = _generate(tmp_path)
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=None, claude_root=None)
-    entry = doc["hooks"]["sessionStart"][0]
+    entry = doc["hooks"]["SessionStart"][0]
     resolved = _bash_resolve(_path_arg(entry["bash"]), env, userland)
     # Assert the fallback EXPANSION VALUE directly rather than probing the host
     # root filesystem (a /hooks/... file on the runner would otherwise flake the
