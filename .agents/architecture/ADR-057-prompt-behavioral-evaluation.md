@@ -78,7 +78,7 @@ Each evaluation consists of:
 The gate blocks regressions. It does not mandate an improvement on every edit. A prompt change passes behavioral evaluation when these criteria hold:
 
 1. `after_score >= before_score` (no regression on existing scenarios)
-2. No scenario flips from pass to fail without explicit justification in the PR. Intentional trade-offs are acceptable when the PR documents the rationale.
+2. No scenario flips from pass to fail. Every pass-to-fail flip is recorded in `regressions` and blocks the gate automatically; the automated gate has no mechanism to accept a "justified" regression. Landing a deliberate trade-off requires a human override (admin merge) with the rationale documented in the PR, not a gate bypass.
 3. Flakiness on any scenario stays at or below the 40% block threshold.
 
 A change that targets a failing scenario SHOULD move it from fail to pass. This is recorded as `has_improvement` and surfaced in the gate output, but it is not a hard pass requirement (see the 2026-06-01 relaxation note below).
@@ -91,7 +91,7 @@ That outcome contradicts the gate's stated purpose: regression prevention (Decis
 
 Relaxation: `has_improvement` is dropped as a hard pass requirement in `eval-prompt-change.py acceptance_gate()`. The gate now passes when `no_regression AND no_unexplained_regressions AND no_high_flakiness` hold (plus the security-critical 100%-pass requirement when applicable). `has_improvement` is still computed and reported in the gate criteria for visibility.
 
-Regression blocking is preserved. A real pass-to-fail flip drops `after_score` below `before_score` (fails `no_regression`) and records the scenario in `regressions` (fails `no_unexplained_regressions`), so the gate still returns FAIL. The security-critical 100%-pass requirement is untouched: a security-critical run below 100% pass rate still blocks regardless of improvement state.
+Regression blocking is preserved. Every pass-to-fail flip records the scenario in `regressions`, so `no_unexplained_regressions` fails and the gate returns FAIL. This holds even when an offsetting improvement keeps `after_score` flat (so `no_regression` stays true): the `regressions` list, not the score delta, is the authoritative block signal. The security-critical 100%-pass requirement is untouched: a security-critical run below 100% pass rate still blocks regardless of improvement state.
 
 #### Security-Critical Prompt Tier
 

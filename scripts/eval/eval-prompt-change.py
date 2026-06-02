@@ -75,6 +75,11 @@ DEFAULT_RUNS = 3
 SECURITY_RUNS = 5
 FLAKINESS_BLOCK_THRESHOLD = 0.4
 
+# Criteria reported for human/JSON consumers but NOT part of the pass/fail
+# decision. They are surfaced for context only; the gate verdict never depends
+# on them. Keep this in sync with the comment on `has_improvement` and ADR-057.
+NON_GATING_CRITERIA = frozenset({"has_improvement"})
+
 
 # ---------------------------------------------------------------------------
 # Scenario loading and validation
@@ -470,9 +475,11 @@ def acceptance_gate(
     no_high_flakiness = len(high_flakiness_scenarios) == 0
 
     # A non-regressing change passes even with zero improvements. A real
-    # regression still fails: a pass->fail flip drops after_score below
-    # before_score (no_regression=False) and populates regressions
-    # (no_unexplained_regressions=False).
+    # regression still fails: any pass->fail flip populates `regressions`, so
+    # no_unexplained_regressions=False blocks the change. This holds even when
+    # an offsetting improvement keeps after_score flat (no_regression stays
+    # True); the regressions list, not the score delta, is the authoritative
+    # block signal.
     passed = (no_regression and no_unexplained_regressions
               and no_high_flakiness)
     if security_critical:
@@ -640,8 +647,13 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
           f"Delta: {gate['delta']:+.0%}", file=sys.stderr)
     print("  Criteria:", file=sys.stderr)
     for criterion, passed in gate["criteria"].items():
-        mark = "PASS" if passed else "FAIL"
-        print(f"    {criterion}: {mark}", file=sys.stderr)
+        if criterion in NON_GATING_CRITERIA:
+            value = "yes" if passed else "no"
+            print(f"    {criterion}: {value} (informational, non-gating)",
+                  file=sys.stderr)
+        else:
+            mark = "PASS" if passed else "FAIL"
+            print(f"    {criterion}: {mark}", file=sys.stderr)
 
     if gate["improvements"]:
         print(f"  Improvements: {gate['improvements']}", file=sys.stderr)
