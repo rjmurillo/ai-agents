@@ -277,6 +277,67 @@ What do you need?
 
 ---
 
+## Serena Write Conventions
+
+These conventions govern writing a new Serena memory and registering it in its
+domain index. They are the load-bearing rules absorbed from the former `memory`
+agent (Issue #2102). For obsolete-marking, deduplication, and bidirectional
+linking, use the `curating-memories` skill.
+
+### Naming
+
+- File name: `[domain]-[descriptive-name].md`, lowercase with hyphens (for
+  example `pr-review-security.md`).
+- Entity ID inside the file: `{domain}-{description}`, kebab-case, no prefix
+  (for example `pr-enum-001`). File name and entity ID are separate; do not
+  conflate them.
+
+### Index-Table Insertion (hazard)
+
+Domain index files (`skills-*-index.md`) contain ONLY a two-column table. When
+you add a memory you MUST insert AFTER the last existing DATA row, never after
+the header or the delimiter:
+
+```text
+| Keywords | File |    <-- header row
+|----------|------|    <-- delimiter row (SKIP THIS)
+| existing | file |    <-- data rows; insert after the LAST one
+```
+
+Inserting after the header or delimiter corrupts the table and breaks name-based
+discovery for every reader. Do not add titles, statistics, or prose to an index
+file.
+
+### Relations (encoded in the memory body)
+
+```markdown
+## Relations
+
+- **supersedes**: [previous-file-name]
+- **depends_on**: [dependency-file-name]
+- **related_to**: [related-file-name]
+```
+
+`supersedes` (new version replaces old), `depends_on` (requires another memory),
+`related_to` (loose association).
+
+### Source Tracking (required on every observation)
+
+```text
+[YYYY-MM-DD] [Source]: [Observation content]
+```
+
+Source forms: `[agent-name]`, `[doc:path]`, `[decision:ADR-NNN]`, `[user]`,
+`[ext:source]`. Reasoning over actions: record WHY a choice was made, not just
+WHAT was done.
+
+### Conflict Resolution
+
+When observations contradict, prefer the most recent, create a new memory with a
+`supersedes` relation, and prefix with `[REVIEW]` when accuracy is uncertain.
+
+---
+
 ## Verification
 
 | Operation | Verification |
