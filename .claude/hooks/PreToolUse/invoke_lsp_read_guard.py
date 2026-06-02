@@ -153,11 +153,12 @@ def build_warmup_block(file_path: str, providers: list[str]) -> str:
 def build_warn_message(file_path: str, next_read_num: int, nav_count: int) -> str:
     """Build the Soft-warn guidance (kit ``Gate 3`` warning, adapted)."""
     remaining = NAV_REQUIRED - nav_count
-    plural = "call" if remaining == 1 else "calls"
+    current_plural = "call" if nav_count == 1 else "calls"
+    remaining_plural = "call" if remaining == 1 else "calls"
     return (
         f"LSP-FIRST WARNING (Read {next_read_num}): consider symbol navigation.\n"
         "Use find_symbol / find_referencing_symbols before more Reads.\n"
-        f"You have {nav_count} nav calls; make {remaining} more {plural} "
+        f"You have {nav_count} nav {current_plural}; make {remaining} more {remaining_plural} "
         f"before Read {next_read_num + 1}."
     )
 
