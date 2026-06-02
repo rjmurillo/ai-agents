@@ -764,8 +764,8 @@ class TestValidateGitHooksInstalled:
                 mock_run.return_value = (1, "", "core.hooksPath not set")
                 assert validate_git_hooks_installed(tmp_path) is False
 
-    def test_delegates_in_linked_worktree(self, tmp_path: Path) -> None:
-        """Linked worktrees still run the git-hooks gate (#2220)."""
+    def test_delegates_to_hook_installer_outside_ci(self, tmp_path: Path) -> None:
+        """Outside CI the gate delegates to the hook installer check."""
         import os
 
         from scripts.validation.pre_pr import validate_git_hooks_installed
@@ -782,18 +782,3 @@ class TestValidateGitHooksInstalled:
             mock_run.assert_called_once()
             command = mock_run.call_args.args[0]
             assert command[-3:] == ["--check", "--repo-root", str(tmp_path)]
-
-    def test_not_skipped_in_main_checkout(self, tmp_path: Path) -> None:
-        """Outside CI the gate delegates to the --check script."""
-        import os
-
-        from scripts.validation.pre_pr import validate_git_hooks_installed
-
-        (tmp_path / "scripts").mkdir()
-        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
-        with patch.dict("os.environ", {}, clear=False):
-            os.environ.pop("GITHUB_ACTIONS", None)
-            os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
-                mock_run.return_value = (0, "OK", "")
-                assert validate_git_hooks_installed(tmp_path) is True
