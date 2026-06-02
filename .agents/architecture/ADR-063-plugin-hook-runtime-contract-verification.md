@@ -3,8 +3,10 @@
 ## Status
 
 Accepted (2026-06-02, six-agent adr-review: 2 Accept, 4 Disagree-and-Commit, 0
-Block; P0/P1 dissents resolved in this revision). Debate log:
-`.agents/critique/ADR-063-debate-log.md`.
+Block). The P0 dissent proposed a committed launcher-level fail-open follow-up;
+that was subsequently rejected in favor of prevention plus loud failure (issue
+#2230 closed addressed-by-prevention), and Decision item 5 records the
+fail-closed position. Debate log: `.agents/critique/ADR-063-debate-log.md`.
 
 ## Date
 
@@ -83,8 +85,10 @@ the measured CLI builds. If a future CLI release renames or drops them, the bash
 form `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}` expands to `/hooks/...` (an
 absolute path off the filesystem root) and fails at the launcher exactly as the
 original bug did. Anchoring is therefore necessary but not durable on its own; it
-reduces the probability of this bug shape, and launcher-level fail-open (issue
-#2230) is required to bound the blast radius of the next one. Decision item 4
+reduces the probability of this bug shape. The durable defense is prevention plus
+loud failure: the runtime-contract gate (Decision item 2) catches a broken
+launcher before release, and a launcher failure that still escapes must fail loud
+so it is detected and fixed, not silently swallowed. Decision item 4
 re-verifies on a material CLI version change.
 
 ## Decision
@@ -115,14 +119,15 @@ re-verifies on a material CLI version change.
    changes that depend on the contract cite this ADR and the decision memory,
    and re-verify if the host CLI version changes materially.
 
-5. **Customer-facing hook launchers MUST fail open at the launcher layer.** A
-   path or resolution failure must degrade to a logged no-op (warn to stderr,
-   exit 0), never a hard error that blocks the host. Anchoring (item 1) reduces
-   the probability of this bug shape; this principle bounds the blast radius of
-   the next one, regardless of shape. The implementation changes the generated
-   command shape for every hook and is therefore architecture: it is a committed,
-   tracked follow-up (issue #2230), not an open-ended deferral. Until it lands,
-   the residual wedge risk in Consequences is OPEN.
+5. **Hook launchers MUST fail closed and loud, not silently degrade.** A launcher
+   path or resolution failure must surface (a non-zero exit or a visible error),
+   never be masked by a wrapper that exits 0 with only a warning. A silent exit 0
+   disables the hook without anyone knowing, trading a loud, learnable bug for a
+   silently lost protection (the silent-failure anti-pattern). The defense against
+   the environment-wedge is prevention: anchoring (item 1), the runtime-contract
+   gate (item 2), and the real-CLI smoke catch a broken launcher before release.
+   Launcher-level fail-open was proposed and rejected on this basis; issue #2230
+   is closed addressed-by-prevention.
 
 ## Consequences
 
@@ -155,24 +160,27 @@ re-verifies on a material CLI version change.
   governance).
 - The forced pre-push e2e adds latency and credit cost on hook-path changes.
 
-### OPEN residual risk (until issue #2230 lands)
+### Residual risk (mitigated by prevention and loud failure)
 
-Anchoring fixes the known path bug; it does not stop a *different* future
-launcher failure (a renamed/dropped vendor env var, a script deleted by a partial
-update, an interpreter off PATH) from wedging a customer, because the in-script
-fail-open shim never runs when the launcher itself fails. This residual wedge
-risk is OPEN and owned by Decision item 5 / issue #2230. Recovery in the interim
-is still uninstall. The adr-review debate (high-level-advisor, independent-thinker)
-flagged this as the highest-leverage remaining control.
+Anchoring fixes the known path bug; a *different* future launcher failure (a
+renamed/dropped vendor env var, a script deleted by a partial update, an
+interpreter off PATH) could still occur. The defense is not a launcher fail-open
+(which would silently disable the hook); it is prevention plus detection: the
+runtime-contract gate (Decision item 2) and the real-CLI smoke catch a broken
+launcher before release, and any launcher failure that still escapes fails loud
+so it is detected and fixed rather than masked. Launcher-level fail-open was
+considered and rejected (issue #2230, closed addressed-by-prevention).
 
 ### Tracked follow-ups (not silent deferrals)
 
-- **Launcher-level graceful degradation** (Decision item 5): issue #2230, needs
-  architect review and its own ADR. The single most important follow-up.
 - **Windows PowerShell contract simulation in CI** (no auth needed), **glob-based
   artifact discovery in the validator** (so a new hook-bearing platform fails
   closed), and the **authenticated nightly cross-platform smoke** (needs secrets
   governance): issue #2231.
+
+(Launcher-level fail-open was considered and rejected; issue #2230 is closed
+addressed-by-prevention. The defense is prevention plus loud failure, per Decision
+item 5.)
 
 ## Alternatives Considered
 
@@ -195,10 +203,10 @@ flagged this as the highest-leverage remaining control.
   cross-platform) and Decision item 4's re-verification on a material version
   bump.
 - **Mitigation:** the runtime-contract test and the recorded decision memory make
-  a contract change observable; launcher fail-open (#2230) makes a contract
-  change degrade to a warning instead of a wedge. The decision is reversible: if
-  the vendor publishes a stable mechanism, swap the anchor token in one generator
-  function (`_build_copilot_entry`) and regenerate.
+  a contract change observable; a launcher failure fails loud (caught by the gate
+  before release, or surfaced at runtime) instead of being silently swallowed.
+  The decision is reversible: if the vendor publishes a stable mechanism, swap the
+  anchor token in one generator function (`_build_copilot_entry`) and regenerate.
 
 ## References
 
@@ -213,5 +221,5 @@ flagged this as the highest-leverage remaining control.
 - `.github/workflows/validate-plugin-manifests.yml`. Server-side anchoring gate.
 - `.agents/critique/ADR-063-debate-log.md`. Six-agent review debate.
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
-  graceful-degradation, the OPEN residual-risk follow-up), #2231 (Windows
+  fail-open, closed: rejected, addressed-by-prevention), #2231 (Windows
   contract sim, glob artifact discovery, authenticated nightly smoke).
