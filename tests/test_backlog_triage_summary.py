@@ -11,6 +11,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.backlog_triage_summary import (
     TriageResult,
     load_results,
@@ -68,6 +70,10 @@ class TestTriageResultFromRaw:
 
     def test_non_integer_number_returns_none(self):
         assert TriageResult.from_raw({"number": "abc"}) is None
+
+    @pytest.mark.parametrize("value", [0, -1, True, False])
+    def test_non_positive_and_boolean_numbers_return_none(self, value):
+        assert TriageResult.from_raw({"number": value}) is None
 
     def test_missing_optional_fields_default(self):
         result = TriageResult.from_raw({"number": 1})

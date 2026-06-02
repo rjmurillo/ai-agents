@@ -47,9 +47,14 @@ class TriageResult:
 
         if not isinstance(raw, dict) or "number" not in raw:
             return None
+        raw_number = raw["number"]
+        if isinstance(raw_number, bool):
+            return None
         try:
-            number = int(raw["number"])
+            number = int(raw_number)
         except (TypeError, ValueError):
+            return None
+        if number <= 0:
             return None
         labels_raw = raw.get("labels") or []
         labels = tuple(str(item) for item in labels_raw) if isinstance(labels_raw, list) else ()
