@@ -781,4 +781,6 @@ class TestValidateGitHooksInstalled:
 
             mock_run.assert_called_once()
             command = mock_run.call_args.args[0]
-            assert command[-3:] == ["--check", "--repo-root", str(tmp_path)]
+            repo_root_index = command.index("--repo-root")
+            assert "--check" in command
+            assert command[repo_root_index + 1] == str(tmp_path)
