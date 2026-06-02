@@ -147,36 +147,37 @@ def normalize_check(ctx: dict) -> dict | None:
 # GitHub keeps every check run for a check name on one commit, including older
 # runs that a newer run superseded (a re-run, or a debounce that cancels the
 # stale run). A stale FAILURE left alongside a fresh SUCCESS inflated
-# FailedCount and produced a false OverallState=FAILURE for PR #2201 even
-# though test_pr_merge_ready.py reported the PR ready. Refs Issue #2208.
+# FailedCount for PR #2201 even though test_pr_merge_ready.py reported the PR
+# ready. Refs Issue #2208.
 #
-# This mirrors the dedupe behavior in
-# .claude/skills/github/scripts/pr/test_pr_merge_ready.py: group by name and
-# keep the winning entry per group with precedence OK > PENDING > FAIL.
-# A passing entry from a re-run supersedes a prior failure ("OK if any SUCCESS
-# exists" per the PR #1887 retrospective). That script ranks by verdict, not by
-# a completedAt/startedAt timestamp, and the statusCheckRollup query here does
-# not fetch those timestamps; ranking by passing-state matches its contract
-# without a query change.
+# This script leaves OverallState as GitHub's rollup value. Deduplication only
+# affects the per-check rows and derived counts, such as FailedCount. The
+# precedence follows test_pr_merge_ready.py verdict ordering: OK > FAIL >
+# PENDING. A passing entry from a re-run supersedes a prior failure ("OK if any
+# SUCCESS exists" per the PR #1887 retrospective). A failure still wins over a
+# pending retry when no passing run exists, so pending work does not hide the
+# last concrete failure.
 #
 # Stricter/looser/different than canonical: test_pr_merge_ready.py treats a
 # CANCELLED-only group as no-opinion (SKIP) so it neither blocks nor counts as
 # passed. Here, normalize_check already maps CANCELLED into IsFailing (it is in
 # _FAILING_CONCLUSIONS), so a CANCELLED-only group surfaces as a failing check.
 # That preserves this script's long-standing CANCELLED semantics; the dedupe
-# only collapses duplicate names and prefers a passing or pending run when one
-# exists for the same name.
+# only collapses duplicate names and prefers a passing run when one exists for
+# the same name.
 
 # Precedence key: lower sorts first, so the winning entry is the minimum.
 _PASSING_RANK = 0
-_PENDING_RANK = 1
-_FAILING_RANK = 2
+_FAILING_RANK = 1
+_PENDING_RANK = 2
 
 
 def _check_rank(check: dict) -> int:
-    """Rank a normalized check by precedence: passing < pending < failing."""
+    """Rank a normalized check by precedence: passing < failing < pending."""
     if check.get("IsPassing"):
         return _PASSING_RANK
+    if check.get("IsFailing"):
+        return _FAILING_RANK
     if check.get("IsPending"):
         return _PENDING_RANK
     return _FAILING_RANK
@@ -186,21 +187,31 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     """Collapse multiple runs of one check name to the winning entry.
 
     Groups by ``Name`` and keeps the entry with the best precedence
-    (passing over pending over failing), so a re-run SUCCESS supersedes a
+    (passing over failing over pending), so a re-run SUCCESS supersedes a
     stale FAILURE on the same commit. The first-seen order of surviving
-    names is preserved. Names that appear once pass through unchanged.
+    names is preserved. Required-check status is retained when any duplicate
+    row for a name is required.
     """
     best_by_name: dict[str, dict] = {}
+    required_by_name: dict[str, bool] = {}
     order: list[str] = []
     for check in checks:
-        name = check.get("Name", "")
+        name_value = check.get("Name")
+        name = "" if name_value is None else name_value
+        required_by_name[name] = required_by_name.get(name, False) or bool(
+            check.get("IsRequired")
+        )
         current = best_by_name.get(name)
         if current is None:
             best_by_name[name] = check
             order.append(name)
         elif _check_rank(check) < _check_rank(current):
             best_by_name[name] = check
-    return [best_by_name[name] for name in order]
+
+    return [
+        {**best_by_name[name], "IsRequired": required_by_name[name]}
+        for name in order
+    ]
 
 
 # ---------------------------------------------------------------------------

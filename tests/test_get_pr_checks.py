@@ -1011,6 +1011,28 @@ class TestDedupeChecks:
         assert len(result) == 1
         assert result[0]["IsPassing"] is True
 
+    def test_required_status_survives_when_any_duplicate_is_required(self):
+        """A required duplicate keeps the deduped row required."""
+        checks = [
+            _check("security", passing=True, conclusion="SUCCESS", required=False),
+            _check("security", failing=True, conclusion="FAILURE", required=True),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+        assert result[0]["IsRequired"] is True
+
+    def test_null_name_collapses_to_empty_name(self):
+        """Explicit null names dedupe through the empty-name bucket."""
+        checks = [
+            {**_check("ignored", failing=True, conclusion="FAILURE"), "Name": None},
+            {**_check("", passing=True, conclusion="SUCCESS"), "Name": ""},
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Name"] == ""
+        assert result[0]["IsPassing"] is True
+
     def test_real_failure_with_no_passing_run_survives(self):
         """No passing run means the failing entry is kept (true failure)."""
         checks = [
@@ -1021,16 +1043,16 @@ class TestDedupeChecks:
         assert len(result) == 1
         assert result[0]["IsFailing"] is True
 
-    def test_pending_supersedes_failure(self):
-        """A pending re-run wins over a stale failure (not yet conclusive)."""
+    def test_failure_supersedes_pending(self):
+        """A pending re-run does not hide the last concrete failure."""
         checks = [
             _check("build", failing=True, conclusion="FAILURE"),
             _check("build", pending=True, state="IN_PROGRESS"),
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
-        assert result[0]["IsPending"] is True
-        assert result[0]["IsFailing"] is False
+        assert result[0]["IsFailing"] is True
+        assert result[0]["IsPending"] is False
 
     def test_passing_supersedes_pending(self):
         """A passing run wins over a pending run for the same name."""
