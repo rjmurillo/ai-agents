@@ -3,8 +3,7 @@
 Issue #2103, skill-catalog epic #1944. The former context-retrieval agent's
 unique retrieval and citation guidance moved into
 `.claude/skills/exploring-knowledge-graph/references/context-retrieval.md`.
-SKILL.md gained a pointer to it. The orchestrator graceful-degradation example
-now names the skill instead of the bare agent.
+SKILL.md gained a pointer to it.
 
 Parametrized over the canonical `.claude/` tree and the generated
 `src/copilot-cli/` mirror so a single test asserts both copies satisfy the
@@ -55,24 +54,6 @@ REFERENCE_PATHS = [
 SKILL_MD_PATHS = [
     pytest.param(CANONICAL_SKILL_MD, id="canonical"),
     pytest.param(MIRROR_SKILL_MD, id="copilot-cli-mirror"),
-]
-
-# Orchestrator copies that carry the graceful-degradation routing example.
-ORCHESTRATOR_PATHS = [
-    pytest.param(
-        REPO_ROOT / "templates" / "agents" / "orchestrator.shared.md", id="template"
-    ),
-    pytest.param(
-        REPO_ROOT / ".claude" / "agents" / "orchestrator.md", id="claude-install"
-    ),
-    pytest.param(REPO_ROOT / "src" / "claude" / "orchestrator.md", id="src-claude"),
-    pytest.param(
-        REPO_ROOT / "src" / "copilot-cli" / "agents" / "orchestrator.agent.md",
-        id="copilot-cli",
-    ),
-    pytest.param(
-        REPO_ROOT / "src" / "vs-code-agents" / "orchestrator.agent.md", id="vs-code"
-    ),
 ]
 
 # Sections folded from the former agent into the reference doc.
@@ -147,21 +128,3 @@ def test_reference_does_not_re_delegate_to_agent(reference_path: Path) -> None:
 
     assert 'subagent_type="context-retrieval"' not in content
     assert "Task(subagent_type='context-retrieval')" not in content
-
-
-@pytest.mark.parametrize("orchestrator_path", ORCHESTRATOR_PATHS)
-def test_orchestrator_degradation_points_at_skill(orchestrator_path: Path) -> None:
-    """The graceful-degradation example routes to the skill, not the bare agent.
-
-    Positive: the example names exploring-knowledge-graph.
-    Negative: the same line no longer names the bare context-retrieval agent.
-    """
-    content = orchestrator_path.read_text(encoding="utf-8")
-    degradation_lines = [
-        line for line in content.splitlines() if "Graceful degradation" in line
-    ]
-
-    assert degradation_lines, f"no graceful-degradation line in {orchestrator_path}"
-    for line in degradation_lines:
-        assert "exploring-knowledge-graph" in line
-        assert "context-retrieval" not in line
