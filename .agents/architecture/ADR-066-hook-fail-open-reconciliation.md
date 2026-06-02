@@ -6,7 +6,7 @@ consulted: [analyst, critic, independent-thinker, security, high-level-advisor]
 informed: [implementer, qa, devops]
 ---
 
-# ADR-066: Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud by Default)
+# ADR-066: Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud)
 
 ## Status
 
@@ -14,203 +14,178 @@ Proposed. Requires adr-review per `AGENTS.md` ("Any `ADR-*.md` ... create/edit f
 
 ## Context and Problem Statement
 
-PR #2263 scrubbed launcher-level fail-open from the surfaces it owned and replaced it with a prevention-first, fail-closed-and-loud position. It deliberately did NOT touch the pre-existing, repo-wide "hook runtime errors are fail-open" convention because that wholesale change is itself a governance change and needed its own ADR. Issue #2271 tracks that audit.
+PR #2263 scrubbed launcher-level fail-open from the surfaces it owned and replaced it with a prevention-first, fail-closed-and-loud position. It deliberately did not touch the pre-existing, repo-wide "hook runtime errors are fail-open" convention because that policy reversal needed its own ADR. Issue #2271 tracks that audit.
 
-The analyst inventory (issue #2271 comment 4604311175, also saved as `/tmp/2271-inventory.md`) classified every fail-open assertion in the repository into three buckets:
+The status quo has the default backwards. ADR-008, ADR-033, and ADR-035 codify "exit 1 = hook error = fail-open" as the standard. ADR-062 calls fail-open "the repo's universal fail-open convention" and treats fail-closed behavior as a deadlock. Stability guidance about graceful degradation has also been cited outside its intended scope to justify hook launchers that silently return success.
 
-- **Class (a)** customer-facing hook that must fail closed and loud (7 surfaces).
-- **Class (b)** genuinely-optional advisory hook where degradation is acceptable (9 surfaces).
-- **Class (c)** diagnostic prose describing the #2205 incident or historical retro (4 surfaces).
+The #2205 incident demonstrated the cost. A launcher path bug wedged customer environments for 33 days across v0.3.0 to v0.5.6 because the in-script fail-open shim never ran. The launcher itself failed before the script started. The fail-open default did not protect the customer; it delayed detection.
 
-The status quo has the default backwards. ADR-008, ADR-033, ADR-035 codify "exit 1 = hook error = fail-open" as the standard. ADR-062 (LSP-first) calls fail-open "the repo's universal fail-open convention" and treats fail-closed as a "deadlock." `.claude/rules/release-it.md` has a "Graceful Degradation Over Hard Failure" section that hook authors cite as the warrant for launcher fail-open even though the section is scoped to user-facing latency, not governance gates. The reference implementation `.claude/skills/memory/scripts/invoke_memory_cross_reference.py` explicitly says "Always exit 0 (fail-open for hooks)" and is the canonical pattern others copy.
+The repo owner's canonical position is now explicit:
 
-The #2205 incident demonstrated the cost. A launcher path bug wedged customer environments for 33 days across v0.3.0 to v0.5.6 because the in-script fail-open shim never ran (the launcher itself failed before the script started). The fail-open default did not protect the customer; it just delayed detection.
+1. Do not add launcher-level fail-open paths for hooks.
+2. Do not use silent exit 0 as a recovery path for hook errors.
+3. Do not cite graceful degradation as a warrant for hooks whose job is to assert an invariant.
+4. Prevent bad hook artifacts before release through generation-time anchoring, `scripts/validation/validate_hook_anchoring.py`, pre-push enforcement, CI enforcement, and runtime-contract tests.
+5. If a novel runtime escape reaches a released hook, fail closed and loud with a non-zero exit and actionable stderr.
 
-The Serena memory `feedback-generated-artifact-runtime-verification.md` already records this lesson. The other Serena hits (`pr-review/cursor-bot-review-patterns.md`, `implementation/implementation-007-pr1989-recursive-failure-learnings.md`, `architecture/architecture-observations.md`) reference fail-open as a known anti-pattern, not as a recommended default. No live Serena memory advocates launcher fail-open as policy.
-
-This ADR reconciles the governance surfaces so the default flips: **prevention first, fail closed and loud, with a narrow enumerated carve-out for genuinely-optional advisory hooks that must each carry an inline justification.**
+This ADR reconciles prior ADRs and guidance to that position. The ADR number remains ADR-066.
 
 ## Decision Drivers
 
 1. Customer-harm bound. A silent exit 0 disables the hook and looks like success. The #2205 incident showed this is the dominant failure mode.
 2. Detectability. A loud failure gets fixed. A silent fail-open accumulates dead hooks no one knows are dead.
-3. Auditability. Today every fail-open is locally defensible ("graceful degradation"). The aggregate is an undetectable degradation surface. An enumerated carve-out list with inline justification makes drift visible to lint.
-4. Backward compatibility. Genuinely-optional advisory hooks (lint noise, optional scans) must keep working. The wholesale flip would block legitimate degradation.
-5. Lifecycle-hook host semantics. Claude / Copilot CLI hosts use exit codes the host interprets. The new default must not introduce new exit codes for non-blocking hooks where the host already ignores them.
+3. Prevention at the correct layer. Hook launchers are the wrong layer for recovery. Generated hook artifacts must be anchored, validated, and tested before release.
+4. Auditability. Validators and runtime-contract tests make hook anchoring drift visible in pre-push and CI.
+5. Operational truth. A hook that cannot prove its invariant did not succeed. Returning success misleads the operator.
 
 ## Considered Options
 
-1. **Status quo**: keep "fail-open is the universal default; specific gates carve themselves out by exiting non-zero."
-2. **Wholesale flip**: every hook fails closed and loud; no carve-outs.
-3. **Default-flip with enumerated class (b) carve-out and lintable contract** (chosen).
+1. **Status quo**: keep "hook runtime errors are fail-open" as the universal default.
+2. **Launcher-level recovery**: keep hook launchers permissive, with warnings or degraded behavior on runtime failures.
+3. **Prevention-first, fail-closed-and-loud** (chosen): block bad hook artifacts before release and make any novel runtime escape fail non-zero with actionable stderr.
 
 ## Decision Outcome
 
-Chosen option: **3 - default-flip with enumerated class (b) carve-out and lintable contract**, because the analyst inventory already enumerates which surfaces are genuinely optional, the #2205 incident proved the wholesale-default-fail-open stance is customer-harming, and a fully wholesale flip would block legitimate lint/advisory degradation without buying additional safety.
+Chosen option: **3 - prevention-first, fail-closed-and-loud**, because the #2205 incident proved that launcher-level fail-open does not protect users. It hides broken hooks until customers pay the cost. The correct layer is prevention before release, backed by validators and runtime-contract tests. Runtime escapes then fail loud so maintainers fix the broken hook instead of shipping a false success.
 
 ### Concretely this means
 
-#### D1. Hook failure-mode policy (replaces ADR-008 "runtime and I/O errors during hook execution are fail-open")
+#### D1. Hook failure-mode policy
 
-The default for ANY customer-facing hook (class (a)) is:
+The default for hooks is:
 
-- **Prevent the bad artifact at generation time.** This is the #2263 stance, restated.
-- **If a runtime error escapes**, fail closed and loud: exit non-zero with a useful stderr message naming the hook, the failure, and the recovery path. The host MUST surface the error to the user.
-- **No silent exit 0.** A bare `try/except: pass`, `|| true`, or `exit 0` in a class (a) failure path is a violation.
+- **Prevent the bad artifact at generation time.** Generated hook launchers MUST anchor to the repository root through the canonical generation path.
+- **Validate anchoring before release.** `scripts/validation/validate_hook_anchoring.py` MUST run in pre-push and CI for hook artifacts.
+- **Test the runtime contract.** A runtime-contract test MUST prove that generated hooks resolve their anchored targets correctly and do not depend on caller working directory accidents.
+- **Fail closed and loud on novel escapes.** If a runtime error still escapes, the hook exits non-zero and emits stderr that names the hook, the failed invariant, and the recovery path.
+- **No silent success on hook failure.** `try/except: pass`, `|| true`, unconditional `exit 0`, or success-shaped fallback behavior in hook failure paths violates this ADR.
 
-Class (b) hooks (lint noise, optional advisory scans, infrastructure-error backstops where the work is truly enrichment) MAY fail open, but ONLY if:
+This replaces the prior ADR-008 statement that runtime and I/O errors during hook execution are fail-open.
 
-1. The hook is listed in the **class (b) carve-out registry** (see D5 below).
-2. The failure path emits a stderr WARN naming the hook, the failure, and the ADR-066 justification class.
-3. The failure path carries an inline comment of the form:
+#### D2. Exit-code reconciliation
 
-   ```python
-   # ADR-066 class (b): <one-line justification>. See ADR-066.
-   ```
+The canonical exit-code table for hooks is:
 
-#### D2. Exit-code reconciliation (ADR-008 / ADR-033 / ADR-035)
-
-The canonical exit-code table is updated as follows:
-
-| Exit Code | Class (a) hooks (default) | Class (b) hooks (carve-out) | Blocking hooks (PreToolUse policy gates) |
-|-----------|---------------------------|-----------------------------|------------------------------------------|
-| 0 | Success, hook ran and asserted no violation | Success OR known-acceptable degradation (with WARN to stderr) | Allow action |
-| 1 | **Hook runtime error, fail closed and loud (was: fail-open)** | Hook runtime error, fail open with WARN to stderr | Logic error, fail closed |
-| 2 | Configuration / bootstrap failure (unchanged, ADR-047) | Configuration / bootstrap failure (unchanged) | **Block action immediately** (unchanged) |
-| 3 | External dependency unavailable, fail closed (NEW lane) | External dependency unavailable, fail open with WARN (justifies class (b)) | External dependency, fall back per gate policy |
+| Exit Code | Meaning for hooks | Required behavior |
+|-----------|-------------------|-------------------|
+| 0 | Hook ran and asserted no violation | Allow action |
+| 1 | Hook logic or runtime error | Fail closed and emit actionable stderr |
+| 2 | Configuration, bootstrap, or policy-gate block | Fail closed and emit actionable stderr |
+| 3 | External dependency unavailable | Fail closed and emit actionable stderr |
+| 4 | Authentication or authorization failure | Fail closed and emit actionable stderr |
 
 Notes:
 
-- **New exit-code lane**: exit 3 = external/transient unavailability. Today ADR-035 overloads exit 1 for "hook error (fail-open)." Splitting "logic error" (exit 1) from "external unavailable" (exit 3) lets class (b) hooks degrade on exit 3 without masking real logic bugs on exit 1. This answers the analyst's open question.
-- Non-blocking host hooks (Claude `SessionStart`, `PostToolUse`, `Stop`, `PreCompact`, etc.) still MUST always exit 0 *to the host* because the host ignores non-zero and suppresses stdout context injection. This is a host constraint, not a policy. The hook MUST still write the structured error to stderr and to `.agents/.hook-state/` so the failure is visible. ADR-035 keeps the "non-blocking hooks exit 0" host rule, but reframes it: the exit-0 is to satisfy the host contract, NOT to silently swallow the failure.
-- Blocking hooks (PreToolUse policy gates) MUST use exit 2 to block. Exit 1 in a blocking hook means logic error and the gate fails closed. This is the existing #2263 stance, restated.
+- Exit 3 separates external dependency failures from logic errors. It does not create a fail-open lane.
+- Blocking hooks, including PreToolUse policy gates, continue to use non-zero exits to block unsafe actions.
+- Non-blocking lifecycle hook hosts that ignore non-zero exits do not change the policy. The repository still treats the hook as failed. Pre-push and CI MUST catch bad artifacts before release, and runtime-contract tests MUST prove the generated hook path is valid.
 
-#### D3. ADR-062 (LSP-first) reconciliation
+#### D3. ADR-062 reconciliation
 
-ADR-062's "universal fail-open convention" framing is incorrect after this ADR. ADR-062 keeps its fail-open behavior, but it is reclassified as **class (b) with the wedge-on-compaction rationale already documented in its body** (the LSP probe-then-allow design at the tool-call boundary, plus `LSP_GATE_MODE` kill switch). The ADR-062 prose MUST be amended to:
+ADR-062's "universal fail-open convention" framing is wrong after this ADR. ADR-062 MUST be amended to:
 
-- Replace "the repo's universal fail-open convention" with "the class (b) carve-out for this gate, per ADR-066."
-- Remove the "fail-closed is a deadlock" framing as a general statement; that argument is specific to the LSP probe at the tool-call boundary, not general policy.
-- Add an explicit `# ADR-066 class (b): LSP probe at tool-call boundary; wedge-on-compaction risk justifies fail-open. See ADR-066.` inline at each fail-open site.
+- Replace "the repo's universal fail-open convention" with "ADR-066's prevention-first hook policy."
+- Remove the claim that fail-closed behavior is generally a deadlock.
+- Keep any LSP recovery mechanism framed as a bounded, tested operational escape, not as launcher-level fail-open.
+- Add tests that prove the LSP hook path either enforces the invariant or fails loud.
 
-ADR-062's existing kill switch, recovery message, and audit log meet the class (b) bar. No behavior change.
+#### D4. Graceful-degradation guidance reconciliation
 
-#### D4. `.claude/rules/release-it.md` reconciliation
+Graceful-degradation guidance applies to user-facing integration points where a reduced response is meaningful to the caller. It does not apply to governance hooks, lifecycle hooks, or code whose job is to assert an invariant.
 
-The "Graceful Degradation Over Hard Failure" section is scoped to **user-facing integration points** (latency, multi-service response composition). It is NOT general warrant for launcher/hook fail-open. The section MUST be amended to:
+Hook authors MUST NOT cite graceful degradation as a reason to return success after a hook launcher, bootstrap path, runtime import, or invariant check failed.
 
-- Add a leading sentence: "This section applies to user-facing integration points where a degraded response is meaningful to the caller. It does NOT apply to governance hooks, lifecycle hooks, or any code path whose job is to assert an invariant. For hook failure semantics see ADR-066."
-- Add a cross-reference at the existing "Memory systems ... must degrade to a documented fallback, not silently swallow context loss" bullet pointing to ADR-066 D5 carve-out rules.
+#### D5. Implementation plan for issue #2271
 
-Hook authors who cite release-it.md as the warrant for launcher fail-open are reading it out of scope. The scoped amendment closes that loophole.
+The implementer follow-up PR for #2271 MUST update prior governance surfaces to match this ADR:
 
-#### D5. Class (a) flip plan and class (b) carve-out registry
+| Surface | Required action |
+|---------|-----------------|
+| ADR-008 | Replace fail-open runtime hook prose with D1 and D2 policy. |
+| ADR-033 | Remove recommendations that downgrade blocking hook failures to advisory success. |
+| ADR-035 | Update hook exit-code guidance to D2 and remove fail-open semantics. |
+| ADR-062 LSP-first ADR | Reframe LSP handling per D3. |
+| ADR-062 memory-first gate ADR | Reframe fallback language as prevention and loud failure, not success-shaped degradation. |
+| Release It guidance | Scope graceful degradation away from hook invariants per D4. |
+| Memory cross-reference hooks | Remove launcher-level fail-open behavior and add fail-closed runtime-contract coverage. |
 
-The analyst inventory's class (a) list is binding. The implementer flip PR (closes #2271) MUST flip each of these to fail-closed-and-loud:
+The follow-up PR closes #2271. This ADR does not close #2271 by itself.
 
-| # | Surface | Lines | Action |
-|---|---------|-------|--------|
-| a1 | `.agents/architecture/ADR-008-protocol-automation-lifecycle-hooks.md` | 114, 116, 150 | Amend prose per D1/D2. |
-| a2 | `.agents/architecture/ADR-033-routing-level-enforcement-gates.md` | 106, 111-115, 222-239, 278, 297, 308-312 | Update exit-code table per D2; remove "downgrade exit 2 -> exit 0 to make a gate advisory" recommendation. |
-| a3 | `.agents/architecture/ADR-035-exit-code-standardization.md` | 369-373, 388, 429, 436 | Update table per D2; add the exit-3 lane. |
-| a4 | `.agents/architecture/ADR-062-conditional-lsp-first-enforcement.md` | per D3 | Reclass to class (b); amend prose. |
-| a5 | `.agents/architecture/ADR-062-memory-first-gate-spec-pipeline.md` | 119 | Reclass Serena-first fallback as class (b) and add inline justification. |
-| a6 | `.claude/rules/release-it.md` | 23, 179, 219, 233 | Amend per D4. |
-| a7 | `.agents/skills/memory/scripts/invoke_memory_cross_reference.py` and `.claude/skills/memory/scripts/invoke_memory_cross_reference.py` | 10-23, 158 | **Flip to class (a) fail-closed-and-loud.** Rewrite the module docstring and the `# Always exit 0 (fail-open for hooks)` block. Memory cross-reference at commit/PR time is customer-facing governance (it surfaces the memories that govern the change). On runtime error, exit 1 with a stderr message naming the hook, the missing memories, and how to bypass. The host (git hook) WILL surface this and block the commit; that is correct. |
+#### D6. Lintable and testable prevention contract
 
-The class (b) carve-out registry (initially):
+This ADR mandates a prevention contract:
 
-- b1 PR-iteration-cost lint hooks (markdownlint, em/en dash). Justification: style lint noise, not governance; loud WARN to stderr; regression test exists (`test_markdownlint_guard.py`, `test_push_guard_base.py`).
-- b2 commit-msg infrastructure-miss path. Justification: missing message file path is an infrastructure miss, not a violation.
-- b3 `command -v python3` bootstrap-style guards. Justification: comparable to ADR-008's existing bootstrap carve-out.
-- b4 EARS template "graceful degradation" checkbox. Action: rewrite the checkbox to point at ADR-066's rubric (template-only; no runtime effect).
-- b5, b6 educational stability references (`security-defense-in-depth.md`, `slo-design-patterns.md`). Action: add cross-reference to ADR-066 so authors don't read them as launcher guidance.
-- b7 CodeQL optional advisory scan. Justification: explicitly optional; loud WARN already present.
-- b8 Skill-authoring guidance about graceful degradation in scripts. Action: add cross-reference to ADR-066.
-- b9 M5 bot-cascade hook (`REQ-013`). Already aligned; cited as the **reference pattern** for class (a) flips. The `test_phase_5c_no_fail_open_on_reviews` regression test is the model for D6 below.
-- ADR-062 LSP gate (re-listed here for completeness; see D3).
-
-Every class (b) entry MUST carry the inline `# ADR-066 class (b): ...` comment. The registry lives in this ADR; the lint contract in D6 enforces co-location.
-
-#### D6. Lintable contract (answers analyst open question)
-
-This ADR mandates a lintable test contract analogous to `test_phase_5c_no_fail_open_on_reviews`:
-
-- A repo-wide test (location: `tests/governance/test_adr_066_no_fail_open_outside_carve_out.py`) asserts that no file in `.claude/skills/`, `.claude/hooks/`, `src/copilot-cli/`, `.agents/skills/`, or `build/scripts/` contains any of:
-
-  - bare `try/except: pass` in a failure path,
-  - `|| true` after a hook invocation,
-  - `exit 0` in a failure branch,
-  - `return 0` annotated `fail-open`,
-
-  ...UNLESS the file path is in the class (b) registry above OR the line carries the inline `ADR-066 class (b): <justification>` marker comment within 5 lines before the suppression.
-
-- Class (b) registry is parsed from this ADR's D5 table at test time so updates to the ADR auto-update the lint.
-
-- The test runs in CI as a BLOCKING gate (exit non-zero on violation). Implementer PR adds the test alongside the class (a) flips.
+1. `scripts/validation/validate_hook_anchoring.py` is the canonical validator for generated hook anchoring.
+2. The validator runs in pre-push and CI.
+3. Runtime-contract tests assert that generated hooks resolve their anchored target paths and fail non-zero with actionable stderr when the invariant cannot be proven.
+4. A repo-wide governance test rejects hook failure paths that contain success-shaped suppression, including:
+   - bare `try/except: pass` in a failure path,
+   - `|| true` after a hook invocation,
+   - `exit 0` in a failure branch,
+   - `return 0` or `sys.exit(0)` annotated as fail-open,
+   - comments that endorse hook fail-open or graceful degradation for invariant enforcement.
+5. Any exception to this policy requires a later ADR. Inline comments alone are not enough.
 
 #### D7. Scope exclusion
 
-`.claude/skills/gstack/**` is third-party vendored code. ADR-066 does NOT govern gstack. The lint contract in D6 explicitly excludes `.claude/skills/gstack/`. If gstack ever moves into first-party scope, this exclusion gets removed in the ADR that absorbs gstack into the repo's governance.
+Third-party vendored code is outside this ADR unless it is wrapped by a first-party hook launcher. First-party wrappers remain governed by ADR-066.
 
 ### Consequences
 
 Good:
 
-- Customer-harm bound: the #2205 failure mode (silent launcher exit 0 = wedged customer for 33 days) is structurally prevented for class (a) surfaces.
-- Auditability: the class (b) registry plus the inline marker plus the D6 lint contract make every fail-open in the tree visible and justifiable.
-- Detectability: real runtime errors in class (a) hooks surface to the user immediately and get fixed instead of accumulating as silent dead-weight.
-- No exit-code overload: the new exit-3 lane separates "external unavailable" from "logic error" so class (b) hooks can degrade on transience without masking bugs.
+- Customer-harm bound: the #2205 failure mode (silent launcher success while the hook is broken) is prevented before release.
+- Detectability: novel runtime escapes are visible immediately through non-zero exit and stderr.
+- Auditability: hook anchoring and failure semantics are tested in pre-push and CI.
+- Policy coherence: ADR-008, ADR-033, ADR-035, ADR-062, and stability guidance converge on one hook policy.
 
 Bad:
 
-- Implementer flip PR is non-trivial (7 class (a) surfaces, plus new exit-3 plumbing in ADR-035, plus the D6 test).
-- Some advisory hooks that today silently degrade will start emitting WARN to stderr. This is loud-by-design but will produce visible noise the first release after the flip.
-- The `invoke_memory_cross_reference.py` flip means a runtime error in that script (today silent) will block commits. That is the correct behavior per #2263, but it raises the bar on that script's robustness; implementer must add a kill switch (`SKIP_MEMORY_CROSS_REF=1` environment variable) for emergency bypass during the rollout window.
+- Follow-up work is required across prior ADRs, guidance, and hook tests.
+- Hooks that were silently degraded will start failing loud. This is intentional, but it changes operator experience.
+- Emergency bypasses, if needed, must be explicit, named, logged, and documented in a later ADR or rollout plan. They are not silent fail-open paths.
 
 ### Confirmation
 
 Implementation compliance is confirmed by:
 
-1. The D6 lint test (`test_adr_066_no_fail_open_outside_carve_out.py`) running green in CI.
-2. adr-review consensus on this ADR (D&C or Accept from all 6 agents, max 10 rounds).
-3. The implementer flip PR closes #2271 and references this ADR in its body.
-4. The class (b) registry in this ADR matches the actual files in the tree (the D6 test asserts this).
+1. `scripts/validation/validate_hook_anchoring.py` running green in pre-push and CI.
+2. Runtime-contract tests proving generated hooks anchor correctly and fail non-zero on broken invariants.
+3. A repo-wide governance test rejecting hook fail-open endorsements and success-shaped suppression.
+4. adr-review consensus on this ADR (D&C or Accept from all 6 agents, max 10 rounds).
+5. The implementer flip PR closing #2271 and referencing this ADR in its body.
 
 ## Pros and Cons of the Options
 
 ### Option 1: Status quo
 
-- Good, because no code/prose changes; backward compatible.
-- Good, because each fail-open is locally defensible at the point of decision.
-- Bad, because the aggregate is undetectable degradation surface (the #2205 failure mode).
-- Bad, because hook authors cite `release-it.md` "Graceful Degradation" out of scope as warrant for launcher fail-open.
-- Bad, because the maintainer's standing position (per #2263) is already the inverse of this option's default.
+- Good, because no code or prose changes are required.
+- Bad, because the #2205 failure mode remains possible.
+- Bad, because hook authors can keep treating success-shaped suppression as normal.
+- Bad, because the maintainer's standing position from #2263 is already the inverse of this option.
 
-### Option 2: Wholesale flip (every hook fails closed and loud)
+### Option 2: Launcher-level recovery
 
-- Good, because there is no ambiguity and no carve-out registry to maintain.
-- Good, because every silent dead hook becomes loud immediately.
-- Bad, because legitimate advisory paths (lint noise, optional scans) start blocking pushes; the noise floor breaks workflows that aren't customer-facing governance.
-- Bad, because ADR-062's wedge-on-compaction risk is real; a wholesale flip would deadlock the LSP gate without the existing recovery design.
+- Good, because it tries to reduce immediate operator interruption.
+- Bad, because it preserves the wrong layer for recovery.
+- Bad, because launcher failures can occur before in-script recovery runs.
+- Bad, because warnings and degraded paths still let broken hooks reach users.
 
-### Option 3 (chosen): Default-flip with enumerated class (b) carve-out and lintable contract
+### Option 3 (chosen): Prevention-first, fail-closed-and-loud
 
-- Good, because the default is now correct (class (a) is the dominant surface and the #2205 failure mode).
-- Good, because the carve-out is enumerated, inline-justified, and lint-enforced. Drift is detectable.
-- Good, because ADR-062's existing class (b) design (probe + kill switch + recovery message) survives unchanged.
-- Good, because the new exit-3 lane lets class (b) degrade on transience without overloading exit 1.
-- Neutral, because the implementer flip PR is non-trivial.
-- Bad, because the class (b) registry needs maintenance discipline (mitigated by the D6 lint asserting registry-to-tree parity).
+- Good, because bad hook artifacts are blocked before release.
+- Good, because runtime escapes are visible and actionable.
+- Good, because validators and runtime-contract tests become the enforcement point.
+- Good, because no fail-open path is endorsed for hooks.
+- Bad, because follow-up governance and test updates are required.
 
 ## More Information
 
-- Refs #2205 (customer wedge incident; the failure-mode evidence)
+- Refs #2205 (customer wedge incident; failure-mode evidence)
 - Refs #2230 (launcher fail-open remediation; closed addressed-by-prevention)
 - Refs #2263 (governance scrub; established prevention-first, fail-closed-and-loud stance)
-- Refs #2271 (this audit; closed by the implementer flip PR, NOT by this ADR)
+- Refs #2271 (audit; closed by the implementer flip PR, not by this ADR)
 - Analyst inventory: <https://github.com/rjmurillo/ai-agents/issues/2271#issuecomment-4604311175>
 - Serena memory `feedback-generated-artifact-runtime-verification.md` is the contemporaneous incident record.
-- `.serena/memories/` grep result: no live Serena memory advocates launcher fail-open as policy. Four hits exist; all describe fail-open as a known anti-pattern or incident, not as a recommended default. This addresses the analyst's open question.
 
-Realization plan: this ADR lands. adr-review runs. On consensus, status flips to "accepted." Implementer opens the flip PR per D5, which closes #2271 and adds the D6 test. ADR-008 / ADR-033 / ADR-035 / ADR-062 / `release-it.md` get amended in that same PR (or in tightly-scoped follow-ups, each referencing this ADR). After the flip, review this ADR at the next governance audit (or when a new exit-code lane is proposed).
+Realization plan: this ADR lands. adr-review runs. On consensus, status flips to "accepted." The implementer opens the flip PR per D5, closes #2271, and adds the D6 tests. ADR-008, ADR-033, ADR-035, ADR-062, release guidance, and memory cross-reference hooks get amended in that same PR or in tightly scoped follow-ups, each referencing this ADR. After the flip, review this ADR at the next governance audit or when a new hook exit-code lane is proposed.
