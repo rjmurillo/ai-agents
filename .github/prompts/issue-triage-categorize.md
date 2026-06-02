@@ -1,3 +1,5 @@
+CONTEXT_MODE: full  <!-- markdownlint-disable-line MD041 -->
+
 # Issue Triage Categorization Task
 
 You are classifying one GitHub issue for the Phase 2 backlog triage pipeline.
