@@ -156,7 +156,7 @@ def normalize_check(ctx: dict) -> dict | None:
 # PENDING. A passing entry from a re-run supersedes a prior failure ("OK if any
 # SUCCESS exists" per the PR #1887 retrospective). A failure still wins over a
 # pending retry when no passing run exists, so pending work does not hide the
-# last concrete failure.
+# last concrete failure. The pending signal is still retained for wait polling.
 #
 # Stricter/looser/different than canonical: test_pr_merge_ready.py treats a
 # CANCELLED-only group as no-opinion (SKIP) so it neither blocks nor counts as
@@ -194,12 +194,16 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     """
     best_by_name: dict[str, dict] = {}
     required_by_name: dict[str, bool] = {}
+    pending_by_name: dict[str, bool] = {}
     order: list[str] = []
     for check in checks:
         name_value = check.get("Name")
         name = "" if name_value is None else name_value
         required_by_name[name] = required_by_name.get(name, False) or bool(
             check.get("IsRequired")
+        )
+        pending_by_name[name] = pending_by_name.get(name, False) or bool(
+            check.get("IsPending")
         )
         current = best_by_name.get(name)
         if current is None:
@@ -208,10 +212,13 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
         elif _check_rank(check) < _check_rank(current):
             best_by_name[name] = check
 
-    return [
-        {**best_by_name[name], "IsRequired": required_by_name[name]}
-        for name in order
-    ]
+    deduped = []
+    for name in order:
+        winner = {**best_by_name[name], "IsRequired": required_by_name[name]}
+        if not winner.get("IsPassing") and pending_by_name[name]:
+            winner["IsPending"] = True
+        deduped.append(winner)
+    return deduped
 
 
 # ---------------------------------------------------------------------------

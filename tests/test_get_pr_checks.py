@@ -957,6 +957,22 @@ class TestBuildOutputAdditional:
         assert output["PendingCount"] == 1
         assert output["AllPassing"] is False
 
+    def test_failed_pending_duplicate_counts_as_failed_and_pending(self):
+        checks = dedupe_checks([
+            _check("build", failing=True, conclusion="FAILURE"),
+            _check("build", pending=True, state="IN_PROGRESS"),
+        ])
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "FAILURE",
+            "Checks": checks,
+        }
+        output = build_output(check_data, "o", "r")
+        assert output["FailedCount"] == 1
+        assert output["PendingCount"] == 1
+        assert output["AllPassing"] is False
+
     def test_has_checks_false(self):
         check_data = {
             "Number": 42,
@@ -1043,8 +1059,8 @@ class TestDedupeChecks:
         assert len(result) == 1
         assert result[0]["IsFailing"] is True
 
-    def test_failure_supersedes_pending(self):
-        """A pending re-run does not hide the last concrete failure."""
+    def test_failure_supersedes_pending_but_keeps_pending_signal(self):
+        """A pending re-run keeps wait polling active after a failure."""
         checks = [
             _check("build", failing=True, conclusion="FAILURE"),
             _check("build", pending=True, state="IN_PROGRESS"),
@@ -1052,7 +1068,7 @@ class TestDedupeChecks:
         result = dedupe_checks(checks)
         assert len(result) == 1
         assert result[0]["IsFailing"] is True
-        assert result[0]["IsPending"] is False
+        assert result[0]["IsPending"] is True
 
     def test_passing_supersedes_pending(self):
         """A passing run wins over a pending run for the same name."""
