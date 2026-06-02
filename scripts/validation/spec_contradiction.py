@@ -64,7 +64,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.github_core.api import RepoInfo  # noqa: E402
+from scripts.github_core.api import resolve_repo_params  # noqa: E402
 
 # Valid model tiers per ADR-002 (agent model selection). A spec text that
 # names one tier while the committed agent frontmatter names another is the
@@ -118,33 +118,6 @@ class Contradiction:
     committed: str
     file: str
     source: str
-
-
-def get_repo_info() -> RepoInfo:
-    """Parse owner/repo from the git remote origin URL.
-
-    Raises RuntimeError on failure so the caller can map it to exit code 2.
-    """
-    try:
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        raise RuntimeError("Could not determine git remote origin") from exc
-
-    if result.returncode != 0:
-        raise RuntimeError("Could not determine git remote origin")
-
-    remote_url = result.stdout.strip()
-    match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", remote_url)
-    if not match:
-        raise RuntimeError(
-            f"Could not parse GitHub owner/repo from remote URL: {remote_url}"
-        )
-    return RepoInfo(owner=match.group(1), repo=match.group(2))
 
 
 def fetch_current_pr_body(owner: str, repo: str) -> str | None:
@@ -255,6 +228,17 @@ def parse_frontmatter(text: str) -> dict[str, str]:
         value = line[colon + 1 :].strip()
         if not value:
             continue
+        # Strip inline YAML comments (e.g. "model: opus  # override") so the
+        # trailing comment is not captured as part of the value, which would
+        # cause silent false negatives. Mirrors
+        # scripts/validation/pre_pr.py:_parse_yaml_frontmatter (only strip when
+        # the value does not open with a quote; cut at the first "#").
+        if value[0] not in ('"', "'"):
+            comment_pos = value.find("#")
+            if comment_pos > 0:
+                value = value[:comment_pos].strip()
+                if not value:
+                    continue
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
             value = value[1:-1]
         result[key] = value
@@ -366,19 +350,24 @@ def _resolve_base_ref(repo_root: Path) -> str | None:
 
 
 def collect_contradictions(
-    repo_root: Path, owner: str, repo: str
+    repo_root: Path, owner: str, repo: str, base_ref: str | None = None
 ) -> list[Contradiction]:
     """Fetch PR + linked issues, diff agent frontmatter, return contradictions.
 
     Returns an empty list (not an error) when there is no PR, no gh, no linked
     issues, or no changed agent files. Those are the common pre-PR states and
     mean "nothing to compare", not "contradiction found".
+
+    When ``base_ref`` is provided (e.g. a value resolved by pre_pr.py's
+    ``_resolve_branch_base_ref``) it is used as the diff base. Otherwise the
+    base ref is resolved locally via ``_resolve_base_ref``.
     """
     pr_body = fetch_current_pr_body(owner, repo)
     if pr_body is None:
         return []
 
-    base_ref = _resolve_base_ref(repo_root)
+    if base_ref is None:
+        base_ref = _resolve_base_ref(repo_root)
     if base_ref is None:
         return []
     frontmatter_files = _changed_agent_files(repo_root, base_ref)
@@ -454,6 +443,15 @@ def build_parser() -> argparse.ArgumentParser:
             "(env: SPEC_CONTRADICTION_ADVISORY). Used by pre_pr.py."
         ),
     )
+    parser.add_argument(
+        "--base",
+        default=None,
+        help=(
+            "Base ref to diff committed agent frontmatter against "
+            "(e.g. origin/main). When omitted, resolved locally from the "
+            "branch upstream, origin/HEAD, then origin/main."
+        ),
+    )
     return parser
 
 
@@ -466,16 +464,16 @@ def main(argv: list[str] | None = None) -> int:
     owner: str = args.owner
     repo: str = args.repo
 
-    if not owner or not repo:
-        try:
-            info = get_repo_info()
-        except RuntimeError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            return 2
-        owner = owner or info.owner
-        repo = repo or info.repo
+    try:
+        info = resolve_repo_params(owner, repo)
+    except SystemExit:
+        return 2
+    owner = info.owner
+    repo = info.repo
 
-    contradictions = collect_contradictions(repo_root, owner, repo)
+    contradictions = collect_contradictions(
+        repo_root, owner, repo, base_ref=args.base
+    )
     print(format_report(contradictions))
 
     if contradictions and not args.advisory:

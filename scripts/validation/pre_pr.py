@@ -779,15 +779,17 @@ def validate_spec_contradiction(repo_root: Path) -> bool:
         print("[WARNING] spec_contradiction.py not found (skipping)")
         return True
 
-    exit_code, stdout, stderr = _run_subprocess(
-        [
-            sys.executable,
-            str(script),
-            "--repo-root",
-            str(repo_root),
-            "--advisory",
-        ]
-    )
+    base_ref = _resolve_branch_base_ref(repo_root)
+    cmd = [
+        sys.executable,
+        str(script),
+        "--repo-root",
+        str(repo_root),
+        "--advisory",
+    ]
+    if base_ref:
+        cmd.extend(["--base", base_ref])
+    exit_code, stdout, stderr = _run_subprocess(cmd)
     if stdout.strip():
         print(stdout.strip())
     if stderr.strip():

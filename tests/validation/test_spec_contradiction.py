@@ -16,6 +16,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "spec_contradiction.py"
@@ -136,6 +137,21 @@ def test_parse_frontmatter_no_fence_returns_empty():
     assert sc.parse_frontmatter(_NO_FRONTMATTER) == {}
 
 
+def test_parse_frontmatter_strips_inline_comment():
+    # A trailing YAML comment must not be captured as part of the value, or
+    # the model tier goes unrecognized and the contradiction is missed.
+    text = "---\nname: helper\nmodel: opus  # per ADR-002 override\n---\n"
+    front = sc.parse_frontmatter(text)
+    assert front["model"] == "opus"
+
+
+def test_parse_frontmatter_keeps_hash_inside_quotes():
+    # A '#' inside a quoted value is literal content, not a comment leader.
+    text = '---\nlabel: "a # b"\n---\n'
+    front = sc.parse_frontmatter(text)
+    assert front["label"] == "a # b"
+
+
 # --- find_contradictions (the core comparison) -----------------------------
 
 
@@ -157,6 +173,13 @@ def test_find_contradictions_no_flag_when_tiers_agree():
     spec = "The implementer uses model: opus."
     files = {"src/claude/implementer.md": _OPUS_AGENT}
     assert sc.find_contradictions(spec, "PR description", files) == []
+
+
+def test_find_contradictions_no_flag_when_sonnet_agrees():
+    # Spec and committed frontmatter both name the sonnet tier: no contradiction.
+    spec = "The helper uses model_tier: sonnet per the spec."
+    files = {"src/claude/helper.md": _SONNET_AGENT}
+    assert sc.find_contradictions(spec, "issue #1", files) == []
 
 
 def test_find_contradictions_no_claim_no_flag():
@@ -301,10 +324,12 @@ def test_collect_contradictions_issue_fetch_failure_skipped(monkeypatch):
 
 
 def test_main_advisory_exits_zero_on_contradiction(monkeypatch, capsys):
-    monkeypatch.setattr(sc, "get_repo_info", lambda: sc.RepoInfo("o", "r"))
+    monkeypatch.setattr(
+        sc, "resolve_repo_params", lambda owner="", repo="": SimpleNamespace(owner="o", repo="r")
+    )
     c = sc.Contradiction("model-tier", "model", "sonnet", "opus", "f.md", "issue #1")
     monkeypatch.setattr(
-        sc, "collect_contradictions", lambda root, owner, repo: [c]
+        sc, "collect_contradictions", lambda root, owner, repo, base_ref=None: [c]
     )
     code = sc.main(["--advisory"])
     assert code == 0
@@ -312,28 +337,51 @@ def test_main_advisory_exits_zero_on_contradiction(monkeypatch, capsys):
 
 
 def test_main_strict_exits_one_on_contradiction(monkeypatch, capsys):
-    monkeypatch.setattr(sc, "get_repo_info", lambda: sc.RepoInfo("o", "r"))
+    monkeypatch.setattr(
+        sc, "resolve_repo_params", lambda owner="", repo="": SimpleNamespace(owner="o", repo="r")
+    )
     c = sc.Contradiction("model-tier", "model", "sonnet", "opus", "f.md", "issue #1")
     monkeypatch.setattr(
-        sc, "collect_contradictions", lambda root, owner, repo: [c]
+        sc, "collect_contradictions", lambda root, owner, repo, base_ref=None: [c]
     )
     code = sc.main([])
     assert code == 1
 
 
 def test_main_exits_zero_when_clean(monkeypatch, capsys):
-    monkeypatch.setattr(sc, "get_repo_info", lambda: sc.RepoInfo("o", "r"))
-    monkeypatch.setattr(sc, "collect_contradictions", lambda root, owner, repo: [])
+    monkeypatch.setattr(
+        sc, "resolve_repo_params", lambda owner="", repo="": SimpleNamespace(owner="o", repo="r")
+    )
+    monkeypatch.setattr(
+        sc, "collect_contradictions", lambda root, owner, repo, base_ref=None: []
+    )
     code = sc.main([])
     assert code == 0
     assert "[PASS]" in capsys.readouterr().out
 
 
 def test_main_config_error_when_repo_unresolvable(monkeypatch):
-    def _raise() -> sc.RepoInfo:
-        raise RuntimeError("Could not determine git remote origin")
+    def _raise(owner: str = "", repo: str = ""):
+        # resolve_repo_params raises SystemExit on unresolvable/invalid input.
+        raise SystemExit(2)
 
-    monkeypatch.setattr(sc, "get_repo_info", _raise)
+    monkeypatch.setattr(sc, "resolve_repo_params", _raise)
     # No --owner/--repo provided, so the script must resolve and fail with 2.
     code = sc.main([])
     assert code == 2
+
+
+def test_main_passes_base_to_collect(monkeypatch):
+    monkeypatch.setattr(
+        sc, "resolve_repo_params", lambda owner="", repo="": SimpleNamespace(owner="o", repo="r")
+    )
+    seen: dict[str, str | None] = {}
+
+    def _capture(root, owner, repo, base_ref=None):
+        seen["base_ref"] = base_ref
+        return []
+
+    monkeypatch.setattr(sc, "collect_contradictions", _capture)
+    code = sc.main(["--base", "origin/release"])
+    assert code == 0
+    assert seen["base_ref"] == "origin/release"
