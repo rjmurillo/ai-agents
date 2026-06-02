@@ -37,6 +37,7 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 DEFAULT_STALE_DAYS = 60
 PRIORITY_LABEL_PREFIX = "priority:"
@@ -252,6 +253,18 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
     return data
 
 
+def split_github_repository(value: str) -> tuple[str, str]:
+    """Return owner and repo from a GitHub repository slug, or blank values."""
+
+    parts = value.split("/", 1)
+    if len(parts) != 2:
+        return "", ""
+    return parts[0], parts[1]
+
+
+DEFAULT_OWNER, DEFAULT_REPO = split_github_repository(os.environ.get("GITHUB_REPOSITORY", ""))
+
+
 def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
     """Build the Phase 2 AI-triage discovery payload.
 
@@ -268,6 +281,18 @@ def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
 
     include = [{"number": issue.number, "title": issue.title} for issue in issues]
     return {"include": include, "count": len(include)}
+
+
+def write_ai_github_outputs(matrix: dict[str, object], output_path: str) -> None:
+    """Write matrix metadata to GitHub Actions output format."""
+
+    include = matrix.get("include")
+    count = int(matrix.get("count") or 0)
+    github_matrix = {"include": include if isinstance(include, list) else []}
+    with Path(output_path).open("a", encoding="utf-8") as handle:
+        handle.write(f"matrix={json.dumps(github_matrix)}\n")
+        handle.write(f"has-issues={str(count > 0).lower()}\n")
+        handle.write(f"count={count}\n")
 
 
 def format_human(report: TriageReport) -> str:
@@ -299,8 +324,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Phase 1 mechanical issue triage scanner (ClawSweeper pattern).",
     )
-    parser.add_argument("--owner", default=os.environ.get("GH_REPO_OWNER", ""))
-    parser.add_argument("--repo", default=os.environ.get("GH_REPO_NAME", ""))
+    parser.add_argument("--owner", default=os.environ.get("GH_REPO_OWNER", DEFAULT_OWNER))
+    parser.add_argument("--repo", default=os.environ.get("GH_REPO_NAME", DEFAULT_REPO))
     parser.add_argument(
         "--stale-days", type=int, default=DEFAULT_STALE_DAYS,
         help=f"Days of inactivity to flag as stale (default: {DEFAULT_STALE_DAYS}).",
@@ -323,6 +348,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--input", default="",
         help="Path to a JSON file with prefetched issues (skips gh call). "
              "Useful for testing and air-gapped runs.",
+    )
+    parser.add_argument(
+        "--github-output",
+        default="",
+        help="Optional GitHub output file for matrix, has-issues, and count values.",
     )
     return parser.parse_args(argv)
 
@@ -370,7 +400,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"warn: skipping malformed issue: {err}", file=sys.stderr)
 
     if args.ai:
-        print(json.dumps(build_ai_matrix(issues)))
+        matrix = build_ai_matrix(issues)
+        if args.github_output:
+            write_ai_github_outputs(matrix, args.github_output)
+            print(f"Discovered {matrix['count']} open issues for triage")
+        else:
+            print(json.dumps(matrix))
         return 0
 
     report = build_report(

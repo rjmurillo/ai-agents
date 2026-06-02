@@ -27,7 +27,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GH_TOKEN: ${{ secrets.BOT_PAT }}
   BACKLOG_MAX_ISSUES: ${{ inputs.max_issues || 100 }}
 
 jobs:
@@ -49,19 +48,13 @@ jobs:
 
       - name: Discover open issues for AI triage
         id: discover
-        run: |
-          owner=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f1)
-          repo=$(echo "$GITHUB_REPOSITORY" | cut -d/ -f2)
-          matrix_json=$(python3 scripts/issue_triage.py \
-            --owner "$owner" --repo "$repo" \
-            --limit "$BACKLOG_MAX_ISSUES" --ai)
-
-          echo "matrix=$matrix_json" >> "$GITHUB_OUTPUT"
-
-          has_issues=$(echo "$matrix_json" | jq -r '.count > 0')
-          echo "has-issues=$has_issues" >> "$GITHUB_OUTPUT"
-
-          echo "Discovered $(echo "$matrix_json" | jq -r '.count') open issues for triage"
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: >-
+          python3 scripts/issue_triage.py
+          --limit "$BACKLOG_MAX_ISSUES"
+          --ai
+          --github-output "$GITHUB_OUTPUT"
 
   # Job 2: Classify each issue in parallel (matrix strategy)
   classify-issues:
@@ -96,13 +89,14 @@ jobs:
           AI_VERDICT: ${{ steps.classify.outputs.verdict }}
           AI_LABELS: ${{ steps.classify.outputs.labels }}
           AI_FINDINGS: ${{ steps.classify.outputs.findings }}
-        run: python3 scripts/backlog_triage_result.py
+          OUTPUT: ${{ runner.temp }}/backlog-triage-${{ matrix.number }}.json
+        run: python3 scripts/backlog_triage_result.py --output "$OUTPUT"
 
       - name: Upload triage result
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: backlog-triage-${{ matrix.number }}
-          path: /tmp/backlog-triage-result.json
+          path: ${{ runner.temp }}/backlog-triage-${{ matrix.number }}.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -119,21 +113,21 @@ jobs:
       - name: Download triage results
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317 # v4
         with:
-          path: /tmp/triage-results
+          path: ${{ runner.temp }}/triage-results
           pattern: backlog-triage-*
           merge-multiple: true
 
       - name: Build human-review summary
-        run: |
-          python3 scripts/backlog_triage_summary.py \
-            --results-dir /tmp/triage-results \
-            --output /tmp/backlog-triage-summary.md
-          cat /tmp/backlog-triage-summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: >-
+          python3 scripts/backlog_triage_summary.py
+          --results-dir "${{ runner.temp }}/triage-results"
+          --output "${{ runner.temp }}/backlog-triage-summary.md"
+          --github-step-summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload backlog triage summary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
         with:
           name: backlog-triage-summary
-          path: /tmp/backlog-triage-summary.md
+          path: ${{ runner.temp }}/backlog-triage-summary.md
           retention-days: 30
           if-no-files-found: warn

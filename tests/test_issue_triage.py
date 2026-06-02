@@ -35,6 +35,8 @@ from scripts.issue_triage import (
     parse_args,
     parse_iso_timestamp,
     parse_issue_record,
+    split_github_repository,
+    write_ai_github_outputs,
 )
 
 
@@ -304,6 +306,25 @@ class TestBuildAiMatrix:
         matrix = build_ai_matrix([issue])
         row = matrix["include"][0]
         assert set(row.keys()) == {"number", "title"}
+
+    def test_github_outputs_strip_non_matrix_count(self, tmp_path: Path, now):
+        output_path = tmp_path / "github-output.txt"
+        matrix = build_ai_matrix([make_issue(number=7, title="t", base=now)])
+        write_ai_github_outputs(matrix, str(output_path))
+        lines = output_path.read_text().splitlines()
+        assert json.loads(lines[0].removeprefix("matrix=")) == {
+            "include": [{"number": 7, "title": "t"}],
+        }
+        assert "has-issues=true" in lines
+        assert "count=1" in lines
+
+
+class TestGitHubRepositoryDefaults:
+    def test_split_github_repository_accepts_owner_repo(self):
+        assert split_github_repository("octo/repo") == ("octo", "repo")
+
+    def test_split_github_repository_rejects_invalid_slug(self):
+        assert split_github_repository("not-a-slug") == ("", "")
 
 
 class TestFetchOpenIssues:
