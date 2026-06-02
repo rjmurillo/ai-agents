@@ -994,12 +994,24 @@ def _ensure_exact_case_dir(directory: Path) -> None:
     target_name = directory.name
     for entry in parent.iterdir():
         if entry.name == target_name:
+            if not entry.is_dir():
+                raise NotADirectoryError(
+                    f"Target exists but is not a directory: {directory}"
+                )
             return
         if entry.is_dir() and entry.name.lower() == target_name.lower():
             temp = parent / f"__case_fix_{target_name}"
+            suffix = 1
+            while temp.exists():
+                temp = parent / f"__case_fix_{target_name}_{suffix}"
+                suffix += 1
             entry.rename(temp)
             temp.rename(directory)
             return
+        if entry.name.lower() == target_name.lower():
+            raise NotADirectoryError(
+                f"Case-conflicting path is not a directory: {entry}"
+            )
     directory.mkdir(exist_ok=True)
 
 

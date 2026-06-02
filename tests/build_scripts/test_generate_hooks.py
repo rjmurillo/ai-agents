@@ -46,6 +46,7 @@ from generate_hooks import (  # noqa: E402
     normalize_tool_args,
     strip_shim,
     _matcher_suffix,
+    _ensure_exact_case_dir,
     _SHIM_BEGIN,
     _SHIM_END,
 )
@@ -1056,6 +1057,34 @@ def test_matcher_suffix_whitespace_padded_matcher_normalizes():
     assert a and b
     # Distinct inputs MUST yield distinct suffixes (collision-resistant).
     assert a != b
+
+
+def test_ensure_exact_case_dir_uses_collision_free_temp_name(tmp_path: Path) -> None:
+    """A stale case-fix temp directory does not block casing repair."""
+    parent = tmp_path / "hooks"
+    lower_case_dir = parent / "pretooluse"
+    stale_temp_dir = parent / "__case_fix_PreToolUse"
+    lower_case_dir.mkdir(parents=True)
+    stale_temp_dir.mkdir()
+
+    _ensure_exact_case_dir(parent / "PreToolUse")
+
+    entry_names = {entry.name for entry in parent.iterdir()}
+    assert "PreToolUse" in entry_names
+    assert "__case_fix_PreToolUse" in entry_names
+    assert "pretooluse" not in entry_names
+
+
+def test_ensure_exact_case_dir_rejects_file_blocking_target(
+    tmp_path: Path,
+) -> None:
+    """A file at the target name fails loudly instead of being treated as ok."""
+    target = tmp_path / "hooks" / "PreToolUse"
+    target.parent.mkdir()
+    target.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises(NotADirectoryError):
+        _ensure_exact_case_dir(target)
 
 
 # --- live-corpus regression ----------------------------------------------
