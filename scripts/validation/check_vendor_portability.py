@@ -21,7 +21,7 @@ Baseline ratchet:
   131 files across 30+ skills already hard-code these paths (Issue #2050).
   Phase 1 does not migrate them. To gate regressions without forcing that
   migration now, the current offenders are recorded in a baseline file
-  (see BASELINE_PATH). Files in the baseline are reported as known debt but
+  (see `baseline_path()`). Files in the baseline are reported as known debt but
   do not fail the check. A NEW offender not in the baseline fails. Run with
   `--update-baseline` to regenerate the baseline after an intentional change
   (for example, after migrating a file off the baseline).

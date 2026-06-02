@@ -160,6 +160,11 @@ def test_skill_resource_rejects_skill_parent_traversal(paths) -> None:
         paths.resolve_skill_resource("../escape", "secret.md")
 
 
+def test_skill_resource_rejects_dot_skill(paths) -> None:
+    with pytest.raises(ValueError):
+        paths.resolve_skill_resource(".", "secret.md")
+
+
 def test_skill_resource_rejects_absolute_relpath(paths) -> None:
     with pytest.raises(ValueError):
         paths.resolve_skill_resource("review", "/etc/passwd")
@@ -240,6 +245,11 @@ def test_artifact_root_blank_override_falls_back_to_default(
 def test_artifact_root_rejects_empty_subdir(paths) -> None:
     with pytest.raises(ValueError):
         paths.resolve_artifact_root("")
+
+
+def test_artifact_root_rejects_dot_subdir(paths) -> None:
+    with pytest.raises(ValueError):
+        paths.resolve_artifact_root(".")
 
 
 def test_artifact_root_rejects_absolute_subdir(paths) -> None:

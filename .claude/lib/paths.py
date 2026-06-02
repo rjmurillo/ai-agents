@@ -71,6 +71,8 @@ def _normalize_relpath(relpath: str | Path) -> Path:
     so raise rather than resolve it.
     """
     rel = Path(relpath)
+    if str(rel) == ".":
+        raise ValueError(f"relpath must not be empty or '.': {relpath!r}")
     if rel.is_absolute():
         raise ValueError(f"relpath must be relative, got absolute: {relpath!r}")
     if ".." in rel.parts:
