@@ -156,7 +156,8 @@ def normalize_check(ctx: dict) -> dict | None:
 # PENDING. A passing entry from a re-run supersedes a prior failure ("OK if any
 # SUCCESS exists" per the PR #1887 retrospective). A failure still wins over a
 # pending retry when no passing run exists, so pending work does not hide the
-# last concrete failure. The pending signal is still retained for wait polling.
+# last concrete failure. Any pending signal is still retained for wait polling,
+# including when a same-name passing run is present.
 #
 # Stricter/looser/different than canonical: test_pr_merge_ready.py treats a
 # CANCELLED-only group as no-opinion (SKIP) so it neither blocks nor counts as
@@ -215,8 +216,7 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     deduped = []
     for name in order:
         winner = {**best_by_name[name], "IsRequired": required_by_name[name]}
-        if not winner.get("IsPassing") and pending_by_name[name]:
-            winner["IsPending"] = True
+        winner["IsPending"] = pending_by_name[name]
         deduped.append(winner)
     return deduped
 
