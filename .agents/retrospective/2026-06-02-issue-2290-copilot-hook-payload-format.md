@@ -292,7 +292,9 @@
 
 ## Failure Mode Classification
 
-**FM-CONTRACT**: Producer/consumer wire format mismatch. A generator produced a contract (eventRemap) that was never tested against the real runtime's payload. The canonical source for this pattern: this retrospective and PR #2293.
+**FM #11 - Customer-Facing Generated Artifact Shipped Without Runtime Verification** (second occurrence).
+
+The hook artifacts were regenerated and shipped after ADR-063 was written. ADR-063 verified cwd and env vars but not stdin payload format. The artifact's runtime behavior was therefore partially unverified. This is the same failure pattern as issue #2205, applied to a different dimension of the same contract.
 
 Reference: `.agents/governance/FAILURE-MODES.md`
 
@@ -304,5 +306,20 @@ Reference: `.agents/governance/FAILURE-MODES.md`
 | Empirical payload evidence in decision memory | session | Done | .serena/memories/copilot-hooks-observations.md |
 | ADR-063 amendment: add stdin payload section | follow-up | TODO | TBD |
 | Probe-based stdin payload test | follow-up | TODO | TBD |
-| Hook timeout P0 issue | follow-up | TODO | TBD |
-| FAILURE-MODES.md: add FM-CONTRACT pattern | follow-up | TODO | TBD |
+| Hook timeout P0 issue (exit 143 on Windows) | follow-up | TODO | TBD |
+
+## Correction (2026-06-02, retrospective agent review)
+
+**FM Classification**: The original "FM-CONTRACT" category used above does not
+exist in `.agents/governance/FAILURE-MODES.md`. Corrected to **FM #11 -
+Customer-Facing Generated Artifact Shipped Without Runtime Verification**
+(second occurrence). This incident is FM #11 because ADR-063's verification
+pass (session 1873) covered cwd and environment variables but omitted stdin
+payload format. The artifact shipped with an incomplete runtime contract
+verification scope. Same failure pattern as #2205, different contract dimension.
+
+No new failure mode is required. FM #11 already covers this shape.
+
+**Remediation items**: The TODO items in the Remediation table require GitHub
+issue numbers per retros.md MUST #4. File issues before the retro is considered
+closed.
