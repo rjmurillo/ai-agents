@@ -424,7 +424,11 @@ def _fetch_unresolved_threads_with_clients(
         except Exception as exc:
             _fail_fetch(str(exc), pull_request)
 
-        repository = data.get("repository") or {}
+        if not isinstance(data, dict):
+            _fail_fetch("malformed GraphQL response", pull_request)
+        repository = data.get("repository")
+        if not isinstance(repository, dict):
+            _fail_fetch("missing repository", pull_request)
         pr_obj = repository.get("pullRequest")
         if not isinstance(pr_obj, dict):
             _fail_fetch("missing pullRequest", pull_request)
@@ -437,7 +441,9 @@ def _fetch_unresolved_threads_with_clients(
 
         aggregated.extend(node for node in nodes if isinstance(node, dict))
 
-        page_info = review_threads.get("pageInfo") or {}
+        page_info = review_threads.get("pageInfo")
+        if not isinstance(page_info, dict):
+            _fail_fetch("missing pagination info", pull_request)
         if not page_info.get("hasNextPage"):
             break
         cursor_obj = page_info.get("endCursor")

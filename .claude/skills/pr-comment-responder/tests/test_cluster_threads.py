@@ -521,3 +521,39 @@ class TestResolveLibDir:
             assert exc.code == 3
         else:
             raise AssertionError("expected SystemExit")
+
+    def test_non_dict_graphql_response_exits_3(self):
+        mod = _load_module()
+
+        def fake_graphql(query, variables):
+            return []
+
+        try:
+            mod._fetch_unresolved_threads_with_clients(
+                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+            )
+        except SystemExit as exc:
+            assert exc.code == 3
+        else:
+            raise AssertionError("expected SystemExit")
+
+    def test_malformed_page_info_exits_3(self):
+        mod = _load_module()
+
+        def fake_graphql(query, variables):
+            return {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {"pageInfo": [], "nodes": []},
+                    },
+                },
+            }
+
+        try:
+            mod._fetch_unresolved_threads_with_clients(
+                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+            )
+        except SystemExit as exc:
+            assert exc.code == 3
+        else:
+            raise AssertionError("expected SystemExit")
