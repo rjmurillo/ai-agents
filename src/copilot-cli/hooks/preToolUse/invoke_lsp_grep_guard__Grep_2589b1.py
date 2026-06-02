@@ -272,8 +272,8 @@ def _original_main(stdin_bytes):
 
         Grep can be scoped by ``path`` (a file or directory) or ``glob``
         (for example ``*.py``). Prefer ``glob`` when it names an extension, else
-        the ``path``. An empty result means the Grep is repo-wide with no file-type
-        scope, which the caller treats as a non-code target (allow).
+        the ``path``. An empty result means Grep is repo-wide with no file-type
+        scope, which the caller handles through the repo-level provider probe.
         """
         if glob and Path(glob).suffix:
             return glob

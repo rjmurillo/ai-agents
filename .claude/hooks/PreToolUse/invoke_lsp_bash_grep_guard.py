@@ -239,7 +239,8 @@ def _candidate_targets(command: str) -> list[str]:
     grep segment (after any pipe), in first-seen order with no duplicates. The
     result drives the capability + availability check. An empty list means the
     command names no file target (for example a piped ``echo x | grep Foo``),
-    which the guard treats as fail-open (allow).
+    so the caller must decide whether it is stdin (allow) or directory scope
+    (repo-level provider probe).
 
     For piped commands like ``python script.py | grep Symbol``, only the segment
     containing the grep command is scanned to avoid matching files that are
@@ -309,8 +310,8 @@ def evaluate_command(command: str, project_dir: str) -> dict | None:
     """Decide whether a bash command is a gated grep symbol search.
 
     Returns a decision dict ``{"symbols": [...], "target": str}`` when the
-    command should be gated, or None to allow (fail-open). Pure: no I/O beyond
-    the configuration reads inside the provider detection.
+    command should be gated, or None to allow (fail-open). Performs provider
+    configuration reads, and for repo-wide scope a bounded filesystem scan.
     """
     if not command or not isinstance(command, str):
         return None
