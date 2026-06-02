@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 
 from scripts.issue_triage import (
+    AGENT_LABEL_PREFIX,
     AREA_LABEL_PREFIX,
     DEFAULT_STALE_DAYS,
     PRIORITY_LABEL_PREFIX,
@@ -23,17 +24,25 @@ from scripts.issue_triage import (
     IssueRecord,
     TriageReport,
     build_report,
+    check_state_consistency,
     classify,
+    detect_duplicates,
+    detect_linked_pr_status,
     fetch_open_issues,
     format_human,
+    has_agent_label,
     has_area_label,
     has_priority_label,
     is_stale,
+    jaccard_similarity,
     load_issues_from_input,
+    load_scan_state,
     main,
+    normalize_title_tokens,
     parse_args,
     parse_iso_timestamp,
     parse_issue_record,
+    save_scan_state,
 )
 
 
@@ -50,11 +59,22 @@ def make_issue(
     days_old: int = 0,
     labels: tuple[str, ...] = (),
     base: datetime | None = None,
+    body: str = "",
+    assignees: tuple[str, ...] = (),
+    linked_prs: tuple[tuple[int, str], ...] = (),
 ) -> IssueRecord:
     """Build an IssueRecord whose updated_at is days_old days before base."""
     base = base or datetime(2026, 4, 27, 12, 0, 0, tzinfo=UTC)
     updated = (base - timedelta(days=days_old)).isoformat().replace("+00:00", "Z")
-    return IssueRecord(number=number, title=title, updated_at=updated, labels=labels)
+    return IssueRecord(
+        number=number,
+        title=title,
+        updated_at=updated,
+        labels=labels,
+        body=body,
+        assignees=assignees,
+        linked_prs=linked_prs,
+    )
 
 
 class TestParseIsoTimestamp:
@@ -236,9 +256,12 @@ class TestBuildReport:
         assert report.has_findings is True
 
     def test_clean_backlog_has_no_findings(self, now):
+        # A genuinely clean issue now needs an agent-* label too: #2259 added
+        # the missing-agent-label rule. Without it the issue would (correctly)
+        # be flagged for missing agent label.
         issues = [
             make_issue(number=1, title="ok", days_old=1, base=now,
-                       labels=("priority:P1", "area-x")),
+                       labels=("priority:P1", "area-x", "agent-implementer")),
         ]
         report = build_report(issues, repo="o/r", now=now, stale_days=60)
         assert report.has_findings is False
@@ -270,7 +293,9 @@ class TestFormatHuman:
     def test_renders_none_when_empty(self, now):
         report = build_report([], repo="o/r", now=now, stale_days=60)
         text = format_human(report)
-        assert text.count("(none)") == 3
+        # Seven sections after #2259: stale, priority, area, agent, state,
+        # linked-PR, duplicates.
+        assert text.count("(none)") == 7
 
 
 class TestFetchOpenIssues:
@@ -410,3 +435,209 @@ class TestTriageReportDataclass:
     def test_finding_dataclass_defaults(self):
         finding = IssueFinding(number=1, title="t")
         assert finding.reasons == []
+
+
+class TestHasAgentLabel:
+    def test_agent_label_detected(self):
+        assert has_agent_label(make_issue(labels=("agent-implementer",))) is True
+
+    def test_agent_label_missing(self):
+        assert has_agent_label(make_issue(labels=("priority:P1", "area-x"))) is False
+
+    def test_agent_prefix_boundary(self):
+        # A label that merely contains 'agent' but lacks the 'agent-' prefix
+        # does not count.
+        assert has_agent_label(make_issue(labels=("management",))) is False
+
+    def test_agent_label_prefix_constant(self):
+        assert AGENT_LABEL_PREFIX == "agent-"
+
+
+class TestStateConsistency:
+    def test_doing_without_assignee_flagged(self):
+        reason = check_state_consistency(make_issue(labels=("Doing",), assignees=()))
+        assert reason is not None
+        assert "Doing" in reason
+
+    def test_doing_with_assignee_clean(self):
+        issue = make_issue(labels=("Doing",), assignees=("rjmurillo",))
+        assert check_state_consistency(issue) is None
+
+    def test_planning_without_body_flagged(self):
+        reason = check_state_consistency(make_issue(labels=("Planning",), body="   "))
+        assert reason is not None
+        assert "Planning" in reason
+
+    def test_planning_with_body_clean(self):
+        issue = make_issue(labels=("Planning",), body="A real description.")
+        assert check_state_consistency(issue) is None
+
+    def test_no_state_label_clean(self):
+        assert check_state_consistency(make_issue(labels=("priority:P1",))) is None
+
+    def test_report_collects_state_inconsistency(self, now):
+        issues = [make_issue(number=5, labels=("Doing",), assignees=())]
+        report = build_report(issues, repo="o/r", now=now, stale_days=0)
+        assert [f.number for f in report.state_inconsistent] == [5]
+
+
+class TestLinkedPRStatus:
+    def test_merged_pr_advances(self):
+        issue = make_issue(linked_prs=((10, "MERGED"),))
+        reason = detect_linked_pr_status(issue)
+        assert reason is not None
+        assert "#10" in reason
+
+    def test_closed_pr_advances(self):
+        reason = detect_linked_pr_status(make_issue(linked_prs=((11, "CLOSED"),)))
+        assert reason is not None
+
+    def test_open_pr_no_action(self):
+        assert detect_linked_pr_status(make_issue(linked_prs=((12, "OPEN"),))) is None
+
+    def test_no_linked_prs_no_action(self):
+        assert detect_linked_pr_status(make_issue(linked_prs=())) is None
+
+    def test_report_collects_linked_pr_advance(self, now):
+        issues = [make_issue(number=7, linked_prs=((99, "MERGED"),))]
+        report = build_report(issues, repo="o/r", now=now, stale_days=0)
+        assert [f.number for f in report.linked_pr_advance] == [7]
+
+
+class TestDuplicateDetection:
+    def test_identical_titles_match(self):
+        issues = [
+            make_issue(number=1, title="fix scope explosion in pre-commit hook"),
+            make_issue(number=2, title="fix scope explosion in pre-commit hook"),
+        ]
+        dups = detect_duplicates(issues, threshold=0.7)
+        assert len(dups) == 1
+        assert dups[0].duplicate_of == 1
+        assert dups[0].number == 2
+
+    def test_different_titles_no_match(self):
+        issues = [
+            make_issue(number=1, title="add context budget management"),
+            make_issue(number=2, title="cache guard path traversal security"),
+        ]
+        assert detect_duplicates(issues, threshold=0.7) == []
+
+    def test_conventional_prefix_ignored(self):
+        # Same words, different conventional prefix, should still be a duplicate.
+        issues = [
+            make_issue(number=1, title="fix(scope): handle the missing envelope"),
+            make_issue(number=2, title="feat(scope): handle the missing envelope"),
+        ]
+        dups = detect_duplicates(issues, threshold=0.7)
+        assert len(dups) == 1
+
+    def test_threshold_boundary(self):
+        issues = [
+            make_issue(number=1, title="alpha beta gamma delta"),
+            make_issue(number=2, title="alpha beta gamma omega"),
+        ]
+        # 3 shared / 5 union = 0.6
+        assert detect_duplicates(issues, threshold=0.7) == []
+        assert len(detect_duplicates(issues, threshold=0.6)) == 1
+
+    def test_empty_titles_no_match(self):
+        issues = [
+            make_issue(number=1, title="!!!"),
+            make_issue(number=2, title="???"),
+        ]
+        assert detect_duplicates(issues, threshold=0.5) == []
+
+    def test_jaccard_basics(self):
+        assert jaccard_similarity(frozenset(), frozenset()) == 0.0
+        assert jaccard_similarity(frozenset({"a"}), frozenset({"a"})) == 1.0
+        assert jaccard_similarity(frozenset({"a", "b"}), frozenset({"a"})) == 0.5
+
+    def test_normalize_drops_short_tokens(self):
+        tokens = normalize_title_tokens("fix(x): a an the buffer overflow")
+        assert "buffer" in tokens
+        assert "overflow" in tokens
+        assert "an" not in tokens  # shorter than min token length
+
+
+class TestIncrementalScan:
+    def test_load_missing_state_returns_none(self, tmp_path):
+        assert load_scan_state(str(tmp_path / "absent.json")) is None
+
+    def test_load_invalid_state_returns_none(self, tmp_path):
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json", encoding="utf-8")
+        assert load_scan_state(str(bad)) is None
+
+    def test_save_then_load_roundtrip(self, tmp_path):
+        path = str(tmp_path / "state" / "scan.json")
+        save_scan_state(path, "2026-06-02T00:00:00Z")
+        assert load_scan_state(path) == "2026-06-02T00:00:00Z"
+
+    def test_main_passes_since_from_state_file(self, tmp_path, now):
+        state = tmp_path / "scan.json"
+        save_scan_state(str(state), "2026-05-01T00:00:00Z")
+        captured = {}
+
+        def fake_fetch(owner, repo, *, limit, since=None):
+            captured["since"] = since
+            return []
+
+        with patch("scripts.issue_triage.fetch_open_issues", side_effect=fake_fetch):
+            rc = main([
+                "--owner", "o", "--repo", "r",
+                "--state-file", str(state), "--format", "json",
+            ])
+        assert rc == 0
+        assert captured["since"] == "2026-05-01T00:00:00Z"
+
+    def test_main_full_scan_ignores_state(self, tmp_path):
+        state = tmp_path / "scan.json"
+        save_scan_state(str(state), "2026-05-01T00:00:00Z")
+        captured = {}
+
+        def fake_fetch(owner, repo, *, limit, since=None):
+            captured["since"] = since
+            return []
+
+        with patch("scripts.issue_triage.fetch_open_issues", side_effect=fake_fetch):
+            rc = main([
+                "--owner", "o", "--repo", "r",
+                "--state-file", str(state), "--full-scan", "--format", "json",
+            ])
+        assert rc == 0
+        assert captured["since"] is None
+
+    def test_main_saves_state_after_run(self, tmp_path):
+        state = tmp_path / "scan.json"
+        with patch("scripts.issue_triage.fetch_open_issues", return_value=[]):
+            rc = main([
+                "--owner", "o", "--repo", "r",
+                "--state-file", str(state), "--format", "json",
+            ])
+        assert rc == 0
+        assert load_scan_state(str(state)) is not None
+
+    def test_explicit_since_overrides_state_file(self, tmp_path):
+        state = tmp_path / "scan.json"
+        save_scan_state(str(state), "2026-05-01T00:00:00Z")
+        captured = {}
+
+        def fake_fetch(owner, repo, *, limit, since=None):
+            captured["since"] = since
+            return []
+
+        with patch("scripts.issue_triage.fetch_open_issues", side_effect=fake_fetch):
+            rc = main([
+                "--owner", "o", "--repo", "r",
+                "--state-file", str(state),
+                "--since", "2026-06-01T00:00:00Z", "--format", "json",
+            ])
+        assert rc == 0
+        assert captured["since"] == "2026-06-01T00:00:00Z"
+
+
+class TestDupThresholdValidation:
+    def test_rejects_out_of_range_threshold(self, capsys):
+        rc = main(["--owner", "o", "--repo", "r", "--dup-threshold", "1.5"])
+        assert rc == 2
+        assert "dup-threshold" in capsys.readouterr().err
