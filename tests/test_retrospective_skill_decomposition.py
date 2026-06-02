@@ -118,7 +118,7 @@ class TestTriggers:
     def test_triggers_have_no_shell_metacharacters(self, skill_text: str) -> None:
         # Negative: CWE-94 mitigation in the validator rejects shell metacharacters.
         phrases = _BACKTICK.findall(_triggers_section(skill_text))
-        safe = re.compile(r"^[a-zA-Z0-9 \-:,./\'\"(){}#!_=+@*?]+$")
+        safe = re.compile(r"^[a-zA-Z0-9 \-_.,]+$")
         unsafe = [p for p in phrases if not safe.match(p)]
         assert unsafe == [], f"unsafe trigger phrases: {unsafe}"
 
@@ -147,7 +147,9 @@ class TestReferenceLinks:
         ["frameworks.md", "learning-template.md", "diagnosis-and-actions.md"],
     )
     def test_skill_links_each_reference(self, skill_text: str, ref_name: str) -> None:
-        assert f"references/{ref_name}" in skill_text, f"SKILL.md does not link references/{ref_name}"
+        assert f"references/{ref_name}" in skill_text, (
+            f"SKILL.md does not link references/{ref_name}"
+        )
 
 
 class TestCanonicalSourceFidelity:
