@@ -101,6 +101,15 @@ def is_github_actions_url(url: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _unwrap_checks_payload(checks_data: dict[str, object]) -> dict[str, object] | None:
+    """Return the checks payload, or None when the envelope is malformed."""
+    if "Data" not in checks_data:
+        return checks_data
+    payload = checks_data["Data"]
+    return payload if isinstance(payload, dict) else None
+
+
+
 def get_failure_snippets(
     log_lines: list[str], context_lines: int, max_lines: int,
 ) -> list[dict]:
@@ -313,16 +322,43 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        # Unwrap standard skill envelope: get_pr_checks emits Data: {Number, Checks, ...}
-        # Fall back to top-level so we also tolerate already-unwrapped payloads.
-        payload = checks_data.get("Data") if isinstance(checks_data.get("Data"), dict) else checks_data
+        # get_pr_checks.py wraps its payload in a standard skill envelope:
+        # {"Success": true, "Data": {"Number": ..., "Checks": [...]}, ...}
+        # Tolerate both the enveloped form (new) and bare form (legacy / tests)
+        # by falling back to the top-level object when "Data" is absent.
+        payload = _unwrap_checks_payload(checks_data)
+        if payload is None:
+            write_skill_error(
+                "Checks response contains malformed Data payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
 
         if payload.get("Number") and pr_number == 0:
             pr_number = payload["Number"]
 
+        checks_value = payload.get("Checks")
+        if checks_value is None:
+            checks_list = []
+        elif isinstance(checks_value, list):
+            checks_list = checks_value
+        else:
+            write_skill_error(
+                "Checks response contains malformed Checks payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
+
         failing_checks = [
-            c for c in payload.get("Checks", [])
-            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            c for c in checks_list
+            if isinstance(c, dict)
+            and c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
 
     elif pr_number > 0:
@@ -361,9 +397,36 @@ def main(argv: list[str] | None = None) -> int:
             print(result.stdout)
             return 2
 
+        # Same envelope-tolerant unwrap as pipeline mode above
+        payload = _unwrap_checks_payload(checks_data)
+        if payload is None:
+            write_skill_error(
+                "Checks response contains malformed Data payload",
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 3
+        checks_value = payload.get("Checks")
+        if checks_value is None:
+            checks_list = []
+        elif isinstance(checks_value, list):
+            checks_list = checks_value
+        else:
+            write_skill_error(
+                "Checks response contains malformed Checks payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
+
         failing_checks = [
-            c for c in checks_data.get("Checks", [])
-            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            c for c in checks_list
+            if isinstance(c, dict)
+            and c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
     else:
         write_skill_error(

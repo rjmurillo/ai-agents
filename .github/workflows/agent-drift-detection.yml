@@ -82,6 +82,15 @@ jobs:
               - 'src/vs-code-agents/**'
               - 'src/copilot-cli/**'
               - 'build/generate_agents.py'
+              - 'build/scripts/build_all.py'
+              - 'build/scripts/check_plugin_manifest_parity.py'
+              - 'scripts/sync_plugin_lib.py'
+              - 'scripts/ai_review_common/**'
+              - 'scripts/github_core/**'
+              - 'scripts/hook_utilities/**'
+              - '.claude/lib/**'
+              - '.claude/.claude-plugin/plugin.json'
+              - 'src/copilot-cli/.claude-plugin/plugin.json'
               - '.github/workflows/agent-drift-detection.yml'
 
       - name: Determine if validation should run
@@ -114,8 +123,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
       - name: Regenerate and validate agent files
         id: validate
+        continue-on-error: true
         shell: bash
         run: |
           echo "Running agent generation in validation mode..."
@@ -125,22 +142,62 @@ jobs:
 
           python3 build/generate_agents.py --validate
 
-      - name: Show diff on failure
-        if: failure() && steps.validate.conclusion == 'failure'
+      - name: Check plugin lib mirrors are in sync
+        id: lib-mirror
+        continue-on-error: true
         shell: bash
+        run: |
+          mirror_rc=0
+          build_rc=0
+          echo "Checking scripts/ -> .claude/lib/ sync via sync_plugin_lib.py --check"
+          python3 scripts/sync_plugin_lib.py --check || mirror_rc=$?
+          echo ""
+          echo "Checking .claude/lib/ -> src/copilot-cli/lib/ sync via build_all.py --check"
+          python3 build/scripts/build_all.py --check || build_rc=$?
+          if [ "$mirror_rc" -ne 0 ]; then
+            exit "$mirror_rc"
+          fi
+          exit "$build_rc"
+
+      - name: Check plugin manifest version parity
+        id: manifest-parity
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Checking .claude/.claude-plugin/plugin.json and src/copilot-cli/.claude-plugin/plugin.json carry identical versions"
+          python3 build/scripts/check_plugin_manifest_parity.py
+
+      - name: Show diff on failure
+        if: >
+          always() &&
+          (steps.validate.outcome == 'failure' ||
+           steps.lib-mirror.outcome == 'failure' ||
+           steps.manifest-parity.outcome == 'failure')
+        shell: bash
+        env:
+          VALIDATE_CONCLUSION: ${{ steps.validate.outcome }}
+          LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.outcome }}
+          MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.outcome }}
         run: |
           echo ""
           echo "==========================================================="
           echo "  AGENT DRIFT DETECTED"
           echo "==========================================================="
           echo ""
-          echo "Generated agent files do not match the committed files."
-          echo "This means someone edited a generated file directly, bypassing"
-          echo "the source template."
+          echo "Generated agent files or plugin mirrors do not match committed files."
+          echo "Validation conclusions:"
+          echo "  generate_agents: $VALIDATE_CONCLUSION"
+          echo "  lib mirrors: $LIB_MIRROR_CONCLUSION"
+          echo "  manifest parity: $MANIFEST_PARITY_CONCLUSION"
           echo ""
 
-          # Regenerate without validation mode to get the expected content in working tree
-          python3 build/generate_agents.py
+          if [ "$VALIDATE_CONCLUSION" = "failure" ]; then
+            python3 build/generate_agents.py
+          fi
+          if [ "$LIB_MIRROR_CONCLUSION" = "failure" ]; then
+            python3 scripts/sync_plugin_lib.py || true
+            python3 build/scripts/build_all.py || true
+          fi
 
           # Show which files drifted
           changed_files=$(git diff --name-only)
@@ -176,13 +233,28 @@ jobs:
             git diff
           fi
 
+      - name: Fail when any drift check fails
+        if: >
+          always() &&
+          (steps.validate.outcome == 'failure' ||
+           steps.lib-mirror.outcome == 'failure' ||
+           steps.manifest-parity.outcome == 'failure')
+        shell: bash
+        run: |
+          echo "One or more drift checks failed. See the diff output above."
+          exit 1
+
       - name: Write job summary
         if: always()
         shell: bash
         env:
-          VALIDATE_CONCLUSION: ${{ steps.validate.conclusion }}
+          VALIDATE_CONCLUSION: ${{ steps.validate.outcome }}
+          LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.outcome }}
+          MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.outcome }}
         run: |
-          if [ "$VALIDATE_CONCLUSION" = "success" ]; then
+          if [ "$VALIDATE_CONCLUSION" = "success" ] && \
+             [ "$LIB_MIRROR_CONCLUSION" = "success" ] && \
+             [ "$MANIFEST_PARITY_CONCLUSION" = "success" ]; then
             {
               echo "## Agent Drift Detection Passed"
               echo ""
