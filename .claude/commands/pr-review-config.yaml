@@ -8,6 +8,7 @@ scripts:
     test_pr_merged: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {number}"
     get_review_threads: "python3 .claude/skills/github/scripts/pr/get_pr_review_threads.py --pull-request {number}"
     get_unresolved_threads: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {number}"
+    cluster_threads: "python3 .claude/skills/pr-comment-responder/scripts/cluster_threads.py --pull-request {number}"
     # Settling gate. The one-shot get_unresolved_threads snapshot can read
     # unresolved_count == 0 in the window between an agent resolving the last
     # thread and the next bot (Copilot, Devin) scan landing 30-120s later. That
@@ -27,6 +28,7 @@ scripts:
     test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"
     get_review_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}"
     get_unresolved_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}"
+    cluster_threads: 'pwsh -NoProfile -Command "python3 .claude/skills/pr-comment-responder/scripts/cluster_threads.py --pull-request {number}"'
     get_unaddressed_comments: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}"
     get_pr_checks: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number}"
     add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"

@@ -220,7 +220,7 @@ def parse_issue_record(raw: dict[str, Any]) -> IssueRecord:
         labels=tuple(labels),
         body=str(body) if body is not None else "",
         assignees=_parse_assignees(raw.get("assignees")),
-        linked_prs=_parse_linked_prs(raw.get("linkedPrs")),
+        linked_prs=_parse_linked_prs(raw.get("linkedPrs", raw.get("linked_prs"))),
     )
 
 
@@ -310,8 +310,6 @@ def jaccard_similarity(a: frozenset[str], b: frozenset[str]) -> float:
     if not a and not b:
         return 0.0
     union = a | b
-    if not union:
-        return 0.0
     return len(a & b) / len(union)
 
 
@@ -827,6 +825,7 @@ def _emit(report: TriageReport, output_format: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    scan_started = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     args = parse_args(argv)
 
     invalid = _validate_args(args)
@@ -870,7 +869,7 @@ def main(argv: list[str] | None = None) -> int:
     # does not advance the watermark and skip issues next time.
     if args.state_file and not args.input:
         try:
-            save_scan_state(args.state_file, report.timestamp)
+            save_scan_state(args.state_file, scan_started)
         except OSError as err:
             print(f"Failed to write --state-file: {err}", file=sys.stderr)
             return 2

@@ -20,6 +20,7 @@ from scripts.issue_triage import (
     AREA_LABEL_PREFIX,
     DEFAULT_STALE_DAYS,
     PRIORITY_LABEL_PREFIX,
+    ISO_TIMESTAMP_PATTERN,
     IssueFinding,
     IssueRecord,
     LinkedPrFetchError,
@@ -139,6 +140,17 @@ class TestParseIssueRecord:
             }
         )
         assert record.labels == ()
+
+    def test_accepts_snake_case_linked_prs(self):
+        record = parse_issue_record(
+            {
+                "number": 1,
+                "title": "t",
+                "updatedAt": "2026-04-27T12:00:00Z",
+                "linked_prs": [{"number": 9, "state": "merged"}],
+            }
+        )
+        assert record.linked_prs == ((9, "MERGED"),)
 
     def test_rejects_missing_number(self):
         with pytest.raises(ValueError):
@@ -755,7 +767,7 @@ class TestIncrementalScan:
                 "--state-file", str(state), "--format", "json",
             ])
         assert rc == 0
-        assert load_scan_state(str(state)) is not None
+        assert ISO_TIMESTAMP_PATTERN.match(load_scan_state(str(state)) or "")
 
     def test_main_state_write_failure_returns_config_error(self, capsys):
         with patch("scripts.issue_triage.fetch_open_issues", return_value=[]), \
