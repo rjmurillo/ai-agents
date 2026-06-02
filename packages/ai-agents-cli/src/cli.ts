@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -178,7 +179,16 @@ function isEntryModule(): boolean {
   if (meta.main === true) return true;
   const entry = process.argv[1];
   if (entry === undefined) return false;
-  return fileURLToPath(import.meta.url) === resolve(entry);
+
+  const modulePath = fileURLToPath(import.meta.url);
+  const entryPath = resolve(entry);
+  if (modulePath === entryPath) return true;
+
+  try {
+    return modulePath === realpathSync(entryPath);
+  } catch {
+    return false;
+  }
 }
 
 if (isEntryModule()) {
