@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BACKLOG_MAX_ISSUES: ${{ inputs.max_issues || 100 }}
+  BACKLOG_MAX_ISSUES: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.max_issues) || '100' }}
 
 jobs:
   # Job 1: Discover open issues to triage

@@ -329,9 +329,15 @@ class TestGitHubRepositoryDefaults:
 
 
 class TestFetchOpenIssues:
+    def test_zero_limit_returns_empty_without_gh_call(self):
+        with patch("scripts.issue_triage.subprocess.run") as run:
+            payload = fetch_open_issues("o", "r", limit=0)
+        assert payload == []
+        assert not run.called
+
     def test_rejects_invalid_limit(self):
         with pytest.raises(ValueError):
-            fetch_open_issues("o", "r", limit=0)
+            fetch_open_issues("o", "r", limit=-1)
         with pytest.raises(ValueError):
             fetch_open_issues("o", "r", limit=10_000)
 
@@ -444,9 +450,14 @@ class TestMain:
         assert "skipping malformed issue" in captured.err
 
     def test_invalid_limit_returns_config_error(self, capsys):
-        rc = main(["--owner", "o", "--repo", "r", "--limit", "0"])
+        rc = main(["--owner", "o", "--repo", "r", "--limit", "-1"])
         assert rc == 2
         assert "limit" in capsys.readouterr().err
+
+    def test_zero_limit_emits_empty_report(self, capsys):
+        rc = main(["--owner", "o", "--repo", "r", "--limit", "0"])
+        assert rc == 0
+        assert "Issues scanned: 0" in capsys.readouterr().out
 
     def test_external_failure_returns_exit_three(self, capsys):
         with patch(

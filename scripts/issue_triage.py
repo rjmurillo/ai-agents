@@ -224,8 +224,10 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
     ``main`` can map to an exit code.
     """
 
-    if not 1 <= limit <= 1000:
-        raise ValueError("limit must be between 1 and 1000")
+    if not 0 <= limit <= 1000:
+        raise ValueError("limit must be between 0 and 1000")
+    if limit == 0:
+        return []
 
     cmd = [
         "gh", "issue", "list",
@@ -268,10 +270,10 @@ def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
 
     The ``--ai`` flag drives Phase 2 of the ClawSweeper pattern (issue #1799):
     a scheduled workflow fans this matrix out to ``.github/actions/ai-review``,
-    one invocation per open issue, for complexity classification and area
-    routing. The mechanical scan stays Python-side; YAML only fans out
-    (ADR-006). This function does not call the model; it produces the work
-    list the workflow consumes.
+    one invocation per open issue, for structured complexity, area routing,
+    dependency, scope, and evidence classification. The mechanical scan stays
+    Python-side; YAML only fans out (ADR-006). This function does not call the
+    model; it produces the work list the workflow consumes.
 
     Returns a dict with ``include`` (the matrix rows) and ``count`` so the
     caller can gate the matrix job on whether any issues exist.
@@ -330,7 +332,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--limit", type=int, default=300,
-        help="Max issues to fetch from the API (1-1000, default: 300).",
+        help="Max issues to fetch from the API (0-1000, default: 300).",
     )
     parser.add_argument(
         "--format", choices=["json", "human"], default="human",
@@ -339,7 +341,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--ai", action="store_true",
         help="Emit a GitHub Actions matrix of open issues for Phase 2 AI triage "
-             "(complexity + area routing via .github/actions/ai-review). "
+             "(structured classification via .github/actions/ai-review). "
              "Overrides --format; prints a JSON matrix payload.",
     )
     parser.add_argument(
