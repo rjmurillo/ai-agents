@@ -84,6 +84,47 @@ _KNOWN_VERDICT_TOKENS: frozenset[str] = (
 )
 
 
+# Verdicts that are safe to write to, and serve from, the per-commit review
+# cache in .github/actions/agent-review/action.yml. A cache entry replays on
+# every rerun until the commit SHA changes, so a truncated or malformed verdict
+# (empty, lowercase, partial token, multi-line garbage) cached once would be
+# served forever for that commit (Issue #2195).
+#
+# UNKNOWN is deliberately excluded: it means "the axis could not be evaluated",
+# not a real review outcome. Caching UNKNOWN would lock a non-result into the
+# cache and skip every future re-run for that SHA, which is the exact replay
+# failure this set guards against. A real re-run is cheap relative to a
+# poisoned cache.
+_CACHEABLE_VERDICT_TOKENS: frozenset[str] = _KNOWN_VERDICT_TOKENS - frozenset({"UNKNOWN"})
+
+
+def is_valid_cached_verdict(verdict: str | None) -> bool:
+    """Return True if ``verdict`` is a well-formed, cacheable review verdict.
+
+    A cacheable verdict is a single uppercase token from
+    ``_CACHEABLE_VERDICT_TOKENS`` with no surrounding or embedded whitespace.
+    The action writes exactly one token to ``verdict.txt``; anything else
+    (empty string, whitespace, lowercase, a truncated prefix like ``PAS``, a
+    template echo like ``[PASS|WARN]``, or a multi-line blob) is malformed and
+    MUST NOT be served from cache.
+
+    The cache key in the action is ``commit-sha``-scoped, so a malformed entry
+    cached once is replayed on every rerun until the SHA changes. This guard
+    keeps such entries out of the cache (write side) and lets a cache hit on an
+    already-poisoned entry fall through to a fresh review (read side).
+    Refs Issue #2195.
+    """
+    if verdict is None:
+        return False
+    # A token with leading/trailing whitespace or any internal whitespace
+    # (newline, space, tab) is malformed: the writer emits one bare token.
+    if verdict != verdict.strip() or not verdict:
+        return False
+    if any(ch.isspace() for ch in verdict):
+        return False
+    return verdict in _CACHEABLE_VERDICT_TOKENS
+
+
 def merge_verdicts(verdicts: list[str]) -> str:
     """Aggregate multiple verdicts via priority order.
 

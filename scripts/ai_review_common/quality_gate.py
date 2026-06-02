@@ -13,6 +13,7 @@ from scripts.ai_review_common.verdict import (  # noqa: F401
     get_milestone,
     get_milestone_from_ai_output,
     get_verdict,
+    is_valid_cached_verdict,
     merge_verdicts,
     spec_validation_failed,
 )

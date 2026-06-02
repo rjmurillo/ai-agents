@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -31,6 +32,7 @@ from scripts.ai_review_common import (
     get_workflow_runs_by_pr,
     initialize_ai_review,
     invoke_with_retry,
+    is_valid_cached_verdict,
     merge_verdicts,
     runs_overlap,
     spec_validation_failed,
@@ -1278,3 +1280,146 @@ class TestSecurityTruncationRegression:
         # unambiguously; there is no trailing duplicate to be truncated away.
         leading = "VERDICT: CRITICAL_FAIL\nMESSAGE: SQL injection at db.py:12\n\nfindings"
         assert extract_verdict(leading) == "CRITICAL_FAIL"
+
+
+# ---------------------------------------------------------------------------
+# Cached verdict validation (Issue #2195)
+# ---------------------------------------------------------------------------
+
+# Path to the standalone CLI validator the agent-review action invokes.
+_VALIDATE_CACHED_VERDICT_SCRIPT = (
+    Path(__file__).resolve().parent.parent / "scripts" / "validate_cached_verdict.py"
+)
+
+
+class TestIsValidCachedVerdict:
+    """is_valid_cached_verdict guards the per-commit review cache (#2195).
+
+    A malformed verdict cached once is replayed on every rerun until the commit
+    SHA changes, so the writer and the reader both gate on this check.
+    """
+
+    # Positive: every real, cacheable outcome token is accepted.
+    @pytest.mark.parametrize(
+        "verdict",
+        [
+            "PASS",
+            "WARN",
+            "FAIL",
+            "CRITICAL_FAIL",
+            "REJECTED",
+            "NEEDS_REVIEW",
+            "NON_COMPLIANT",
+            "COMPLIANT",
+            "PARTIAL",
+        ],
+    )
+    def test_valid_tokens_accepted(self, verdict):
+        assert is_valid_cached_verdict(verdict) is True
+
+    # Negative: empty / missing inputs are rejected.
+    def test_empty_string_rejected(self):
+        assert is_valid_cached_verdict("") is False
+
+    def test_none_rejected(self):
+        assert is_valid_cached_verdict(None) is False
+
+    def test_whitespace_only_rejected(self):
+        assert is_valid_cached_verdict("   ") is False
+
+    def test_newline_only_rejected(self):
+        assert is_valid_cached_verdict("\n") is False
+
+    # Negative: UNKNOWN is a known token but not a real outcome, so not cacheable.
+    def test_unknown_rejected(self):
+        assert is_valid_cached_verdict("UNKNOWN") is False
+
+    # Negative: truncated / partial token (the #2195 failure shape).
+    def test_truncated_token_rejected(self):
+        assert is_valid_cached_verdict("PAS") is False
+
+    def test_truncated_critical_fail_rejected(self):
+        assert is_valid_cached_verdict("CRITICAL_FAI") is False
+
+    # Negative: lowercase is malformed (writer emits uppercase tokens only).
+    def test_lowercase_rejected(self):
+        assert is_valid_cached_verdict("pass") is False
+
+    # Negative: garbage tokens.
+    def test_garbage_token_rejected(self):
+        assert is_valid_cached_verdict("FOOBAR") is False
+
+    def test_prefix_sharing_token_rejected(self):
+        assert is_valid_cached_verdict("PASS_THROUGH") is False
+
+    # Edge: surrounding whitespace makes an otherwise-valid token malformed.
+    def test_trailing_newline_rejected(self):
+        assert is_valid_cached_verdict("PASS\n") is False
+
+    def test_leading_space_rejected(self):
+        assert is_valid_cached_verdict(" PASS") is False
+
+    def test_internal_space_rejected(self):
+        assert is_valid_cached_verdict("PASS WARN") is False
+
+    # Edge: a multi-line blob (e.g. full findings accidentally written) rejected.
+    def test_multiline_blob_rejected(self):
+        assert is_valid_cached_verdict("PASS\nsome findings here") is False
+
+    # Edge: template echo from the prompt rejected.
+    def test_template_echo_rejected(self):
+        assert is_valid_cached_verdict("[PASS|WARN|CRITICAL_FAIL]") is False
+
+
+def _run_validator(args):
+    return subprocess.run(
+        [sys.executable, str(_VALIDATE_CACHED_VERDICT_SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+class TestValidateCachedVerdictCli:
+    """The CLI wrapper the action calls. Exit 0 = valid, 1 = invalid, 2 = usage."""
+
+    def test_literal_valid_verdict_exits_zero(self):
+        result = _run_validator(["--verdict", "PASS"])
+        assert result.returncode == 0
+
+    def test_literal_invalid_verdict_exits_one(self):
+        result = _run_validator(["--verdict", "PAS"])
+        assert result.returncode == 1
+
+    def test_literal_empty_verdict_exits_one(self):
+        result = _run_validator(["--verdict", ""])
+        assert result.returncode == 1
+
+    def test_literal_unknown_verdict_exits_one(self):
+        result = _run_validator(["--verdict", "UNKNOWN"])
+        assert result.returncode == 1
+
+    def test_file_with_valid_verdict_exits_zero(self, tmp_path):
+        verdict_file = tmp_path / "verdict.txt"
+        verdict_file.write_text("CRITICAL_FAIL", encoding="utf-8")
+        result = _run_validator(["--file", str(verdict_file)])
+        assert result.returncode == 0
+
+    def test_file_with_malformed_verdict_exits_one(self, tmp_path):
+        # The #2195 shape: a truncated verdict persisted to the cache file.
+        verdict_file = tmp_path / "verdict.txt"
+        verdict_file.write_text("PASS\nleftover findings", encoding="utf-8")
+        result = _run_validator(["--file", str(verdict_file)])
+        assert result.returncode == 1
+
+    def test_missing_file_exits_one(self, tmp_path):
+        result = _run_validator(["--file", str(tmp_path / "absent.txt")])
+        assert result.returncode == 1
+
+    def test_no_args_is_usage_error(self):
+        result = _run_validator([])
+        assert result.returncode == 2
+
+    def test_both_args_is_usage_error(self):
+        result = _run_validator(["--verdict", "PASS", "--file", "x.txt"])
+        assert result.returncode == 2
