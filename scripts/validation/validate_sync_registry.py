@@ -9,10 +9,11 @@ the sync and crash at install time when a shimmed hook imports it.
 
 This gate closes that provenance gap. It asserts:
 
-1. Every package directory directly under `scripts/github_core/` and
-   `scripts/hook_utilities/` appears as a SYNC_PAIRS source. Those two
-   directories are themselves the shared lib packages; the check also catches a
-   future sub-package added beneath either of them.
+1. Every package directory directly under `scripts/github_core/`,
+   `scripts/hook_utilities/`, and `scripts/ai_review_common/` appears as a
+   SYNC_PAIRS source. Those three directories are themselves the shared lib
+   packages; the check also catches a future sub-package added beneath any of
+   them.
 2. Every package directory under `.claude/lib/` appears as a SYNC_PAIRS
    destination, or is named in an explicit allowlist (`LIB_ALLOWLIST`).
 
@@ -52,10 +53,13 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 # Source directories whose package children MUST be registered as SYNC_PAIRS
-# sources. These two are the shared lib roots called out by Issue #1909.
+# sources. These are the shared lib roots called out by Issue #1909. Keep this
+# list aligned with the SYNC_PAIRS source paths in scripts/sync_plugin_lib.py:
+# every synced source root belongs here so its children are scanned too.
 SOURCE_ROOTS: tuple[str, ...] = (
     "scripts/github_core",
     "scripts/hook_utilities",
+    "scripts/ai_review_common",
 )
 
 # `.claude/lib/` package directories that are allowed to exist without a
@@ -180,11 +184,12 @@ def main(argv: list[str] | None = None) -> int:
         "--repo-root",
         type=Path,
         default=Path(__file__).resolve().parents[2],
-        help="Repository root (defaults to two levels above this script).",
+        help="Repository root (defaults to the repo root that contains "
+        "scripts/validation/).",
     )
     args = parser.parse_args(argv)
 
-    repo_root = args.repo_root
+    repo_root = args.repo_root.expanduser().resolve()
     if not repo_root.is_dir():
         print(f"[CONFIG] repo root not found: {repo_root}", file=sys.stderr)
         return 2

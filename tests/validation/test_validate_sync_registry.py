@@ -82,6 +82,27 @@ def test_unregistered_source_child_fails(tmp_path: Path) -> None:
     assert any("scripts/github_core/nested" in e for e in errors), errors
 
 
+def test_unregistered_ai_review_common_child_fails(tmp_path: Path) -> None:
+    """A sub-package under scripts/ai_review_common not in SYNC_PAIRS fails.
+
+    Guards the Issue #1909 provenance gap: ai_review_common is a synced source
+    root, so a nested package added beneath it must be registered too. Sync is
+    non-recursive, so an unregistered subpackage would otherwise only surface as
+    an install-time import error.
+    """
+    root = _make_package(tmp_path / "scripts", "ai_review_common")
+    _make_package(root, "cache_guard")
+    sync_pairs = [
+        ("scripts/ai_review_common", ".claude/lib/ai_review_common"),
+    ]
+
+    errors = vsr.find_unregistered(tmp_path, sync_pairs)
+
+    assert any(
+        "scripts/ai_review_common/cache_guard" in e for e in errors
+    ), errors
+
+
 def test_unregistered_source_root_fails(tmp_path: Path) -> None:
     """A source root present on disk but absent from SYNC_PAIRS fails."""
     _make_package(tmp_path / "scripts", "github_core")
@@ -159,7 +180,8 @@ def test_cli_passes_on_registered_tree(tmp_path: Path) -> None:
     """CLI exits 0 when the scaffolded tree matches the real SYNC_PAIRS.
 
     The CLI imports the real SYNC_PAIRS, so the synthetic tree mirrors the
-    three registered destinations and the two source roots.
+    three registered destinations and the three source roots
+    (github_core, hook_utilities, ai_review_common).
     """
     _make_package(tmp_path / "scripts", "github_core")
     _make_package(tmp_path / "scripts", "hook_utilities")
