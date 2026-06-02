@@ -165,6 +165,7 @@ def _check_claude(repo_root: Path) -> tuple[int, list[str], int]:
 def validate(repo_root: Path) -> tuple[int, list[str]]:
     """Validate both plugin hook artifacts. Returns (exit_code, messages)."""
     messages: list[str] = []
+    violations: list[str] = []
     total_checked = 0
     has_violation = False
     has_config_error = False
@@ -175,16 +176,18 @@ def validate(repo_root: Path) -> tuple[int, list[str]]:
         if config_code == 2:
             has_config_error = True
             messages.extend(results)
+            violations.extend(results)
         elif results:
             has_violation = True
             messages.extend(results)
+            violations.extend(results)
         else:
             messages.append(f"{label}: {checked} hook entr(ies) anchored correctly")
 
     if has_config_error:
         return 2, messages
     if has_violation:
-        return 1, [m for m in messages if "drifted" in m or "not anchored" in m]
+        return 1, violations
     return 0, [f"{total_checked} hook entr(ies) anchored correctly across both plugins"]
 
 

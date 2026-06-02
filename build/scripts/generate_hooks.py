@@ -1010,9 +1010,10 @@ def _build_copilot_entry(
     Keeping the two shells symmetric means a missing primary variable
     can never silently degrade one platform while the other recovers.
 
-    The ``bash`` and ``powershell`` keys both invoke ``python3``. RQ #4
-    in REQ-003 flags a Windows PATH risk for ``python3``; using ``py -3``
-    on Windows handles the case where only ``python.exe`` is on PATH.
+    The ``bash`` key invokes ``python3``; the ``powershell`` key invokes
+    ``py -3``. RQ #4 in REQ-003 flags a Windows PATH risk for ``python3``;
+    using ``py -3`` on Windows handles the case where only ``python.exe``
+    is on PATH.
     POSIX ``bash`` uses parameter-expansion fallback
     (``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}``). PowerShell has no
     ``${VAR:-default}`` form, so an ``if``/``else`` subexpression (valid

@@ -900,8 +900,12 @@ fi
     # inherited plugin-root env so each CLI sets its own. The tests self-skip
     # per-CLI when a binary is absent, so contributors without the CLIs are not
     # blocked. Real model calls cost credits; this runs only on hook changes.
+    # Set SKIP_CLI_E2E=true to opt out when a CLI is installed but unusable
+    # (unauthenticated or out of credits), mirroring SKIP_WORKFLOW_LOCAL_TEST.
     if [ -n "$CHANGED_HOOKS" ]; then
-        if command -v copilot >/dev/null 2>&1 || command -v claude >/dev/null 2>&1; then
+        if [ "${SKIP_CLI_E2E:-}" = "true" ]; then
+            record_skip "Hook anchoring e2e (SKIP_CLI_E2E=true)"
+        elif command -v copilot >/dev/null 2>&1 || command -v claude >/dev/null 2>&1; then
             if set_python_cmd; then
                 E2E_OUTPUT=$(mktemp)
                 if env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_ROOT RUN_CLI_E2E=1 \
