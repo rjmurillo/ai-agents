@@ -62,6 +62,18 @@ def _agent_files() -> list[Path]:
     return paths
 
 
+def _context_budget_section(path: Path) -> str:
+    assert path.exists(), f"Expected agent prompt at {path}"
+    text = path.read_text(encoding="utf-8")
+    start = text.find(SECTION_HEADING)
+    assert start != -1, (
+        f"{path.relative_to(REPO_ROOT)} is missing the {SECTION_HEADING!r} heading."
+    )
+    rest = text[start + len(SECTION_HEADING):]
+    next_heading = rest.find("\n## ")
+    return rest if next_heading == -1 else rest[:next_heading]
+
+
 @pytest.mark.parametrize("path", _agent_files(), ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_agent_carries_context_budget_section(path: Path) -> None:
     """Each participating agent copy carries the section heading exactly once.
@@ -88,9 +100,9 @@ def test_section_carries_required_phrases(path: Path) -> None:
     A heading with an empty or reworded body would pass the count check but lose
     the guidance. Assert the load-bearing phrases survive.
     """
-    text = path.read_text(encoding="utf-8")
+    body = _context_budget_section(path)
     for phrase in REQUIRED_PHRASES:
-        assert phrase in text, (
+        assert phrase in body, (
             f"{path.relative_to(REPO_ROOT)} is missing required phrase "
             f"{phrase!r} from the Context Budget Management section. The section "
             "must name the pressure, the checkpoint protocol, and the "
@@ -106,13 +118,8 @@ def test_section_has_no_em_or_en_dash(path: Path) -> None:
     in the section we own without forcing a fix on pre-existing dashes elsewhere
     in the hand-maintained .github copy.
     """
-    text = path.read_text(encoding="utf-8")
-    start = text.index(SECTION_HEADING)
-    # The section runs until the next top-level heading after it.
-    rest = text[start + len(SECTION_HEADING):]
-    next_heading = rest.find("\n## ")
-    body = rest if next_heading == -1 else rest[:next_heading]
-    for bad, name in (("—", "em dash (U+2014)"), ("–", "en dash (U+2013)")):
+    body = _context_budget_section(path)
+    for bad, name in (("\u2014", "em dash (U+2014)"), ("\u2013", "en dash (U+2013)")):
         assert bad not in body, (
             f"{path.relative_to(REPO_ROOT)} Context Budget Management section "
             f"contains a {name}. Use commas, periods, colons, or hyphens instead "
@@ -129,10 +136,7 @@ def test_orchestrator_section_is_routing_scoped_not_code_scoped() -> None:
     does not carry the implementer's code-stub phrasing. Guards against a future
     edit that lazily pastes the implementer text into the orchestrator.
     """
-    orch = (REPO_ROOT / "templates/agents/orchestrator.shared.md").read_text(encoding="utf-8")
-    start = orch.index(SECTION_HEADING)
-    rest = orch[start:]
-    body = rest[: rest.find("\n## ", len(SECTION_HEADING))]
+    body = _context_budget_section(REPO_ROOT / "templates/agents/orchestrator.shared.md")
     assert "synthesis" in body.lower(), (
         "Orchestrator Context Budget section must name synthesis (its domain). "
         "It appears to have been copied from the implementer without adaptation."

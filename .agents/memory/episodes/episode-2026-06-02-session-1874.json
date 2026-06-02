@@ -3,110 +3,22 @@
   "session": "2026-06-02-session-1874",
   "timestamp": "2026-06-02T00:00:00+00:00",
   "outcome": "success",
-  "task": "P1 triage and fixes: evaluate and fix 8 open P1 issues (#2256 #2255 #2252 #2231 #2230 #2224 #2222 #1728)",
+  "task": "Land orphaned PR 2205 governance remediation (rule, ADR-063, FM 11, incident retro, CI anchoring gate, memories) on a fresh PR off main after squash-merge orphaning",
   "decisions": [],
   "events": [
     {
       "id": "e001",
       "timestamp": "2026-06-02T00:00:00+00:00",
       "type": "milestone",
-      "content": "Fixed #2224 (CWE-22 cache_guard repo-root anchor) + 2 tests",
+      "content": "Recover the orphaned PR #2205 governance remediation onto a fresh PR off current main.",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e002",
       "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fixed #2256 (get_pr_check_logs Data envelope unwrap) + test",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e003",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fixed #2252 (pr_description inline citation-cue stripping) + 6 tests",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e004",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fixed #2222 (build_all --check + manifest parity in drift CI) + 3 tests",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e005",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fixed #2255 (spec-coverage incremental-slice scoping) prompts + workflow",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e006",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fixed #2231 items 1+2 (glob hook-artifact discovery + Windows pwsh CI)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e007",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Closed #2230 (launcher fail-open) with prevent-don't-mask justification",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e008",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Fixed #1728 (orchestrator Context Budget section + SESSION-STATE.md), closed with justification; removed fabricated token table per owner",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Filed #2267 (hand-maintained agent copies have no generator)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e010",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Opened PR #2268 for the 8-P1 batch",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e011",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "2nd P1 wave: closed #2265 (token-budget table, owner rejected pending evals)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e012",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "2nd P1 wave: #2264 SESSION-STATE doc delta (live-instance path + update protocol)",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e013",
-      "timestamp": "2026-06-02T00:00:00+00:00",
-      "type": "milestone",
-      "content": "2nd P1 wave: fixing #2258 (pre-commit set -e silent death), #2259 (mechanical triage), #1726 (P0 hook infra)",
+      "type": "test",
+      "content": "PR #2206 squash-merged (d6bd06d7c); the core fix landed in main but the governance layer (rule generated-artifacts.md, ADR-063, FM #11, incident retro, CI anchoring gate step, canonical-source-mirror amendment, AGENTS boundary, load-bearing test, 2 feedback memories) was orphaned on the re-created branch. Created branch fix/2205-generated-artifact-governance off origin/main and restored the orphaned governance files (verified each edited file's diff vs main was exactly my edit, no 3-way needed). Filed #2258 for the pre-commit set -e scope-detector silent-kill bug found during the original landing. Verification: validate_hook_anchoring PASS; uv run pytest runtime-contract 6 passed; build_all --platform copilot-cli --check exit 0.",
       "caused_by": [],
       "leads_to": []
     }
@@ -116,7 +28,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 0
   },
   "lessons": []

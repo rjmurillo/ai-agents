@@ -5,9 +5,13 @@ Input env vars (used as defaults for CLI args):
     RUN_ID, SERVER_URL, REPOSITORY, EVENT_NAME, REF_NAME, SHA
     FINAL_VERDICT
     SECURITY_VERDICT, QA_VERDICT, ANALYST_VERDICT,
-    ARCHITECT_VERDICT, DEVOPS_VERDICT, ROADMAP_VERDICT
+    ARCHITECT_VERDICT, DEVOPS_VERDICT, ROADMAP_VERDICT,
+    RELIABILITY_VERDICT, OBSERVABILITY_VERDICT, AGENT_SAFETY_VERDICT,
+    DECISION_RIGOR_VERDICT
     SECURITY_CATEGORY, QA_CATEGORY, ANALYST_CATEGORY,
-    ARCHITECT_CATEGORY, DEVOPS_CATEGORY, ROADMAP_CATEGORY
+    ARCHITECT_CATEGORY, DEVOPS_CATEGORY, ROADMAP_CATEGORY,
+    RELIABILITY_CATEGORY, OBSERVABILITY_CATEGORY, AGENT_SAFETY_CATEGORY,
+    DECISION_RIGOR_CATEGORY
     GITHUB_OUTPUT      - Path to GitHub Actions output file
     GITHUB_WORKSPACE   - Workspace root (for package imports)
 """
@@ -23,6 +27,15 @@ workspace = os.environ.get(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")),
 )
 sys.path.insert(0, workspace)
+script_dir = os.path.dirname(__file__)
+sys.path.insert(0, script_dir)
+
+from quality_gate_agents import (  # noqa: E402
+    QUALITY_GATE_AGENT_DISPLAY_NAMES,
+    QUALITY_GATE_AGENTS,
+    agent_arg_name,
+    agent_env_name,
+)
 
 from scripts.ai_review_common import (  # noqa: E402
     FAIL_VERDICTS,
@@ -32,16 +45,8 @@ from scripts.ai_review_common import (  # noqa: E402
     write_output,
 )
 
-_AGENTS = ("security", "qa", "analyst", "architect", "devops", "roadmap")
-
-_AGENT_DISPLAY_NAMES = {
-    "security": "Security",
-    "qa": "QA",
-    "analyst": "Analyst",
-    "architect": "Architect",
-    "devops": "DevOps",
-    "roadmap": "Roadmap",
-}
+_AGENTS = QUALITY_GATE_AGENTS
+_AGENT_DISPLAY_NAMES = QUALITY_GATE_AGENT_DISPLAY_NAMES
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -85,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Final aggregated verdict",
     )
     for agent in _AGENTS:
-        upper = agent.upper()
+        upper = agent_env_name(agent)
         parser.add_argument(
             f"--{agent}-verdict",
             default=os.environ.get(f"{upper}_VERDICT", ""),
@@ -202,8 +207,8 @@ def main(argv: list[str] | None = None) -> int:
     categories: dict[str, str] = {}
     emojis: dict[str, str] = {}
     for agent in _AGENTS:
-        verdicts[agent] = getattr(args, f"{agent}_verdict")
-        categories[agent] = getattr(args, f"{agent}_category")
+        verdicts[agent] = getattr(args, f"{agent_arg_name(agent)}_verdict")
+        categories[agent] = getattr(args, f"{agent_arg_name(agent)}_category")
         emojis[agent] = get_verdict_emoji(verdicts[agent])
 
     alert_type = get_verdict_alert_type(final_verdict)
@@ -220,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
         "<details>",
         "<summary>Walkthrough</summary>",
         "",
-        "This PR was reviewed by six AI agents **in parallel**,"
+        "This PR was reviewed by ten AI agents **in parallel**,"
         " analyzing different aspects of the changes:",
         "",
         "- **Security Agent**: Scans for vulnerabilities, secrets exposure,"
@@ -232,6 +237,10 @@ def main(argv: list[str] | None = None) -> int:
         " and architectural concerns",
         "- **DevOps Agent**: Evaluates CI/CD, build pipelines, and infrastructure changes",
         "- **Roadmap Agent**: Assesses strategic alignment, feature scope, and user value",
+        "- **Reliability Agent**: Reviews failure handling, recovery, and operational risk",
+        "- **Observability Agent**: Checks logging, metrics, and diagnostics",
+        "- **Agent Safety Agent**: Reviews agent behavior boundaries and guardrails",
+        "- **Decision Rigor Agent**: Checks trade-offs, evidence, and decision quality",
         "",
         "</details>",
         "",

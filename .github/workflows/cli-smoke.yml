@@ -1,0 +1,219 @@
+# CLI Smoke Matrix (M7, REQ-4.1 to REQ-4.5)
+#
+# Proves the @rjmurillo/ai-agents CLI installs from a tarball and vendors a
+# clean kit on every supported platform. The local equivalent flow is:
+#   bun run scripts/build-bundle.ts  (reads repo-root .claude/)
+#   bun run build                    (emits dist/cli.js)
+#   npm pack                         (tarball ships dist/ + bundle/assets/)
+#   install tarball into a clean dir, run `ai-agents init`, assert the tree.
+#
+# Matrix: ubuntu-latest, macos-latest, windows-latest x Node 20, 22 = 6 jobs.
+# windows-latest is mandatory: it is the only row that catches path-separator
+# regressions in the emitter (risk R9 in issue #1630).
+#
+# First-turn verification (T7.4 / REQ-4.4) is LINT-ONLY, not a live
+# `claude --non-interactive "/spec hello"` run. Decision per T7.3 research
+# spike and risk R2: a live first turn needs a Claude Code OAuth token, which
+# pull requests (especially from forks) cannot hold, so a live step would be
+# flaky or permanently red. Instead we assert the vendored bundle excludes the
+# trees whose presence causes unresolved .agents/-class path errors at runtime
+# (hooks/, lib/, settings.json; the github skill). This is the auth-free,
+# deterministic slice of REQ-4.4. Promote to a live first turn when a CI-safe
+# token path exists.
+
+name: CLI Smoke Matrix
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-paths:
+    name: Check Changed Paths
+    # ADR-025: ARM runner for cost optimization on the cheap gate job.
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      cli-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.cli }}
+    steps:
+      - name: Harden Runner
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Check for CLI file changes
+        # yamllint disable-line rule:line-length
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            cli:
+              - 'packages/ai-agents-cli/**'
+              - '.claude/**'
+              - '.github/workflows/cli-smoke.yml'
+
+  smoke:
+    name: Smoke (${{ matrix.os }}, Node ${{ matrix.node }})
+    needs: check-paths
+    if: needs.check-paths.outputs.cli-changed == 'true'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22]
+    defaults:
+      run:
+        working-directory: packages/ai-agents-cli
+    steps:
+      - name: Harden Runner
+        # Windows and macOS runners do not support harden-runner; gate it.
+        if: runner.os == 'Linux'
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Setup Bun
+        # yamllint disable-line rule:line-length
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
+        with:
+          bun-version: 1.3.14
+
+      - name: Setup Node
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Build bundle
+        run: bun run scripts/build-bundle.ts
+
+      - name: Build dist
+        run: bun run build
+
+      - name: Pack tarball
+        id: pack
+        shell: pwsh
+        run: |
+          $tarball = (npm pack --silent | Select-Object -Last 1).Trim()
+          if (-not $tarball) { throw "npm pack produced no tarball" }
+          $abs = (Resolve-Path $tarball).Path
+          "tarball=$abs" >> $env:GITHUB_OUTPUT
+          Write-Host "Packed $abs"
+
+      - name: Install tarball and run init
+        id: init
+        shell: pwsh
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          $work = Join-Path ([System.IO.Path]::GetTempPath()) ("smoke-" + [guid]::NewGuid())
+          New-Item -ItemType Directory -Path $work | Out-Null
+          Push-Location $work
+          npm init -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "npm init exited $LASTEXITCODE" }
+          npm install --silent "$env:TARBALL" | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "npm install exited $LASTEXITCODE" }
+          New-Item -ItemType Directory -Path demo | Out-Null
+          npm exec --yes --package "$env:TARBALL" -- ai-agents init demo --yes
+          if ($LASTEXITCODE -ne 0) { throw "ai-agents init exited $LASTEXITCODE" }
+          "demo=$(Join-Path $work 'demo')" >> $env:GITHUB_OUTPUT
+          Pop-Location
+
+      - name: Assert vendored tree
+        shell: pwsh
+        env:
+          DEMO: ${{ steps.init.outputs.demo }}
+        run: |
+          $expected = @(
+            @{ Path = (Join-Path $env:DEMO ".claude" "agents"); Type = "Container" },
+            @{ Path = (Join-Path $env:DEMO ".claude" "commands"); Type = "Container" },
+            @{ Path = (Join-Path $env:DEMO ".claude" "skills"); Type = "Container" },
+            @{ Path = (Join-Path $env:DEMO "CLAUDE.md"); Type = "Leaf" },
+            @{ Path = (Join-Path $env:DEMO "AGENTS.md"); Type = "Leaf" },
+            @{ Path = (Join-Path $env:DEMO ".claude" ".ai-agents-version.json"); Type = "Leaf" }
+          )
+          $missing = $expected | Where-Object {
+            -not (Test-Path $_.Path -PathType $_.Type)
+          }
+          if ($missing) {
+            $missing | ForEach-Object {
+              Write-Host "::error::missing $($_.Type.ToLower()) $($_.Path)"
+            }
+            exit 1
+          }
+          Write-Host "Vendored tree OK ($($expected.Count) paths present)"
+
+      - name: First-turn verification (lint-only, REQ-4.4 / T7.3 fallback)
+        shell: pwsh
+        env:
+          DEMO: ${{ steps.init.outputs.demo }}
+        run: |
+          # Excluded trees would emit unresolved .agents/-class path errors on a
+          # first turn. Their presence in the vendored kit is the lint-time
+          # proxy for the runtime grep the live step cannot run without OAuth.
+          $claudeDir = Join-Path $env:DEMO ".claude"
+          $banned = @(
+            (Join-Path $claudeDir "hooks"),
+            (Join-Path $claudeDir "lib"),
+            (Join-Path $claudeDir "settings.json"),
+            (Join-Path $claudeDir "skills" "github")
+          )
+          $present = $banned | Where-Object { Test-Path $_ }
+          if ($present) {
+            $present | ForEach-Object { Write-Host "::error::excluded path vendored: $_" }
+            exit 1
+          }
+          Write-Host "First-turn lint OK (no excluded trees vendored)"
+
+  smoke-result:
+    name: Smoke Result
+    needs: [check-paths, smoke]
+    # Pass-through so the required check stays green when no CLI files changed.
+    # GitHub branch protection requires SUCCESS, not SKIPPED (Issue #1168).
+    if: always()
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Report
+        shell: bash
+        env:
+          CHECK_PATHS_RESULT: ${{ needs.check-paths.result }}
+          CLI_CHANGED: ${{ needs.check-paths.outputs.cli-changed }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          if [ "$CHECK_PATHS_RESULT" != "success" ]; then
+            echo "::error::Check changed paths result: $CHECK_PATHS_RESULT"
+            exit 1
+          fi
+          if [ "$CLI_CHANGED" != "true" ]; then
+            echo "No CLI files changed - smoke matrix skipped."
+            exit 0
+          fi
+          if [ "$SMOKE_RESULT" != "success" ]; then
+            echo "::error::Smoke matrix result: $SMOKE_RESULT"
+            exit 1
+          fi
+          echo "Smoke matrix passed on all 6 jobs."

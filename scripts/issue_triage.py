@@ -10,9 +10,15 @@ classifies issues against deterministic, scriptable rules:
 - Missing area label: issues without any ``area-*`` label.
 
 The script is read-only by design: it emits a JSON or human-readable report
-and never mutates GitHub state. Phase 2 (LLM triage) and Phase 3
-(recommendation execution) are explicitly out of scope and tracked
-separately.
+and never mutates GitHub state.
+
+The ``--ai`` flag drives Phase 2 (LLM triage). It emits a GitHub Actions
+matrix of open issues that a scheduled workflow (.github/workflows/
+backlog-triage.yml) fans out to .github/actions/ai-review, one invocation
+per issue, for structured complexity, area routing, dependency, scope, and
+evidence classification. The model call lives in the workflow; this script
+only produces the work list. Phase 3 (recommendation execution / auto-close)
+remains out of scope and read-only.
 
 Exit codes follow ADR-035:
     0 - Success: scan completed (findings may exist)
@@ -32,6 +38,7 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 DEFAULT_STALE_DAYS = 60
 PRIORITY_LABEL_PREFIX = "priority:"
@@ -217,8 +224,10 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
     ``main`` can map to an exit code.
     """
 
-    if not 1 <= limit <= 1000:
-        raise ValueError("limit must be between 1 and 1000")
+    if not 0 <= limit <= 1000:
+        raise ValueError("limit must be between 0 and 1000")
+    if limit == 0:
+        return []
 
     cmd = [
         "gh", "issue", "list",
@@ -245,6 +254,45 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
     if not isinstance(data, list):
         raise RuntimeError(f"gh issue list returned non-list payload: {type(data).__name__}")
     return data
+
+
+def split_github_repository(value: str) -> tuple[str, str]:
+    """Return owner and repo from a GitHub repository slug, or blank values."""
+
+    parts = value.split("/")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return "", ""
+    return parts[0], parts[1]
+
+
+def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
+    """Build the Phase 2 AI-triage discovery payload.
+
+    The ``--ai`` flag drives Phase 2 of the ClawSweeper pattern (issue #1799):
+    a scheduled workflow fans this matrix out to ``.github/actions/ai-review``,
+    one invocation per open issue, for structured complexity, area routing,
+    dependency, scope, and evidence classification. The mechanical scan stays
+    Python-side; YAML only fans out (ADR-006). This function does not call the
+    model; it produces the work list the workflow consumes.
+
+    Returns a dict with ``include`` (the matrix rows) and ``count`` so the
+    caller can gate the matrix job on whether any issues exist.
+    """
+
+    include = [{"number": issue.number, "title": issue.title} for issue in issues]
+    return {"include": include, "count": len(include)}
+
+
+def write_ai_github_outputs(matrix: dict[str, object], output_path: str) -> None:
+    """Write matrix metadata to GitHub Actions output format."""
+
+    include = matrix.get("include")
+    count = int(matrix.get("count") or 0)
+    github_matrix = {"include": include if isinstance(include, list) else []}
+    with Path(output_path).open("a", encoding="utf-8") as handle:
+        handle.write(f"matrix={json.dumps(github_matrix)}\n")
+        handle.write(f"has-issues={str(count > 0).lower()}\n")
+        handle.write(f"count={count}\n")
 
 
 def format_human(report: TriageReport) -> str:
@@ -284,16 +332,27 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--limit", type=int, default=300,
-        help="Max issues to fetch from the API (1-1000, default: 300).",
+        help="Max issues to fetch from the API (0-1000, default: 300).",
     )
     parser.add_argument(
         "--format", choices=["json", "human"], default="human",
         help="Output format (default: human).",
     )
     parser.add_argument(
+        "--ai", action="store_true",
+        help="Emit a GitHub Actions matrix of open issues for Phase 2 AI triage "
+             "(structured classification via .github/actions/ai-review). "
+             "Overrides --format; prints a JSON matrix payload.",
+    )
+    parser.add_argument(
         "--input", default="",
         help="Path to a JSON file with prefetched issues (skips gh call). "
              "Useful for testing and air-gapped runs.",
+    )
+    parser.add_argument(
+        "--github-output",
+        default="",
+        help="Optional GitHub output file for matrix, has-issues, and count values.",
     )
     return parser.parse_args(argv)
 
@@ -323,15 +382,22 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         repo_label = args.input
     else:
-        if not args.owner or not args.repo:
+        owner = args.owner
+        repo = args.repo
+        if args.ai and (not owner or not repo):
+            owner, repo = split_github_repository(os.environ.get("GITHUB_REPOSITORY", ""))
+        if not owner or not repo:
             print("--owner and --repo are required when --input is not set", file=sys.stderr)
             return 2
         try:
-            raw_issues = fetch_open_issues(args.owner, args.repo, limit=args.limit)
-        except (RuntimeError, ValueError) as err:
+            raw_issues = fetch_open_issues(owner, repo, limit=args.limit)
+        except ValueError as err:
+            print(str(err), file=sys.stderr)
+            return 2
+        except RuntimeError as err:
             print(str(err), file=sys.stderr)
             return 3
-        repo_label = f"{args.owner}/{args.repo}"
+        repo_label = f"{owner}/{repo}"
 
     issues: list[IssueRecord] = []
     for raw in raw_issues:
@@ -339,6 +405,13 @@ def main(argv: list[str] | None = None) -> int:
             issues.append(parse_issue_record(raw))
         except ValueError as err:
             print(f"warn: skipping malformed issue: {err}", file=sys.stderr)
+
+    if args.ai:
+        matrix = build_ai_matrix(issues)
+        if args.github_output:
+            write_ai_github_outputs(matrix, args.github_output)
+        print(json.dumps(matrix))
+        return 0
 
     report = build_report(
         issues,

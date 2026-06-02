@@ -54,6 +54,7 @@ class TestValidOutput:
             "observability",
             "agent-safety",
             "decision-rigor",
+            "code-quality",
         ):
             errors = validate_output(_valid_output(agent=agent))
             assert errors == [], f"Agent '{agent}' rejected"
