@@ -264,7 +264,9 @@ def _original_main(stdin_bytes):
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
     from hook_utilities.lsp_provider import (  # noqa: E402
         SYMBOLS_OVERVIEW,
+        configured_languages,
         detect_providers,
+        representative_extension_for_language,
     )
 
     # Tools that delegate to a subagent. Kit gated only 'Agent'; this repo also
@@ -282,20 +284,24 @@ def _original_main(stdin_bytes):
     PROMPT_LENGTH_FLOOR = 200
 
     # LSP-context detection. Faithful Python port of the kit's hasLspContext
-    # (kit lines 85-91), re.IGNORECASE mirrors JS /i. Order preserved.
+    # (kit lines 85-91), re.IGNORECASE mirrors JS /i. Order preserved. The path
+    # character class is broadened from the kit's ``[\w\-\/]`` to also accept
+    # backslash (``\\``) and the colon used in Windows drive prefixes so paths
+    # like ``C:\src\foo.py:42`` are recognized on Windows. The forward-slash
+    # branch is unchanged, so POSIX paths still match exactly as before.
+    _PATH_CHARS = r"[\w\-\/\\:]"
     _LSP_CONTEXT_PATTERNS = (
         re.compile(r"\bLSP CONTEXT\b", re.IGNORECASE),
         re.compile(r"\bSymbol Map\b", re.IGNORECASE),
-        re.compile(r"\bdefined\s+at\s+[\w\-\/]+\.\w{2,4}:\d+", re.IGNORECASE),
-        re.compile(r"\bcalled\s+from\s+[\w\-\/]+\.\w{2,4}:\d+", re.IGNORECASE),
-        re.compile(r"\bused\s+in\s+[\w\-\/]+\.\w{2,4}:\d+", re.IGNORECASE),
-        re.compile(r"\bimported\s+(?:in|by)\s+[\w\-\/]+\.\w{2,4}:\d+", re.IGNORECASE),
+        re.compile(rf"\bdefined\s+at\s+{_PATH_CHARS}+\.\w{{2,4}}:\d+", re.IGNORECASE),
+        re.compile(rf"\bcalled\s+from\s+{_PATH_CHARS}+\.\w{{2,4}}:\d+", re.IGNORECASE),
+        re.compile(rf"\bused\s+in\s+{_PATH_CHARS}+\.\w{{2,4}}:\d+", re.IGNORECASE),
+        re.compile(rf"\bimported\s+(?:in|by)\s+{_PATH_CHARS}+\.\w{{2,4}}:\d+", re.IGNORECASE),
     )
 
-    # Representative code target used for the pure provider-availability check. The
-    # guard does not know which files the subagent will touch, so it asks: does the
-    # repo have an overview-capable LSP for its primary code language at all? If
-    # not, there is nothing the orchestrator could have pre-resolved; ALLOW.
+    # Default probe target used only as a last-resort fallback when the repo has
+    # no ``.serena/project.yml`` languages we can iterate over. Kept Python-shaped
+    # so existing Python-only repos still resolve the same provider tier as before.
     _PROVIDER_PROBE_TARGET = "lsp_probe.py"
 
 
@@ -317,12 +323,37 @@ def _original_main(stdin_bytes):
 
 
     def provider_available(project_dir: str) -> bool:
-        """Return True when an overview-capable LSP tier exists for repo code.
+        """Return True when an overview-capable LSP tier exists for any configured language.
 
-        Pure configuration check (ADR-062 Section 8): no live probe. An empty
-        provider list means there is no LSP whose result the orchestrator could
-        have pre-resolved, so the guard must fail-open (ALLOW).
+        Pure configuration check (ADR-062 Section 8): no live probe. Iterates the
+        languages declared in ``.serena/project.yml`` and asks the provider
+        registry whether an overview-capable LSP exists for a representative file
+        of each language. This makes the gate fire correctly on TypeScript-only,
+        Go-only, or other non-Python repos where the kit's single hardcoded
+        Python probe target produced a silent fail-open.
+
+        Fallback path: if no languages are configured (no ``.serena/project.yml``
+        or empty list), fall back to the historic Python probe target so existing
+        Python-only repos resolve providers identically to the pre-#2199 behavior.
+        An empty provider list means there is no LSP whose result the orchestrator
+        could have pre-resolved, so the guard must fail-open (ALLOW).
         """
+        languages = configured_languages(project_dir)
+        if languages:
+            for language in languages:
+                ext = representative_extension_for_language(language)
+                if not ext:
+                    continue
+                probe_target = f"lsp_probe{ext}"
+                if detect_providers(probe_target, SYMBOLS_OVERVIEW, project_dir):
+                    return True
+            # All configured languages probed empty: also try the historic Python
+            # fallback so an unusual config (e.g. only non-mapped languages) does
+            # not skip the native LSP tier when a .py file is present in the repo.
+            providers = detect_providers(_PROVIDER_PROBE_TARGET, SYMBOLS_OVERVIEW, project_dir)
+            return bool(providers)
+
+        # No configured languages at all: preserve historic behavior.
         providers = detect_providers(_PROVIDER_PROBE_TARGET, SYMBOLS_OVERVIEW, project_dir)
         return bool(providers)
 
