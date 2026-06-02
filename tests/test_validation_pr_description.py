@@ -1234,7 +1234,7 @@ class TestValidatePRDescription:
         assert len(warnings) == 1
 
     # ------------------------------------------------------------------
-    # Issue #2252 — Part A regression tests
+    # Issue #2252 Part A regression tests
     # ------------------------------------------------------------------
     def test_issue_2252_failure_message_is_actionable(self) -> None:
         """The Check 1 failure message must enumerate the three silencing
