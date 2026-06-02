@@ -1,0 +1,127 @@
+{
+  "session": {
+    "number": 1874,
+    "date": "2026-06-02",
+    "branch": "fix/2205-generated-artifact-governance",
+    "startingCommit": "ef33ffe17",
+    "objective": "Land orphaned PR 2205 governance remediation (rule, ADR-063, FM 11, incident retro, CI anchoring gate, memories) on a fresh PR off main after squash-merge orphaning"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions read"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "skills listed; used github, session-init, adr-review, retrospective"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + rules loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "governance rules applied"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md loaded; wrote feedback memories"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2205-generated-artifact-governance"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2205-generated-artifact-governance"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "branch fix/2205-generated-artifact-governance off origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ef33ffe17"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionEnd MUST items verified"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Restored feedback-generated-artifact-runtime-verification (the separate fail-open memory was superseded by the prevention-first position and removed; see #2230 closed addressed-by-prevention)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 --fix runs in pre-commit on staged .md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Governance remediation committed on this branch"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_hook_anchoring PASS; uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -> 6 passed; build_all --check exit 0; ruff clean"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Recover the orphaned PR #2205 governance remediation onto a fresh PR off current main.",
+      "outcome": "PR #2206 squash-merged (d6bd06d7c); the core fix landed in main but the governance layer (rule generated-artifacts.md, ADR-063, FM #11, incident retro, CI anchoring gate step, canonical-source-mirror amendment, AGENTS boundary, load-bearing test, 2 feedback memories) was orphaned on the re-created branch. Created branch fix/2205-generated-artifact-governance off origin/main and restored the orphaned governance files (verified each edited file's diff vs main was exactly my edit, no 3-way needed). Filed #2258 for the pre-commit set -e scope-detector silent-kill bug found during the original landing. Verification: validate_hook_anchoring PASS; uv run pytest runtime-contract 6 passed; build_all --platform copilot-cli --check exit 0."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR for this branch",
+    "Land governance remediation in main",
+    "Follow-ups: #2230 launcher fail-open (closed: rejected, addressed-by-prevention), #2231 CI sim, #2258 hook bug"
+  ]
+}

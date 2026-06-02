@@ -491,24 +491,6 @@ PROMPTS: dict[str, list[dict[str, Any]]] = {
             "expected": "Context: REST overhead for high-frequency internal calls, schema drift. Decision: gRPC with protobuf. Alternatives: REST with OpenAPI, GraphQL. Consequences: protobuf schema management, learning curve, debugging tooling."
         },
     ],
-    "memory": [
-        {
-            "prompt": "It is a new session. The user is working on a payment refund feature. What context should you retrieve?",
-            "expected": "Search for: payment-related memories, refund-related decisions, previous session context on this branch, architectural constraints for payment systems, relevant ADRs. Synthesize into actionable briefing."
-        },
-        {
-            "prompt": "During the session, the architect agent decided to use the Outbox pattern for event publishing. Should this be persisted?",
-            "expected": "Yes. Architectural decision with cross-session value. Store with: decision, rationale, context (which service), related ADR if exists. Tag for future retrieval by architect and implementer agents."
-        },
-        {
-            "prompt": "A memory from 3 months ago says 'the user table has 50K rows'. The table now has 2M rows. How do you handle this?",
-            "expected": "Staleness detection. Verify against current state before acting on the memory. Update or mark obsolete. Memories are claims about a point in time, not facts about now."
-        },
-        {
-            "prompt": "The user asks 'what did we decide about caching last month?' Search and synthesize.",
-            "expected": "Multi-tier search: Serena memories, session logs, ADRs, git history. Present findings with source attribution and dates. Flag if multiple conflicting decisions exist. Don't fabricate if nothing found."
-        },
-    ],
     "quality-auditor": [
         {
             "prompt": "Audit the test infrastructure domain: test configuration, fixtures, mocking patterns, and CI integration.",

@@ -15,8 +15,12 @@ description: 'Runs AI-powered review for a specific agent with conditional execu
 
 inputs:
   agent:
-    description: 'Agent name (security, qa, analyst, architect, devops, roadmap)'
+    description: 'Agent name (canonical quality gate axis)'
     required: true
+  review-agent:
+    description: 'Copilot CLI agent to invoke; defaults to the quality gate axis name'
+    required: false
+    default: ''
   emoji:
     description: 'Emoji for agent display'
     required: true
@@ -119,7 +123,7 @@ runs:
       id: review
       uses: ./.github/actions/ai-review
       with:
-        agent: ${{ inputs.agent }}
+        agent: ${{ inputs.review-agent != '' && inputs.review-agent || inputs.agent }}
         context-type: pr-diff
         pr-number: ${{ inputs.pr-number }}
         prompt-file: ${{ inputs.prompt-file }}
@@ -161,7 +165,7 @@ runs:
       run: |
         $ErrorActionPreference = 'Stop'
         # CWE-22 mitigation: Validate agent name against allowlist
-        $allowedAgents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+        $allowedAgents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
         if ($env:AGENT -notin $allowedAgents) {
           throw "Invalid agent name: $($env:AGENT). Must be one of: $($allowedAgents -join ', ')"
         }
