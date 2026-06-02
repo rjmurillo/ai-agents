@@ -176,6 +176,39 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["FailingChecks"] == 0
 
+    def test_pipeline_mode_enveloped_payload_finds_failures(self, capsys):
+        """Regression for #2256: get_pr_checks emits {Success, Data:{Number, Checks,...}}.
+        get_pr_check_logs must unwrap Data so it sees the Checks list."""
+        checks_json = json.dumps({
+            "Success": True,
+            "Data": {
+                "Number": 2240,
+                "Checks": [
+                    {
+                        "Name": "Validate Spec Coverage",
+                        "Conclusion": "FAILURE",
+                        "IsRequired": True,
+                        "DetailsUrl": "https://circleci.com/build/123",
+                    },
+                ],
+                "FailedCount": 1,
+                "HasChecks": True,
+            },
+            "Error": None,
+            "Metadata": {},
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailingChecks"] == 1, (
+            f"Expected 1 failing check from enveloped payload, got {output['Data']}"
+        )
+        assert output["Data"]["PullRequest"] == 2240
+
     def test_pipeline_mode_external_ci(self, capsys):
         checks_json = json.dumps({
             "Success": True,

@@ -313,11 +313,15 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        if checks_data.get("Number") and pr_number == 0:
-            pr_number = checks_data["Number"]
+        # Unwrap standard skill envelope: get_pr_checks emits Data: {Number, Checks, ...}
+        # Fall back to top-level so we also tolerate already-unwrapped payloads.
+        payload = checks_data.get("Data") if isinstance(checks_data.get("Data"), dict) else checks_data
+
+        if payload.get("Number") and pr_number == 0:
+            pr_number = payload["Number"]
 
         failing_checks = [
-            c for c in checks_data.get("Checks", [])
+            c for c in payload.get("Checks", [])
             if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
         ]
 
