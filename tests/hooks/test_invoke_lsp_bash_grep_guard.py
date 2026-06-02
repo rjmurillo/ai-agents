@@ -142,6 +142,82 @@ class TestEvaluateCommand:
 
 
 # ---------------------------------------------------------------------------
+# Directory / repo-wide scope detection (#2198)
+# ---------------------------------------------------------------------------
+
+
+class TestDirectoryScopeHelpers:
+    def test_recursive_flag_is_directory_scope(self):
+        assert guard._is_directory_scope('grep -r "Foo" .', str(REPO_ROOT)) is True
+
+    def test_long_recursive_flag_is_directory_scope(self):
+        assert (
+            guard._is_directory_scope('grep --recursive "Foo" .', str(REPO_ROOT))
+            is True
+        )
+
+    def test_rg_defaults_recursive(self):
+        # ripgrep scans the working tree with no path argument.
+        assert guard._is_directory_scope('rg "Foo"', str(REPO_ROOT)) is True
+
+    def test_plain_grep_no_path_is_not_directory_scope(self):
+        # A bare grep reads stdin; not a directory scope.
+        assert guard._is_directory_scope("echo x | grep Foo", str(REPO_ROOT)) is False
+
+    def test_in_repo_directory_argument_is_scope(self):
+        assert (
+            guard._is_directory_scope('grep -r "Foo" scripts', str(REPO_ROOT)) is True
+        )
+
+    def test_out_of_repo_directory_argument_is_not_scope(self):
+        # An explicit out-of-repo directory fixes the scope to out-of-repo.
+        assert (
+            guard._is_directory_scope('grep -r "Foo" /tmp', str(REPO_ROOT)) is False
+        )
+
+    def test_directory_arguments_skips_flags(self):
+        assert guard._directory_arguments('grep -rn "Foo" .') == ["."]
+
+    def test_directory_arguments_collects_trailing_slash(self):
+        assert guard._directory_arguments("grep -r Foo src/") == ["src/"]
+
+
+class TestEvaluateRepoWideScope:
+    def test_blocks_repo_wide_recursive_grep(self):
+        # (a) `grep -r Sym .` gates in this repo (python provider configured).
+        decision = guard.evaluate_command('grep -r "parseConfig" .', str(REPO_ROOT))
+        assert decision is not None
+        assert "parseConfig" in decision["symbols"]
+        assert decision["target"] == guard._REPO_SCOPE_TARGET
+
+    def test_blocks_rg_no_path(self):
+        decision = guard.evaluate_command('rg "parseConfig"', str(REPO_ROOT))
+        assert decision is not None
+        assert decision["target"] == guard._REPO_SCOPE_TARGET
+
+    def test_allows_out_of_repo_recursive_grep(self):
+        # (b) An out-of-repo directory is never gated.
+        assert (
+            guard.evaluate_command('grep -r "parseConfig" /tmp', str(REPO_ROOT))
+            is None
+        )
+
+    @patch.object(guard, "repo_has_programming_provider", return_value=False)
+    def test_allows_repo_wide_when_provider_less(self, _mock):
+        # (c) A provider-less repo: repo-wide grep stays fail-open.
+        assert (
+            guard.evaluate_command('grep -r "parseConfig" .', str(REPO_ROOT)) is None
+        )
+
+    def test_allows_plain_stdin_grep(self):
+        # A bare stdin grep names no directory and is not gated.
+        assert (
+            guard.evaluate_command('echo x | grep "parseConfig"', str(REPO_ROOT))
+            is None
+        )
+
+
+# ---------------------------------------------------------------------------
 # build_guidance
 # ---------------------------------------------------------------------------
 
@@ -158,6 +234,12 @@ class TestBuildGuidance:
         text = guard.build_guidance(["parseConfig"], "src/app.py")
         assert "LSP_GATE_MODE=warn" in text
         assert "SKIP_LSP_GATE=true" in text
+
+    def test_repo_scope_target_renders_repository_wide(self):
+        # The <repo> sentinel must not produce an empty "(.suffix)" string.
+        text = guard.build_guidance(["parseConfig"], guard._REPO_SCOPE_TARGET)
+        assert "repository-wide" in text
+        assert "()" not in text
 
 
 # ---------------------------------------------------------------------------

@@ -262,8 +262,12 @@ class TestFailOpen:
         mock_stdin(_grep_input("SessionManager", glob="*.md"))
         assert guard.main() == 0
 
-    def test_repo_wide_no_target_allows(self, mock_stdin: Callable[[str], None]):
-        # No path and no glob -> empty target -> not a code target -> allow.
+    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=False)
+    def test_repo_wide_no_provider_allows(
+        self, _mock_repo, mock_stdin: Callable[[str], None]
+    ):
+        # No path, no glob -> repo-wide scope. With no active programming-language
+        # provider, the repo probe returns False and the guard stays fail-open.
         mock_stdin(_grep_input("SessionManager"))
         assert guard.main() == 0
 
@@ -327,6 +331,127 @@ class TestBlock:
     ):
         mock_stdin(_grep_input("find_referencing_symbols", path="src/lib.py"))
         assert guard.main() == 2
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: _is_repo_wide_scope (directory / repo-wide detection, #2198)
+# ---------------------------------------------------------------------------
+
+
+class TestIsRepoWideScope:
+    def test_empty_path_and_glob_is_repo_wide(self):
+        assert guard._is_repo_wide_scope("", "") is True
+
+    def test_extension_glob_is_not_repo_wide(self):
+        # An explicit *.py / *.md glob scopes by file type; not a repo-wide scan.
+        assert guard._is_repo_wide_scope("", "*.py") is False
+        assert guard._is_repo_wide_scope("", "*.md") is False
+
+    def test_in_repo_directory_is_repo_wide(self):
+        # A real in-repo directory resolves and is a directory scope.
+        assert guard._is_repo_wide_scope("scripts", "") is True
+
+    def test_out_of_repo_path_is_not_repo_wide(self):
+        # An out-of-repo absolute path must not be treated as in-repo scope.
+        assert guard._is_repo_wide_scope("/tmp", "") is False
+
+    def test_in_repo_file_is_not_directory_scope(self):
+        # A path that names a file (not a directory) is handled by the per-target
+        # check, not the repo-wide fallback.
+        assert guard._is_repo_wide_scope("README.md", "") is False
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: _resolve_in_repo
+# ---------------------------------------------------------------------------
+
+
+class TestResolveInRepo:
+    def test_in_repo_relative_resolves(self):
+        result = guard._resolve_in_repo("scripts")
+        assert result is not None
+
+    def test_out_of_repo_absolute_returns_none(self):
+        assert guard._resolve_in_repo("/tmp/elsewhere") is None
+
+    def test_parent_escape_returns_none(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(
+            guard, "get_project_directory", lambda: str(HOOK_DIR.parent)
+        )
+        assert guard._resolve_in_repo("../../../../etc") is None
+
+
+# ---------------------------------------------------------------------------
+# main(): repo-wide / directory-scope gating (#2198)
+# ---------------------------------------------------------------------------
+
+
+class TestRepoWideGating:
+    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
+    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=True)
+    @patch("invoke_lsp_grep_guard.detect_providers", return_value=["serena"])
+    def test_repo_wide_blocks_when_provider_active(
+        self,
+        _mock_detect,
+        _mock_repo,
+        _mock_dir,
+        mock_stdin: Callable[[str], None],
+        capsys,
+    ):
+        # (a) Repo-wide grep (no path, no glob) gates when a programming-language
+        # provider is active. This is the #2198 bug: previously it allowed.
+        mock_stdin(_grep_input("SessionManager"))
+        assert guard.main() == 2
+        captured = capsys.readouterr()
+        assert "LSP-FIRST" in captured.out
+        assert "find_symbol" in captured.out
+
+    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=True)
+    @patch("invoke_lsp_grep_guard.detect_providers", return_value=["serena"])
+    def test_in_repo_directory_blocks_when_provider_active(
+        self,
+        _mock_detect,
+        _mock_repo,
+        mock_stdin: Callable[[str], None],
+    ):
+        # A directory-scoped Grep (path is a real in-repo directory) also gates.
+        # get_project_directory is left real so `scripts/` resolves on disk and
+        # passes the is_dir() directory-scope check.
+        repo_root = Path(__file__).resolve().parents[2]
+        with patch(
+            "invoke_lsp_grep_guard.get_project_directory", return_value=str(repo_root)
+        ):
+            mock_stdin(_grep_input("SessionManager", path="scripts"))
+            assert guard.main() == 2
+
+    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=False)
+    def test_out_of_repo_path_not_gated(
+        self, _mock_repo, mock_stdin: Callable[[str], None]
+    ):
+        # (b) An out-of-repo path is never gated. _is_repo_wide_scope returns
+        # False for /tmp, so the repo probe is not even reached, but assert the
+        # allow outcome directly.
+        mock_stdin(_grep_input("SessionManager", path="/tmp"))
+        assert guard.main() == 0
+
+    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
+    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=False)
+    def test_provider_less_repo_not_gated(
+        self, _mock_repo, _mock_dir, mock_stdin: Callable[[str], None]
+    ):
+        # (c) A provider-less repo: repo-wide grep stays fail-open.
+        mock_stdin(_grep_input("SessionManager"))
+        assert guard.main() == 0
+
+    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
+    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=True)
+    def test_md_glob_not_gated_even_with_provider(
+        self, _mock_repo, _mock_dir, mock_stdin: Callable[[str], None]
+    ):
+        # A deliberate non-code glob (*.md) is not a repo-wide code scan; allow
+        # even when a programming provider is active.
+        mock_stdin(_grep_input("SessionManager", glob="*.md"))
+        assert guard.main() == 0
 
 
 # ---------------------------------------------------------------------------
