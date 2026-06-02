@@ -93,7 +93,7 @@ jobs:
         run: python3 scripts/backlog_triage_result.py --output "$OUTPUT"
 
       - name: Upload triage result
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: backlog-triage-${{ matrix.number }}
           path: ${{ runner.temp }}/backlog-triage-${{ matrix.number }}.json
@@ -126,7 +126,7 @@ jobs:
           --github-step-summary "$GITHUB_STEP_SUMMARY"
 
       - name: Upload backlog triage summary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: backlog-triage-summary
           path: ${{ runner.temp }}/backlog-triage-summary.md
