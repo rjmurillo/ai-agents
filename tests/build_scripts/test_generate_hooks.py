@@ -1327,6 +1327,31 @@ def test_shim_camelcase_tool_glob_match() -> None:
     assert proc.returncode == 0, proc.stderr
 
 
+def test_shim_replays_canonical_payload_after_camelcase_match() -> None:
+    """A camelCase match replays snake_case fields into the wrapped hook."""
+    body = (
+        "import json, sys\n"
+        "data = json.load(sys.stdin)\n"
+        "tool_input = data.get('tool_input')\n"
+        "if not isinstance(tool_input, dict):\n"
+        "    print('MISSING_TOOL_INPUT')\n"
+        "    sys.exit(2)\n"
+        "print('COMMAND:' + tool_input.get('command', ''))\n"
+    )
+    transformed = generate_hooks.inject_shim(body, "Bash(git commit*)")
+
+    proc = _run_shim(
+        transformed,
+        {
+            "toolName": "Bash",
+            "toolArgs": '{"command":"git commit -m x","description":"Commit"}',
+        },
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    assert "COMMAND:git commit -m x" in proc.stdout
+
+
 def test_shim_rejects_payload_missing_both_formats() -> None:
     """A payload with neither ``tool_name`` nor ``toolName`` MUST fail loud
     with exit 2. Complements test_inject_shim_exits_2_on_missing_tool_name

@@ -113,6 +113,28 @@ def _shim_should_fire(payload):
     return tool_name == params["toolName"]
 
 
+def _shim_replay_bytes(payload, raw):
+    replay = dict(payload)
+    changed = False
+    tool_name = replay.get("tool_name")
+    if tool_name is None and isinstance(replay.get("toolName"), str):
+        replay["tool_name"] = replay["toolName"]
+        changed = True
+    tool_input = replay.get("tool_input")
+    if tool_input is None and "toolArgs" in replay:
+        tool_args = replay.get("toolArgs")
+        if isinstance(tool_args, str):
+            try:
+                tool_args = _json.loads(tool_args)
+            except ValueError:
+                pass
+        replay["tool_input"] = tool_args
+        changed = True
+    if not changed:
+        return raw
+    return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
+
+
 def _shim_dispatch():
     try:
         _raw = _sys.stdin.buffer.read(_SHIM_MAX_STDIN_BYTES + 1)
@@ -153,10 +175,11 @@ def _shim_dispatch():
         )
     if not fire:
         _sys.exit(0)
-    # Replay raw bytes into a fresh stdin so the original script reads
-    # exactly what the shim inspected. Replace BEFORE calling original.
-    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(_raw), encoding="utf-8")
-    rc = _original_main(_raw)
+    # Replay a canonical payload into a fresh stdin so wrapped hooks enforce
+    # the same schema even when the host sent the camelCase variant.
+    _replay = _shim_replay_bytes(payload, _raw)
+    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(_replay), encoding="utf-8")
+    rc = _original_main(_replay)
     if rc is None:
         rc = 0
     _sys.exit(int(rc))
