@@ -493,9 +493,7 @@ def _resolve_lib_dir() -> str:
     """
     import os
 
-    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get(
-        "CLAUDE_PLUGIN_ROOT",
-    )
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     workspace = os.environ.get("GITHUB_WORKSPACE")
     if plugin_root:
         lib_dir = os.path.join(plugin_root, "lib")
