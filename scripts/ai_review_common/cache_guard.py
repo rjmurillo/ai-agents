@@ -10,9 +10,29 @@ from pathlib import Path
 _AGENT_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 NON_CACHEABLE_VERDICTS = frozenset({"NEEDS_REVIEW"})
 
+_REPO_MARKERS = (".git", ".claude")
+
 
 class CacheGuardConfigError(ValueError):
     """Raised when the cache guard receives invalid configuration."""
+
+
+def get_repo_root() -> Path:
+    """Return the repo root by walking up from this file to a `.git` or `.claude` marker.
+
+    Anchoring defaults to the repo root (rather than CWD) keeps script
+    behavior stable regardless of where the process is launched from and
+    avoids CWE-22 path-traversal surface introduced by CWD-relative defaults.
+    """
+    here = Path(__file__).resolve()
+    for parent in (here, *here.parents):
+        if any((parent / marker).exists() for marker in _REPO_MARKERS):
+            return parent
+    # Fallback: two levels up (scripts/ai_review_common/ -> repo root).
+    return here.parents[2]
+
+
+_DEFAULT_CACHE_ROOT = get_repo_root() / "ai-review-cache"
 
 
 def validate_agent_name(agent: str) -> str:
@@ -48,7 +68,7 @@ def populate_cache(
     findings: str,
     infra_failure: str,
     github_output: Path,
-    cache_root: Path = Path("ai-review-cache"),
+    cache_root: Path = _DEFAULT_CACHE_ROOT,
 ) -> bool:
     """Populate the review cache only when the verdict is structurally valid."""
     safe_agent = validate_agent_name(agent)

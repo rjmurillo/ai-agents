@@ -17,7 +17,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scripts.ai_review_common.cache_guard import populate_cache, skip_cache_reason
+from scripts.ai_review_common.cache_guard import (
+    get_repo_root,
+    populate_cache,
+    skip_cache_reason,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ACTION_PATH = REPO_ROOT / ".github" / "actions" / "agent-review" / "action.yml"
@@ -117,3 +121,56 @@ def test_no_save_cache_when_populate_skipped(action_yaml: dict) -> None:
     assert len(save) == 1
     cond = save[0].get("if", "")
     assert "steps.populate-cache.outputs.cache_populated == 'true'" in cond
+
+
+def test_get_repo_root_walks_up_to_repo_marker() -> None:
+    """`get_repo_root()` resolves to a real repo dir containing `.git` or `.claude`."""
+    root = get_repo_root()
+    assert root.is_dir()
+    assert (root / ".git").exists() or (root / ".claude").exists()
+
+
+def test_populate_cache_default_cache_root_anchored_to_repo(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Default `cache_root` must resolve under the repo root, not CWD (#2224, CWE-22)."""
+    # Run from an unrelated CWD to prove the default does NOT use it.
+    monkeypatch.chdir(tmp_path)
+
+    repo_root = get_repo_root()
+    expected_cache = repo_root / "ai-review-cache"
+    # Snapshot whether the dir existed before so we don't pollute the repo.
+    pre_existed = expected_cache.exists()
+    pre_existing_agents = (
+        {p.name for p in expected_cache.iterdir()} if pre_existed else set()
+    )
+
+    github_output = tmp_path / "github-output.txt"
+    # Use a recognizable, unique agent name that won't collide with a real one.
+    test_agent = "_test_2224_agent"
+
+    try:
+        populated = populate_cache(
+            agent=test_agent,
+            verdict="PASS",
+            findings="anchored-default",
+            infra_failure="false",
+            github_output=github_output,
+        )
+        assert populated is True
+        # The agent dir MUST land under the repo-anchored default, not under CWD.
+        assert (expected_cache / test_agent / "verdict.txt").read_text(
+            encoding="utf-8"
+        ) == "PASS"
+        # And it MUST NOT have leaked into the CWD.
+        assert not (tmp_path / "ai-review-cache").exists()
+    finally:
+        # Clean only what we created; never disturb pre-existing cache contents.
+        agent_dir = expected_cache / test_agent
+        if agent_dir.exists():
+            shutil.rmtree(agent_dir, ignore_errors=True)
+        if not pre_existed and expected_cache.exists():
+            remaining = {p.name for p in expected_cache.iterdir()}
+            if not remaining - pre_existing_agents:
+                expected_cache.rmdir()
