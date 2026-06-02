@@ -8,13 +8,13 @@
 - **Parent epic**: #1933 (lifecycle-gate convergence)
 - **This issue**: #1940 (Child 7: capture the iteration-paradox evidence so the lesson is durable)
 - **Commits to clean after `/review` PASS**: 5, across 2 adversarial rounds
-- **Outcome**: Cleaned. The cost is the lesson: an ad-hoc `/pr-quality:all` run after a green `/review` surfaced a BLOCKED verdict plus 11 findings the lifecycle gates missed.
+- **Outcome**: Cleaned. The cost is the lesson: an ad-hoc `/pr-quality:all` run after a green `/review` surfaced a BLOCKED verdict plus 12 findings the lifecycle gates missed.
 
 ---
 
 ## The Headline Tension
 
-The lifecycle ran clean. `/review` returned PASS or WARN-only on every axis. Then `/pr-quality:all`, the 7-agent adversarial gate that mirrors the CI prompts at `.github/prompts/pr-quality-gate-*.md`, was invoked by hand after `/review`. It returned **qa BLOCKED** plus 10 more findings across analyst, roadmap, and architect.
+The lifecycle ran clean. `/review` returned PASS or WARN-only on every axis. Then `/pr-quality:all`, the 7-agent adversarial gate that mirrors the CI prompts at `.github/prompts/pr-quality-gate-*.md`, was invoked by hand after `/review`. It returned **qa BLOCKED** plus 9 more findings across analyst, roadmap, and architect.
 
 `/review` and `/pr-quality:all` are meant to evaluate the same change. They did not. The local gate passed; the backstop blocked. That gap is the iteration paradox documented in `2026-05-05-pr-1887-iteration-paradox.md`, recurring on a different PR through a different mechanism: divergent prompts produce divergent evaluation criteria, and the cheap local gate misses what the expensive backstop catches.
 
@@ -85,7 +85,7 @@ Round 2 surfaced 4 NEW regressions, all inside the Round 1 fixes. The denominato
 ## Phase 1: What Actually Happened (timeline)
 
 1. **`/build` through `/review`**: the M1 prune deleted skills (workflow, doc-coverage, doc-sync) and authored or edited fixtures, a SKILL.md description, REQ-006, ADR-040, and plugin.json. Several of those artifacts still described the pre-prune catalog. `/review` returned PASS or WARN-only on every axis.
-2. **Ad-hoc `/pr-quality:all` after `/review`**: invoked by hand as a sanity check. qa returned BLOCKED, analyst and roadmap WARN, architect PASS-with-2-low. 11 findings total. The local gate and the backstop disagreed.
+2. **Ad-hoc `/pr-quality:all` after `/review`**: invoked by hand as a sanity check. qa returned BLOCKED, analyst and roadmap WARN, architect PASS-with-2-low. 12 findings total. The local gate and the backstop disagreed.
 3. **Round 1 fixes (`7993ed9f`, `f937a114`, `a3c82a66`, `adfe9f5d`)**: addressed the 11 findings. One fix (commit 4) recalculated one cell of the ADR-040 percentage table.
 4. **`/pr-quality:all` Round 2**: caught that the single-cell recalculation had left the table internally inconsistent (mixed /26 and /27 denominators), plus a hedging-language regression in the eval fixture.
 5. **Round 2 fix (`4e077b50`)**: recomputed the entire table to a single denominator and removed the hedge. Clean.
