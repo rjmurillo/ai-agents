@@ -227,3 +227,40 @@ jobs:
           echo ""
           echo "See the 'python' filter in check-paths job for paths that trigger tests."
           echo "Reference: .github/workflows/pytest.yml"
+
+  # ─── Windows pwsh contract test (fix #2231 item 1) ─────────────────────────
+  # The PowerShell path-resolution contract test is guarded by
+  # `skipif(shutil.which("pwsh") is None)`, so it never runs on Linux ubuntu
+  # runners. Windows is where #2205 was first reported. This job ensures the
+  # pwsh branch of test_generate_hooks_runtime_contract.py runs on an always-on
+  # Windows runner. No auth or external credentials needed: the test is purely
+  # path-resolution (generates hooks into a tmp dir and verifies resolution).
+  test-windows-pwsh:
+    name: Run Python Tests (Windows - pwsh contract)
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@445689ea25e0de0a23313031f5fe577c74ae45a1 # v6.3.0
+        with:
+          enable-cache: true
+
+      - name: Run pwsh hook contract tests
+        shell: pwsh
+        run: uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k "powershell"
