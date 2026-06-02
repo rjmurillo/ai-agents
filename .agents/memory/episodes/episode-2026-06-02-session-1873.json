@@ -37,6 +37,14 @@
       "content": "Replace placeholder auto-retrospectives with real retrospectives for the #2205 work.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deep incident retrospective and systemic remediation for the PR #2205 customer-wedge incident (delegated to the retrospective agent).",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -44,7 +52,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 3,
     "files_changed": 0
   },
   "lessons": []

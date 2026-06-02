@@ -125,6 +125,10 @@
     {
       "task": "Replace placeholder auto-retrospectives with real retrospectives for the #2205 work.",
       "outcome": "Wrote real content into .agents/retrospective/2026-06-01-auto-retro.md (session 1872, the first fix) and 2026-06-02-auto-retro.md (session 1873, verification + hardening). Classified both against FAILURE-MODES.md (FM #9 confident-incorrectness primary, FM #4 false-completion secondary), with impact tables, evidence links (commits, PR #2206, issues #2205/#2223), root cause, and no-blame learnings."
+    },
+    {
+      "task": "Deep incident retrospective and systemic remediation for the PR #2205 customer-wedge incident (delegated to the retrospective agent).",
+      "outcome": "Retrospective agent produced .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md (P0): 33-day exposure (v0.3.0-v0.5.6), five-whys (RC1 no runtime verification, RC2 fail-open at wrong layer, RC3 confident-incorrectness in fix), FM #9 primary + FM #4 + proposed FM #11. Shipped non-gated remediation: new rule .claude/rules/generated-artifacts.md (commit acf91d93f), AGENTS.md boundaries, canonical-source-mirror.md amendment, regenerated instruction mirrors (commit 75853de99), Serena memories feedback-generated-artifact-runtime-verification and feedback-hook-fail-open-architectural-layer. Gated items flagged for review: FM #11 + ADR-063 (adr-review), launcher graceful-degradation (architect review), nightly release smoke (secrets/human)."
     }
   ],
   "endingCommit": "64506e8fa",
