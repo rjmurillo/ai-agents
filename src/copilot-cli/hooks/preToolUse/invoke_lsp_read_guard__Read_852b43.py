@@ -1,4 +1,3 @@
-# ruff: noqa
 from __future__ import annotations
 
 # AUTO-GENERATED MATCHER SHIM (REQ-003-007)
