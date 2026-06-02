@@ -168,9 +168,8 @@ cluster (see `.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-r
 ```bash
 SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/pr-comment-responder/scripts"
 
-# Pass owner/repo/PR as separate quoted args (never concatenated; argv injection).
-python3 "$SCRIPTS_DIR/cluster_threads.py" \
-    --owner "$OWNER" --repo "$REPO" --pull-request "$PR_NUMBER"
+# Owner and repo are optional; the script infers them from git when omitted.
+python3 "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER"
 ```
 
 The script fetches unresolved threads, clusters them by load-bearing token
