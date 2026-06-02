@@ -256,7 +256,7 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
 def split_github_repository(value: str) -> tuple[str, str]:
     """Return owner and repo from a GitHub repository slug, or blank values."""
 
-    parts = value.split("/", 1)
+    parts = value.split("/")
     if len(parts) != 2 or not parts[0] or not parts[1]:
         return "", ""
     return parts[0], parts[1]

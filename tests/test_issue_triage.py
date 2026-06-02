@@ -323,7 +323,7 @@ class TestGitHubRepositoryDefaults:
     def test_split_github_repository_accepts_owner_repo(self):
         assert split_github_repository("octo/repo") == ("octo", "repo")
 
-    @pytest.mark.parametrize("value", ["not-a-slug", "owner/", "/repo"])
+    @pytest.mark.parametrize("value", ["not-a-slug", "owner/", "/repo", "owner/repo/extra"])
     def test_split_github_repository_rejects_invalid_slug(self, value):
         assert split_github_repository(value) == ("", "")
 
