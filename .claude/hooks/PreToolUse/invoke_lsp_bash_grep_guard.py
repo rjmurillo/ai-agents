@@ -131,6 +131,18 @@ _DEFAULT_RECURSIVE_BINARY = re.compile(r"\b(?:rg|ag|ack)\b", re.IGNORECASE)
 # rather than a single navigable file. Used only in the guidance message.
 _REPO_SCOPE_TARGET = "<repo>"
 
+_VALUE_FLAGS = {
+    "-A",
+    "-B",
+    "-C",
+    "-m",
+    "--after-context",
+    "--before-context",
+    "--context",
+    "--max-count",
+}
+_PATTERN_VALUE_FLAGS = {"-e", "-f", "--file", "--regexp"}
+
 _BLOCK_HEADER = "## BLOCKED: grep symbol search has an LSP-first alternative"
 
 
@@ -193,11 +205,23 @@ def _directory_arguments(segment: str) -> list[str]:
     tokens = segment.split()
     seen_grep = False
     seen_pattern = False
+    skip_value = False
+    value_is_pattern = False
     dirs: list[str] = []
     for token in tokens:
         if not seen_grep:
             if is_grep_search(token):
                 seen_grep = True
+            continue
+        if skip_value:
+            if value_is_pattern:
+                seen_pattern = True
+            skip_value = False
+            value_is_pattern = False
+            continue
+        if token in _VALUE_FLAGS or token in _PATTERN_VALUE_FLAGS:
+            skip_value = True
+            value_is_pattern = token in _PATTERN_VALUE_FLAGS
             continue
         if token.startswith("-"):
             continue

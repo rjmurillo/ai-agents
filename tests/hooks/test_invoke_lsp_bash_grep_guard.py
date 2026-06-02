@@ -206,6 +206,15 @@ class TestDirectoryScopeHelpers:
         assert guard._is_directory_scope('rg "import/utils"', str(REPO_ROOT)) is True
         assert guard._is_directory_scope('grep -rn "src/helpers"', str(REPO_ROOT)) is True
 
+    def test_space_separated_flag_value_does_not_hide_recursive_scope(self):
+        assert guard._is_directory_scope('grep -r -m 5 "parseConfig"', str(REPO_ROOT)) is True
+
+    def test_space_separated_flag_value_keeps_later_file_path(self):
+        assert guard._directory_arguments('grep -r -m 5 "Foo" LICENSE') == ["LICENSE"]
+
+    def test_pattern_option_value_counts_as_pattern(self):
+        assert guard._directory_arguments('grep -r -e "Foo" LICENSE') == ["LICENSE"]
+
 
 class TestEvaluateRepoWideScope:
     def test_blocks_repo_wide_recursive_grep(self):
