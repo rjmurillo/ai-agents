@@ -158,10 +158,12 @@ def extract_gist(body: object) -> frozenset[str]:
     if not isinstance(body, str) or not body:
         return frozenset()
 
+    body = re.sub(
+        r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])",
+        "_",
+        body,
+    )
     lowered = body.lower()
-    # Split CamelCase before lowercasing would lose case, so split on the
-    # already-lowercased text using underscores and the original case markers
-    # are gone; snake_case still splits on underscore via the token regex below.
     raw_tokens = _TOKEN_RE.findall(lowered)
 
     gist: set[str] = set()
@@ -346,53 +348,136 @@ def cluster_threads(
     }
 
 
-def _fetch_unresolved_threads(owner: str, repo: str, pull_request: int) -> list[Thread]:
-    """Fetch unresolved threads via the github skill's canonical helper.
+_REVIEW_THREADS_FOR_CLUSTERING_QUERY = """\
+query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
+    repository(owner: $owner, name: $name) {
+        pullRequest(number: $prNumber) {
+            reviewThreads(first: 100, after: $cursor) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                nodes {
+                    id
+                    isResolved
+                    isOutdated
+                    path
+                    line
+                    startLine
+                    diffSide
+                    comments(first: 1) {
+                        totalCount
+                        nodes {
+                            databaseId
+                            body
+                            createdAt
+                            author {
+                                login
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}"""
 
-    Delegates pagination and the GraphQL query to
-    ``github_core.review_threads.get_unresolved_review_threads`` rather than
-    re-implementing them (DRY; the pagination edge cases are already covered and
-    tested there). Translates the integration point's failure into a clean exit
-    rather than leaking a transport exception. ``get_unresolved_review_threads``
-    returns ``[]`` on transport failure and never raises, so the caller cannot
-    distinguish "no unresolved threads" from "fetch failed" on the list alone;
-    the auth check below fails fast on the common auth failure, and an empty
-    list is reported as zero threads (a true empty PR is the same observable
-    state, which is acceptable for a Phase 0 advisory).
-    """
+
+def _fetch_unresolved_threads_with_clients(
+    owner: str,
+    repo: str,
+    pull_request: int,
+    gh_graphql,
+    filter_unresolved_threads,
+    transform_review_thread,
+) -> list[Thread]:
+    """Fetch unresolved threads with enough fields for gist clustering."""
+    aggregated: list[dict] = []
+    cursor: str | None = None
+    max_pages = 50
+
+    for _page in range(max_pages):
+        variables: dict[str, object] = {
+            "owner": owner,
+            "name": repo,
+            "prNumber": pull_request,
+        }
+        if cursor is not None:
+            variables["cursor"] = cursor
+
+        try:
+            data = gh_graphql(_REVIEW_THREADS_FOR_CLUSTERING_QUERY, variables)
+        except RuntimeError as exc:
+            print(
+                f"Could not fetch review threads for PR {pull_request}: {exc}",
+                file=sys.stderr,
+            )
+            sys.exit(3)
+
+        repository = data.get("repository") or {}
+        pr_obj = repository.get("pullRequest")
+        if not isinstance(pr_obj, dict):
+            break
+        review_threads = pr_obj.get("reviewThreads")
+        if not isinstance(review_threads, dict):
+            break
+        nodes = review_threads.get("nodes")
+        if not isinstance(nodes, list):
+            break
+
+        aggregated.extend(node for node in nodes if isinstance(node, dict))
+
+        page_info = review_threads.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        cursor_obj = page_info.get("endCursor")
+        if not isinstance(cursor_obj, str) or not cursor_obj:
+            break
+        cursor = cursor_obj
+
+    unresolved = filter_unresolved_threads(aggregated)
+    return [
+        item
+        for item in (transform_review_thread(node) for node in unresolved)
+        if isinstance(item, dict)
+    ]
+
+
+def _fetch_unresolved_threads(owner: str, repo: str, pull_request: int) -> list[Thread]:
+    """Fetch unresolved threads via a clustering-specific GraphQL query."""
     lib_dir = _resolve_lib_dir()
     if lib_dir not in sys.path:
         sys.path.insert(0, lib_dir)
 
     from github_core.api import (  # noqa: E402
         assert_gh_authenticated,
+        gh_graphql,
         resolve_repo_params,
     )
     from github_core.review_threads import (  # noqa: E402
-        get_unresolved_review_threads,
+        filter_unresolved_threads,
+        transform_review_thread,
     )
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(owner, repo)
-    # get_unresolved_review_threads is untyped at this import path (it lives
-    # under .claude/lib, outside the typed scripts.* tree), so mypy sees Any.
-    # The helper's documented contract is a list of flat thread dicts; keep
-    # only dict elements to honor the Thread type and drop any malformed node.
-    fetched = get_unresolved_review_threads(
-        resolved.owner, resolved.repo, pull_request,
+    return _fetch_unresolved_threads_with_clients(
+        resolved.owner,
+        resolved.repo,
+        pull_request,
+        gh_graphql,
+        filter_unresolved_threads,
+        transform_review_thread,
     )
-    return [item for item in fetched if isinstance(item, dict)]
 
 
 def _resolve_lib_dir() -> str:
-    """Locate the plugin ``lib`` directory the same way the github scripts do.
+    """Locate the plugin ``lib`` directory for github_core imports.
 
-    Mirrors the resolution order in
-    .claude/skills/github/scripts/pr/get_unresolved_review_threads.py:
-    ``CLAUDE_PLUGIN_ROOT`` env, then ``GITHUB_WORKSPACE`` env, then a path
-    relative to this file. Exits 2 (config error per ADR-035) when no candidate
-    directory exists, so a misconfigured install fails loudly rather than
-    importing nothing.
+    Resolution order: ``CLAUDE_PLUGIN_ROOT`` env, ``GITHUB_WORKSPACE`` env, then
+    a path relative to this file. Exits 2 (config error per ADR-035) when no
+    candidate directory exists, so a misconfigured install fails loudly rather
+    than importing nothing.
     """
     import os
 
@@ -443,12 +528,28 @@ def _load_threads_from_file(path: str) -> list[Thread]:
     Exits 2 on a missing file, malformed JSON, or a payload that is not a list
     of objects: a bad ``--threads-file`` is a usage error, not a clustering
     result. Non-dict list elements (untrusted input) are dropped rather than
-    crashing the clusterer.
+    crashing the clusterer. Relative paths are anchored to the project root so
+    the caller's current working directory cannot change what file is read.
     """
     from pathlib import Path
 
+    requested_path = Path(path)
+    if requested_path.is_absolute():
+        threads_path = requested_path
+    else:
+        project_root = Path(__file__).resolve().parents[4]
+        threads_path = (project_root / requested_path).resolve()
+        try:
+            threads_path.relative_to(project_root)
+        except ValueError:
+            print(
+                f"Threads file {path} escapes project root.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+
     try:
-        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        raw = json.loads(threads_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"Could not read threads file {path}: {exc}", file=sys.stderr)
         sys.exit(2)

@@ -140,6 +140,12 @@ class TestExtractGist:
         plain = mod.extract_gist("Fix model_tier opus assignment.")
         assert backticked == plain
 
+    def test_splits_camel_case_into_load_bearing_parts(self):
+        mod = _load_module()
+        gist = mod.extract_gist("The modelTier setting contradicts ModelTier docs.")
+        assert "model" in gist
+        assert "tier" in gist
+
 
 class TestGistSimilarity:
     def test_identical_gists_score_one(self):
@@ -367,3 +373,79 @@ class TestCli:
         result = self._run([])
         # argparse exits 2 on a missing required argument.
         assert result.returncode == 2
+
+
+class TestFetchUnresolvedThreads:
+    def test_fetch_uses_fields_needed_for_clustering(self):
+        mod = _load_module()
+        queries = []
+
+        def fake_graphql(query, variables):
+            queries.append((query, variables))
+            return {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [
+                                {
+                                    "id": "thread-1",
+                                    "isResolved": False,
+                                    "path": "a.py",
+                                    "comments": {
+                                        "totalCount": 1,
+                                        "nodes": [
+                                            {
+                                                "databaseId": 1,
+                                                "body": "modelTier contradicts docs",
+                                                "createdAt": "2026-01-01T00:00:00Z",
+                                                "author": {"login": "bot"},
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+            }
+
+        def fake_filter(nodes):
+            return [node for node in nodes if node.get("isResolved") is False]
+
+        def fake_transform(node):
+            return {
+                "thread_id": node.get("id"),
+                "path": node.get("path"),
+                "first_comment_body": node["comments"]["nodes"][0]["body"],
+            }
+
+        threads = mod._fetch_unresolved_threads_with_clients(
+            "owner", "repo", 1, fake_graphql, fake_filter, fake_transform,
+        )
+
+        query = queries[0][0]
+        assert "path" in query
+        assert "body" in query
+        assert threads == [
+            {
+                "thread_id": "thread-1",
+                "path": "a.py",
+                "first_comment_body": "modelTier contradicts docs",
+            },
+        ]
+
+    def test_fetch_failure_exits_3(self):
+        mod = _load_module()
+
+        def fake_graphql(query, variables):
+            raise RuntimeError("network down")
+
+        try:
+            mod._fetch_unresolved_threads_with_clients(
+                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+            )
+        except SystemExit as exc:
+            assert exc.code == 3
+        else:
+            raise AssertionError("expected SystemExit")
