@@ -26,6 +26,7 @@ Ground architectural findings in the project's design artifacts. All paths are u
 - Conway's Law (`.claude/skills/decision-critic/references/mental-models-conways-law.md`): apply when the diff crosses a module boundary. Check that the proposed boundary follows the domain, not the org chart, and that the teams behind components that must integrate actually communicate.
 - `SkillForge` multi-lens framework (`.claude/skills/SkillForge/references/multi-lens-framework.md`): apply to cross-cutting decisions that span more than one module or context.
 - `.claude/rules/clean-architecture.md`, `.claude/rules/domain-driven-design.md`, `.claude/rules/enterprise-patterns.md`: cite the specific rule a finding maps to for bounded-context, anemic-domain, dependency-direction, and persistence-boundary concerns.
+- `.claude/skills/observability/references/distributed-systems-fallacies.md`: the 8 Fallacies of Distributed Computing. Use it when the change adds or restructures a call across a process boundary (HTTP, MCP, child process, queue, orchestration step). Check that the design does not assume the network is reliable, zero-latency, secure, or topologically fixed.
 
 ## Analysis Focus Areas
 
