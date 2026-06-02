@@ -123,6 +123,13 @@ def test_get_repo_root_resolves_to_marker_ancestor() -> None:
     assert (root / ".git").exists() or (root / ".claude").exists()
 
 
+def test_get_repo_root_accepts_root_directory_as_start() -> None:
+    """A repo root start path is checked before its parents."""
+    root = get_repo_root(REPO_ROOT)
+
+    assert root == REPO_ROOT
+
+
 def test_default_cache_root_anchors_to_repo_not_cwd(
     scratch_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

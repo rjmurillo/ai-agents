@@ -21,10 +21,11 @@ def get_repo_root(start: Path | None = None) -> Path:
     to this module's own directory when no marker is found, never CWD.
     """
     here = (start or Path(__file__)).resolve()
-    for parent in here.parents:
-        if (parent / ".git").exists() or (parent / ".claude").exists():
-            return parent
-    return here.parent
+    start_dir = here if here.is_dir() else here.parent
+    for candidate in (start_dir, *start_dir.parents):
+        if (candidate / ".git").exists() or (candidate / ".claude").exists():
+            return candidate
+    return start_dir
 
 
 class CacheGuardConfigError(ValueError):
