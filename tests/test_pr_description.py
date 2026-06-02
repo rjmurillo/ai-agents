@@ -209,3 +209,9 @@ class TestInlineCitationStripping:
         extract = self._import_extract()
         body = "The proper `scripts/config.py` file is part of this change."
         assert "scripts/config.py" in extract(body)
+
+    def test_citation_cue_does_not_cross_line_boundary(self):
+        """A cue on one line must not suppress a claim on the next line."""
+        extract = self._import_extract()
+        body = "See\n`scripts/next_line.py`: updated validator logic."
+        assert "scripts/next_line.py" in extract(body)

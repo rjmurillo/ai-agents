@@ -174,7 +174,7 @@ _INLINE_CITATION_PATTERN = re.compile(
     r"\b(?:see|per|e\.g\.|e\.g|eg\.|for example|as in|for instance"
     r"|as documented in|referenced by|defined in|introduced in"
     r"|cf\.|compare)"
-    r"[:\s(]*"
+    r"[: \t(]*"
     r"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*`",
 )
 
