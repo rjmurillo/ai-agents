@@ -79,7 +79,9 @@ def _shim_should_fire(payload):
     # and native camelCase (camelCase event names) payloads.
     # Copilot CLI sends snake_case when the event key is PascalCase,
     # camelCase when the event key is camelCase. See issue #2290.
-    tool_name = payload.get("tool_name") or payload.get("toolName")
+    tool_name = payload.get("tool_name")
+    if tool_name is None:
+        tool_name = payload.get("toolName")
     if not isinstance(tool_name, str):
         raise ValueError("hook input missing string `tool_name`/`toolName` field")
     if kind == "regex":
@@ -93,8 +95,8 @@ def _shim_should_fire(payload):
         if isinstance(tool_args, str):
             try:
                 tool_args = _json.loads(tool_args)
-            except (ValueError, TypeError):
-                pass  # leave as string for normalize to handle
+            except ValueError:
+                pass  # not valid JSON; leave as string for normalize
         norm_args = _shim_normalize_args(tool_args)
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare
