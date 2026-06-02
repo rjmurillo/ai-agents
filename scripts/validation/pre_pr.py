@@ -12,6 +12,7 @@ Validation sequence:
     5. Design Review Frontmatter (validate DESIGN-REVIEW YAML frontmatter)
     6. Build Command Exit Gates (PR #1887 retrospective Layer 2)
     7. Canonical Citation Check (heuristic mirror-claim citation; soft warn)
+    7b. Spec Contradiction Check (PR/issue vs committed frontmatter; advisory)
     8. YAML Style (check YAML style with yamllint) [skip if --quick]
     9. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
    10. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
@@ -39,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 
-class MissingScriptSkip(Exception):
+class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
     """Raised by a validation when a referenced script is absent on disk.
 
     Per ADR-042 (Python migration), several legacy PowerShell validators were
@@ -549,6 +550,31 @@ def validate_planning_artifacts(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_hook_anchoring(repo_root: Path) -> bool:
+    """Plugin hook files must anchor every script to the plugin root (#2205).
+
+    Covers both shipped plugin hook files: ``.claude/hooks/hooks.json`` (Claude,
+    ``${CLAUDE_PLUGIN_ROOT}``) and ``src/copilot-cli/hooks/hooks.json`` (Copilot).
+    Bare ``./hooks/...`` paths fail under either CLI because hooks run with
+    ``cwd`` set to the user's working directory, not the plugin install dir.
+    The Copilot shape is enforced against the generator, so this gate keeps the
+    anchored form the default and blocks a silent regression on either side.
+    """
+    script = repo_root / "scripts" / "validation" / "validate_hook_anchoring.py"
+    if not script.exists():
+        raise MissingScriptSkip("validate_hook_anchoring.py not present")
+
+    exit_code, stdout, stderr = _run_subprocess(
+        ["python3", str(script), "--repo-root", str(repo_root)]
+    )
+    if exit_code != 0:
+        # Surface the anchoring detail so the fix is actionable inline.
+        detail = stdout.rstrip() or stderr.rstrip()
+        if detail:
+            print(detail)
+    return exit_code == 0
+
+
 def _parse_yaml_frontmatter(text: str) -> dict[str, Any] | None:
     """Parse YAML frontmatter from markdown text.
 
@@ -729,6 +755,30 @@ def validate_spec_id_uniqueness(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_sync_registry(repo_root: Path) -> bool:
+    """Enforce that every shared lib package is registered for sync (Issue #1909).
+
+    `scripts/sync_plugin_lib.py:SYNC_PAIRS` lists the shared packages copied
+    into `.claude/lib/` for plugin distribution. A new lib package added
+    without a SYNC_PAIRS entry silently misses the sync and crashes a shimmed
+    hook at install time. This gate fails when a package under the source roots
+    or under `.claude/lib/` is unregistered.
+    """
+    script = repo_root / "scripts" / "validation" / "validate_sync_registry.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/validate_sync_registry.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_canonical_citations(repo_root: Path) -> bool:
     """Heuristic check for uncited mirror-claims.
 
@@ -758,6 +808,45 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
     # so CI can opt into strict mode by setting the env var.
     return exit_code == 0
+
+
+def validate_spec_contradiction(repo_root: Path) -> bool:
+    """Advisory check for PR-description vs linked-issue vs code contradictions.
+
+    Wraps ``scripts/validation/spec_contradiction.py`` in ``--advisory`` mode,
+    so a heuristic false positive never blocks the local pre-PR cycle. The
+    script catches the PR #1897 round-7 loop locally (Issue #1894 claimed
+    ``model_tier: sonnet`` while the committed agent frontmatter shipped
+    ``model: opus``), which CI's "Validate Spec Coverage" gate surfaced only
+    after each push. Always returns True; the WARN output is the signal.
+
+    See Issue #1920 and the retrospective at
+    ``.agents/retrospective/2026-05-08-pr-1897-confident-incorrectness-recurrence.md``.
+    """
+    script = repo_root / "scripts" / "validation" / "spec_contradiction.py"
+    if not script.exists():
+        print("[WARNING] spec_contradiction.py not found (skipping)")
+        return True
+
+    base_ref = _resolve_branch_base_ref(repo_root)
+    cmd = [
+        sys.executable,
+        str(script),
+        "--repo-root",
+        str(repo_root),
+        "--advisory",
+    ]
+    if base_ref:
+        cmd.extend(["--base", base_ref])
+    exit_code, stdout, stderr = _run_subprocess(cmd)
+    if stdout.strip():
+        print(stdout.strip())
+    if stderr.strip():
+        print(stderr.strip(), file=sys.stderr)
+    # Advisory: the wrapped script already exits 0 under --advisory, so any
+    # non-zero exit here is a config error (e.g. could not resolve repo). Do
+    # not block the pre-PR cycle on it; surface the output and pass.
+    return True
 
 
 def validate_agent_drift(repo_root: Path) -> bool:
@@ -1159,6 +1248,13 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_spec_id_uniqueness(repo_root),
     )
 
+    # 3.77 Sync Registry Provenance (Issue #1909)
+    run_validation(
+        "Sync Registry Provenance",
+        state,
+        lambda: validate_sync_registry(repo_root),
+    )
+
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
     # STRICT_CANONICAL_CHECK=1; PR #1887 retrospective Layer 4)
     run_validation(
@@ -1172,6 +1268,15 @@ def main(argv: list[str] | None = None) -> int:
         "Em/en-dash Prohibition",
         state,
         lambda: validate_dash_prohibition(repo_root),
+    )
+
+    # 3.87 Spec Contradiction Check (advisory; Issue #1920). Catches the
+    # PR #1897 round-7 loop (linked issue claims one model tier, committed
+    # agent frontmatter ships another) locally instead of after each push.
+    run_validation(
+        "Spec Contradiction Check",
+        state,
+        lambda: validate_spec_contradiction(repo_root),
     )
 
     # 3.9 YAML Style (skip if quick)
@@ -1218,6 +1323,14 @@ def main(argv: list[str] | None = None) -> int:
         "Plugin Version Bump",
         state,
         lambda: validate_plugin_version_bump(repo_root),
+    )
+
+    # 6c2. Hook Anchoring (Claude + Copilot plugin hooks.json must anchor to the
+    # plugin root; bare paths regressed Copilot CLI in #2205, same trap on Claude)
+    run_validation(
+        "Hook Anchoring (Claude + Copilot)",
+        state,
+        lambda: validate_hook_anchoring(repo_root),
     )
 
     # 6d. Git Hooks Installed (local clone must run the canonical .githooks;
