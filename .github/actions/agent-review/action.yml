@@ -15,8 +15,12 @@ description: 'Runs AI-powered review for a specific agent with conditional execu
 
 inputs:
   agent:
-    description: 'Agent name (security, qa, analyst, architect, devops, roadmap)'
+    description: 'Agent name (canonical quality gate axis)'
     required: true
+  review-agent:
+    description: 'Copilot CLI agent to invoke; defaults to the quality gate axis name'
+    required: false
+    default: ''
   emoji:
     description: 'Emoji for agent display'
     required: true
@@ -119,7 +123,7 @@ runs:
       id: review
       uses: ./.github/actions/ai-review
       with:
-        agent: ${{ inputs.agent }}
+        agent: ${{ inputs.review-agent != '' && inputs.review-agent || inputs.agent }}
         context-type: pr-diff
         pr-number: ${{ inputs.pr-number }}
         prompt-file: ${{ inputs.prompt-file }}
@@ -128,8 +132,9 @@ runs:
         copilot-token: ${{ inputs.copilot-token }}
         additional-context: ${{ inputs.additional-context }}
 
-    # Save results to cache directory for future runs
+    # Save results to cache directory for future runs.
     - name: Populate cache directory
+      id: populate-cache
       if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
       shell: bash
       env:
@@ -137,25 +142,10 @@ runs:
         VERDICT: ${{ steps.review.outputs.verdict }}
         FINDINGS: ${{ steps.review.outputs.findings }}
         INFRA_FAILURE: ${{ steps.review.outputs.infrastructure-failure }}
-      run: |
-        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
-          exit 1
-        fi
-        # Only cache successful reviews (not infrastructure failures)
-        if [ "$INFRA_FAILURE" = "true" ]; then
-          echo "Skipping cache save: infrastructure failure"
-          exit 0
-        fi
-        CACHE_DIR="ai-review-cache/$AGENT"
-        mkdir -p "$CACHE_DIR"
-        printf '%s' "${VERDICT:-NEEDS_REVIEW}" > "$CACHE_DIR/verdict.txt"
-        printf '%s' "$FINDINGS" > "$CACHE_DIR/findings.txt"
-        printf '%s' "${INFRA_FAILURE:-false}" > "$CACHE_DIR/infrastructure-failure.txt"
-        echo "Populated cache directory for $AGENT"
+      run: python3 scripts/ai_review_common/cache_guard.py
 
     - name: Save cache
-      if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
+      if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != '' && steps.populate-cache.outputs.cache_populated == 'true'
       uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
       with:
         path: ai-review-cache/${{ inputs.agent }}
@@ -175,7 +165,7 @@ runs:
       run: |
         $ErrorActionPreference = 'Stop'
         # CWE-22 mitigation: Validate agent name against allowlist
-        $allowedAgents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+        $allowedAgents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
         if ($env:AGENT -notin $allowedAgents) {
           throw "Invalid agent name: $($env:AGENT). Must be one of: $($allowedAgents -join ', ')"
         }

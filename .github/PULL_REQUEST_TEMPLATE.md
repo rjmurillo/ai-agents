@@ -4,9 +4,14 @@
 Code review norms for this repo: assume competence and goodwill on both sides.
 Authors: provide context, satisfy preconditions, state expectations.
 Reviewers: explain *why*, reply within ~1 business day, prefer "approve with
-suggestions" for minor issues. The "Notes for Reviewers" section near the
-bottom of this template renders the full norms; see also
+suggestions" for minor issues. Canonical norms:
+[.agents/governance/code-review-norms.md](https://github.com/rjmurillo/ai-agents/blob/main/.agents/governance/code-review-norms.md).
+Canonical code quality standards:
+[.agents/governance/code-quality.md](https://github.com/rjmurillo/ai-agents/blob/main/.agents/governance/code-quality.md).
+Both are registered in
 [.gemini/styleguide.md](https://github.com/rjmurillo/ai-agents/blob/main/.gemini/styleguide.md).
+The "Notes for Reviewers" section near the bottom renders a summary that links
+back to the canonical file for authority.
 -->
 
 ## Summary
@@ -132,7 +137,7 @@ substance, not on catching what tooling already catches.
 - [ ] Builds locally (or N/A)
 - [ ] Pre-PR validation passed (`python3 scripts/validation/pre_pr.py`; pass `--quick` to skip slow validations or `--skip-tests` for very fast iterations)
 - [ ] Lint and formatting clean (scoped to changed files)
-- [ ] Code follows project style guidelines ([.gemini/styleguide.md](https://github.com/rjmurillo/ai-agents/blob/main/.gemini/styleguide.md))
+- [ ] Code follows project style guidelines ([.gemini/styleguide.md](https://github.com/rjmurillo/ai-agents/blob/main/.gemini/styleguide.md)) and code quality standards ([.agents/governance/code-quality.md](https://github.com/rjmurillo/ai-agents/blob/main/.agents/governance/code-quality.md))
 - [ ] Self-review completed (read the diff as if you did not write it)
 - [ ] Comments added only where the *why* is non-obvious
 - [ ] Documentation updated (if applicable)
@@ -142,6 +147,8 @@ substance, not on catching what tooling already catches.
 
 <details>
 <summary>Review norms (expand)</summary>
+
+Canonical source: [.agents/governance/code-review-norms.md](https://github.com/rjmurillo/ai-agents/blob/main/.agents/governance/code-review-norms.md). The summary below is for convenience; the canonical file is authoritative.
 
 - **Assume competence and goodwill.** A "bad" PR usually means one party has information the other does not.
 - **Explain *why*, not just *what*.** "This is wrong because..." beats "this is wrong."
