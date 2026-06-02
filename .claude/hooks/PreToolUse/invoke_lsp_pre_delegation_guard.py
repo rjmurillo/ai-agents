@@ -196,21 +196,16 @@ def provider_available(project_dir: str) -> bool:
     could have pre-resolved, so the guard must fail-open (ALLOW).
     """
     languages = configured_languages(project_dir)
-    if languages:
-        for language in languages:
-            ext = representative_extension_for_language(language)
-            if not ext:
-                continue
-            probe_target = f"lsp_probe{ext}"
-            if detect_providers(probe_target, SYMBOLS_OVERVIEW, project_dir):
-                return True
-        # All configured languages probed empty: also try the historic Python
-        # fallback so an unusual config (e.g. only non-mapped languages) does
-        # not skip the native LSP tier when a .py file is present in the repo.
-        providers = detect_providers(_PROVIDER_PROBE_TARGET, SYMBOLS_OVERVIEW, project_dir)
-        return bool(providers)
+    for language in languages:
+        ext = representative_extension_for_language(language)
+        if not ext:
+            continue
+        probe_target = f"lsp_probe{ext}"
+        if detect_providers(probe_target, SYMBOLS_OVERVIEW, project_dir):
+            return True
 
-    # No configured languages at all: preserve historic behavior.
+    # Fall back to the historic Python probe when no configured language has an
+    # overview-capable provider or no languages are configured.
     providers = detect_providers(_PROVIDER_PROBE_TARGET, SYMBOLS_OVERVIEW, project_dir)
     return bool(providers)
 
