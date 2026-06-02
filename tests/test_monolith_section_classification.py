@@ -16,6 +16,7 @@ sections, so ``top_level_sections`` skips them.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -32,29 +33,47 @@ MONOLITHS = (
 
 
 def top_level_sections(text: str) -> list[str]:
-    """Return titles of fence-aware top-level ``## `` headings.
-
-    A line that toggles a fenced code block (``` or ~~~) flips fence state, and
-    any ``## `` line while inside a fence is treated as content, not a heading.
-    """
+    """Return titles of fence-aware top-level ``## `` headings."""
     titles: list[str] = []
-    in_fence = False
+    active_fence: str | None = None
     for line in text.split("\n"):
         stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_fence = not in_fence
+        fence_marker = stripped[:3]
+        if fence_marker in ("```", "~~~"):
+            if active_fence is None:
+                active_fence = fence_marker
+            elif active_fence == fence_marker:
+                active_fence = None
             continue
-        if not in_fence and line.startswith("## "):
+        if active_fence is None and line.startswith("## "):
             titles.append(line[3:].strip())
     return titles
+
+
+def audit_mentions_section(audit_text: str, monolith_name: str, title: str) -> bool:
+    """Return whether a section title appears in the monolith's table block."""
+    monolith_heading = f"## {monolith_name}"
+    next_monolith_heading = r"\n## [A-Z][A-Z-]+\.md"
+    block_match = re.search(
+        rf"^{re.escape(monolith_heading)}.*?(?={next_monolith_heading}|\Z)",
+        audit_text,
+        flags=re.M | re.S,
+    )
+    if block_match is None:
+        return False
+    title_cell = re.escape(title)
+    title_pattern = rf"^\|\s*(?:\d+\.\s*)?{title_cell}\s*\|"
+    return re.search(title_pattern, block_match[0], re.M) is not None
 
 
 def test_top_level_sections_skips_fenced_headings() -> None:
     text = (
         "## Real One\n"
+        "~~~\n"
         "```\n"
         "## Fenced Not A Section\n"
         "```\n"
+        "~~~\n"
         "## Real Two\n"
     )
     assert top_level_sections(text) == ["Real One", "Real Two"]
@@ -79,7 +98,11 @@ def test_every_monolith_section_is_classified(monolith: Path) -> None:
     audit_text = ANALYSIS_DOC.read_text(encoding="utf-8")
     sections = top_level_sections(monolith.read_text(encoding="utf-8"))
     assert sections, f"no top-level sections found in {monolith.name}"
-    missing = [title for title in sections if title not in audit_text]
+    missing = [
+        title
+        for title in sections
+        if not audit_mentions_section(audit_text, monolith.name, title)
+    ]
     assert not missing, (
         f"{monolith.name} sections absent from the classification doc: {missing}"
     )
@@ -90,6 +113,7 @@ def test_audit_records_total_section_count() -> None:
         len(top_level_sections(path.read_text(encoding="utf-8"))) for path in MONOLITHS
     )
     audit_text = ANALYSIS_DOC.read_text(encoding="utf-8")
-    assert f"**{total}**" in audit_text, (
+    total_row = rf"^\|\s*\*\*Total\*\*\s*\|\s*\*\*{total}\*\*\s*\|"
+    assert re.search(total_row, audit_text, re.M), (
         f"audit total tally must state {total} sections"
     )
