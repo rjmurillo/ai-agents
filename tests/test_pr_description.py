@@ -149,6 +149,8 @@ class TestInlineCitationStripping:
             _REPO_ROOT / "scripts" / "validation" / "pr_description.py"
         )
         spec = importlib.util.spec_from_file_location("pr_desc_mod", pr_desc_path)
+        assert spec is not None
+        assert spec.loader is not None
         mod = importlib.util.module_from_spec(spec)
         _sys.modules["pr_desc_mod"] = mod
         spec.loader.exec_module(mod)
