@@ -47,6 +47,8 @@ Before addressing comments, gather full context:
 2. **Check merge eligibility**: Verify `mergeable=MERGEABLE` and no conflicts.
 3. **Review failing checks**: Use `get_pr_checks` script. Handle failures per `check_failure_actions` table in config.
 
+After you resolve the last thread on a PR with live bot reviewers (Copilot, Devin), do NOT trust a single `get_unresolved_threads` snapshot. A bot scan can land 30 to 120 seconds after your push and reopen the count. Run the `wait_for_settled_zero` script from config to confirm the count has settled: it polls and exits 0 only after three consecutive complete-and-zero readings 180s apart. This closes the bot-settle gap that produced the PR #1965 "0 unresolved" lie. The completion gate below is a one-shot verdict and does not settle over time.
+
 ### Step 3: Create Worktrees (if --parallel)
 
 ```bash

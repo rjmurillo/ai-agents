@@ -31,7 +31,7 @@ get_category = _mod.get_category
 # Helpers
 # ---------------------------------------------------------------------------
 
-_AGENTS = ("security", "qa", "analyst", "architect", "devops", "roadmap")
+_AGENTS = _mod._AGENTS
 
 
 def _make_argv(verdicts: dict[str, str], infra: dict[str, str] | None = None) -> list[str]:
@@ -107,8 +107,8 @@ class TestBuildParser:
 
     def test_defaults_to_empty(self, monkeypatch):
         for agent in _AGENTS:
-            monkeypatch.delenv(f"{agent.upper()}_VERDICT", raising=False)
-            monkeypatch.delenv(f"{agent.upper()}_INFRA", raising=False)
+            monkeypatch.delenv(f"{_mod.agent_env_name(agent)}_VERDICT", raising=False)
+            monkeypatch.delenv(f"{_mod.agent_env_name(agent)}_INFRA", raising=False)
         args = build_parser().parse_args([])
         assert args.security_verdict == ""
 
