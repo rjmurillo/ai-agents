@@ -48,22 +48,25 @@ inputs:
     required: false
     default: 'false'
 
+# A cache hit only counts when the cached verdict passed validation
+# (steps.cache-validate.outputs.cache-valid == 'true'). A hit with a malformed
+# verdict is bypassed and the fresh review output is used instead (Issue #2195).
 outputs:
   verdict:
     description: 'Review verdict (PASS, WARN, FAIL, CRITICAL_FAIL, REJECTED, NEEDS_REVIEW)'
-    value: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
+    value: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
   findings:
     description: 'Review findings'
-    value: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
+    value: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
   infrastructure-failure:
     description: 'Whether review failed due to infrastructure issues'
-    value: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
+    value: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
   retry-count:
     description: 'Number of retries attempted'
-    value: ${{ steps.cache.outputs.cache-hit == 'true' && '0' || steps.review.outputs.retry-count }}
+    value: ${{ steps.cache-validate.outputs.cache-valid == 'true' && '0' || steps.review.outputs.retry-count }}
   cache-hit:
-    description: 'Whether cached results were used'
-    value: ${{ steps.cache.outputs.cache-hit == 'true' && 'true' || 'false' }}
+    description: 'Whether cached results were used (only true for a valid cached verdict)'
+    value: ${{ steps.cache-validate.outputs.cache-valid == 'true' && 'true' || 'false' }}
 
 runs:
   using: 'composite'
@@ -89,8 +92,32 @@ runs:
         path: ai-review-cache/${{ inputs.agent }}
         key: ai-review-${{ inputs.agent }}-${{ inputs.commit-sha }}-${{ hashFiles(inputs.prompt-file) }}
 
-    - name: Load cached results
+    # A cache entry replays on every rerun until the commit SHA changes. A
+    # truncated or malformed verdict cached once would be served forever for
+    # this commit (Issue #2195). Validate the cached verdict before serving it;
+    # an invalid entry is treated as a miss so the review re-runs below. Logic
+    # lives in scripts/validate_cached_verdict.py per ADR-006.
+    - name: Validate cached verdict
       if: inputs.should-run == 'true' && steps.cache.outputs.cache-hit == 'true'
+      id: cache-validate
+      shell: bash
+      env:
+        AGENT: ${{ inputs.agent }}
+      run: |
+        if [[ ! "$AGENT" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
+          exit 1
+        fi
+        VERDICT_FILE="ai-review-cache/$AGENT/verdict.txt"
+        if python3 "$GITHUB_WORKSPACE/scripts/validate_cached_verdict.py" --file "$VERDICT_FILE"; then
+          echo "cache-valid=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::Cached verdict for $AGENT is invalid or malformed; bypassing cache and re-running review (Issue #2195)."
+          echo "cache-valid=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Load cached results
+      if: inputs.should-run == 'true' && steps.cache-validate.outputs.cache-valid == 'true'
       id: cached-results
       shell: bash
       env:
@@ -114,8 +141,11 @@ runs:
           echo "${DELIMITER}"
         } >> $GITHUB_OUTPUT
 
+    # Runs on a cache miss OR when the cached verdict failed validation
+    # (cache-validate sets cache-valid=false). cache-validate only runs on a
+    # cache hit, so on a true miss its output is empty and this condition is met.
     - name: ${{ inputs.emoji }} ${{ inputs.agent }} Review
-      if: inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true'
+      if: inputs.should-run == 'true' && steps.cache-validate.outputs.cache-valid != 'true'
       id: review
       uses: ./.github/actions/ai-review
       with:
@@ -128,9 +158,13 @@ runs:
         copilot-token: ${{ inputs.copilot-token }}
         additional-context: ${{ inputs.additional-context }}
 
-    # Save results to cache directory for future runs
+    # Save results to cache directory for future runs.
+    # Skips infrastructure failures (handled before this step) and malformed
+    # verdicts: a truncated or non-token verdict cached once replays on every
+    # rerun until the commit SHA changes (Issue #2195). The verdict-shape check
+    # lives in scripts/validate_cached_verdict.py per ADR-006.
     - name: Populate cache directory
-      if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
+      if: always() && inputs.should-run == 'true' && steps.cache-validate.outputs.cache-valid != 'true' && inputs.commit-sha != ''
       shell: bash
       env:
         AGENT: ${{ inputs.agent }}
@@ -142,20 +176,32 @@ runs:
           echo "::error::Invalid agent name: $AGENT. Must match '^[a-zA-Z0-9_-]+$'."
           exit 1
         fi
+        CACHE_DIR="ai-review-cache/$AGENT"
+        # Clear any stale entry restored from an invalid-cache bypass so a
+        # skipped save below cannot re-persist the poisoned verdict.
+        rm -f "$CACHE_DIR/verdict.txt" "$CACHE_DIR/findings.txt" "$CACHE_DIR/infrastructure-failure.txt"
         # Only cache successful reviews (not infrastructure failures)
         if [ "$INFRA_FAILURE" = "true" ]; then
           echo "Skipping cache save: infrastructure failure"
           exit 0
         fi
-        CACHE_DIR="ai-review-cache/$AGENT"
+        # Do not cache a malformed verdict. An invalid entry would be served on
+        # every rerun for this commit until the SHA changes (Issue #2195).
+        if ! python3 "$GITHUB_WORKSPACE/scripts/validate_cached_verdict.py" --verdict "$VERDICT"; then
+          echo "::warning::Skipping cache save for $AGENT: verdict is malformed and would poison the per-commit cache (Issue #2195)."
+          exit 0
+        fi
         mkdir -p "$CACHE_DIR"
-        printf '%s' "${VERDICT:-NEEDS_REVIEW}" > "$CACHE_DIR/verdict.txt"
+        printf '%s' "$VERDICT" > "$CACHE_DIR/verdict.txt"
         printf '%s' "$FINDINGS" > "$CACHE_DIR/findings.txt"
         printf '%s' "${INFRA_FAILURE:-false}" > "$CACHE_DIR/infrastructure-failure.txt"
         echo "Populated cache directory for $AGENT"
 
+    # Only save the cache when the directory was populated above. If the
+    # Populate step skipped (infra failure or malformed verdict), the directory
+    # is absent and this is a no-op (continue-on-error covers it).
     - name: Save cache
-      if: always() && inputs.should-run == 'true' && steps.cache.outputs.cache-hit != 'true' && inputs.commit-sha != ''
+      if: always() && inputs.should-run == 'true' && steps.cache-validate.outputs.cache-valid != 'true' && inputs.commit-sha != '' && hashFiles(format('ai-review-cache/{0}/verdict.txt', inputs.agent)) != ''
       uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
       with:
         path: ai-review-cache/${{ inputs.agent }}
@@ -167,11 +213,11 @@ runs:
       shell: pwsh -NoProfile -Command "& '{0}'"
       env:
         AGENT: ${{ inputs.agent }}
-        VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
-        FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
-        INFRASTRUCTURE_FAILURE: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
-        RETRY_COUNT: ${{ steps.cache.outputs.cache-hit == 'true' && '0' || steps.review.outputs.retry-count }}
-        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        VERDICT: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
+        INFRASTRUCTURE_FAILURE: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
+        RETRY_COUNT: ${{ steps.cache-validate.outputs.cache-valid == 'true' && '0' || steps.review.outputs.retry-count }}
+        CACHE_HIT: ${{ steps.cache-validate.outputs.cache-valid == 'true' && 'true' || 'false' }}
       run: |
         $ErrorActionPreference = 'Stop'
         # CWE-22 mitigation: Validate agent name against allowlist
@@ -227,13 +273,13 @@ runs:
       env:
         AGENT: ${{ inputs.agent }}
         EMOJI: ${{ inputs.emoji }}
-        VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
-        FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
+        VERDICT: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
         RUN_ID: ${{ github.run_id }}
         SERVER_URL: ${{ github.server_url }}
         REPOSITORY: ${{ github.repository }}
         PR_NUMBER: ${{ inputs.pr-number }}
-        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+        CACHE_HIT: ${{ steps.cache-validate.outputs.cache-valid == 'true' && 'true' || 'false' }}
       run: |
         import os
         import sys
@@ -299,9 +345,9 @@ runs:
       env:
         AGENT: ${{ inputs.agent }}
         EMOJI: ${{ inputs.emoji }}
-        VERDICT: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
-        FINDINGS: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
-        INFRASTRUCTURE_FAILURE: ${{ steps.cache.outputs.cache-hit == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
+        VERDICT: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.verdict || steps.review.outputs.verdict }}
+        FINDINGS: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.findings || steps.review.outputs.findings }}
+        INFRASTRUCTURE_FAILURE: ${{ steps.cache-validate.outputs.cache-valid == 'true' && steps.cached-results.outputs.infrastructure_failure || steps.review.outputs.infrastructure-failure }}
       run: |
         $ErrorActionPreference = 'Stop'
         $agent = $env:AGENT
