@@ -263,7 +263,7 @@ def _original_main(stdin_bytes):
 
     # Recursive-scan flags for grep (`grep -r`, `-R`, `--recursive`). When present,
     # a grep with no explicit file target scans a directory tree, not stdin.
-    _RECURSIVE_FLAG = re.compile(r"(?:^|\s)(?:-[a-zA-Z]*[rR]\b|--recursive\b)")
+    _RECURSIVE_FLAG = re.compile(r"(?:^|\s)(?:-[a-zA-Z]*[rR][a-zA-Z]*\b|--recursive\b)")
 
     # Grep-family binaries that default to recursively scanning the working tree
     # even with no path argument (ripgrep, the silver searcher, ack). For these a
@@ -313,7 +313,11 @@ def _original_main(stdin_bytes):
         if dir_args:
             # An explicit directory argument fixes the scope. Gate only when at
             # least one named directory resolves inside the repo.
-            return any(_resolve_in_repo(arg, project_dir) is not None for arg in dir_args)
+            for arg in dir_args:
+                resolved = _resolve_in_repo(arg, project_dir)
+                if resolved is not None and resolved.is_dir():
+                    return True
+            return False
         # No directory argument: a recursive flag or default-recursive binary scans
         # the working tree (the repo).
         if _RECURSIVE_FLAG.search(segment):
@@ -339,11 +343,7 @@ def _original_main(stdin_bytes):
                 continue
             if token.startswith("-"):
                 continue
-            if token in (".", "./", ".."):
-                dirs.append(token)
-            elif token.endswith("/"):
-                dirs.append(token)
-            elif token.startswith("/"):
+            if token in (".", "./", "..") or "/" in token or "\\" in token:
                 dirs.append(token)
         return dirs
 

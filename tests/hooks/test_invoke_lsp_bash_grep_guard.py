@@ -150,6 +150,9 @@ class TestDirectoryScopeHelpers:
     def test_recursive_flag_is_directory_scope(self):
         assert guard._is_directory_scope('grep -r "Foo" .', str(REPO_ROOT)) is True
 
+    def test_combined_recursive_flag_is_directory_scope_without_path(self):
+        assert guard._is_directory_scope('grep -rn "Foo"', str(REPO_ROOT)) is True
+
     def test_long_recursive_flag_is_directory_scope(self):
         assert (
             guard._is_directory_scope('grep --recursive "Foo" .', str(REPO_ROOT))
@@ -180,6 +183,18 @@ class TestDirectoryScopeHelpers:
 
     def test_directory_arguments_collects_trailing_slash(self):
         assert guard._directory_arguments("grep -r Foo src/") == ["src/"]
+
+    def test_directory_arguments_collects_parent_relative_path(self):
+        assert guard._directory_arguments("grep -r Foo ../other_repo") == [
+            "../other_repo"
+        ]
+
+    def test_in_repo_file_argument_is_not_directory_scope(self):
+        readme = REPO_ROOT / "README.md"
+        assert (
+            guard._is_directory_scope(f'grep -r "Foo" {readme}', str(REPO_ROOT))
+            is False
+        )
 
 
 class TestEvaluateRepoWideScope:
