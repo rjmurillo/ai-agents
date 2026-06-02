@@ -262,9 +262,9 @@ class TestFailOpen:
         mock_stdin(_grep_input("SessionManager", glob="*.md"))
         assert guard.main() == 0
 
-    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=False)
+    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=[])
     def test_repo_wide_no_provider_allows(
-        self, _mock_repo, mock_stdin: Callable[[str], None]
+        self, _mock_repo_providers, mock_stdin: Callable[[str], None]
     ):
         # No path, no glob -> repo-wide scope. With no active programming-language
         # provider, the repo probe returns False and the guard stays fail-open.
@@ -361,21 +361,6 @@ class TestIsRepoWideScope:
         assert guard._is_repo_wide_scope("README.md", "") is False
 
 
-class TestRepoScopeProviders:
-    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
-    @patch(
-        "invoke_lsp_grep_guard.repo_programming_providers",
-        return_value=["native_lsp"],
-    )
-    def test_uses_repo_programming_providers(self, _mock_providers, _mock_dir):
-        assert guard._repo_scope_providers() == ["native_lsp"]
-
-    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
-    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=[])
-    def test_falls_back_to_native_lsp(self, _mock_providers, _mock_dir):
-        assert guard._repo_scope_providers() == ["native_lsp"]
-
-
 # ---------------------------------------------------------------------------
 # Unit tests: _resolve_in_repo
 # ---------------------------------------------------------------------------
@@ -404,12 +389,10 @@ class TestResolveInRepo:
 class TestRepoWideGating:
     @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
     @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=["serena"])
-    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=True)
     @patch("invoke_lsp_grep_guard.detect_providers", return_value=["serena"])
     def test_repo_wide_blocks_when_provider_active(
         self,
         _mock_detect,
-        _mock_repo,
         _mock_repo_providers,
         _mock_dir,
         mock_stdin: Callable[[str], None],
@@ -423,12 +406,12 @@ class TestRepoWideGating:
         assert "LSP-FIRST" in captured.out
         assert "find_symbol" in captured.out
 
-    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=True)
+    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=["serena"])
     @patch("invoke_lsp_grep_guard.detect_providers", return_value=["serena"])
     def test_in_repo_directory_blocks_when_provider_active(
         self,
         _mock_detect,
-        _mock_repo,
+        _mock_repo_providers,
         mock_stdin: Callable[[str], None],
     ):
         # A directory-scoped Grep (path is a real in-repo directory) also gates.
@@ -441,9 +424,9 @@ class TestRepoWideGating:
             mock_stdin(_grep_input("SessionManager", path="scripts"))
             assert guard.main() == 2
 
-    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=False)
+    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=[])
     def test_out_of_repo_path_not_gated(
-        self, _mock_repo, mock_stdin: Callable[[str], None]
+        self, _mock_repo_providers, mock_stdin: Callable[[str], None]
     ):
         # (b) An out-of-repo path is never gated. _is_repo_wide_scope returns
         # False for /tmp, so the repo probe is not even reached, but assert the
@@ -452,18 +435,18 @@ class TestRepoWideGating:
         assert guard.main() == 0
 
     @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
-    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=False)
+    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=[])
     def test_provider_less_repo_not_gated(
-        self, _mock_repo, _mock_dir, mock_stdin: Callable[[str], None]
+        self, _mock_repo_providers, _mock_dir, mock_stdin: Callable[[str], None]
     ):
         # (c) A provider-less repo: repo-wide grep stays fail-open.
         mock_stdin(_grep_input("SessionManager"))
         assert guard.main() == 0
 
     @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
-    @patch("invoke_lsp_grep_guard.repo_has_programming_provider", return_value=True)
+    @patch("invoke_lsp_grep_guard.repo_programming_providers", return_value=["serena"])
     def test_md_glob_not_gated_even_with_provider(
-        self, _mock_repo, _mock_dir, mock_stdin: Callable[[str], None]
+        self, _mock_repo_providers, _mock_dir, mock_stdin: Callable[[str], None]
     ):
         # A deliberate non-code glob (*.md) is not a repo-wide code scan; allow
         # even when a programming provider is active.

@@ -105,7 +105,6 @@ from hook_utilities.lsp_provider import (  # noqa: E402
     SYMBOL_NAVIGATION,
     detect_providers,
     is_code_target,
-    repo_has_programming_provider,
     repo_programming_providers,
 )
 from hook_utilities.lsp_symbols import is_code_symbol  # noqa: E402
@@ -284,24 +283,11 @@ def _evaluate(hook_input: dict) -> tuple[list[str], list[str]] | None:
     # (empty path, or a path that is an in-repo directory) still scans navigable
     # code, so gate it when the repo has an active programming-language provider.
     # An out-of-repo path or a provider-less repo stays fail-open.
-    if _is_repo_wide_scope(search_path, glob) and repo_has_programming_provider(
-        get_project_directory()
-    ):
-        return symbols, _repo_scope_providers()
+    if _is_repo_wide_scope(search_path, glob):
+        providers = repo_programming_providers(get_project_directory())
+        if providers:
+            return symbols, providers
     return None
-
-
-def _repo_scope_providers() -> list[str]:
-    """Providers to name in repo-wide guidance, via a representative .py file.
-
-    A repo-wide Grep has no single file extension, so the guidance uses the
-    provider list for a representative programming-language file (``.py``) to
-    name the right navigation tools. Falls back to ``['serena']`` if detection
-    returns nothing (it should not, since the caller already confirmed a
-    provider is active).
-    """
-    providers = repo_programming_providers(get_project_directory())
-    return providers or ["native_lsp"]
 
 
 def main() -> int:
