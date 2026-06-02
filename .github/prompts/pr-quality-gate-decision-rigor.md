@@ -24,6 +24,7 @@ Ground findings in the project's decision artifacts. All paths are under `.claud
 - `decision-critic` skill: stress-tests reasoning before commitment by surfacing hidden assumptions, verifying claims, and generating adversarial perspectives. Invoke when an ADR or design review is staged.
 - `pre-mortem` skill: prospective hindsight. Imagine the decision has failed, then work backward to the causes. Invoke when the change commits to a path that is expensive to reverse.
 - `.claude/skills/decision-critic/references/critical-thinking-survivorship-bias.md`: the survivorship-bias reference. Use it to check that a decision citing success evidence has also examined the failures that used the same approach but are not visible.
+- `.claude/skills/decision-critic/references/decision-pre-committed-metrics.md`: the pre-committed-metrics reference. Use it when the diff stages acceptance criteria, an eval target, or a success metric. Check that the threshold and its consequence are written down before the work, not read off whatever number looks good after.
 
 ## Analysis Focus Areas
 

@@ -23,6 +23,8 @@ Ground findings in the project's agent-safety artifacts. All paths are under `.c
 
 - `security-scan` skill: detects CWE-78 (command injection) regex patterns in Python, PowerShell, Bash, and C# before submission. Invoke when a skill script or hook builds a shell command from input.
 - `.claude/skills/security-scan/references/autonomous-execution-guardrails.md`: the autonomous-execution guardrails reference. Use it to check that a change does not let an agent skip validation, make autonomous "won't fix" dismissals, or treat thread resolution as addressing a concern.
+- `.claude/skills/security-scan/references/agent-guardrails-template.md`: the Four Laws of agent safety (declared scope, verify before destructive ops, preserve audit trail, escalate when uncertain). Use it to name which law a change that widens agent capability fails to honor.
+- `.claude/skills/security-scan/references/agent-memory-inference-leakage.md`: the unauthorized-memory-inference reference. Use it on memory write paths to check that a write is factual capture, not a behavioral inference or a standing order the user did not authorize.
 - `threat-modeling` skill: OWASP four-question framework and STRIDE. Invoke when a change adds attack surface to an agent path (new tool access, a new input the agent acts on, a new external call).
 
 ## Analysis Focus Areas
