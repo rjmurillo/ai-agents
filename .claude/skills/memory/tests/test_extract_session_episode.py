@@ -340,6 +340,66 @@ class TestMainFunction:
         ])
         assert result == 1
 
+    def test_preserve_merges_existing_episode(self, tmp_path: Path) -> None:
+        """--preserve must merge over an existing episode without dropping
+        curated content. Refs issue #2193: pre-commit hook ran --force
+        unconditionally and silently overwrote richer existing episodes.
+        """
+        session_file = tmp_path / "2026-01-15-session-001.md"
+        session_file.write_text(SAMPLE_SESSION_LOG)
+
+        output_dir = tmp_path / "episodes"
+        output_dir.mkdir()
+        episode_file = output_dir / "episode-2026-01-15-session-001.json"
+        existing = {
+            "id": "episode-2026-01-15-session-001",
+            "timestamp": "2026-01-15T00:00:00+00:00",
+            "task": "Curated task summary that fresh extraction lacks",
+            "outcome": "success",
+            "decisions": [
+                {
+                    "decision": "Curated decision survives regeneration",
+                    "rationale": "Reviewed by maintainer",
+                }
+            ],
+            "events": [],
+            "lessons": ["Curated lesson"],
+            "metrics": {"errors": 0, "tests_passed": 5, "files_changed": 0},
+        }
+        episode_file.write_text(json.dumps(existing, indent=2) + "\n")
+
+        result = main([
+            str(session_file),
+            "--output-path", str(output_dir),
+            "--preserve",
+        ])
+        assert result == 0
+
+        merged = json.loads(episode_file.read_text())
+        decision_texts = [d.get("decision") for d in merged["decisions"]]
+        assert "Curated decision survives regeneration" in decision_texts, (
+            "--preserve must union curated decisions with fresh extraction"
+        )
+        assert "Curated lesson" in merged["lessons"], (
+            "--preserve must union curated lessons with fresh extraction"
+        )
+        assert len(merged["decisions"]) > 1, (
+            "--preserve must keep both curated and freshly extracted decisions"
+        )
+
+    def test_force_and_preserve_are_mutually_exclusive(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture
+    ) -> None:
+        session_file = tmp_path / "2026-01-15-session-002.md"
+        session_file.write_text(SAMPLE_SESSION_LOG)
+        with pytest.raises(SystemExit):
+            main([
+                str(session_file),
+                "--output-path", str(tmp_path / "episodes"),
+                "--force",
+                "--preserve",
+            ])
+
     def test_stdout_contains_json(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         session_file = tmp_path / "session-001.md"
         session_file.write_text("# Simple session\n**Status**: Done\n")
