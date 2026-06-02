@@ -710,21 +710,25 @@ class TestValidateGitHooksInstalled:
         """CI=false or CI=0 should NOT skip the check (they are non-truthy)."""
         import os
 
-        from scripts.validation.pre_pr import (
-            MissingScriptSkip,
-            validate_git_hooks_installed,
-        )
+        from scripts.validation.pre_pr import validate_git_hooks_installed
 
         (tmp_path / "scripts").mkdir()
         (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
         env = {"CI": "false"}
         with patch.dict("os.environ", env, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
+            # pytest's tmp_path lives under the test runner's own git
+            # checkout, so pin the worktree probe to False to exercise the
+            # main-checkout branch (Issue #2220 added the worktree SKIP).
             with patch(
-                "scripts.validation.pre_pr._run_subprocess"
-            ) as mock_run:
-                mock_run.return_value = (0, "OK", "")
-                assert validate_git_hooks_installed(tmp_path) is True
+                "scripts.validation.pre_pr._is_linked_worktree",
+                return_value=False,
+            ):
+                with patch(
+                    "scripts.validation.pre_pr._run_subprocess"
+                ) as mock_run:
+                    mock_run.return_value = (0, "OK", "")
+                    assert validate_git_hooks_installed(tmp_path) is True
 
     def test_missing_script_fails_closed(self, tmp_path: Path) -> None:
         import os
@@ -734,8 +738,14 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            # tmp_path has no scripts/install_git_hooks.py; expect hard failure
-            assert validate_git_hooks_installed(tmp_path) is False
+            # tmp_path has no scripts/install_git_hooks.py; expect hard failure.
+            # Pin the worktree probe to False so the missing-script branch is
+            # reached (tmp_path is under the runner's checkout; Issue #2220).
+            with patch(
+                "scripts.validation.pre_pr._is_linked_worktree",
+                return_value=False,
+            ):
+                assert validate_git_hooks_installed(tmp_path) is False
 
     def test_passes_when_check_exits_zero(self, tmp_path: Path) -> None:
         import os
@@ -748,10 +758,14 @@ class TestValidateGitHooksInstalled:
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
             with patch(
-                "scripts.validation.pre_pr._run_subprocess"
-            ) as mock_run:
-                mock_run.return_value = (0, "OK", "")
-                assert validate_git_hooks_installed(tmp_path) is True
+                "scripts.validation.pre_pr._is_linked_worktree",
+                return_value=False,
+            ):
+                with patch(
+                    "scripts.validation.pre_pr._run_subprocess"
+                ) as mock_run:
+                    mock_run.return_value = (0, "OK", "")
+                    assert validate_git_hooks_installed(tmp_path) is True
 
     def test_fails_when_check_exits_nonzero(self, tmp_path: Path) -> None:
         import os
@@ -764,7 +778,125 @@ class TestValidateGitHooksInstalled:
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
             with patch(
-                "scripts.validation.pre_pr._run_subprocess"
-            ) as mock_run:
-                mock_run.return_value = (1, "", "core.hooksPath not set")
-                assert validate_git_hooks_installed(tmp_path) is False
+                "scripts.validation.pre_pr._is_linked_worktree",
+                return_value=False,
+            ):
+                with patch(
+                    "scripts.validation.pre_pr._run_subprocess"
+                ) as mock_run:
+                    mock_run.return_value = (1, "", "core.hooksPath not set")
+                    assert validate_git_hooks_installed(tmp_path) is False
+
+    def test_skipped_in_linked_worktree(self, tmp_path: Path) -> None:
+        """A linked worktree inherits shared hooksPath; SKIP, do not fail (#2220)."""
+        import os
+
+        import pytest
+
+        from scripts.validation.pre_pr import (
+            MissingScriptSkip,
+            validate_git_hooks_installed,
+        )
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            with patch(
+                "scripts.validation.pre_pr._is_linked_worktree",
+                return_value=True,
+            ):
+                with pytest.raises(MissingScriptSkip):
+                    validate_git_hooks_installed(tmp_path)
+
+    def test_not_skipped_in_main_checkout(self, tmp_path: Path) -> None:
+        """Outside a worktree the gate still delegates to the --check script."""
+        import os
+
+        from scripts.validation.pre_pr import validate_git_hooks_installed
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            with patch(
+                "scripts.validation.pre_pr._is_linked_worktree",
+                return_value=False,
+            ):
+                with patch(
+                    "scripts.validation.pre_pr._run_subprocess"
+                ) as mock_run:
+                    mock_run.return_value = (0, "OK", "")
+                    assert validate_git_hooks_installed(tmp_path) is True
+
+
+# ---------------------------------------------------------------------------
+# _is_linked_worktree
+# ---------------------------------------------------------------------------
+
+
+class TestIsLinkedWorktree:
+    """Detect a linked worktree by comparing git-common-dir to repo_root/.git."""
+
+    def test_true_when_common_dir_differs(self, tmp_path: Path) -> None:
+        """A worktree's shared .git differs from its own .git pointer."""
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        main_git = tmp_path / "main" / ".git"
+        main_git.mkdir(parents=True)
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        with patch(
+            "scripts.validation.pre_pr._run_subprocess",
+            return_value=(0, str(main_git), ""),
+        ):
+            assert _is_linked_worktree(worktree) is True
+
+    def test_false_when_common_dir_matches_local_git(
+        self, tmp_path: Path
+    ) -> None:
+        """The main checkout's common dir resolves to its own .git directory."""
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        (tmp_path / ".git").mkdir()
+        local_git = tmp_path / ".git"
+        with patch(
+            "scripts.validation.pre_pr._run_subprocess",
+            return_value=(0, str(local_git), ""),
+        ):
+            assert _is_linked_worktree(tmp_path) is False
+
+    def test_false_on_git_failure(self, tmp_path: Path) -> None:
+        """A non-zero git exit means unknown layout; fail open (not a worktree)."""
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        with patch(
+            "scripts.validation.pre_pr._run_subprocess",
+            return_value=(128, "", "not a git repository"),
+        ):
+            assert _is_linked_worktree(tmp_path) is False
+
+    def test_false_on_empty_output(self, tmp_path: Path) -> None:
+        """Empty git-common-dir output is treated as unknown; fail open."""
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        with patch(
+            "scripts.validation.pre_pr._run_subprocess",
+            return_value=(0, "   ", ""),
+        ):
+            assert _is_linked_worktree(tmp_path) is False
+
+    def test_resolves_relative_common_dir_against_repo_root(
+        self, tmp_path: Path
+    ) -> None:
+        """A relative common dir (plain '.git') resolves against repo_root."""
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        (tmp_path / ".git").mkdir()
+        with patch(
+            "scripts.validation.pre_pr._run_subprocess",
+            return_value=(0, ".git", ""),
+        ):
+            assert _is_linked_worktree(tmp_path) is False

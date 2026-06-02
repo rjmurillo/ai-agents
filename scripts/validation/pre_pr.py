@@ -948,6 +948,37 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     )
 
 
+def _is_linked_worktree(repo_root: Path) -> bool:
+    """True when ``repo_root`` is a linked git worktree, not the main checkout.
+
+    A linked worktree's git-common-dir (the shared ``.git`` of the main
+    checkout) differs from the worktree's own ``.git`` pointer file. The main
+    checkout's git-common-dir resolves to its own ``repo_root/.git`` directory.
+    Comparing the two distinguishes the two cases.
+
+    Returns False on any git failure (fail open: treat an unknown layout as the
+    main checkout so the gate still runs).
+    """
+    exit_code, stdout, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "--git-common-dir"],
+        timeout=10,
+    )
+    if exit_code != 0:
+        return False
+    common = stdout.strip()
+    if not common:
+        return False
+    common_path = Path(common)
+    if not common_path.is_absolute():
+        common_path = repo_root / common_path
+    try:
+        common_resolved = common_path.resolve()
+        local_git = (repo_root / ".git").resolve()
+    except OSError:
+        return False
+    return common_resolved != local_git
+
+
 def validate_git_hooks_installed(repo_root: Path) -> bool:
     """Fail when the local clone is not wired to run the canonical githooks.
 
@@ -960,12 +991,26 @@ def validate_git_hooks_installed(repo_root: Path) -> bool:
     Skipped under CI: a CI checkout neither has nor should have
     ``core.hooksPath`` set to ``.githooks`` (the guards run as workflow steps,
     not local hooks), so the check is irrelevant there.
+
+    Skipped in a linked worktree: ``core.hooksPath`` lives in the shared
+    repository config, so a worktree inherits whatever the main checkout set.
+    Inside a worktree the relative ``.githooks`` value (or an absolute path the
+    main checkout wrote) does not resolve to this worktree's ``.githooks``, so
+    ``--check`` fails through no fault of the worktree. Mutating shared config
+    from a worktree to satisfy the gate would change every other worktree, so
+    SKIP with an advisory instead (Issue #2220).
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
         or os.environ.get("CI", "").lower() in ("true", "1")
     ):
         raise MissingScriptSkip("git hooks check skipped under CI")
+    if _is_linked_worktree(repo_root):
+        raise MissingScriptSkip(
+            "git hooks check skipped in linked worktree; core.hooksPath is "
+            "shared config inherited from the main checkout. Install hooks "
+            "there: python3 scripts/install_git_hooks.py"
+        )
     script = repo_root / "scripts" / "install_git_hooks.py"
     if not script.exists():
         print(
