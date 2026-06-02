@@ -1,0 +1,132 @@
+{
+  "session": {
+    "number": 1873,
+    "date": "2026-06-02",
+    "branch": "copilot/fix-copilot-cli-pretooluse-hook",
+    "startingCommit": "3ed7e336b",
+    "objective": "Verify and harden Copilot CLI hook plugin-root anchoring (PR 2206, issue 2205) with runtime-contract regression guard"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions invoked at session start"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by SessionStart context loader"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skills list loaded; used github, session-init skills"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/rules loaded via CLAUDE.md imports"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS via rules; canonical-source-mirror applied"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md index loaded; wrote decision-copilot-cli-hook-plugin-root-contract"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "copilot/fix-copilot-cli-pretooluse-hook"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On copilot/fix-copilot-cli-pretooluse-hook"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean except tracked changes"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "3ed7e336b"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionEnd MUST items verified"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ has changes"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1 files linted"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work committed: ff9425fdd (fix), 9ec75977e (gate), 64506e8fa (e2e); session artifacts committed in this commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/build_scripts/test_generate_hooks_plugin_root.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/test_validate_hook_anchoring.py -> 12 passed; RUN_CLI_E2E=1 pytest tests/e2e/test_cli_hook_e2e.py -> 2 passed; validate_hook_anchoring.py -> PASS 94 entries; ruff clean."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: none"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    {
+      "task": "Verify and harden plugin hook path anchoring for BOTH Claude and Copilot (PR 2206, issue 2205). Empirically establish the runtime env-var contract, fix PowerShell fallback asymmetry, and add an enforceable anti-regression gate plus real-CLI e2e tests.",
+      "outcome": "Empirically verified Copilot CLI 1.0.57 sets COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT (undocumented) and runs hooks with cwd=user dir; proved the generated bash command resolves end-to-end (exit 0). Verified Claude Code 2.1.159 sets CLAUDE_PLUGIN_ROOT and resolves the anchored command (exit 0). Fixed _build_copilot_entry to give PowerShell the same COPILOT->CLAUDE fallback as bash; regenerated src/copilot-cli/hooks/hooks.json (49 entries). Replaced the self-referential string-match test with a runtime-contract test; added scripts/validation/validate_hook_anchoring.py (covers Claude + Copilot, generator-derived) wired into pre_pr.py; added tests/e2e/test_cli_hook_e2e.py that vendor-installs into each real CLI. Verification: `uv run pytest tests/build_scripts/test_generate_hooks_plugin_root.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/test_validate_hook_anchoring.py` -> 12 passed. `RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py` -> 2 passed (both real CLIs). `python3 scripts/validation/validate_hook_anchoring.py` -> [PASS] 94 hook entries anchored. `uvx ruff check` -> All checks passed."
+    }
+  ],
+  "endingCommit": "64506e8fa",
+  "nextSteps": [
+    "Commit fix, gate, and e2e in atomic groups",
+    "Run session-end to finalize protocol compliance and lint",
+    "Flag CI integration of e2e (needs Copilot/Anthropic auth secrets) to maintainer"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-06-02-session-1873",
+  "session": "2026-06-02-session-1873",
+  "timestamp": "2026-06-02T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Verify and harden Copilot CLI hook plugin-root anchoring (PR 2206, issue 2205) with runtime-contract regression guard",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify and harden plugin hook path anchoring for BOTH Claude and Copilot (PR 2206, issue 2205). Empirically establish the runtime env-var contract, fix PowerShell fallback asymmetry, and add an enforceable anti-regression gate plus real-CLI e2e tests.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "test",
+      "content": "Empirically verified Copilot CLI 1.0.57 sets COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT (undocumented) and runs hooks with cwd=user dir; proved the generated bash command resolves end-to-end (exit 0). Verified Claude Code 2.1.159 sets CLAUDE_PLUGIN_ROOT and resolves the anchored command (exit 0). Fixed _build_copilot_entry to give PowerShell the same COPILOT->CLAUDE fallback as bash; regenerated src/copilot-cli/hooks/hooks.json (49 entries). Replaced the self-referential string-match test with a runtime-contract test; added scripts/validation/validate_hook_anchoring.py (covers Claude + Copilot, generator-derived) wired into pre_pr.py; added tests/e2e/test_cli_hook_e2e.py that vendor-installs into each real CLI. Verification: `uv run pytest tests/build_scripts/test_generate_hooks_plugin_root.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/test_validate_hook_anchoring.py` -> 12 passed. `RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py` -> 2 passed (both real CLIs). `python3 scripts/validation/validate_hook_anchoring.py` -> [PASS] 94 hook entries anchored. `uvx ruff check` -> All checks passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 64506e8fa",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
