@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Regression test for issue #2205: Copilot CLI hook path anchoring.
+"""Shape guard for issue #2205: Copilot CLI hook path anchoring.
 
 Copilot CLI runs hooks with ``cwd`` set to the user's working directory,
 not the plugin root, so a bare ``./hooks/...`` relative path fails to
 locate the vendored script. The generated commands must anchor the
-script path to the plugin install location via ``${COPILOT_PLUGIN_ROOT}``
-(bash, with a ``${CLAUDE_PLUGIN_ROOT}`` fallback) and
-``$env:COPILOT_PLUGIN_ROOT`` (powershell).
+script path to the plugin install location with the SAME fallback order
+in both shells: ``COPILOT_PLUGIN_ROOT`` first, then ``CLAUDE_PLUGIN_ROOT``.
+
+This module is a fast STRING-SHAPE check only. It cannot prove the path
+resolves at runtime, nor catch a wrong environment-variable name (a test
+that pins output to itself is the canonical-source-mirror anti-pattern;
+see ``.claude/rules/canonical-source-mirror.md``). The runtime contract,
+including resolution under a non-plugin ``cwd`` and the cross-shell
+fallback, is enforced by ``test_generate_hooks_runtime_contract.py``.
 """
 
 from __future__ import annotations
@@ -71,8 +77,17 @@ def test_generator_anchors_script_path_to_plugin_root(tmp_path: Path) -> None:
 
     out = json.loads((tmp_path / "out" / "hooks.json").read_text(encoding="utf-8"))
     entry = out["hooks"]["sessionStart"][0]
+    # bash: POSIX parameter-expansion fallback COPILOT -> CLAUDE.
     assert "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/" in entry["bash"]
-    assert "$env:COPILOT_PLUGIN_ROOT/hooks/" in entry["powershell"]
+    # powershell: if/else subexpression with the SAME fallback order.
+    assert (
+        "$(if ($env:COPILOT_PLUGIN_ROOT) "
+        "{$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/"
+    ) in entry["powershell"]
+    # Both shells reference both variables (symmetric fallback).
+    for shell in ("bash", "powershell"):
+        assert "COPILOT_PLUGIN_ROOT" in entry[shell]
+        assert "CLAUDE_PLUGIN_ROOT" in entry[shell]
     # The fragile cwd-relative form must be gone from both shells.
     assert '"./hooks/' not in entry["bash"]
     assert '"./hooks/' not in entry["powershell"]

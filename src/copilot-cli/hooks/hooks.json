@@ -4,49 +4,49 @@
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/postToolUse/invoke_markdown_auto_lint__Write_Edit_c39898.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/postToolUse/invoke_markdown_auto_lint__Write_Edit_c39898.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/postToolUse/invoke_markdown_auto_lint__Write_Edit_c39898.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/postToolUse/invoke_adr_lifecycle_hook__Write_Edit_c39898.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/postToolUse/invoke_adr_lifecycle_hook__Write_Edit_c39898.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/postToolUse/invoke_adr_lifecycle_hook__Write_Edit_c39898.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/postToolUse/invoke_plan_state_sync__Write_Edit_c39898.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/postToolUse/invoke_plan_state_sync__Write_Edit_c39898.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/postToolUse/invoke_plan_state_sync__Write_Edit_c39898.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/postToolUse/invoke_adr_lifecycle_hook__Bash_f620ca.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/postToolUse/invoke_adr_lifecycle_hook__Bash_f620ca.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/postToolUse/invoke_adr_lifecycle_hook__Bash_f620ca.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/postToolUse/invoke_observation_sync__mcp_serena_write_memory_d88228.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/postToolUse/invoke_observation_sync__mcp_serena_write_memory_d88228.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/postToolUse/invoke_observation_sync__mcp_serena_write_memory_d88228.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/postToolUse/invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/postToolUse/invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/postToolUse/invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/postToolUse/invoke_lsp_read_tracker__Read_852b43.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/postToolUse/invoke_lsp_read_tracker__Read_852b43.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/postToolUse/invoke_lsp_read_tracker__Read_852b43.py\"",
         "timeoutSec": 5,
         "type": "command"
       }
@@ -55,203 +55,203 @@
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_routing_gates__Bash_f620ca.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_routing_gates__Bash_f620ca.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_routing_gates__Bash_f620ca.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_skill_first_guard__Bash_f620ca.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_skill_first_guard__Bash_f620ca.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_skill_first_guard__Bash_f620ca.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_correction_applier__Bash_f620ca.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_correction_applier__Bash_f620ca.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_correction_applier__Bash_f620ca.py\"",
         "timeoutSec": 3,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_false_completion_gate__Bash_f620ca.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_lsp_bash_grep_guard__Bash_f620ca.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_lsp_bash_grep_guard__Bash_f620ca.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_lsp_bash_grep_guard__Bash_f620ca.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_session_log_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_session_log_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_session_log_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_branch_context_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_adr_review_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_branch_protection_guard__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_security_commit_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 10,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_prompt_eval_gate__Bash_git_commit_git_ci_fb3f5a.py\"",
         "timeoutSec": 10,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_session_log_guard__Bash_gh_pr_create_be117f.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_session_log_guard__Bash_gh_pr_create_be117f.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_session_log_guard__Bash_gh_pr_create_be117f.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_security_gate__Write_Edit_c39898.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_security_gate__Write_Edit_c39898.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_security_gate__Write_Edit_c39898.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_topical_memory_injection__Write_Edit_c39898.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_topical_memory_injection__Write_Edit_c39898.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_topical_memory_injection__Write_Edit_c39898.py\"",
         "timeoutSec": 2,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_branch_context_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_branch_context_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_branch_context_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_branch_protection_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_branch_protection_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_branch_protection_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_retrospective_gate__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_retrospective_gate__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_retrospective_gate__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_markdownlint_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 90,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_session_log_field_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_session_log_field_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_session_log_field_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_pr_description_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_pr_description_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_pr_description_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 90,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_install_parity_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_install_parity_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_install_parity_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_plugin_version_bump_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_hook_drift_guard__Bash_git_push_0e93bf.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_hook_drift_guard__Bash_git_push_0e93bf.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_hook_drift_guard__Bash_git_push_0e93bf.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_adr_architect_gate__Edit_Write_1da157.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_adr_architect_gate__Edit_Write_1da157.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_adr_architect_gate__Edit_Write_1da157.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_lsp_grep_guard__Grep_2589b1.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_lsp_grep_guard__Grep_2589b1.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_lsp_grep_guard__Grep_2589b1.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_lsp_glob_guard__Glob_181cd6.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_lsp_glob_guard__Glob_181cd6.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_lsp_glob_guard__Glob_181cd6.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_lsp_read_guard__Read_852b43.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_lsp_read_guard__Read_852b43.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_lsp_read_guard__Read_852b43.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_lsp_pre_delegation_guard__Agent_5ce2e6.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_lsp_pre_delegation_guard__Agent_5ce2e6.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_lsp_pre_delegation_guard__Agent_5ce2e6.py\"",
         "timeoutSec": 5,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/preToolUse/invoke_lsp_pre_delegation_guard__Task_7bb0dd.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/preToolUse/invoke_lsp_pre_delegation_guard__Task_7bb0dd.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/preToolUse/invoke_lsp_pre_delegation_guard__Task_7bb0dd.py\"",
         "timeoutSec": 5,
         "type": "command"
       }
@@ -260,21 +260,21 @@
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionEnd/invoke_skill_learning.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionEnd/invoke_skill_learning.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionEnd/invoke_skill_learning.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionEnd/invoke_session_validator.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionEnd/invoke_session_validator.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionEnd/invoke_session_validator.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionEnd/invoke_auto_retrospective.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionEnd/invoke_auto_retrospective.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionEnd/invoke_auto_retrospective.py\"",
         "timeoutSec": 30,
         "type": "command"
       }
@@ -283,42 +283,42 @@
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionStart/invoke_session_initialization_enforcer.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionStart/invoke_session_initialization_enforcer.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionStart/invoke_session_initialization_enforcer.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionStart/invoke_memory_first_enforcer.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionStart/invoke_memory_first_enforcer.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionStart/invoke_memory_first_enforcer.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionStart/invoke_session_start_memory_first.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionStart/invoke_session_start_memory_first.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionStart/invoke_session_start_memory_first.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionStart/invoke_adr_change_detection.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionStart/invoke_adr_change_detection.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionStart/invoke_adr_change_detection.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionStart/invoke_context_loader.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionStart/invoke_context_loader.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionStart/invoke_context_loader.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/sessionStart/invoke_lsp_session_reset.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/sessionStart/invoke_lsp_session_reset.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/sessionStart/invoke_lsp_session_reset.py\"",
         "timeoutSec": 5,
         "type": "command"
       }
@@ -327,28 +327,28 @@
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/userPromptSubmitted/invoke_serena_reassertion.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/userPromptSubmitted/invoke_serena_reassertion.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/userPromptSubmitted/invoke_serena_reassertion.py\"",
         "timeoutSec": 3,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/userPromptSubmitted/invoke_autonomous_execution_detector.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/userPromptSubmitted/invoke_autonomous_execution_detector.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/userPromptSubmitted/invoke_autonomous_execution_detector.py\"",
         "timeoutSec": 30,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/userPromptSubmitted/invoke_research_then_implement.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/userPromptSubmitted/invoke_research_then_implement.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/userPromptSubmitted/invoke_research_then_implement.py\"",
         "timeoutSec": 3,
         "type": "command"
       },
       {
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/userPromptSubmitted/invoke_user_prompt_memory_check.py\"",
         "cwd": ".",
-        "powershell": "py -3 -u \"$env:COPILOT_PLUGIN_ROOT/hooks/userPromptSubmitted/invoke_user_prompt_memory_check.py\"",
+        "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/userPromptSubmitted/invoke_user_prompt_memory_check.py\"",
         "timeoutSec": 30,
         "type": "command"
       }

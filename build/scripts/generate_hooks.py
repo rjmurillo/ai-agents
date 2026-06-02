@@ -1001,17 +1001,30 @@ def _build_copilot_entry(
     root makes the invocation work regardless of where the user launched
     ``copilot`` from.
 
+    Both shells resolve the plugin root with the SAME fallback order
+    (``COPILOT_PLUGIN_ROOT`` first, then ``CLAUDE_PLUGIN_ROOT``). The
+    fallback was verified empirically against Copilot CLI 1.0.57: a
+    plugin hook process is launched with BOTH variables set to the
+    install directory (see the runtime-contract test in
+    ``tests/build_scripts/test_generate_hooks_runtime_contract.py``).
+    Keeping the two shells symmetric means a missing primary variable
+    can never silently degrade one platform while the other recovers.
+
     The ``bash`` and ``powershell`` keys both invoke ``python3``. RQ #4
     in REQ-003 flags a Windows PATH risk for ``python3``; using ``py -3``
     on Windows handles the case where only ``python.exe`` is on PATH.
-    The two keys use shell-native environment-variable syntax: POSIX
-    ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}`` (parameter-expansion
-    fallback) for ``bash`` and ``$env:COPILOT_PLUGIN_ROOT`` for
-    ``powershell``.
+    POSIX ``bash`` uses parameter-expansion fallback
+    (``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}``). PowerShell has no
+    ``${VAR:-default}`` form, so an ``if``/``else`` subexpression (valid
+    in Windows PowerShell 5.1 and PowerShell 7+) provides the same
+    fallback.
     """
     rel = f"hooks/{target_event}/{script_name}"
     bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
-    powershell_root = "$env:COPILOT_PLUGIN_ROOT"
+    powershell_root = (
+        "$(if ($env:COPILOT_PLUGIN_ROOT) "
+        "{$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})"
+    )
     return {
         "type": "command",
         "bash": f'python3 -u "{bash_root}/{rel}"',
