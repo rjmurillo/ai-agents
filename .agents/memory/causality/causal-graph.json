@@ -9,6 +9,4337 @@
       "frequency": 1,
       "id": "n001",
       "type": "decision"
+    },
+    {
+      "id": "b1cc1534da48",
+      "type": "outcome",
+      "label": "Outcome: success - Task 1",
+      "episodes": [
+        "episode-2026-01-01-filter-001"
+      ],
+      "created": "2026-06-02T04:20:23.788287+00:00"
+    },
+    {
+      "id": "e158d87bb18d",
+      "type": "outcome",
+      "label": "Outcome: failure - Task 2",
+      "episodes": [
+        "episode-2026-01-01-filter-002"
+      ],
+      "created": "2026-06-02T04:20:23.788337+00:00"
+    },
+    {
+      "id": "a993241dc2ac",
+      "type": "outcome",
+      "label": "Outcome: partial - Task 3",
+      "episodes": [
+        "episode-2026-01-01-filter-003"
+      ],
+      "created": "2026-06-02T04:20:23.788376+00:00"
+    },
+    {
+      "id": "49e3421c1ddc",
+      "type": "decision",
+      "label": "test: Second",
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "created": "2026-06-02T04:20:23.788421+00:00"
+    },
+    {
+      "id": "a8d51c9e6759",
+      "type": "decision",
+      "label": "design: First",
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "created": "2026-06-02T04:20:23.788426+00:00"
+    },
+    {
+      "id": "15f19d1013bc",
+      "type": "outcome",
+      "label": "Outcome: success - Test",
+      "episodes": [
+        "episode-2026-01-01-sequence-001"
+      ],
+      "created": "2026-06-02T04:20:23.788430+00:00"
+    },
+    {
+      "id": "768dd704ffe3",
+      "type": "outcome",
+      "label": "Outcome: success - Test implementation",
+      "episodes": [
+        "episode-2026-01-01-session-001"
+      ],
+      "created": "2026-06-02T04:20:23.788481+00:00"
+    },
+    {
+      "id": "b0619561b464",
+      "type": "milestone",
+      "label": "milestone: Assess implementation completeness",
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "created": "2026-06-02T04:20:23.788518+00:00"
+    },
+    {
+      "id": "b9627551955b",
+      "type": "commit",
+      "label": "commit: Commit: 303c6d2",
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "created": "2026-06-02T04:20:23.788523+00:00"
+    },
+    {
+      "id": "8f944ec27351",
+      "type": "milestone",
+      "label": "milestone: Implementation: Complete and verified (commit 303c6d2)",
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "created": "2026-06-02T04:20:23.788531+00:00"
+    },
+    {
+      "id": "1e2f2f43884e",
+      "type": "outcome",
+      "label": "Outcome: success - Session 356 - 2026-01-03",
+      "episodes": [
+        "episode-2026-01-03-session-356"
+      ],
+      "created": "2026-06-02T04:20:23.788538+00:00"
+    },
+    {
+      "id": "0e3fc8c6b22c",
+      "type": "test",
+      "label": "test: - Removed obsolete comment reference in `build/scripts/Invoke-PesterTests.ps1`",
+      "episodes": [
+        "episode-2026-01-03-session-366"
+      ],
+      "created": "2026-06-02T04:20:23.788577+00:00"
+    },
+    {
+      "id": "dd2b9ec045af",
+      "type": "test",
+      "label": "test: - `build/scripts/Invoke-PesterTests.ps1` - Removed example comment",
+      "episodes": [
+        "episode-2026-01-03-session-366"
+      ],
+      "created": "2026-06-02T04:20:23.788580+00:00"
+    },
+    {
+      "id": "0ace495b2939",
+      "type": "milestone",
+      "label": "milestone: This work completes the skill frontmatter standardization effort",
+      "episodes": [
+        "episode-2026-01-03-session-366"
+      ],
+      "created": "2026-06-02T04:20:23.788584+00:00"
+    },
+    {
+      "id": "6fb9d9641bee",
+      "type": "outcome",
+      "label": "Outcome: success - Session 366 - 2026-01-03",
+      "episodes": [
+        "episode-2026-01-03-session-366"
+      ],
+      "created": "2026-06-02T04:20:23.788587+00:00"
+    },
+    {
+      "id": "c092dbdc5199",
+      "type": "milestone",
+      "label": "milestone: [x] Session log completed",
+      "episodes": [
+        "episode-2026-01-04-session-304"
+      ],
+      "created": "2026-06-02T04:20:23.788619+00:00"
+    },
+    {
+      "id": "c92adf381f21",
+      "type": "outcome",
+      "label": "Outcome: success - Remediate all findings from PR",
+      "episodes": [
+        "episode-2026-01-04-session-304"
+      ],
+      "created": "2026-06-02T04:20:23.788624+00:00"
+    },
+    {
+      "id": "8807d710f26b",
+      "type": "milestone",
+      "label": "milestone: Completed Phase 0-6 of structured retrospective protocol",
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "created": "2026-06-02T04:20:23.788660+00:00"
+    },
+    {
+      "id": "db6ded6472b0",
+      "type": "error",
+      "label": "error: - Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "created": "2026-06-02T04:20:23.788664+00:00"
+    },
+    {
+      "id": "f9e9863bef9d",
+      "type": "milestone",
+      "label": "milestone: Security fixes require adversarial testing before claiming complete",
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "created": "2026-06-02T04:20:23.788668+00:00"
+    },
+    {
+      "id": "40da8b662f41",
+      "type": "outcome",
+      "label": "Outcome: success - Session 305 - 2026-01-04",
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "created": "2026-06-02T04:20:23.788671+00:00"
+    },
+    {
+      "id": "547ee1a5f243",
+      "type": "error",
+      "label": "- Circuit breaker threshold: 3 failed attempts (not 5, not 10)",
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "created": "2026-06-02T04:20:23.788731+00:00"
+    },
+    {
+      "id": "e48b42cae949",
+      "type": "outcome",
+      "label": "Security fixes require adversarial testing before claiming complete",
+      "episodes": [
+        "episode-2026-01-04-session-305"
+      ],
+      "created": "2026-06-02T04:20:23.788735+00:00"
+    },
+    {
+      "id": "f1e2f1c85dfe",
+      "type": "test",
+      "label": "test: 4. **Comment 4**: Add comprehensive Pester tests for all ported features",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788802+00:00"
+    },
+    {
+      "id": "1a9bdcdf63d3",
+      "type": "test",
+      "label": "test: Ran comprehensive test suite with Pester:",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788807+00:00"
+    },
+    {
+      "id": "0326d9ba42a9",
+      "type": "test",
+      "label": "test: **Assessment**: Core functionality is solid and validated. Test failures are minor and deferred to follow-up session.",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788811+00:00"
+    },
+    {
+      "id": "270a8483d8ba",
+      "type": "test",
+      "label": "test: **Phase 1**: Fix test failures (estimated 1-2 hours)",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788815+00:00"
+    },
+    {
+      "id": "6af8ed13aaa9",
+      "type": "milestone",
+      "label": "milestone: Session log: Complete documentation of implementation",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788819+00:00"
+    },
+    {
+      "id": "592b7b421dd6",
+      "type": "test",
+      "label": "test: 1. Fix 6 minor test failures (Phase 1)",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788822+00:00"
+    },
+    {
+      "id": "1b7d2925dc92",
+      "type": "test",
+      "label": "test: - **Test failures deferred**: Minor issues, not blocking core functionality",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788826+00:00"
+    },
+    {
+      "id": "cd9bb080fa7e",
+      "type": "test",
+      "label": "test: - Test file lines 79-82: Removed incorrect claim about Pester parameter binding quirk",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788829+00:00"
+    },
+    {
+      "id": "744d3c062369",
+      "type": "test",
+      "label": "test: - **76/76 tests passing** (100%)",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788832+00:00"
+    },
+    {
+      "id": "de91e041226a",
+      "type": "test",
+      "label": "test: - **78/78 tests passing** (100%)",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788838+00:00"
+    },
+    {
+      "id": "3b316052682e",
+      "type": "test",
+      "label": "test: - **84/84 tests passing** (100%)",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788841+00:00"
+    },
+    {
+      "id": "ca90d19567b9",
+      "type": "test",
+      "label": "test: **Test Results**: 84/84 tests passing (100%)",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788845+00:00"
+    },
+    {
+      "id": "81dfac4cde4c",
+      "type": "milestone",
+      "label": "milestone: \u2705 **Option 1**: MUST NOT violation detection - COMPLETED",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788849+00:00"
+    },
+    {
+      "id": "81eadb94d865",
+      "type": "milestone",
+      "label": "milestone: \u2705 **Option 2**: All 4 CRITICAL issues - COMPLETED",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788853+00:00"
+    },
+    {
+      "id": "d000e83be00d",
+      "type": "milestone",
+      "label": "milestone: \u2705 **Option 3**: All 5 HIGH priority issues - COMPLETED",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788856+00:00"
+    },
+    {
+      "id": "441bc906d04b",
+      "type": "test",
+      "label": "test: - **84/84 tests passing** (100% pass rate maintained throughout)",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788860+00:00"
+    },
+    {
+      "id": "f8b64c95a0de",
+      "type": "test",
+      "label": "test: - `scripts/tests/Validate-SessionProtocol.Tests.ps1`: Verified all tests passing",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788865+00:00"
+    },
+    {
+      "id": "d8428339c487",
+      "type": "milestone",
+      "label": "milestone: `.agents/sessions/2026-01-05-session-316-pr790-round3-doc-review.md`: Complete audit trail",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788870+00:00"
+    },
+    {
+      "id": "a180e97a84c2",
+      "type": "outcome",
+      "label": "Outcome: partial - Session 316: Implement Claude Code Hooks",
+      "episodes": [
+        "episode-2026-01-05-session-316"
+      ],
+      "created": "2026-06-02T04:20:23.788874+00:00"
+    },
+    {
+      "id": "05c3bcf1c608",
+      "type": "error",
+      "label": "error: **Round 5 Findings**: 15 error handling issues identified",
+      "episodes": [
+        "episode-2026-01-05-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.788917+00:00"
+    },
+    {
+      "id": "1f67cbf881c1",
+      "type": "milestone",
+      "label": "milestone: Validations completed count",
+      "episodes": [
+        "episode-2026-01-05-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.788922+00:00"
+    },
+    {
+      "id": "3c68294e162b",
+      "type": "outcome",
+      "label": "Outcome: partial - 2026-01-05-session-317: PR #795 Spec Validation Remediation",
+      "episodes": [
+        "episode-2026-01-05-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.788926+00:00"
+    },
+    {
+      "id": "948678500786",
+      "type": "decision",
+      "label": "unknown: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.788966+00:00"
+    },
+    {
+      "id": "adcb3be8f919",
+      "type": "decision",
+      "label": "unknown: Prioritized fixing validation scripts (markdown linting and session validation) ahead of lower-impact tooling issues.",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.788972+00:00"
+    },
+    {
+      "id": "d6239ad61b8f",
+      "type": "milestone",
+      "label": "milestone: Task 1: Data Collection",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.788976+00:00"
+    },
+    {
+      "id": "f6791c21751c",
+      "type": "milestone",
+      "label": "milestone: Task 2: Remediation Planning",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.788983+00:00"
+    },
+    {
+      "id": "8ff97f678154",
+      "type": "outcome",
+      "label": "Outcome: success - Session 318: Merge Velocity Analysis",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.788987+00:00"
+    },
+    {
+      "id": "577da88bd9b3",
+      "type": "decision",
+      "label": "Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.789088+00:00"
+    },
+    {
+      "id": "bb2f794f5458",
+      "type": "milestone",
+      "label": "Task 1: Data Collection",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.789093+00:00"
+    },
+    {
+      "id": "6d984ffaf0ee",
+      "type": "milestone",
+      "label": "Task 2: Remediation Planning",
+      "episodes": [
+        "episode-2026-01-05-session-318"
+      ],
+      "created": "2026-06-02T04:20:23.789105+00:00"
+    },
+    {
+      "id": "770209d31026",
+      "type": "outcome",
+      "label": "Outcome: success - Session 373 - 2026-01-05",
+      "episodes": [
+        "episode-2026-01-05-session-373"
+      ],
+      "created": "2026-06-02T04:20:23.789160+00:00"
+    },
+    {
+      "id": "ab856b350d98",
+      "type": "outcome",
+      "label": "Outcome: success - Session 003: PR #806 Review - Spec Validation PR Context Fix",
+      "episodes": [
+        "episode-2026-01-06-session-003"
+      ],
+      "created": "2026-06-02T04:20:23.789194+00:00"
+    },
+    {
+      "id": "0208ce0c3b90",
+      "type": "outcome",
+      "label": "Outcome: success - Session 379 - 2026-01-06",
+      "episodes": [
+        "episode-2026-01-06-session-379"
+      ],
+      "created": "2026-06-02T04:20:23.789225+00:00"
+    },
+    {
+      "id": "020e12054d60",
+      "type": "outcome",
+      "label": "Outcome: success - Analysis Session: PR Number Extraction Gap",
+      "episodes": [
+        "episode-2026-01-07-session-131"
+      ],
+      "created": "2026-06-02T04:20:23.789260+00:00"
+    },
+    {
+      "id": "571542bef485",
+      "type": "milestone",
+      "label": "milestone: Fix 3 session logs in-place (add missing sections, complete checklists)",
+      "episodes": [
+        "episode-2026-01-08-session-807"
+      ],
+      "created": "2026-06-02T04:20:23.789294+00:00"
+    },
+    {
+      "id": "2d999a570721",
+      "type": "milestone",
+      "label": "milestone: .agents/sessions/2026-01-07-session-131.md (added Session Info, Work Log, completed MUST items)",
+      "episodes": [
+        "episode-2026-01-08-session-807"
+      ],
+      "created": "2026-06-02T04:20:23.789299+00:00"
+    },
+    {
+      "id": "c83afe7f0a87",
+      "type": "milestone",
+      "label": "milestone: .agents/sessions/2026-01-08-session-806.md (added Protocol Compliance header, Session Info, Work Log, completed MUST items)",
+      "episodes": [
+        "episode-2026-01-08-session-807"
+      ],
+      "created": "2026-06-02T04:20:23.789304+00:00"
+    },
+    {
+      "id": "cf2cb0f40338",
+      "type": "outcome",
+      "label": "Outcome: success - Session 807 - 2026-01-08",
+      "episodes": [
+        "episode-2026-01-08-session-807"
+      ],
+      "created": "2026-06-02T04:20:23.789308+00:00"
+    },
+    {
+      "id": "1a4f393b0e9c",
+      "type": "decision",
+      "label": "implementation: Fail-closed (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789485+00:00"
+    },
+    {
+      "id": "dbf73b6d7f73",
+      "type": "decision",
+      "label": "implementation: Enhanced feedback (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789491+00:00"
+    },
+    {
+      "id": "6133b1c7dc51",
+      "type": "decision",
+      "label": "implementation: Specific catches for common types (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789498+00:00"
+    },
+    {
+      "id": "4cd8f4704a34",
+      "type": "error",
+      "label": "error: This session addresses 10 critical issues found by comprehensive PR review agents (pr-review-toolkit) on PR #844. The issues span security vulnerabilities, error handling gaps, and documentation inaccuracies across all 5 Claude Code hooks.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789504+00:00"
+    },
+    {
+      "id": "6a791ffa3d03",
+      "type": "error",
+      "label": "error: - silent-failure-hunter",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789508+00:00"
+    },
+    {
+      "id": "84baec617989",
+      "type": "error",
+      "label": "error: - 1 catastrophic security issue (branch guard fail-open)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789513+00:00"
+    },
+    {
+      "id": "aec90497f180",
+      "type": "error",
+      "label": "error: - 7 high-severity error handling issues",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789517+00:00"
+    },
+    {
+      "id": "fad35909d9f9",
+      "type": "error",
+      "label": "error: - Issue 1: Change catch block from exit 0 (fail-open) to exit 2 (fail-closed)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789521+00:00"
+    },
+    {
+      "id": "63a3007e8b66",
+      "type": "error",
+      "label": "error: - Issue 6: Add explicit git command failure handling with block response",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789526+00:00"
+    },
+    {
+      "id": "821876893fec",
+      "type": "error",
+      "label": "error: - Issue 3: Check linter exit codes and report failures",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789530+00:00"
+    },
+    {
+      "id": "058639d8b13d",
+      "type": "error",
+      "label": "error: - Issue 7: Add specific catch blocks for different error types",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789535+00:00"
+    },
+    {
+      "id": "ee689b134c43",
+      "type": "error",
+      "label": "error: - Issue 2: Replace generic catch with specific error handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789539+00:00"
+    },
+    {
+      "id": "35ee233f3ce0",
+      "type": "error",
+      "label": "error: - Issue 5: Provide specific list of missing sections in validation failures",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789546+00:00"
+    },
+    {
+      "id": "b071b55e6530",
+      "type": "error",
+      "label": "error: - Issue 10: Improve error handling with file system error distinction",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789551+00:00"
+    },
+    {
+      "id": "5b30f0b55b82",
+      "type": "error",
+      "label": "error: - Replaced catastrophic fail-open (exit 0) with fail-closed (exit 2) in catch block",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789557+00:00"
+    },
+    {
+      "id": "583fc628d8c7",
+      "type": "error",
+      "label": "error: - Added explicit git command failure handling (lines 58-69)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789562+00:00"
+    },
+    {
+      "id": "eb364cfee157",
+      "type": "error",
+      "label": "error: - Added Write-Error calls for proper error logging",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789567+00:00"
+    },
+    {
+      "id": "44eb3369aed6",
+      "type": "error",
+      "label": "error: **Rationale**: Critical security fix. Branch protection MUST fail closed when it cannot verify branch safety. Allowing commits to main/master on errors defeats the entire purpose of the hook.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789572+00:00"
+    },
+    {
+      "id": "77d9ce7f508a",
+      "type": "error",
+      "label": "error: - Report linting failures to Claude with exit code and error summary",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789576+00:00"
+    },
+    {
+      "id": "675aded6e8f3",
+      "type": "error",
+      "label": "error: - Added specific catch blocks for JSON parsing errors (line 98)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789581+00:00"
+    },
+    {
+      "id": "273bdb7c0d75",
+      "type": "error",
+      "label": "error: - Added file system error catch block (lines 102-105)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789586+00:00"
+    },
+    {
+      "id": "c8ab5a20f8e0",
+      "type": "error",
+      "label": "error: - Added unexpected error catch with type information (lines 107-110)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789590+00:00"
+    },
+    {
+      "id": "2daced03c80d",
+      "type": "error",
+      "label": "error: **Rationale**: Suppressed linter errors prevent Claude from knowing about formatting issues. Specific catch blocks provide actionable error context.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789595+00:00"
+    },
+    {
+      "id": "ab3806ee64eb",
+      "type": "error",
+      "label": "error: - Replaced generic catch with specific file system error catch (lines 115-124)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789600+00:00"
+    },
+    {
+      "id": "b5f610f256d4",
+      "type": "error",
+      "label": "error: - Added unexpected error catch with full type information (lines 125-134)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789604+00:00"
+    },
+    {
+      "id": "6e978bef52ad",
+      "type": "error",
+      "label": "error: **Rationale**: Session logs were failing validation for missing sections that actually exist in real logs. Specific error handling provides better debugging information.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789609+00:00"
+    },
+    {
+      "id": "060699753a1a",
+      "type": "test",
+      "label": "test: - Added: pwsh.*Invoke-Pester, npm run test, pnpm test, yarn test",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789614+00:00"
+    },
+    {
+      "id": "ea30eeedc662",
+      "type": "milestone",
+      "label": "milestone: *Rationale**: Documentation must accurately reflect implementation. Developers reading NOTES expect complete information about hook behavior.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789619+00:00"
+    },
+    {
+      "id": "69399c7adb8f",
+      "type": "error",
+      "label": "error: - Enhanced validation failure message with:",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789626+00:00"
+    },
+    {
+      "id": "fc6ece0e63ca",
+      "type": "error",
+      "label": "error: - Clear \"QA VALIDATION FAILURE\" header",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789632+00:00"
+    },
+    {
+      "id": "9e0ad71bccdf",
+      "type": "milestone",
+      "label": "milestone: Added success message when all sections present (lines 87-90)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789637+00:00"
+    },
+    {
+      "id": "8506b7521812",
+      "type": "error",
+      "label": "error: - Improved catch blocks with file system vs unexpected error distinction (lines 95-106)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789644+00:00"
+    },
+    {
+      "id": "4384fc9383d1",
+      "type": "error",
+      "label": "error: **Context**: Branch protection guard had catastrophic fail-open behavior (exit 0 in catch).",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789649+00:00"
+    },
+    {
+      "id": "6dc42cc8ab65",
+      "type": "error",
+      "label": "error: 1. Keep fail-open (allow operations on errors)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789654+00:00"
+    },
+    {
+      "id": "334db2699056",
+      "type": "error",
+      "label": "error: 2. Change to fail-closed (block operations on errors)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789659+00:00"
+    },
+    {
+      "id": "d59abcc71c52",
+      "type": "error",
+      "label": "error: **Decision**: Fail-closed (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789664+00:00"
+    },
+    {
+      "id": "3e7cd0a8ff80",
+      "type": "error",
+      "label": "error: **Rationale**: Branch protection is a security control. The entire purpose is to prevent commits to main/master. If the hook cannot verify branch safety (due to errors), it MUST block the operation. Failing open defeats the purpose and creates a security vulnerability.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789670+00:00"
+    },
+    {
+      "id": "c80df18ad58e",
+      "type": "error",
+      "label": "error: **Trade-offs**: May require manual intervention if git operations fail, but this is acceptable for a security control.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789675+00:00"
+    },
+    {
+      "id": "acd7dcfd1818",
+      "type": "error",
+      "label": "error: **Context**: Generic catch blocks were suppressing important error context.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789682+00:00"
+    },
+    {
+      "id": "35e9bc2de3b2",
+      "type": "error",
+      "label": "error: 2. Add specific catches for common error types",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789687+00:00"
+    },
+    {
+      "id": "ce6c9f42495b",
+      "type": "error",
+      "label": "error: 3. Remove all error handling (let errors propagate)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789693+00:00"
+    },
+    {
+      "id": "b7c25efb69d4",
+      "type": "error",
+      "label": "error: **Rationale**: Different error types require different handling. File system errors (IO, UnauthorizedAccess) indicate permissions/access issues. Other errors might indicate bugs. Specific catches allow appropriate messaging and logging for each case.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789698+00:00"
+    },
+    {
+      "id": "44aa8415092d",
+      "type": "error",
+      "label": "error: - Catastrophic fail-open \u2192 fail-closed",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789704+00:00"
+    },
+    {
+      "id": "4caa988f3519",
+      "type": "error",
+      "label": "error: - Git command failure handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789709+00:00"
+    },
+    {
+      "id": "6b30cc6065ec",
+      "type": "error",
+      "label": "error: - Specific error catch blocks",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789715+00:00"
+    },
+    {
+      "id": "0c4c4327c256",
+      "type": "error",
+      "label": "error: - Specific error handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789720+00:00"
+    },
+    {
+      "id": "36837f9bf32d",
+      "type": "error",
+      "label": "error: - Enhanced error handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789725+00:00"
+    },
+    {
+      "id": "0db4a98f1a95",
+      "type": "error",
+      "label": "error: **CRITICAL**: Branch protection now fails closed. Cannot accidentally commit to main/master even if the hook encounters errors during branch verification.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789731+00:00"
+    },
+    {
+      "id": "372a47493019",
+      "type": "error",
+      "label": "error: - All hooks now provide clear feedback on failures",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789739+00:00"
+    },
+    {
+      "id": "1c456a22a7f5",
+      "type": "error",
+      "label": "error: - Error context includes exception types and messages",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789744+00:00"
+    },
+    {
+      "id": "e379e175167c",
+      "type": "error",
+      "label": "error: - Claude receives actionable information when hooks fail",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789750+00:00"
+    },
+    {
+      "id": "402a26f1fa86",
+      "type": "error",
+      "label": "error: 2. `.claude/hooks/PostToolUse/Invoke-MarkdownAutoLint.ps1` - Error handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789755+00:00"
+    },
+    {
+      "id": "9bed68114900",
+      "type": "error",
+      "label": "error: 3. `.claude/hooks/Stop/Invoke-SessionValidator.ps1` - Validation + errors",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789761+00:00"
+    },
+    {
+      "id": "4838c79a5188",
+      "type": "error",
+      "label": "error: 5. `.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1` - Feedback + errors",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789766+00:00"
+    },
+    {
+      "id": "6d0b45f5a9b1",
+      "type": "test",
+      "label": "test: 1. **Consider Pester tests for hooks**",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789772+00:00"
+    },
+    {
+      "id": "cf50f62e49d1",
+      "type": "error",
+      "label": "error: - Test error handling paths",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789777+00:00"
+    },
+    {
+      "id": "2cbd57d653fc",
+      "type": "outcome",
+      "label": "Outcome: success - Session 317: Fix Critical Issues in Claude Code Hooks",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.789783+00:00"
+    },
+    {
+      "id": "95990864d364",
+      "type": "decision",
+      "label": "Fail-closed (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790259+00:00"
+    },
+    {
+      "id": "b66bebe4f3cf",
+      "type": "error",
+      "label": "- Issue 1: Change catch block from exit 0 (fail-open) to exit 2 (fail-closed)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790267+00:00"
+    },
+    {
+      "id": "5a282fa7b7b7",
+      "type": "error",
+      "label": "- Replaced catastrophic fail-open (exit 0) with fail-closed (exit 2) in catch block",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790280+00:00"
+    },
+    {
+      "id": "1936e5d3b5e9",
+      "type": "error",
+      "label": "2. Change to fail-closed (block operations on errors)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790292+00:00"
+    },
+    {
+      "id": "7085549bb5c8",
+      "type": "error",
+      "label": "**Decision**: Fail-closed (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790304+00:00"
+    },
+    {
+      "id": "62d968c016dc",
+      "type": "error",
+      "label": "- Catastrophic fail-open \u2192 fail-closed",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790316+00:00"
+    },
+    {
+      "id": "620e6de44eaf",
+      "type": "decision",
+      "label": "Enhanced feedback (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790328+00:00"
+    },
+    {
+      "id": "c8e97015e15b",
+      "type": "error",
+      "label": "- Enhanced validation failure message with:",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790334+00:00"
+    },
+    {
+      "id": "a3772a33bb03",
+      "type": "error",
+      "label": "- Enhanced error handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790359+00:00"
+    },
+    {
+      "id": "bbc919c9bfc3",
+      "type": "error",
+      "label": "- All hooks now provide clear feedback on failures",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790371+00:00"
+    },
+    {
+      "id": "1f3126121fa6",
+      "type": "error",
+      "label": "5. `.claude/hooks/SubagentStop/Invoke-QAAgentValidator.ps1` - Feedback + errors",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790384+00:00"
+    },
+    {
+      "id": "4419a1f639e9",
+      "type": "decision",
+      "label": "Specific catches for common types (Option 2)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790392+00:00"
+    },
+    {
+      "id": "fdae8ee91ca3",
+      "type": "error",
+      "label": "- Issue 7: Add specific catch blocks for different error types",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790401+00:00"
+    },
+    {
+      "id": "d2f77552356c",
+      "type": "error",
+      "label": "- Issue 2: Replace generic catch with specific error handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790424+00:00"
+    },
+    {
+      "id": "b9bad794636c",
+      "type": "error",
+      "label": "- Issue 5: Provide specific list of missing sections in validation failures",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790437+00:00"
+    },
+    {
+      "id": "b6c846324241",
+      "type": "error",
+      "label": "- Added Write-Error calls for proper error logging",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790450+00:00"
+    },
+    {
+      "id": "9ddffc4e2ea1",
+      "type": "error",
+      "label": "- Added specific catch blocks for JSON parsing errors (line 98)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790463+00:00"
+    },
+    {
+      "id": "92d7f3738a9c",
+      "type": "error",
+      "label": "- Added unexpected error catch with type information (lines 107-110)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790476+00:00"
+    },
+    {
+      "id": "f6bbf604116c",
+      "type": "error",
+      "label": "**Rationale**: Suppressed linter errors prevent Claude from knowing about formatting issues. Specific catch blocks provide actionable error context.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790489+00:00"
+    },
+    {
+      "id": "b78663b0692a",
+      "type": "error",
+      "label": "- Replaced generic catch with specific file system error catch (lines 115-124)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790502+00:00"
+    },
+    {
+      "id": "cac4c97f7f07",
+      "type": "error",
+      "label": "- Added unexpected error catch with full type information (lines 125-134)",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790515+00:00"
+    },
+    {
+      "id": "0aebe2e20ff6",
+      "type": "error",
+      "label": "**Rationale**: Session logs were failing validation for missing sections that actually exist in real logs. Specific error handling provides better debugging information.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790528+00:00"
+    },
+    {
+      "id": "c3972fe69c57",
+      "type": "milestone",
+      "label": "*Rationale**: Documentation must accurately reflect implementation. Developers reading NOTES expect complete information about hook behavior.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790541+00:00"
+    },
+    {
+      "id": "e7a73b5ce937",
+      "type": "error",
+      "label": "**Trade-offs**: May require manual intervention if git operations fail, but this is acceptable for a security control.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790557+00:00"
+    },
+    {
+      "id": "68146e743ee2",
+      "type": "error",
+      "label": "2. Add specific catches for common error types",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790570+00:00"
+    },
+    {
+      "id": "37d27c11246f",
+      "type": "error",
+      "label": "**Rationale**: Different error types require different handling. File system errors (IO, UnauthorizedAccess) indicate permissions/access issues. Other errors might indicate bugs. Specific catches allow appropriate messaging and logging for each case.",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790584+00:00"
+    },
+    {
+      "id": "35616517f846",
+      "type": "error",
+      "label": "- Specific error catch blocks",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790599+00:00"
+    },
+    {
+      "id": "7d5c82a09967",
+      "type": "error",
+      "label": "- Specific error handling",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790613+00:00"
+    },
+    {
+      "id": "a161caf62b41",
+      "type": "error",
+      "label": "- Claude receives actionable information when hooks fail",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790627+00:00"
+    },
+    {
+      "id": "23e284592db9",
+      "type": "test",
+      "label": "1. **Consider Pester tests for hooks**",
+      "episodes": [
+        "episode-2026-01-09-session-317"
+      ],
+      "created": "2026-06-02T04:20:23.790640+00:00"
+    },
+    {
+      "id": "8952552d5184",
+      "type": "milestone",
+      "label": "milestone: Session created as skeleton during branch work",
+      "episodes": [
+        "episode-2026-02-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.790712+00:00"
+    },
+    {
+      "id": "44bf38a31b6e",
+      "type": "commit",
+      "label": "commit: Commit: 0d58c1cb",
+      "episodes": [
+        "episode-2026-02-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.790720+00:00"
+    },
+    {
+      "id": "6e2d103036db",
+      "type": "outcome",
+      "label": "Outcome: success - Migrate build system scripts from PowerShell to Python (issue #1056)",
+      "episodes": [
+        "episode-2026-02-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.790727+00:00"
+    },
+    {
+      "id": "071b44c384e6",
+      "type": "milestone",
+      "label": "milestone: Fix #1151: Convert YAML arrays to comma-separated strings",
+      "episodes": [
+        "episode-2026-02-16-session-1199"
+      ],
+      "created": "2026-06-02T04:20:23.790771+00:00"
+    },
+    {
+      "id": "4236d050d15f",
+      "type": "milestone",
+      "label": "milestone: Fix #1152: Remove commands/README.md causing skill load failure",
+      "episodes": [
+        "episode-2026-02-16-session-1199"
+      ],
+      "created": "2026-06-02T04:20:23.790780+00:00"
+    },
+    {
+      "id": "5dd56b9f1ccb",
+      "type": "milestone",
+      "label": "milestone: Fix #1172: Update pre-commit hook to reference Python scripts",
+      "episodes": [
+        "episode-2026-02-16-session-1199"
+      ],
+      "created": "2026-06-02T04:20:23.790787+00:00"
+    },
+    {
+      "id": "5e67f9c7e4a5",
+      "type": "milestone",
+      "label": "milestone: Fix #1149: Standardize Search-Don't-Load protocol documentation",
+      "episodes": [
+        "episode-2026-02-16-session-1199"
+      ],
+      "created": "2026-06-02T04:20:23.790794+00:00"
+    },
+    {
+      "id": "b6e37f74908e",
+      "type": "outcome",
+      "label": "Outcome: success - Fix v0.3.1 remaining issues: command frontmatter, README removal, pre-commit hook migration, search-dont-load docs",
+      "episodes": [
+        "episode-2026-02-16-session-1199"
+      ],
+      "created": "2026-06-02T04:20:23.790801+00:00"
+    },
+    {
+      "id": "9fb56e3479b6",
+      "type": "outcome",
+      "label": "Outcome: partial - Address PR #1178 review comments: fix relative path traversal in docs and inconsistent memory reference",
+      "episodes": [
+        "episode-2026-02-16-session-1200"
+      ],
+      "created": "2026-06-02T04:20:23.790841+00:00"
+    },
+    {
+      "id": "a22555f2189c",
+      "type": "milestone",
+      "label": "milestone: Reviewed PLAN.md and v0.3.1 milestone issues",
+      "episodes": [
+        "episode-2026-02-17-session-526"
+      ],
+      "created": "2026-06-02T04:20:23.790880+00:00"
+    },
+    {
+      "id": "5a8284c73d22",
+      "type": "milestone",
+      "label": "milestone: Created team v031-plugin-fixes with 5 parallel agents",
+      "episodes": [
+        "episode-2026-02-17-session-526"
+      ],
+      "created": "2026-06-02T04:20:23.790888+00:00"
+    },
+    {
+      "id": "033c0a34adc7",
+      "type": "milestone",
+      "label": "milestone: Discovered and fixed #1183 (settings.json paths)",
+      "episodes": [
+        "episode-2026-02-17-session-526"
+      ],
+      "created": "2026-06-02T04:20:23.790895+00:00"
+    },
+    {
+      "id": "f839fdc8a9eb",
+      "type": "milestone",
+      "label": "milestone: Fixed Python linting issue in invoke_skill_first_guard.py",
+      "episodes": [
+        "episode-2026-02-17-session-526"
+      ],
+      "created": "2026-06-02T04:20:23.790902+00:00"
+    },
+    {
+      "id": "45a48d56d466",
+      "type": "commit",
+      "label": "commit: Commit: 194bd620",
+      "episodes": [
+        "episode-2026-02-17-session-526"
+      ],
+      "created": "2026-06-02T04:20:23.790910+00:00"
+    },
+    {
+      "id": "b9e62fe8aadc",
+      "type": "outcome",
+      "label": "Outcome: success - Complete v0.3.1 remaining plugin-mode compatibility fixes (#1181, #1182, #1183, #1184, #1185)",
+      "episodes": [
+        "episode-2026-02-17-session-526"
+      ],
+      "created": "2026-06-02T04:20:23.790917+00:00"
+    },
+    {
+      "id": "89f92ad1d1ac",
+      "type": "milestone",
+      "label": "milestone: Implemented invoke_branch_context_guard.py hook",
+      "episodes": [
+        "episode-2026-02-20-session-682"
+      ],
+      "created": "2026-06-02T04:20:23.790955+00:00"
+    },
+    {
+      "id": "78df4fe4bb26",
+      "type": "milestone",
+      "label": "milestone: Added hook_utilities guards module",
+      "episodes": [
+        "episode-2026-02-20-session-682"
+      ],
+      "created": "2026-06-02T04:20:23.790963+00:00"
+    },
+    {
+      "id": "ad21374ca8ca",
+      "type": "milestone",
+      "label": "milestone: Created comprehensive test suite",
+      "episodes": [
+        "episode-2026-02-20-session-682"
+      ],
+      "created": "2026-06-02T04:20:23.790971+00:00"
+    },
+    {
+      "id": "4d2576d11597",
+      "type": "commit",
+      "label": "commit: Commit: f5f1a1fe",
+      "episodes": [
+        "episode-2026-02-20-session-682"
+      ],
+      "created": "2026-06-02T04:20:23.790978+00:00"
+    },
+    {
+      "id": "a99b566f2360",
+      "type": "outcome",
+      "label": "Outcome: success - Implement git command verification hook for branch context validation",
+      "episodes": [
+        "episode-2026-02-20-session-682"
+      ],
+      "created": "2026-06-02T04:20:23.790986+00:00"
+    },
+    {
+      "id": "dde5c9be30a7",
+      "type": "milestone",
+      "label": "milestone: Checked out feat/720-autonomous branch and merged origin/main",
+      "episodes": [
+        "episode-2026-02-25-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791024+00:00"
+    },
+    {
+      "id": "b2127a8a9359",
+      "type": "milestone",
+      "label": "milestone: Resolved conflict in .agents/governance/traceability-protocol.md keeping both text steps and mermaid diagram",
+      "episodes": [
+        "episode-2026-02-25-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791033+00:00"
+    },
+    {
+      "id": "f2c63ebca9fb",
+      "type": "milestone",
+      "label": "milestone: Committed merge and pushed to origin",
+      "episodes": [
+        "episode-2026-02-25-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791040+00:00"
+    },
+    {
+      "id": "e7ee8add9ed1",
+      "type": "milestone",
+      "label": "milestone: Merge commit with resolved traceability-protocol.md conflict",
+      "episodes": [
+        "episode-2026-02-25-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791047+00:00"
+    },
+    {
+      "id": "43596fd4f64f",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve merge conflicts with main for PR #1209 traceability intake workflow",
+      "episodes": [
+        "episode-2026-02-25-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791055+00:00"
+    },
+    {
+      "id": "88dc69b7f6eb",
+      "type": "commit",
+      "label": "commit: Commit: a23f9cc6",
+      "episodes": [
+        "episode-2026-03-01-session-1194"
+      ],
+      "created": "2026-06-02T04:20:23.791092+00:00"
+    },
+    {
+      "id": "1face20a1ea6",
+      "type": "outcome",
+      "label": "Outcome: success - Complete PowerShell-to-Python migration across .claude/ directory per ADR-042",
+      "episodes": [
+        "episode-2026-03-01-session-1194"
+      ],
+      "created": "2026-06-02T04:20:23.791100+00:00"
+    },
+    {
+      "id": "2b5bf27acd64",
+      "type": "outcome",
+      "label": "Outcome: success - Close issue #193: Phase 1 Spec Layer Epic - resolve four remaining gaps",
+      "episodes": [
+        "episode-2026-03-09-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791135+00:00"
+    },
+    {
+      "id": "fc6889b0d561",
+      "type": "milestone",
+      "label": "milestone: Read CRITICAL-CONTEXT.md and AGENTS.md",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-06-02T04:20:23.791178+00:00"
+    },
+    {
+      "id": "734655ae5e70",
+      "type": "milestone",
+      "label": "milestone: Assessed worktree \u2014 partial changes already applied from prior session attempt",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-06-02T04:20:23.791188+00:00"
+    },
+    {
+      "id": "a249e0fd86cc",
+      "type": "milestone",
+      "label": "milestone: Verified traceability chain for sample specs (S-007 acceptance criterion)",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-06-02T04:20:23.791198+00:00"
+    },
+    {
+      "id": "e721d92386cc",
+      "type": "milestone",
+      "label": "milestone: Ran markdownlint on changed files",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-06-02T04:20:23.791206+00:00"
+    },
+    {
+      "id": "4efa9da1643d",
+      "type": "milestone",
+      "label": "milestone: Created session log and committed all changes",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-06-02T04:20:23.791213+00:00"
+    },
+    {
+      "id": "0b8555469a77",
+      "type": "outcome",
+      "label": "Outcome: success - Close Phase 1 spec layer gaps: Specification workflow in orchestrators, README status update, S-008 docs, duplicate spec ID resolution",
+      "episodes": [
+        "episode-2026-03-09-session-1195"
+      ],
+      "created": "2026-06-02T04:20:23.791221+00:00"
+    },
+    {
+      "id": "e558e3017484",
+      "type": "milestone",
+      "label": "milestone: Verified Phase 1 completion",
+      "episodes": [
+        "episode-2026-03-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791263+00:00"
+    },
+    {
+      "id": "5ca63e4b5610",
+      "type": "milestone",
+      "label": "milestone: Created session log",
+      "episodes": [
+        "episode-2026-03-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791272+00:00"
+    },
+    {
+      "id": "8acb46a1d244",
+      "type": "commit",
+      "label": "commit: Commit: 72c7cd67",
+      "episodes": [
+        "episode-2026-03-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791279+00:00"
+    },
+    {
+      "id": "6fb4165be5bc",
+      "type": "outcome",
+      "label": "Outcome: success - Close Phase 1 Spec Layer epic - all subtasks already complete via PRs #1469 and #1471",
+      "episodes": [
+        "episode-2026-03-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791288+00:00"
+    },
+    {
+      "id": "8afbce4603c5",
+      "type": "milestone",
+      "label": "milestone: Created retrospective artifact for PR #1589",
+      "episodes": [
+        "episode-2026-04-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791325+00:00"
+    },
+    {
+      "id": "916fb6fe5819",
+      "type": "outcome",
+      "label": "Outcome: success - Create retrospective for PR #1589 exit code workflows (issue #668 Phase 3)",
+      "episodes": [
+        "episode-2026-04-10-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791334+00:00"
+    },
+    {
+      "id": "42eab6c868e1",
+      "type": "milestone",
+      "label": "milestone: Cherry-picked retrospective from fix/668-exit-code-workflows to new branch",
+      "episodes": [
+        "episode-2026-04-10-session-2"
+      ],
+      "created": "2026-06-02T04:20:23.791371+00:00"
+    },
+    {
+      "id": "12c5b0d8d05c",
+      "type": "milestone",
+      "label": "milestone: Built detect_stale_pr_comments.py with 26 tests",
+      "episodes": [
+        "episode-2026-04-10-session-2"
+      ],
+      "created": "2026-06-02T04:20:23.791381+00:00"
+    },
+    {
+      "id": "f91fb8849c54",
+      "type": "milestone",
+      "label": "milestone: Evaluated 4 skill candidates in parallel",
+      "episodes": [
+        "episode-2026-04-10-session-2"
+      ],
+      "created": "2026-06-02T04:20:23.791389+00:00"
+    },
+    {
+      "id": "2d39fd616c66",
+      "type": "milestone",
+      "label": "milestone: Rewrote retrospective with honest accounting",
+      "episodes": [
+        "episode-2026-04-10-session-2"
+      ],
+      "created": "2026-06-02T04:20:23.791397+00:00"
+    },
+    {
+      "id": "5893de186540",
+      "type": "outcome",
+      "label": "Outcome: success - Cherry-pick PR #1589 retrospective, build and evaluate 4 skill candidates, rewrite retrospective with honest accounting, persist learnings to Serena",
+      "episodes": [
+        "episode-2026-04-10-session-2"
+      ],
+      "created": "2026-06-02T04:20:23.791405+00:00"
+    },
+    {
+      "id": "cdb2f52a43fc",
+      "type": "milestone",
+      "label": "milestone: Investigated PR #1719 state via mcp__github__pull_request_read",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791462+00:00"
+    },
+    {
+      "id": "e5e5f87d6bc1",
+      "type": "milestone",
+      "label": "milestone: Compared main vs PR #1719 content",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791472+00:00"
+    },
+    {
+      "id": "2233651d4a65",
+      "type": "milestone",
+      "label": "milestone: Enabled repository git hooks",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791480+00:00"
+    },
+    {
+      "id": "47241292accf",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main into PR branch via autofix branch",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791488+00:00"
+    },
+    {
+      "id": "8283a491f6fe",
+      "type": "milestone",
+      "label": "milestone: Ran test suite",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791497+00:00"
+    },
+    {
+      "id": "71bd3d70c019",
+      "type": "milestone",
+      "label": "milestone: Committed merge resolution efbabaf with pre-commit hooks passing",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791505+00:00"
+    },
+    {
+      "id": "396872bb6042",
+      "type": "commit",
+      "label": "commit: Commit: efbabaf",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791513+00:00"
+    },
+    {
+      "id": "a8e06a5528c8",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix PR #1719 session-end enforcement - rebase on main after PR 1680 landed",
+      "episodes": [
+        "episode-2026-04-21-session-1"
+      ],
+      "created": "2026-06-02T04:20:23.791521+00:00"
+    },
+    {
+      "id": "f7bf88230981",
+      "type": "milestone",
+      "label": "milestone: Verified PR 1791 state: OPEN, MERGEABLE, BLOCKED; 1 unresolved Copilot comment on AGENTS.md:24",
+      "episodes": [
+        "episode-2026-04-26-session-1756"
+      ],
+      "created": "2026-06-02T04:20:23.791567+00:00"
+    },
+    {
+      "id": "57fa6bcdd781",
+      "type": "milestone",
+      "label": "milestone: Checked main filesystem for Validate-PRReadiness.ps1 - found stray local file (misleading); verified via git ls-tree: file DELETED on both main and PR branch by migration commit a333cb70",
+      "episodes": [
+        "episode-2026-04-26-session-1756"
+      ],
+      "created": "2026-06-02T04:20:23.791576+00:00"
+    },
+    {
+      "id": "5fe144a21246",
+      "type": "milestone",
+      "label": "milestone: Confirmed pre_pr.py at scripts/validation/pre_pr.py is canonical Python replacement per ADR-042",
+      "episodes": [
+        "episode-2026-04-26-session-1756"
+      ],
+      "created": "2026-06-02T04:20:23.791585+00:00"
+    },
+    {
+      "id": "b825b267f9fc",
+      "type": "milestone",
+      "label": "milestone: Updated AGENTS.md:24: Validate-PRReadiness.ps1 -> python3 scripts/validation/pre_pr.py",
+      "episodes": [
+        "episode-2026-04-26-session-1756"
+      ],
+      "created": "2026-06-02T04:20:23.791593+00:00"
+    },
+    {
+      "id": "5fb29218bb6f",
+      "type": "milestone",
+      "label": "milestone: Budget validation passed: AGENTS.md 2845/3000, total 5550/6600",
+      "episodes": [
+        "episode-2026-04-26-session-1756"
+      ],
+      "created": "2026-06-02T04:20:23.791602+00:00"
+    },
+    {
+      "id": "3630fa8fba7d",
+      "type": "outcome",
+      "label": "Outcome: success - PR 1791 review response: fix broken Validate-PRReadiness.ps1 reference in AGENTS.md",
+      "episodes": [
+        "episode-2026-04-26-session-1756"
+      ],
+      "created": "2026-06-02T04:20:23.791610+00:00"
+    },
+    {
+      "id": "07c0f0c8f18e",
+      "type": "milestone",
+      "label": "milestone: Compressed AGENTS.md 2845->2831 bytes (-14)",
+      "episodes": [
+        "episode-2026-04-26-session-1757"
+      ],
+      "created": "2026-06-02T04:20:23.791651+00:00"
+    },
+    {
+      "id": "b342d376556f",
+      "type": "milestone",
+      "label": "milestone: Compressed CLAUDE.md 2535->2375 bytes (-160)",
+      "episodes": [
+        "episode-2026-04-26-session-1757"
+      ],
+      "created": "2026-06-02T04:20:23.791660+00:00"
+    },
+    {
+      "id": "337e551a53e9",
+      "type": "milestone",
+      "label": "milestone: Compressed .github/copilot-instructions.md 3319->3082 bytes (-237)",
+      "episodes": [
+        "episode-2026-04-26-session-1757"
+      ],
+      "created": "2026-06-02T04:20:23.791669+00:00"
+    },
+    {
+      "id": "13cc91a0030a",
+      "type": "milestone",
+      "label": "milestone: Total saved 411 bytes; workspace budget passes 5376/6600",
+      "episodes": [
+        "episode-2026-04-26-session-1757"
+      ],
+      "created": "2026-06-02T04:20:23.791677+00:00"
+    },
+    {
+      "id": "39eced4bebb7",
+      "type": "milestone",
+      "label": "milestone: markdownlint clean on all 3 files",
+      "episodes": [
+        "episode-2026-04-26-session-1757"
+      ],
+      "created": "2026-06-02T04:20:23.791686+00:00"
+    },
+    {
+      "id": "115fa36076d7",
+      "type": "outcome",
+      "label": "Outcome: success - Compress AGENTS.md, CLAUDE.md, copilot-instructions.md via caveman skill",
+      "episodes": [
+        "episode-2026-04-26-session-1757"
+      ],
+      "created": "2026-06-02T04:20:23.791694+00:00"
+    },
+    {
+      "id": "dfac91108bb0",
+      "type": "milestone",
+      "label": "milestone: Identified 3 unresolved PR #1721 threads; all from rjmurillo: (1) SESSION-PROTOCOL.md path broken, (2) orchestrator.md path broken, (3) wiki/ directory alien to repo",
+      "episodes": [
+        "episode-2026-04-26-session-1758"
+      ],
+      "created": "2026-06-02T04:20:23.791744+00:00"
+    },
+    {
+      "id": "bc13fad9058f",
+      "type": "milestone",
+      "label": "milestone: Deleted wiki/concepts/Session Capture Protocol.md and wiki/ directory; updated 6 cross-references to .serena/memories/session/session-capture-protocol.md",
+      "episodes": [
+        "episode-2026-04-26-session-1758"
+      ],
+      "created": "2026-06-02T04:20:23.791754+00:00"
+    },
+    {
+      "id": "f0ed4cee9ea0",
+      "type": "milestone",
+      "label": "milestone: Stripped external file/Serena-memory refs from all 5 distributed agent files (templates/+src/+.claude/agents/); inline Capture/Skip content is self-sufficient for vendored use",
+      "episodes": [
+        "episode-2026-04-26-session-1758"
+      ],
+      "created": "2026-06-02T04:20:23.791763+00:00"
+    },
+    {
+      "id": "a7bea16d173c",
+      "type": "outcome",
+      "label": "Outcome: success - PR #1721 review: relocate Session Capture Protocol from wiki/ to .serena/memories, strip external refs from distributed agents",
+      "episodes": [
+        "episode-2026-04-26-session-1758"
+      ],
+      "created": "2026-06-02T04:20:23.791772+00:00"
+    },
+    {
+      "id": "78f634224249",
+      "type": "commit",
+      "label": "commit: Commit: 2810c1be",
+      "episodes": [
+        "episode-2026-04-27-session-1754"
+      ],
+      "created": "2026-06-02T04:20:23.791810+00:00"
+    },
+    {
+      "id": "baf26ca51be0",
+      "type": "outcome",
+      "label": "Outcome: success - Port stuck-detection skill from Node.js prototype to ai-agents Python conventions; add SKILL.md, stuck_detection.py (stdlib only), and tests/skills/stuck-detection/test_stuck_detection.py (32 pytest cases); validate via SkillForge audit; commit on feat/stuck-detection-skill and open PR #1796.",
+      "episodes": [
+        "episode-2026-04-27-session-1754"
+      ],
+      "created": "2026-06-02T04:20:23.791820+00:00"
+    },
+    {
+      "id": "87710e12c2a2",
+      "type": "milestone",
+      "label": "milestone: Ported world-model-diagnostic skill from upstream OpenClaw catalog. Stripped OpenClaw branding (author, version suffix, metadata.openclaw block). Replaced lily-memory/memory_search/memory_store with Serena/Forgetful per AGENTS.md and ADR-007. Replaced ~/.openclaw/workspace/diagnostics path with .agents/analysis/diagnostics/. Reset version to 1.0.0. Frontmatter validates; size 293 lines (within 500). Companion skills referenced as in-flight issues (#1802, #1803, #1806) per issue scope.",
+      "episodes": [
+        "episode-2026-04-27-session-1760"
+      ],
+      "created": "2026-06-02T04:20:23.791858+00:00"
+    },
+    {
+      "id": "6c1554504b10",
+      "type": "milestone",
+      "label": "milestone: PR review follow-up: shortened description to 183 chars, fixed Phase 1 memory query sequence, added memory tooling fallback, added output self-check gate, added Verification section. Created eval suite (6 knowledge-integration prompts + 6 behavioral scenarios). Ran SkillForge analysis.",
+      "episodes": [
+        "episode-2026-04-27-session-1760"
+      ],
+      "created": "2026-06-02T04:20:23.791868+00:00"
+    },
+    {
+      "id": "3016d928b8e2",
+      "type": "commit",
+      "label": "commit: Commit: e7b604df",
+      "episodes": [
+        "episode-2026-04-27-session-1760"
+      ],
+      "created": "2026-06-02T04:20:23.791877+00:00"
+    },
+    {
+      "id": "008554764173",
+      "type": "outcome",
+      "label": "Outcome: success - Port world-model-diagnostic skill from upstream (issue #1805)",
+      "episodes": [
+        "episode-2026-04-27-session-1760"
+      ],
+      "created": "2026-06-02T04:20:23.791886+00:00"
+    },
+    {
+      "id": "9b951132455c",
+      "type": "decision",
+      "label": "implementation: \"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.791953+00:00"
+    },
+    {
+      "id": "7b624908201f",
+      "type": "decision",
+      "label": "implementation: Selected Issue #1798 (P2, grill-me pattern). Branch feat/1798-autonomous already prepared by harness; no existing PR. Confirmed via gh issue view and gh pr list.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.791963+00:00"
+    },
+    {
+      "id": "dbf92401f9f0",
+      "type": "decision",
+      "label": "design: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.791973+00:00"
+    },
+    {
+      "id": "00ab09543285",
+      "type": "milestone",
+      "label": "milestone: Selected Issue #1798 (P2, grill-me pattern). Branch feat/1798-autonomous already prepared by harness; no existing PR. Confirmed via gh issue view and gh pr list.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.791985+00:00"
+    },
+    {
+      "id": "3517eb0f743d",
+      "type": "milestone",
+      "label": "milestone: Authored .claude/skills/requirements-interview/SKILL.md (105 lines) implementing the grill-me pattern: design-tree traversal, recommended-answer-per-question discipline, codebase-first lookup, 7-branch checklist, structured PRD output. Frontmatter: name, version, description, model claude-sonnet-4-6, license MIT, user-invocable, triggers.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.791995+00:00"
+    },
+    {
+      "id": "a2b7f9d0b60a",
+      "type": "milestone",
+      "label": "milestone: Wrote .claude/skills/requirements-interview/tests/test_skill_contract.py (10 tests). Validates frontmatter required fields, name regex, description bound, model allowlist, line-count limit, required sections, grill-me/design-tree/recommended-answer/codebase-first invariants. All 10 pass.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792004+00:00"
+    },
+    {
+      "id": "fbf76977a13c",
+      "type": "milestone",
+      "label": "milestone: Wired skill into .claude/commands/spec.md as new step 2 (after problem clarification, before complexity classification). Renumbered subsequent steps 3..9. Diff confined to Process section.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792013+00:00"
+    },
+    {
+      "id": "9b0647c27df1",
+      "type": "milestone",
+      "label": "milestone: Validation: skill_frontmatter PASS, skill_size PASS (105 lines / 500 limit), markdownlint-cli2 PASS, pytest 10/10 PASS. Pre-PR --quick fails on environment (Pester scripts not present) and on pre-existing MD040 errors in unrelated agent files (milestone-planner, roadmap, spec-generator) - not introduced by this change.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792022+00:00"
+    },
+    {
+      "id": "a521a8822e11",
+      "type": "milestone",
+      "label": "milestone: Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792035+00:00"
+    },
+    {
+      "id": "1ed0ac38cca9",
+      "type": "milestone",
+      "label": "milestone: Commit 5924cff2 (fix): align requirements-interview with SkillForge validator. SkillForge pre-commit hook flagged three structural issues that f6ae8c8b shipped past: 'triggers:' frontmatter field not in ALLOWED_PROPERTIES, '## Method' must be '## Process', '## Quality Gates' must be '## Verification'. Removed triggers field (markdown ## Triggers section already present), renamed sections, added concrete checkboxes to Verification, updated test_skill_contract.py REQUIRED_SECTIONS. SkillForge now reports 18/19 (warning only: optional Extension Points). Tests: 10/10 PASS.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792045+00:00"
+    },
+    {
+      "id": "2052048c9c12",
+      "type": "milestone",
+      "label": "milestone: Commit f036ad54 (refactor): carry interview PRD schema through /spec downstream steps. Edited .claude/commands/spec.md steps 3-7 to thread the PRD; expanded Output section to mirror PRD schema (12 sections, EARS-tagged acceptance criteria). Edited SKILL.md handoff to describe inline carry. No new file artifacts; no new agent invocations. Refactor-then-feat split per .claude/rules/refactoring.md.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792054+00:00"
+    },
+    {
+      "id": "5229de4d9415",
+      "type": "milestone",
+      "label": "milestone: Commit d6284f80 (feat): wire spec-generator into /spec for durable REQ-NNN artifacts. /spec step 6 now invokes Task(subagent_type=spec-generator) with the full PRD plus complexity tier and CVA summary. Spec-generator writes .agents/specs/requirements/REQ-NNN, .agents/specs/design/DESIGN-NNN, .agents/specs/tasks/TASK-NNN files. SKILL.md handoff text updated to final wording. This realizes Issue #1798 Option C end-to-end (skill + /spec wiring + durable artifact handoff) modulo the deferred analyst-agent integration.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792064+00:00"
+    },
+    {
+      "id": "f542ad9277ce",
+      "type": "milestone",
+      "label": "milestone: Wrote .serena/memories/skill-requirements-interview-pattern.md capturing: end-to-end /spec flow, SkillForge validator gotchas (frontmatter allowlist, ## Process / ## Verification heading requirements), test contract synchronization, two-commit refactor-then-feat discipline, and deferred-work pointers (analyst integration, test refactor). Closes session protocol MUST: serenaMemoryUpdated.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792073+00:00"
+    },
+    {
+      "id": "84045aef2df4",
+      "type": "commit",
+      "label": "commit: Commit: d6284f80",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792083+00:00"
+    },
+    {
+      "id": "dddb49e3af44",
+      "type": "outcome",
+      "label": "Outcome: success - Add adversarial requirements-interview skill (grill-me pattern) and wire into /spec command (Issue #1798)",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792092+00:00"
+    },
+    {
+      "id": "2ebc20812a9e",
+      "type": "decision",
+      "label": "\"action\": \"Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.\"",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792454+00:00"
+    },
+    {
+      "id": "1d01daa399d3",
+      "type": "milestone",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792466+00:00"
+    },
+    {
+      "id": "c2f50a8595d5",
+      "type": "decision",
+      "label": "Selected Issue #1798 (P2, grill-me pattern). Branch feat/1798-autonomous already prepared by harness; no existing PR. Confirmed via gh issue view and gh pr list.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792479+00:00"
+    },
+    {
+      "id": "06a9fb26b021",
+      "type": "milestone",
+      "label": "Selected Issue #1798 (P2, grill-me pattern). Branch feat/1798-autonomous already prepared by harness; no existing PR. Confirmed via gh issue view and gh pr list.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792489+00:00"
+    },
+    {
+      "id": "e4ea7a7ef7fe",
+      "type": "milestone",
+      "label": "Commit 5924cff2 (fix): align requirements-interview with SkillForge validator. SkillForge pre-commit hook flagged three structural issues that f6ae8c8b shipped past: 'triggers:' frontmatter field not in ALLOWED_PROPERTIES, '## Method' must be '## Process', '## Quality Gates' must be '## Verification'. Removed triggers field (markdown ## Triggers section already present), renamed sections, added concrete checkboxes to Verification, updated test_skill_contract.py REQUIRED_SECTIONS. SkillForge now reports 18/19 (warning only: optional Extension Points). Tests: 10/10 PASS.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792530+00:00"
+    },
+    {
+      "id": "5d3bf45f7c53",
+      "type": "milestone",
+      "label": "Commit d6284f80 (feat): wire spec-generator into /spec for durable REQ-NNN artifacts. /spec step 6 now invokes Task(subagent_type=spec-generator) with the full PRD plus complexity tier and CVA summary. Spec-generator writes .agents/specs/requirements/REQ-NNN, .agents/specs/design/DESIGN-NNN, .agents/specs/tasks/TASK-NNN files. SKILL.md handoff text updated to final wording. This realizes Issue #1798 Option C end-to-end (skill + /spec wiring + durable artifact handoff) modulo the deferred analyst-agent integration.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792550+00:00"
+    },
+    {
+      "id": "dfbe42de5fde",
+      "type": "decision",
+      "label": "Pre-landing review (gstack /review) on PR #1812. Findings: (C1) /spec step 6 dropped the PRD schema downstream \u2014 also flagged by CodeRabbit; (C2) this session log MUST violation (serenaMemoryUpdated false) \u2014 also flagged by Session Protocol Validator; (I1) Issue #1798 Option C analyst integration missing \u2014 also flagged by Spec Validator (REQ-011 PARTIAL); (I2) SKILL.md handoff text claimed REQ-NNN/spec-generator wiring that did not exist; (I3-I5) test file duplicates validator constants and uses brittle XML check \u2014 Gemini comments. User chose Q1=A+B (refactor + spec-generator wiring), Q2=A (write Serena memory). Q3 (analyst integration) and Q4 (test refactor) deferred per minimal-blast-radius decision.",
+      "episodes": [
+        "episode-2026-04-27-session-1761"
+      ],
+      "created": "2026-06-02T04:20:23.792565+00:00"
+    },
+    {
+      "id": "b1d991133baa",
+      "type": "milestone",
+      "label": "milestone: Reviewed PR 1766 state: 5 unresolved review threads (1 CodeRabbit Major + 4 Copilot)",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792656+00:00"
+    },
+    {
+      "id": "8a2364c9ae35",
+      "type": "milestone",
+      "label": "milestone: Comment 1 (CodeRabbit, templates/agents/negotiation.shared.md:142): unverified Project Deal empirical claims; added internal-research disclaimer + flagged dollar values as illustrative across template, copilot-cli, vs-code-agents, .agents/skills/, docs/agent-catalog.md",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792667+00:00"
+    },
+    {
+      "id": "6e002eacb279",
+      "type": "milestone",
+      "label": "milestone: Comment 2 (Copilot, docs/agent-catalog.md:31): catalog listed Claude as available platform but generator does not target src/claude/; dropped Claude from negotiation row",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792677+00:00"
+    },
+    {
+      "id": "098ad7e95c92",
+      "type": "milestone",
+      "label": "milestone: Comment 3 (Copilot, templates/agents/negotiation.shared.md:4): added model_tier: opus to enforce senior-tier routing via configuration (matches sibling pattern in issue-feature-review.shared.md)",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792687+00:00"
+    },
+    {
+      "id": "1ce4494aca8c",
+      "type": "milestone",
+      "label": "milestone: Comment 4 (Copilot, .agents/skills/negotiation.md:10): PR description claimed 7 crystallized skills but file contains 10 (Skill-Negotiation-001 through 010); updated PR description from 7 to 10",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792697+00:00"
+    },
+    {
+      "id": "78e12922185e",
+      "type": "milestone",
+      "label": "milestone: Comment 5 (Copilot, docs/agent-catalog.md:3): intro said '22 specialized agents' but table enumerates 23; updated to 23",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792710+00:00"
+    },
+    {
+      "id": "f1646f053e33",
+      "type": "milestone",
+      "label": "milestone: Regenerated platform files via build/generate_agents.py (model_tier is template-only metadata; not propagated to vscode/copilot-cli output by design)",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792719+00:00"
+    },
+    {
+      "id": "c618a413b09d",
+      "type": "milestone",
+      "label": "milestone: Round 2 (rjmurillo flagged): added src/claude/negotiation.md by hand per templates/README.md:131 (src/claude/ is not auto-generated); restored Claude in catalog row",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792729+00:00"
+    },
+    {
+      "id": "fe33e06c02df",
+      "type": "milestone",
+      "label": "milestone: Round 3 (user request): migrated skill from .agents/skills/negotiation.md to .claude/skills/negotiation/SKILL.md per .claude/skills/CLAUDE.md schema; full 10 skills moved to references/skills.md (progressive disclosure under 500-line limit)",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792739+00:00"
+    },
+    {
+      "id": "334709a7b351",
+      "type": "milestone",
+      "label": "milestone: Round 4 (Copilot follow-up): removed double blank line + added missing --- separator in src/claude/negotiation.md; replaced unsourced unwind percentages in references/skills.md; bumped SEMANTIC_INDEX.yaml last_updated to 2026-04-27",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792750+00:00"
+    },
+    {
+      "id": "62a9091147f2",
+      "type": "milestone",
+      "label": "milestone: Round 5 (Copilot): bumped marketplace.json claude-agents and project-toolkit agent counts 23->24; corrected episode files_changed 0->8",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792762+00:00"
+    },
+    {
+      "id": "14c84260df87",
+      "type": "commit",
+      "label": "commit: Commit: a6b252f9",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792771+00:00"
+    },
+    {
+      "id": "9f7ba6f91311",
+      "type": "outcome",
+      "label": "Outcome: success - PR 1766 review response: address 5 unresolved review comments (CodeRabbit + Copilot) on negotiation agent template",
+      "episodes": [
+        "episode-2026-04-27-session-1766"
+      ],
+      "created": "2026-06-02T04:20:23.792782+00:00"
+    },
+    {
+      "id": "5e632393c83a",
+      "type": "milestone",
+      "label": "milestone: Authored .agents/analysis/command-skill-bundling-2026-05-03.md identifying 9 bundling opportunities across 7 lifecycle commands",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792845+00:00"
+    },
+    {
+      "id": "40b395083750",
+      "type": "milestone",
+      "label": "milestone: Ran requirements-interview skill; walked design tree (scope, user stories, data model, integrations, failure modes, security, observability)",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792856+00:00"
+    },
+    {
+      "id": "8be6c449f8d1",
+      "type": "milestone",
+      "label": "milestone: Analyst classified change as Tier 2; CVA produced flat-registry abstraction",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792866+00:00"
+    },
+    {
+      "id": "c25a7b2f872f",
+      "type": "milestone",
+      "label": "milestone: spec-generator wrote REQ-005, DESIGN-005, TASK-005 with 14 EARS acceptance criteria and T5-1..T5-8 sub-tasks",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792876+00:00"
+    },
+    {
+      "id": "448800a46e38",
+      "type": "milestone",
+      "label": "milestone: Analyst gap review surfaced 3 Critical and 4 Important findings; decision-critic returned REVISE; pre-mortem identified 5 additional failure modes",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792886+00:00"
+    },
+    {
+      "id": "9ca4bddf4890",
+      "type": "milestone",
+      "label": "milestone: Folded all findings into REQ-005, DESIGN-005, TASK-005: AC-11 reframed as static contract, AC-5/8 narrowed to file-age via git log, AC-9 aligned with gh CLI CONFLICTING/UNKNOWN, T5-0 prerequisite added, BUNDLE_REGISTRY moved to shared module, CWE-78 path quoting required, 120s timeouts, reflect minimum-delta guard",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792896+00:00"
+    },
+    {
+      "id": "fb301ce3d538",
+      "type": "milestone",
+      "label": "milestone: Created branch docs/spec-005-command-skill-bundling and staged 4 spec files (excluded unrelated .serena/project.yml)",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792906+00:00"
+    },
+    {
+      "id": "19b4bdc01897",
+      "type": "milestone",
+      "label": "milestone: Committed db9f24cb: SPEC-005 analysis, REQ/DESIGN/TASK artifacts, session log, auto-generated episode (6 files, 1277 insertions)",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792916+00:00"
+    },
+    {
+      "id": "b380e6d83c2b",
+      "type": "milestone",
+      "label": "milestone: Ran /plan: milestone-planner returned 3-milestone structure (M1 inverts T5-8 to land first); task-decomposer resolved 3 unknowns (sys.path import pattern, AC-12 parser semantics, reflect min-delta guard scope); execution-plans skill persisted plan to .agents/plans/active/",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792926+00:00"
+    },
+    {
+      "id": "59142c690c1e",
+      "type": "milestone",
+      "label": "milestone: Plan pre-mortem (analyst) surfaced F1-F5; plan critic returned NEEDS_REVISION with F6-F9; folded all 9 findings into plan: Implementer Quick-Start section, M2 GREEN/RED enumeration, M1-to-M2 continuity rule, AC-13 verification stance, CI wire-up tasks, T5-4/T5-6 resized to M",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792936+00:00"
+    },
+    {
+      "id": "272d4eb25fd7",
+      "type": "milestone",
+      "label": "milestone: Adversarial review (independent-thinker) raised C1-C6. C1 closed by user (PR #1894 is the matching bundle-via-prose precedent at the agent layer; bundle-via-prose is house style, not a workaround). C5 applied as plan-level fix (BUNDLE_CHECK_ENFORCED=0 default + xfail marks; M1 stays GREEN). C6 acknowledged as deliberate dogfooding.",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792947+00:00"
+    },
+    {
+      "id": "87de9d03a966",
+      "type": "milestone",
+      "label": "milestone: User approved Q2 + Q3 spec amendments. Applied to REQ-005 (AC-1, AC-2, AC-12, AC-14 rewritten), DESIGN-005 (BundleRegistry session-init/session-end gate type to always; Presence-Marker Table runtime-conditionals only; Testing Strategy advisory framing), TASK-005 (T5-1, T5-2 drop conditional logic; T5-8 advisory WARN with BUNDLE_CHECK_ENFORCED env var gating). Q4 auto-resolved (Tier 2 holds; no system-wide CI contract). All four open questions resolved.",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792957+00:00"
+    },
+    {
+      "id": "0c9481857709",
+      "type": "milestone",
+      "label": "milestone: Promoted /context-gather slash command to .claude/skills/context-gather/SKILL.md via SkillForge orchestrator. Resolved T5-0 verification blocker (BundleRegistry references context-gather as Skill, not slash command). Old command file deleted. SkillForge validator 19/19; 17 pytest pass.",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792967+00:00"
+    },
+    {
+      "id": "c01aab64aa01",
+      "type": "milestone",
+      "label": "milestone: Pushed branch docs/spec-005-command-skill-bundling, refreshed marketplace counters (-1 slash command, +1 skill), opened PR #1899 (draft). Increment 1 contains 4 commits.",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792977+00:00"
+    },
+    {
+      "id": "294d8497001f",
+      "type": "milestone",
+      "label": "milestone: Ran /review on increment 1 (orchestrator-coordinated 5-axis review). Findings: I-1 (skill count 16->13), I-2 (AC traceability matrix contradicts AC-1/AC-2 prose), I-5 (model downgrade behavior change), S-1 (test subagent existence), S-2 (test trigger count + backtick). All applied. Tests grew 17->20.",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792988+00:00"
+    },
+    {
+      "id": "8e52a7ba2480",
+      "type": "outcome",
+      "label": "Outcome: success - Author SPEC-005 command-skill bundling REQ DESIGN TASK artifacts and analysis",
+      "episodes": [
+        "episode-2026-05-06-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.792998+00:00"
+    },
+    {
+      "id": "37a485b1b6b3",
+      "type": "milestone",
+      "label": "milestone: Configure workspace per CONTRIBUTING.md",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793054+00:00"
+    },
+    {
+      "id": "f8e9adf8c365",
+      "type": "milestone",
+      "label": "milestone: Branch off main: feat/skill-eval-triage",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793066+00:00"
+    },
+    {
+      "id": "80abf9cf0ca7",
+      "type": "milestone",
+      "label": "milestone: Inventory eval infra and skill catalog",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793076+00:00"
+    },
+    {
+      "id": "b676fc0a655e",
+      "type": "milestone",
+      "label": "milestone: Pick 15 suspect skills (deprecated + cluster overlap)",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793086+00:00"
+    },
+    {
+      "id": "7fc0f85a9ecb",
+      "type": "milestone",
+      "label": "milestone: Author tests/evals/skills/triage-prompts.json",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793097+00:00"
+    },
+    {
+      "id": "4facd099368f",
+      "type": "milestone",
+      "label": "milestone: Dry-run eval",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793107+00:00"
+    },
+    {
+      "id": "c75e4a417268",
+      "type": "milestone",
+      "label": "milestone: Live eval run (background, ~15min)",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793117+00:00"
+    },
+    {
+      "id": "6d9c715bbd70",
+      "type": "milestone",
+      "label": "milestone: Synthesize findings",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793128+00:00"
+    },
+    {
+      "id": "0a52f2d1e9a5",
+      "type": "milestone",
+      "label": "milestone: Update Serena memory",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793138+00:00"
+    },
+    {
+      "id": "08041cb61afa",
+      "type": "outcome",
+      "label": "Outcome: success - skill triage eval - 15 suspect skills evaluated, prune/consolidate slate identified",
+      "episodes": [
+        "episode-2026-05-09-session-1825"
+      ],
+      "created": "2026-06-02T04:20:23.793149+00:00"
+    },
+    {
+      "id": "4f608359bcb2",
+      "type": "milestone",
+      "label": "milestone: requirements-interview for M1 (doc-coverage + doc-sync + workflow prune)",
+      "episodes": [
+        "episode-2026-05-09-session-1826"
+      ],
+      "created": "2026-06-02T04:20:23.793198+00:00"
+    },
+    {
+      "id": "7f61ac923c5e",
+      "type": "milestone",
+      "label": "milestone: spec-generator: write REQ-006/DESIGN-006/TASK-006",
+      "episodes": [
+        "episode-2026-05-09-session-1826"
+      ],
+      "created": "2026-06-02T04:20:23.793209+00:00"
+    },
+    {
+      "id": "75cf9ada46a5",
+      "type": "milestone",
+      "label": "milestone: Write action slate plan",
+      "episodes": [
+        "episode-2026-05-09-session-1826"
+      ],
+      "created": "2026-06-02T04:20:23.793220+00:00"
+    },
+    {
+      "id": "17166faeefeb",
+      "type": "milestone",
+      "label": "milestone: Analyst gap review + critic pre-mortem (parallel)",
+      "episodes": [
+        "episode-2026-05-09-session-1826"
+      ],
+      "created": "2026-06-02T04:20:23.793231+00:00"
+    },
+    {
+      "id": "ad9304069e33",
+      "type": "milestone",
+      "label": "milestone: SkillForge overlap check",
+      "episodes": [
+        "episode-2026-05-09-session-1826"
+      ],
+      "created": "2026-06-02T04:20:23.793241+00:00"
+    },
+    {
+      "id": "ef624000c9ec",
+      "type": "outcome",
+      "label": "Outcome: success - M1 spec: skill catalog prune REQ-006/DESIGN-006/TASK-006, action slate plan",
+      "episodes": [
+        "episode-2026-05-09-session-1826"
+      ],
+      "created": "2026-06-02T04:20:23.793251+00:00"
+    },
+    {
+      "id": "7d41d161f6ec",
+      "type": "milestone",
+      "label": "milestone: /test gates 1+4+5 in parallel",
+      "episodes": [
+        "episode-2026-05-09-session-1827"
+      ],
+      "created": "2026-06-02T04:20:23.793298+00:00"
+    },
+    {
+      "id": "4e60f84d25dd",
+      "type": "milestone",
+      "label": "milestone: Fix Gate 5 critical findings",
+      "episodes": [
+        "episode-2026-05-09-session-1827"
+      ],
+      "created": "2026-06-02T04:20:23.793310+00:00"
+    },
+    {
+      "id": "db0a2f8f2f35",
+      "type": "milestone",
+      "label": "milestone: Fix Gate 1 finding 3",
+      "episodes": [
+        "episode-2026-05-09-session-1827"
+      ],
+      "created": "2026-06-02T04:20:23.793320+00:00"
+    },
+    {
+      "id": "5f200798baa8",
+      "type": "milestone",
+      "label": "milestone: /review architect axis",
+      "episodes": [
+        "episode-2026-05-09-session-1827"
+      ],
+      "created": "2026-06-02T04:20:23.793331+00:00"
+    },
+    {
+      "id": "65ad248ce758",
+      "type": "milestone",
+      "label": "milestone: /review standards axes",
+      "episodes": [
+        "episode-2026-05-09-session-1827"
+      ],
+      "created": "2026-06-02T04:20:23.793342+00:00"
+    },
+    {
+      "id": "5d8270b1c1b2",
+      "type": "outcome",
+      "label": "Outcome: success - /test + /review fix-loop: doc orphan cleanup, gitignore, design-review note",
+      "episodes": [
+        "episode-2026-05-09-session-1827"
+      ],
+      "created": "2026-06-02T04:20:23.793353+00:00"
+    },
+    {
+      "id": "07500c1506c4",
+      "type": "milestone",
+      "label": "milestone: Read 7 CI prompts in .github/prompts/",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793551+00:00"
+    },
+    {
+      "id": "05cb33c6c37f",
+      "type": "milestone",
+      "label": "milestone: Dispatched 7 parallel adversarial subagents (one per CI prompt)",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793564+00:00"
+    },
+    {
+      "id": "8fa975f16907",
+      "type": "milestone",
+      "label": "milestone: Synthesized findings into priority slate (7 fixes)",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793575+00:00"
+    },
+    {
+      "id": "859073ff5449",
+      "type": "milestone",
+      "label": "milestone: Commit A: tests/evals/skills/triage-prompts.json",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793586+00:00"
+    },
+    {
+      "id": "f56887ca3fc4",
+      "type": "milestone",
+      "label": "milestone: Commit B: doc-accuracy description tense + MD040 lint fix",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793597+00:00"
+    },
+    {
+      "id": "4d357574b236",
+      "type": "milestone",
+      "label": "milestone: Commit C: REQ-007 AC5 + Deferred section + session 1828 log",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793608+00:00"
+    },
+    {
+      "id": "ceb0291f51bb",
+      "type": "milestone",
+      "label": "milestone: Commit D: ADR-040 + plugin.json factual count corrections",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793619+00:00"
+    },
+    {
+      "id": "e4993e68fbe7",
+      "type": "milestone",
+      "label": "milestone: Commit E: PLAN Decision Log workflow PRUNE rationale",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793630+00:00"
+    },
+    {
+      "id": "0b8e6d507fc7",
+      "type": "milestone",
+      "label": "milestone: Round 2 verification: 7 adversarial agents re-run",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793646+00:00"
+    },
+    {
+      "id": "d14a488ee816",
+      "type": "milestone",
+      "label": "milestone: Commit F: Round 2 fix-loop",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793657+00:00"
+    },
+    {
+      "id": "75ffcb46f75c",
+      "type": "milestone",
+      "label": "milestone: Round 3 verification: analyst + architect re-run",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793668+00:00"
+    },
+    {
+      "id": "6a7293bb7b50",
+      "type": "milestone",
+      "label": "milestone: Filed epic #1933 + 7 sub-issues (#1934-#1940) for lifecycle-gate convergence",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793679+00:00"
+    },
+    {
+      "id": "a82385e46d77",
+      "type": "milestone",
+      "label": "milestone: /ship pre-flight: PASS_ALL across 5 checks (pipeline, security, review, tests, standards)",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793691+00:00"
+    },
+    {
+      "id": "793a29ca07d9",
+      "type": "milestone",
+      "label": "milestone: Pre-push hook BLOCKED: 73 pytest failures + 71/50 file count overage",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793704+00:00"
+    },
+    {
+      "id": "30ee58397d8c",
+      "type": "milestone",
+      "label": "milestone: Commit G: pre-push fixes",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793718+00:00"
+    },
+    {
+      "id": "05616c3d7b12",
+      "type": "outcome",
+      "label": "Outcome: success - /pr-quality:all adversarial fix-loop on M1 PR: 7 CI gate findings remediated (eval orphans, REQ-007 AC5, doc-accuracy tense, ADR-040 enumeration, plugin.json counts, PLAN decision log)",
+      "episodes": [
+        "episode-2026-05-09-session-1828"
+      ],
+      "created": "2026-06-02T04:20:23.793729+00:00"
+    },
+    {
+      "id": "420cf4033160",
+      "type": "milestone",
+      "label": "milestone: spec workflow complete",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793806+00:00"
+    },
+    {
+      "id": "3c09c124a09a",
+      "type": "milestone",
+      "label": "milestone: plan workflow complete",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793819+00:00"
+    },
+    {
+      "id": "6739b32bcf6a",
+      "type": "milestone",
+      "label": "milestone: M1 build complete",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793831+00:00"
+    },
+    {
+      "id": "6a5cb48d0d0c",
+      "type": "milestone",
+      "label": "milestone: commit 1 landed",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793842+00:00"
+    },
+    {
+      "id": "0f337bd21dc3",
+      "type": "milestone",
+      "label": "milestone: test gate 5 fixes applied",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793854+00:00"
+    },
+    {
+      "id": "de05c8c34070",
+      "type": "milestone",
+      "label": "milestone: M2 commit 2A drafted",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793865+00:00"
+    },
+    {
+      "id": "09addfaef859",
+      "type": "milestone",
+      "label": "milestone: M2 commit 2B drafted",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793879+00:00"
+    },
+    {
+      "id": "df894fed4e70",
+      "type": "milestone",
+      "label": "milestone: M3 commit drafted",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793891+00:00"
+    },
+    {
+      "id": "cdd74503c2f2",
+      "type": "milestone",
+      "label": "milestone: M4 complete",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793902+00:00"
+    },
+    {
+      "id": "8ca861343c7a",
+      "type": "milestone",
+      "label": "milestone: M5 complete",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793913+00:00"
+    },
+    {
+      "id": "24a9a6364048",
+      "type": "milestone",
+      "label": "milestone: M5 close",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793925+00:00"
+    },
+    {
+      "id": "af7b17d11dec",
+      "type": "milestone",
+      "label": "milestone: review fixes spec layer",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793937+00:00"
+    },
+    {
+      "id": "f43d06f03daa",
+      "type": "milestone",
+      "label": "milestone: review fixes test layer",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793949+00:00"
+    },
+    {
+      "id": "d2a42e1d140b",
+      "type": "milestone",
+      "label": "milestone: deferred items filed as sub-issues",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793963+00:00"
+    },
+    {
+      "id": "34cffe195b27",
+      "type": "milestone",
+      "label": "milestone: PR review fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793977+00:00"
+    },
+    {
+      "id": "831e30ab0bb7",
+      "type": "milestone",
+      "label": "milestone: PR review additional bot threads",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.793989+00:00"
+    },
+    {
+      "id": "edff99c99834",
+      "type": "milestone",
+      "label": "milestone: PR review iteration 3 fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794001+00:00"
+    },
+    {
+      "id": "efe81c9c4e1e",
+      "type": "milestone",
+      "label": "milestone: PR review iteration 4 fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794013+00:00"
+    },
+    {
+      "id": "d83df66f2248",
+      "type": "milestone",
+      "label": "milestone: PR review iteration 5 fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794024+00:00"
+    },
+    {
+      "id": "7e1faf7b9919",
+      "type": "milestone",
+      "label": "milestone: PR review iteration 6",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794037+00:00"
+    },
+    {
+      "id": "c267e1e33ab1",
+      "type": "milestone",
+      "label": "milestone: Adversarial review iteration 2 fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794049+00:00"
+    },
+    {
+      "id": "0c69818df53f",
+      "type": "milestone",
+      "label": "milestone: Adversarial review iter 4 fix",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794061+00:00"
+    },
+    {
+      "id": "873ce05539d8",
+      "type": "milestone",
+      "label": "milestone: Adversarial review iter 5 fix",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794072+00:00"
+    },
+    {
+      "id": "cd6900ad9c77",
+      "type": "milestone",
+      "label": "milestone: Adversarial review iter 6 fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794085+00:00"
+    },
+    {
+      "id": "02f8257fb062",
+      "type": "milestone",
+      "label": "milestone: Adversarial review fresh pass fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794096+00:00"
+    },
+    {
+      "id": "632575599864",
+      "type": "milestone",
+      "label": "milestone: Adversarial review revert AC-09 split",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794108+00:00"
+    },
+    {
+      "id": "68c8a9c27458",
+      "type": "milestone",
+      "label": "milestone: AC-13 propagation fixes",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794119+00:00"
+    },
+    {
+      "id": "a2b6341912f9",
+      "type": "milestone",
+      "label": "milestone: AC-13 metric example + heading fix",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794132+00:00"
+    },
+    {
+      "id": "15daf389d7a7",
+      "type": "commit",
+      "label": "commit: Commit: 7be6b55a",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794144+00:00"
+    },
+    {
+      "id": "3e15daf1d88a",
+      "type": "outcome",
+      "label": "Outcome: success - Implement Step 0.5 Memory-First Gate in spec pipeline per REQ-008 milestones M1-M5",
+      "episodes": [
+        "episode-2026-05-10-session-1830"
+      ],
+      "created": "2026-06-02T04:20:23.794163+00:00"
+    },
+    {
+      "id": "678e31d84c89",
+      "type": "milestone",
+      "label": "milestone: Re-fetch unresolved review threads via GraphQL with pagination (totalCount=135 vs first-page=100)",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794224+00:00"
+    },
+    {
+      "id": "faef2e4af0a8",
+      "type": "milestone",
+      "label": "milestone: Verify Devin's claim by running scan.py on working tree",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794237+00:00"
+    },
+    {
+      "id": "395b5b3a72fd",
+      "type": "milestone",
+      "label": "milestone: Add project-toolkit + drift-check to KEBAB_DENYLIST in filters.py with documenting comments",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794250+00:00"
+    },
+    {
+      "id": "0993d5bf7eb1",
+      "type": "milestone",
+      "label": "milestone: Fix path typos: scripts/validate_plugin_manifests.py -> build/scripts/validate_plugin_manifests.py in DESIGN-008 OQ1 + TASK-008 lines 291, 316",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794263+00:00"
+    },
+    {
+      "id": "070fd3d640f7",
+      "type": "milestone",
+      "label": "milestone: Create empty build/scripts/__init__.py package marker (force-add via git add -f because /build/ is gitignored at .gitignore:54 but other build/scripts/*.py files are tracked)",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794275+00:00"
+    },
+    {
+      "id": "5be93ebd248f",
+      "type": "milestone",
+      "label": "milestone: Re-run scan.py",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794287+00:00"
+    },
+    {
+      "id": "5ab36492107b",
+      "type": "milestone",
+      "label": "milestone: Fix doc alignment: AC9->AC8 in test_scan.py header + .serena memory; M3 cell wording in TASK-009; verdict tokens uppercased + ERROR added in TASK-009-03",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794300+00:00"
+    },
+    {
+      "id": "eb3ba4192fad",
+      "type": "milestone",
+      "label": "milestone: Add # taste-lint: ignore file-size suppressions with justification comments to scan.py and test_scan.py",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794313+00:00"
+    },
+    {
+      "id": "67d82d2283e7",
+      "type": "milestone",
+      "label": "milestone: Regenerate src/copilot-cli/skills/orphan-ref-validator/ via build/scripts/generate_skills.py",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794325+00:00"
+    },
+    {
+      "id": "1c00f079c31d",
+      "type": "milestone",
+      "label": "milestone: Run full repo pytest",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794337+00:00"
+    },
+    {
+      "id": "36e464e939ce",
+      "type": "test",
+      "label": "test: 8578 passed, 3 skipped (no regressions from filters.py denylist additions, comment changes, or path corrections in spec docs).",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794350+00:00"
+    },
+    {
+      "id": "9e35896071e8",
+      "type": "outcome",
+      "label": "Outcome: success - PR #1979 round 18: resolve self-block on orphan-ref-validator gate (11 findings -> 0) + 5 doc/lint review threads",
+      "episodes": [
+        "episode-2026-05-10-session-1831"
+      ],
+      "created": "2026-06-02T04:20:23.794363+00:00"
+    },
+    {
+      "id": "eee3acc4b37b",
+      "type": "milestone",
+      "label": "milestone: Invoke spec skill on issue #2003",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794442+00:00"
+    },
+    {
+      "id": "d5ab5425bdfa",
+      "type": "milestone",
+      "label": "milestone: Step 0.5 Memory-First Gate",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794457+00:00"
+    },
+    {
+      "id": "bdf9df9c94e7",
+      "type": "milestone",
+      "label": "milestone: Write 4 spec artifacts: PRD + REQ-011 + DESIGN-011 + TASK-011",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794469+00:00"
+    },
+    {
+      "id": "d644459b6418",
+      "type": "milestone",
+      "label": "milestone: Step 9 critic checks 9a/9b/9c/9d",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794482+00:00"
+    },
+    {
+      "id": "15adf37f87ec",
+      "type": "milestone",
+      "label": "milestone: Lock PRD \u00a711 open questions before commit",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794496+00:00"
+    },
+    {
+      "id": "0907d1a7bc62",
+      "type": "milestone",
+      "label": "milestone: Commit spec artifacts on feat/issue-2003-agent-skill-audit-spec",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794508+00:00"
+    },
+    {
+      "id": "408372767b8e",
+      "type": "milestone",
+      "label": "milestone: Execute TASK-011: mechanical scoring of c1, c5, has_shared_template for all 23 agents",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794521+00:00"
+    },
+    {
+      "id": "878615e01579",
+      "type": "milestone",
+      "label": "milestone: Execute TASK-011: c3 (sibling-is-skill) for c1=Yes agents with <3 pipelines",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794536+00:00"
+    },
+    {
+      "id": "e91d8f944a08",
+      "type": "milestone",
+      "label": "milestone: Execute TASK-011: c4 (PR schema-drift history) for structured-output agents",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794549+00:00"
+    },
+    {
+      "id": "f6beaa1aa109",
+      "type": "milestone",
+      "label": "milestone: Execute TASK-011: c2 (reference vs reasoning) heuristic + manual deflation",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794562+00:00"
+    },
+    {
+      "id": "6c85f835d337",
+      "type": "milestone",
+      "label": "milestone: Execute TASK-011: apply verdict rule per DESIGN-011 \u00a7C3",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794575+00:00"
+    },
+    {
+      "id": "ec18b6d0bc73",
+      "type": "milestone",
+      "label": "milestone: Write audit document at .agents/audits/2026-05-10-agent-skill-classification-audit.md",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794588+00:00"
+    },
+    {
+      "id": "e18269a9e48e",
+      "type": "milestone",
+      "label": "milestone: File Phase 3 CI check stub issue #2008 (per PRD AC-12)",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794601+00:00"
+    },
+    {
+      "id": "0479ad96e840",
+      "type": "milestone",
+      "label": "milestone: File validator bug #2007 (per user directive)",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794614+00:00"
+    },
+    {
+      "id": "761b08499661",
+      "type": "milestone",
+      "label": "milestone: Round 2: address 13 PR review threads (4 bot reviewers: copilot, devin, cursor, coderabbit)",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794626+00:00"
+    },
+    {
+      "id": "b1c2f6abc3a5",
+      "type": "milestone",
+      "label": "milestone: Round 3: address 3 follow-up review threads (roadmap c1 miss, em-dash in own correction, episode lessons empty)",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794639+00:00"
+    },
+    {
+      "id": "781b710ace66",
+      "type": "milestone",
+      "label": "milestone: Round 4: address code-review agent finding (1 P1)",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794652+00:00"
+    },
+    {
+      "id": "119228bc7eec",
+      "type": "milestone",
+      "label": "milestone: Round 5: address 7 follow-up review threads (5 stale-numbers, 2 grep-method docs)",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794665+00:00"
+    },
+    {
+      "id": "81fed0857d07",
+      "type": "milestone",
+      "label": "milestone: Round 6: address 7 follow-up review threads (1 count, 1 path quote, 1 path style, 2 false-positive semgrep, 2 grep portability)",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794678+00:00"
+    },
+    {
+      "id": "978cfb57ca3f",
+      "type": "milestone",
+      "label": "milestone: Round 7: restore episode manual corrections + file extractor bug as #2013",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794691+00:00"
+    },
+    {
+      "id": "9f3ffa13ace5",
+      "type": "milestone",
+      "label": "milestone: Round 7d: harmonize critic c2 evidence format",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794704+00:00"
+    },
+    {
+      "id": "8553492637d3",
+      "type": "commit",
+      "label": "commit: Commit: e4ee4bd0",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794717+00:00"
+    },
+    {
+      "id": "882c9b030ea4",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #2003: spec the Phase 1 agent-skill classification audit and execute TASK-011 to produce the audit deliverable. Address user constraint: too many agents and skills loaded, Claude Code is truncating the catalog at session start.",
+      "episodes": [
+        "episode-2026-05-10-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794730+00:00"
+    },
+    {
+      "id": "2969ad522703",
+      "type": "milestone",
+      "label": "milestone: Spec authored",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794790+00:00"
+    },
+    {
+      "id": "95a0ff65a05b",
+      "type": "milestone",
+      "label": "milestone: TDD red phase",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794805+00:00"
+    },
+    {
+      "id": "52dd3aa71e59",
+      "type": "milestone",
+      "label": "milestone: TDD green phase",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794818+00:00"
+    },
+    {
+      "id": "8c6fdc6e59ef",
+      "type": "milestone",
+      "label": "milestone: Memory and session log",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794831+00:00"
+    },
+    {
+      "id": "d4a5c07b47b9",
+      "type": "milestone",
+      "label": "milestone: PR open and self-apply gate (TASK-011-04)",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794845+00:00"
+    },
+    {
+      "id": "ea682c295e5d",
+      "type": "milestone",
+      "label": "milestone: PR review address (round 1)",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794858+00:00"
+    },
+    {
+      "id": "3cb7e2b7aff5",
+      "type": "milestone",
+      "label": "milestone: PR review rounds 2-9",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794871+00:00"
+    },
+    {
+      "id": "0f21230c2f1d",
+      "type": "commit",
+      "label": "commit: Commit: d8aee7ed",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794885+00:00"
+    },
+    {
+      "id": "e13c4b70b8d0",
+      "type": "outcome",
+      "label": "Outcome: success - REQ-011 M5 bot-cascade pre-push warning Phase 5c (TDD-first implementation)",
+      "episodes": [
+        "episode-2026-05-11-session-1832"
+      ],
+      "created": "2026-06-02T04:20:23.794899+00:00"
+    },
+    {
+      "id": "73cc0a03781f",
+      "type": "milestone",
+      "label": "milestone: Audit existing FAILURE-MODES.md structure",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.794952+00:00"
+    },
+    {
+      "id": "a3ba6e90c069",
+      "type": "milestone",
+      "label": "milestone: Cross-reference open issues for adjacent work",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.794967+00:00"
+    },
+    {
+      "id": "45e180fb11a8",
+      "type": "milestone",
+      "label": "milestone: Pull external corroboration from daniel.haxx.se 2026-05-11",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.794981+00:00"
+    },
+    {
+      "id": "1343e3676b3d",
+      "type": "milestone",
+      "label": "milestone: Draft FM-10 entry following FM-1..FM-8 format",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.794995+00:00"
+    },
+    {
+      "id": "ff58c3b74fda",
+      "type": "milestone",
+      "label": "milestone: Index update",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795009+00:00"
+    },
+    {
+      "id": "994ac0216515",
+      "type": "milestone",
+      "label": "milestone: Pre-commit hook surfaced em-dash prohibition",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795022+00:00"
+    },
+    {
+      "id": "aebce1bd955c",
+      "type": "milestone",
+      "label": "milestone: Pre-commit hook required JSON session log per ADR-042",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795036+00:00"
+    },
+    {
+      "id": "8a669047275a",
+      "type": "outcome",
+      "label": "Outcome: success - Add FM-10 (Silent Defaults and Guard-Clause Suppression) to FAILURE-MODES.md, anchoring on PR #1965 round-9/11 retro evidence and external corroboration from daniel.haxx.se 2026-05-11",
+      "episodes": [
+        "episode-2026-05-11-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795050+00:00"
+    },
+    {
+      "id": "9d8feba16d83",
+      "type": "decision",
+      "label": "unknown: ",
+      "episodes": [
+        "episode-2026-05-13-session-1833",
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795118+00:00"
+    },
+    {
+      "id": "13ce0154c6bb",
+      "type": "milestone",
+      "label": "milestone: Fetched PR #2009 context: OPEN, mergeable=CONFLICTING, 3 unresolved review threads (cursor[bot] x1, devin-ai-integration[bot] x2), 47 already resolved.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795134+00:00"
+    },
+    {
+      "id": "12dc52e3b34c",
+      "type": "milestone",
+      "label": "milestone: Thread r3216531500 (cursor, audit L437): c1=No triage list named 9 of 11 c1=0 agents. Verified against the 23-row audit table: orchestrator and retrospective also have c1=0. Fixed: added both to the list; noted orchestrator is hard-isolation (keep-as-agent regardless).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795148+00:00"
+    },
+    {
+      "id": "dbabf65fbb63",
+      "type": "milestone",
+      "label": "milestone: Thread r3216540433 (devin, PRD L92): section 3.2 invariant only covered verdict=skill. Applied the suggested three-clause invariant (skill if score>=2 and isolation=none; context-fork-skill if score>=2 and isolation=soft; keep-as-agent if isolation=hard or score<2), matching audit L56-58 and DESIGN-011 L116-118.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795162+00:00"
+    },
+    {
+      "id": "1a84e1cc3f4a",
+      "type": "milestone",
+      "label": "milestone: Thread r3216540483 (devin, session JSON L221): claimed 'the 7 other skill candidates' is stale and should be 8. Verified: the audit table has 8 verdict=skill rows including spec-generator, so '7 other' is correct; devin miscounted '8+2 total' (8 skill + 2 context-fork = 10 candidates) as '8 other'. Replying won't-fix with the count breakdown.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795176+00:00"
+    },
+    {
+      "id": "2e6aeb6ac0fc",
+      "type": "milestone",
+      "label": "milestone: Committed fixes + session log; replied to and resolved all 3 threads.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795190+00:00"
+    },
+    {
+      "id": "6e5e83a7b976",
+      "type": "milestone",
+      "label": "milestone: Note: PR was CONFLICTING with main; user merged main into the branch (commit 2486c7c8) and added the commit-limit-bypass label.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795204+00:00"
+    },
+    {
+      "id": "91ed65898eac",
+      "type": "milestone",
+      "label": "milestone: Round 11: corrected session-log endingCommit (6b338e9c) per Copilot. The pre-commit episode extractor (.claude/skills/memory/scripts/extract_session_episode.py) parses session logs as markdown; since logs are now JSON it emits outcome=failure, empty task, error-typed evidence events, and a wrong commit count. Same shape affects episodes 1830/1831/1832 from main. Hand-corrected episode-2026-05-13-session-1833.json and committed with SKIP_AUTOFIX=1 so the extractor does not regenerate the buggy version. Extractor rewrite tracked separately, out of scope here.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795219+00:00"
+    },
+    {
+      "id": "2d123653f2ff",
+      "type": "milestone",
+      "label": "milestone: Round 11: replied to and resolved the 5 new threads (4 episode/session-log metadata + 1 TASK-011 status).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795233+00:00"
+    },
+    {
+      "id": "8153571eb33f",
+      "type": "milestone",
+      "label": "milestone: Round 11: TASK-011 status changed todo -> done and updated to 2026-05-13 because Phase 1 deliverables are complete in this PR. DESIGN-011/REQ-011 remain draft; parent-child status mismatch is INFO-only in scripts/validation/traceability.py, and spec graduation is tracked separately.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795250+00:00"
+    },
+    {
+      "id": "84596a2386b9",
+      "type": "milestone",
+      "label": "milestone: Round 12: reworded TAC-7 in TASK-011 to include the session-protocol artifacts the work session necessarily produces (.agents/sessions/, .agents/memory/episodes/) and to scope the no-src/ invariant to the audit step (the src/ delta in the PR is merge propagation from main) (Copilot). Updated the PR description Changes section to disclose the src/copilot-cli/skills/spec/SKILL.md regen carried in from the main merge (Copilot).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795266+00:00"
+    },
+    {
+      "id": "6250d3ca24d6",
+      "type": "milestone",
+      "label": "milestone: Round 13: PRD Connected-Context line 28 ('src/claude/agents/ in-scope') reconciled with the audit methodology and with the same-tree adjudication of src/copilot-cli/agents/ and src/vs-code-agents/. There is no src/claude/agents/ subdirectory; agents live at src/claude/*.md, downstream of templates/agents/. Adjudication corrected to out-of-scope-as-directly-audited; dual-source presence remains verified via the has_shared_template column per ADR-036 (Copilot).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795281+00:00"
+    },
+    {
+      "id": "5a0a796c5545",
+      "type": "milestone",
+      "label": "milestone: Round 13: TASK-011 Files-Affected line 155 ('No modifications to ... src/') reworded with the same merge-propagation exception as TAC-7 (Copilot).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795295+00:00"
+    },
+    {
+      "id": "46a440bff99a",
+      "type": "milestone",
+      "label": "milestone: Round 13: session-1834 missing top-level endingCommit; set to 97136e85 (the last commit on that session in this PR) (Copilot).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795309+00:00"
+    },
+    {
+      "id": "5b3a30697de4",
+      "type": "milestone",
+      "label": "milestone: Round 13: devin flagged session-1832 outcomes/learnings as flat string arrays vs schema 'object' shape, and developmentPhase as a bare string vs schema 'object with current enum'. validate_session_json.py passes 1832 (and 1833, 1834), so the schema/validator divergence is a pre-existing repo-wide issue, not a 2009 regression. Won't-fix in this PR; recommended a separate alignment pass.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795323+00:00"
+    },
+    {
+      "id": "e71e95e2f64c",
+      "type": "milestone",
+      "label": "milestone: Round 14: episode-1833 re-hand-corrected after fd95690f (copilot-swe-agent[bot] commit) re-ran the buggy extractor on the rebased branch and overwrote round-11's correction with outcome=failure/empty-task/error-events/commits=9. Commit this round with SKIP_AUTOFIX=1 to keep the correction (Copilot).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795339+00:00"
+    },
+    {
+      "id": "310e8e016099",
+      "type": "milestone",
+      "label": "milestone: Round 14: audit L104 spec-generator c1 citation `.claude/commands/spec.md:365` corrected to `:366` after PR #1901's buy-vs-build step-4a inserted into spec.md shifted the Task(subagent_type='spec-generator') invocation down by one line. Spot-checked adjacent c1 citations (ship.md:15, test.md:72, build.md:27, plan.md:17/18, test.md:33/60/96/84, review.md:32, plan.md:21, memory-explore.md:11): all still resolve correctly (Copilot).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795353+00:00"
+    },
+    {
+      "id": "9c7538c81f75",
+      "type": "milestone",
+      "label": "milestone: Round 14: session-1834 endingCommit changed 97136e85 -> 5516f771 to align with the episode's hand-curated commit reference; 5516f771 is the commit that produced session-1834's deliverables, while 97136e85 was a follow-up metadata correction (Copilot).",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795368+00:00"
+    },
+    {
+      "id": "7d89c0d1b09e",
+      "type": "milestone",
+      "label": "milestone: Round 14: PR description Verdict-counts table and load-budget impact reconciled with the audit's round-3 numbers (skill 7 -> 8 with roadmap added; keep-as-agent 14 -> 13; below-threshold 11 -> 10; load-budget 4714/42% -> 5186/47%; '9 candidates' -> '10 candidates' in next-steps). This addresses the Validate Spec Coverage workflow's COMPLETENESS_VERDICT=PARTIAL on PR description vs audit drift.",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795384+00:00"
+    },
+    {
+      "id": "3b319622ec7e",
+      "type": "commit",
+      "label": "commit: Commit: 6b338e9c",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795398+00:00"
+    },
+    {
+      "id": "71d2e06463e3",
+      "type": "outcome",
+      "label": "Outcome: success - Respond to PR #2009 bot review comments (round 10): audit triage list completeness, PRD verdict invariant",
+      "episodes": [
+        "episode-2026-05-13-session-1833"
+      ],
+      "created": "2026-06-02T04:20:23.795424+00:00"
+    },
+    {
+      "id": "ea4035452446",
+      "type": "milestone",
+      "label": "milestone: Verified unresolved review comments and confirmed two actionable items remained.",
+      "episodes": [
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795507+00:00"
+    },
+    {
+      "id": "c25d64197e24",
+      "type": "milestone",
+      "label": "milestone: Updated TASK-011 frontmatter status to done and updated date to 2026-05-13.",
+      "episodes": [
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795523+00:00"
+    },
+    {
+      "id": "574d94f26a56",
+      "type": "milestone",
+      "label": "milestone: Updated episode metrics to non-zero values aligned with completed session activity.",
+      "episodes": [
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795538+00:00"
+    },
+    {
+      "id": "f3e90f3db125",
+      "type": "milestone",
+      "label": "milestone: Validated changed files with json.tool and validate_session_json.py.",
+      "episodes": [
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795555+00:00"
+    },
+    {
+      "id": "6cc0af1a0bbb",
+      "type": "milestone",
+      "label": "milestone: Post-push validation flagged episode-1834 extractor fallback output as inconsistent; hand-corrected episode metadata to match this session's successful outcome and real file/commit activity.",
+      "episodes": [
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795570+00:00"
+    },
+    {
+      "id": "eb08b5caec04",
+      "type": "commit",
+      "label": "commit: Commit: 5516f771",
+      "episodes": [
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795584+00:00"
+    },
+    {
+      "id": "2fa10840b3ce",
+      "type": "outcome",
+      "label": "Outcome: success - Address remaining PR #2009 review comments on TASK-011 status and episode metrics consistency",
+      "episodes": [
+        "episode-2026-05-13-session-1834"
+      ],
+      "created": "2026-06-02T04:20:23.795599+00:00"
+    },
+    {
+      "id": "83e6419d9174",
+      "type": "milestone",
+      "label": "milestone: Ran caveman-compress on AGENTS.md; file already terse, minimal gain (3228 to 3221 B, still over 3072 cap)",
+      "episodes": [
+        "episode-2026-05-18-session-1835"
+      ],
+      "created": "2026-06-02T04:20:23.795656+00:00"
+    },
+    {
+      "id": "93264a951f1c",
+      "type": "milestone",
+      "label": "milestone: Analyzed test_workspace_limits.py; identified 3072 B hard cap; measured candidate with lossless rewording + Agents roster removal",
+      "episodes": [
+        "episode-2026-05-18-session-1835"
+      ],
+      "created": "2026-06-02T04:20:23.795672+00:00"
+    },
+    {
+      "id": "6cf6be71d099",
+      "type": "milestone",
+      "label": "milestone: Applied changes to AGENTS.md: dropped Agents roster (user-approved), lossless rewording, restored Autonomy Guardrail label after review caught terminology drift",
+      "episodes": [
+        "episode-2026-05-18-session-1835"
+      ],
+      "created": "2026-06-02T04:20:23.795687+00:00"
+    },
+    {
+      "id": "6cac98fc0230",
+      "type": "milestone",
+      "label": "milestone: Created issue #2034; verified 7 open PRs CI-red on test_per_file_limit[AGENTS.md]; posted evidence comment to #2034",
+      "episodes": [
+        "episode-2026-05-18-session-1835"
+      ],
+      "created": "2026-06-02T04:20:23.795702+00:00"
+    },
+    {
+      "id": "c0ab3bc3067f",
+      "type": "commit",
+      "label": "commit: Commit: 37803f7a",
+      "episodes": [
+        "episode-2026-05-18-session-1835"
+      ],
+      "created": "2026-06-02T04:20:23.795718+00:00"
+    },
+    {
+      "id": "ce5dc60cf6d5",
+      "type": "outcome",
+      "label": "Outcome: success - compress AGENTS.md under 3072-byte workspace per-file budget (issue #2034)",
+      "episodes": [
+        "episode-2026-05-18-session-1835"
+      ],
+      "created": "2026-06-02T04:20:23.795737+00:00"
+    },
+    {
+      "id": "d0209276757e",
+      "type": "milestone",
+      "label": "milestone: Add voice rule to .claude/rules/voice.md",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795810+00:00"
+    },
+    {
+      "id": "a57704987836",
+      "type": "milestone",
+      "label": "milestone: Add builder-ethos and search-before-building rules with three-layer search model",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795831+00:00"
+    },
+    {
+      "id": "ed48c72760d4",
+      "type": "milestone",
+      "label": "milestone: Extend generate_rules.py to support outputDirs (list) for dual-target output",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795850+00:00"
+    },
+    {
+      "id": "c33cf454c558",
+      "type": "milestone",
+      "label": "milestone: Update copilot-cli.yaml rules stanza to outputDirs: [.github/instructions, src/copilot-cli/instructions]",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795870+00:00"
+    },
+    {
+      "id": "79654d05e850",
+      "type": "milestone",
+      "label": "milestone: Merge main into branch to pick up #2052 (agents -> agents/ subdir) and the YAML quoting fix in generate_agents_common",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795889+00:00"
+    },
+    {
+      "id": "f6bb2da85632",
+      "type": "milestone",
+      "label": "milestone: Address VS Code diagnostics on rule files (contradictions, ambiguities, persona conflicts)",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795907+00:00"
+    },
+    {
+      "id": "57d25d3db40b",
+      "type": "milestone",
+      "label": "milestone: Narrow prompt_eval_gate.py _AGENT_PATTERNS regex post-#2052 to stop false positives on generated mirrors",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795922+00:00"
+    },
+    {
+      "id": "77789e4825ea",
+      "type": "milestone",
+      "label": "milestone: Add claude-model-patches.md (Claude-family behavioral nudges: todo discipline, think-before-heavy, dedicated-tools-over-bash)",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795937+00:00"
+    },
+    {
+      "id": "fccc9488a7b1",
+      "type": "milestone",
+      "label": "milestone: Update test_outputDirs_writes_to_every_target assertion to match quoted-applyTo format from #2052",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795952+00:00"
+    },
+    {
+      "id": "edf9fc5ad4ab",
+      "type": "milestone",
+      "label": "milestone: Fix env arg order in .githooks/pre-push pytest invocation",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795967+00:00"
+    },
+    {
+      "id": "b817a9e2d3ba",
+      "type": "milestone",
+      "label": "milestone: Structural fixes to .claude/commands/autofix-pr.md and .claude/skills/book-to-skill/SKILL.md for SkillForge validator",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.795982+00:00"
+    },
+    {
+      "id": "e8d17316ecde",
+      "type": "milestone",
+      "label": "milestone: Add outputDirs to validate_templates_schema.py RULES_KEYS and validate the list shape",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.796000+00:00"
+    },
+    {
+      "id": "f5986812fd50",
+      "type": "milestone",
+      "label": "milestone: Reconcile .github/plugin/marketplace.json count to 82 reusable skills",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.796015+00:00"
+    },
+    {
+      "id": "49ae8359c09a",
+      "type": "outcome",
+      "label": "Outcome: success - ship voice + builder-ethos + search-before-building + claude-model-patches rules and the outputDirs multi-target generator",
+      "episodes": [
+        "episode-2026-05-25-session-1836"
+      ],
+      "created": "2026-06-02T04:20:23.796031+00:00"
+    },
+    {
+      "id": "c1b4a7d002bb",
+      "type": "milestone",
+      "label": "milestone: Analyzed duplicate spec IDs: REQ/DESIGN/TASK-009 (orphan-ref-validator vs retro-fixes-pr-1965) and REQ/DESIGN/TASK-011 (audit vs m5-bot-cascade)",
+      "episodes": [
+        "episode-2026-05-25-session-1837"
+      ],
+      "created": "2026-06-02T04:20:23.796086+00:00"
+    },
+    {
+      "id": "fa65c027156e",
+      "type": "milestone",
+      "label": "milestone: Renamed retro-fixes triple REQ/DESIGN/TASK-009->012 and m5-bot-cascade 011->013; updated frontmatter and internal refs in spec files and plan file",
+      "episodes": [
+        "episode-2026-05-25-session-1837"
+      ],
+      "created": "2026-06-02T04:20:23.796103+00:00"
+    },
+    {
+      "id": "80a507f4a9db",
+      "type": "outcome",
+      "label": "Outcome: success - Renumber duplicate REQ/DESIGN/TASK IDs across spec catalog (issue #2068): retro-fixes 009->012, m5-bot-cascade 011->013",
+      "episodes": [
+        "episode-2026-05-25-session-1837"
+      ],
+      "created": "2026-06-02T04:20:23.796119+00:00"
+    },
+    {
+      "id": "60f5a3cfe431",
+      "type": "commit",
+      "label": "commit: Commit: e33d08f4",
+      "episodes": [
+        "episode-2026-05-26-session-1837",
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796171+00:00"
+    },
+    {
+      "id": "fd5e9a6a1890",
+      "type": "test",
+      "label": "test: markdownlint-cli2 ran via pre-commit hook; .agents/ excluded from lint scope; 0 errors in staged files",
+      "episodes": [
+        "episode-2026-05-26-session-1837"
+      ],
+      "created": "2026-06-02T04:20:23.796190+00:00"
+    },
+    {
+      "id": "23cf99420d7d",
+      "type": "test",
+      "label": "test: pre_pr.py: 2 pre-existing failures (merge-resolver drift 20.9%, lint on other files); 0 new failures from this change",
+      "episodes": [
+        "episode-2026-05-26-session-1837"
+      ],
+      "created": "2026-06-02T04:20:23.796209+00:00"
+    },
+    {
+      "id": "aecdea2412b1",
+      "type": "outcome",
+      "label": "Outcome: partial - ",
+      "episodes": [
+        "episode-2026-05-26-session-1837"
+      ],
+      "created": "2026-06-02T04:20:23.796229+00:00"
+    },
+    {
+      "id": "8521b204810d",
+      "type": "milestone",
+      "label": "milestone: Fetched PR #2076 via github skill",
+      "episodes": [
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796301+00:00"
+    },
+    {
+      "id": "2b4231eed908",
+      "type": "milestone",
+      "label": "milestone: Read full audit doc from origin/main",
+      "episodes": [
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796320+00:00"
+    },
+    {
+      "id": "7d94219bbd35",
+      "type": "milestone",
+      "label": "milestone: Read rubric source from corpus",
+      "episodes": [
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796336+00:00"
+    },
+    {
+      "id": "b08d1f5cfcf7",
+      "type": "milestone",
+      "label": "milestone: Branched feat/2003-phase3-audit-plan from origin/main",
+      "episodes": [
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796352+00:00"
+    },
+    {
+      "id": "0901947e06e7",
+      "type": "milestone",
+      "label": "milestone: Updated audit doc Phase 3 decision points + fixed 3 stale pwsh references",
+      "episodes": [
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796367+00:00"
+    },
+    {
+      "id": "785f98b1b3ad",
+      "type": "milestone",
+      "label": "milestone: Wrote Serena memory: prompting/phase3-prompt-discipline-audit-status",
+      "episodes": [
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796383+00:00"
+    },
+    {
+      "id": "0905a66b110c",
+      "type": "outcome",
+      "label": "Outcome: success - Phase 3 prompt discipline audit cycle: rewrite 10 priority targets per PR #2076 audit, one PR per target, rubric rescore + pre_pr.py + generate round-trip eval each cycle",
+      "episodes": [
+        "episode-2026-05-26-session-1838"
+      ],
+      "created": "2026-06-02T04:20:23.796424+00:00"
+    },
+    {
+      "id": "5d57162790b8",
+      "type": "milestone",
+      "label": "milestone: Read templates/agents/implementer.shared.md (257 LOC)",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796483+00:00"
+    },
+    {
+      "id": "5306eca411b1",
+      "type": "milestone",
+      "label": "milestone: Added Plan Validation Protocol section (A6: 3 to 5, A1: 4 to 5)",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796500+00:00"
+    },
+    {
+      "id": "7c21b346a6bb",
+      "type": "milestone",
+      "label": "milestone: Added failure-mode trigger conditions to Handoff (A7: 4 to 5)",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796516+00:00"
+    },
+    {
+      "id": "e48ffcb23935",
+      "type": "milestone",
+      "label": "milestone: Fixed MD032/MD012 lint errors in new list block",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796532+00:00"
+    },
+    {
+      "id": "4d9cc4c4be1e",
+      "type": "milestone",
+      "label": "milestone: Ran python3 build/generate_agents.py",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796548+00:00"
+    },
+    {
+      "id": "1afd7a152bda",
+      "type": "milestone",
+      "label": "milestone: Rubric rescore: 32/35 (A tier)",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796564+00:00"
+    },
+    {
+      "id": "4aef0ded577d",
+      "type": "commit",
+      "label": "commit: Commit: cbd7c796",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796579+00:00"
+    },
+    {
+      "id": "9331d4c811e7",
+      "type": "outcome",
+      "label": "Outcome: success - Rewrite implementer.shared.md A6+A1+A7 improvements: add Plan Validation Protocol section and failure-mode trigger conditions",
+      "episodes": [
+        "episode-2026-05-26-session-1839"
+      ],
+      "created": "2026-06-02T04:20:23.796595+00:00"
+    },
+    {
+      "id": "baafc9f56f15",
+      "type": "decision",
+      "label": "implementation: \"detail\": \"Ran the ADR Review Protocol (adr-review skill) as a 6-agent debate (architect agent, critic, independent-thinker, security, analyst, high-level-advisor) on draft ADR-062. First pass blocked on a workflow args bug (draft path unreadable) but surfaced two real precedent conflicts: the #1993 Serena re-assertion hook (invoke_serena_reassertion.py:16-29) rejected stateful gating, and ADR-061 was withdrawn 2026-05-27 for premature abstraction. Revised the ADR and re-ran the verification: 4 Accept, 1 Disagree-and-Commit, 1 analyst Block on a single capability-binding sentence (closed in-favor-of-user by splitting Read-gate capability=get_symbols_overview from symbol-grep capability=definition/references). Verdict ACCEPTED-WITH-DC; timing dissent recorded per User Sovereignty (user chose hard-block enabled now).\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796655+00:00"
+    },
+    {
+      "id": "2d421dad5b3c",
+      "type": "test",
+      "label": "test: \"Evidence\": \"Pre-PR checklist walked: pre_pr.py 12 PASS (Em/en-dash Prohibition, Install Parity, Plugin Version Bump, Canonical Citation all PASS); 1314 hooks tests pass; markdownlint 0 errors on changed md; no secrets; conventional commits; atomic chunks. The 2 pre_pr FAILs (Agent Drift in security/task-decomposer, markdownlint debt in build/audit/GENERATION-AUDIT.md and powershell-security-checklist.md) are PREEXISTING and unrelated to this diff.\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796673+00:00"
+    },
+    {
+      "id": "68a8cf41534d",
+      "type": "milestone",
+      "label": "milestone: \"Evidence\": \"npx markdownlint-cli2 --fix on changed md (ADR-062, debate log, lsp-first.md + mirrors): 0 errors.\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796690+00:00"
+    },
+    {
+      "id": "aeb5909ff170",
+      "type": "milestone",
+      "label": "milestone: \"detail\": \"Cloned nesaminua/claude-code-lsp-enforcement-kit (MIT, v2.3.2) to TMPDIR; ran a 5-reader research workflow over the kit internals and this repo's hook/rule/generation conventions plus an adversarial critique. Verdict: BUILD a Python port of a conditional, availability-gated subset (kit is JS, global, unconditional; conflicts with ADR-042, fail-open, per-repo plugin).\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796709+00:00"
+    },
+    {
+      "id": "59889b076c4e",
+      "type": "milestone",
+      "label": "milestone: \"detail\": \"User directive: full 7-hook port, all Serena-supported languages, 3-tier fallback (Serena -> native LSP -> grep/glob/sed last), graduated hard-block enabled on merge, with kill switch + fail-open safety net.\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796725+00:00"
+    },
+    {
+      "id": "2ff884955615",
+      "type": "outcome",
+      "label": "Outcome: success - ",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796742+00:00"
+    },
+    {
+      "id": "522a260247db",
+      "type": "decision",
+      "label": "\"detail\": \"Ran the ADR Review Protocol (adr-review skill) as a 6-agent debate (architect agent, critic, independent-thinker, security, analyst, high-level-advisor) on draft ADR-062. First pass blocked on a workflow args bug (draft path unreadable) but surfaced two real precedent conflicts: the #1993 Serena re-assertion hook (invoke_serena_reassertion.py:16-29) rejected stateful gating, and ADR-061 was withdrawn 2026-05-27 for premature abstraction. Revised the ADR and re-ran the verification: 4 Accept, 1 Disagree-and-Commit, 1 analyst Block on a single capability-binding sentence (closed in-favor-of-user by splitting Read-gate capability=get_symbols_overview from symbol-grep capability=definition/references). Verdict ACCEPTED-WITH-DC; timing dissent recorded per User Sovereignty (user chose hard-block enabled now).\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796829+00:00"
+    },
+    {
+      "id": "b3c23d1a4efb",
+      "type": "test",
+      "label": "\"Evidence\": \"Pre-PR checklist walked: pre_pr.py 12 PASS (Em/en-dash Prohibition, Install Parity, Plugin Version Bump, Canonical Citation all PASS); 1314 hooks tests pass; markdownlint 0 errors on changed md; no secrets; conventional commits; atomic chunks. The 2 pre_pr FAILs (Agent Drift in security/task-decomposer, markdownlint debt in build/audit/GENERATION-AUDIT.md and powershell-security-checklist.md) are PREEXISTING and unrelated to this diff.\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796847+00:00"
+    },
+    {
+      "id": "1dbff77adf4d",
+      "type": "milestone",
+      "label": "\"detail\": \"Cloned nesaminua/claude-code-lsp-enforcement-kit (MIT, v2.3.2) to TMPDIR; ran a 5-reader research workflow over the kit internals and this repo's hook/rule/generation conventions plus an adversarial critique. Verdict: BUILD a Python port of a conditional, availability-gated subset (kit is JS, global, unconditional; conflicts with ADR-042, fail-open, per-repo plugin).\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796882+00:00"
+    },
+    {
+      "id": "ce38b87c4381",
+      "type": "milestone",
+      "label": "\"detail\": \"User directive: full 7-hook port, all Serena-supported languages, 3-tier fallback (Serena -> native LSP -> grep/glob/sed last), graduated hard-block enabled on merge, with kill switch + fail-open safety net.\"",
+      "episodes": [
+        "episode-2026-05-31-session-1857"
+      ],
+      "created": "2026-06-02T04:20:23.796916+00:00"
+    },
+    {
+      "id": "dc33dbd5ef32",
+      "type": "milestone",
+      "label": "milestone: Issue #2205: Copilot CLI preToolUse/sessionStart hooks failed on Windows with 'can't open file C:\\Users\\user\\hooks\\sessionStart\\...py: No such file or directory'. The generated hooks.json invoked scripts via python3 -u \"./hooks/<event>/<script>.py\" with cwd \".\", which Copilot CLI resolves against the user's working directory, not the vendored plugin install location.",
+      "episodes": [
+        "episode-2026-06-01-session-1872"
+      ],
+      "created": "2026-06-02T04:20:23.796980+00:00"
+    },
+    {
+      "id": "3335120f4d5e",
+      "type": "test",
+      "label": "test: Real-world Copilot CLI plugins (prp-core, dx-core, nowledge-mem, worktale) anchor hook commands with ${COPILOT_PLUGIN_ROOT}; GitHub docs confirm Copilot exposes ${COPILOT_PLUGIN_DATA} with ${CLAUDE_PLUGIN_DATA} alias. pytest tests/build_scripts/test_generate_hooks.py -> 91 passed.",
+      "episodes": [
+        "episode-2026-06-01-session-1872"
+      ],
+      "created": "2026-06-02T04:20:23.797002+00:00"
+    },
+    {
+      "id": "5521e0037bf6",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2205: Copilot CLI hook commands resolved scripts via cwd-relative ./hooks/... and failed because cwd is the user's working directory, not the plugin install location",
+      "episodes": [
+        "episode-2026-06-01-session-1872"
+      ],
+      "created": "2026-06-02T04:20:23.797019+00:00"
+    },
+    {
+      "id": "98a44ec35c86",
+      "type": "milestone",
+      "label": "milestone: Verify and harden plugin hook path anchoring for BOTH Claude and Copilot (PR 2206, issue 2205). Empirically establish the runtime env-var contract, fix PowerShell fallback asymmetry, and add an enforceable anti-regression gate plus real-CLI e2e tests.",
+      "episodes": [
+        "episode-2026-06-02-session-1873"
+      ],
+      "created": "2026-06-02T04:20:23.797071+00:00"
+    },
+    {
+      "id": "1183976a1b74",
+      "type": "test",
+      "label": "test: Empirically verified Copilot CLI 1.0.57 sets COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT (undocumented) and runs hooks with cwd=user dir; proved the generated bash command resolves end-to-end (exit 0). Verified Claude Code 2.1.159 sets CLAUDE_PLUGIN_ROOT and resolves the anchored command (exit 0). Fixed _build_copilot_entry to give PowerShell the same COPILOT->CLAUDE fallback as bash; regenerated src/copilot-cli/hooks/hooks.json (49 entries). Replaced the self-referential string-match test with a runtime-contract test; added scripts/validation/validate_hook_anchoring.py (covers Claude + Copilot, generator-derived) wired into pre_pr.py; added tests/e2e/test_cli_hook_e2e.py that vendor-installs into each real CLI. Verification: `uv run pytest tests/build_scripts/test_generate_hooks_plugin_root.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/test_validate_hook_anchoring.py` -> 12 passed. `RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py` -> 2 passed (both real CLIs). `python3 scripts/validation/validate_hook_anchoring.py` -> [PASS] 94 hook entries anchored. `uvx ruff check` -> All checks passed.",
+      "episodes": [
+        "episode-2026-06-02-session-1873"
+      ],
+      "created": "2026-06-02T04:20:23.797089+00:00"
+    },
+    {
+      "id": "900dc693afa8",
+      "type": "commit",
+      "label": "commit: Commit: 64506e8fa",
+      "episodes": [
+        "episode-2026-06-02-session-1873"
+      ],
+      "created": "2026-06-02T04:20:23.797106+00:00"
+    },
+    {
+      "id": "8e59e28b4015",
+      "type": "outcome",
+      "label": "Outcome: success - Verify and harden Copilot CLI hook plugin-root anchoring (PR 2206, issue 2205) with runtime-contract regression guard",
+      "episodes": [
+        "episode-2026-06-02-session-1873"
+      ],
+      "created": "2026-06-02T04:20:23.797122+00:00"
     }
   ],
   "patterns": [
@@ -51,11 +4382,364 @@
       "description": "",
       "action": "A",
       "trigger": "T"
+    },
+    {
+      "name": "test pattern",
+      "description": "Pattern from episode-2026-01-01-sequence-001",
+      "trigger": "Testing second",
+      "action": "Second",
+      "success_rate": 1.0,
+      "occurrences": 1,
+      "created": "2026-06-02T04:20:23.788442+00:00"
+    },
+    {
+      "name": "design pattern",
+      "description": "Pattern from episode-2026-01-01-sequence-001",
+      "trigger": "Designing first",
+      "action": "First",
+      "success_rate": 1.0,
+      "occurrences": 2,
+      "created": "2026-06-02T04:20:23.788446+00:00"
+    },
+    {
+      "name": "unknown anti-pattern",
+      "description": "Anti-pattern from episode-2026-01-05-session-318",
+      "trigger": "When unknown decision needed",
+      "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
+      "success_rate": 0.0,
+      "occurrences": 4,
+      "created": "2026-06-02T04:20:23.789116+00:00"
+    },
+    {
+      "name": "implementation pattern",
+      "description": "Pattern from episode-2026-01-09-session-317",
+      "trigger": "When implementation decision needed",
+      "action": "Fail-closed (Option 2)",
+      "success_rate": 1.0,
+      "occurrences": 6,
+      "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
-  "edges": []
+  "edges": [
+    {
+      "source": "547ee1a5f243",
+      "target": "e48b42cae949",
+      "type": "causes",
+      "weight": 0.8,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.788737+00:00"
+    },
+    {
+      "source": "577da88bd9b3",
+      "target": "bb2f794f5458",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.789096+00:00"
+    },
+    {
+      "source": "577da88bd9b3",
+      "target": "6d984ffaf0ee",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.789110+00:00"
+    },
+    {
+      "source": "95990864d364",
+      "target": "b66bebe4f3cf",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790269+00:00"
+    },
+    {
+      "source": "95990864d364",
+      "target": "5a282fa7b7b7",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790282+00:00"
+    },
+    {
+      "source": "95990864d364",
+      "target": "1936e5d3b5e9",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790294+00:00"
+    },
+    {
+      "source": "95990864d364",
+      "target": "7085549bb5c8",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790306+00:00"
+    },
+    {
+      "source": "95990864d364",
+      "target": "62d968c016dc",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790318+00:00"
+    },
+    {
+      "source": "620e6de44eaf",
+      "target": "c8e97015e15b",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790338+00:00"
+    },
+    {
+      "source": "620e6de44eaf",
+      "target": "7085549bb5c8",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790349+00:00"
+    },
+    {
+      "source": "620e6de44eaf",
+      "target": "a3772a33bb03",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790361+00:00"
+    },
+    {
+      "source": "620e6de44eaf",
+      "target": "bbc919c9bfc3",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790373+00:00"
+    },
+    {
+      "source": "620e6de44eaf",
+      "target": "1f3126121fa6",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790386+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "fdae8ee91ca3",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790403+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "d2f77552356c",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790426+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "b9bad794636c",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790439+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "b6c846324241",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790452+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "9ddffc4e2ea1",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790465+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "92d7f3738a9c",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790478+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "f6bbf604116c",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790491+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "b78663b0692a",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790504+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "cac4c97f7f07",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790517+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "0aebe2e20ff6",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790530+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "c3972fe69c57",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790544+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "e7a73b5ce937",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790560+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "68146e743ee2",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790573+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "37d27c11246f",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790586+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "35616517f846",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790602+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "7d5c82a09967",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790616+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "a161caf62b41",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790629+00:00"
+    },
+    {
+      "source": "4419a1f639e9",
+      "target": "23e284592db9",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.790644+00:00"
+    },
+    {
+      "source": "2ebc20812a9e",
+      "target": "1d01daa399d3",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.792469+00:00"
+    },
+    {
+      "source": "c2f50a8595d5",
+      "target": "06a9fb26b021",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.792491+00:00"
+    },
+    {
+      "source": "c2f50a8595d5",
+      "target": "1d01daa399d3",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.792513+00:00"
+    },
+    {
+      "source": "c2f50a8595d5",
+      "target": "e4ea7a7ef7fe",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.792533+00:00"
+    },
+    {
+      "source": "c2f50a8595d5",
+      "target": "5d3bf45f7c53",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.792552+00:00"
+    },
+    {
+      "source": "dfbe42de5fde",
+      "target": "1d01daa399d3",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.792577+00:00"
+    },
+    {
+      "source": "522a260247db",
+      "target": "b3c23d1a4efb",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.796850+00:00"
+    },
+    {
+      "source": "522a260247db",
+      "target": "1dbff77adf4d",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.796885+00:00"
+    },
+    {
+      "source": "522a260247db",
+      "target": "ce38b87c4381",
+      "type": "causes",
+      "weight": 0.6,
+      "count": 1,
+      "created": "2026-06-02T04:20:23.796919+00:00"
+    }
+  ]
 }
-
-
-
-
