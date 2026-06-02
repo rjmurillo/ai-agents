@@ -72,7 +72,6 @@ _OVERRIDE_TOKEN: re.Pattern[str] = re.compile(
 # clearly reference shapes count. Prose bullets that are full sentences are
 # excluded by the sentence heuristic in ``_is_reference_line``.
 _TABLE_ROW: re.Pattern[str] = re.compile(r"^\s*\|.*\|\s*$")
-_TABLE_SEP: re.Pattern[str] = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 _LIST_ITEM: re.Pattern[str] = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+\S")
 _HEADING: re.Pattern[str] = re.compile(r"^\s*#{1,6}\s+\S")
 
@@ -136,7 +135,7 @@ def split_frontmatter(content: str) -> tuple[str, str]:
     if not content.startswith("---"):
         return "", content
 
-    lines = content.split("\n")
+    lines = content.splitlines()
     for i in range(1, len(lines)):
         if lines[i].strip() == "---":
             return "\n".join(lines[1:i]), "\n".join(lines[i + 1 :])
@@ -152,13 +151,13 @@ def has_isolation_required(frontmatter: str) -> bool:
     ``isolation_required: false`` does not qualify.
     """
     match = re.search(
-        r"^\s*isolation_required:\s*(?P<value>\S+)",
+        r"^isolation_required:[ \t]*['\"]?(?P<value>true|yes|1|false|no|0)['\"]?[ \t]*(?:#.*)?$",
         frontmatter,
-        re.MULTILINE,
+        re.IGNORECASE | re.MULTILINE,
     )
     if match is None:
         return False
-    return match.group("value").strip().lower() in {"true", "yes", "1"}
+    return match.group("value").lower() in {"true", "yes", "1"}
 
 
 # ---------------------------------------------------------------------------
@@ -197,7 +196,7 @@ def _content_lines(body: str) -> list[str]:
     """
     out: list[str] = []
     in_fence = False
-    for raw in body.split("\n"):
+    for raw in body.splitlines():
         stripped = raw.strip()
         if stripped.startswith("```"):
             in_fence = not in_fence
@@ -227,12 +226,22 @@ def score_c2(body: str) -> tuple[bool, float]:
 
 def _task_invocations(text: str) -> set[str]:
     """Agent names invoked via ``Task(subagent_type="<name>")`` in one file."""
-    return set(re.findall(r'Task\(subagent_type="([a-z0-9-]+)"', text))
+    return set(
+        re.findall(
+            r"Task\([ \t]*subagent_type[ \t]*=[ \t]*['\"]([a-z0-9-]+)['\"]",
+            text,
+        )
+    )
 
 
 def _skill_invocations(text: str) -> set[str]:
     """Skill names invoked via ``Skill(skill="<name>")`` in one file."""
-    return set(re.findall(r'Skill\(skill="([a-z0-9-]+)"', text))
+    return set(
+        re.findall(
+            r"Skill\([ \t]*skill[ \t]*=[ \t]*['\"]([a-z0-9-]+)['\"]",
+            text,
+        )
+    )
 
 
 def _command_files(repo_root: Path) -> list[Path]:
@@ -269,10 +278,7 @@ def build_pipeline_index(repo_root: Path) -> PipelineIndex:
     agents_by_file: dict[str, frozenset[str]] = {}
     skills_by_file: dict[str, frozenset[str]] = {}
     for path in _command_files(repo_root):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
+        text = path.read_text(encoding="utf-8")
         rel = str(path.relative_to(repo_root))
         agents_by_file[rel] = frozenset(_task_invocations(text))
         skills_by_file[rel] = frozenset(_skill_invocations(text))
@@ -304,16 +310,20 @@ def is_agent_path(path: str) -> bool:
     return "/.claude/agents/" in f"/{norm}" and norm.endswith(".md")
 
 
-def score_agent(
-    repo_root: Path, agent_path: str, index: PipelineIndex
-) -> AgentScore | None:
-    """Score one agent file against c1 + c2 + c3. None when file is missing."""
-    name = agent_name_from_path(agent_path)
-    full = repo_root / agent_path
-    try:
-        content = full.read_text(encoding="utf-8")
-    except OSError:
-        return None
+def resolve_repo_path(repo_root: Path, relative_path: str) -> Path:
+    """Return a resolved path only when it stays under the repo root."""
+    resolved_root = repo_root.resolve()
+    full_path = (resolved_root / relative_path).resolve()
+    if not full_path.is_relative_to(resolved_root):
+        raise ValueError(f"Path escapes repo root: {relative_path}")
+    return full_path
+
+
+def score_agent(repo_root: Path, agent_path: str, index: PipelineIndex) -> AgentScore:
+    """Score one resolved agent file against c1 + c2 + c3."""
+    full = resolve_repo_path(repo_root, agent_path)
+    name = agent_name_from_path(str(full))
+    content = full.read_text(encoding="utf-8")
 
     frontmatter, body = split_frontmatter(content)
     isolation = has_isolation_required(frontmatter)
@@ -368,9 +378,7 @@ def run_check(
         result.override_rationale = override.group("rationale").strip()
 
     for agent_path in filter_agent_paths(changed_files):
-        score = score_agent(repo_root, agent_path, index)
-        if score is not None:
-            result.scores.append(score)
+        result.scores.append(score_agent(repo_root, agent_path, index))
     return result
 
 
@@ -491,7 +499,12 @@ def main(argv: list[str] | None = None) -> int:
         args.changed_files, os.environ.get("CHANGED_FILES")
     )
 
-    result = run_check(repo_root, changed, args.pr_body)
+    try:
+        result = run_check(repo_root, changed, args.pr_body)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"Config error: {exc}", file=sys.stderr)
+        return 2
+
     print_report(result)
 
     return 1 if result.failing else 0

@@ -165,6 +165,21 @@ def test_c2_empty_body_is_not_shape() -> None:
     assert ratio == 0.0
 
 
+def test_frontmatter_and_body_split_handle_crlf() -> None:
+    frontmatter, body = mod.split_frontmatter(
+        "---\r\nname: x\r\n---\r\nbody line\r\n"
+    )
+    assert frontmatter == "name: x"
+    assert body == "body line"
+
+
+def test_content_lines_handle_crlf() -> None:
+    assert mod._content_lines("alpha\r\n\r\n```\r\nignored\r\n```\r\nbeta\r\n") == [
+        "alpha",
+        "beta",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Unit: frontmatter escape hatch
 # ---------------------------------------------------------------------------
@@ -172,6 +187,16 @@ def test_c2_empty_body_is_not_shape() -> None:
 
 def test_isolation_required_true_detected() -> None:
     assert mod.has_isolation_required("name: x\nisolation_required: true") is True
+
+
+def test_isolation_required_allows_quotes_and_trailing_comment() -> None:
+    frontmatter = "name: x\nisolation_required: 'yes'  # fresh context needed"
+    assert mod.has_isolation_required(frontmatter) is True
+
+
+def test_isolation_required_ignores_prose_mentions() -> None:
+    frontmatter = "description: isolation_required: true belongs in docs"
+    assert mod.has_isolation_required(frontmatter) is False
 
 
 def test_isolation_required_false_not_detected() -> None:
@@ -199,6 +224,17 @@ def test_agent_and_shared_template_paths_included() -> None:
 
 def test_skill_path_not_treated_as_agent() -> None:
     assert mod.is_agent_path(".claude/skills/devops/SKILL.md") is False
+
+
+# ---------------------------------------------------------------------------
+# Unit: pipeline invocation parsing
+# ---------------------------------------------------------------------------
+
+
+def test_invocation_parsing_allows_spaces_and_single_quotes() -> None:
+    text = "Task( subagent_type = 'analyst')\nSkill( skill = 'memory')\n"
+    assert mod._task_invocations(text) == {"analyst"}
+    assert mod._skill_invocations(text) == {"memory"}
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +411,35 @@ def test_missing_commands_dir_is_config_error(tmp_path: Path) -> None:
         check=False,
     )
     assert proc.returncode == 2
+
+
+def test_missing_changed_agent_is_config_error(tmp_path: Path) -> None:
+    repo = _scaffold(tmp_path)
+    _write_command(repo, "build", 'Task( subagent_type = "ghost").\n')
+
+    proc = _run(repo, [".claude/agents/ghost.md"])
+    assert proc.returncode == 2
+    assert "Config error" in proc.stderr
+
+
+def test_changed_agent_path_traversal_is_config_error(tmp_path: Path) -> None:
+    repo = _scaffold(tmp_path)
+    _write_command(repo, "build", 'Task(subagent_type="evil").\n')
+
+    proc = _run(repo, ["../outside/.claude/agents/evil.md"])
+    assert proc.returncode == 2
+    assert "escapes repo root" in proc.stderr
+
+
+def test_unreadable_command_file_is_config_error(tmp_path: Path) -> None:
+    repo = _scaffold(tmp_path)
+    rel = _write_agent(repo, "shaped", _reference_body())
+    broken = repo / ".claude" / "commands" / "broken.md"
+    broken.symlink_to(repo / "missing-command.md")
+
+    proc = _run(repo, [rel])
+    assert proc.returncode == 2
+    assert "Config error" in proc.stderr
 
 
 def test_changed_files_via_env(tmp_path: Path, monkeypatch) -> None:

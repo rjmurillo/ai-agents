@@ -76,13 +76,15 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          DELIMITER="agent_files_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          echo "files<<${DELIMITER}" >> "${GITHUB_OUTPUT}"
           if [ -n "${BASE_SHA}" ] && [ -n "${HEAD_SHA}" ]; then
-            FILES=$(git diff --name-only --diff-filter=ACMR "${BASE_SHA}" "${HEAD_SHA}" \
-              -- '.claude/agents/*.md' 'templates/agents/*.shared.md' | tr '\n' ' ')
+            git diff --name-only --diff-filter=ACMR "${BASE_SHA}" "${HEAD_SHA}" \
+              -- .claude/agents templates/agents >> "${GITHUB_OUTPUT}"
           else
-            FILES=$(git ls-files '.claude/agents/*.md' 'templates/agents/*.shared.md' | tr '\n' ' ')
+            git ls-files .claude/agents templates/agents >> "${GITHUB_OUTPUT}"
           fi
-          echo "files=${FILES}" >> "${GITHUB_OUTPUT}"
+          echo "${DELIMITER}" >> "${GITHUB_OUTPUT}"
 
       - name: Run discriminator check
         env:
