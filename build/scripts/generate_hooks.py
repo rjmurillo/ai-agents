@@ -5,7 +5,9 @@ Reads ``artifacts.hooks`` from a platform YAML, parses Claude's
 ``settings.json`` ``hooks`` object, copies each registered Python script
 under ``.claude/hooks/`` into the Copilot output tree, and emits a
 ``hooks.json`` with the Copilot wire shape (``version: 1`` wrapper,
-lowercase event names, no ``matcher`` field, and script invocations
+PascalCase event names (which make Copilot CLI emit the VS Code-compatible
+snake_case payload the shims expect; see issue #2290), no ``matcher`` field,
+and script invocations
 anchored to the plugin root via ``${COPILOT_PLUGIN_ROOT}`` with a
 ``${CLAUDE_PLUGIN_ROOT}`` fallback).
 
@@ -973,6 +975,33 @@ def _relative_script_target(
     return target_root / target_event / script_name
 
 
+def _ensure_exact_case_dir(directory: Path) -> None:
+    """Create ``directory`` ensuring its leaf name matches the exact case.
+
+    On a case-insensitive filesystem (Windows, default macOS), a plain
+    ``mkdir(exist_ok=True)`` silently reuses a pre-existing sibling whose name
+    differs only by case. The directory then keeps its old casing in git while
+    generated ``hooks.json`` paths use the new casing, producing a tree that
+    works locally but fails on case-sensitive Linux (issue #2290). This walks
+    the parent's real entries and renames any case-mismatched sibling to the
+    intended case (two-step through a temp name to survive case-insensitive
+    renames) before creating the directory.
+    """
+    parent = directory.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    target_name = directory.name
+    for entry in parent.iterdir():
+        if entry.name == target_name:
+            return
+        if entry.is_dir() and entry.name.lower() == target_name.lower():
+            temp = parent / f"__case_fix_{target_name}"
+            entry.rename(temp)
+            temp.rename(directory)
+            return
+    directory.mkdir(exist_ok=True)
+
+
+
 def _copy_script(
     source: Path,
     target: Path,
@@ -993,7 +1022,7 @@ def _copy_script(
         return False, f"NO-REGEN: {reason}"
     if what_if:
         return True, ""
-    target.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_exact_case_dir(target.parent)
     if not matcher:
         shutil.copyfile(source, target)
         return True, ""

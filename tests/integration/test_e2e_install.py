@@ -20,6 +20,7 @@ Verification scope (per task M6-T5):
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -31,14 +32,52 @@ COPILOT_PLUGIN_SRC = REPO_ROOT / "src" / "copilot-cli"
 COPILOT_PLUGIN_MANIFEST = COPILOT_PLUGIN_SRC / ".claude-plugin" / "plugin.json"
 COPILOT_HOOKS_FILE = COPILOT_PLUGIN_SRC / "hooks" / "hooks.json"
 
-# Copilot CLI hook event names (camelCase). Distinct from Claude (PascalCase).
+# Copilot CLI hook event names. PascalCase event keys make Copilot CLI emit the
+# VS Code-compatible snake_case payload (tool_name, tool_input) the shims expect;
+# camelCase keys emit camelCase fields and break the shim contract (issue #2290).
 VALID_COPILOT_EVENTS = {
-    "preToolUse",
-    "postToolUse",
-    "sessionStart",
-    "sessionEnd",
-    "userPromptSubmitted",
+    "PreToolUse",
+    "PostToolUse",
+    "SessionStart",
+    "SessionEnd",
+    "UserPromptSubmit",
 }
+
+# Matches the script path that follows the plugin-root expansion in a hook
+# command, e.g. ".../hooks/PreToolUse/invoke_x.py" -> "PreToolUse/invoke_x.py".
+_HOOK_SCRIPT_PATH_RE = re.compile(r"/hooks/(?P<rel>[^\"']+\.py)")
+
+
+def _resolve_case_sensitive(root: Path, relative: str) -> bool:
+    """Resolve ``relative`` under ``root`` matching each path segment by exact case.
+
+    ``Path.exists`` lies on case-insensitive filesystems (Windows, default macOS),
+    so a PascalCase command path would falsely "resolve" against a lowercase
+    directory. Walking the real directory entries makes the check case-sensitive
+    on every host, catching the casing drift that broke Linux installs (#2290).
+    """
+    current = root
+    for segment in Path(relative).parts:
+        try:
+            names = {entry.name for entry in current.iterdir()}
+        except (FileNotFoundError, NotADirectoryError):
+            return False
+        if segment not in names:
+            return False
+        current = current / segment
+    return current.is_file()
+
+
+def _iter_hook_script_paths(hooks_data: dict) -> list[str]:
+    """Yield every distinct /hooks/<rel>.py script path across bash and powershell."""
+    paths: list[str] = []
+    for entries in hooks_data.get("hooks", {}).values():
+        for entry in entries:
+            for shell in ("bash", "powershell"):
+                command = entry.get(shell, "")
+                for match in _HOOK_SCRIPT_PATH_RE.finditer(command):
+                    paths.append(match.group("rel"))
+    return paths
 
 
 pytestmark = pytest.mark.integration
@@ -127,6 +166,33 @@ class TestInstalledHooks:
                 f"hooks.{event} must be a list, got {type(entries).__name__}"
             )
             assert entries, f"hooks.{event} must not be empty"
+
+    def test_hook_command_paths_resolve_case_sensitively(
+        self, installed_plugin: Path
+    ) -> None:
+        """Every /hooks/<dir>/<script>.py path in hooks.json must resolve to a
+        committed file matching by exact case (regression guard for #2290).
+
+        hooks.json command paths are PascalCase (PreToolUse, ...). If the on-disk
+        hook script directories drift to a different case, Copilot CLI on
+        case-sensitive Linux cannot launch the script and every guard silently
+        fails. A case-insensitive Path.exists() would not catch this; this walks
+        real directory entries so it fails on any host before reaching Linux CI.
+        """
+        data = json.loads(
+            (installed_plugin / "hooks" / "hooks.json").read_text(encoding="utf-8")
+        )
+        script_paths = _iter_hook_script_paths(data)
+        assert script_paths, "expected at least one hook script command path"
+        unresolved = [
+            rel
+            for rel in script_paths
+            if not _resolve_case_sensitive(installed_plugin / "hooks", rel)
+        ]
+        assert not unresolved, (
+            "hooks.json references script paths that do not resolve "
+            f"case-sensitively under hooks/: {sorted(set(unresolved))}"
+        )
 
 
 class TestInstalledArtifactReadability:
