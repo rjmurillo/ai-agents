@@ -3,9 +3,9 @@
 
 Reads the JSON documents written by ``backlog_triage_result.py`` (one per open
 issue, collected as workflow artifacts) and renders a single markdown report.
-Part of the backlog-triage workflow (issue #1799, ClawSweeper pattern).
-Read-only: produces a report for human review. Suggests labels and complexity;
-applies nothing and closes nothing.
+Part of the backlog-triage workflow (issue #2260, ClawSweeper Phase 2).
+Read-only: produces a report for human review. Suggests labels, complexity,
+dependencies, scope, and evidence gaps. It applies nothing and closes nothing.
 
 Exit codes follow ADR-035:
     0 - Success (an empty or missing results dir yields an empty-state report)
@@ -17,8 +17,65 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+
+@dataclass(frozen=True, slots=True)
+class DependencyDetection:
+    blocked_by: tuple[int, ...] = ()
+    blocks: tuple[int, ...] = ()
+    related: tuple[int, ...] = ()
+    notes: str = ""
+
+    @classmethod
+    def from_raw(cls, raw: object) -> DependencyDetection:
+        if not isinstance(raw, dict):
+            return cls()
+        return cls(
+            blocked_by=_number_tuple(raw.get("blocked_by")),
+            blocks=_number_tuple(raw.get("blocks")),
+            related=_number_tuple(raw.get("related")),
+            notes=str(raw.get("notes") or ""),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ScopeAssessment:
+    status: str = "unknown"
+    needs_decomposition: bool = False
+    can_batch: bool = False
+    notes: str = ""
+
+    @classmethod
+    def from_raw(cls, raw: object) -> ScopeAssessment:
+        if not isinstance(raw, dict):
+            return cls()
+        return cls(
+            status=str(raw.get("status") or "unknown"),
+            needs_decomposition=raw.get("needs_decomposition") is True,
+            can_batch=raw.get("can_batch") is True,
+            notes=str(raw.get("notes") or ""),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceCheck:
+    has_repro_steps: bool | None = None
+    has_acceptance_criteria: bool | None = None
+    has_enough_context: bool | None = None
+    missing: tuple[str, ...] = ()
+
+    @classmethod
+    def from_raw(cls, raw: object) -> EvidenceCheck:
+        if not isinstance(raw, dict):
+            return cls()
+        return cls(
+            has_repro_steps=_bool_or_none(raw.get("has_repro_steps")),
+            has_acceptance_criteria=_bool_or_none(raw.get("has_acceptance_criteria")),
+            has_enough_context=_bool_or_none(raw.get("has_enough_context")),
+            missing=_string_tuple(raw.get("missing")),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,14 +85,19 @@ class TriageResult:
     The JSON written by ``backlog_triage_result.py`` is read back from a
     workflow artifact, so the shape is untrusted on the way in. ``from_raw``
     is the only place that knows the wire shape; the rest of this module works
-    with the typed fields.
+    with typed fields.
     """
 
     number: int
     title: str
     verdict: str
     labels: tuple[str, ...]
-    findings: str
+    complexity_classification: str = "unknown"
+    area_routing: tuple[str, ...] = ()
+    dependency_detection: DependencyDetection = field(default_factory=DependencyDetection)
+    scope_assessment: ScopeAssessment = field(default_factory=ScopeAssessment)
+    evidence_check: EvidenceCheck = field(default_factory=EvidenceCheck)
+    findings: str = ""
 
     @classmethod
     def from_raw(cls, raw: object) -> TriageResult | None:
@@ -58,12 +120,18 @@ class TriageResult:
             return None
         labels_raw = raw.get("labels") or []
         labels = tuple(str(item) for item in labels_raw) if isinstance(labels_raw, list) else ()
+        area_routing = _string_tuple(raw.get("area_routing"))
         verdict = str(raw.get("verdict") or "UNKNOWN")
         return cls(
             number=number,
             title=str(raw.get("title") or ""),
             verdict=verdict,
             labels=labels,
+            complexity_classification=str(raw.get("complexity_classification") or "unknown"),
+            area_routing=area_routing,
+            dependency_detection=DependencyDetection.from_raw(raw.get("dependency_detection")),
+            scope_assessment=ScopeAssessment.from_raw(raw.get("scope_assessment")),
+            evidence_check=EvidenceCheck.from_raw(raw.get("evidence_check")),
             findings=str(raw.get("findings") or ""),
         )
 
@@ -97,9 +165,9 @@ def render_summary(results: list[TriageResult]) -> str:
     lines: list[str] = [
         "## Backlog Triage Summary",
         "",
-        "AI complexity classification and area routing for the open-issue "
-        "backlog (issue #1799). Read-only: review and apply suggestions "
-        "manually. No labels were applied and no issues were closed.",
+        "AI classification for the open-issue backlog (issue #2260, part of ",
+        "epic #1799). Read-only: review and apply suggestions manually. No ",
+        "labels were applied and no issues were closed.",
         "",
     ]
     if not results:
@@ -108,17 +176,74 @@ def render_summary(results: list[TriageResult]) -> str:
 
     lines.append(f"Issues triaged: {len(results)}")
     lines.append("")
-    lines.append("| Issue | Title | Verdict | Suggested labels | Findings |")
-    lines.append("|-------|-------|---------|------------------|----------|")
+    lines.append(
+        "| Issue | Title | Verdict | Complexity | Area routing | Dependencies | "
+        "Scope | Evidence | Labels | Findings |"
+    )
+    lines.append(
+        "|-------|-------|---------|------------|--------------|--------------|-------|----------|--------|----------|"
+    )
     for result in results:
         title = _sanitize_cell(result.title)
         verdict = _sanitize_cell(result.verdict)
+        complexity = _sanitize_cell(result.complexity_classification) or "unknown"
+        area = _sanitize_cell(", ".join(result.area_routing)) or "-"
+        dependencies = _sanitize_cell(_format_dependencies(result.dependency_detection)) or "-"
+        scope = _sanitize_cell(_format_scope(result.scope_assessment)) or "-"
+        evidence = _sanitize_cell(_format_evidence(result.evidence_check)) or "-"
         labels_text = _sanitize_cell(", ".join(result.labels)) or "-"
         findings = _sanitize_cell(result.findings) or "-"
         lines.append(
-            f"| #{result.number} | {title} | {verdict} | {labels_text} | {findings} |"
+            f"| #{result.number} | {title} | {verdict} | {complexity} | {area} | "
+            f"{dependencies} | {scope} | {evidence} | {labels_text} | {findings} |"
         )
     return "\n".join(lines) + "\n"
+
+
+def _format_dependencies(value: DependencyDetection) -> str:
+    parts: list[str] = []
+    if value.blocked_by:
+        parts.append("blocked by " + ", ".join(f"#{n}" for n in value.blocked_by))
+    if value.blocks:
+        parts.append("blocks " + ", ".join(f"#{n}" for n in value.blocks))
+    if value.related:
+        parts.append("related " + ", ".join(f"#{n}" for n in value.related))
+    if value.notes:
+        parts.append(value.notes)
+    return "; ".join(parts)
+
+
+def _format_scope(value: ScopeAssessment) -> str:
+    parts = [value.status]
+    flags: list[str] = []
+    if value.needs_decomposition:
+        flags.append("needs decomposition")
+    if value.can_batch:
+        flags.append("can batch")
+    if flags:
+        parts.append("(" + ", ".join(flags) + ")")
+    if value.notes:
+        parts.append(value.notes)
+    return " ".join(part for part in parts if part)
+
+
+def _format_evidence(value: EvidenceCheck) -> str:
+    parts = [
+        f"repro={_format_bool(value.has_repro_steps)}",
+        f"ac={_format_bool(value.has_acceptance_criteria)}",
+        f"context={_format_bool(value.has_enough_context)}",
+    ]
+    if value.missing:
+        parts.append("missing " + ", ".join(value.missing))
+    return "; ".join(parts)
+
+
+def _format_bool(value: bool | None) -> str:
+    if value is True:
+        return "yes"
+    if value is False:
+        return "no"
+    return "unknown"
 
 
 def _sanitize_cell(text: str) -> str:
@@ -136,6 +261,34 @@ def _sanitize_cell(text: str) -> str:
         .replace("\r", " ")
         .strip()
     )
+
+
+def _number_tuple(value: object) -> tuple[int, ...]:
+    if not isinstance(value, list):
+        return ()
+    numbers: list[int] = []
+    for item in value:
+        if isinstance(item, bool):
+            continue
+        try:
+            number = int(item)
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            numbers.append(number)
+    return tuple(numbers)
+
+
+def _string_tuple(value: object) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(str(item).strip() for item in value if str(item).strip())
+
+
+def _bool_or_none(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

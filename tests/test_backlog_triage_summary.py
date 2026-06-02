@@ -1,9 +1,9 @@
 """Tests for scripts.backlog_triage_summary.
 
-Covers the Phase 2 aggregator (issue #1799): mapping untrusted JSON to a typed
-result, loading per-issue result files, skipping malformed input, rendering the
-human-review markdown, table-cell sanitization, and the CLI entry point
-including the missing-dir edge case.
+Covers the Phase 2 aggregator (issue #2260): mapping untrusted JSON to typed
+result fields, loading per-issue result files, skipping malformed input,
+rendering markdown, table-cell sanitization, and the CLI entry point including
+the missing-dir edge case.
 """
 
 from __future__ import annotations
@@ -14,6 +14,9 @@ from pathlib import Path
 import pytest
 
 from scripts.backlog_triage_summary import (
+    DependencyDetection,
+    EvidenceCheck,
+    ScopeAssessment,
     TriageResult,
     load_results,
     main,
@@ -36,10 +39,24 @@ def _result(
     title: str = "t",
     verdict: str = "PASS",
     labels: tuple[str, ...] = (),
+    complexity_classification: str = "unknown",
+    area_routing: tuple[str, ...] = (),
+    dependency_detection: DependencyDetection | None = None,
+    scope_assessment: ScopeAssessment | None = None,
+    evidence_check: EvidenceCheck | None = None,
     findings: str = "",
 ) -> TriageResult:
     return TriageResult(
-        number=number, title=title, verdict=verdict, labels=labels, findings=findings,
+        number=number,
+        title=title,
+        verdict=verdict,
+        labels=labels,
+        complexity_classification=complexity_classification,
+        area_routing=area_routing,
+        dependency_detection=dependency_detection or DependencyDetection(),
+        scope_assessment=scope_assessment or ScopeAssessment(),
+        evidence_check=evidence_check or EvidenceCheck(),
+        findings=findings,
     )
 
 
@@ -51,7 +68,27 @@ class TestTriageResultFromRaw:
                 "title": "x",
                 "verdict": "WARN",
                 "labels": ["area-x"],
-                "findings": "complexity: low",
+                "complexity_classification": "senior",
+                "area_routing": ["agent-architect"],
+                "dependency_detection": {
+                    "blocked_by": [2259],
+                    "blocks": [2261],
+                    "related": [1799],
+                    "notes": "phase chain",
+                },
+                "scope_assessment": {
+                    "status": "right_sized",
+                    "needs_decomposition": False,
+                    "can_batch": True,
+                    "notes": "batch with related prompt work",
+                },
+                "evidence_check": {
+                    "has_repro_steps": False,
+                    "has_acceptance_criteria": True,
+                    "has_enough_context": True,
+                    "missing": ["repro steps"],
+                },
+                "findings": "structured payload",
             }
         )
         assert result == TriageResult(
@@ -59,7 +96,24 @@ class TestTriageResultFromRaw:
             title="x",
             verdict="WARN",
             labels=("area-x",),
-            findings="complexity: low",
+            complexity_classification="senior",
+            area_routing=("agent-architect",),
+            dependency_detection=DependencyDetection(
+                blocked_by=(2259,), blocks=(2261,), related=(1799,), notes="phase chain",
+            ),
+            scope_assessment=ScopeAssessment(
+                status="right_sized",
+                needs_decomposition=False,
+                can_batch=True,
+                notes="batch with related prompt work",
+            ),
+            evidence_check=EvidenceCheck(
+                has_repro_steps=False,
+                has_acceptance_criteria=True,
+                has_enough_context=True,
+                missing=("repro steps",),
+            ),
+            findings="structured payload",
         )
 
     def test_non_dict_returns_none(self):
@@ -82,6 +136,11 @@ class TestTriageResultFromRaw:
         assert result.verdict == "UNKNOWN"
         assert result.labels == ()
         assert result.findings == ""
+        assert result.complexity_classification == "unknown"
+        assert result.area_routing == ()
+        assert result.dependency_detection == DependencyDetection()
+        assert result.scope_assessment == ScopeAssessment()
+        assert result.evidence_check == EvidenceCheck()
 
     def test_non_list_labels_default_empty(self):
         result = TriageResult.from_raw({"number": 1, "labels": "oops"})
@@ -119,7 +178,7 @@ class TestRenderSummary:
         assert "No issues were triaged" in text
         assert "Backlog Triage Summary" in text
 
-    def test_renders_table_row(self):
+    def test_renders_table_row_with_structured_fields(self):
         text = render_summary(
             [
                 _result(
@@ -127,16 +186,26 @@ class TestRenderSummary:
                     title="Add it",
                     verdict="PASS",
                     labels=("area-x",),
-                    findings="complexity: low",
+                    complexity_classification="medior",
+                    area_routing=("agent-implementer",),
+                    dependency_detection=DependencyDetection(blocked_by=(2259,)),
+                    scope_assessment=ScopeAssessment(status="right_sized"),
+                    evidence_check=EvidenceCheck(
+                        has_repro_steps=False,
+                        has_acceptance_criteria=True,
+                        has_enough_context=True,
+                    ),
+                    findings="structured",
                 )
             ]
         )
         assert "Issues triaged: 1" in text
-        assert "| #42 | Add it | PASS | area-x | complexity: low |" in text
+        assert "| #42 | Add it | PASS | medior | agent-implementer | blocked by #2259 |" in text
+        assert "| right_sized | repro=no; ac=yes; context=yes | area-x | structured |" in text
 
     def test_missing_labels_renders_dash(self):
         text = render_summary([_result(number=1, title="t", verdict="WARN")])
-        assert "| #1 | t | WARN | - |" in text
+        assert "| #1 | t | WARN | unknown | - | - | unknown |" in text
 
     def test_pipe_in_title_is_escaped(self):
         text = render_summary([_result(number=1, title="a | b")])
@@ -161,7 +230,7 @@ class TestMain:
         rc = main(["--results-dir", str(results_dir), "--output", str(out)])
         assert rc == 0
         body = out.read_text()
-        assert "| #1 | t | PASS | - | - |" in body
+        assert "| #1 | t | PASS | unknown | - | - | unknown |" in body
         assert "summary" in capsys.readouterr().out
 
     def test_missing_dir_writes_empty_state(self, tmp_path: Path):
@@ -182,7 +251,7 @@ class TestMain:
             "--github-step-summary", str(step_summary),
         ])
         assert rc == 0
-        assert "| #1 | t | UNKNOWN | - | - |" in step_summary.read_text()
+        assert "| #1 | t | UNKNOWN | unknown | - |" in step_summary.read_text()
 
     def test_expected_count_mismatch_returns_logic_error(self, tmp_path: Path, capsys):
         results_dir = tmp_path / "results"

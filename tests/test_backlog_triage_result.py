@@ -1,7 +1,8 @@
 """Tests for scripts.backlog_triage_result.
 
-Covers the Phase 2 per-issue result recorder (issue #1799): label parsing,
-result building, env validation, findings truncation, and the CLI entry point.
+Covers the Phase 2 per-issue result recorder (issue #2260): label parsing,
+structured result fields, env validation, findings truncation, and the CLI
+entry point.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from scripts.backlog_triage_result import (
     build_result,
     main,
     parse_labels,
+    parse_structured_findings,
 )
 
 
@@ -40,6 +42,88 @@ class TestParseLabels:
         assert parse_labels("[1, 2]") == ["1", "2"]
 
 
+class TestParseStructuredFindings:
+    def test_extracts_all_phase_two_fields_from_json(self):
+        findings = json.dumps(
+            {
+                "complexity_classification": "senior",
+                "area_routing": ["agent-architect", "agent-security"],
+                "dependency_detection": {
+                    "blocked_by": [2259, "2260", 0, "bad"],
+                    "blocks": [2261],
+                    "related": [1799],
+                    "notes": "Needs Phase 1 state.",
+                },
+                "scope_assessment": {
+                    "status": "too_broad",
+                    "needs_decomposition": True,
+                    "can_batch": False,
+                    "notes": "Split by capability.",
+                },
+                "evidence_check": {
+                    "has_repro_steps": False,
+                    "has_acceptance_criteria": True,
+                    "has_enough_context": True,
+                    "missing": ["repro steps"],
+                },
+            }
+        )
+
+        result = parse_structured_findings(findings, ["agent-implementer"])
+
+        assert result == {
+            "complexity_classification": "senior",
+            "area_routing": ["agent-architect", "agent-security"],
+            "dependency_detection": {
+                "blocked_by": [2259, 2260],
+                "blocks": [2261],
+                "related": [1799],
+                "notes": "Needs Phase 1 state.",
+            },
+            "scope_assessment": {
+                "status": "too_broad",
+                "needs_decomposition": True,
+                "can_batch": False,
+                "notes": "Split by capability.",
+            },
+            "evidence_check": {
+                "has_repro_steps": False,
+                "has_acceptance_criteria": True,
+                "has_enough_context": True,
+                "missing": ["repro steps"],
+            },
+        }
+
+    def test_parses_json_when_wrapped_by_verdict_text(self):
+        findings = 'VERDICT: PASS\n{"complexity":"junior"}\nLABEL: agent-qa'
+        result = parse_structured_findings(findings, ["agent-qa"])
+        assert result["complexity_classification"] == "junior"
+        assert result["area_routing"] == ["agent-qa"]
+
+    def test_malformed_json_defaults_to_typed_unknowns(self):
+        result = parse_structured_findings("not json", ["agent-qa", "area-workflows"])
+        assert result["complexity_classification"] == "unknown"
+        assert result["area_routing"] == ["agent-qa"]
+        assert result["dependency_detection"] == {
+            "blocked_by": [],
+            "blocks": [],
+            "related": [],
+            "notes": "",
+        }
+        assert result["scope_assessment"] == {
+            "status": "unknown",
+            "needs_decomposition": False,
+            "can_batch": False,
+            "notes": "",
+        }
+        assert result["evidence_check"] == {
+            "has_repro_steps": None,
+            "has_acceptance_criteria": None,
+            "has_enough_context": None,
+            "missing": [],
+        }
+
+
 class TestBuildResult:
     def test_builds_full_result(self):
         result = build_result(
@@ -47,17 +131,27 @@ class TestBuildResult:
                 "ISSUE_NUMBER": "42",
                 "ISSUE_TITLE": "Add backlog triage",
                 "AI_VERDICT": "PASS",
-                "AI_LABELS": '["area-workflows"]',
-                "AI_FINDINGS": "complexity: medium",
+                "AI_LABELS": '["area-workflows", "agent-implementer"]',
+                "AI_FINDINGS": json.dumps(
+                    {
+                        "complexity_classification": "medior",
+                        "area_routing": ["agent-implementer"],
+                        "dependency_detection": {"blocked_by": [2259]},
+                        "scope_assessment": {"status": "right_sized"},
+                        "evidence_check": {"has_enough_context": True},
+                    }
+                ),
             }
         )
-        assert result == {
-            "number": 42,
-            "title": "Add backlog triage",
-            "verdict": "PASS",
-            "labels": ["area-workflows"],
-            "findings": "complexity: medium",
-        }
+        assert result["number"] == 42
+        assert result["title"] == "Add backlog triage"
+        assert result["verdict"] == "PASS"
+        assert result["labels"] == ["area-workflows", "agent-implementer"]
+        assert result["complexity_classification"] == "medior"
+        assert result["area_routing"] == ["agent-implementer"]
+        assert result["dependency_detection"]["blocked_by"] == [2259]
+        assert result["scope_assessment"]["status"] == "right_sized"
+        assert result["evidence_check"]["has_enough_context"] is True
 
     def test_defaults_missing_optional_fields(self):
         result = build_result({"ISSUE_NUMBER": "7"})
@@ -65,6 +159,8 @@ class TestBuildResult:
         assert result["verdict"] == "UNKNOWN"
         assert result["labels"] == []
         assert result["findings"] == ""
+        assert result["complexity_classification"] == "unknown"
+        assert result["area_routing"] == []
 
     def test_blank_verdict_defaults_unknown(self):
         result = build_result({"ISSUE_NUMBER": "7", "AI_VERDICT": "   "})
@@ -98,12 +194,14 @@ class TestMain:
         monkeypatch.setenv("ISSUE_NUMBER", "99")
         monkeypatch.setenv("ISSUE_TITLE", "t")
         monkeypatch.setenv("AI_VERDICT", "WARN")
+        monkeypatch.setenv("AI_FINDINGS", '{"complexity_classification":"junior"}')
         out = tmp_path / "result.json"
         rc = main(["--output", str(out)])
         assert rc == 0
         payload = json.loads(out.read_text())
         assert payload["number"] == 99
         assert payload["verdict"] == "WARN"
+        assert payload["complexity_classification"] == "junior"
         assert "issue #99" in capsys.readouterr().out
 
     def test_missing_number_returns_config_error(self, tmp_path: Path, monkeypatch, capsys):
