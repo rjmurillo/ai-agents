@@ -553,26 +553,45 @@ def write_audit(
 
 
 def _git_diff_paths(repo_root: Path) -> list[str]:
-    """Return changed paths via ``git diff --name-only`` (untracked excluded).
+    """Return changed paths via ``git diff --name-only`` UNION untracked.
+
+    Unions tracked-file modifications (``git diff --name-only``) with
+    untracked files honoring .gitignore (``git ls-files --others
+    --exclude-standard``). The union is required so that #2222-class
+    failures are detected: when a generator-owned file is removed from
+    the index and then regenerated, ``git diff`` reports it as deleted
+    but ``git status`` shows the regenerated copy as untracked. Without
+    the untracked half, --check and the .claude/ guard both miss it.
 
     Used by --check (staleness) and the .claude/ guard. A failure to run
     git is treated as no-diff: this is a CI-side check, and CI always has
     git. We do not want to fail when a contributor runs the script in a
     non-git working tree.
     """
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-only"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=30,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return []
-    if proc.returncode != 0:
-        return []
-    return [line for line in proc.stdout.splitlines() if line.strip()]
+    paths: list[str] = []
+    seen: set[str] = set()
+    for argv in (
+        ["git", "-C", str(repo_root), "diff", "--name-only"],
+        ["git", "-C", str(repo_root), "ls-files", "--others", "--exclude-standard"],
+    ):
+        try:
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if proc.returncode != 0:
+            continue
+        for line in proc.stdout.splitlines():
+            p = line.strip()
+            if p and p not in seen:
+                seen.add(p)
+                paths.append(p)
+    return paths
 
 
 def assert_no_claude_writes(repo_root: Path) -> list[str]:
