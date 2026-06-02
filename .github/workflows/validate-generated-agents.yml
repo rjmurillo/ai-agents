@@ -161,6 +161,17 @@ jobs:
           echo "Running sync_plugin_lib.py --check..."
           python3 scripts/sync_plugin_lib.py --check
 
+      - name: Plugin manifest version parity check (Issue #2222)
+        if: steps.should-run.outputs.skip != 'true'
+        # Both `.claude/.claude-plugin/plugin.json` and
+        # `src/copilot-cli/.claude-plugin/plugin.json` must declare
+        # identical `version` fields. Prevents the drift class where
+        # one manifest bumps version but the other is forgotten.
+        # Exits 2 on mismatch, 0 on parity.
+        run: |
+          echo "Running validate_plugin_manifests_version_parity.py..."
+          python3 build/scripts/validate_plugin_manifests_version_parity.py
+
       - name: Validate GitHub Actions SHA Pinning
         if: steps.should-run.outputs.skip != 'true'
         shell: bash
