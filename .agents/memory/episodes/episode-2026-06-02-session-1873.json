@@ -29,6 +29,14 @@
       "content": "Commit: 64506e8fa",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Replace placeholder auto-retrospectives with real retrospectives for the #2205 work.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
