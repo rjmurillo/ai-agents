@@ -1305,7 +1305,8 @@ def test_shim_rejects_payload_missing_both_formats() -> None:
     transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash")
     proc = _run_shim(transformed, {"foo": "bar"})
     assert proc.returncode == 2
-    assert "toolName" in proc.stderr  # error mentions both field names
+    assert "tool_name" in proc.stderr
+    assert "toolName" in proc.stderr
 
 
 def test_shim_camelcase_tool_glob_non_match() -> None:
