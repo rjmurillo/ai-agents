@@ -124,9 +124,9 @@ jobs:
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
       - name: Regenerate and validate agent files
         id: validate
@@ -157,21 +157,28 @@ jobs:
           python3 build/scripts/check_plugin_manifest_parity.py
 
       - name: Show diff on failure
-        if: failure() && steps.validate.conclusion == 'failure'
+        if: failure()
         shell: bash
+        env:
+          VALIDATE_CONCLUSION: ${{ steps.validate.conclusion }}
+          LIB_MIRROR_CONCLUSION: ${{ steps.lib-mirror.conclusion }}
+          MANIFEST_PARITY_CONCLUSION: ${{ steps.manifest-parity.conclusion }}
         run: |
           echo ""
           echo "==========================================================="
           echo "  AGENT DRIFT DETECTED"
           echo "==========================================================="
           echo ""
-          echo "Generated agent files do not match the committed files."
-          echo "This means someone edited a generated file directly, bypassing"
-          echo "the source template."
+          echo "Generated agent files or plugin mirrors do not match committed files."
+          echo "Validation conclusions:"
+          echo "  generate_agents: $VALIDATE_CONCLUSION"
+          echo "  lib mirrors: $LIB_MIRROR_CONCLUSION"
+          echo "  manifest parity: $MANIFEST_PARITY_CONCLUSION"
           echo ""
 
-          # Regenerate without validation mode to get the expected content in working tree
-          python3 build/generate_agents.py
+          if [ "$VALIDATE_CONCLUSION" = "failure" ]; then
+            python3 build/generate_agents.py
+          fi
 
           # Show which files drifted
           changed_files=$(git diff --name-only)

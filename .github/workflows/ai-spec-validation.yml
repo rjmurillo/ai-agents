@@ -162,19 +162,9 @@ jobs:
           # Note: Requires space after keyword (GitHub standard format: "Fixes #123")
           ISSUE_REFS=$(echo "$COMBINED" | grep -oE '(Closes|Fixes|Resolves|Implements)[[:space:]]+([[:alnum:]_-]+/[[:alnum:]_-]+)?#[0-9]+' | sed -E 's/^(Closes|Fixes|Resolves|Implements)[[:space:]]+//; s/^#//' | sort -u | tr '\n' ' ' || true)
 
-          # Detect incremental/phase PR markers (fix #2255).
-          # A PR titled "Phase N of #X" or "PR x of N" intentionally
-          # delivers a slice of a parent issue. When a marker is found,
-          # the scope is injected into the spec context so the AI agents
-          # evaluate only the declared slice, not the full parent epic.
-          INCREMENTAL_SCOPE=""
-          if printf '%s\n' "$PR_TITLE" | grep -qiE \
-              'phase[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+(#[0-9]+|[0-9]+)|pr[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+[0-9]+'; then
-            INCREMENTAL_SCOPE=$(printf '%s\n' "$PR_TITLE" \
-              | grep -oiE \
-                'phase[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+(#[0-9]+|[0-9]+)|pr[[:space:]]+[0-9]+[[:space:]]+of[[:space:]]+[0-9]+' \
-              | head -1 | tr -s ' ')
-          fi
+          # Detect explicit incremental PR markers (fix #2255).
+          # Parsing lives in a tested script per ADR-006.
+          INCREMENTAL_SCOPE=$(python3 .github/scripts/extract_incremental_scope.py "$PR_TITLE")
 
           echo "spec_refs=$SPEC_REFS" >> $GITHUB_OUTPUT
           echo "issue_refs=$ISSUE_REFS" >> $GITHUB_OUTPUT
