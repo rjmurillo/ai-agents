@@ -50,8 +50,8 @@ Stricter/looser/different than canonical
   The Soft-warn tier therefore covers read 3 with ``nav_count < NAV_REQUIRED``
   (nav 0 or 1), not only ``nav_count == 0``: hard-block starts at read 4
   (``next_read_num > WARN_AT``), so read 3 always warns and allows (issue #2200).
-  This is LOOSER on read 3 than the kit, which blocks read 3 once nav>=1 leaves
-  its warn branch.
+  This warns more aggressively on read 3 than the kit: the kit silently allows
+  read 3 after one nav, while this port emits an advisory and still allows.
 - DIFFERENT conditioning: the kit gates by hard-coded code-extension regex and
   unconditionally blocks Warmup on any code file. This port gates ONLY when an
   overview-capable provider exists for the file type (``detect_providers`` non
