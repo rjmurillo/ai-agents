@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
-      has-issues: ${{ steps.discover.outputs.has-issues }}
+      has-issues: ${{ steps.discover.outputs['has-issues'] }}
       count: ${{ steps.discover.outputs.count }}
     steps:
       - name: Checkout repository
@@ -62,7 +62,7 @@ jobs:
   # Job 2: Classify each issue in parallel (matrix strategy)
   classify-issues:
     needs: discover-issues
-    if: needs.discover-issues.outputs.has-issues == 'true'
+    if: needs.discover-issues.outputs['has-issues'] == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     strategy:
@@ -113,7 +113,7 @@ jobs:
   # Job 3: Aggregate results into a single human-review summary
   summarize:
     needs: [discover-issues, classify-issues]
-    if: always() && needs.discover-issues.outputs.has-issues == 'true'
+    if: always() && needs.discover-issues.outputs['has-issues'] == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     steps:

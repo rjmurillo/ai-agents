@@ -443,6 +443,11 @@ class TestMain:
         assert payload["issues_scanned"] == 1
         assert "skipping malformed issue" in captured.err
 
+    def test_invalid_limit_returns_config_error(self, capsys):
+        rc = main(["--owner", "o", "--repo", "r", "--limit", "0"])
+        assert rc == 2
+        assert "limit" in capsys.readouterr().err
+
     def test_external_failure_returns_exit_three(self, capsys):
         with patch(
             "scripts.issue_triage.fetch_open_issues",

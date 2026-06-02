@@ -388,7 +388,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         try:
             raw_issues = fetch_open_issues(owner, repo, limit=args.limit)
-        except (RuntimeError, ValueError) as err:
+        except ValueError as err:
+            print(str(err), file=sys.stderr)
+            return 2
+        except RuntimeError as err:
             print(str(err), file=sys.stderr)
             return 3
         repo_label = f"{owner}/{repo}"
