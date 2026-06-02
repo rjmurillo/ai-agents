@@ -729,6 +729,30 @@ def validate_spec_id_uniqueness(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_sync_registry(repo_root: Path) -> bool:
+    """Enforce that every shared lib package is registered for sync (Issue #1909).
+
+    `scripts/sync_plugin_lib.py:SYNC_PAIRS` lists the shared packages copied
+    into `.claude/lib/` for plugin distribution. A new lib package added
+    without a SYNC_PAIRS entry silently misses the sync and crashes a shimmed
+    hook at install time. This gate fails when a package under the source roots
+    or under `.claude/lib/` is unregistered.
+    """
+    script = repo_root / "scripts" / "validation" / "validate_sync_registry.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/validate_sync_registry.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_canonical_citations(repo_root: Path) -> bool:
     """Heuristic check for uncited mirror-claims.
 
@@ -1157,6 +1181,13 @@ def main(argv: list[str] | None = None) -> int:
         "Spec ID Uniqueness",
         state,
         lambda: validate_spec_id_uniqueness(repo_root),
+    )
+
+    # 3.77 Sync Registry Provenance (Issue #1909)
+    run_validation(
+        "Sync Registry Provenance",
+        state,
+        lambda: validate_sync_registry(repo_root),
     )
 
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
