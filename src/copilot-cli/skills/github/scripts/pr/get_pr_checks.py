@@ -175,6 +175,7 @@ _PASSING_RANK = 0
 _FAILING_RANK = 1
 _PENDING_RANK = 2
 _UNKNOWN_RANK = 3
+_TYPE_RANK = {"CheckRun": 0, "StatusContext": 1}
 
 
 def _check_rank(check: dict) -> int:
@@ -188,14 +189,20 @@ def _check_rank(check: dict) -> int:
     return _UNKNOWN_RANK
 
 
+def _dedupe_rank(check: dict) -> tuple[int, int]:
+    """Rank by source type first, then verdict precedence."""
+    return (_TYPE_RANK.get(check.get("Type"), 2), _check_rank(check))
+
+
 def dedupe_checks(checks: list[dict]) -> list[dict]:
     """Collapse multiple runs of one check name to the winning entry.
 
     Groups by ``Name`` and keeps the entry with the best precedence
     (passing over failing over pending), so a re-run SUCCESS supersedes a
     stale FAILURE on the same commit. The first-seen order of surviving
-    names is preserved. Required-check status is retained when any duplicate
-    row for a name is required.
+    names is preserved. CheckRun rows win over StatusContext rows with the
+    same name. Required-check status is retained when any duplicate row for a
+    name is required.
     """
     best_by_name: dict[str, dict] = {}
     required_by_name: dict[str, bool] = {}
@@ -214,7 +221,7 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
         if current is None:
             best_by_name[name] = check
             order.append(name)
-        elif _check_rank(check) < _check_rank(current):
+        elif _dedupe_rank(check) < _dedupe_rank(current):
             best_by_name[name] = check
 
     deduped = []

@@ -1142,6 +1142,22 @@ class TestDedupeChecks:
         assert len(result) == 1
         assert result[0]["IsPassing"] is True
 
+    def test_check_run_preferred_over_same_name_status_context(self):
+        """A StatusContext duplicate cannot mask a failing CheckRun."""
+        checks = [
+            {
+                "Name": "build", "Type": "StatusContext",
+                "State": "SUCCESS", "Conclusion": "SUCCESS", "DetailsUrl": "",
+                "IsRequired": True, "IsPending": False,
+                "IsPassing": True, "IsFailing": False,
+            },
+            _check("build", failing=True, conclusion="FAILURE"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Type"] == "CheckRun"
+        assert result[0]["IsFailing"] is True
+
 
 # ---------------------------------------------------------------------------
 # Tests: fetch_checks + main with superseded runs (Issue #2208 scenario)
