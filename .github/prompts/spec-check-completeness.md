@@ -106,9 +106,9 @@ parent issue. Apply these rules:
 3. A PR that fully satisfies its declared slice with all non-N/A criteria met
    earns **PASS**, even though other phases remain unimplemented.
 4. Do NOT emit PARTIAL or FAIL because criteria outside the declared scope are
-   unmet — those are expected to be deferred.
+   unmet. Those are expected to be deferred.
 5. When a criterion is ambiguously scoped, lean toward `N/A` rather than
-   treating it as a gap — the author declared they are not claiming to cover it.
+   treating it as a gap. The author declared they are not claiming to cover it.
 
 If no `## Incremental Scope Declaration` is present, treat all criteria as
 in-scope and apply the normal verdict guidelines below.

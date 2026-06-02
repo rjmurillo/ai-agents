@@ -101,7 +101,7 @@ parent issue. Apply these rules:
    earns **PASS**, even though other phases remain NOT_COVERED.
 4. Do NOT penalize a PR for not implementing criteria outside its declared scope.
 5. When a requirement is ambiguously scoped, lean toward `N/A` rather than
-   `NOT_COVERED` — the author declared they are not claiming to cover it.
+   `NOT_COVERED`. The author declared they are not claiming to cover it.
 
 If no `## Incremental Scope Declaration` is present, treat all requirements as
 in-scope and apply the normal verdict guidelines below.
