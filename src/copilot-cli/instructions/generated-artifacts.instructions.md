@@ -1,5 +1,5 @@
 ---
-applyTo: build/scripts/**,templates/**,src/copilot-cli/**,tests/build_scripts/**,tests/e2e/**
+applyTo: build/scripts/**,templates/**,src/copilot-cli/**,.github/instructions/**,tests/build_scripts/**,tests/e2e/**
 ---
 
 # Customer-Facing Generated Artifacts

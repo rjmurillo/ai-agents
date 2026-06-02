@@ -1,5 +1,5 @@
 ---
-applyTo: "build/scripts/**,templates/**,src/copilot-cli/**,.claude/hooks/**,tests/build_scripts/**,tests/e2e/**"
+applyTo: "build/scripts/**,templates/**,src/copilot-cli/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,tests/build_scripts/**,tests/e2e/**"
 priority: high
 ---
 

@@ -66,13 +66,10 @@ jobs:
         uses: ./.github/actions/validate-plugin-manifests
 
       # The hook anchoring gate imports build/scripts/generate_hooks.py, which
-      # depends on PyYAML (pinned in pyproject.toml). Install it explicitly so
-      # the gate fails on a real anchoring violation, not on a missing module.
-      - name: Set up Python for hook anchoring gate
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
-        with:
-          python-version: '3.14'
-
+      # depends on PyYAML (pinned in pyproject.toml). The preceding composite
+      # action already set up Python 3.14, so reuse that interpreter and only
+      # install the missing dependency, so the gate fails on a real anchoring
+      # violation, not on a missing module.
       - name: Install hook anchoring gate dependencies
         run: python3 -m pip install 'PyYAML==6.0.3'
 
