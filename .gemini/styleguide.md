@@ -8,6 +8,8 @@
 
 | Topic | Source |
 |-------|--------|
+| Code quality | [`.agents/governance/code-quality.md`](../.agents/governance/code-quality.md) (canonical) |
+| Code review norms | [`.agents/governance/code-review-norms.md`](../.agents/governance/code-review-norms.md) (canonical) |
 | PowerShell standards | [`scripts/AGENTS.md`](../scripts/AGENTS.md) (canonical) |
 | Exit codes | [`ADR-035`](../.agents/architecture/ADR-035-exit-code-standardization.md) in `.agents/architecture/` |
 | Output schemas | [`ADR-028`](../.agents/architecture/ADR-028-powershell-output-schema-consistency.md) in `.agents/architecture/` |
