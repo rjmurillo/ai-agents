@@ -128,7 +128,9 @@ def test_pr_template_norms_summary_defers_to_canonical() -> None:
     review_norms_link = ".agents/governance/code-review-norms.md"
     # The summary block must cite the canonical file as the source of truth.
     assert re.search(
-        r"[Cc]anonical source:.*code-review-norms\.md", template_text
+        rf"canonical source:.*(?<![\w/]){re.escape(review_norms_link)}(?!\w)",
+        template_text,
+        re.IGNORECASE,
     ), (
         "The Review norms summary must name code-review-norms.md as the canonical "
         "source so the template is a mirror, not a competing authority."
