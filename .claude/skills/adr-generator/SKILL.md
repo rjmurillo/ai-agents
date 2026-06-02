@@ -208,8 +208,8 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 
 ## References
 
-- [ADR Template](references/adr-template.md) — This project's canonical ADR document structure
-- [ADR Templates Catalog](references/adr-templates-catalog.md) — Comparison of Nygard, MADR, Alexandrian, Tyree & Akerman, and other formats
-- [AD Quality Frameworks](references/ad-quality-frameworks.md) — ASR Test, START (DoR), ecADR (DoD), anti-patterns, review checklist (Zimmermann)
-- [ADR Best Practices](references/adr-best-practices.md) — Writing guidance, lifecycle, naming conventions, teamwork advice
-- [Quality Checklist](references/quality-checklist.md) — Validation checklist for Phase G4
+- [ADR Template](references/adr-template.md): This project's canonical ADR document structure
+- [ADR Templates Catalog](references/adr-templates-catalog.md): Comparison of Nygard, MADR, Alexandrian, Tyree & Akerman, and other formats
+- [AD Quality Frameworks](references/ad-quality-frameworks.md): ASR Test, START (DoR), ecADR (DoD), anti-patterns, review checklist (Zimmermann)
+- [ADR Best Practices](references/adr-best-practices.md): Writing guidance, lifecycle, naming conventions, teamwork advice
+- [Quality Checklist](references/quality-checklist.md): Validation checklist for Phase G4
