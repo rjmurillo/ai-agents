@@ -189,12 +189,22 @@ class TestDirectoryScopeHelpers:
             "../other_repo"
         ]
 
+    def test_directory_arguments_skips_pattern_with_slash(self):
+        assert guard._directory_arguments('rg "import/utils"') == []
+
+    def test_directory_arguments_collects_bare_file_after_pattern(self):
+        assert guard._directory_arguments('grep -r "Foo" LICENSE') == ["LICENSE"]
+
     def test_in_repo_file_argument_is_not_directory_scope(self):
         readme = REPO_ROOT / "README.md"
         assert (
             guard._is_directory_scope(f'grep -r "Foo" {readme}', str(REPO_ROOT))
             is False
         )
+
+    def test_slash_pattern_keeps_recursive_repo_scope(self):
+        assert guard._is_directory_scope('rg "import/utils"', str(REPO_ROOT)) is True
+        assert guard._is_directory_scope('grep -rn "src/helpers"', str(REPO_ROOT)) is True
 
 
 class TestEvaluateRepoWideScope:

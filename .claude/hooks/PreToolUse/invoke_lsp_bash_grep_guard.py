@@ -192,6 +192,7 @@ def _directory_arguments(segment: str) -> list[str]:
     """
     tokens = segment.split()
     seen_grep = False
+    seen_pattern = False
     dirs: list[str] = []
     for token in tokens:
         if not seen_grep:
@@ -200,8 +201,10 @@ def _directory_arguments(segment: str) -> list[str]:
             continue
         if token.startswith("-"):
             continue
-        if token in (".", "./", "..") or "/" in token or "\\" in token:
-            dirs.append(token)
+        if not seen_pattern:
+            seen_pattern = True
+            continue
+        dirs.append(token)
     return dirs
 
 

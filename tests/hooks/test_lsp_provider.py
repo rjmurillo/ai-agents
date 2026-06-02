@@ -524,11 +524,8 @@ class TestRepoHasProgrammingProvider:
         assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is False
 
     def test_false_when_serena_present_but_no_mcp(self, tmp_path):
-        # python configured but no serena MCP server AND a non-native-LSP
-        # programming language only (powershell .ps1 is native-LSP capable, so
-        # use a language that native LSP also covers is wrong; instead drop the
-        # file to a non-native ext). Confirm a provider-less config returns False
-        # when no navigable file is present.
+        # Serena is unavailable and no programming-language files are present, so
+        # the repo-wide provider probe returns False and the guard fails open.
         _configured_project(tmp_path, ["python"], serena=False)
         (tmp_path / "notes.toml").write_text("a = 1\n", encoding="utf-8")
         assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is False
