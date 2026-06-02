@@ -121,7 +121,11 @@
     "Fixed #2231 items 1+2 (glob hook-artifact discovery + Windows pwsh CI)",
     "Closed #2230 (launcher fail-open) with prevent-don't-mask justification",
     "Fixed #1728 (orchestrator Context Budget section + SESSION-STATE.md), closed with justification; removed fabricated token table per owner",
-    "Filed #2267 (hand-maintained agent copies have no generator)"
+    "Filed #2267 (hand-maintained agent copies have no generator)",
+    "Opened PR #2268 for the 8-P1 batch",
+    "2nd P1 wave: closed #2265 (token-budget table, owner rejected pending evals)",
+    "2nd P1 wave: #2264 SESSION-STATE doc delta (live-instance path + update protocol)",
+    "2nd P1 wave: fixing #2258 (pre-commit set -e silent death), #2259 (mechanical triage), #1726 (P0 hook infra)"
   ],
   "endingCommit": "",
   "nextSteps": [

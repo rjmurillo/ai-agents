@@ -77,6 +77,38 @@
       "content": "Filed #2267 (hand-maintained agent copies have no generator)",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Opened PR #2268 for the 8-P1 batch",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "2nd P1 wave: closed #2265 (token-budget table, owner rejected pending evals)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "2nd P1 wave: #2264 SESSION-STATE doc delta (live-instance path + update protocol)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-06-02T00:00:00+00:00",
+      "type": "milestone",
+      "content": "2nd P1 wave: fixing #2258 (pre-commit set -e silent death), #2259 (mechanical triage), #1726 (P0 hook infra)",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
