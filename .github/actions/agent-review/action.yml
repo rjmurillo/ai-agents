@@ -15,7 +15,7 @@ description: 'Runs AI-powered review for a specific agent with conditional execu
 
 inputs:
   agent:
-    description: 'Agent name (security, qa, analyst, architect, devops, roadmap)'
+    description: 'Agent name (canonical quality gate axis)'
     required: true
   emoji:
     description: 'Emoji for agent display'
@@ -161,7 +161,7 @@ runs:
       run: |
         $ErrorActionPreference = 'Stop'
         # CWE-22 mitigation: Validate agent name against allowlist
-        $allowedAgents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+        $allowedAgents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
         if ($env:AGENT -notin $allowedAgents) {
           throw "Invalid agent name: $($env:AGENT). Must be one of: $($allowedAgents -join ', ')"
         }

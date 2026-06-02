@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Aggregate quality gate verdicts from six AI review agents.
+"""Aggregate quality gate verdicts from ten AI review agents.
 
-Input env vars (used as defaults for CLI args, 6 agents x 2 = 12):
+Input env vars (used as defaults for CLI args, 10 agents x 2 = 20):
     SECURITY_VERDICT, QA_VERDICT, ANALYST_VERDICT,
-    ARCHITECT_VERDICT, DEVOPS_VERDICT, ROADMAP_VERDICT
+    ARCHITECT_VERDICT, DEVOPS_VERDICT, ROADMAP_VERDICT,
+    RELIABILITY_VERDICT, OBSERVABILITY_VERDICT, AGENT_SAFETY_VERDICT,
+    DECISION_RIGOR_VERDICT
     SECURITY_INFRA, QA_INFRA, ANALYST_INFRA,
-    ARCHITECT_INFRA, DEVOPS_INFRA, ROADMAP_INFRA
+    ARCHITECT_INFRA, DEVOPS_INFRA, ROADMAP_INFRA,
+    RELIABILITY_INFRA, OBSERVABILITY_INFRA, AGENT_SAFETY_INFRA,
+    DECISION_RIGOR_INFRA
     GITHUB_OUTPUT      - Path to GitHub Actions output file
     GITHUB_WORKSPACE   - Workspace root (for package imports)
 """
@@ -29,7 +33,28 @@ from scripts.ai_review_common import (  # noqa: E402
     write_output,
 )
 
-_AGENTS = ("security", "qa", "analyst", "architect", "devops", "roadmap")
+_AGENTS = (
+    "security",
+    "qa",
+    "analyst",
+    "architect",
+    "devops",
+    "roadmap",
+    "reliability",
+    "observability",
+    "agent-safety",
+    "decision-rigor",
+)
+
+
+def _env_name(agent: str) -> str:
+    """Return the environment variable prefix for an agent name."""
+    return agent.upper().replace("-", "_")
+
+
+def _arg_name(agent: str) -> str:
+    """Return the argparse destination prefix for an agent name."""
+    return agent.replace("-", "_")
 
 
 def get_category(verdict: str, infra_flag: bool) -> str:
@@ -42,10 +67,10 @@ def get_category(verdict: str, infra_flag: bool) -> str:
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     parser = argparse.ArgumentParser(
-        description="Aggregate quality gate verdicts from six AI review agents.",
+        description="Aggregate quality gate verdicts from ten AI review agents.",
     )
     for agent in _AGENTS:
-        upper = agent.upper()
+        upper = _env_name(agent)
         parser.add_argument(
             f"--{agent}-verdict",
             default=os.environ.get(f"{upper}_VERDICT", ""),
@@ -64,8 +89,8 @@ def main(argv: list[str] | None = None) -> int:
     verdicts: dict[str, str] = {}
     infra_flags: dict[str, bool] = {}
     for agent in _AGENTS:
-        verdicts[agent] = getattr(args, f"{agent}_verdict")
-        infra_flags[agent] = getattr(args, f"{agent}_infra") == "true"
+        verdicts[agent] = getattr(args, f"{_arg_name(agent)}_verdict")
+        infra_flags[agent] = getattr(args, f"{_arg_name(agent)}_infra") == "true"
 
     if not any(verdicts.values()):
         write_log("ERROR: No agent verdicts found. All verdict env vars are empty.")

@@ -319,12 +319,12 @@ jobs:
           print(summary)
 
 # ==============================================================================
-# Agent Review Jobs (6 Static Jobs)
+# Agent Review Jobs (10 Static Jobs)
 # ==============================================================================
 #
-# Each agent (security, qa, analyst, architect, devops, roadmap) has a dedicated
-# job with a static name. This ensures status check contexts are always emitted
-# with proper names, even when reviews are skipped due to file filtering.
+# Each canonical review axis has a dedicated job with a static name. This ensures
+# status check contexts are always emitted with proper names, even when reviews
+# are skipped due to file filtering.
 #
 # Why not matrix? Job-level `if:` conditions prevent matrix expansion, leaving
 # check context names as unresolved placeholders (e.g., "${{ matrix.agent }} Review").
@@ -333,7 +333,7 @@ jobs:
 # 2. Jobs always run, emitting proper status checks
 # 3. Composite action (.github/actions/agent-review) encapsulates common workflow
 #
-# Trade-off: Six job definitions (CVA) vs correctness (reliable status checks).
+# Trade-off: Ten job definitions (CVA) vs correctness (reliable status checks).
 
   security-review:
     name: Security Review
@@ -498,18 +498,126 @@ jobs:
           commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
           bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
 
+  reliability-review:
+    name: Reliability Review
+    runs-on: ubuntu-24.04-arm
+    needs: [check-changes, infra-check]
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Run reliability review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: reliability
+          emoji: 🛡️
+          prompt-file: .github/prompts/pr-quality-gate-reliability.md
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
+
+  observability-review:
+    name: Observability Review
+    runs-on: ubuntu-24.04-arm
+    needs: [check-changes, infra-check]
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Run observability review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: observability
+          emoji: 🔭
+          prompt-file: .github/prompts/pr-quality-gate-observability.md
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
+
+  agent-safety-review:
+    name: Agent Safety Review
+    runs-on: ubuntu-24.04-arm
+    needs: [check-changes, infra-check]
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Run agent safety review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: agent-safety
+          emoji: 🤖
+          prompt-file: .github/prompts/pr-quality-gate-agent-safety.md
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
+
+  decision-rigor-review:
+    name: Decision Rigor Review
+    runs-on: ubuntu-24.04-arm
+    needs: [check-changes, infra-check]
+    if: always() && needs.check-changes.result == 'success'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+      - name: Run decision rigor review
+        uses: ./.github/actions/agent-review
+        with:
+          agent: decision-rigor
+          emoji: ⚖️
+          prompt-file: .github/prompts/pr-quality-gate-decision-rigor.md
+          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          pr-number: ${{ env.PR_NUMBER }}
+          bot-pat: ${{ secrets.BOT_PAT }}
+          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          commit-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          bypass-cache: ${{ inputs.bypass-cache == true && 'true' || 'false' }}
+
 # ==============================================================================
 # Aggregate Results from All Agent Reviews
 # ==============================================================================
 #
-# Depends on all six agent review jobs explicitly (not matrix).
+# Depends on all ten agent review jobs explicitly (not matrix).
 # Downloads artifacts using pattern `review-*` to gather all agent verdicts.
 
   aggregate:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, infra-check, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review]
+    needs: [check-changes, infra-check, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review, reliability-review, observability-review, agent-safety-review, decision-rigor-review]
     # Always run to produce a SUCCESS check (not SKIPPED) for rulesets.
     # Step-level conditions gate the actual work.
     if: always()
@@ -539,6 +647,10 @@ jobs:
           ARCHITECT_RESULT: ${{ needs.architect-review.result }}
           DEVOPS_RESULT: ${{ needs.devops-review.result }}
           ROADMAP_RESULT: ${{ needs.roadmap-review.result }}
+          RELIABILITY_RESULT: ${{ needs.reliability-review.result }}
+          OBSERVABILITY_RESULT: ${{ needs.observability-review.result }}
+          AGENT_SAFETY_RESULT: ${{ needs.agent-safety-review.result }}
+          DECISION_RIGOR_RESULT: ${{ needs.decision-rigor-review.result }}
         run: |
           $ErrorActionPreference = 'Stop'
           # Check if any agent review jobs failed by examining the needs context
@@ -551,6 +663,10 @@ jobs:
             @{ Name = 'Architect'; Result = $env:ARCHITECT_RESULT }
             @{ Name = 'DevOps'; Result = $env:DEVOPS_RESULT }
             @{ Name = 'Roadmap'; Result = $env:ROADMAP_RESULT }
+            @{ Name = 'Reliability'; Result = $env:RELIABILITY_RESULT }
+            @{ Name = 'Observability'; Result = $env:OBSERVABILITY_RESULT }
+            @{ Name = 'Agent Safety'; Result = $env:AGENT_SAFETY_RESULT }
+            @{ Name = 'Decision Rigor'; Result = $env:DECISION_RIGOR_RESULT }
           )
 
           Write-Output "Individual review results:"
@@ -591,7 +707,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Write-Output "Checking for required verdict files..."
 
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
           $missingFiles = @()
 
           foreach ($agent in $agents) {
@@ -618,7 +734,7 @@ jobs:
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
           $ErrorActionPreference = 'Stop'
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
 
           Write-Output "Loaded verdicts:"
 
@@ -651,12 +767,20 @@ jobs:
           ARCHITECT_VERDICT: ${{ steps.load-results.outputs.architect_verdict }}
           DEVOPS_VERDICT: ${{ steps.load-results.outputs.devops_verdict }}
           ROADMAP_VERDICT: ${{ steps.load-results.outputs.roadmap_verdict }}
+          RELIABILITY_VERDICT: ${{ steps.load-results.outputs.reliability_verdict }}
+          OBSERVABILITY_VERDICT: ${{ steps.load-results.outputs.observability_verdict }}
+          AGENT_SAFETY_VERDICT: ${{ steps.load-results.outputs['agent-safety_verdict'] }}
+          DECISION_RIGOR_VERDICT: ${{ steps.load-results.outputs['decision-rigor_verdict'] }}
           SECURITY_INFRA: ${{ steps.load-results.outputs.security_infra }}
           QA_INFRA: ${{ steps.load-results.outputs.qa_infra }}
           ANALYST_INFRA: ${{ steps.load-results.outputs.analyst_infra }}
           ARCHITECT_INFRA: ${{ steps.load-results.outputs.architect_infra }}
           DEVOPS_INFRA: ${{ steps.load-results.outputs.devops_infra }}
           ROADMAP_INFRA: ${{ steps.load-results.outputs.roadmap_infra }}
+          RELIABILITY_INFRA: ${{ steps.load-results.outputs.reliability_infra }}
+          OBSERVABILITY_INFRA: ${{ steps.load-results.outputs.observability_infra }}
+          AGENT_SAFETY_INFRA: ${{ steps.load-results.outputs['agent-safety_infra'] }}
+          DECISION_RIGOR_INFRA: ${{ steps.load-results.outputs['decision-rigor_infra'] }}
         run: python3 .github/scripts/aggregate_quality_verdicts.py
 
       - name: Generate Report
@@ -676,12 +800,20 @@ jobs:
           ARCHITECT_VERDICT: ${{ steps.aggregate.outputs.architect_verdict }}
           DEVOPS_VERDICT: ${{ steps.aggregate.outputs.devops_verdict }}
           ROADMAP_VERDICT: ${{ steps.aggregate.outputs.roadmap_verdict }}
+          RELIABILITY_VERDICT: ${{ steps.aggregate.outputs.reliability_verdict }}
+          OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
+          AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
+          DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
           SECURITY_CATEGORY: ${{ steps.aggregate.outputs.security_category }}
           QA_CATEGORY: ${{ steps.aggregate.outputs.qa_category }}
           ANALYST_CATEGORY: ${{ steps.aggregate.outputs.analyst_category }}
           ARCHITECT_CATEGORY: ${{ steps.aggregate.outputs.architect_category }}
           DEVOPS_CATEGORY: ${{ steps.aggregate.outputs.devops_category }}
           ROADMAP_CATEGORY: ${{ steps.aggregate.outputs.roadmap_category }}
+          RELIABILITY_CATEGORY: ${{ steps.aggregate.outputs.reliability_category }}
+          OBSERVABILITY_CATEGORY: ${{ steps.aggregate.outputs.observability_category }}
+          AGENT_SAFETY_CATEGORY: ${{ steps.aggregate.outputs['agent-safety_category'] }}
+          DECISION_RIGOR_CATEGORY: ${{ steps.aggregate.outputs['decision-rigor_category'] }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: python3 .github/scripts/generate_quality_report.py
 
@@ -699,7 +831,7 @@ jobs:
           $infrastructureFailureDetected = $false
           $retryAttempts = @()
 
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap')
+          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
 
           foreach ($agent in $agents) {
             $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
@@ -796,6 +928,10 @@ jobs:
           ARCHITECT_VERDICT: ${{ steps.aggregate.outputs.architect_verdict }}
           DEVOPS_VERDICT: ${{ steps.aggregate.outputs.devops_verdict }}
           ROADMAP_VERDICT: ${{ steps.aggregate.outputs.roadmap_verdict }}
+          RELIABILITY_VERDICT: ${{ steps.aggregate.outputs.reliability_verdict }}
+          OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
+          AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
+          DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
         run: |
           $ErrorActionPreference = 'Stop'
           $finalVerdict = $env:FINAL_VERDICT
@@ -808,6 +944,10 @@ jobs:
             @{ Name = '📐 Architect'; Verdict = $env:ARCHITECT_VERDICT }
             @{ Name = '⚙️ DevOps'; Verdict = $env:DEVOPS_VERDICT }
             @{ Name = '🗺️ Roadmap'; Verdict = $env:ROADMAP_VERDICT }
+            @{ Name = '🛡️ Reliability'; Verdict = $env:RELIABILITY_VERDICT }
+            @{ Name = '🔭 Observability'; Verdict = $env:OBSERVABILITY_VERDICT }
+            @{ Name = '🤖 Agent Safety'; Verdict = $env:AGENT_SAFETY_VERDICT }
+            @{ Name = '⚖️ Decision Rigor'; Verdict = $env:DECISION_RIGOR_VERDICT }
           )
 
           # Identify agents with blocking verdicts
