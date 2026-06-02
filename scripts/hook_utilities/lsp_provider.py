@@ -555,11 +555,6 @@ def repo_programming_providers(project_dir: str) -> list[str]:
     return []
 
 
-def _first_programming_file_with_provider(repo_root: Path, project_dir: str) -> bool:
-    """True if any present programming-language file has an available provider."""
-    return bool(repo_programming_providers(project_dir))
-
-
 def repo_has_programming_provider(project_dir: str) -> bool:
     """True if the repo has an active programming-language LSP provider.
 
@@ -581,16 +576,8 @@ def repo_has_programming_provider(project_dir: str) -> bool:
     Returns:
         True only when a programming-language provider is active for this repo.
     """
-    if not project_dir:
-        return False
-    try:
-        repo_root = Path(project_dir).resolve(strict=False)
-    except (OSError, ValueError):
-        return False
-    if not repo_root.is_dir():
-        return False
     # detect_providers settles availability per file: Serena requires a
     # configured language plus a registered MCP server; native LSP needs only a
     # programming-language extension. The scan stops at the first present file
     # that has either, so a provider-less repo returns False (fail-open).
-    return _first_programming_file_with_provider(repo_root, str(repo_root))
+    return bool(repo_programming_providers(project_dir))
