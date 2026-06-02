@@ -511,3 +511,183 @@ def test_generators_registry_includes_m7_lib_before_hooks() -> None:
     artifact_names = [name for name, _ in build_all.GENERATORS]
     assert "lib" in artifact_names
     assert artifact_names.index("lib") < artifact_names.index("hooks")
+
+
+# Regression: #2222 — untracked-file drift (PR #2285 review iteration 2) -----
+#
+# The CI gate added in PR #2285 wires `build_all.py --check` into
+# agent-drift-detection.yml. For that wiring to actually close #2222, the
+# `--check` block must classify a regenerated-but-uncommitted file as drift
+# even when its prior copy was never committed (so `git diff --name-only`
+# does not list it). The fix unions `git diff --name-only` with
+# `git ls-files --others --exclude-standard`. These tests pin that contract.
+
+
+def _init_git_repo(repo: Path) -> None:
+    """Initialise a git repo with deterministic identity for tests."""
+    import subprocess
+
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.email", "t@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True
+    )
+
+
+def test_git_diff_paths_includes_untracked_files(tmp_path: Path) -> None:
+    """#2222 regression: untracked files MUST appear in diff output.
+
+    Without this, the --check gate misses generator outputs that were
+    deleted from the index then regenerated (the exact PR #2203 scenario).
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    # One committed file (so the repo has a HEAD), plus one untracked.
+    (repo / "kept.txt").write_text("kept\n")
+    subprocess.run(["git", "-C", str(repo), "add", "kept.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
+    )
+    untracked = repo / "src" / "copilot-cli" / "lib" / "regenerated.py"
+    untracked.parent.mkdir(parents=True)
+    untracked.write_text("# regenerated\n")
+
+    paths = build_all._git_diff_paths(repo)
+    assert "src/copilot-cli/lib/regenerated.py" in paths, (
+        f"untracked file missing from _git_diff_paths output: {paths!r}"
+    )
+
+
+def test_git_diff_paths_honors_gitignore(tmp_path: Path) -> None:
+    """Untracked enumeration must honour .gitignore so noise stays out."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text("*.log\n__pycache__/\n")
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
+    )
+    (repo / "noisy.log").write_text("noise\n")
+    (repo / "src").mkdir()
+    (repo / "src" / "real.py").write_text("# real\n")
+
+    paths = build_all._git_diff_paths(repo)
+    assert "src/real.py" in paths
+    assert "noisy.log" not in paths
+
+
+def test_git_diff_paths_dedups_when_path_appears_in_both(
+    tmp_path: Path,
+) -> None:
+    """A path can't simultaneously be tracked-modified AND untracked, but
+    guard against duplicates regardless so downstream consumers don't get
+    confused by repeated entries."""
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / "a.txt").write_text("v1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "a.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
+    )
+    (repo / "a.txt").write_text("v2\n")  # tracked + modified
+    (repo / "b.txt").write_text("new\n")  # untracked
+
+    paths = build_all._git_diff_paths(repo)
+    assert paths.count("a.txt") == 1
+    assert "b.txt" in paths
+
+
+def test_run_check_returns_2_when_untracked_owned_file_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2222 end-to-end: regenerated-but-untracked owned file => exit 2.
+
+    Reproduces the exact PR #2203 scenario: a generator-owned file under
+    src/ exists in the working tree but is not in the index (e.g. because
+    the source was removed from a prior commit, or because the file was
+    never committed in the first place). The --check gate MUST flag this.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    # Commit the source skill so the repo has a HEAD.
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+    # Simulate a regenerated-but-untracked owned file (the #2222 leak).
+    leaked = repo / "src" / "copilot-cli" / "lib" / "cache_guard.py"
+    leaked.parent.mkdir(parents=True)
+    leaked.write_text("# regenerated\n")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    assert rc == 2, (
+        f"expected exit 2 from untracked owned-prefix drift, got {rc}. "
+        "If this regresses, #2222 is leaking again."
+    )
+
+
+def test_run_check_clean_when_untracked_outside_owned_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Untracked files outside owned prefixes must NOT flip the gate.
+
+    The owned-prefix filter is the contract: contributors' scratch files
+    in the working tree should not break CI. Only src/ and
+    .github/instructions/ drift is the build orchestrator's problem.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+    (repo / "scratch.md").write_text("notes\n")  # untracked, outside owned
+
+    # Stub the agents generator AND swap GENERATORS to a no-op list so the
+    # only untracked path the gate could see is scratch.md (outside owned).
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "GENERATORS", [("agents", build_all._build_agents)])
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    assert rc == 0, (
+        f"expected exit 0 from non-owned untracked drift, got {rc}"
+    )
