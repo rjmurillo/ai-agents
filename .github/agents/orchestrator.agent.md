@@ -1293,7 +1293,7 @@ Retrospective agent returns output containing `## Retrospective Handoff` section
 ┌─────────────────────────────────────────────────────────────┐
 │ Step 3: Persist Memory Updates (IF memory updates exist)    │
 │   - Use cloudmcp-manager memory tools directly              │
-│   - OR route to memory agent for complex updates            │
+│   - OR route to memory skill for complex updates            │
 │   - Create/update entities in specified files               │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -1369,7 +1369,7 @@ mcp__cloudmcp-manager__memory-add_observations
 }
 ```
 
-For complex updates, route to memory agent.
+For complex updates, route to memory skill.
 
 #### Step 4: Git Operations
 
