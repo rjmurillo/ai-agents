@@ -87,6 +87,7 @@ _AUDITED_SITES = (
     ("GENERATE_OUTPUT", "GENERATE_EXIT"),
     ("validator_output", "validator_exit"),
     ("adr_result", "adr_exit"),
+    ("errors", "errors_exit"),
 )
 
 

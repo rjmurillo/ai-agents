@@ -1697,8 +1697,10 @@ if [ -n "$STAGED_MEMORY_FILES" ]; then
                 echo_warning "Memory cross-reference encountered issues (non-blocking)"
                 # Extract and show errors if jq is available
                 if command -v jq &> /dev/null; then
-                    errors=$(echo "$crossref_result" | jq -r '.Errors[]? // empty' 2>/dev/null)
-                    if [ -n "$errors" ]; then
+                    errors=$(echo "$crossref_result" | jq -r '.Errors[]? // empty' 2>/dev/null) && errors_exit=0 || errors_exit=$?
+                    if [ "$errors_exit" -ne 0 ]; then
+                        echo_warning "Could not parse memory cross-reference errors (jq exit $errors_exit)"
+                    elif [ -n "$errors" ]; then
                         echo_info "Errors: $errors"
                     fi
                 fi
