@@ -483,6 +483,20 @@ class TestRepoHasProgrammingProvider:
         (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
         assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is True
 
+    def test_true_via_native_lsp_only_extension_without_serena(self, tmp_path):
+        _configured_project(tmp_path, [], serena=False)
+        (tmp_path / "main.go").write_text("package main\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is True
+        assert lsp_provider.repo_programming_providers(str(tmp_path)) == ["native_lsp"]
+
+    def test_scan_limit_counts_only_programming_candidates(self, tmp_path, monkeypatch):
+        _configured_project(tmp_path, ["python"])
+        monkeypatch.setattr(lsp_provider, "_SCAN_FILE_LIMIT", 1)
+        for index in range(5):
+            (tmp_path / f"note-{index}.md").write_text("# note\n", encoding="utf-8")
+        (tmp_path / "app.py").write_text("x = 1\n", encoding="utf-8")
+        assert lsp_provider.repo_has_programming_provider(str(tmp_path)) is True
+
     def test_false_when_no_programming_file_present(self, tmp_path):
         # Configured + serena, but only markdown files present: markdown is not a
         # programming language, so no symbol-navigation provider is active.

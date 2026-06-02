@@ -489,9 +489,12 @@ def is_code_target(target: str, capability: str) -> bool:
 # This is the extension set a repo-wide grep would scan, used by the
 # directory-scope probe below.
 _PROGRAMMING_EXTENSIONS: frozenset[str] = frozenset(
-    suffix
-    for suffix, language in EXTENSION_TO_SERENA_LANGUAGE.items()
-    if language in PROGRAMMING_SERENA_LANGUAGES
+    {
+        suffix
+        for suffix, language in EXTENSION_TO_SERENA_LANGUAGE.items()
+        if language in PROGRAMMING_SERENA_LANGUAGES
+    }
+    | set(NATIVE_LSP_CODE_EXTENSIONS)
 )
 
 # Directories a repo-wide scan must never descend into. These hold vendored or
@@ -518,27 +521,43 @@ _SCAN_SKIP_DIRS: frozenset[str] = frozenset(
 _SCAN_FILE_LIMIT = 20000
 
 
-def _first_programming_file_with_provider(repo_root: Path, project_dir: str) -> bool:
-    """True if any present programming-language file has an available provider.
+def repo_programming_providers(project_dir: str) -> list[str]:
+    """Return providers for the first present programming file in the repo.
 
-    Walks ``repo_root`` (skipping vendored/generated directories), and for the
-    first file whose extension is in ``_PROGRAMMING_EXTENSIONS`` confirms that
-    ``detect_providers`` reports a symbol-navigation provider for it. Returns on
-    the first match. Bounded by ``_SCAN_FILE_LIMIT`` files inspected.
+    Walks the repo (skipping vendored/generated directories), counts only files
+    with programming-language extensions toward ``_SCAN_FILE_LIMIT``, and returns
+    the first file's symbol-navigation providers. Empty means no provider was
+    found or the project dir is unreadable, preserving fail-open behavior.
     """
+    if not project_dir:
+        return []
+    try:
+        repo_root = Path(project_dir).resolve(strict=False)
+    except (OSError, ValueError):
+        return []
+    if not repo_root.is_dir():
+        return []
     inspected = 0
     for dirpath, dirnames, filenames in os.walk(repo_root):
         dirnames[:] = [d for d in dirnames if d not in _SCAN_SKIP_DIRS]
         for filename in filenames:
+            candidate = Path(dirpath) / filename
+            if candidate.suffix.lower() not in _PROGRAMMING_EXTENSIONS:
+                continue
             inspected += 1
             if inspected > _SCAN_FILE_LIMIT:
-                return False
-            suffix = Path(filename).suffix.lower()
-            if suffix not in _PROGRAMMING_EXTENSIONS:
-                continue
-            if detect_providers(filename, SYMBOL_NAVIGATION, project_dir):
-                return True
-    return False
+                return []
+            providers = detect_providers(
+                str(candidate), SYMBOL_NAVIGATION, str(repo_root)
+            )
+            if providers:
+                return providers
+    return []
+
+
+def _first_programming_file_with_provider(repo_root: Path, project_dir: str) -> bool:
+    """True if any present programming-language file has an available provider."""
+    return bool(repo_programming_providers(project_dir))
 
 
 def repo_has_programming_provider(project_dir: str) -> bool:
