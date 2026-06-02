@@ -64,7 +64,7 @@ jobs:
     needs: discover-issues
     if: needs.discover-issues.outputs['has-issues'] == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 15
+    timeout-minutes: 120
     strategy:
       matrix: ${{ fromJson(needs.discover-issues.outputs.matrix) }}
       fail-fast: false
