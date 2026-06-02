@@ -1,7 +1,7 @@
 ---
 name: review
 version: 1.0.0
-description: Review before merge. Stage-1 spec-compliance gate, then 10 Stage-2 canonical axes (analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test. Run for a full pre-merge review. Do NOT invoke code-qualities-assessment, taste-lints, or quality-grades directly for a full review; review chains them.
+description: Review before merge. Stage-1 spec-compliance gate, then 10 Stage-2 canonical axes (analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor) plus 3 chained skills (code-qualities-assessment, golden-principles, taste-lints). Run after /test. Run for a full pre-merge review. Do NOT invoke code-qualities-assessment, golden-principles, or taste-lints directly for a full review; review chains them.
 argument-hint:
   - branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
@@ -27,7 +27,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 `/review` evaluates every canonical axis the project ships, plus three local-only skill axes that CI cannot afford. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` rather than hardcoding a list, so adding a `references/{role}.md` file enrolls the axis with no edit to this skill body. When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline copies the entire skill directory (including `references/`) into vendored plugin installs so the command runs without a CI dependency in any harness that supports plugins.
 
-The canonical set is `spec-compliance` as the Stage-1 gate plus 10 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`). `spec-compliance` runs first and gates Stage 2: a `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE) short-circuits the review (see Process step 0). Its CI mirror emits `UNKNOWN` when no linked spec is available; the caller decides how that verdict gates its workflow.
+The canonical set is `spec-compliance` as the Stage-1 gate plus 10 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`). `spec-compliance` runs first and gates Stage 2: a `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE) short-circuits the review (see Process step 2). Its CI mirror emits `UNKNOWN` when no linked spec is available; the caller decides how that verdict gates its workflow.
 
 `/review` is a strict superset of CI: any finding CI surfaces, `/review` will surface first locally. CI may wire a subset of the canonical axes (its per-axis job list can lag the `references/` directory); `/review` always runs the full discovered set, so it never surfaces fewer axes than CI. The 3 chained skill extras (`code-qualities-assessment`, `golden-principles`, `taste-lints`) cannot run in CI (they require code execution + repo state) and so layer on top.
 
@@ -52,14 +52,13 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
 
-1. Read the diff with three-dot range syntax (`git diff "origin/$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch and the remote-tracking ref is used because the local base branch may not exist in fresh clones) so the human axes evaluate the same change set as the diff-scoped gates in step 4.
-
-   **Step 0 (Stage-1 spec-compliance gate, runs before everything else).** Load the canonical `spec-compliance` axis prompt via the "Path resolution" section above and invoke `Task(subagent_type="general-purpose")` with that prompt as the system instruction and the diff plus any linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria) as input. Extract its verdict with `extract_verdict`.
+1. Read the diff with three-dot range syntax (`git diff "origin/$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch and the remote-tracking ref is used because the local base branch may not exist in fresh clones) so every evaluation step uses the same change set as the diff-scoped gates in step 5.
+2. **Run the Stage-1 spec-compliance gate before the complexity classifier and all Stage-2 axes.** Load the canonical `spec-compliance` axis prompt via the "Path resolution" section above and invoke `Task(subagent_type="general-purpose")` with that prompt as the system instruction and the diff plus any linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria) as input. Extract its verdict with `extract_verdict`.
    - **CRITICAL_FAIL or UNKNOWN (INCONCLUSIVE)**: short-circuit. Do NOT run the complexity classifier, the 10 Stage-2 canonical axes, or the 3 chained skills. Mark all of them `SKIPPED` in the output table, set the FINAL VERDICT to the Stage-1 verdict, and emit only the Stage-1 findings (plus, for UNKNOWN, the one-line reason no spec was linked). The author links the spec or fixes the unmet criterion, then re-runs `/review`.
-   - **PASS or WARN**: record the Stage-1 verdict and continue to step 2. A WARN here does not block Stage 2; it is carried into the merge alongside the other axes.
+   - **PASS or WARN**: record the Stage-1 verdict and continue to step 3. A WARN here does not block Stage 2; it is carried into the merge alongside the other axes.
 
-2. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
-3. **Run every Stage-2 canonical axis**, discovered from `references/*.md` after excluding `spec-compliance` (already run in step 0). Resolve the directory via the "Path resolution" section, then glob `*.md` and sort by stem for a stable order. Do not hardcode the axis list; the directory is the source of truth. For each axis, load the canonical prompt for `{role}` (the file stem), then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register a `{role}` subagent type in its `Task` enum (Copilot CLI today, and any axis with no matching agent such as `reliability`, `observability`, `agent-safety`, `decision-rigor`), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity. The current Stage-2 canonical set (10 axes) is:
+3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
+4. **Run every Stage-2 canonical axis**, discovered from `references/*.md` after excluding `spec-compliance` (already run in step 2). Resolve the directory via the "Path resolution" section, then glob `*.md` and sort by stem for a stable order. Do not hardcode the axis list; the directory is the source of truth. For each axis, load the canonical prompt for `{role}` (the file stem), then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register a `{role}` subagent type in its `Task` enum (Copilot CLI today, and any axis with no matching agent such as `reliability`, `observability`, `agent-safety`, `decision-rigor`), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity. The current Stage-2 canonical set (10 axes) is:
    - axis 1: `analyst`
    - axis 2: `architect`
    - axis 3: `qa`
@@ -70,13 +69,13 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - axis 8: `observability` (general-purpose fallback; no dedicated subagent)
    - axis 9: `agent-safety` (general-purpose fallback; no dedicated subagent)
    - axis 10: `decision-rigor` (general-purpose fallback; no dedicated subagent)
-4. **Run 3 chained skill axes** (local-only; CI does not run these). These run after every canonical axis. Scope the golden-principles and taste-lints axes to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
+5. **Run 3 chained skill axes** (local-only; CI does not run these). These run after every canonical axis. Scope the golden-principles and taste-lints axes to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
    - axis 11: Skill(skill="code-qualities-assessment")
    - axis 12: Skill(skill="golden-principles"), invoking `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"`
    - axis 13: Skill(skill="taste-lints"), invoking `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"`
-5. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from the verdict library (resolved per "Path resolution") to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
-6. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict plus one verdict per Stage-2 axis (the 10 discovered non-spec canonical axes plus the 3 chained skills; 14 total with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 short-circuited (step 0), skip this merge: the FINAL VERDICT is the Stage-1 verdict.
-7. **Emit findings table** (see Output below).
+6. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from the verdict library (resolved per "Path resolution") to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
+7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict plus one verdict per Stage-2 axis (the 10 discovered non-spec canonical axes plus the 3 chained skills; 14 total with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 short-circuited (step 2), skip this merge: the FINAL VERDICT is the Stage-1 verdict.
+8. **Emit findings table** (see Output below).
 
 ## Vendored install (REQ-008-06)
 
@@ -130,11 +129,11 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 
 ## Verification
 
-- [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs first (Process step 0)
+- [ ] The `spec-compliance` Stage-1 axis file exists under `references/spec-compliance.md` and runs before Stage 2 (Process step 2)
 - [ ] Every non-spec `references/*.md` file is discovered and run as a Stage-2 canonical axis (10 with the current set: analyst, architect, qa, security, devops, roadmap, reliability, observability, agent-safety, decision-rigor)
 - [ ] Each axis emits a parseable verdict line per the `extract_verdict` regex
 - [ ] The verdict library resolves under one of the two documented candidate paths
-- [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 6
+- [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7
 - [ ] On a Stage-1 `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE), Stage 2 axes are marked `SKIPPED` and the final verdict is the Stage-1 verdict
 - [ ] When Stage 2 runs, the output table contains the spec-compliance row plus one row per discovered non-spec canonical axis plus the 3 chained skills (14 rows with the current set), plus the final verdict line
 
