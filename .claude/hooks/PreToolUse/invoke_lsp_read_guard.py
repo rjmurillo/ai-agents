@@ -47,6 +47,11 @@ Stricter/looser/different than canonical
   read 4+ with ``nav_count < 2`` is a HARD BLOCK (the kit's "1 nav unlocks 4-5"
   middle step is dropped). Surgical (``nav_count >= 2``) allows all. This is
   STRICTER on reads 4-5 (the kit allowed them after 1 nav; this requires 2).
+  The Soft-warn tier therefore covers read 3 with ``nav_count < NAV_REQUIRED``
+  (nav 0 or 1), not only ``nav_count == 0``: hard-block starts at read 4
+  (``next_read_num > WARN_AT``), so read 3 always warns and allows (issue #2200).
+  This warns more aggressively on read 3 than the kit: the kit silently allows
+  read 3 after one nav, while this port emits an advisory and still allows.
 - DIFFERENT conditioning: the kit gates by hard-coded code-extension regex and
   unconditionally blocks Warmup on any code file. This port gates ONLY when an
   overview-capable provider exists for the file type (``detect_providers`` non
@@ -91,7 +96,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     # Fail-open: a navigation guard must never wedge a turn on bootstrap failure.
     sys.exit(0)
 if _lib_dir not in sys.path:
@@ -141,14 +150,17 @@ def build_warmup_block(file_path: str, providers: list[str]) -> str:
     return "\n".join(lines)
 
 
-def build_warn_message(file_path: str, next_read_num: int) -> str:
+def build_warn_message(file_path: str, next_read_num: int, nav_count: int) -> str:
     """Build the Soft-warn guidance (kit ``Gate 3`` warning, adapted)."""
+    remaining = NAV_REQUIRED - nav_count
+    current_plural = "call" if nav_count == 1 else "calls"
+    remaining_plural = "call" if remaining == 1 else "calls"
     return (
         f"LSP-FIRST WARNING (Read {next_read_num}): consider symbol navigation.\n"
         "Use find_symbol / find_referencing_symbols before more Reads.\n"
-        f"The next Read is BLOCKED until you make {NAV_REQUIRED} nav calls (surgical mode)."
+        f"You have {nav_count} nav {current_plural}; make {remaining} more {remaining_plural} "
+        f"before Read {next_read_num + 1}."
     )
-
 
 def build_hard_block(
     file_path: str, next_read_num: int, nav_count: int, providers: list[str]
@@ -229,9 +241,12 @@ def evaluate(file_path: str, project_dir: str) -> tuple[int, str | None]:
         _note(f"free-read {next_read_num}/{FREE_READS}, allow: {file_path}")
         return 0, None
 
-    # Soft-warn tier: read WARN_AT with no nav yet -> advisory, still allow.
-    if next_read_num == WARN_AT and nav_count == 0:
-        _emit_warn(build_warn_message(file_path, next_read_num))
+    # Soft-warn tier: read WARN_AT with nav below NAV_REQUIRED -> advisory, still
+    # allow. ADR-062 Section 3 hard-blocks from read 4 (next_read_num > WARN_AT);
+    # read 3 with one nav must warn, not block (issue #2200). nav_count >=
+    # NAV_REQUIRED is already short-circuited by the surgical tier above.
+    if next_read_num == WARN_AT and nav_count < NAV_REQUIRED:
+        _emit_warn(build_warn_message(file_path, next_read_num, nav_count))
         _note(f"soft-warn read {next_read_num}, allow: {file_path}")
         return 0, None
 
