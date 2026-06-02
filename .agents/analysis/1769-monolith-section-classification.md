@@ -52,9 +52,9 @@ are template/example content, are excluded):
 | `governance-agents.md` | `.agents/governance/**` | `high` |
 
 Phase 2 must treat internal-only globs as Claude rule scopes, not portable mirror
-scopes. `build/scripts/generate_rules.py` strips `.agents/` and `.serena/` when
-it emits Copilot instruction mirrors, and all-internal scopes can collapse to
-`applyTo: "**"` in generated outputs.
+scopes. `build/scripts/generate_rules.py` strips `.agents/`, `.claude/`, and
+`.serena/` when it emits Copilot instruction mirrors, and all-internal scopes can
+collapse to `applyTo: "**"` in generated outputs.
 
 `governance-agents.md` avoids colliding with the existing `.claude/rules/governance.md`,
 which already scopes `.agents/governance/**` for governance-file edit rules. The
