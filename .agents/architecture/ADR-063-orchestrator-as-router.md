@@ -1,4 +1,4 @@
-# ADR-061: Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor
+# ADR-063: Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor
 
 ## Status
 

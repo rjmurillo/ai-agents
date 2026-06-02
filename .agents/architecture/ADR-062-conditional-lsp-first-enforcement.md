@@ -315,9 +315,11 @@ bump plugin.json; full validation; PR.
 ## More Information
 
 - Numbering-integrity bug for the maintainer (separate from this ADR): two
-  `ADR-061-*.md` files exist (`-orchestrator-as-router`,
+  `ADR-061-*.md` files existed (`-orchestrator-as-router`,
   `-hook-matcher-shims-delegate-pattern`), and an ADR-058 duplicate was noted.
-  ADR-062 is verified free.
+  The `-orchestrator-as-router` file was renumbered to ADR-063 (issue #1857) to
+  clear the ADR-061 collision; `-hook-matcher-shims-delegate-pattern` keeps 061.
+  The ADR-058 duplicate and a later ADR-062 duplicate remain open.
 - Quality-attribute trade: enforced symbol-first navigation vs developer friction
   / false-positive block rate.
 - Top 2-year failure mode: gate-state drift across compaction, or enforcement
