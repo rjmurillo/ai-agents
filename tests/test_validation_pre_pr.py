@@ -243,7 +243,12 @@ class TestParseYamlFrontmatter:
         assert len(result) == 1
 
     def test_strips_inline_yaml_comments(self) -> None:
-        text = "---\nstatus: APPROVED              # APPROVED | NEEDS_CHANGES\npriority: P1  # severity\n---\n"
+        text = (
+            "---\n"
+            "status: APPROVED              # APPROVED | NEEDS_CHANGES\n"
+            "priority: P1  # severity\n"
+            "---\n"
+        )
         result = _parse_yaml_frontmatter(text)
         assert result is not None
         assert result["status"] == "APPROVED"
@@ -707,22 +712,17 @@ class TestValidateGitHooksInstalled:
                 validate_git_hooks_installed(tmp_path)
 
     def test_not_skipped_when_ci_is_false(self, tmp_path: Path) -> None:
-        """CI=false or CI=0 should NOT skip the check (they are non-truthy)."""
+        """CI=false should not skip the check."""
         import os
 
-        from scripts.validation.pre_pr import (
-            MissingScriptSkip,
-            validate_git_hooks_installed,
-        )
+        from scripts.validation.pre_pr import validate_git_hooks_installed
 
         (tmp_path / "scripts").mkdir()
         (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
         env = {"CI": "false"}
         with patch.dict("os.environ", env, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
-            with patch(
-                "scripts.validation.pre_pr._run_subprocess"
-            ) as mock_run:
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -734,7 +734,6 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            # tmp_path has no scripts/install_git_hooks.py; expect hard failure
             assert validate_git_hooks_installed(tmp_path) is False
 
     def test_passes_when_check_exits_zero(self, tmp_path: Path) -> None:
@@ -747,9 +746,7 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch(
-                "scripts.validation.pre_pr._run_subprocess"
-            ) as mock_run:
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -763,8 +760,27 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch(
-                "scripts.validation.pre_pr._run_subprocess"
-            ) as mock_run:
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "", "core.hooksPath not set")
                 assert validate_git_hooks_installed(tmp_path) is False
+
+    def test_delegates_to_hook_installer_outside_ci(self, tmp_path: Path) -> None:
+        """Outside CI the gate delegates to the hook installer check."""
+        import os
+
+        from scripts.validation.pre_pr import validate_git_hooks_installed
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (0, "OK", "")
+                assert validate_git_hooks_installed(tmp_path) is True
+
+            mock_run.assert_called_once()
+            command = mock_run.call_args.args[0]
+            repo_root_index = command.index("--repo-root")
+            assert "--check" in command
+            assert command[repo_root_index + 1] == str(tmp_path)
