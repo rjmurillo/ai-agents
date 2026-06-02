@@ -182,13 +182,20 @@ def validate(repo_root: Path) -> tuple[int, list[str]]:
             messages.extend(results)
             violations.extend(results)
         else:
-            messages.append(f"{label}: {checked} hook entr(ies) anchored correctly")
+            messages.append(
+                f"{label}: {checked} hook "
+                f"{'entry' if checked == 1 else 'entries'} anchored correctly"
+            )
 
     if has_config_error:
         return 2, messages
     if has_violation:
         return 1, violations
-    return 0, [f"{total_checked} hook entr(ies) anchored correctly across both plugins"]
+    return 0, [
+        f"{total_checked} hook "
+        f"{'entry' if total_checked == 1 else 'entries'} "
+        "anchored correctly across both plugins"
+    ]
 
 
 def build_parser() -> argparse.ArgumentParser:

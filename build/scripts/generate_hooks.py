@@ -6,7 +6,8 @@ Reads ``artifacts.hooks`` from a platform YAML, parses Claude's
 under ``.claude/hooks/`` into the Copilot output tree, and emits a
 ``hooks.json`` with the Copilot wire shape (``version: 1`` wrapper,
 lowercase event names, no ``matcher`` field, and script invocations
-anchored to the plugin root via ``${COPILOT_PLUGIN_ROOT}``).
+anchored to the plugin root via ``${COPILOT_PLUGIN_ROOT}`` with a
+``${CLAUDE_PLUGIN_ROOT}`` fallback).
 
 Each Claude hook with a ``matcher`` is wrapped in a tiny Python shim
 that buffers stdin once, classifies the matcher, and either dispatches

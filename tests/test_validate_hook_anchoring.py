@@ -10,6 +10,7 @@ FAIL cases (the regression shapes), plus the config-error path.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -31,7 +32,14 @@ def test_real_repo_passes_both_plugins() -> None:
 
 def _copilot_root(tmp_path: Path, mutate: Callable[[dict], None]) -> Path:
     (tmp_path / "build").mkdir()
-    (tmp_path / "build" / "scripts").symlink_to(REPO_ROOT / "build" / "scripts")
+    src_scripts = REPO_ROOT / "build" / "scripts"
+    dst_scripts = tmp_path / "build" / "scripts"
+    try:
+        dst_scripts.symlink_to(src_scripts)
+    except (OSError, NotImplementedError):
+        # Windows without admin/dev-mode cannot create symlinks; copy instead
+        # so the gate is still exercised on those platforms.
+        shutil.copytree(src_scripts, dst_scripts)
     hooks_dir = tmp_path / "src" / "copilot-cli" / "hooks"
     hooks_dir.mkdir(parents=True)
     doc = json.loads((REPO_ROOT / gate._COPILOT_REL).read_text())
