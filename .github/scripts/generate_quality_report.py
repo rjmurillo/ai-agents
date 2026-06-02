@@ -30,47 +30,18 @@ sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import (  # noqa: E402
     FAIL_VERDICTS,
+    QUALITY_GATE_AGENT_DISPLAY_NAMES,
+    QUALITY_GATE_AGENTS,
+    agent_arg_name,
+    agent_env_name,
     get_verdict_alert_type,
     get_verdict_emoji,
     initialize_ai_review,
     write_output,
 )
 
-_AGENTS = (
-    "security",
-    "qa",
-    "analyst",
-    "architect",
-    "devops",
-    "roadmap",
-    "reliability",
-    "observability",
-    "agent-safety",
-    "decision-rigor",
-)
-
-_AGENT_DISPLAY_NAMES = {
-    "security": "Security",
-    "qa": "QA",
-    "analyst": "Analyst",
-    "architect": "Architect",
-    "devops": "DevOps",
-    "roadmap": "Roadmap",
-    "reliability": "Reliability",
-    "observability": "Observability",
-    "agent-safety": "Agent Safety",
-    "decision-rigor": "Decision Rigor",
-}
-
-
-def _env_name(agent: str) -> str:
-    """Return the environment variable prefix for an agent name."""
-    return agent.upper().replace("-", "_")
-
-
-def _arg_name(agent: str) -> str:
-    """Return the argparse destination prefix for an agent name."""
-    return agent.replace("-", "_")
+_AGENTS = QUALITY_GATE_AGENTS
+_AGENT_DISPLAY_NAMES = QUALITY_GATE_AGENT_DISPLAY_NAMES
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Final aggregated verdict",
     )
     for agent in _AGENTS:
-        upper = _env_name(agent)
+        upper = agent_env_name(agent)
         parser.add_argument(
             f"--{agent}-verdict",
             default=os.environ.get(f"{upper}_VERDICT", ""),
@@ -231,8 +202,8 @@ def main(argv: list[str] | None = None) -> int:
     categories: dict[str, str] = {}
     emojis: dict[str, str] = {}
     for agent in _AGENTS:
-        verdicts[agent] = getattr(args, f"{_arg_name(agent)}_verdict")
-        categories[agent] = getattr(args, f"{_arg_name(agent)}_category")
+        verdicts[agent] = getattr(args, f"{agent_arg_name(agent)}_verdict")
+        categories[agent] = getattr(args, f"{agent_arg_name(agent)}_category")
         emojis[agent] = get_verdict_emoji(verdicts[agent])
 
     alert_type = get_verdict_alert_type(final_verdict)

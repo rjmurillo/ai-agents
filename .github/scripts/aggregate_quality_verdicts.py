@@ -28,33 +28,15 @@ sys.path.insert(0, workspace)
 
 from scripts.ai_review_common import (  # noqa: E402
     FAIL_VERDICTS,
+    QUALITY_GATE_AGENTS,
+    agent_arg_name,
+    agent_env_name,
     merge_verdicts,
     write_log,
     write_output,
 )
 
-_AGENTS = (
-    "security",
-    "qa",
-    "analyst",
-    "architect",
-    "devops",
-    "roadmap",
-    "reliability",
-    "observability",
-    "agent-safety",
-    "decision-rigor",
-)
-
-
-def _env_name(agent: str) -> str:
-    """Return the environment variable prefix for an agent name."""
-    return agent.upper().replace("-", "_")
-
-
-def _arg_name(agent: str) -> str:
-    """Return the argparse destination prefix for an agent name."""
-    return agent.replace("-", "_")
+_AGENTS = QUALITY_GATE_AGENTS
 
 
 def get_category(verdict: str, infra_flag: bool) -> str:
@@ -70,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Aggregate quality gate verdicts from ten AI review agents.",
     )
     for agent in _AGENTS:
-        upper = _env_name(agent)
+        upper = agent_env_name(agent)
         parser.add_argument(
             f"--{agent}-verdict",
             default=os.environ.get(f"{upper}_VERDICT", ""),
@@ -89,8 +71,8 @@ def main(argv: list[str] | None = None) -> int:
     verdicts: dict[str, str] = {}
     infra_flags: dict[str, bool] = {}
     for agent in _AGENTS:
-        verdicts[agent] = getattr(args, f"{_arg_name(agent)}_verdict")
-        infra_flags[agent] = getattr(args, f"{_arg_name(agent)}_infra") == "true"
+        verdicts[agent] = getattr(args, f"{agent_arg_name(agent)}_verdict")
+        infra_flags[agent] = getattr(args, f"{agent_arg_name(agent)}_infra") == "true"
 
     if not any(verdicts.values()):
         write_log("ERROR: No agent verdicts found. All verdict env vars are empty.")
