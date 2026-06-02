@@ -96,7 +96,10 @@ _PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
 # Passing conclusions for CheckRun
 _PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 # Failing conclusions for CheckRun
-_FAILING_CONCLUSIONS = {"FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"}
+_FAILING_CONCLUSIONS = {
+    "FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED",
+    "STALE", "STARTUP_FAILURE",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +174,7 @@ def normalize_check(ctx: dict) -> dict | None:
 _PASSING_RANK = 0
 _FAILING_RANK = 1
 _PENDING_RANK = 2
+_UNKNOWN_RANK = 3
 
 
 def _check_rank(check: dict) -> int:
@@ -181,7 +185,7 @@ def _check_rank(check: dict) -> int:
         return _FAILING_RANK
     if check.get("IsPending"):
         return _PENDING_RANK
-    return _FAILING_RANK
+    return _UNKNOWN_RANK
 
 
 def dedupe_checks(checks: list[dict]) -> list[dict]:

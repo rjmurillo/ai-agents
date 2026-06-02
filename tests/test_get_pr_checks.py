@@ -174,6 +174,20 @@ class TestNormalizeCheck:
         result = normalize_check(ctx)
         assert result["IsPending"] is True
 
+    @pytest.mark.parametrize("conclusion", ["STALE", "STARTUP_FAILURE"])
+    def test_check_run_stale_and_startup_failure_are_failing(self, conclusion):
+        ctx = {
+            "__typename": "CheckRun",
+            "name": "build",
+            "status": "COMPLETED",
+            "conclusion": conclusion,
+            "detailsUrl": "",
+            "isRequired": True,
+        }
+        result = normalize_check(ctx)
+        assert result["IsFailing"] is True
+        assert result["IsPassing"] is False
+
     def test_status_context(self):
         ctx = {
             "__typename": "StatusContext",
@@ -1073,6 +1087,17 @@ class TestDedupeChecks:
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+
+    def test_failure_supersedes_unknown_conclusion(self):
+        """Unknown conclusions do not hide real failures."""
+        checks = [
+            _check("test", conclusion="UNKNOWN"),
+            _check("test", failing=True, conclusion="FAILURE"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Conclusion"] == "FAILURE"
         assert result[0]["IsFailing"] is True
 
     def test_failure_supersedes_pending_but_keeps_pending_signal(self):
