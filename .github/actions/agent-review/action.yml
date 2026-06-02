@@ -123,7 +123,7 @@ runs:
       id: review
       uses: ./.github/actions/ai-review
       with:
-        agent: ${{ inputs.agent }}
+        agent: ${{ inputs.review-agent != '' && inputs.review-agent || inputs.agent }}
         context-type: pr-diff
         pr-number: ${{ inputs.pr-number }}
         prompt-file: ${{ inputs.prompt-file }}
