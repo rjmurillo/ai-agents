@@ -1,4 +1,4 @@
-# Regression Simulation — Issue #2252 (ADR-066 Part B)
+# Regression Simulation - Issue #2252 (ADR-067 Part B)
 
 ## Method
 
@@ -7,10 +7,10 @@ into rjmurillo/ai-agents between 2026-05-03 and 2026-06-02. For each
 PR, ran the current `extract_mentioned_files` and `validate_pr_description`
 Check 1 against `gh pr view --json files` under four policies:
 
-- **baseline** — current default (all 4 patterns, anywhere not stripped)
-- **strict** — only bullet-list pattern[2] inside change-claim H2
-- **permissive** — all 4 patterns, only inside change-claim H2
-- **hybrid** (chosen) — patterns 0 (inline-backtick) and 3 (markdown-link)
+- **baseline** - current default (all 4 patterns, anywhere not stripped)
+- **strict** - only bullet-list pattern[2] inside change-claim H2
+- **permissive** - all 4 patterns, only inside change-claim H2
+- **hybrid** (chosen) - patterns 0 (inline-backtick) and 3 (markdown-link)
   require change-claim H2; patterns 1 (bold) and 2 (bullet-list) fire
   anywhere
 
@@ -29,7 +29,7 @@ Change-claim H2 set: `## Changes`, `## Per-file changes`,
 All three candidates remove the same 3 baseline findings; one finding
 (brace-expansion path in PR #1873) is unaffected by the default-flip.
 
-## Removed findings — spot check
+## Removed findings - spot check
 
 | PR | File | Verdict |
 |---|---|---|
@@ -41,10 +41,10 @@ Zero true drift findings removed.
 
 ## Reproducibility
 
-`2252-pr-description-default-flip-regression-sim.py` — drop into a clone
-of rjmurillo/ai-agents, populate `/tmp/sample_prs.txt` with the 40 PR
-numbers, fetch each PR body to `/tmp/pr_bodies/{n}.md` and file list to
-`/tmp/pr_files/{n}.txt` via `gh api`, then run.
+`2252-pr-description-default-flip-regression-sim.py` - drop into a clone
+of rjmurillo/ai-agents, populate `.agents/analysis/2252-regression-data/sample_prs.txt` with the 40 PR
+numbers, fetch each PR body to `.agents/analysis/2252-regression-data/pr_bodies/{n}.md` and file list to
+`.agents/analysis/2252-regression-data/pr_files/{n}.txt` via `gh api`, then run.
 
 ## Sample PR set (seed 2252)
 

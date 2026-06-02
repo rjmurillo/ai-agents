@@ -6,17 +6,21 @@ last 30 days:
   strict    - only bullet-list pattern[2] inside ## Per-file changes /
               ## Files Changed / ## Changes
   permissive- all 4 patterns, but only inside change-claim sections
-  hybrid    - patterns 1 (inline-backtick) and 3 (markdown-link) require
-              change-claim section context; patterns 0 (bold) and 2
+  hybrid    - patterns 0 (inline-backtick) and 3 (markdown-link) require
+              change-claim section context; patterns 1 (bold) and 2
               (bullet-list) fire anywhere
 
 Prints per-PR removed CRITICAL counts and totals.
 """
 from __future__ import annotations
-import json, os, re, sys
+import json
+import re
+import sys
 from pathlib import Path
 
-sys.path.insert(0, "/home/richard/.hermes/kanban/boards/ai-agents/workspaces/t_7805f181/ai-agents")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = REPO_ROOT / ".agents" / "analysis" / "2252-regression-data"
+sys.path.insert(0, str(REPO_ROOT))
 from scripts.validation.pr_description import (
     _strip_informational_sections,
     FILE_MENTION_PATTERNS,
@@ -29,12 +33,12 @@ CHANGE_CLAIM_SECTION_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-def _split_change_claim_regions(cleaned: str) -> list[tuple[int,int]]:
-    """Return list of (start,end) char spans that are inside a change-claim H2 section."""
+def _split_change_claim_regions(cleaned: str) -> list[tuple[int, int]]:
+    """Return char spans inside a change-claim H2 section."""
     headings = [(m.start(), m.end()) for m in CHANGE_CLAIM_SECTION_PATTERN.finditer(cleaned)]
     if not headings:
         return []
-    regions = []
+    regions: list[tuple[int, int]] = []
     # Find any H1/H2 to terminate each region
     boundary = re.compile(r"^#{1,2}(?!#)", re.MULTILINE)
     for h_start, h_end in headings:
@@ -47,8 +51,8 @@ def _split_change_claim_regions(cleaned: str) -> list[tuple[int,int]]:
         regions.append((h_end, end))
     return regions
 
-def _in_regions(pos: int, regions: list[tuple[int,int]]) -> bool:
-    for s,e in regions:
+def _in_regions(pos: int, regions: list[tuple[int, int]]) -> bool:
+    for s, e in regions:
         if s <= pos < e:
             return True
     return False
@@ -82,33 +86,35 @@ def extract_under_policy(description: str, policy: str) -> list[str]:
                 raise ValueError(policy)
             if ok:
                 mentioned.append(normalize_path(raw))
-    seen=set(); out=[]
+    seen: set[str] = set()
+    out: list[str] = []
     for p in mentioned:
         if p not in seen:
-            seen.add(p); out.append(p)
+            seen.add(p)
+            out.append(p)
     return out
 
 def critical_files(mentioned: list[str], actual: list[str]) -> list[str]:
-    out=[]
+    out: list[str] = []
     for m in mentioned:
         if not any(file_matches(a, m) for a in actual):
             out.append(m)
     return out
 
-POLICIES = ["baseline","strict","permissive","hybrid"]
+POLICIES = ["baseline", "strict", "permissive", "hybrid"]
 
-def main():
-    pr_nums = [int(x) for x in open("/tmp/sample_prs.txt") if x.strip()]
-    totals = {p:0 for p in POLICIES}
+def main() -> None:
+    sample_path = DATA_DIR / "sample_prs.txt"
+    pr_nums = [int(x) for x in sample_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    totals = {p: 0 for p in POLICIES}
     rows = []
-    removed_per_pr = {p:{} for p in POLICIES}
     for n in pr_nums:
-        body_path = f"/tmp/pr_bodies/{n}.md"
-        files_path = f"/tmp/pr_files/{n}.txt"
-        if not os.path.exists(body_path):
+        body_path = DATA_DIR / "pr_bodies" / f"{n}.md"
+        files_path = DATA_DIR / "pr_files" / f"{n}.txt"
+        if not body_path.exists():
             continue
-        body = open(body_path).read()
-        actual = [x.strip() for x in open(files_path) if x.strip()]
+        body = body_path.read_text(encoding="utf-8")
+        actual = [x.strip() for x in files_path.read_text(encoding="utf-8").splitlines() if x.strip()]
         results = {}
         for pol in POLICIES:
             m = extract_under_policy(body, pol)
@@ -126,7 +132,7 @@ def main():
         })
     print(f"{'PR':>6} {'files':>6} " + " ".join(f"{p:>10}" for p in POLICIES) + "  removed_strict_examples")
     for r in rows:
-        ex = (r["removed_strict"][:2] + ["..."]) if len(r["removed_strict"])>2 else r["removed_strict"]
+        ex = (r["removed_strict"][:2] + ["..."]) if len(r["removed_strict"]) > 2 else r["removed_strict"]
         print(f"{r['pr']:>6} {r['actual_files']:>6} " +
               " ".join(f"{r[p+'_crit']:>10}" for p in POLICIES) +
               "  " + (",".join(ex) if ex else "-"))
@@ -137,12 +143,14 @@ def main():
     print()
     rem_strict = totals["baseline"] - totals["strict"]
     rem_hybrid = totals["baseline"] - totals["hybrid"]
-    rem_perm   = totals["baseline"] - totals["permissive"]
+    rem_perm = totals["baseline"] - totals["permissive"]
     print(f"Removed by strict:     {rem_strict} ({rem_strict/max(totals['baseline'],1)*100:.0f}%)")
     print(f"Removed by hybrid:     {rem_hybrid} ({rem_hybrid/max(totals['baseline'],1)*100:.0f}%)")
     print(f"Removed by permissive: {rem_perm} ({rem_perm/max(totals['baseline'],1)*100:.0f}%)")
     # save details
-    json.dump(rows, open("/tmp/regression_rows.json","w"), indent=2)
+    output_path = DATA_DIR / "regression_rows.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()

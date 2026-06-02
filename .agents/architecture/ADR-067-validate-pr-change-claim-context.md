@@ -1,4 +1,4 @@
-# ADR-066: validate-pr Check 1 default-flip — change-claim context required
+# ADR-067: validate-pr Check 1 default-flip - change-claim context required
 
 ## Status
 
@@ -12,7 +12,7 @@ Proposed
 
 `scripts/validation/pr_description.py` Check 1 ("File mentioned but not in diff") is the BLOCKING gate that compares paths extracted from the PR body against `gh pr view --json files`. Its current default is "every `path.ext` token that looks like a file path is a change claim unless it lives inside a known reference shape (fenced code block, GitHub admonition, contextual H2 heading, bot `<details>` block)."
 
-That default has shipped four narrow patches against the same class of recurrence (issues #1874, #1881, #1923, #2113, and now #2252). Authors who cite reference paths in narrative prose under `## Per-file changes`, `## Testing`, `## Summary`, or other change-context sections trip the gate and get blocked. Examples from the issue analyst's investigation (analyst handoff `/tmp/oss-watcher/analysis-2252/findings.md`):
+That default has shipped four narrow patches against the same class of recurrence (issues #1874, #1881, #1923, #2113, and now #2252). Authors who cite reference paths in narrative prose under `## Per-file changes`, `## Testing`, `## Summary`, or other change-context sections trip the gate and get blocked. Examples from the issue analyst's investigation (the issue analyst handoff):
 
 - PR #2214 cited `.claude/commands/spec.md` inside `## Per-file changes` narrative prose describing what the new validator does.
 - PR #2225 cited `.claude/skills/security-scan/scripts/scan_vulnerabilities.py` and `.agents/architecture/ADR-035-exit-code-standardization.md` inside `## Testing` prose ("Ran the security-scan skill ...").
@@ -101,7 +101,7 @@ Method: 40 PRs sampled uniformly at random (seed 2252) from the 208 PRs merged i
 | Baseline (current default) | 4 |
 | Strict (only pattern 2, only in change-claim section) | 1 |
 | Permissive (all 4 patterns, only in change-claim section) | 1 |
-| Hybrid (chosen — patterns 0,3 context-restricted; 1,2 anywhere) | 1 |
+| Hybrid (chosen - patterns 0,3 context-restricted; 1,2 anywhere) | 1 |
 
 All three candidate defaults remove the same 3 findings. Detail of removed findings:
 
@@ -167,7 +167,7 @@ Confidence: MEDIUM. Sample size is small enough that rare false-positive shapes 
 | `.github/workflows/pr-validation.yml` | Indirect | None. Check 1 still emits CRITICAL; only the extraction policy changes | Low |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Indirect | None. Template already emits `## Changes` as the change-claim section | None |
 | `.claude/commands/push-pr.md` | Indirect | Optional: add a one-line note that "change claims belong under `## Changes`." Not required for correctness | Low |
-| Failure message text (Part A) | Direct | Part A's actionable message MUST cite the new rule: "Inline-backtick file paths outside `## Changes` are informational." | Low — coordinated via follow-up implementer task |
+| Failure message text (Part A) | Direct | Part A's actionable message MUST cite the new rule: "Inline-backtick file paths outside `## Changes` are informational." | Low - coordinated via follow-up implementer task |
 | ADR-035 (exit codes) | Indirect | None. Validator still exits 0/1/2 per ADR-035 | None |
 
 ## Implementation Notes
@@ -186,7 +186,7 @@ The follow-up implementer task (spawned as a child of this kanban task) MUST:
    - "Bullet-list `- bar.py` in `## Summary` IS still a claim." Asserts: flagged if not in diff.
    - All four `_CHANGE_CLAIM_SECTION_NAMES` variants accepted case-insensitively.
 5. The failure-message text from Part A MUST be amended to name the rule: "Inline-backtick file paths outside `## Changes` / `## Per-file changes` / `## Files Changed` / `## Changed Files` are informational. Move the path under one of those headings, use a bullet (`- path.ext`) or bold (`**path.ext**`), or wrap in a code fence."
-6. The implementer MUST run the regression simulator at `/tmp/regression_sim.py` (sample-of-40 PRs) after the change and confirm baseline → hybrid totals match this ADR.
+6. The implementer MUST run the regression simulator at `.agents/analysis/2252-pr-description-default-flip-regression-sim.py` (sample-of-40 PRs) after the change and confirm baseline -> hybrid totals match this ADR.
 
 ### Rollback Plan
 
@@ -200,19 +200,19 @@ Detection signal: any merged PR whose post-merge `gh pr view --json files` shows
 
 ## Related Decisions
 
-- **ADR-035** — Exit code standardization. This ADR does not change exit code behavior.
-- **Sibling kanban task** — Part A mechanical fix (kanban `t_f23fc721`): adds `Related Files` to the contextual-section list and makes Check 1's failure message actionable. Part A ships first as a low-risk patch; Part B (this ADR's follow-up) ships after ADR review.
+- **ADR-035** - Exit code standardization. This ADR does not change exit code behavior.
+- **Sibling kanban task** - Part A mechanical fix (kanban `t_f23fc721`): adds `Related Files` to the contextual-section list and makes Check 1's failure message actionable. Part A ships first as a low-risk patch; Part B (this ADR's follow-up) ships after ADR review.
 - Prior recurrence patches: PR/issue #1874, #1881, #1923, #2113.
 
 ## References
 
-- Analyst findings: `/tmp/oss-watcher/analysis-2252/findings.md`
+- Analyst findings: the issue analyst handoff
 - Issue #2252 (rjmurillo/ai-agents)
 - PR #2214, PR #2225 (false-positive recurrences)
 - `scripts/validation/pr_description.py` (the validator)
 - `.github/PULL_REQUEST_TEMPLATE.md` (canonical PR-body template)
 - `.claude/commands/push-pr.md` (autonomous PR-body author)
-- Regression simulator: `/tmp/regression_sim.py` (40-PR sample, seed 2252)
+- Regression simulator: `.agents/analysis/2252-pr-description-default-flip-regression-sim.py` (40-PR sample, seed 2252)
 
 ---
 
