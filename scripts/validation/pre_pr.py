@@ -984,6 +984,11 @@ def validate_git_hooks_installed(repo_root: Path) -> bool:
     Skipped under CI: a CI checkout neither has nor should have
     ``core.hooksPath`` set to ``.githooks`` (the guards run as workflow steps,
     not local hooks), so the check is irrelevant there.
+
+    Worktree-aware: ``scripts/install_git_hooks.py --check`` reads the effective
+    hook configuration while resolving the canonical relative ``.githooks`` path
+    against the current worktree. This keeps the gate active in linked worktrees
+    so shared-config drift still fails before push (Issue #2220).
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
