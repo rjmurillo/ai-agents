@@ -67,6 +67,9 @@ PIPELINE_RULE_LIMIT: int = 3
 _OVERRIDE_TOKEN: re.Pattern[str] = re.compile(
     r"\[skill-discriminator:\s*(?P<rationale>[^\]]+)\]", re.IGNORECASE
 )
+_DESCRIPTIVE_TASK: re.Pattern[str] = re.compile(
+    r"Task\([ \t]*subagent_type[ \t]*=[ \t]*\.\.\.[ \t]*\)[^\n]*?\((?P<agents>[^)\n]+)\)"
+)
 
 # Structured-reference line markers (c2). Conservative: only lines that are
 # clearly reference shapes count. Prose bullets that are full sentences are
@@ -145,10 +148,10 @@ def split_frontmatter(content: str) -> tuple[str, str]:
 def has_isolation_required(frontmatter: str) -> bool:
     """True when frontmatter declares ``isolation_required: true``.
 
-    The escape hatch must carry a non-empty rationale on the same line or be
-    accompanied by other frontmatter context; the audit only requires the flag
-    plus a one-line rationale, so any truthy value qualifies here. A bare
-    ``isolation_required: false`` does not qualify.
+    The audit accepts the flag as the machine-readable escape hatch. Rationale
+    text can live in a comment or nearby frontmatter, but this parser only
+    evaluates the truthy flag value. A bare ``isolation_required: false`` does
+    not qualify.
     """
     match = re.search(
         r"^isolation_required:[ \t]*['\"]?(?P<value>true|yes|1|false|no|0)['\"]?[ \t]*(?:#.*)?$",
@@ -225,13 +228,20 @@ def score_c2(body: str) -> tuple[bool, float]:
 
 
 def _task_invocations(text: str) -> set[str]:
-    """Agent names invoked via ``Task(subagent_type="<name>")`` in one file."""
-    return set(
+    """Agent names invoked via literal or descriptive ``Task`` forms."""
+    agents = set(
         re.findall(
             r"Task\([ \t]*subagent_type[ \t]*=[ \t]*['\"]([a-z0-9-]+)['\"]",
             text,
         )
     )
+    for match in _DESCRIPTIVE_TASK.finditer(text):
+        agents.update(
+            name
+            for raw in match.group("agents").split(",")
+            if (name := raw.strip()) and re.fullmatch(r"[a-z0-9-]+", name)
+        )
+    return agents
 
 
 def _skill_invocations(text: str) -> set[str]:
@@ -446,7 +456,7 @@ def print_report(result: CheckResult) -> None:
 
 def _split_changed_arg(values: list[str] | None, env_value: str | None) -> list[str]:
     """Normalize changed-file inputs from CLI args or a whitespace/newline env."""
-    if values:
+    if values is not None:
         return list(values)
     if env_value:
         return [p for p in re.split(r"\s+", env_value.strip()) if p]

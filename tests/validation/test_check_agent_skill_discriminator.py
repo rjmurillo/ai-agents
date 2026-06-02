@@ -237,6 +237,21 @@ def test_invocation_parsing_allows_spaces_and_single_quotes() -> None:
     assert mod._skill_invocations(text) == {"memory"}
 
 
+def test_invocation_parsing_detects_descriptive_agent_list() -> None:
+    text = (
+        "Task(subagent_type=...) agent "
+        "(analyst, architect, qa, security, devops, roadmap)"
+    )
+    assert mod._task_invocations(text) == {
+        "analyst",
+        "architect",
+        "qa",
+        "security",
+        "devops",
+        "roadmap",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Integration: required fixture scenarios
 # ---------------------------------------------------------------------------
@@ -440,6 +455,10 @@ def test_unreadable_command_file_is_config_error(tmp_path: Path) -> None:
     proc = _run(repo, [rel])
     assert proc.returncode == 2
     assert "Config error" in proc.stderr
+
+
+def test_empty_changed_files_cli_arg_overrides_env() -> None:
+    assert mod._split_changed_arg([], ".claude/agents/shaped.md") == []
 
 
 def test_changed_files_via_env(tmp_path: Path, monkeypatch) -> None:
