@@ -22,6 +22,7 @@ from scripts.issue_triage import (
     IssueFinding,
     IssueRecord,
     TriageReport,
+    build_ai_matrix,
     build_report,
     classify,
     fetch_open_issues,
@@ -273,6 +274,38 @@ class TestFormatHuman:
         assert text.count("(none)") == 3
 
 
+class TestBuildAiMatrix:
+    def test_empty_input_yields_empty_matrix(self):
+        matrix = build_ai_matrix([])
+        assert matrix == {"include": [], "count": 0}
+
+    def test_rows_carry_number_and_title(self, now):
+        issues = [
+            make_issue(number=10, title="add backlog triage", base=now),
+            make_issue(number=11, title="route by area", base=now),
+        ]
+        matrix = build_ai_matrix(issues)
+        assert matrix["count"] == 2
+        assert matrix["include"] == [
+            {"number": 10, "title": "add backlog triage"},
+            {"number": 11, "title": "route by area"},
+        ]
+
+    def test_matrix_round_trips_to_json(self, now):
+        matrix = build_ai_matrix([make_issue(number=7, title="t", base=now)])
+        payload = json.loads(json.dumps(matrix))
+        assert payload["count"] == 1
+        assert payload["include"][0]["number"] == 7
+
+    def test_matrix_omits_labels_and_timestamps(self, now):
+        issue = make_issue(
+            number=5, title="t", base=now, labels=("priority:P0", "area-x"),
+        )
+        matrix = build_ai_matrix([issue])
+        row = matrix["include"][0]
+        assert set(row.keys()) == {"number", "title"}
+
+
 class TestFetchOpenIssues:
     def test_rejects_invalid_limit(self):
         with pytest.raises(ValueError):
@@ -400,6 +433,34 @@ class TestMain:
     def test_default_stale_days_constant(self):
         args = parse_args(["--owner", "o", "--repo", "r"])
         assert args.stale_days == DEFAULT_STALE_DAYS
+
+    def test_ai_flag_emits_matrix(self, tmp_path: Path, capsys):
+        path = tmp_path / "issues.json"
+        path.write_text(
+            json.dumps(
+                [
+                    {
+                        "number": 42,
+                        "title": "needs triage",
+                        "updatedAt": "2026-04-27T00:00:00Z",
+                        "labels": [],
+                    },
+                ]
+            )
+        )
+        rc = main(["--input", str(path), "--ai"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["count"] == 1
+        assert payload["include"] == [{"number": 42, "title": "needs triage"}]
+
+    def test_ai_flag_overrides_format(self, tmp_path: Path, capsys):
+        path = tmp_path / "issues.json"
+        path.write_text(json.dumps([]))
+        rc = main(["--input", str(path), "--ai", "--format", "human"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload == {"include": [], "count": 0}
 
 
 class TestTriageReportDataclass:

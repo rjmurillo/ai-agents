@@ -10,9 +10,14 @@ classifies issues against deterministic, scriptable rules:
 - Missing area label: issues without any ``area-*`` label.
 
 The script is read-only by design: it emits a JSON or human-readable report
-and never mutates GitHub state. Phase 2 (LLM triage) and Phase 3
-(recommendation execution) are explicitly out of scope and tracked
-separately.
+and never mutates GitHub state.
+
+The ``--ai`` flag drives Phase 2 (LLM triage). It emits a GitHub Actions
+matrix of open issues that a scheduled workflow (.github/workflows/
+backlog-triage.yml) fans out to .github/actions/ai-review, one invocation
+per issue, for complexity classification and area routing. The model call
+lives in the workflow; this script only produces the work list. Phase 3
+(recommendation execution / auto-close) remains out of scope and read-only.
 
 Exit codes follow ADR-035:
     0 - Success: scan completed (findings may exist)
@@ -247,6 +252,24 @@ def fetch_open_issues(owner: str, repo: str, *, limit: int) -> list[dict]:
     return data
 
 
+def build_ai_matrix(issues: list[IssueRecord]) -> dict[str, object]:
+    """Build the Phase 2 AI-triage discovery payload.
+
+    The ``--ai`` flag drives Phase 2 of the ClawSweeper pattern (issue #1799):
+    a scheduled workflow fans this matrix out to ``.github/actions/ai-review``,
+    one invocation per open issue, for complexity classification and area
+    routing. The mechanical scan stays Python-side; YAML only fans out
+    (ADR-006). This function does not call the model; it produces the work
+    list the workflow consumes.
+
+    Returns a dict with ``include`` (the matrix rows) and ``count`` so the
+    caller can gate the matrix job on whether any issues exist.
+    """
+
+    include = [{"number": issue.number, "title": issue.title} for issue in issues]
+    return {"include": include, "count": len(include)}
+
+
 def format_human(report: TriageReport) -> str:
     """Render a short human-readable summary of the report."""
 
@@ -289,6 +312,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--format", choices=["json", "human"], default="human",
         help="Output format (default: human).",
+    )
+    parser.add_argument(
+        "--ai", action="store_true",
+        help="Emit a GitHub Actions matrix of open issues for Phase 2 AI triage "
+             "(complexity + area routing via .github/actions/ai-review). "
+             "Overrides --format; prints a JSON matrix payload.",
     )
     parser.add_argument(
         "--input", default="",
@@ -339,6 +368,10 @@ def main(argv: list[str] | None = None) -> int:
             issues.append(parse_issue_record(raw))
         except ValueError as err:
             print(f"warn: skipping malformed issue: {err}", file=sys.stderr)
+
+    if args.ai:
+        print(json.dumps(build_ai_matrix(issues)))
+        return 0
 
     report = build_report(
         issues,
