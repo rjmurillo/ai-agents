@@ -69,9 +69,14 @@ REQUIRED_SCRIPT_KEYS = [
     "resolve_thread",
 ]
 
-# Keys only required for claude_code section (has --resolve flag variant)
+# Keys only required for claude_code section. add_thread_reply_resolve has the
+# --resolve flag variant. wait_for_settled_zero is the bot-settle gate
+# (wait_for_unresolved_zero.py); it has no copilot/PowerShell equivalent, and
+# requiring it here keeps the wrapper wired into the config layer so it is not
+# mistaken for dead code (Issue #1992).
 CLAUDE_CODE_ONLY_KEYS = [
     "add_thread_reply_resolve",
+    "wait_for_settled_zero",
 ]
 
 REQUIRED_SCRIPT_SECTIONS = ["claude_code", "copilot"]
