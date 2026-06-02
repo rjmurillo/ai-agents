@@ -311,3 +311,153 @@ class TestRegistry:
         assert tools["references"] == "findReferences"
         assert tools["symbol_search"] == "workspaceSymbol"
         assert tools["implementation"] == "goToImplementation"
+
+
+# ---------------------------------------------------------------------------
+# Issue #2199: YAML language parsing hardening
+# ---------------------------------------------------------------------------
+
+
+class TestYamlLanguageParsingFixes:
+    """Regression tests for #2199 problem 3: brittle YAML parsing.
+
+    The original parser dropped flow-style lists (``languages: [python]``)
+    and inline comments (``- python  # comment``) silently, leaving the
+    configured-languages set empty and degrading every guard to allow.
+    """
+
+    def test_flow_style_languages_list(self, tmp_path):
+        serena_dir = tmp_path / ".serena"
+        serena_dir.mkdir()
+        (serena_dir / "project.yml").write_text(
+            "languages: [python, typescript, go]\nencoding: utf-8\n",
+            encoding="utf-8",
+        )
+        result = lsp_provider._read_serena_languages(str(tmp_path))
+        assert result == {"python", "typescript", "go"}
+
+    def test_flow_style_with_quotes(self, tmp_path):
+        serena_dir = tmp_path / ".serena"
+        serena_dir.mkdir()
+        (serena_dir / "project.yml").write_text(
+            "languages: ['python', \"typescript\"]\n",
+            encoding="utf-8",
+        )
+        assert lsp_provider._read_serena_languages(str(tmp_path)) == {
+            "python",
+            "typescript",
+        }
+
+    def test_block_style_with_inline_comments(self, tmp_path):
+        serena_dir = tmp_path / ".serena"
+        serena_dir.mkdir()
+        (serena_dir / "project.yml").write_text(
+            "languages:\n- python  # primary language\n- typescript # frontend\n- bash#nospace_no_comment\n",
+            encoding="utf-8",
+        )
+        # Inline comments stripped only when '#' has leading whitespace; the
+        # third entry's '#' is part of the token (intentional behavior).
+        result = lsp_provider._read_serena_languages(str(tmp_path))
+        assert "python" in result
+        assert "typescript" in result
+
+    def test_flow_style_with_inline_comment(self, tmp_path):
+        serena_dir = tmp_path / ".serena"
+        serena_dir.mkdir()
+        (serena_dir / "project.yml").write_text(
+            "languages: [python, typescript]  # primary stack\n",
+            encoding="utf-8",
+        )
+        assert lsp_provider._read_serena_languages(str(tmp_path)) == {
+            "python",
+            "typescript",
+        }
+
+    def test_flow_style_empty_brackets(self, tmp_path):
+        serena_dir = tmp_path / ".serena"
+        serena_dir.mkdir()
+        (serena_dir / "project.yml").write_text(
+            "languages: [ ]\nencoding: utf-8\n", encoding="utf-8"
+        )
+        assert lsp_provider._read_serena_languages(str(tmp_path)) == set()
+
+    def test_strip_inline_comment_helper(self):
+        assert lsp_provider._strip_inline_comment("- python  # note") == "- python"
+        assert lsp_provider._strip_inline_comment("# whole line") == ""
+        assert lsp_provider._strip_inline_comment("- name#tight") == "- name#tight"
+
+
+# ---------------------------------------------------------------------------
+# Issue #2199: MCP config discovery broadened to ~/.claude locations
+# ---------------------------------------------------------------------------
+
+
+class TestClaudeMcpConfigDiscovery:
+    """Regression tests for #2199 problem 2: Serena registered under
+    ``~/.claude/settings.json`` or ``~/.claude/mcp.json`` was previously
+    invisible, so every guard degraded to allow on those installs.
+    """
+
+    def test_serena_under_claude_settings_json(self, tmp_path, monkeypatch):
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        _write_serena_project(proj, _ALL_LANGUAGES)
+        # No project .mcp.json, no ~/.mcp.json, only ~/.claude/settings.json
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True)
+        (home / ".claude" / "settings.json").write_text(
+            json.dumps({"mcpServers": {"serena": {"type": "stdio"}}}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(lsp_provider.Path, "home", classmethod(lambda cls: home))
+        assert lsp_provider._serena_mcp_configured(str(proj)) is True
+
+    def test_serena_under_claude_mcp_json(self, tmp_path, monkeypatch):
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        _write_serena_project(proj, _ALL_LANGUAGES)
+        home = tmp_path / "home"
+        (home / ".claude").mkdir(parents=True)
+        (home / ".claude" / "mcp.json").write_text(
+            json.dumps({"mcpServers": {"my_serena": {"type": "stdio"}}}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(lsp_provider.Path, "home", classmethod(lambda cls: home))
+        assert lsp_provider._serena_mcp_configured(str(proj)) is True
+
+    def test_candidate_list_includes_claude_locations(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setattr(lsp_provider.Path, "home", classmethod(lambda cls: home))
+        candidates = lsp_provider._mcp_config_candidates(str(tmp_path))
+        # Should include the two ~/.claude/* paths added for #2199.
+        assert (home / ".claude" / "settings.json") in candidates
+        assert (home / ".claude" / "mcp.json") in candidates
+
+
+# ---------------------------------------------------------------------------
+# Issue #2199: Representative-extension helper + public configured_languages
+# ---------------------------------------------------------------------------
+
+
+class TestRepresentativeExtension:
+    def test_python(self):
+        assert lsp_provider.representative_extension_for_language("python") == ".py"
+
+    def test_typescript(self):
+        assert lsp_provider.representative_extension_for_language("typescript") == ".ts"
+
+    def test_case_insensitive(self):
+        assert lsp_provider.representative_extension_for_language("Python") == ".py"
+
+    def test_unknown(self):
+        assert (
+            lsp_provider.representative_extension_for_language("rust") is None
+        )
+
+    def test_configured_languages_public(self, tmp_path):
+        _configured_project(tmp_path, ["python", "typescript"])
+        assert lsp_provider.configured_languages(str(tmp_path)) == {
+            "python",
+            "typescript",
+        }

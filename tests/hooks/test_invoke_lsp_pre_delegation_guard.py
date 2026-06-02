@@ -189,3 +189,139 @@ class TestBuildGuidance:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Issue #2199: Windows path separators in LSP-context regex
+# ---------------------------------------------------------------------------
+
+
+class TestHasLspContextWindowsPaths:
+    """Regression tests for #2199 problem 4: the kit regex used the character
+    class ``[\\w\\-\\/]`` which excludes backslash, so Windows-style paths
+    (``C:\\src\\foo.py:42``) failed to match and the guard wrongly blocked
+    delegations that did carry pre-resolved LSP context.
+    """
+
+    def test_defined_at_windows_path(self):
+        # C:\src\foo.py:42 (raw backslashes as a user would paste them)
+        assert guard.has_lsp_context(r"foo defined at C:\src\foo.py:42")
+
+    def test_called_from_windows_path(self):
+        assert guard.has_lsp_context(r"bar called from src\handlers\auth.ts:15")
+
+    def test_used_in_windows_path(self):
+        assert guard.has_lsp_context(r"baz used in lib\models\x.py:9")
+
+    def test_imported_in_windows_path(self):
+        assert guard.has_lsp_context(r"qux imported in mod\helpers\y.py:3")
+
+    def test_imported_by_windows_path(self):
+        assert guard.has_lsp_context(r"qux imported by mod\helpers\y.py:3")
+
+    def test_posix_path_still_matches(self):
+        # Regression guard: do not break the POSIX path branch.
+        assert guard.has_lsp_context("foo defined at src/handlers/auth.py:42")
+
+    def test_mixed_separators(self):
+        # Windows tooling sometimes emits mixed-separator paths.
+        assert guard.has_lsp_context(r"foo defined at C:/src\handlers/auth.py:42")
+
+
+# ---------------------------------------------------------------------------
+# Issue #2199: provider_available iterates configured languages
+# ---------------------------------------------------------------------------
+
+
+class TestProviderAvailableMultiLanguage:
+    """Regression tests for #2199 problem 1: provider_available previously
+    probed only ``lsp_probe.py``, so a TypeScript- or Go-only repo with Serena
+    active for its language probed empty and the guard never fired.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _use_real_provider_available(self, monkeypatch: pytest.MonkeyPatch):
+        # Undo the module-level autouse stub.
+        monkeypatch.setattr(guard, "provider_available", _REAL_PROVIDER_AVAILABLE)
+
+    def _serena_project(self, tmp_path: Path, languages: list[str]) -> Path:
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        serena = proj / ".serena"
+        serena.mkdir()
+        body = "languages:\n" + "\n".join(f"- {lang}" for lang in languages)
+        (serena / "project.yml").write_text(body, encoding="utf-8")
+        (proj / ".mcp.json").write_text(
+            json.dumps({"mcpServers": {"serena": {"type": "stdio"}}}),
+            encoding="utf-8",
+        )
+        return proj
+
+    def test_typescript_only_repo_resolves_provider(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        proj = self._serena_project(tmp_path, ["typescript"])
+        # Isolate home so the machine's real ~/.mcp.json does not leak.
+        fake_home = tmp_path / "_home"
+        fake_home.mkdir()
+        from hook_utilities import lsp_provider as lp
+
+        monkeypatch.setattr(lp.Path, "home", classmethod(lambda cls: fake_home))
+        # Real provider_available should iterate languages, hit typescript,
+        # and find native_lsp via the .ts representative extension.
+        assert guard.provider_available(str(proj)) is True
+
+    def test_python_only_repo_still_resolves(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        proj = self._serena_project(tmp_path, ["python"])
+        fake_home = tmp_path / "_home"
+        fake_home.mkdir()
+        from hook_utilities import lsp_provider as lp
+
+        monkeypatch.setattr(lp.Path, "home", classmethod(lambda cls: fake_home))
+        assert guard.provider_available(str(proj)) is True
+
+    def test_no_serena_config_falls_back_to_python(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        # No .serena/project.yml: must fall back to historic lsp_probe.py
+        # behavior (native_lsp present for .py extension).
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        fake_home = tmp_path / "_home"
+        fake_home.mkdir()
+        from hook_utilities import lsp_provider as lp
+
+        monkeypatch.setattr(lp.Path, "home", classmethod(lambda cls: fake_home))
+        # detect_providers for "lsp_probe.py" SYMBOLS_OVERVIEW returns
+        # ["native_lsp"] even without serena (native_lsp covers .py extension).
+        assert guard.provider_available(str(proj)) is True
+
+    def test_unmapped_languages_only_falls_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Only language is one the registry does not map to an extension.
+        # Should fall back to the historic Python probe, which still finds
+        # native_lsp for .py.
+        proj = self._serena_project(tmp_path, ["rust", "haskell"])
+        fake_home = tmp_path / "_home"
+        fake_home.mkdir()
+        from hook_utilities import lsp_provider as lp
+
+        monkeypatch.setattr(lp.Path, "home", classmethod(lambda cls: fake_home))
+        assert guard.provider_available(str(proj)) is True
+
+    def test_returns_false_when_detect_providers_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        # Force detect_providers to always return [] so all branches collapse
+        # to the False return.
+        proj = self._serena_project(tmp_path, ["python", "typescript"])
+        fake_home = tmp_path / "_home"
+        fake_home.mkdir()
+        from hook_utilities import lsp_provider as lp
+
+        monkeypatch.setattr(lp.Path, "home", classmethod(lambda cls: fake_home))
+        monkeypatch.setattr(guard, "detect_providers", lambda *_a, **_k: [])
+        assert guard.provider_available(str(proj)) is False
+
+

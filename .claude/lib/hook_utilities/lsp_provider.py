@@ -230,45 +230,141 @@ def _read_serena_languages(project_dir: str) -> set[str]:
     return _parse_languages_block(text)
 
 
+# Strip a YAML inline comment from a line. A '#' starts a comment only when
+# preceded by whitespace or appearing at the start; '#' inside a token (rare
+# in language names) is preserved. Quoted strings are NOT supported here; the
+# language names we parse are simple identifiers.
+def _strip_inline_comment(line: str) -> str:
+    out_chars: list[str] = []
+    prev = ""
+    for ch in line:
+        if ch == "#" and (prev == "" or prev.isspace()):
+            break
+        out_chars.append(ch)
+        prev = ch
+    return "".join(out_chars).rstrip()
+
+
+def _parse_flow_list(text: str) -> set[str]:
+    """Parse a YAML flow-style list body (the inside of ``[...]``).
+
+    Returns the lowercased, trimmed identifier of each comma-separated item.
+    Empty items and items that are pure whitespace are dropped. Quotes around
+    items are stripped.
+    """
+    out: set[str] = set()
+    for raw in text.split(","):
+        item = raw.strip().strip("'\"").strip().lower()
+        if item:
+            out.add(item)
+    return out
+
+
 def _parse_languages_block(text: str) -> set[str]:
     """Extract language names from a ``languages:`` YAML list block.
 
-    Reads ``- name`` list items following a top-level ``languages:`` key and
-    stops at the next non-indented key. Comment lines are ignored.
+    Supports two YAML list styles:
+      - Block style: ``- name`` items on subsequent lines.
+      - Flow style: ``languages: [python, typescript]`` on the same line.
+    Inline comments (``- python  # primary``) are stripped. Comment-only and
+    blank lines are ignored. A non-indented key ends the block style.
     """
     languages: set[str] = set()
     in_block = False
     for raw_line in text.splitlines():
+        # Strip CRLF/whitespace at end; preserve indentation for now.
         line = raw_line.rstrip()
-        if not in_block:
-            if line.strip().startswith("#"):
-                continue
-            if line.strip() == "languages:" or line.strip() == "languages: []":
-                in_block = True
+        stripped_full = line.strip()
+        # Drop comment-only lines first (anywhere).
+        if stripped_full.startswith("#"):
             continue
-        stripped = line.strip()
-        if stripped.startswith("#") or not stripped:
+
+        # Remove inline comments before further parsing.
+        line_no_comment = _strip_inline_comment(line)
+        stripped = line_no_comment.strip()
+
+        if not in_block:
+            if not stripped:
+                continue
+            # Flow-style on the languages: key line itself.
+            if stripped.startswith("languages:"):
+                rest = stripped[len("languages:"):].strip()
+                if rest.startswith("[") and rest.endswith("]"):
+                    languages.update(_parse_flow_list(rest[1:-1]))
+                    # Flow-style closes the block on the same line.
+                    return languages
+                if rest == "[]":
+                    return languages
+                if rest == "":
+                    in_block = True
+                # If there's some other inline value (unlikely for languages),
+                # fall through and let the next non-list line end parsing.
+            continue
+
+        # In block mode.
+        if not stripped:
             continue
         if stripped.startswith("- "):
-            languages.add(stripped[2:].strip().lower())
+            item = stripped[2:].strip().strip("'\"").strip().lower()
+            if item:
+                languages.add(item)
             continue
         # A non-list, non-blank line ends the languages block.
         break
     return languages
 
 
+# Inverse of EXTENSION_TO_SERENA_LANGUAGE: pick a representative file extension
+# for a serena language (used when probing provider availability for a language
+# without a concrete file in hand). First match wins; this order matches the
+# canonical extension for each language.
+_SERENA_LANGUAGE_TO_EXTENSION: dict[str, str] = {
+    "python": ".py",
+    "typescript": ".ts",
+    "bash": ".sh",
+    "powershell": ".ps1",
+    "markdown": ".md",
+    "json": ".json",
+    "yaml": ".yaml",
+    "toml": ".toml",
+}
+
+
+def representative_extension_for_language(language: str) -> str | None:
+    """Return a representative file extension for a serena language name.
+
+    Used by language-agnostic provider probes (e.g. the pre-delegation guard)
+    that need to check provider availability without a concrete target file.
+    Returns None for unknown languages.
+    """
+    return _SERENA_LANGUAGE_TO_EXTENSION.get(language.strip().lower())
+
+
+def configured_languages(project_dir: str) -> set[str]:
+    """Public accessor for serena languages configured in ``project_dir``.
+
+    Thin re-export of the internal reader so callers (guards, tests) do not
+    reach into the underscore-prefixed helper directly.
+    """
+    return _read_serena_languages(project_dir)
+
+
 def _mcp_config_candidates(project_dir: str) -> list[Path]:
     """Return MCP config file candidates (kit ``candidates`` list, adapted).
 
-    Kit reads ~/.claude.json, ~/.claude/settings.json, ~/.claude/mcp.json,
-    ~/.mcp.json, and cwd/.mcp.json. This port reads the project .mcp.json,
-    ~/.mcp.json, and ~/.claude.json (the forms used in this repo).
+    Mirrors the canonical kit candidate list
+    (``detect-lsp-provider.js:99-105``) while adding the project-local
+    ``.mcp.json`` this repo already supported. Order matters only for
+    short-circuiting: any candidate containing a ``serena`` server marks
+    Serena as configured.
     """
     home = Path.home()
     return [
         Path(project_dir) / ".mcp.json",
         home / ".mcp.json",
         home / ".claude.json",
+        home / ".claude" / "settings.json",
+        home / ".claude" / "mcp.json",
     ]
 
 
