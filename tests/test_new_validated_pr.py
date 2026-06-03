@@ -12,7 +12,7 @@ from scripts.new_validated_pr import main
 class TestGetRepoRoot:
     @patch("scripts.github_core.repo.subprocess.run")
     def test_returns_path_on_success(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(returncode=0, stdout="/fake/repo/.git\n")
+        mock_run.return_value = MagicMock(returncode=0, stdout="/fake/repo\n")
         result = get_repo_root()
         assert result == Path("/fake/repo")
 
