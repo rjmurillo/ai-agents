@@ -377,6 +377,25 @@ class TestMain:
         assert payload["Success"] is False
         assert payload["Error"]["Type"] == "InvalidParams"
 
+    def test_repo_resolution_error_preserves_specific_message(self, capsys):
+        def fail_with_message(*_args, **_kwargs):
+            print("Invalid GitHub owner name: bad owner", file=sys.stderr)
+            raise SystemExit(2)
+
+        with patch(
+            "list_issues.assert_gh_authenticated",
+        ), patch(
+            "list_issues.resolve_repo_params",
+            side_effect=fail_with_message,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 2
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "InvalidParams"
+        assert payload["Error"]["Message"] == "Invalid GitHub owner name: bad owner"
+
     def test_missing_author_login_handled(self, capsys):
         # Defensive: gh sometimes returns a null author (deleted user).
         issues = [{

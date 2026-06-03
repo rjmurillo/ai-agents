@@ -27,6 +27,8 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -121,12 +123,15 @@ def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
             fmt,
             "AuthError",
         )
+    stderr = io.StringIO()
     try:
-        resolved = resolve_repo_params(args.owner, args.repo)
+        with contextlib.redirect_stderr(stderr):
+            resolved = resolve_repo_params(args.owner, args.repo)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 2
+        message = stderr.getvalue().strip() or "Could not resolve repository parameters."
         _exit_with_error(
-            "Could not resolve repository parameters.",
+            message,
             code,
             fmt,
             "InvalidParams",
