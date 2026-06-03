@@ -7,7 +7,6 @@ and session log status is reported at session start.
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch

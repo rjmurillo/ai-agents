@@ -12,7 +12,6 @@ stdin-feeding tests and a runpy entry-point test.
 from __future__ import annotations
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -323,5 +322,4 @@ class TestProviderAvailableMultiLanguage:
         monkeypatch.setattr(lp.Path, "home", classmethod(lambda cls: fake_home))
         monkeypatch.setattr(guard, "detect_providers", lambda *_a, **_k: [])
         assert guard.provider_available(str(proj)) is False
-
 
