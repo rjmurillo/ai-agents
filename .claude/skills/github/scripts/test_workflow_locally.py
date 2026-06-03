@@ -3,6 +3,11 @@
 
 Validates prerequisites, constructs act commands, and provides helpful error messages.
 
+Supports two runtimes interchangeably:
+- Standalone ``act`` binary on PATH.
+- GitHub CLI extension ``gh act`` (https://github.com/nektos/gh-act) when
+  standalone ``act`` is not installed but ``gh`` is.
+
 Supported workflows (no AI dependencies):
 - pester-tests.yml        : Run Pester unit tests
 - validate-paths.yml      : Validate path normalization
@@ -32,6 +37,34 @@ def _check_command_exists(command: str) -> str | None:
 def _get_repo_root() -> str:
     """Get the repository root directory."""
     return str(Path(__file__).resolve().parent.parent.parent.parent)
+
+
+def _resolve_act_runner() -> tuple[list[str], str] | None:
+    """Resolve which act runtime is available.
+
+    Returns ``(argv_prefix, display_name)`` where ``argv_prefix`` is the
+    command list to invoke act (e.g. ``["act"]`` or ``["gh", "act"]``),
+    and ``display_name`` is the human-readable name for logs.
+
+    Returns ``None`` when no supported runtime is available.
+
+    Resolution order:
+        1. Standalone ``act`` on PATH.
+        2. ``gh`` on PATH with the ``act`` extension installed
+           (verified via ``gh act --version``).
+    """
+    if _check_command_exists("act"):
+        return (["act"], "act")
+
+    if _check_command_exists("gh"):
+        probe = subprocess.run(
+            ["gh", "act", "--version"],
+            capture_output=True, text=True, check=False,
+        )
+        if probe.returncode == 0:
+            return (["gh", "act"], "gh act")
+
+    return None
 
 
 WORKFLOW_MAP = {
@@ -83,10 +116,13 @@ def main(argv: list[str] | None = None) -> int:
 
     print("[INFO] Checking prerequisites...")
 
-    # Check for act
-    act_path = _check_command_exists("act")
-    if not act_path:
-        print("[ERROR] act not found. Install act to enable local workflow testing.")
+    # Resolve an act runtime (standalone act, or gh act extension).
+    runner = _resolve_act_runner()
+    if runner is None:
+        print(
+            "[ERROR] act not found. Install act (standalone) or the gh act "
+            "extension to enable local workflow testing.",
+        )
         print()
         print("Installation instructions:")
         print("  macOS:       brew install act")
@@ -97,10 +133,11 @@ def main(argv: list[str] | None = None) -> int:
         print("See: https://nektosact.com/installation/index.html")
         return 2
 
+    act_argv, act_name = runner
     act_version = subprocess.run(
-        ["act", "--version"], capture_output=True, text=True, check=False,
+        [*act_argv, "--version"], capture_output=True, text=True, check=False,
     )
-    print(f"[SUCCESS] act found: {act_version.stdout.strip()}")
+    print(f"[SUCCESS] {act_name} found: {act_version.stdout.strip()}")
 
     # Check for Docker
     docker_path = _check_command_exists("docker")
@@ -192,11 +229,11 @@ def main(argv: list[str] | None = None) -> int:
                 print("[INFO] Using GITHUB_TOKEN from gh CLI")
 
     # Execute act
-    print(f"[INFO] Running: act {' '.join(act_args)}")
+    print(f"[INFO] Running: {act_name} {' '.join(act_args)}")
     print()
 
     result = subprocess.run(
-        ["act", *act_args],
+        [*act_argv, *act_args],
         cwd=repo_root,
         check=False,
     )
