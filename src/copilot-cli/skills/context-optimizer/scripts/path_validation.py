@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 def get_repo_root() -> Path:
-    """Get the active worktree root via git rev-parse.
+    """Get the current worktree root via git rev-parse.
 
     Returns:
         Resolved Path to the repository root.
@@ -32,7 +32,10 @@ def get_repo_root() -> Path:
             check=True,
             timeout=5,
         )
-        return Path(result.stdout.strip()).resolve()
+        repo_root = Path(result.stdout.strip())
+        if not repo_root.is_absolute():
+            repo_root = Path.cwd() / repo_root
+        return repo_root.resolve()
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError("Unable to determine repository root") from exc
 
@@ -58,11 +61,9 @@ def _get_worktree_root() -> Path | None:
 def validate_path_within_repo(path: Path, repo_root: Path | None = None) -> Path:
     """Validate that a path resolves within the repository root or worktree.
 
-    Resolves the path and verifies the resolved location is within either
-    the main repository root (via git-common-dir) or the current worktree
-    root (via show-toplevel). This prevents path traversal via symlinks,
-    absolute paths, and .. components that escape the repo boundary while
-    remaining worktree-aware.
+    Resolves the path and verifies the resolved location is within the current
+    worktree root (via show-toplevel). This prevents path traversal via symlinks,
+    absolute paths, and .. components that escape the repo boundary.
 
     Args:
         path: Path to validate (absolute or relative).

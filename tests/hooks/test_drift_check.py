@@ -74,7 +74,11 @@ def test_pre_push_pytest_strips_git_hook_environment() -> None:
     pytest_phase_idx = text.find("# 14. Python tests (pytest)")
     assert pytest_phase_idx > 0, "pytest phase missing"
     pytest_phase = text[pytest_phase_idx : pytest_phase_idx + 2600]
-    assert "env -u GIT_DIR -u GIT_WORK_TREE" in pytest_phase
+    assert "env \\" in pytest_phase
+    assert "-u GIT_DIR" in pytest_phase
+    assert "-u GIT_WORK_TREE" in pytest_phase
+    assert "-u GIT_INDEX_FILE" in pytest_phase
+    assert "-u GIT_COMMON_DIR" in pytest_phase
     assert '-m pytest "$REPO_ROOT/tests/"' in pytest_phase
 
 

@@ -32,6 +32,11 @@ from pathlib import Path
 DEFAULT_LOG_PATH = Path(".agents/sessions/session-end-skips.jsonl")
 
 
+def _allowed_log_roots(project_root: Path) -> tuple[Path, Path]:
+    """Return roots where skip logs may be written."""
+    return (project_root.resolve(), Path(tempfile.gettempdir()).resolve())
+
+
 def build_event(reason: str, session_id: str | None = None) -> dict[str, str]:
     """Build the skip event payload."""
     resolved_id: str = session_id if session_id else os.getenv("OPENCLAW_SESSION_ID", "unknown")
@@ -84,10 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         project_root = Path(__file__).resolve().parent.parent
         log_path = Path(args.log_path).resolve()
-        temp_root = Path(tempfile.gettempdir()).resolve()
         # Validate path safety using is_relative_to (CWE-22).
-        # Allow project root or the configured temp dir for CI use cases.
-        if not (log_path.is_relative_to(project_root) or log_path.is_relative_to(temp_root)):
+        # Allow project root or the active temp directory for CI use cases.
+        if not any(log_path.is_relative_to(root) for root in _allowed_log_roots(project_root)):
             print(f"error: path traversal detected or unauthorized path: {args.log_path}", file=sys.stderr)
             return 2
     except Exception as e:
