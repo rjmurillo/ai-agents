@@ -108,7 +108,7 @@ fi
 prs=$(python3 scripts/pr/get_pull_requests.py --state open --base main)
 
 # Check each PR for merge readiness
-echo "$prs" | jq -r '.[].number' | while read -r pr_num; do
+echo "$prs" | jq -r '.Data.PullRequests[].number' | while read -r pr_num; do
     ready=$(python3 scripts/pr/test_pr_merge_ready.py --pull-request "$pr_num")
     can_merge=$(echo "$ready" | jq -r '.CanMerge')
     if [ "$can_merge" = "true" ]; then
