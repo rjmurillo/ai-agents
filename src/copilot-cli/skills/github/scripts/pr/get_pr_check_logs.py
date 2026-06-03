@@ -73,6 +73,27 @@ _FAILURE_PATTERNS = [
 
 _COMBINED_PATTERN = re.compile("|".join(_FAILURE_PATTERNS), re.IGNORECASE)
 
+# Fallback failing-conclusion set, used only when an input check lacks the
+# producer-computed "IsFailing" flag. Matches get_pr_checks.py
+# _FAILING_CONCLUSIONS ({"FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"})
+# PLUS "ERROR", because a StatusContext failure surfaces as state/Conclusion
+# "ERROR" and get_pr_checks.py treats StatusContext "ERROR" as failing. See #2291.
+_FAILING_CONCLUSIONS = ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR")
+
+
+def _is_failing(check: dict) -> bool:
+    """Return True if a normalized check object represents a failing check.
+
+    Prefer the producer-computed ``IsFailing`` flag from get_pr_checks.py
+    (authoritative for both CheckRun and StatusContext, including the ERROR
+    state). Fall back to the ``Conclusion`` field only when ``IsFailing`` is
+    absent, so callers that pipe minimal check data still work.
+    """
+    flag = check.get("IsFailing")
+    if flag is not None:
+        return bool(flag)
+    return check.get("Conclusion") in _FAILING_CONCLUSIONS
+
 
 # ---------------------------------------------------------------------------
 # URL parsing helpers
@@ -318,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
 
         failing_checks = [
             c for c in checks_data.get("Checks", [])
-            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            if _is_failing(c)
         ]
 
     elif pr_number > 0:
@@ -359,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
 
         failing_checks = [
             c for c in checks_data.get("Checks", [])
-            if c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            if _is_failing(c)
         ]
     else:
         write_skill_error(
