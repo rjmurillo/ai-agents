@@ -1,7 +1,6 @@
 """Tests for get_issue_context.py."""
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
