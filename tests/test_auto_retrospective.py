@@ -146,7 +146,51 @@ class TestAutoRetrospective(unittest.TestCase):
             )
             index = tmp_path / "docs" / "retros" / "INDEX.md"
             content = index.read_text()
-            self.assertEqual(content.count("2026-04-20-auto-retro.md"), 1)
+            # One data row for the filename. Count the date cell, not the
+            # filename: since #2229 each row links the filename twice (link
+            # text + relative URL), so counting the filename overcounts.
+            self.assertEqual(content.count("| 2026-04-20 |"), 1)
+
+    def test_index_row_links_to_retro_file_location(self):
+        """Regression #2229: INDEX rows must link to the actual retro file.
+
+        INDEX.md lives in docs/retros/ but retro files live in
+        .agents/retrospective/. A bare filename resolves against docs/retros/
+        (a dead link); the row must use a relative path that resolves.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            today = "2026-04-20"
+            filename = "2026-04-20-auto-retro.md"
+            invoke_auto_retrospective.update_retro_index(tmp_path, today, filename)
+            content = (tmp_path / "docs" / "retros" / "INDEX.md").read_text()
+            self.assertIn(
+                f"[{filename}](../../.agents/retrospective/{filename})", content
+            )
+
+    def test_index_update_upgrades_bare_filename_row(self):
+        """Regression #2229: old bare filename rows are repaired in place."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            today = "2026-04-20"
+            filename = "2026-04-20-auto-retro.md"
+            index = tmp_path / "docs" / "retros" / "INDEX.md"
+            index.parent.mkdir(parents=True)
+            index.write_text(
+                "# Retrospective Index\n\n"
+                "| Date | File | Summary |\n"
+                "|------|------|---------|\n"
+                f"| {today} | {filename} | Auto-generated session retro |\n",
+                encoding="utf-8",
+            )
+
+            invoke_auto_retrospective.update_retro_index(tmp_path, today, filename)
+
+            content = index.read_text(encoding="utf-8")
+            self.assertIn(
+                f"[{filename}](../../.agents/retrospective/{filename})", content
+            )
+            self.assertEqual(content.count(f"| {today} |"), 1)
 
     def test_pick_same_day_retro_returns_none_when_empty(self):
         """No same-day candidates yields None."""

@@ -60,7 +60,7 @@ except ImportError:
             current = current.parent
         return None
 
-    def skip_if_consumer_repo(hook_name: str) -> bool:  # type: ignore[misc]
+    def skip_if_consumer_repo(hook_name: str) -> bool:  # type: ignore
         """Fallback guard when hook_utilities is unavailable."""
         project_dir = get_project_directory()
         if not project_dir or not (project_dir / ".agents").is_dir():
@@ -68,11 +68,11 @@ except ImportError:
             return True
         return False
 
-    _get_recent_session_log = None  # type: ignore[assignment]
-    _coerce_to_list = None  # type: ignore[assignment]
-    _format_work_item = None  # type: ignore[assignment]
-    _lock_file = None  # type: ignore[assignment]
-    _unlock_file = None  # type: ignore[assignment]
+    _get_recent_session_log = None  # type: ignore
+    _coerce_to_list = None  # type: ignore
+    _format_work_item = None  # type: ignore
+    _lock_file = None  # type: ignore
+    _unlock_file = None  # type: ignore
 
 
 def has_retro_today(retro_dir: Path, today: str) -> bool:
@@ -448,7 +448,15 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
     # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
     # Open with "a+b" to atomically create if missing, then lock before any read/write
-    row = f"| {today} | {filename} | Auto-generated session retro |"
+    # INDEX.md lives in docs/retros/; retro files live in .agents/retrospective/.
+    # Emit a relative link from the index dir to the file so navigation resolves
+    # (bare filename resolves against docs/retros/, where the file does not exist). See #2229.
+    row = (
+        f"| {today} | "
+        f"[{filename}](../../.agents/retrospective/{filename}) | "
+        f"Auto-generated session retro |"
+    )
+    linked_filename = f"[{filename}](../../.agents/retrospective/{filename})"
     with open(index_path, "a+b") as f:
         if _lock_file is not None:
             _lock_file(f)
@@ -464,7 +472,19 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
                 # the same row, even if a later index update was lost.
                 f.seek(0)
                 existing = f.read().decode("utf-8", errors="replace")
-                if filename in existing:
+                if linked_filename in existing:
+                    return
+                bare_row = f"| {today} | {filename} |"
+                if bare_row in existing:
+                    updated = existing.replace(
+                        bare_row,
+                        f"| {today} | {linked_filename} |",
+                    )
+                    f.seek(0)
+                    f.truncate()
+                    f.write(updated.encode("utf-8"))
+                    if not updated.endswith("\n"):
+                        f.write(b"\n")
                     return
                 # Ensure file ends with a newline before appending the row
                 # so a previous write that lacked trailing '\n' does not
