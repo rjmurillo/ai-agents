@@ -112,9 +112,9 @@ def emit_dispatcher(
 ) -> dict:
     """Write manifest + entrypoint and return the single hooks.json entry.
 
-    ``timeout_sec`` should be the max of the per-shim timeouts the dispatcher
-    replaces, so the consolidated entry is at least as generous as any shim it
-    runs.
+    ``timeout_sec`` should be the sum of the per-shim timeouts the dispatcher
+    replaces, so the consolidated entry preserves the cumulative budget from
+    the separate host invocations.
     """
     write_manifest(event_dir, event, shim_names)
     write_entrypoint(event_dir)
@@ -146,7 +146,7 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
     ``hooks_dir/<event>/`` and returns a new map with a single dispatcher entry
     for that event; all other events pass through unchanged. The shim order is
     the registered hooks.json order (authoritative) and the consolidated
-    ``timeoutSec`` is the max of the per-shim timeouts.
+    ``timeoutSec`` is the sum of the per-shim timeouts.
     """
     new_out: dict = {}
     for event, entries in out.items():
@@ -161,10 +161,7 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
         if not shim_names:
             new_out[event] = entries
             continue
-        timeout = max(
-            (int(e.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)) for e in entries),
-            default=_DEFAULT_TIMEOUT_SEC,
-        )
+        timeout = sum(int(e.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)) for e in entries)
         event_dir = Path(hooks_dir) / event
         new_out[event] = [emit_dispatcher(event_dir, event, shim_names, timeout)]
     return new_out

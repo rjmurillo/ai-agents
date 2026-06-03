@@ -56,7 +56,7 @@
         "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/PreToolUse/_dispatch.py\"",
         "cwd": ".",
         "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/PreToolUse/_dispatch.py\"",
-        "timeoutSec": 90,
+        "timeoutSec": 695,
         "type": "command"
       }
     ],

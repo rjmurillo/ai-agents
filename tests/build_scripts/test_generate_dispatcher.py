@@ -208,10 +208,10 @@ class TestConsolidate:
             ],
         }
         new_out = gd.consolidate(out, hooks_dir)
-        # gating event collapsed to one dispatcher entry, max timeout
+        # gating event collapsed to one dispatcher entry, cumulative timeout
         assert len(new_out["PreToolUse"]) == 1
         assert "/hooks/PreToolUse/_dispatch.py" in new_out["PreToolUse"][0]["bash"]
-        assert new_out["PreToolUse"][0]["timeoutSec"] == 90
+        assert new_out["PreToolUse"][0]["timeoutSec"] == 95
         # observational event untouched (still per-shim)
         assert new_out["PostToolUse"] == out["PostToolUse"]
         manifest = json.loads((hooks_dir / "PreToolUse" / "_manifest.json").read_text())
