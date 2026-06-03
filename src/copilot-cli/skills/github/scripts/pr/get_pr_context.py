@@ -3,7 +3,7 @@
 
 Retrieves comprehensive PR information including:
 - Basic metadata (number, title, body, state, author)
-- Branch information (head, base, commits)
+- Branch information (head branch, head SHA, base, commits)
 - Labels and reviewers
 - Optionally includes diff or changed files
 
@@ -52,7 +52,7 @@ from github_core.output import (  # noqa: E402
 )
 
 _JSON_FIELDS = (
-    "number,title,body,headRefName,baseRefName,state,author,labels,"
+    "number,title,body,headRefName,headRefOid,baseRefName,state,author,labels,"
     "reviewRequests,commits,additions,deletions,changedFiles,"
     "mergeable,mergedAt,mergedBy,createdAt,updatedAt"
 )
@@ -119,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
         "state": pr_data.get("state"),
         "author": pr_data.get("author", {}).get("login"),
         "head_branch": pr_data.get("headRefName"),
+        "head_sha": pr_data.get("headRefOid"),
         "base_branch": pr_data.get("baseRefName"),
         "labels": labels,
         "commits": len(pr_data.get("commits", [])),
