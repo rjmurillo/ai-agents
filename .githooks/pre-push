@@ -88,10 +88,19 @@ record_skip() {
 
 # Temp file cleanup on exit (handles Ctrl+C, early exit, normal exit)
 TEMP_FILES=()
+# Auto-retro suppression sentinel (Issue #2327). Set once REPO_ROOT is known.
+# The Stop hook (.claude/hooks/Stop/invoke_auto_retrospective.py) skips skeleton
+# generation while this file exists, so a session ending mid-pre-push (including
+# a failing one) does not leave an untracked auto-retro file or a
+# docs/retros/INDEX.md edit behind. Removed on exit by cleanup().
+AUTO_RETRO_SUPPRESS_SENTINEL=""
 cleanup() {
     for f in "${TEMP_FILES[@]}"; do
         rm -f "$f"
     done
+    if [ -n "$AUTO_RETRO_SUPPRESS_SENTINEL" ]; then
+        rm -f "$AUTO_RETRO_SUPPRESS_SENTINEL"
+    fi
 }
 trap cleanup EXIT
 
@@ -106,12 +115,27 @@ if [ ! -d "$REPO_ROOT" ]; then
 fi
 cd "$REPO_ROOT"
 
+# Drop the auto-retro suppression sentinel for the duration of this run
+# (Issue #2327). .agents/.hook-state/ is gitignored, so the sentinel never
+# dirties the tree. Best-effort: a write failure must not block the push.
+if [ -d "$REPO_ROOT/.agents" ]; then
+    if mkdir -p "$REPO_ROOT/.agents/.hook-state" 2>/dev/null; then
+        AUTO_RETRO_SUPPRESS_SENTINEL="$REPO_ROOT/.agents/.hook-state/auto-retrospective.suppress"
+        : > "$AUTO_RETRO_SUPPRESS_SENTINEL" 2>/dev/null || AUTO_RETRO_SUPPRESS_SENTINEL=""
+    fi
+fi
+
 # Python detection (shared pattern with pre-commit)
 set_python_cmd() {
-    # Try uv run python first (handles virtual environments and project dependencies)
+    # Try uv run python first (handles virtual environments and project dependencies).
+    # --frozen pins the lockfile: uv uses uv.lock as-is and never re-resolves or
+    # rewrites it during a pre-push run. Without --frozen, `uv run` can silently
+    # re-resolve dependencies and rewrite uv.lock, leaving the worktree dirty
+    # after validation (Issue #2327). --frozen errors loudly on a stale lock
+    # instead, so drift surfaces rather than dirtying the tree.
     if command -v uv &> /dev/null; then
-        if uv run python -c 'import sys' &> /dev/null; then
-            PYTHON_CMD=(uv run python)
+        if uv run --frozen python -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(uv run --frozen python)
             return 0
         fi
     fi
