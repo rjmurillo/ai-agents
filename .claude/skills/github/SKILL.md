@@ -37,10 +37,8 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 | `create a PR` | new_pr.py |
 | `respond to review comments` | post_pr_comment_reply.py |
 | `check CI status` | get_pr_checks.py / get_pr_check_logs.py |
-| `close issue` | close_pr.py / set_issue_labels.py |
-| `add label to issue` | set_issue_labels.py |
-| `list actionable items` | get_actionable_items.py |
-| `check notifications` | get_actionable_items.py |
+| `close issue, add label to issue` | close_pr.py / set_issue_labels.py |
+| `list actionable items, check notifications` | get_actionable_items.py |
 
 ---
 
@@ -93,7 +91,7 @@ Need GitHub data?
 |--------|---------|----------------|
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only`, `--output-format {json,text}` |
+| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
