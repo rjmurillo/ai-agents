@@ -39,6 +39,7 @@ get_run_id_from_url = _mod.get_run_id_from_url
 get_job_id_from_url = _mod.get_job_id_from_url
 is_github_actions_url = _mod.is_github_actions_url
 get_failure_snippets = _mod.get_failure_snippets
+_is_failing = _mod._is_failing
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +133,12 @@ class TestBuildParser:
         assert args.pull_request == 0
         assert args.max_lines == 160
         assert args.context_lines == 30
+
+
+class TestIsFailing:
+    def test_rejects_non_dict_check(self):
+        with pytest.raises(TypeError, match="check must be a dict"):
+            _is_failing("not-a-check")
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +265,23 @@ class TestMain:
         assert output["Success"] is False
         assert "malformed Checks payload" in output["Error"]["Message"]
 
+    def test_pipeline_mode_malformed_check_item_fails_loud(self, capsys):
+        checks_json = json.dumps({
+            "Success": True,
+            "Data": {"Number": 2240, "Checks": ["not-a-check"]},
+            "Error": None,
+            "Metadata": {},
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        assert "malformed Checks payload" in output["Error"]["Message"]
+
     def test_pipeline_mode_external_ci(self, capsys):
         checks_json = json.dumps({
             "Success": True,
@@ -278,3 +302,102 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["CheckLogs"][0]["LogSource"] == "external"
+
+    def test_status_context_error_is_failing_via_flag(self, capsys):
+        # Regression for #2291: a StatusContext in ERROR state carries
+        # IsFailing=True and Conclusion="ERROR". It must be treated as failing,
+        # not reported as "no failing checks".
+        checks_json = json.dumps({
+            "Success": True,
+            "Number": 42,
+            "Checks": [
+                {
+                    "Name": "Validate PR",
+                    "Type": "StatusContext",
+                    "Conclusion": "ERROR",
+                    "IsFailing": True,
+                    "DetailsUrl": "https://example.com/status/1",
+                },
+            ],
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailingChecks"] == 1
+
+    def test_error_conclusion_is_failing_via_fallback(self, capsys):
+        # Regression for #2291: when a check lacks the producer-computed
+        # IsFailing flag, Conclusion="ERROR" must still count as failing.
+        checks_json = json.dumps({
+            "Success": True,
+            "Number": 42,
+            "Checks": [
+                {
+                    "Name": "Validate PR",
+                    "Conclusion": "ERROR",
+                    "DetailsUrl": "https://example.com/status/1",
+                },
+            ],
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailingChecks"] == 1
+
+    def test_check_run_failing_conclusions_use_fallback(self, capsys):
+        checks_json = json.dumps({
+            "Success": True,
+            "Number": 42,
+            "Checks": [
+                {
+                    "Name": "Validate PR",
+                    "Conclusion": "STALE",
+                    "DetailsUrl": "https://example.com/status/1",
+                },
+                {
+                    "Name": "Build",
+                    "Conclusion": "STARTUP_FAILURE",
+                    "DetailsUrl": "https://example.com/status/2",
+                },
+            ],
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailingChecks"] == 2
+
+    def test_passing_status_context_not_failing(self, capsys):
+        # IsFailing=False must be honored even though dict.get default differs.
+        checks_json = json.dumps({
+            "Success": True,
+            "Number": 42,
+            "Checks": [
+                {
+                    "Name": "Validate PR",
+                    "Type": "StatusContext",
+                    "Conclusion": "SUCCESS",
+                    "IsFailing": False,
+                    "DetailsUrl": "",
+                },
+            ],
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailingChecks"] == 0

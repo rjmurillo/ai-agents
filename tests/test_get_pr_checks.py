@@ -768,6 +768,161 @@ class TestMain:
         captured = capsys.readouterr()
         assert captured.err == ""
 
+    def test_wait_transient_empty_tags_incomplete(self, capsys):
+        """#2304: --wait that exhausts its budget while the rollup is empty
+        returns 7 and tags ChecksIncomplete, not a premature PASS."""
+        empty_gql = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {"nodes": []},
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=empty_gql,
+        ), patch(
+            "get_pr_checks.time.monotonic", side_effect=[0.0, 999.0],
+        ), patch("get_pr_checks.time.sleep"):
+            rc = main([
+                "--pull-request", "42", "--wait",
+                "--timeout-seconds", "10", "--output-format", "json",
+            ])
+        assert rc == 7
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["ChecksIncomplete"] is True
+
+    def test_wait_genuine_no_checks_settles_immediately(self, capsys):
+        """#2304: --wait settles missing rollups as real no-check PRs."""
+        no_checks_gql = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
+                },
+            },
+        }
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=no_checks_gql,
+        ), patch("get_pr_checks.time.sleep") as sleep_mock:
+            rc = main([
+                "--pull-request", "42", "--wait",
+                "--timeout-seconds", "10", "--output-format", "json",
+            ])
+        assert rc == 0
+        sleep_mock.assert_not_called()
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["HasChecks"] is False
+        assert output["ChecksIncomplete"] is False
+
+    def test_wait_empty_then_populated_settles(self, capsys):
+        """#2304: a transient empty poll must not terminate --wait; once the
+        rollup populates, the populated result wins (no false 'no checks')."""
+        empty_gql = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {"nodes": []},
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        passing_gql = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "SUCCESS",
+                                        "contexts": {
+                                            "nodes": [
+                                                {
+                                                    "__typename": "CheckRun",
+                                                    "name": "build",
+                                                    "status": "COMPLETED",
+                                                    "conclusion": "SUCCESS",
+                                                    "detailsUrl": "",
+                                                    "isRequired": True,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", side_effect=[empty_gql, passing_gql],
+        ), patch(
+            "get_pr_checks.time.monotonic", side_effect=[0.0, 1.0],
+        ), patch("get_pr_checks.time.sleep"):
+            rc = main([
+                "--pull-request", "42", "--wait",
+                "--timeout-seconds", "60", "--output-format", "json",
+            ])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["ChecksIncomplete"] is False
+        assert output["PassedCount"] == 1
+        assert output["AllPassing"] is True
+
+    def test_no_checks_without_wait_not_incomplete(self, capsys):
+        """#2304: without --wait, an empty rollup is reported immediately as a
+        genuine no-checks PR (ChecksIncomplete False), unchanged behavior."""
+        empty_gql = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
+                },
+            },
+        }
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch("get_pr_checks.gh_graphql", return_value=empty_gql):
+            rc = main(["--pull-request", "42", "--output-format", "json"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["HasChecks"] is False
+        assert output["ChecksIncomplete"] is False
+
 
 # ---------------------------------------------------------------------------
 # Tests: normalize_check - additional coverage

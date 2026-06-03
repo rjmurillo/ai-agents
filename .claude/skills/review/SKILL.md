@@ -45,8 +45,11 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
 - **Complexity tiers reference** (`engineering-complexity-tiers.md`): try each candidate in order, use the first that exists:
   1. `.claude/skills/analyze/references/engineering-complexity-tiers.md` (Claude Code project layout)
   2. `skills/analyze/references/engineering-complexity-tiers.md` resolved relative to plugin install root (vendored install)
+- **Chained-skill scripts** (local axes 2 and 3: `golden-principles/scripts/scan_principles.py`, `taste-lints/scripts/taste_lints.py`): these are sibling skills, not under this skill's `references/`, so `CLAUDE_SKILL_DIR` does not locate them. For each, try each candidate in order, use the first that exists:
+  1. `.claude/skills/{skill}/scripts/{script}` (Claude Code project layout)
+  2. `skills/{skill}/scripts/{script}` resolved relative to plugin install root (vendored install)
 
-The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library before reporting an error.
+The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before reporting an error. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling), do not abort the review.
 
 ## Process
 
@@ -72,8 +75,8 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
    - axis 11: `code-quality` (general-purpose fallback; no dedicated subagent)
 5. **Run 3 chained skill axes** (local-only; CI does not run these). These run after every canonical axis. Scope the golden-principles and taste-lints axes to the PR diff by passing the base branch detected in step 1 (stored as `BASE_BRANCH`) as `--diff-scope`, quoted, so the gates evaluate only changed files, not the whole tree:
    - local axis 1: Skill(skill="code-qualities-assessment")
-   - local axis 2: Skill(skill="golden-principles"), invoking `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"`
-   - local axis 3: Skill(skill="taste-lints"), invoking `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"`
+   - local axis 2: Skill(skill="golden-principles"), invoking `python3 <scan_principles.py> --diff-scope "origin/$BASE_BRANCH"`, where `<scan_principles.py>` is `golden-principles/scripts/scan_principles.py` resolved via the "Path resolution" section (chained-skill scripts). Do not assume the `.claude/` layout.
+   - local axis 3: Skill(skill="taste-lints"), invoking `python3 <taste_lints.py> --diff-scope "origin/$BASE_BRANCH"`, where `<taste_lints.py>` is `taste-lints/scripts/taste_lints.py` resolved via the "Path resolution" section (chained-skill scripts). Do not assume the `.claude/` layout.
 6. **Extract verdict per axis**. Each axis output ends with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Use `extract_verdict` from the verdict library (resolved per "Path resolution") to parse. If a skill crashes or returns no parseable verdict, mark that axis `UNKNOWN` and continue (do not abort).
 7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict plus one verdict per Stage-2 axis (the 11 discovered non-spec canonical axes plus the 3 chained skills; 15 total with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 short-circuited (step 2), skip this merge: the FINAL VERDICT is the Stage-1 verdict.
 8. **Emit findings table** (see Output below).

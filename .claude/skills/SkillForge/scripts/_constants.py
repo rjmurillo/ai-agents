@@ -29,6 +29,7 @@ OPTIONAL_PROPERTIES = {
     'hooks',          # Lifecycle hooks (PreToolUse, PostToolUse, Stop)
     'user-invocable', # Slash menu visibility (default: true)
     'version',        # Semantic version (e.g., 1.0.0)
+    'argument-hint',  # Slash-command argument hint(s) for user-invocable skills
 }
 
 # All allowed properties

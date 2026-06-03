@@ -73,6 +73,35 @@ _FAILURE_PATTERNS = [
 
 _COMBINED_PATTERN = re.compile("|".join(_FAILURE_PATTERNS), re.IGNORECASE)
 
+# Fallback list used only when an input check lacks producer-computed
+# "IsFailing". Keep aligned with get_pr_checks.py failing CheckRun conclusions,
+# plus "ERROR" for StatusContext failures. See #2291.
+_FAILING_CONCLUSIONS = (
+    "FAILURE",
+    "CANCELLED",
+    "TIMED_OUT",
+    "ACTION_REQUIRED",
+    "STALE",
+    "STARTUP_FAILURE",
+    "ERROR",
+)
+
+
+def _is_failing(check: object) -> bool:
+    """Return True if a normalized check object represents a failing check.
+
+    Prefer the producer-computed ``IsFailing`` flag from get_pr_checks.py
+    (authoritative for both CheckRun and StatusContext, including the ERROR
+    state). Fall back to the ``Conclusion`` field only when ``IsFailing`` is
+    absent, so callers that pipe minimal check data still work.
+    """
+    if not isinstance(check, dict):
+        raise TypeError("check must be a dict")
+    flag = check.get("IsFailing")
+    if flag is not None:
+        return bool(flag)
+    return check.get("Conclusion") in _FAILING_CONCLUSIONS
+
 
 # ---------------------------------------------------------------------------
 # URL parsing helpers
@@ -107,6 +136,18 @@ def _unwrap_checks_payload(checks_data: dict[str, object]) -> dict[str, object] 
         return checks_data
     payload = checks_data["Data"]
     return payload if isinstance(payload, dict) else None
+
+
+def _coerce_checks_list(payload: dict[str, object]) -> list[dict] | None:
+    """Return a checked list of check objects, or None when malformed."""
+    checks_value = payload.get("Checks")
+    if checks_value is None:
+        return []
+    if not isinstance(checks_value, list):
+        return None
+    if not all(isinstance(check, dict) for check in checks_value):
+        return None
+    return checks_value
 
 
 
@@ -340,12 +381,8 @@ def main(argv: list[str] | None = None) -> int:
         if payload.get("Number") and pr_number == 0:
             pr_number = payload["Number"]
 
-        checks_value = payload.get("Checks")
-        if checks_value is None:
-            checks_list = []
-        elif isinstance(checks_value, list):
-            checks_list = checks_value
-        else:
+        checks_list = _coerce_checks_list(payload)
+        if checks_list is None:
             write_skill_error(
                 "Checks response contains malformed Checks payload",
                 1,
@@ -357,8 +394,7 @@ def main(argv: list[str] | None = None) -> int:
 
         failing_checks = [
             c for c in checks_list
-            if isinstance(c, dict)
-            and c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            if _is_failing(c)
         ]
 
     elif pr_number > 0:
@@ -408,12 +444,8 @@ def main(argv: list[str] | None = None) -> int:
                 script_name="get_pr_check_logs.py",
             )
             return 3
-        checks_value = payload.get("Checks")
-        if checks_value is None:
-            checks_list = []
-        elif isinstance(checks_value, list):
-            checks_list = checks_value
-        else:
+        checks_list = _coerce_checks_list(payload)
+        if checks_list is None:
             write_skill_error(
                 "Checks response contains malformed Checks payload",
                 1,
@@ -425,8 +457,7 @@ def main(argv: list[str] | None = None) -> int:
 
         failing_checks = [
             c for c in checks_list
-            if isinstance(c, dict)
-            and c.get("Conclusion") in ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED")
+            if _is_failing(c)
         ]
     else:
         write_skill_error(
