@@ -244,6 +244,11 @@ def build_output(
         "PendingCount": pending_count,
         "PassedCount": passed_count,
         "AllPassing": all_passing,
+        # True only when --wait exhausted its budget while the checks rollup
+        # was still empty (transient GraphQL race), distinguishing it from a
+        # PR that genuinely has no checks (HasChecks False, ChecksIncomplete
+        # False). See #2304. Set authoritatively by main() under --wait.
+        "ChecksIncomplete": False,
     }
 
 
@@ -278,6 +283,36 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_status(
+    output: dict,
+    timeout_seconds: int,
+    timed_out_pending: bool,
+    checks_incomplete: bool,
+) -> tuple[str, str]:
+    """Return (human_summary, status) for the final check output."""
+    number = output["Number"]
+    if checks_incomplete:
+        return (
+            f"PR #{number}: checks still unavailable after {timeout_seconds}s "
+            f"(transient empty rollup, not 'no checks configured')",
+            "WARNING",
+        )
+    if output["FailedCount"] > 0:
+        return f"PR #{number}: {output['FailedCount']} check(s) failed", "FAIL"
+    if timed_out_pending:
+        return (
+            f"Timeout: {output['PendingCount']} check(s) still pending "
+            f"after {timeout_seconds} seconds",
+            "WARNING",
+        )
+    if output["PendingCount"] > 0:
+        return (
+            f"PR #{number}: {output['PendingCount']} check(s) still pending",
+            "WARNING",
+        )
+    return f"PR #{number}: All {output['PassedCount']} check(s) passing", "PASS"
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
@@ -291,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
     iteration = 0
+    settled = False
+    checks_incomplete = False
 
     while True:
         iteration += 1
@@ -321,40 +358,36 @@ def main(argv: list[str] | None = None) -> int:
 
         output = build_output(check_data, owner, repo, args.required_only)
 
-        # If not waiting, or no pending checks, we are done
-        if not args.wait or output["PendingCount"] == 0:
+        # Under --wait, an empty checks rollup is usually a transient GraphQL
+        # race, not "no checks configured". Keep polling so we do not break out
+        # with PendingCount == 0 and misreport PASS with zero checks (#2304).
+        checks_empty = not output["HasChecks"] or not output["Checks"]
+        waiting_on_empty = args.wait and checks_empty
+
+        # Done when not waiting, or settled: nothing pending and not an empty
+        # rollup we are still waiting on.
+        if not args.wait or (output["PendingCount"] == 0 and not waiting_on_empty):
+            settled = True
             break
 
-        # Check timeout
+        # Stop polling on timeout or iteration budget exhaustion.
         elapsed = time.monotonic() - start_time
-        if elapsed >= args.timeout_seconds:
-            write_skill_output(
-                output,
-                output_format=fmt,
-                human_summary=(
-                    f"Timeout: {output['PendingCount']} checks still pending "
-                    f"after {args.timeout_seconds} seconds"
-                ),
-                status="WARNING",
-                script_name="get_pr_checks.py",
-            )
-            return 7
-
-        if iteration >= max_iterations:
+        if elapsed >= args.timeout_seconds or iteration >= max_iterations:
+            # If checks never populated, the rollup raced; tag the result so
+            # callers distinguish transient emptiness from a real no-checks PR.
+            if waiting_on_empty:
+                checks_incomplete = True
             break
 
         time.sleep(10)
 
+    output["ChecksIncomplete"] = checks_incomplete
+    timed_out_pending = not settled and output["PendingCount"] > 0
+
     # Determine status for human output
-    if output["FailedCount"] > 0:
-        summary = f"PR #{output['Number']}: {output['FailedCount']} check(s) failed"
-        status = "FAIL"
-    elif output["PendingCount"] > 0:
-        summary = f"PR #{output['Number']}: {output['PendingCount']} check(s) still pending"
-        status = "WARNING"
-    else:
-        summary = f"PR #{output['Number']}: All {output['PassedCount']} check(s) passing"
-        status = "PASS"
+    summary, status = _resolve_status(
+        output, args.timeout_seconds, timed_out_pending, checks_incomplete
+    )
 
     write_skill_output(
         output,
@@ -366,6 +399,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if output["FailedCount"] > 0:
         return 1
+    if checks_incomplete or timed_out_pending:
+        return 7
     return 0
 
 
