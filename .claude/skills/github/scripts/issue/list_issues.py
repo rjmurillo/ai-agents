@@ -9,7 +9,9 @@ Enumerates issues in a repository with filtering capabilities:
 - Search query
 - Result limit
 
-Returns a JSON array with issue metadata for downstream processing.
+Emits the standard skill envelope. In JSON mode, stdout is:
+``{"Success": bool, "Data": {"issues": [...], "count": int}, ...}``.
+Failure paths emit the same envelope with ``Error`` populated.
 
 Mirrors the PR-side ``get_pull_requests.py`` precedent so the
 ``invoke_skill_first_guard.py`` ``issue.list`` mapping resolves to a
@@ -25,6 +27,8 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -48,8 +52,13 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
 )
 
 
@@ -83,20 +92,54 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=30,
         help="Max number of issues to return (1-1000, default: 30)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+def _exit_with_error(
+    message: str,
+    exit_code: int,
+    fmt: str,
+    error_type: str = "General",
+) -> None:
+    write_skill_error(
+        message,
+        exit_code,
+        error_type=error_type,
+        output_format=fmt,
+        script_name="list_issues.py",
+    )
+    raise SystemExit(exit_code)
 
-    if not 1 <= args.limit <= 1000:
-        error_and_exit("Limit must be between 1 and 1000.", 2)
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved.owner, resolved.repo
-    repo_flag = f"{owner}/{repo}"
+def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
+    try:
+        assert_gh_authenticated()
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 4
+        _exit_with_error(
+            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+            code,
+            fmt,
+            "AuthError",
+        )
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(stderr):
+            resolved = resolve_repo_params(args.owner, args.repo)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+        message = stderr.getvalue().strip() or "Could not resolve repository parameters."
+        _exit_with_error(
+            message,
+            code,
+            fmt,
+            "InvalidParams",
+        )
+    return resolved.owner, resolved.repo
 
+
+def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str]:
     list_args = [
         "gh", "issue", "list",
         "--repo", repo_flag,
@@ -125,55 +168,95 @@ def main(argv: list[str] | None = None) -> int:
         if args.assignee:
             list_args.extend(["--assignee", args.assignee])
 
+    return list_args
+
+
+def _run_issue_list(list_args: list[str], fmt: str) -> list[object]:
     try:
         result = subprocess.run(
             list_args, capture_output=True, text=True, timeout=30, check=False,
         )
     except subprocess.TimeoutExpired:
-        error_and_exit("Timed out waiting for gh issue list.", 3)
+        _exit_with_error("Timed out waiting for gh issue list.", 3, fmt, "Timeout")
     except FileNotFoundError:
-        error_and_exit("gh CLI not found on PATH.", 3)
+        _exit_with_error("gh CLI not found on PATH.", 3, fmt, "ApiError")
 
     if result.returncode != 0:
-        error_and_exit(
-            f"Failed to list issues: {result.stderr or result.stdout}", 3,
+        _exit_with_error(
+            f"Failed to list issues: {result.stderr or result.stdout}",
+            3,
+            fmt,
+            "ApiError",
         )
 
     try:
         issues = json.loads(result.stdout)
     except (json.JSONDecodeError, ValueError) as exc:
-        error_and_exit(f"Failed to parse JSON response from gh: {exc}", 3)
-
-    if not isinstance(issues, list):
-        error_and_exit(
-            f"Expected a JSON array from gh, got {type(issues).__name__}.", 3,
+        _exit_with_error(
+            f"Failed to parse JSON response from gh: {exc}",
+            3,
+            fmt,
+            "ApiError",
         )
 
+    if not isinstance(issues, list):
+        _exit_with_error(
+            f"Expected a JSON array from gh, got {type(issues).__name__}.",
+            3,
+            fmt,
+            "ApiError",
+        )
+
+    return issues
+
+
+def _format_issue(issue: dict) -> dict:
+    return {
+        "number": issue.get("number"),
+        "title": issue.get("title"),
+        "state": issue.get("state"),
+        "labels": [
+            lbl.get("name")
+            for lbl in (issue.get("labels") or [])
+            if isinstance(lbl, dict)
+        ],
+        "assignees": [
+            assignee.get("login")
+            for assignee in (issue.get("assignees") or [])
+            if isinstance(assignee, dict)
+        ],
+        "author": (issue.get("author") or {}).get("login"),
+        "url": issue.get("url"),
+        "createdAt": issue.get("createdAt"),
+        "updatedAt": issue.get("updatedAt"),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
+
+    if not 1 <= args.limit <= 1000:
+        _exit_with_error(
+            "Limit must be between 1 and 1000.",
+            2,
+            fmt,
+            "InvalidParams",
+        )
+
+    owner, repo = _resolve_repo(args, fmt)
+    issues = _run_issue_list(_build_issue_list_args(args, f"{owner}/{repo}"), fmt)
     output = [
-        {
-            "number": i.get("number"),
-            "title": i.get("title"),
-            "state": i.get("state"),
-            "labels": [
-                lbl.get("name")
-                for lbl in (i.get("labels") or [])
-                if isinstance(lbl, dict)
-            ],
-            "assignees": [
-                a.get("login")
-                for a in (i.get("assignees") or [])
-                if isinstance(a, dict)
-            ],
-            "author": (i.get("author") or {}).get("login"),
-            "url": i.get("url"),
-            "createdAt": i.get("createdAt"),
-            "updatedAt": i.get("updatedAt"),
-        }
-        for i in issues
-        if isinstance(i, dict)
+        _format_issue(issue) for issue in issues if isinstance(issue, dict)
     ]
 
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        {"issues": output, "count": len(output)},
+        output_format=fmt,
+        human_summary=f"{len(output)} issue(s)",
+        status="PASS",
+        script_name="list_issues.py",
+    )
     return 0
 
 
