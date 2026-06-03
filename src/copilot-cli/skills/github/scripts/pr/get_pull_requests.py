@@ -44,7 +44,7 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (  # noqa: E402
-    assert_gh_authenticated,
+    is_gh_authenticated,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
@@ -102,7 +102,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    assert_gh_authenticated()
+    if not is_gh_authenticated():
+        write_skill_error(
+            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+            4,
+            error_type="AuthError",
+            output_format=fmt,
+            script_name="get_pull_requests.py",
+        )
+        return 4
+
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
     repo_flag = f"{owner}/{repo}"

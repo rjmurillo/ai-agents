@@ -9,8 +9,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
@@ -116,19 +114,24 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_not_authenticated_exits_4(self):
+    def test_not_authenticated_returns_envelope_with_auth_error(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
-            side_effect=SystemExit(4),
+            "get_pull_requests.is_gh_authenticated",
+            return_value=False,
         ):
-            with pytest.raises(SystemExit) as exc:
-                main([])
-            assert exc.value.code == 4
+            rc = main(["--output-format", "json"])
+        assert rc == 4
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Code"] == 4
+        assert envelope["Error"]["Type"] == "AuthError"
+        assert "gh auth login" in envelope["Error"]["Message"]
 
     def test_success_open_prs(self, capsys):
         prs = [_pr(1, "First"), _pr(2, "Second")]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -153,7 +156,8 @@ class TestMain:
             _pr(2, "Closed", state="CLOSED"),
         ]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -171,7 +175,8 @@ class TestMain:
 
     def test_api_error_returns_envelope_with_error(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -189,7 +194,8 @@ class TestMain:
 
     def test_empty_results(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -206,7 +212,8 @@ class TestMain:
     def test_search_filter(self, capsys):
         prs = [_pr(5, "Fix auth bug")]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -229,7 +236,8 @@ class TestMain:
 
     def test_invalid_limit_returns_envelope_with_error(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -242,12 +250,13 @@ class TestMain:
         assert envelope["Error"]["Type"] == "InvalidParams"
         assert "Limit must be between 1 and 1000" in envelope["Error"]["Message"]
 
-    # Regression: issue #2312 — stdout was a bare JSON list, not the
+    # Regression: issue #2312. Stdout was a bare JSON list, not the
     # documented ADR-056 envelope. Lock in the envelope shape.
     def test_issue_2312_output_is_envelope_not_bare_list(self, capsys):
         prs = [_pr(2305, "PR A"), _pr(2274, "PR B")]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
