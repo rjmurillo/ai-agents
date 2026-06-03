@@ -7,7 +7,7 @@ command resolves to a real script, matcher shims fire only on matching tools,
 and lifecycle hooks launch without error. It spends no model credits and runs no
 Copilot prompts; it executes the hook scripts directly with crafted stdin.
 
-Also exercises the in-process dispatcher (ADR-067, issue #2295) against the real
+Also exercises the in-process dispatcher (ADR-068, issue #2295) against the real
 installed shim set: a non-matching tool must drive every registered guard to
 skip and the dispatcher to allow, proving the consolidation runs the real guards.
 
@@ -212,7 +212,7 @@ def _manifest_from_hooks(root: Path, event: str) -> list[str]:
 
 @requires_install
 class TestDispatcherAgainstInstalledShims:
-    """ADR-067 / #2295: run the in-process dispatcher over the REAL installed
+    """ADR-068 / #2295: run the in-process dispatcher over the REAL installed
     preToolUse shim set. A non-matching tool must drive every registered guard
     to skip and the dispatcher to allow, proving the consolidation executes the
     real guards in one process without crashing or denying benign tools."""
