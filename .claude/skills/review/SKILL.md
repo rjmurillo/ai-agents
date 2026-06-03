@@ -125,6 +125,39 @@ Followed by per-axis findings in detail. Each finding:
 
 Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **Important** if `WARN`, **Suggestion** otherwise.
 
+## Write the SHA-bound PASS marker (Issue #1938)
+
+On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
+SHA-bound marker so `/ship` can prove the shipped code was reviewed at its current
+state without re-running the review. Skip this on `CRITICAL_FAIL`, on a Stage-1
+short-circuit, and on `UNKNOWN`: a non-PASS verdict must not leave a marker.
+
+The marker is a git trailer (vendor-safe: it lives in the commit, travels in every
+clone, needs no `.agents/` access). Its contract, quoted verbatim from the reader
+`scripts/validation/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`),
+is:
+
+```text
+Reviewed-By: /review@<comma-separated-axis-list> on <reviewed-tip-sha>
+```
+
+A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so
+writing the SHA changes the SHA, with no fixed point). So record the reviewed tip,
+then write an **empty marker commit** on top of it:
+
+1. `REVIEWED_TIP=$(git rev-parse HEAD)` (the code that was reviewed).
+2. Build the axis list from the axes that ran (comma-separated stems, e.g.
+   `analyst,architect,qa,security,...`).
+3. `git commit --allow-empty -m "review: /review PASS marker" --trailer "Reviewed-By: /review@<axis-list> on $REVIEWED_TIP"`
+
+The marker commit adds no code. SHA-binding holds: the marker is valid only while
+its parent (the reviewed tip) is HEAD's parent. Land any new code commit and the
+marker no longer sits on HEAD's parent, so the review is correctly treated as stale.
+See `decision-review-marker-sha-binding-mechanism` (Serena memory) for the design.
+
+Re-running `/review` after the verdict is still PASS writes another marker commit;
+that is safe (idempotent in effect: the latest marker binds the current tip).
+
 ## Principles
 
 - **Strict superset of CI**. Any finding CI surfaces, `/review` surfaces first.
