@@ -876,6 +876,8 @@ fi
                     -u GIT_WORK_TREE \
                     -u GIT_INDEX_FILE \
                     -u GIT_COMMON_DIR \
+                    -u GIT_OBJECT_DIRECTORY \
+                    -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
                     CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" \
                     "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
                     --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \

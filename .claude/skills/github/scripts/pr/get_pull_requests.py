@@ -9,10 +9,12 @@ Enumerates PRs in a repository with filtering capabilities:
 - Head branch
 - Result limit
 
-Returns a JSON array with PR metadata for downstream processing.
+Returns the standardized skill output envelope (ADR-056) with PR metadata
+under Data.PullRequests for downstream processing.
 
 Exit codes follow ADR-035:
     0 - Success
+    2 - Config / invalid params
     3 - External error (API failure)
     4 - Auth error
 """
@@ -42,9 +44,14 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (  # noqa: E402
-    assert_gh_authenticated,
-    error_and_exit,
+    is_gh_authenticated,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
 )
 
 
@@ -77,16 +84,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=30,
         help="Max number of PRs to return (1-1000, default: 30)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     if not 1 <= args.limit <= 1000:
-        error_and_exit("Limit must be between 1 and 1000.", 2)
+        write_skill_error(
+            "Limit must be between 1 and 1000.",
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pull_requests.py",
+        )
+        return 2
 
-    assert_gh_authenticated()
+    if not is_gh_authenticated():
+        write_skill_error(
+            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+            4,
+            error_type="AuthError",
+            output_format=fmt,
+            script_name="get_pull_requests.py",
+        )
+        return 4
+
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
     repo_flag = f"{owner}/{repo}"
@@ -127,16 +152,21 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if result.returncode != 0:
-        error_and_exit(
-            f"Failed to list PRs: {result.stderr or result.stdout}", 3,
+        write_skill_error(
+            f"Failed to list PRs: {result.stderr or result.stdout}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pull_requests.py",
         )
+        return 3
 
     prs = json.loads(result.stdout)
 
     if args.state == "merged":
         prs = [p for p in prs if p.get("state") == "MERGED"]
 
-    output = [
+    pull_requests = [
         {
             "number": p.get("number"),
             "title": p.get("title"),
@@ -147,7 +177,13 @@ def main(argv: list[str] | None = None) -> int:
         for p in prs
     ]
 
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        {"PullRequests": pull_requests},
+        output_format=fmt,
+        human_summary=f"Found {len(pull_requests)} pull request(s)",
+        status="PASS",
+        script_name="get_pull_requests.py",
+    )
     return 0
 
 
