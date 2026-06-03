@@ -86,9 +86,9 @@ jobs:
           echo "  5. Re-run the gate locally:"
           echo "       python3 scripts/validation/check_adr_uniqueness.py"
           echo ""
-          echo "See issue #2253 for context. Pre-existing duplicates from"
-          echo "#2228 (ADR-058, ADR-062, ADR-063) are intentionally"
-          echo "allowlisted and do not trigger this gate."
+          echo "See issue #2253 for context. The former #2228 duplicates"
+          echo "(ADR-058, ADR-062, ADR-063) were renumbered to 069/070/071;"
+          echo "the allowlist is now empty and the gate has zero exceptions."
 
   skip-validation:
     name: Skip Validation (No ADR Changes)
