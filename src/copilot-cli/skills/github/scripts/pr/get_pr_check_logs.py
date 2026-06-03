@@ -73,12 +73,18 @@ _FAILURE_PATTERNS = [
 
 _COMBINED_PATTERN = re.compile("|".join(_FAILURE_PATTERNS), re.IGNORECASE)
 
-# Fallback failing-conclusion set, used only when an input check lacks the
-# producer-computed "IsFailing" flag. Matches get_pr_checks.py
-# _FAILING_CONCLUSIONS ({"FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"})
-# PLUS "ERROR", because a StatusContext failure surfaces as state/Conclusion
-# "ERROR" and get_pr_checks.py treats StatusContext "ERROR" as failing. See #2291.
-_FAILING_CONCLUSIONS = ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR")
+# Fallback list used only when an input check lacks producer-computed
+# "IsFailing". Keep aligned with get_pr_checks.py failing CheckRun conclusions,
+# plus "ERROR" for StatusContext failures. See #2291.
+_FAILING_CONCLUSIONS = (
+    "FAILURE",
+    "CANCELLED",
+    "TIMED_OUT",
+    "ACTION_REQUIRED",
+    "STALE",
+    "STARTUP_FAILURE",
+    "ERROR",
+)
 
 
 def _is_failing(check: object) -> bool:

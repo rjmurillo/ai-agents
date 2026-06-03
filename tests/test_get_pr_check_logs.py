@@ -352,6 +352,32 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["FailingChecks"] == 1
 
+    def test_check_run_failing_conclusions_use_fallback(self, capsys):
+        checks_json = json.dumps({
+            "Success": True,
+            "Number": 42,
+            "Checks": [
+                {
+                    "Name": "Validate PR",
+                    "Conclusion": "STALE",
+                    "DetailsUrl": "https://example.com/status/1",
+                },
+                {
+                    "Name": "Build",
+                    "Conclusion": "STARTUP_FAILURE",
+                    "DetailsUrl": "https://example.com/status/2",
+                },
+            ],
+        })
+        with patch("get_pr_check_logs.assert_gh_authenticated"), patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ):
+            rc = main(["--checks-input", checks_json])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailingChecks"] == 2
+
     def test_passing_status_context_not_failing(self, capsys):
         # IsFailing=False must be honored even though dict.get default differs.
         checks_json = json.dumps({
