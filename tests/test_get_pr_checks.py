@@ -1380,3 +1380,39 @@ class TestSupersededCheckRuns:
         assert rc == 1
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["FailedCount"] == 1
+
+    def test_main_cancelled_then_success_required_only_returns_0(self, capsys):
+        """Regression for issue #2308: stale CANCELLED + fresh SUCCESS on a
+        required check should exit 0 under --required-only.
+
+        Reproduces PR #2289: ``Validate PR`` and ``Validate PR title`` each had
+        a stale CANCELLED run alongside a fresh SUCCESS, both required. Before
+        the fix this exited 1 and reported OverallState=FAILURE; after dedupe
+        the SUCCESS wins and the script reports AllPassing=true.
+        """
+        nodes = [
+            _check_run_node("Validate PR", "COMPLETED", "CANCELLED"),
+            _check_run_node("Validate PR", "COMPLETED", "SUCCESS"),
+            _check_run_node("Validate PR title", "COMPLETED", "CANCELLED"),
+            _check_run_node("Validate PR title", "COMPLETED", "SUCCESS"),
+        ]
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes),
+        ):
+            rc = main(["--pull-request", "2289", "--required-only"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        assert data["FailedCount"] == 0
+        assert data["PassedCount"] == 2
+        assert data["AllPassing"] is True
+        # Each required check name appears exactly once after dedupe.
+        names = [c["Name"] for c in data["Checks"]]
+        assert names.count("Validate PR") == 1
+        assert names.count("Validate PR title") == 1
