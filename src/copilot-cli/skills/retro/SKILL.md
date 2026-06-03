@@ -1,7 +1,9 @@
 ---
+name: retro
 description: Fill an unfilled auto-retro skeleton for a date by running the retrospective skill
 argument-hint: fill <YYYY-MM-DD>
 allowed-tools: Skill, Read, Glob
+user-invocable: true
 ---
 
 # Retro Command
