@@ -1032,13 +1032,13 @@ class TestIssue2303MergeReadyContradiction:
     ``MergeStateStatus in ('CLEAN', 'UNSTABLE')`` clause. The upstream
     script's _evaluate_pr_state explicitly documents that
     ``MergeStateStatus == 'BLOCKED'`` (awaiting required review) is NOT
-    a blocker — auto-merge is the correct action there, so the upstream
+    a blocker. Auto-merge is the correct action there, so the upstream
     returns ``CanMerge=True`` with ``MergeStateStatus='BLOCKED'``.
 
     The old lambda rejected that valid ready state and produced the
     contradictory signal observed on PR #2283: upstream says ready,
-    gate says blocked. The fix delegates to ``CanMerge`` (single source
-    of truth) and keeps ``fetched_pages_complete == true`` to fail
+    gate says blocked. The fix delegates the merge-readiness criterion to
+    ``CanMerge`` and keeps ``fetched_pages_complete == true`` to fail
     closed on partial fetches.
     """
 
@@ -1046,8 +1046,8 @@ class TestIssue2303MergeReadyContradiction:
     # If this string drifts from the prod config, the
     # test_prod_config_predicate_matches assertion below catches it.
     _PROD_LAMBDA = (
-        "lambda d: d.get('CanMerge') == True "
-        "and d.get('fetched_pages_complete') == True"
+        "lambda d: d.get('CanMerge') is True "
+        "and d.get('fetched_pages_complete') is True"
     )
 
     def _ready(self, **overrides):
@@ -1186,6 +1186,46 @@ class TestIssue2303MergeReadyContradiction:
             ],
         )
         upstream = self._ready(fetched_pages_complete=False)
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps(upstream)),
+        ):
+            rc = _dispatcher.main(
+                [
+                    "--config", str(config_path),
+                    "--pull-request", "1",
+                    "--json",
+                ],
+            )
+        assert rc == 1
+
+    @pytest.mark.parametrize(
+        ("can_merge", "fetched_pages_complete"),
+        [
+            (1, True),
+            (True, 1),
+        ],
+    )
+    def test_truthy_non_boolean_values_fail_closed(
+        self, repo_root, tmp_path, capsys, can_merge, fetched_pages_complete,
+    ):
+        """Nullable boolean payload fields must be literal True."""
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "PR is ready to merge",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": self._PROD_LAMBDA,
+                    "fail_open": False,
+                },
+            ],
+        )
+        upstream = self._ready(
+            CanMerge=can_merge,
+            fetched_pages_complete=fetched_pages_complete,
+        )
         with patch.object(
             _dispatcher.subprocess, "run",
             return_value=_make_proc(stdout=json.dumps(upstream)),

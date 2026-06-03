@@ -108,11 +108,12 @@ completion_criteria:
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
     command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}"
-    # Trust CanMerge as the single source of truth. test_pr_merge_ready.py
-    # already composes every blocker (state, draft, conflicts, BEHIND,
-    # required-check failures, unresolved threads) into CanMerge=False with
-    # human-readable Reasons. Duplicating those clauses here drifts from the
-    # upstream predicate and produces false negatives (issue #2303 / PR #2283):
+    # Trust test_pr_merge_ready.py's CanMerge for this /pr-review criterion.
+    # The upstream script already composes every blocker (state, draft,
+    # conflicts, BEHIND, required-check failures, unresolved threads) into
+    # CanMerge=False with human-readable Reasons. Duplicating those clauses
+    # here drifts from the upstream predicate and produces false negatives
+    # (issue #2303 / PR #2283):
     # the upstream script explicitly treats MergeStateStatus=BLOCKED (awaiting
     # required review) as a ready state because auto-merge handles it, but the
     # old extra "MergeStateStatus in ('CLEAN','UNSTABLE')" clause rejected it.
@@ -121,7 +122,7 @@ completion_criteria:
     # data-integrity flag, not a blocker: a truncated GraphQL page can hide
     # failing required checks, so the gate must fail closed on partial fetches
     # per the PR #1887 retrospective.
-    pass_when_python: "lambda d: d.get('CanMerge') == True and d.get('fetched_pages_complete') == True"
+    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('fetched_pages_complete') is True"
     fail_open: false
   - name: "PR is not already merged"
     verification: "command"
