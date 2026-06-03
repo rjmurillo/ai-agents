@@ -108,18 +108,7 @@ def _exit_with_error(
     raise SystemExit(exit_code)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    fmt = get_output_format(args.output_format)
-
-    if not 1 <= args.limit <= 1000:
-        _exit_with_error(
-            "Limit must be between 1 and 1000.",
-            2,
-            fmt,
-            "InvalidParams",
-        )
-
+def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
     try:
         assert_gh_authenticated()
     except SystemExit as exc:
@@ -140,9 +129,10 @@ def main(argv: list[str] | None = None) -> int:
             fmt,
             "InvalidParams",
         )
-    owner, repo = resolved.owner, resolved.repo
-    repo_flag = f"{owner}/{repo}"
+    return resolved.owner, resolved.repo
 
+
+def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str]:
     list_args = [
         "gh", "issue", "list",
         "--repo", repo_flag,
@@ -171,6 +161,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.assignee:
             list_args.extend(["--assignee", args.assignee])
 
+    return list_args
+
+
+def _run_issue_list(list_args: list[str], fmt: str) -> list[object]:
     try:
         result = subprocess.run(
             list_args, capture_output=True, text=True, timeout=30, check=False,
@@ -206,28 +200,47 @@ def main(argv: list[str] | None = None) -> int:
             "ApiError",
         )
 
+    return issues
+
+
+def _format_issue(issue: dict) -> dict:
+    return {
+        "number": issue.get("number"),
+        "title": issue.get("title"),
+        "state": issue.get("state"),
+        "labels": [
+            lbl.get("name")
+            for lbl in (issue.get("labels") or [])
+            if isinstance(lbl, dict)
+        ],
+        "assignees": [
+            assignee.get("login")
+            for assignee in (issue.get("assignees") or [])
+            if isinstance(assignee, dict)
+        ],
+        "author": (issue.get("author") or {}).get("login"),
+        "url": issue.get("url"),
+        "createdAt": issue.get("createdAt"),
+        "updatedAt": issue.get("updatedAt"),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
+
+    if not 1 <= args.limit <= 1000:
+        _exit_with_error(
+            "Limit must be between 1 and 1000.",
+            2,
+            fmt,
+            "InvalidParams",
+        )
+
+    owner, repo = _resolve_repo(args, fmt)
+    issues = _run_issue_list(_build_issue_list_args(args, f"{owner}/{repo}"), fmt)
     output = [
-        {
-            "number": i.get("number"),
-            "title": i.get("title"),
-            "state": i.get("state"),
-            "labels": [
-                lbl.get("name")
-                for lbl in (i.get("labels") or [])
-                if isinstance(lbl, dict)
-            ],
-            "assignees": [
-                a.get("login")
-                for a in (i.get("assignees") or [])
-                if isinstance(a, dict)
-            ],
-            "author": (i.get("author") or {}).get("login"),
-            "url": i.get("url"),
-            "createdAt": i.get("createdAt"),
-            "updatedAt": i.get("updatedAt"),
-        }
-        for i in issues
-        if isinstance(i, dict)
+        _format_issue(issue) for issue in issues if isinstance(issue, dict)
     ]
 
     write_skill_output(

@@ -102,18 +102,7 @@ def _exit_with_error(
     raise SystemExit(exit_code)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    fmt = get_output_format(args.output_format)
-
-    if not 1 <= args.limit <= 1000:
-        _exit_with_error(
-            "Limit must be between 1 and 1000.",
-            2,
-            fmt,
-            "InvalidParams",
-        )
-
+def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
     try:
         assert_gh_authenticated()
     except SystemExit as exc:
@@ -134,9 +123,10 @@ def main(argv: list[str] | None = None) -> int:
             fmt,
             "InvalidParams",
         )
-    owner, repo = resolved.owner, resolved.repo
-    repo_flag = f"{owner}/{repo}"
+    return resolved.owner, resolved.repo
 
+
+def _build_pr_list_args(args: argparse.Namespace, repo_flag: str) -> list[str]:
     list_args = [
         "gh", "pr", "list",
         "--repo", repo_flag,
@@ -168,6 +158,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.head:
             list_args.extend(["--head", args.head])
 
+    return list_args
+
+
+def _run_pr_list(list_args: list[str], fmt: str) -> list[object]:
     try:
         result = subprocess.run(
             list_args, capture_output=True, text=True, timeout=30, check=False,
@@ -203,18 +197,41 @@ def main(argv: list[str] | None = None) -> int:
             "ApiError",
         )
 
+    return prs
+
+
+def _format_pull_request(pr: dict) -> dict:
+    return {
+        "number": pr.get("number"),
+        "title": pr.get("title"),
+        "head": pr.get("headRefName"),
+        "base": pr.get("baseRefName"),
+        "state": pr.get("state"),
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
+
+    if not 1 <= args.limit <= 1000:
+        _exit_with_error(
+            "Limit must be between 1 and 1000.",
+            2,
+            fmt,
+            "InvalidParams",
+        )
+
+    owner, repo = _resolve_repo(args, fmt)
+    prs = _run_pr_list(_build_pr_list_args(args, f"{owner}/{repo}"), fmt)
     if args.state == "merged":
-        prs = [p for p in prs if p.get("state") == "MERGED"]
+        prs = [
+            pr for pr in prs
+            if isinstance(pr, dict) and pr.get("state") == "MERGED"
+        ]
 
     output = [
-        {
-            "number": p.get("number"),
-            "title": p.get("title"),
-            "head": p.get("headRefName"),
-            "base": p.get("baseRefName"),
-            "state": p.get("state"),
-        }
-        for p in prs
+        _format_pull_request(pr) for pr in prs if isinstance(pr, dict)
     ]
 
     write_skill_output(
