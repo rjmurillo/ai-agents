@@ -32,9 +32,21 @@ from pathlib import Path
 DEFAULT_LOG_PATH = Path(".agents/sessions/session-end-skips.jsonl")
 
 
-def _allowed_log_roots(project_root: Path) -> tuple[Path, Path]:
+def _allowed_log_roots(project_root: Path) -> tuple[Path, ...]:
     """Return roots where skip logs may be written."""
-    return (project_root.resolve(), Path(tempfile.gettempdir()).resolve())
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in (project_root, os.environ.get("TMPDIR"), tempfile.gettempdir()):
+        if not candidate:
+            continue
+        try:
+            root = Path(candidate).resolve()
+        except OSError:
+            continue
+        if root.exists() and root not in seen:
+            seen.add(root)
+            roots.append(root)
+    return tuple(roots)
 
 
 def build_event(reason: str, session_id: str | None = None) -> dict[str, str]:
@@ -91,8 +103,13 @@ def main(argv: list[str] | None = None) -> int:
         log_path = Path(args.log_path).resolve()
         # Validate path safety using is_relative_to (CWE-22).
         # Allow project root or the active temp directory for CI use cases.
-        if not any(log_path.is_relative_to(root) for root in _allowed_log_roots(project_root)):
-            print(f"error: path traversal detected or unauthorized path: {args.log_path}", file=sys.stderr)
+        if not any(
+            log_path.is_relative_to(root) for root in _allowed_log_roots(project_root)
+        ):
+            print(
+                f"error: path traversal detected or unauthorized path: {args.log_path}",
+                file=sys.stderr,
+            )
             return 2
     except Exception as e:
         print(f"error: invalid path: {e}", file=sys.stderr)

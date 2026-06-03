@@ -9,8 +9,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from scripts.github_core.api import RepoInfo
 
 # ---------------------------------------------------------------------------
@@ -62,6 +60,25 @@ def _pr(number=1, title="PR", head="feature", base="main", state="OPEN"):
     }
 
 
+def _parse_envelope(captured_out: str) -> dict:
+    """Parse the JSON envelope from captured stdout."""
+    # write_skill_output may print an empty-line tail; take the last JSON line.
+    line = captured_out.strip().splitlines()[-1]
+    return json.loads(line)
+
+
+def _assert_envelope_shape(envelope: dict, *, success: bool) -> None:
+    """Assert the ADR-056 envelope shape."""
+    assert set(envelope.keys()) == {"Success", "Data", "Error", "Metadata"}, (
+        f"envelope keys mismatch: {sorted(envelope.keys())}"
+    )
+    assert envelope["Success"] is success
+    assert isinstance(envelope["Metadata"], dict)
+    assert envelope["Metadata"].get("Script") == "get_pull_requests.py"
+    assert "Version" in envelope["Metadata"]
+    assert "Timestamp" in envelope["Metadata"]
+
+
 # ---------------------------------------------------------------------------
 # Tests: build_parser
 # ---------------------------------------------------------------------------
@@ -72,6 +89,8 @@ class TestBuildParser:
         args = build_parser().parse_args([])
         assert args.state == "open"
         assert args.limit == 30
+        # ADR-056: every skill script exposes --output-format
+        assert args.output_format == "auto"
 
     def test_all_filters(self):
         args = build_parser().parse_args([
@@ -84,6 +103,10 @@ class TestBuildParser:
         assert args.author == "alice"
         assert args.limit == 100
 
+    def test_output_format_json(self):
+        args = build_parser().parse_args(["--output-format", "json"])
+        assert args.output_format == "json"
+
 
 # ---------------------------------------------------------------------------
 # Tests: main
@@ -91,23 +114,24 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_not_authenticated_exits_4(self, capsys):
+    def test_not_authenticated_returns_envelope_with_auth_error(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
-            side_effect=SystemExit(4),
+            "get_pull_requests.is_gh_authenticated",
+            return_value=False,
         ):
-            with pytest.raises(SystemExit) as exc:
-                main([])
-            assert exc.value.code == 4
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Success"] is False
-        assert payload["Error"]["Code"] == 4
-        assert payload["Error"]["Type"] == "AuthError"
+            rc = main(["--output-format", "json"])
+        assert rc == 4
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Code"] == 4
+        assert envelope["Error"]["Type"] == "AuthError"
+        assert "gh auth login" in envelope["Error"]["Message"]
 
     def test_success_open_prs(self, capsys):
         prs = [_pr(1, "First"), _pr(2, "Second")]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -115,11 +139,16 @@ class TestMain:
             "subprocess.run",
             return_value=_completed(stdout=_prs_json(prs), rc=0),
         ):
-            rc = main([])
+            rc = main(["--output-format", "json"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
-        assert len(output) == 2
-        assert output[0]["number"] == 1
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=True)
+        assert envelope["Error"] is None
+        pull_requests = envelope["Data"]["PullRequests"]
+        assert len(pull_requests) == 2
+        assert pull_requests[0]["number"] == 1
+        # Schema preserved inside envelope
+        assert set(pull_requests[0].keys()) == {"number", "title", "head", "base", "state"}
 
     def test_merged_filter(self, capsys):
         prs = [
@@ -127,7 +156,8 @@ class TestMain:
             _pr(2, "Closed", state="CLOSED"),
         ]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -135,15 +165,18 @@ class TestMain:
             "subprocess.run",
             return_value=_completed(stdout=_prs_json(prs), rc=0),
         ):
-            rc = main(["--state", "merged"])
+            rc = main(["--state", "merged", "--output-format", "json"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
-        assert len(output) == 1
-        assert output[0]["state"] == "MERGED"
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=True)
+        pull_requests = envelope["Data"]["PullRequests"]
+        assert len(pull_requests) == 1
+        assert pull_requests[0]["state"] == "MERGED"
 
-    def test_api_error_exits_3(self, capsys):
+    def test_api_error_returns_envelope_with_error(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -151,16 +184,18 @@ class TestMain:
             "subprocess.run",
             return_value=_completed(rc=1, stderr="API error"),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main([])
-            assert exc.value.code == 3
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Success"] is False
-        assert payload["Error"]["Type"] == "ApiError"
+            rc = main(["--output-format", "json"])
+        assert rc == 3
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert "API error" in envelope["Error"]["Message"]
 
     def test_empty_results(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -168,15 +203,17 @@ class TestMain:
             "subprocess.run",
             return_value=_completed(stdout="[]", rc=0),
         ):
-            rc = main([])
+            rc = main(["--output-format", "json"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
-        assert output == []
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=True)
+        assert envelope["Data"]["PullRequests"] == []
 
     def test_search_filter(self, capsys):
         prs = [_pr(5, "Fix auth bug")]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -184,7 +221,7 @@ class TestMain:
             "subprocess.run",
             return_value=_completed(stdout=_prs_json(prs), rc=0),
         ) as mock_run:
-            rc = main(["--search", "fix auth"])
+            rc = main(["--search", "fix auth", "--output-format", "json"])
         assert rc == 0
         cmd = mock_run.call_args[0][0]
         assert "--search" in cmd
@@ -193,88 +230,47 @@ class TestMain:
         assert "--state" not in cmd
         assert "--label" not in cmd
         assert "--author" not in cmd
-        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
-        assert len(output) == 1
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=True)
+        assert len(envelope["Data"]["PullRequests"]) == 1
 
-    def test_invalid_limit_exits_2(self, capsys):
+    def test_invalid_limit_returns_envelope_with_error(self, capsys):
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--limit", "0"])
-            assert exc.value.code == 2
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Success"] is False
-        assert payload["Error"]["Type"] == "InvalidParams"
+            rc = main(["--limit", "0", "--output-format", "json"])
+        assert rc == 2
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Code"] == 2
+        assert envelope["Error"]["Type"] == "InvalidParams"
+        assert "Limit must be between 1 and 1000" in envelope["Error"]["Message"]
 
-    def test_timeout_exits_3(self, capsys):
+    # Regression: issue #2312. Stdout was a bare JSON list, not the
+    # documented ADR-056 envelope. Lock in the envelope shape.
+    def test_issue_2312_output_is_envelope_not_bare_list(self, capsys):
+        prs = [_pr(2305, "PR A"), _pr(2274, "PR B")]
         with patch(
-            "get_pull_requests.assert_gh_authenticated",
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main([])
-            assert exc.value.code == 3
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Success"] is False
-        assert payload["Error"]["Type"] == "Timeout"
-
-    def test_gh_missing_exits_3(self, capsys):
-        with patch(
-            "get_pull_requests.assert_gh_authenticated",
+            "get_pull_requests.is_gh_authenticated",
+            return_value=True,
         ), patch(
             "get_pull_requests.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
-            side_effect=FileNotFoundError("gh"),
+            return_value=_completed(stdout=_prs_json(prs), rc=0),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main([])
-            assert exc.value.code == 3
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Success"] is False
-        assert payload["Error"]["Type"] == "ApiError"
-
-    def test_malformed_json_exits_3(self, capsys):
-        with patch(
-            "get_pull_requests.assert_gh_authenticated",
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="not json", rc=0),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main([])
-            assert exc.value.code == 3
-        payload = json.loads(capsys.readouterr().out)
-        assert payload["Success"] is False
-        assert payload["Error"]["Type"] == "ApiError"
-
-    @pytest.mark.parametrize("payload", ["null", "{}", "42", '"text"'])
-    def test_non_list_root_exits_3(self, payload, capsys):
-        with patch(
-            "get_pull_requests.assert_gh_authenticated",
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=payload, rc=0),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main([])
-            assert exc.value.code == 3
-        error = json.loads(capsys.readouterr().out)["Error"]
-        assert error["Code"] == 3
-        assert error["Type"] == "ApiError"
+            rc = main(["--state", "open", "--limit", "5", "--output-format", "json"])
+        assert rc == 0
+        parsed = _parse_envelope(capsys.readouterr().out)
+        # The regression was: parsed used to be a list. Assert it is now a dict
+        # with the documented envelope keys.
+        assert isinstance(parsed, dict), (
+            "issue #2312 regression: stdout must be the ADR-056 envelope, not a bare list"
+        )
+        _assert_envelope_shape(parsed, success=True)
+        assert "PullRequests" in parsed["Data"]

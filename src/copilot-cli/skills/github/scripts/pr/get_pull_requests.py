@@ -9,13 +9,12 @@ Enumerates PRs in a repository with filtering capabilities:
 - Head branch
 - Result limit
 
-Emits the standard skill envelope. In JSON mode, stdout is:
-``{"Success": bool, "Data": {"pull_requests": [...], "count": int}, ...}``.
-Failure paths emit the same envelope with ``Error`` populated.
+Returns the standardized skill output envelope (ADR-056) with PR metadata
+under Data.PullRequests for downstream processing.
 
 Exit codes follow ADR-035:
     0 - Success
-    2 - Config / argument error
+    2 - Config / invalid params
     3 - External error (API failure)
     4 - Auth error
 """
@@ -45,7 +44,7 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (  # noqa: E402
-    assert_gh_authenticated,
+    is_gh_authenticated,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
@@ -89,47 +88,34 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _exit_with_error(
-    message: str,
-    exit_code: int,
-    fmt: str,
-    error_type: str = "General",
-) -> None:
-    write_skill_error(
-        message,
-        exit_code,
-        error_type=error_type,
-        output_format=fmt,
-        script_name="get_pull_requests.py",
-    )
-    raise SystemExit(exit_code)
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
+    if not 1 <= args.limit <= 1000:
+        write_skill_error(
+            "Limit must be between 1 and 1000.",
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pull_requests.py",
+        )
+        return 2
 
-def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
-    try:
-        assert_gh_authenticated()
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 4
-        _exit_with_error(
+    if not is_gh_authenticated():
+        write_skill_error(
             "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            code,
-            fmt,
-            "AuthError",
+            4,
+            error_type="AuthError",
+            output_format=fmt,
+            script_name="get_pull_requests.py",
         )
-    try:
-        resolved = resolve_repo_params(args.owner, args.repo)
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 2
-        _exit_with_error(
-            "Could not resolve repository parameters.",
-            code,
-            fmt,
-            "InvalidParams",
-        )
-    return resolved.owner, resolved.repo
+        return 4
 
+    resolved = resolve_repo_params(args.owner, args.repo)
+    owner, repo = resolved.owner, resolved.repo
+    repo_flag = f"{owner}/{repo}"
 
-def _build_pr_list_args(args: argparse.Namespace, repo_flag: str) -> list[str]:
     list_args = [
         "gh", "pr", "list",
         "--repo", repo_flag,
@@ -161,86 +147,40 @@ def _build_pr_list_args(args: argparse.Namespace, repo_flag: str) -> list[str]:
         if args.head:
             list_args.extend(["--head", args.head])
 
-    return list_args
-
-
-def _run_pr_list(list_args: list[str], fmt: str) -> list[object]:
-    try:
-        result = subprocess.run(
-            list_args, capture_output=True, text=True, timeout=30, check=False,
-        )
-    except subprocess.TimeoutExpired:
-        _exit_with_error("Timed out waiting for gh pr list.", 3, fmt, "Timeout")
-    except FileNotFoundError:
-        _exit_with_error("gh CLI not found on PATH.", 3, fmt, "ApiError")
+    result = subprocess.run(
+        list_args, capture_output=True, text=True, timeout=30, check=False,
+    )
 
     if result.returncode != 0:
-        _exit_with_error(
+        write_skill_error(
             f"Failed to list PRs: {result.stderr or result.stdout}",
             3,
-            fmt,
-            "ApiError",
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pull_requests.py",
         )
+        return 3
 
-    try:
-        prs = json.loads(result.stdout)
-    except (json.JSONDecodeError, ValueError) as exc:
-        _exit_with_error(
-            f"Failed to parse JSON response from gh: {exc}",
-            3,
-            fmt,
-            "ApiError",
-        )
+    prs = json.loads(result.stdout)
 
-    if not isinstance(prs, list):
-        _exit_with_error(
-            f"Expected a JSON array from gh, got {type(prs).__name__}.",
-            3,
-            fmt,
-            "ApiError",
-        )
-
-    return prs
-
-
-def _format_pull_request(pr: dict) -> dict:
-    return {
-        "number": pr.get("number"),
-        "title": pr.get("title"),
-        "head": pr.get("headRefName"),
-        "base": pr.get("baseRefName"),
-        "state": pr.get("state"),
-    }
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    fmt = get_output_format(args.output_format)
-
-    if not 1 <= args.limit <= 1000:
-        _exit_with_error(
-            "Limit must be between 1 and 1000.",
-            2,
-            fmt,
-            "InvalidParams",
-        )
-
-    owner, repo = _resolve_repo(args, fmt)
-    prs = _run_pr_list(_build_pr_list_args(args, f"{owner}/{repo}"), fmt)
     if args.state == "merged":
-        prs = [
-            pr for pr in prs
-            if isinstance(pr, dict) and pr.get("state") == "MERGED"
-        ]
+        prs = [p for p in prs if p.get("state") == "MERGED"]
 
-    output = [
-        _format_pull_request(pr) for pr in prs if isinstance(pr, dict)
+    pull_requests = [
+        {
+            "number": p.get("number"),
+            "title": p.get("title"),
+            "head": p.get("headRefName"),
+            "base": p.get("baseRefName"),
+            "state": p.get("state"),
+        }
+        for p in prs
     ]
 
     write_skill_output(
-        {"pull_requests": output, "count": len(output)},
+        {"PullRequests": pull_requests},
         output_format=fmt,
-        human_summary=f"{len(output)} pull request(s)",
+        human_summary=f"Found {len(pull_requests)} pull request(s)",
         status="PASS",
         script_name="get_pull_requests.py",
     )
