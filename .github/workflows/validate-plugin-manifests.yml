@@ -74,7 +74,7 @@ jobs:
         run: python3 -m pip install 'PyYAML==6.0.3'
 
       # Server-side enforcement of the hook-anchoring contract (issue #2205,
-      # FM #11, ADR-063). The pre-push hook also runs this, but pre-push is
+      # FM #11, ADR-071). The pre-push hook also runs this, but pre-push is
       # local and bypassable; this gate runs in CI on any plugin hooks.json or
       # manifest change so a hand-edit or merge cannot ship an unanchored path.
       - name: Run hook anchoring gate
