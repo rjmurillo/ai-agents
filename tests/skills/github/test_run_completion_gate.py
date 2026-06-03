@@ -593,10 +593,10 @@ class TestPassWhenDslNegativeBranches:
 
 
 class TestPassWhenPythonNegativeBranches:
-    """Cover the eval-rejection paths in _eval_pass_when_python.
+    """Cover the safe-lambda rejection paths in _eval_pass_when_python.
 
     These branches are security-relevant: they bound the surface that
-    the eval call will accept. AGENTS.md sets the security-critical
+    the Python expression evaluator will accept. AGENTS.md sets the security-critical
     coverage floor at 100%; missing these branches violates that floor.
     """
 
@@ -614,26 +614,15 @@ class TestPassWhenPythonNegativeBranches:
                 {}, "lambda d: d\n.get('x')",
             )
 
-    def test_non_callable_result_rejected(self):
-        # A lambda that yields a non-callable value (defensive guard for
-        # a future expression form that does not produce a function).
-        # `lambda d: 1` is callable, so we exercise the guard via the
-        # boolean coercion: the function must be a callable in the
-        # is-checked sense. We force the result to a non-callable by
-        # supplying a degenerate expression that startswith "lambda" but
-        # whose body is parsed as something other than a function.
-        # Python forbids that at parse-time, so this branch is reached
-        # only via the ``isinstance(expr, str)`` + ``startswith`` path.
-        # The only way to exercise the ``not callable(func)`` line is to
-        # call _eval_pass_when_python with an expression that compiles
-        # but produces a non-callable. None such exists for ``lambda``,
-        # so we confirm the guard via direct unit-style exercise: feed
-        # a value that bypasses the startswith check by patching it.
-        with patch.object(
-            _dispatcher, "eval", return_value=42, create=True,
-        ):
-            with pytest.raises(ValueError, match="did not yield a callable"):
-                _dispatcher._eval_pass_when_python({}, "lambda d: True")
+    def test_unsafe_attribute_access_rejected(self):
+        with pytest.raises(ValueError, match="unsupported"):
+            _dispatcher._eval_pass_when_python({}, "lambda d: d.__class__")
+
+    def test_import_call_rejected(self):
+        with pytest.raises(ValueError, match="only supports d.get"):
+            _dispatcher._eval_pass_when_python(
+                {}, "lambda d: __import__('os').system('id')",
+            )
 
 
 class TestDispatcherCriterionRejectionPaths:
@@ -964,9 +953,10 @@ class TestSchemaTypeChecks:
 
 
 class TestPassWhenPythonBroadException:
-    """Per CodeRabbit: a pass_when_python lambda body can raise anything
-    (ZeroDivisionError, IndexError, custom exceptions). The dispatcher
-    must catch all of them and fail closed.
+    """Unsupported pass_when_python expressions must fail closed.
+
+    The safe evaluator rejects expressions outside its allowlist. The
+    dispatcher must catch those errors and fail closed.
     """
 
     def test_zero_division_in_lambda_fails_closed(

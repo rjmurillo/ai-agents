@@ -32,25 +32,21 @@ having verified.
 
 If the DSL is insufficient, a criterion may instead specify
 ``pass_when_python: "lambda d: <expr>"``. The expression receives the
-parsed stdout-json dict and must return a truthy/falsy value. This is
-provided as an escape hatch when a criterion's logic does not fit the
-DSL; prefer ``pass_when`` where possible.
+parsed stdout-json dict and must return a truthy/falsy value. The
+lambda is parsed with ``ast`` and evaluated through a safe subset; prefer
+``pass_when`` where possible.
 
 Trust model
 -----------
 
-This dispatcher executes ``command`` strings and ``pass_when_python``
-lambdas read from the YAML config. The config path MUST be controlled
-by the repository, never user-supplied beyond the validated default.
-Path traversal protection: ``--config`` is canonicalised and rejected
-unless it lives under the repository root via
-``scripts.utils.path_validation.validate_safe_path``. The
-``pass_when_python`` evaluator runs ``eval`` with an empty
-``__builtins__`` dict; this is NOT a sandbox (Python's class hierarchy
-remains reachable) and is only acceptable because the config is
-in-repo, in-tree, and reviewed alongside this script. Do not extend
-this dispatcher to load config from network input or user-supplied
-absolute paths.
+This dispatcher executes ``command`` strings read from the YAML config.
+The config path MUST be controlled by the repository, never
+user-supplied beyond the validated default. Path traversal protection:
+``--config`` is canonicalised and rejected unless it lives under the
+repository root via ``scripts.utils.path_validation.validate_safe_path``.
+``pass_when_python`` is intentionally not arbitrary Python; it supports
+only boolean composition, comparisons, constants, and ``d.get(...)``
+lookups.
 
 PR-branch trust boundary
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,10 +54,9 @@ PR-branch trust boundary
 When the dispatcher is invoked by ``/pr-review`` after checking out a
 PR branch (via ``gh pr checkout``), the config it reads is the PR
 branch's copy of ``pr-review-config.yaml`` -- NOT the trusted version
-on ``main``. A malicious PR can edit ``completion_criteria.command``
-or ``pass_when_python`` to execute arbitrary code on the reviewer's
-machine. ``validate_safe_path`` keeps the file inside the repo; it
-does NOT make the file trusted.
+on ``main``. A malicious PR can edit ``completion_criteria.command`` to
+execute arbitrary code on the reviewer's machine. ``validate_safe_path``
+keeps the file inside the repo; it does NOT make the file trusted.
 
 This is the same trust the reviewer extends by running tests or
 linters on a PR branch, but the surface here is more direct: the
@@ -94,6 +89,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import shlex
 import subprocess
@@ -295,32 +291,106 @@ def _eval_pass_when(data: dict, expr: str) -> bool:
     return bool(result)
 
 
+def _eval_safe_lambda_node(data: dict, node: ast.AST, arg_name: str) -> Any:
+    if isinstance(node, ast.BoolOp):
+        values = [_eval_safe_lambda_node(data, value, arg_name) for value in node.values]
+        if isinstance(node.op, ast.And):
+            return all(values)
+        if isinstance(node.op, ast.Or):
+            return any(values)
+        raise ValueError("unsupported pass_when_python boolean operator")
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return not _eval_safe_lambda_node(data, node.operand, arg_name)
+    if isinstance(node, ast.Compare):
+        return _eval_safe_lambda_compare(data, node, arg_name)
+    if isinstance(node, ast.Call):
+        return _eval_safe_lambda_call(data, node, arg_name)
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Name) and node.id == arg_name:
+        return data
+    raise ValueError(
+        "unsupported pass_when_python expression: "
+        f"{ast.dump(node, include_attributes=False)}"
+    )
+
+
+def _eval_safe_lambda_compare(data: dict, node: ast.Compare, arg_name: str) -> bool:
+    left = _eval_safe_lambda_node(data, node.left, arg_name)
+    for op, comparator in zip(node.ops, node.comparators, strict=True):
+        right = _eval_safe_lambda_node(data, comparator, arg_name)
+        if isinstance(op, ast.Eq):
+            passed = left == right
+        elif isinstance(op, ast.NotEq):
+            passed = left != right
+        elif isinstance(op, ast.Is):
+            passed = left is right
+        elif isinstance(op, ast.IsNot):
+            passed = left is not right
+        elif isinstance(op, ast.Gt):
+            passed = left > right
+        elif isinstance(op, ast.GtE):
+            passed = left >= right
+        elif isinstance(op, ast.Lt):
+            passed = left < right
+        elif isinstance(op, ast.LtE):
+            passed = left <= right
+        else:
+            raise ValueError("unsupported pass_when_python comparison operator")
+        if not passed:
+            return False
+        left = right
+    return True
+
+
+def _eval_safe_lambda_call(data: dict, node: ast.Call, arg_name: str) -> Any:
+    if node.keywords:
+        raise ValueError("pass_when_python calls do not support keyword arguments")
+    if len(node.args) not in (1, 2):
+        raise ValueError("pass_when_python only supports d.get(key[, default])")
+    if not (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == arg_name
+    ):
+        raise ValueError("pass_when_python only supports d.get(...) calls")
+    key = _eval_safe_lambda_node(data, node.args[0], arg_name)
+    if not isinstance(key, str):
+        raise ValueError("pass_when_python d.get key must be a string")
+    default = (
+        _eval_safe_lambda_node(data, node.args[1], arg_name)
+        if len(node.args) == 2
+        else None
+    )
+    return data.get(key, default)
+
+
 def _eval_pass_when_python(data: dict, expr: str) -> bool:
-    """Evaluate a pass_when_python expression. Escape hatch only.
-
-    The expression must be a single ``lambda d: ...`` form. The lambda
-    receives the parsed stdout-json dict.
-
-    Security: this function calls ``eval``. The empty ``__builtins__``
-    dict does NOT sandbox the expression (Python's class hierarchy is
-    still reachable). The trust model lives in the module docstring:
-    the config that supplies ``expr`` MUST be repo-controlled. Reject
-    obviously malformed expressions before eval to keep the surface
-    visible to maintainers.
-    """
+    """Evaluate a safe-subset pass_when_python lambda expression."""
     if not isinstance(expr, str):
         raise ValueError("pass_when_python must be a string")
     expr = expr.strip()
-    if not expr.startswith("lambda"):
-        raise ValueError(
-            "pass_when_python must be a lambda expression"
-        )
     if "\n" in expr or "\r" in expr:
         raise ValueError("pass_when_python must be a single line")
-    func = eval(expr, {"__builtins__": {}}, {})
-    if not callable(func):
-        raise ValueError("pass_when_python did not yield a callable")
-    return bool(func(data))
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"pass_when_python parse failed: {exc}") from exc
+    if not isinstance(tree.body, ast.Lambda):
+        raise ValueError("pass_when_python must be a lambda expression")
+    args = tree.body.args
+    if (
+        len(args.args) != 1
+        or args.posonlyargs
+        or args.kwonlyargs
+        or args.vararg
+        or args.kwarg
+        or args.defaults
+        or args.kw_defaults
+    ):
+        raise ValueError("pass_when_python lambda must take one argument")
+    return bool(_eval_safe_lambda_node(data, tree.body.body, args.args[0].arg))
 
 
 # ---------------------------------------------------------------------------
@@ -414,7 +484,7 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
     # Type-check both expression fields when present. The validator
     # already does this; mirror it here so a config that bypasses
     # the standalone validator (direct dispatcher invocation) cannot
-    # smuggle a non-string into the eval/DSL paths.
+    # smuggle a non-string into the expression-evaluator paths.
     for field, value in (
         ("pass_when", pass_when),
         ("pass_when_python", pass_when_python),
@@ -527,10 +597,10 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
         # green gate would defeat the dispatcher's purpose.
         #
         # Catching ``Exception`` (broad) is intentional: a
-        # ``pass_when_python`` lambda body can raise anything
-        # (``ZeroDivisionError``, ``IndexError``, custom domain
-        # exceptions). Per CodeRabbit review, the prior tight-list
-        # catch (ValueError, KeyError, ...) let those leak through.
+        # ``pass_when_python`` rejects unsupported expressions, and
+        # comparisons can still raise TypeError for incomparable values.
+        # Per CodeRabbit review, the prior tight-list catch let those
+        # errors leak through.
         # ``KeyboardInterrupt`` and ``SystemExit`` are NOT caught
         # because they inherit from ``BaseException``.
         result["reason"] = f"pass_when error (fails closed): {exc}"
