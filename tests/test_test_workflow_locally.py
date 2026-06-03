@@ -135,9 +135,19 @@ def test_successful_run(mock_exists, mock_run, mock_which, capsys):
     mock_run.side_effect = [
         _completed(stdout="act version 0.2.0\n"),  # act --version
         _completed(rc=0),  # docker info
-        _completed(rc=0),  # gh auth token
+        _completed(stdout="ghp_secret_token\n", rc=0),  # gh auth token
         _completed(rc=0),  # act run
     ]
 
-    rc = main(["--workflow", "pester-tests"])
+    rc = main([
+        "--workflow",
+        "pester-tests",
+        "--secrets",
+        '{"API_TOKEN":"user_secret_value"}',
+    ])
     assert rc == 0
+    out = capsys.readouterr().out
+    assert "API_TOKEN=<redacted>" in out
+    assert "GITHUB_TOKEN=<redacted>" in out
+    assert "user_secret_value" not in out
+    assert "ghp_secret_token" not in out

@@ -67,6 +67,31 @@ def _resolve_act_runner() -> tuple[list[str], str] | None:
     return None
 
 
+def _redact_secret_arg(arg: str) -> str:
+    if "=" not in arg:
+        return "<redacted>"
+    key, _value = arg.split("=", 1)
+    return f"{key}=<redacted>"
+
+
+def _redact_act_args_for_log(args: list[str]) -> list[str]:
+    redacted: list[str] = []
+    redact_next = False
+    for arg in args:
+        if redact_next:
+            redacted.append(_redact_secret_arg(arg))
+            redact_next = False
+            continue
+        if arg.startswith("-s=") or arg.startswith("--secret="):
+            option, value = arg.split("=", 1)
+            redacted.append(f"{option}={_redact_secret_arg(value)}")
+            continue
+        redacted.append(arg)
+        if arg in {"-s", "--secret"}:
+            redact_next = True
+    return redacted
+
+
 WORKFLOW_MAP = {
     "pester-tests": "pester-tests.yml",
     "validate-paths": "validate-paths.yml",
@@ -229,7 +254,8 @@ def main(argv: list[str] | None = None) -> int:
                 print("[INFO] Using GITHUB_TOKEN from gh CLI")
 
     # Execute act
-    print(f"[INFO] Running: {act_name} {' '.join(act_args)}")
+    logged_args = " ".join(_redact_act_args_for_log(act_args))
+    print(f"[INFO] Running: {act_name} {logged_args}")
     print()
 
     result = subprocess.run(
