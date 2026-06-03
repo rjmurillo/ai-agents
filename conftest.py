@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+_REAL_REPO_EXPECTED_HEAD: str | None = None
 
 
 def _real_repo_head() -> str | None:
@@ -25,13 +26,14 @@ def _real_repo_head() -> str | None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    config._real_repo_expected_head = _real_repo_head()  # type: ignore[attr-defined]
+    global _REAL_REPO_EXPECTED_HEAD
+    _REAL_REPO_EXPECTED_HEAD = _real_repo_head()
 
 
 @pytest.fixture(autouse=True)
-def _guard_real_repo_head(request: pytest.FixtureRequest):
+def _guard_real_repo_head():
     """Fail the test if it moved or corrupted the real repo HEAD (#2316)."""
-    expected = getattr(request.config, "_real_repo_expected_head", None)
+    expected = _REAL_REPO_EXPECTED_HEAD
     yield
     after = _real_repo_head()
     if expected and expected != after:
