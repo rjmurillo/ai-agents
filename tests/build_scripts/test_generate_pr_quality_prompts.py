@@ -107,6 +107,44 @@ def test_transform_prepends_static_ci_header() -> None:
     )
 
 
+def test_transform_emits_context_mode_header_line() -> None:
+    """Issue #1981: every generated prompt MUST carry the CONTEXT_MODE header
+    line so the reviewer model sees the context-mode contract. The literal
+    `${CONTEXT_MODE}` placeholder is substituted at runtime by the ai-review
+    action; it stays literal in the generated artifact to keep output static.
+    """
+    text = (
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
+    )
+    out = gen.transform(text, "x")
+    assert "<!-- CONTEXT_MODE: ${CONTEXT_MODE} (full|summary|partial); " in out
+    assert "PASS forbidden when not full" in out
+
+
+def test_transform_context_mode_header_is_literal_not_format_expanded() -> None:
+    """The `${CONTEXT_MODE}` placeholder must survive str.format intact.
+
+    `_CI_HEADER_TEMPLATE` is consumed via `.format(role=...)`; a single-brace
+    `{CONTEXT_MODE}` would raise KeyError or be expanded. Pin that the doubled
+    braces render to a literal `${CONTEXT_MODE}` token.
+    """
+    text = (
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
+    )
+    out = gen.transform(text, "x")
+    assert "${CONTEXT_MODE}" in out
+    # The unexpanded single-brace form must NOT appear (would mean a bug).
+    assert "{role}" not in out
+
+
+def test_transform_context_mode_header_is_idempotent() -> None:
+    """The header line carries no time/env token, so two runs are identical."""
+    text = (
+        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
+    )
+    assert gen.transform(text, "x") == gen.transform(text, "x")
+
+
 def test_transform_header_has_no_timestamp_or_sha() -> None:
     text = (
         "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
