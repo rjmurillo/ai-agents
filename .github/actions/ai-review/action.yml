@@ -589,6 +589,11 @@ runs:
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
         COPILOT_AGENT: ${{ inputs.agent }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
+        # Computed context mode (full|summary|error) from the Build context step.
+        # Injected into the prompt so the reviewer model sees how much of the
+        # diff it actually received and can refuse PASS when it is not full
+        # (AI-REVIEW-MODEL-POLICY.md "CONTEXT_MODE Header (REQUIRED)", issue #1981).
+        CONTEXT_MODE: ${{ steps.context.outputs.context_mode }}
       run: |
         # Skip Copilot invocation if context build detected infrastructure failure
         if [ "${{ steps.context.outputs.context_infra_failure }}" = "true" ]; then
@@ -603,9 +608,17 @@ runs:
         # Note: Agent definition is loaded automatically by Copilot CLI via --agent flag
         FULL_PROMPT=""
 
+        # Prepend the CONTEXT_MODE header so it is the first thing the model
+        # reads. The prompt's "Context Mode Enforcement" section forbids a PASS
+        # verdict when this value is not "full" (issue #1981). Default to
+        # "summary" (the restrictive value) if the computed mode is empty, so a
+        # missing value never silently unlocks PASS.
+        RESOLVED_CONTEXT_MODE="${CONTEXT_MODE:-summary}"
+        FULL_PROMPT="CONTEXT_MODE: ${RESOLVED_CONTEXT_MODE}"$'\n\n'
+
         # Add prompt template (task instructions)
         if [ -f /tmp/ai-review-prompt.md ]; then
-          FULL_PROMPT=$(cat /tmp/ai-review-prompt.md)
+          FULL_PROMPT="$FULL_PROMPT$(cat /tmp/ai-review-prompt.md)"
           FULL_PROMPT="$FULL_PROMPT"$'\n\n'
         fi
 
