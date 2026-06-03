@@ -110,3 +110,38 @@ class TestEmit:
             timeout=30,
         )
         assert proc.returncode == 0, proc.stderr.decode()
+
+    def test_generated_entrypoint_malformed_manifest_fails_closed(self, tmp_path):
+        root = tmp_path / "plugin"
+        (root / ".claude-plugin").mkdir(parents=True)
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        lib = root / "lib"
+        lib.mkdir()
+        (lib / "hook_dispatch.py").write_text(
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+        )
+        event_dir = root / "hooks" / "preToolUse"
+        event_dir.mkdir(parents=True)
+        (event_dir / "_bootstrap.py").write_text(
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "def ensure_plugin_paths():\n"
+            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+        )
+        gd.write_entrypoint(event_dir)
+        (event_dir / "_manifest.json").write_text('{"event":"preToolUse"}\n')
+        env = dict(__import__("os").environ)
+        env["CLAUDE_PLUGIN_ROOT"] = str(root)
+
+        proc = subprocess.run(
+            [sys.executable, "-u", str(event_dir / "_dispatch.py")],
+            input=b"{}",
+            capture_output=True,
+            env=env,
+            timeout=30,
+        )
+
+        assert proc.returncode == 2
+        stderr = proc.stderr.decode()
+        assert "hook-dispatch-entrypoint" in stderr
+        assert "fail-closed" in stderr

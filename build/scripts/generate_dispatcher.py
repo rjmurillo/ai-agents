@@ -22,9 +22,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-# The command shape MUST match generate_hooks._build_copilot_entry so the
-# dispatcher entry resolves identically to the per-shim entries it replaces
-# (COPILOT_PLUGIN_ROOT preferred, CLAUDE_PLUGIN_ROOT fallback).
+# Mirror contract from build/scripts/generate_hooks.py::_build_copilot_entry:
+# bash='python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/{rel}"',
+# powershell='py -3 -u "$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/{rel}"',
+# cwd=".", timeoutSec=timeout_sec. The dispatcher swaps {rel} to point at the
+# per-event _dispatch.py but keeps root resolution and shell shape identical.
 _BASH_TEMPLATE = (
     'python3 -u "${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}/hooks/{event}/_dispatch.py"'
 )
@@ -47,14 +49,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
-ensure_plugin_paths()
 
-from hook_dispatch import run_dispatch  # noqa: E402
+def _main() -> int:
+    try:
+        ensure_plugin_paths()
+        from hook_dispatch import run_dispatch  # noqa: E402
 
-_event_dir = Path(__file__).resolve().parent
-_manifest = json.loads((_event_dir / "_manifest.json").read_text(encoding="utf-8"))
-_raw = sys.stdin.buffer.read()
-sys.exit(run_dispatch(_event_dir, _manifest["shims"], _raw))
+        event_dir = Path(__file__).resolve().parent
+        manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
+        shims = manifest["shims"]
+        if not isinstance(shims, list):
+            raise TypeError("manifest field 'shims' must be a list")
+        raw = sys.stdin.buffer.read()
+        return run_dispatch(event_dir, shims, raw)
+    except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
+        print(
+            f"hook-dispatch-entrypoint: {type(exc).__name__}: {exc}; denying (fail-closed)",
+            file=sys.stderr,
+        )
+        return 2
+
+
+sys.exit(_main())
 '''
 
 
