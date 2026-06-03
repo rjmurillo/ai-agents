@@ -1,4 +1,4 @@
-# ADR-066: Consolidated Per-Event Hook Dispatcher
+# ADR-067: Consolidated Per-Event Hook Dispatcher
 
 ## Status
 
@@ -46,10 +46,10 @@ into a denial-of-service against benign tool calls.
 Generate ONE dispatcher entry per `(plugin, event)` pair instead of one
 entry per `(plugin, event, matcher)` triple. The single dispatcher reads
 stdin once, classifies the payload against every registered matcher in
-memory, and invokes the matching guard bodies in-process. Source guards
-remain authored as standalone scripts under `.claude/hooks/<Event>/`; the
-generator imports their bodies into the dispatcher rather than copying each
-as a separate shim file.
+memory, and invokes matched guards in-process. Source guards remain
+authored as standalone scripts under `.claude/hooks/<Event>/`; generated
+dispatchers execute each matched guard in `__main__` context using
+`runpy.run_path(...)` so existing script semantics are preserved.
 
 1. **Single process per event.** A `PreToolUse` tool call spawns the Python
    interpreter exactly once, regardless of guard count. Cold-start cost is
@@ -172,12 +172,11 @@ route correctness against the full installed guard set, not a sample.
   test to assert that, for every installed `(event, matcher, payload)`
   triple, the dispatcher routes to the same guard the per-shim layout would
   have invoked.
-- The dispatcher imports guard bodies via filesystem path manipulation.
-  Guards must remain pure (no top-level side effects beyond `if
-  __name__ == '__main__'`). The generator must reject guards that violate
-  this and the dispatcher must isolate guard module state between
-  invocations of distinct events within one CLI session (this ADR scopes
-  one dispatcher per event, so cross-event leakage is N/A).
+- The dispatcher executes matched guard scripts in-process via
+  `runpy.run_path(..., run_name='__main__')` and must replay buffered stdin
+  for each guard so canonical guard contracts remain unchanged. A bug in
+  stdin replay or guard ordering can reject valid tool calls; mitigate with
+  runtime-contract tests that cover multi-guard matches and payload replay.
 
 ### Neutral
 
@@ -192,7 +191,7 @@ route correctness against the full installed guard set, not a sample.
 
 | Component | Dependency Type | Required Update | Risk |
 |-----------|----------------|-----------------|------|
-| `build/scripts/generate_hooks.py` | Direct | Replace per-matcher shim emission with per-event dispatcher emission; import guard bodies by source path | High (load-bearing) |
+| `build/scripts/generate_hooks.py` | Direct | Replace per-matcher shim emission with per-event dispatcher emission; execute matched guards via `runpy.run_path` in `__main__` context | High (load-bearing) |
 | `src/copilot-cli/hooks/**` | Direct | Regenerated tree shape changes: one file per event instead of N | Medium (gated by ADR-061 CI drift check) |
 | `tests/build_scripts/test_generate_hooks.py` | Direct | New parametrized tests covering dispatcher routing, fail-closed on malformed input, budget enforcement, and guard isolation | High (must cover full installed guard set, not samples) |
 | `.agents/governance/GENERATOR-FILES.md` | Indirect | Document dispatcher pattern alongside per-matcher-shim history | Low |
@@ -205,20 +204,21 @@ route correctness against the full installed guard set, not a sample.
 The implementer agent should treat this as a generator-only change with a
 test-first reproduction:
 
-1. **Failing test first.** Add a regression test that constructs a synthetic
-   `hooks.json` with 40 `PreToolUse` entries and measures aggregate spawn
-   cost via `subprocess.run`. The test asserts the dispatcher pattern keeps
-   per-call wall-clock under 1500 ms with the full installed guard set.
-   The same shape currently fails on `main` (cold-start floor).
+1. **Failing test first.** Add regression tests that construct a synthetic
+   `hooks.json` with 40 `PreToolUse` entries and assert structural behavior:
+   one generated Copilot dispatcher entry per event, matcher-equivalent
+   routing, and deterministic guard order. Keep timing checks non-blocking
+   (diagnostic benchmark only) to avoid CI flake from host variability.
 2. **Generator change.** In `generate_hooks.py`, replace the per-matcher
    shim loop with a per-event dispatcher emission. The dispatcher template
    embeds `_shim_classify` (the runtime mirror of `classify_matcher`) once
    and dispatches a list of `(matcher, guard_module_path)` tuples.
-3. **Guard body loading.** The dispatcher resolves guard paths under
+3. **Guard execution model.** The dispatcher resolves guard paths under
    `${COPILOT_PLUGIN_ROOT}` with `${CLAUDE_PLUGIN_ROOT}` fallback (matching
-   the existing per-shim resolution). Guards execute in-process via
-   `importlib.util.spec_from_file_location` + `exec_module`. Each guard's
-   `if __name__ == '__main__'` block runs once per matched dispatch.
+   the existing per-shim resolution). Buffer stdin once at dispatcher entry,
+   then replay the same payload before each matched guard. Execute each guard
+   via `runpy.run_path(path, run_name='__main__')` so existing
+   `if __name__ == '__main__'` paths run without requiring guard rewrites.
 4. **Budget enforcement.** Use `signal.SIGALRM` on POSIX and a watchdog
    thread on Windows. On budget exhaustion the dispatcher exits 2 with a
    stderr line containing `budget_exceeded` for log parseability.
