@@ -1,4 +1,4 @@
-# ADR-067: Consolidated Per-Event Hook Dispatcher
+# ADR-068: Consolidated Per-Event Hook Dispatcher
 
 ## Status
 
