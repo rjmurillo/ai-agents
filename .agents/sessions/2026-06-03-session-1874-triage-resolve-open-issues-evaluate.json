@@ -136,12 +136,29 @@
     {
       "action": "Ran combined affected suites",
       "outcome": "uv run pytest tests/test_get_pr_check_logs.py tests/test_get_pr_checks.py tests/test_auto_retrospective.py: 89 passed"
+    },
+    {
+      "action": "#2304 (P1, new mid-session) fix get_pr_checks.py --wait transient empty rollup; extracted _resolve_status",
+      "outcome": "uv run pytest tests/test_get_pr_checks.py: 48 passed (3 new); fixed in PR #2305"
+    },
+    {
+      "action": "#2295 (P1) in-process Copilot hook dispatcher: .claude/lib/hook_dispatch.py + gated build/scripts/generate_dispatcher.py",
+      "outcome": "uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-067"
+    },
+    {
+      "action": "#2300 installed Copilot plugin hook condition harness (opt-in) + dispatcher-vs-real-shims contract test",
+      "outcome": "RUN_INSTALLED_PLUGIN_HOOK_E2E=1 pytest: dispatcher ran all 29 real installed guards in-process, allowed non-match; harness flagged a real stale _direct install"
+    },
+    {
+      "action": "ADR-067 (DRAFT) single in-process dispatcher for Copilot hooks; adr-review applied",
+      "outcome": "design + fail-closed contract + gated rollout documented"
     }
   ],
   "endingCommit": "eaa4654131463bf8697a7b33f1a8dd58088ac492",
   "nextSteps": [
-    "Merge PR #2305 to auto-close #2291, #2292, #2229, #2302",
-    "Run /adr-review on the #2228 renumbering plan (ADR-058/062 collisions -> 064/065)",
-    "Framework-extraction phases (#1073-1077) blocked until v0.3.1 ships"
+    "Merge PR #2305 to auto-close #2291, #2292, #2229, #2302, #2304",
+    "adr-review consensus on ADR-067, then wire generate_dispatcher into generate_hooks (gated cutover) + RUN_INSTALLED_PLUGIN_HOOK_E2E on real Copilot before flipping hooks.json",
+    "Operator: remove stale ~/.copilot/installed-plugins/_direct/project-toolkit (flagged by #2300 harness)",
+    "Run /adr-review on the #2228 ADR renumbering plan (064/065)"
   ]
 }

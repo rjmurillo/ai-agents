@@ -85,6 +85,54 @@
       "content": "Commit: eaa4654131463bf8697a7b33f1a8dd58088ac492",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#2304 (P1, new mid-session) fix get_pr_checks.py --wait transient empty rollup; extracted _resolve_status",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_get_pr_checks.py: 48 passed (3 new); fixed in PR #2305",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#2295 (P1) in-process Copilot hook dispatcher: .claude/lib/hook_dispatch.py + gated build/scripts/generate_dispatcher.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-067",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#2300 installed Copilot plugin hook condition harness (opt-in) + dispatcher-vs-real-shims contract test",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR-067 (DRAFT) single in-process dispatcher for Copilot hooks; adr-review applied",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
