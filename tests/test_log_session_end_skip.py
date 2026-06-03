@@ -95,7 +95,7 @@ class TestMain:
             raise OSError("disk full")
 
         monkeypatch.setattr(mod, "append_event", _raise)
-        # Use /tmp path which is allowed by path validation
+        # Use active temp dir path, which is allowed by path validation.
         rc = mod.main(["--reason", "x", "--log-path", str(tmp_path / "s.jsonl")])
         assert rc == 3
 

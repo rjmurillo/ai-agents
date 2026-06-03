@@ -20,6 +20,7 @@ order, the authoritative registered set, NOT a directory listing), it produces:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 # Mirror contract from build/scripts/generate_hooks.py::_build_copilot_entry:
@@ -49,6 +50,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
+_MAX_STDIN_BYTES = 2 * 1024 * 1024
+
 
 def _main() -> int:
     try:
@@ -60,8 +63,23 @@ def _main() -> int:
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
-        raw = sys.stdin.buffer.read()
-        return run_dispatch(event_dir, shims, raw)
+        timeouts = manifest.get("timeouts", {})
+        if not isinstance(timeouts, dict):
+            raise TypeError("manifest field 'timeouts' must be a dict when present")
+        shim_timeouts = {}
+        for shim in shims:
+            if not isinstance(shim, str):
+                raise TypeError("manifest field 'shims' must contain strings")
+            if shim not in timeouts:
+                continue
+            timeout_sec = int(timeouts[shim])
+            if timeout_sec <= 0:
+                raise ValueError(f"manifest timeout for {shim} must be positive")
+            shim_timeouts[shim] = timeout_sec
+        raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
+        if len(raw) > _MAX_STDIN_BYTES:
+            raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
+        return run_dispatch(event_dir, shims, raw, shim_timeouts)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(
             f"hook-dispatch-entrypoint: {type(exc).__name__}: {exc}; denying (fail-closed)",
@@ -85,11 +103,23 @@ def dispatcher_entry(event: str, timeout_sec: int) -> dict:
     }
 
 
-def write_manifest(event_dir: Path, event: str, shim_names: list[str]) -> Path:
+def write_manifest(
+    event_dir: Path,
+    event: str,
+    shim_names: list[str],
+    shim_timeouts: dict[str, int] | None = None,
+) -> Path:
     """Write the ordered shim manifest next to the shims; return its path."""
     manifest_path = event_dir / "_manifest.json"
+    manifest = {"event": event, "shims": list(shim_names)}
+    if shim_timeouts is not None:
+        manifest["timeouts"] = {
+            name: int(shim_timeouts[name])
+            for name in shim_names
+            if name in shim_timeouts
+        }
     manifest_path.write_text(
-        json.dumps({"event": event, "shims": list(shim_names)}, indent=2) + "\n",
+        json.dumps(manifest, indent=2) + "\n",
         encoding="utf-8",
     )
     return manifest_path
@@ -103,14 +133,68 @@ def write_entrypoint(event_dir: Path) -> Path:
 
 
 def emit_dispatcher(
-    event_dir: Path, event: str, shim_names: list[str], timeout_sec: int
+    event_dir: Path,
+    event: str,
+    shim_names: list[str],
+    timeout_sec: int,
+    shim_timeouts: dict[str, int] | None = None,
 ) -> dict:
     """Write manifest + entrypoint and return the single hooks.json entry.
 
-    ``timeout_sec`` should be the max of the per-shim timeouts the dispatcher
-    replaces, so the consolidated entry is at least as generous as any shim it
-    runs.
+    ``timeout_sec`` should be the sum of the per-shim timeouts the dispatcher
+    replaces, so the consolidated entry preserves the cumulative budget from
+    the separate host invocations.
     """
-    write_manifest(event_dir, event, shim_names)
+    write_manifest(event_dir, event, shim_names, shim_timeouts)
     write_entrypoint(event_dir)
     return dispatcher_entry(event, timeout_sec)
+
+
+# Only the tool-gating event is consolidated: it is the one with the measured
+# spawn-storm timeout (#2295). PreToolUse short-circuits on the first denial,
+# which is correct for tool gating. Observational events (PostToolUse,
+# SessionStart, SessionEnd, UserPromptSubmit) keep per-shim entries; the host
+# runs all of them and a single-process short-circuit would change that. Both
+# casings are handled (Copilot event-name casing differs across generations).
+_CONSOLIDATE_EVENTS = ("PreToolUse", "preToolUse")
+_DEFAULT_TIMEOUT_SEC = 5
+_SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)(?!\.\w)")
+
+
+def _shim_basename(command: str) -> str | None:
+    """Extract the ``<name>.py`` basename from a generated hook command."""
+    match = _SCRIPT_RE.search(command or "")
+    return match.group(1) if match else None
+
+
+def consolidate(out: dict, hooks_dir: Path) -> dict:
+    """Collapse the tool-gating event's per-shim entries to one dispatcher entry.
+
+    ``out`` is the generator's ``{event: [entry, ...]}`` map. For the gating
+    event this writes ``_manifest.json`` + ``_dispatch.py`` into
+    ``hooks_dir/<event>/`` and returns a new map with a single dispatcher entry
+    for that event; all other events pass through unchanged. The shim order is
+    the registered hooks.json order (authoritative) and the consolidated
+    ``timeoutSec`` is the sum of the per-shim timeouts.
+    """
+    new_out: dict = {}
+    for event, entries in out.items():
+        if event not in _CONSOLIDATE_EVENTS:
+            new_out[event] = entries
+            continue
+        shim_entries = [
+            (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
+            for entry in entries
+            if (name := _shim_basename(entry.get("bash", "")))
+        ]
+        if not shim_entries:
+            new_out[event] = entries
+            continue
+        shim_names = [name for name, _ in shim_entries]
+        shim_timeouts = dict(shim_entries)
+        timeout = sum(timeout_sec for _, timeout_sec in shim_entries)
+        event_dir = Path(hooks_dir) / event
+        new_out[event] = [
+            emit_dispatcher(event_dir, event, shim_names, timeout, shim_timeouts)
+        ]
+    return new_out

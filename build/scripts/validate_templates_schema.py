@@ -83,6 +83,7 @@ HOOKS_KEYS = {
     "eventDrop",
     "matcherPolicy",
     "versionField",
+    "dispatcher",
 }
 ARTIFACT_DISPATCH = {
     "agents": AGENTS_KEYS,
