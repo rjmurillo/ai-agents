@@ -1023,6 +1023,208 @@ class TestPassWhenPythonBroadException:
         assert "fails closed" in result["criteria"][0]["reason"]
 
 
+class TestIssue2303MergeReadyContradiction:
+    """Regression for issue #2303.
+
+    The /pr-review completion gate's "PR is ready to merge" criterion
+    used to duplicate merge-readiness logic on top of
+    test_pr_merge_ready.py's output and added an extra
+    ``MergeStateStatus in ('CLEAN', 'UNSTABLE')`` clause. The upstream
+    script's _evaluate_pr_state explicitly documents that
+    ``MergeStateStatus == 'BLOCKED'`` (awaiting required review) is NOT
+    a blocker — auto-merge is the correct action there, so the upstream
+    returns ``CanMerge=True`` with ``MergeStateStatus='BLOCKED'``.
+
+    The old lambda rejected that valid ready state and produced the
+    contradictory signal observed on PR #2283: upstream says ready,
+    gate says blocked. The fix delegates to ``CanMerge`` (single source
+    of truth) and keeps ``fetched_pages_complete == true`` to fail
+    closed on partial fetches.
+    """
+
+    # Production-shape lambda. Mirrors .claude/commands/pr-review-config.yaml.
+    # If this string drifts from the prod config, the
+    # test_prod_config_predicate_matches assertion below catches it.
+    _PROD_LAMBDA = (
+        "lambda d: d.get('CanMerge') == True "
+        "and d.get('fetched_pages_complete') == True"
+    )
+
+    def _ready(self, **overrides):
+        """Build a test_pr_merge_ready-shaped dict (canmerge=true case)."""
+        base = {
+            "Success": True,
+            "CanMerge": True,
+            "State": "OPEN",
+            "IsDraft": False,
+            "Mergeable": "MERGEABLE",
+            "MergeStateStatus": "CLEAN",
+            "UnresolvedThreads": 0,
+            "CIPassing": True,
+            "fetched_pages_complete": True,
+            "Reasons": [],
+        }
+        base.update(overrides)
+        return base
+
+    def test_canmerge_true_with_blocked_state_passes(
+        self, repo_root, tmp_path, capsys,
+    ):
+        """The core #2303 case: BLOCKED is a valid ready state."""
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "PR is ready to merge",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": self._PROD_LAMBDA,
+                    "fail_open": False,
+                },
+            ],
+        )
+        # Awaiting required review -> upstream says ready, MergeState=BLOCKED
+        upstream = self._ready(MergeStateStatus="BLOCKED")
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps(upstream)),
+        ):
+            rc = _dispatcher.main(
+                [
+                    "--config", str(config_path),
+                    "--pull-request", "2283",
+                    "--json",
+                ],
+            )
+        assert rc == 0, "BLOCKED with CanMerge=True must not false-fail"
+        result = json.loads(capsys.readouterr().out)
+        assert result["all_passed"] is True
+
+    def test_canmerge_true_with_clean_state_passes(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "PR is ready to merge",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": self._PROD_LAMBDA,
+                    "fail_open": False,
+                },
+            ],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps(self._ready())),
+        ):
+            rc = _dispatcher.main(
+                [
+                    "--config", str(config_path),
+                    "--pull-request", "1",
+                    "--json",
+                ],
+            )
+        assert rc == 0
+
+    def test_canmerge_false_fails_with_explicit_blockers(
+        self, repo_root, tmp_path, capsys,
+    ):
+        """Acceptance #3: gate output names concrete blockers, not just keys."""
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "PR is ready to merge",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": self._PROD_LAMBDA,
+                    "fail_open": False,
+                },
+            ],
+        )
+        upstream = self._ready(
+            CanMerge=False,
+            Mergeable="CONFLICTING",
+            Reasons=["PR has merge conflicts"],
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps(upstream)),
+        ):
+            rc = _dispatcher.main(
+                [
+                    "--config", str(config_path),
+                    "--pull-request", "1",
+                    "--json",
+                ],
+            )
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        criterion = result["criteria"][0]
+        assert criterion["passed"] is False
+        # Concrete blocker surfaced (acceptance criterion #3), not just key list.
+        assert "PR has merge conflicts" in criterion["reason"], (
+            f"reason must name the blocker, got: {criterion['reason']!r}"
+        )
+
+    def test_partial_fetch_still_fails_closed(
+        self, repo_root, tmp_path, capsys,
+    ):
+        """fetched_pages_complete=false must still gate, even if CanMerge=true."""
+        config_path = _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "PR is ready to merge",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": self._PROD_LAMBDA,
+                    "fail_open": False,
+                },
+            ],
+        )
+        upstream = self._ready(fetched_pages_complete=False)
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps(upstream)),
+        ):
+            rc = _dispatcher.main(
+                [
+                    "--config", str(config_path),
+                    "--pull-request", "1",
+                    "--json",
+                ],
+            )
+        assert rc == 1
+
+    def test_prod_config_predicate_matches(self):
+        """Catch drift between this regression test and the prod config.
+
+        If someone edits the prod lambda without updating these tests,
+        we want the test suite to fail fast rather than silently pass
+        on stale logic.
+        """
+        import yaml as _yaml
+        config_path = (
+            _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+        )
+        config = _yaml.safe_load(config_path.read_text())
+        criteria = config["completion_criteria"]
+        merge_ready = next(
+            c for c in criteria
+            if c.get("name", "").startswith("PR is ready to merge")
+        )
+        # Normalise whitespace for the comparison.
+        prod = " ".join(merge_ready["pass_when_python"].split())
+        expected = " ".join(self._PROD_LAMBDA.split())
+        assert prod == expected, (
+            "prod pass_when_python drifted from regression-test fixture; "
+            f"update both deliberately.\nprod:     {prod!r}\nexpected: {expected!r}"
+        )
+
+
 class TestTableModeShowsEvidence:
     """Per CodeRabbit: the non-JSON path also needs to surface the
     verifier's command and stdout/stderr so an operator triaging from

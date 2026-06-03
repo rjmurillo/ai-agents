@@ -539,6 +539,19 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
 
     result["passed"] = verdict
     if not verdict:
+        # Prefer the upstream verifier's own structured blocker list when it
+        # provides one (e.g. test_pr_merge_ready.py emits ``Reasons``). This
+        # closes the acceptance-criterion gap noted on issue #2303: a failing
+        # gate must name concrete blockers, not just dump dict keys, so a
+        # human or autofix agent has something actionable to act on.
+        reasons = parsed.get("Reasons")
+        if isinstance(reasons, list) and reasons:
+            cleaned = [str(r) for r in reasons if r]
+            if cleaned:
+                result["reason"] = (
+                    f"pass_when evaluated false; blockers: {cleaned}"
+                )
+                return result
         result["reason"] = (
             f"pass_when evaluated false; stdout-json keys: "
             f"{sorted(parsed.keys())}"
