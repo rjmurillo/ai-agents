@@ -34,10 +34,20 @@ def workflow() -> dict:
     return yaml.safe_load(WORKFLOW.read_text())
 
 
+def _step_string(step: dict, key: str) -> str:
+    value = step.get(key)
+    return value if isinstance(value, str) else ""
+
+
+def _step_mapping(step: dict, key: str) -> dict:
+    value = step.get(key)
+    return value if isinstance(value, dict) else {}
+
+
 def _fetch_metadata_step(workflow: dict) -> dict:
     job = workflow["jobs"]["dependabot"]
     for step in job["steps"]:
-        uses = step.get("uses", "")
+        uses = _step_string(step, "uses")
         if uses.startswith("dependabot/fetch-metadata@"):
             return step
     raise AssertionError("dependabot/fetch-metadata step not found")
@@ -46,7 +56,7 @@ def _fetch_metadata_step(workflow: dict) -> dict:
 def test_fetch_metadata_uses_github_token(workflow: dict) -> None:
     """Positive: fetch-metadata is wired to secrets.GITHUB_TOKEN."""
     step = _fetch_metadata_step(workflow)
-    token = step.get("with", {}).get("github-token", "")
+    token = _step_mapping(step, "with").get("github-token", "")
     assert token == "${{ secrets.GITHUB_TOKEN }}", (
         f"fetch-metadata must use secrets.GITHUB_TOKEN (always available "
         f"in Dependabot PR context), got: {token!r}. See #2307."
@@ -60,11 +70,34 @@ def test_fetch_metadata_does_not_use_pr_write_pat(workflow: dict) -> None:
     'github-token is not set!' failure mode from #2307.
     """
     step = _fetch_metadata_step(workflow)
-    token = step.get("with", {}).get("github-token", "")
+    token = _step_mapping(step, "with").get("github-token", "")
     assert "GH_ACTIONS_PR_WRITE" not in token, (
         "fetch-metadata must not depend on GH_ACTIONS_PR_WRITE; it is "
         "empty in Dependabot PR contexts. See #2307."
     )
+
+
+def test_yaml_null_fields_do_not_break_token_checks() -> None:
+    """Edge: explicit YAML nulls are treated like missing optional fields."""
+    workflow = {
+        "jobs": {
+            "dependabot": {
+                "steps": [
+                    {"uses": None, "with": None, "env": None},
+                    {
+                        "uses": "dependabot/fetch-metadata@"
+                        "08eff52bf64351f401fb50d4972fa95b9f2c2d1b",
+                        "with": {"github-token": "${{ secrets.GITHUB_TOKEN }}"},
+                    },
+                ]
+            }
+        }
+    }
+
+    step = _fetch_metadata_step(workflow)
+    token = _step_mapping(step, "with").get("github-token", "")
+
+    assert token == "${{ secrets.GITHUB_TOKEN }}"
 
 
 def test_approve_and_merge_steps_still_use_pat(workflow: dict) -> None:
@@ -80,7 +113,7 @@ def test_approve_and_merge_steps_still_use_pat(workflow: dict) -> None:
     ]
     assert len(write_steps) == 2, "expected Approve PR + Enable auto-merge steps"
     for step in write_steps:
-        gh_token = step.get("env", {}).get("GH_TOKEN", "")
+        gh_token = _step_mapping(step, "env").get("GH_TOKEN", "")
         assert "GH_ACTIONS_PR_WRITE" in gh_token, (
             f"{step['name']!r} must use GH_ACTIONS_PR_WRITE PAT for "
             f"ruleset-compliant reviews; got: {gh_token!r}"
