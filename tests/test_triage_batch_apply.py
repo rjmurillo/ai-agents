@@ -1,0 +1,283 @@
+"""Tests for scripts.triage_batch_apply.
+
+Covers the Phase 3 batch executor (issue #2261): the human-approval gate (no
+mutation without approved manifest plus --apply), idempotent skipping when an
+issue is already in the target state, partial-failure handling that does not
+abort the rest, and the CLI entry point. GitHub I/O is mocked at the gateway
+boundary with a fake; domain logic is never mocked.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+from pathlib import Path
+
+from scripts.triage_batch_apply import (
+    ACTION_BATCH,
+    ACTION_CLOSE,
+    ACTION_PRIORITIZE,
+    ACTION_RELABEL,
+    OUTCOME_APPLIED,
+    OUTCOME_FAILED,
+    OUTCOME_PLANNED,
+    OUTCOME_SKIPPED,
+    IssueState,
+    ManifestAction,
+    apply_action,
+    is_mutation_authorized,
+    main,
+    parse_actions,
+    run_batch,
+)
+
+
+class FakeGateway:
+    """In-memory GitHub gateway. Records every mutation and serves fixed state."""
+
+    def __init__(
+        self,
+        states: dict[int, IssueState] | None = None,
+        *,
+        close_ok: bool = True,
+        label_ok: bool = True,
+    ) -> None:
+        self._states = states or {}
+        self._close_ok = close_ok
+        self._label_ok = label_ok
+        self.closed: list[int] = []
+        self.labeled: list[tuple[int, tuple[str, ...]]] = []
+
+    def get_issue_state(self, issue: int) -> IssueState | None:
+        return self._states.get(issue)
+
+    def close_issue(self, issue: int) -> bool:
+        self.closed.append(issue)
+        return self._close_ok
+
+    def add_labels(self, issue: int, labels: Sequence[str]) -> bool:
+        self.labeled.append((issue, tuple(labels)))
+        return self._label_ok
+
+
+def _open(issue: int, labels: tuple[str, ...] = ()) -> IssueState:
+    return IssueState(number=issue, state="OPEN", labels=frozenset(labels))
+
+
+def _closed(issue: int, labels: tuple[str, ...] = ()) -> IssueState:
+    return IssueState(number=issue, state="CLOSED", labels=frozenset(labels))
+
+
+def _manifest(actions: list[dict], *, approved: bool) -> dict:
+    return {"version": 1, "approved": approved, "issues_triaged": len(actions), "actions": actions}
+
+
+def _write_manifest(path: Path, actions: list[dict], *, approved: bool) -> Path:
+    path.write_text(json.dumps(_manifest(actions, approved=approved)), encoding="utf-8")
+    return path
+
+
+class TestApprovalGate:
+    def test_authorized_only_when_approved_and_apply(self):
+        assert is_mutation_authorized({"approved": True}, True) is True
+
+    def test_not_authorized_without_apply(self):
+        assert is_mutation_authorized({"approved": True}, False) is False
+
+    def test_not_authorized_without_approval(self):
+        assert is_mutation_authorized({"approved": False}, True) is False
+
+    def test_not_authorized_when_approved_missing(self):
+        assert is_mutation_authorized({}, True) is False
+
+
+class TestApplyActionDryRun:
+    def test_close_plans_without_mutating(self):
+        gw = FakeGateway({5: _open(5)})
+        action = ManifestAction(issue=5, category=ACTION_CLOSE)
+        outcome = apply_action(action, gw, mutate=False)
+        assert outcome.outcome == OUTCOME_PLANNED
+        assert gw.closed == []
+
+    def test_relabel_plans_without_mutating(self):
+        gw = FakeGateway({6: _open(6)})
+        action = ManifestAction(issue=6, category=ACTION_RELABEL, labels=("agent-qa",))
+        outcome = apply_action(action, gw, mutate=False)
+        assert outcome.outcome == OUTCOME_PLANNED
+        assert gw.labeled == []
+
+
+class TestApplyActionMutate:
+    def test_close_open_issue_applies(self):
+        gw = FakeGateway({5: _open(5)})
+        outcome = apply_action(ManifestAction(issue=5, category=ACTION_CLOSE), gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_relabel_adds_missing_label(self):
+        gw = FakeGateway({6: _open(6, labels=("bug",))})
+        action = ManifestAction(issue=6, category=ACTION_RELABEL, labels=("agent-qa",))
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.labeled == [(6, ("agent-qa",))]
+
+    def test_prioritize_adds_priority_label(self):
+        gw = FakeGateway({7: _open(7)})
+        action = ManifestAction(issue=7, category=ACTION_PRIORITIZE, priority="P1")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.labeled == [(7, ("priority:P1",))]
+
+
+class TestIdempotency:
+    def test_close_already_closed_is_noop(self):
+        gw = FakeGateway({5: _closed(5)})
+        outcome = apply_action(ManifestAction(issue=5, category=ACTION_CLOSE), gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "already closed" in outcome.detail
+        assert gw.closed == []
+
+    def test_relabel_when_label_present_is_noop(self):
+        gw = FakeGateway({6: _open(6, labels=("agent-qa",))})
+        action = ManifestAction(issue=6, category=ACTION_RELABEL, labels=("agent-qa",))
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert gw.labeled == []
+
+    def test_relabel_adds_only_missing_labels(self):
+        gw = FakeGateway({6: _open(6, labels=("agent-qa",))})
+        action = ManifestAction(
+            issue=6, category=ACTION_RELABEL, labels=("agent-qa", "agent-implementer"),
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.labeled == [(6, ("agent-implementer",))]
+
+    def test_rerun_after_apply_is_noop(self):
+        # First run closes the issue; a re-run against the now-closed state mutates nothing.
+        gw = FakeGateway({5: _open(5)})
+        action = ManifestAction(issue=5, category=ACTION_CLOSE)
+        apply_action(action, gw, mutate=True)
+        gw_second = FakeGateway({5: _closed(5)})
+        outcome = apply_action(action, gw_second, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert gw_second.closed == []
+
+
+class TestAdvisoryAndUnknown:
+    def test_batch_is_advisory_skip(self):
+        gw = FakeGateway({1: _open(1)})
+        outcome = apply_action(ManifestAction(issue=1, category=ACTION_BATCH), gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "advisory" in outcome.detail
+
+    def test_missing_issue_is_skipped(self):
+        gw = FakeGateway({})
+        outcome = apply_action(ManifestAction(issue=99, category=ACTION_CLOSE), gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "not found" in outcome.detail
+
+
+class TestPartialFailure:
+    def test_one_failure_does_not_abort_the_rest(self):
+        gw = FakeGateway({1: _open(1), 2: _open(2)}, close_ok=False)
+        actions = [
+            ManifestAction(issue=1, category=ACTION_CLOSE),
+            ManifestAction(issue=2, category=ACTION_RELABEL, labels=("agent-qa",)),
+        ]
+        outcomes = run_batch(actions, gw, mutate=True)
+        assert outcomes[0].outcome == OUTCOME_FAILED
+        assert outcomes[1].outcome == OUTCOME_APPLIED
+        assert gw.labeled == [(2, ("agent-qa",))]
+
+
+class TestParseActions:
+    def test_drops_invalid_entries(self):
+        manifest = {
+            "actions": [
+                {"issue": 1, "category": "close"},
+                {"category": "close"},          # missing issue
+                {"issue": "x", "category": "close"},  # non-int issue
+                {"issue": 2, "category": ""},    # empty category
+                "not-a-dict",
+            ],
+        }
+        actions = parse_actions(manifest)
+        assert [a.issue for a in actions] == [1]
+
+
+class TestMain:
+    def test_dry_run_does_not_mutate(self, tmp_path: Path, capsys):
+        manifest_path = _write_manifest(
+            tmp_path / "m.json",
+            [{"issue": 5, "category": ACTION_CLOSE}],
+            approved=True,
+        )
+        gw = FakeGateway({5: _open(5)})
+        rc = main(["--manifest", str(manifest_path)], gateway=gw)
+        assert rc == 0
+        assert gw.closed == []
+        assert "DRY-RUN" in capsys.readouterr().out
+
+    def test_apply_without_approval_does_not_mutate(self, tmp_path: Path, capsys):
+        manifest_path = _write_manifest(
+            tmp_path / "m.json",
+            [{"issue": 5, "category": ACTION_CLOSE}],
+            approved=False,
+        )
+        gw = FakeGateway({5: _open(5)})
+        rc = main(["--manifest", str(manifest_path), "--apply"], gateway=gw)
+        assert rc == 0
+        assert gw.closed == []
+        assert "not approved" in capsys.readouterr().err
+
+    def test_approved_apply_mutates(self, tmp_path: Path):
+        manifest_path = _write_manifest(
+            tmp_path / "m.json",
+            [{"issue": 5, "category": ACTION_CLOSE}],
+            approved=True,
+        )
+        gw = FakeGateway({5: _open(5)})
+        rc = main(["--manifest", str(manifest_path), "--apply"], gateway=gw)
+        assert rc == 0
+        assert gw.closed == [5]
+
+    def test_missing_manifest_is_config_error(self, tmp_path: Path, capsys):
+        rc = main(["--manifest", str(tmp_path / "absent.json")])
+        assert rc == 2
+        assert "cannot read manifest" in capsys.readouterr().err
+
+    def test_malformed_manifest_is_config_error(self, tmp_path: Path, capsys):
+        path = tmp_path / "m.json"
+        path.write_text("{not json", encoding="utf-8")
+        rc = main(["--manifest", str(path)])
+        assert rc == 2
+        assert "not valid JSON" in capsys.readouterr().err
+
+    def test_manifest_without_actions_array_is_config_error(self, tmp_path: Path, capsys):
+        path = tmp_path / "m.json"
+        path.write_text(json.dumps({"approved": True}), encoding="utf-8")
+        rc = main(["--manifest", str(path)])
+        assert rc == 2
+        assert "'actions' array" in capsys.readouterr().err
+
+    def test_failure_returns_external_error(self, tmp_path: Path, capsys):
+        manifest_path = _write_manifest(
+            tmp_path / "m.json",
+            [{"issue": 5, "category": ACTION_CLOSE}],
+            approved=True,
+        )
+        gw = FakeGateway({5: _open(5)}, close_ok=False)
+        rc = main(["--manifest", str(manifest_path), "--apply"], gateway=gw)
+        assert rc == 3
+        assert "failed against the GitHub API" in capsys.readouterr().err
+
+    def test_apply_authorized_without_owner_repo_is_config_error(self, tmp_path: Path, capsys):
+        manifest_path = _write_manifest(
+            tmp_path / "m.json",
+            [{"issue": 5, "category": ACTION_CLOSE}],
+            approved=True,
+        )
+        rc = main(["--manifest", str(manifest_path), "--apply"])
+        assert rc == 2
+        assert "owner" in capsys.readouterr().err
