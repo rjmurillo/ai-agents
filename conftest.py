@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -9,6 +10,15 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 _REAL_REPO_EXPECTED_HEAD: str | None = None
+_GIT_ENV_OVERRIDES = {"GIT_COMMON_DIR", "GIT_DIR", "GIT_INDEX_FILE", "GIT_WORK_TREE"}
+
+
+def _git_env() -> dict[str, str]:
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if key not in _GIT_ENV_OVERRIDES
+    }
 
 
 def _real_repo_head() -> str | None:
@@ -17,6 +27,7 @@ def _real_repo_head() -> str | None:
             ["git", "rev-parse", "HEAD"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
+            env=_git_env(),
             text=True,
             timeout=10,
         )
