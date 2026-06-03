@@ -47,7 +47,11 @@ def _install_stdin(raw: bytes) -> None:
     by the matcher-shim layer) and ``.read()``/``.isatty()`` (read by a wrapped
     original hook), so a shim and the original it wraps see the same bytes.
     """
-    sys.stdin = io.TextIOWrapper(io.BufferedReader(io.BytesIO(raw)))
+    sys.stdin = io.TextIOWrapper(
+        io.BufferedReader(io.BytesIO(raw)),
+        encoding="utf-8",
+        errors="strict",
+    )
 
 
 def _exit_code(exc: SystemExit) -> int:

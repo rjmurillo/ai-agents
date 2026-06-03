@@ -388,7 +388,7 @@ def _resolve_status(
     if checks_incomplete:
         return (
             f"PR #{number}: checks still unavailable after {timeout_seconds}s "
-            f"(transient empty rollup, not 'no checks configured')",
+            "(empty rollup; not treated as passing)",
             "WARNING",
         )
     if output["FailedCount"] > 0:

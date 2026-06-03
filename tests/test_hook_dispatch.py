@@ -85,6 +85,36 @@ class TestRunDispatch:
         for line in rec.read_text().splitlines():
             assert line.split(":", 1)[1] == payload.decode()
 
+    def test_text_mode_stdin_decodes_utf8(self, tmp_path):
+        rec = tmp_path / "rec.txt"
+        payload_text = '{"message":"snowman ☃"}'
+        names = [
+            _write_shim(
+                tmp_path,
+                "text.py",
+                "import sys\n"
+                f"open(r'{rec}', 'w', encoding='utf-8').write(sys.stdin.read())\n",
+            ),
+        ]
+
+        rc = run_dispatch(tmp_path, names, payload_text.encode("utf-8"))
+
+        assert rc == 0
+        assert rec.read_text(encoding="utf-8") == payload_text
+
+    def test_invalid_utf8_stdin_fails_closed(self, tmp_path):
+        names = [
+            _write_shim(
+                tmp_path,
+                "text.py",
+                "import sys\nsys.stdin.read()\n",
+            ),
+        ]
+
+        rc = run_dispatch(tmp_path, names, b"\xff")
+
+        assert rc == 2
+
     def test_missing_shim_fails_closed(self, tmp_path):
         names = [_write_shim(tmp_path, "a.py", _recorder_shim("a", tmp_path / "r", 0)),
                  "does_not_exist.py"]
