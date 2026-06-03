@@ -25,10 +25,28 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
 DEFAULT_LOG_PATH = Path(".agents/sessions/session-end-skips.jsonl")
+
+
+def candidate_temp_roots() -> list[Path]:
+    """Return temp roots accepted for explicit skip-log paths."""
+    roots: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in (os.environ.get("TMPDIR"), tempfile.gettempdir()):
+        if not candidate:
+            continue
+        try:
+            root = Path(candidate).resolve()
+        except OSError:
+            continue
+        if root.exists() and root not in seen:
+            seen.add(root)
+            roots.append(root)
+    return roots
 
 
 def build_event(reason: str, session_id: str | None = None) -> dict[str, str]:
@@ -83,10 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         project_root = Path(__file__).resolve().parent.parent
         log_path = Path(args.log_path).resolve()
-        # Validate path safety using is_relative_to (CWE-22)
-        # Allow project root or /tmp for CI use cases
-        if not (log_path.is_relative_to(project_root) or log_path.is_relative_to("/tmp")):
-            print(f"error: path traversal detected or unauthorized path: {args.log_path}", file=sys.stderr)
+        allowed_roots = [project_root, *candidate_temp_roots()]
+        if not any(log_path.is_relative_to(root) for root in allowed_roots):
+            print(
+                f"error: path traversal detected or unauthorized path: {args.log_path}",
+                file=sys.stderr,
+            )
             return 2
     except Exception as e:
         print(f"error: invalid path: {e}", file=sys.stderr)
