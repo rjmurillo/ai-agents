@@ -448,7 +448,14 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
 
     # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
     # Open with "a+b" to atomically create if missing, then lock before any read/write
-    row = f"| {today} | {filename} | Auto-generated session retro |"
+    # INDEX.md lives in docs/retros/; retro files live in .agents/retrospective/.
+    # Emit a relative link from the index dir to the file so navigation resolves
+    # (bare filename resolves against docs/retros/, where the file does not exist). See #2229.
+    row = (
+        f"| {today} | "
+        f"[{filename}](../../.agents/retrospective/{filename}) | "
+        f"Auto-generated session retro |"
+    )
     with open(index_path, "a+b") as f:
         if _lock_file is not None:
             _lock_file(f)
