@@ -91,7 +91,7 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_not_authenticated_exits_4(self):
+    def test_not_authenticated_exits_4(self, capsys):
         with patch(
             "get_pull_requests.assert_gh_authenticated",
             side_effect=SystemExit(4),
@@ -99,6 +99,10 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 4
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Code"] == 4
+        assert payload["Error"]["Type"] == "AuthError"
 
     def test_success_open_prs(self, capsys):
         prs = [_pr(1, "First"), _pr(2, "Second")]
@@ -137,7 +141,7 @@ class TestMain:
         assert len(output) == 1
         assert output[0]["state"] == "MERGED"
 
-    def test_api_error_exits_3(self):
+    def test_api_error_exits_3(self, capsys):
         with patch(
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
@@ -150,6 +154,9 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "ApiError"
 
     def test_empty_results(self, capsys):
         with patch(
@@ -189,7 +196,7 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
         assert len(output) == 1
 
-    def test_invalid_limit_exits_1(self):
+    def test_invalid_limit_exits_1(self, capsys):
         with patch(
             "get_pull_requests.assert_gh_authenticated",
         ), patch(
@@ -199,3 +206,75 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--limit", "0"])
             assert exc.value.code == 2
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "InvalidParams"
+
+    def test_timeout_exits_3(self, capsys):
+        with patch(
+            "get_pull_requests.assert_gh_authenticated",
+        ), patch(
+            "get_pull_requests.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "Timeout"
+
+    def test_gh_missing_exits_3(self, capsys):
+        with patch(
+            "get_pull_requests.assert_gh_authenticated",
+        ), patch(
+            "get_pull_requests.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=FileNotFoundError("gh"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "ApiError"
+
+    def test_malformed_json_exits_3(self, capsys):
+        with patch(
+            "get_pull_requests.assert_gh_authenticated",
+        ), patch(
+            "get_pull_requests.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout="not json", rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "ApiError"
+
+    @pytest.mark.parametrize("payload", ["null", "{}", "42", '"text"'])
+    def test_non_list_root_exits_3(self, payload, capsys):
+        with patch(
+            "get_pull_requests.assert_gh_authenticated",
+        ), patch(
+            "get_pull_requests.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=payload, rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        error = json.loads(capsys.readouterr().out)["Error"]
+        assert error["Code"] == 3
+        assert error["Type"] == "ApiError"

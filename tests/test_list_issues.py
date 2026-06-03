@@ -105,7 +105,7 @@ class TestBuildParser:
 
 
 class TestMain:
-    def test_not_authenticated_exits_4(self):
+    def test_not_authenticated_exits_4(self, capsys):
         with patch(
             "list_issues.assert_gh_authenticated",
             side_effect=SystemExit(4),
@@ -113,6 +113,10 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 4
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Code"] == 4
+        assert payload["Error"]["Type"] == "AuthError"
 
     def test_success_open_issues(self, capsys):
         issues = [
@@ -210,7 +214,7 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert len(output) == 1
 
-    def test_api_error_exits_3(self):
+    def test_api_error_exits_3(self, capsys):
         with patch(
             "list_issues.assert_gh_authenticated",
         ), patch(
@@ -223,8 +227,11 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "ApiError"
 
-    def test_timeout_exits_3(self):
+    def test_timeout_exits_3(self, capsys):
         with patch(
             "list_issues.assert_gh_authenticated",
         ), patch(
@@ -237,8 +244,11 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "Timeout"
 
-    def test_gh_missing_exits_3(self):
+    def test_gh_missing_exits_3(self, capsys):
         with patch(
             "list_issues.assert_gh_authenticated",
         ), patch(
@@ -251,8 +261,11 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "ApiError"
 
-    def test_malformed_json_exits_3(self):
+    def test_malformed_json_exits_3(self, capsys):
         with patch(
             "list_issues.assert_gh_authenticated",
         ), patch(
@@ -265,9 +278,12 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 3
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "ApiError"
 
     @pytest.mark.parametrize("payload", ["null", "{}", "42", '"text"'])
-    def test_non_list_root_exits_3(self, payload):
+    def test_non_list_root_exits_3(self, payload, capsys):
         # gh should always return a JSON array; a non-list root (null,
         # object, scalar) must map to ADR-035 exit code 3, not crash or
         # silently emit an empty list.
@@ -283,6 +299,9 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main([])
             assert exc.value.code == 3
+        error = json.loads(capsys.readouterr().out)["Error"]
+        assert error["Code"] == 3
+        assert error["Type"] == "ApiError"
 
     def test_non_dict_items_skipped(self, capsys):
         # gh should never return scalars, but a malformed response must
@@ -344,7 +363,7 @@ class TestMain:
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["Data"]["issues"] == []
 
-    def test_invalid_limit_exits_2(self):
+    def test_invalid_limit_exits_2(self, capsys):
         with patch(
             "list_issues.assert_gh_authenticated",
         ), patch(
@@ -354,6 +373,9 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--limit", "0"])
             assert exc.value.code == 2
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["Success"] is False
+        assert payload["Error"]["Type"] == "InvalidParams"
 
     def test_missing_author_login_handled(self, capsys):
         # Defensive: gh sometimes returns a null author (deleted user).
