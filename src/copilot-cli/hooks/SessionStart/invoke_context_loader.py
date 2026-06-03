@@ -25,6 +25,7 @@ References:
 from __future__ import annotations
 
 import os
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,6 +63,18 @@ MAX_HANDOFF_CHARS = 4000
 MAX_RETRO_CHARS = 4000
 
 HOOK_NAME = "context-loader"
+
+# Mirror of the marker stamped into unfilled skeletons by the Stop hook
+# (Issue #2079). Canonical source:
+# .claude/hooks/Stop/invoke_auto_retrospective.py, constant
+# ``RETRO_STATE_MARKER``. Quoted verbatim per the canonical-source-mirror
+# rule. A skeleton carries this exact string until a reviewer fills it and
+# removes the marker; this hook counts the unfilled ones to remind the user.
+RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
+
+# Skeletons older than this many days stop nagging (Issue #2079 acceptance:
+# "Cap by date so stale skeletons do not nag forever").
+PENDING_RETRO_MAX_AGE_DAYS = 7
 
 
 def _read_file_truncated(path: Path, max_chars: int) -> str | None:
@@ -108,6 +121,63 @@ def _find_latest_retrospective(retro_dir: Path) -> Path | None:
 
     candidates.sort(key=lambda entry: entry[0], reverse=True)
     return candidates[0][1]
+
+
+def _count_pending_skeletons(
+    retro_dir: Path, max_age_days: int = PENDING_RETRO_MAX_AGE_DAYS
+) -> tuple[int, list[str]]:
+    """Count unfilled retro skeletons within ``max_age_days`` (Issue #2079).
+
+    A skeleton is "pending" when it still carries the RETRO_STATE_MARKER and
+    its mtime is within the window. Returns ``(count, sorted_filenames)``.
+
+    Fail-open: a missing directory yields ``(0, [])``; a per-file stat or read
+    error skips that file rather than aborting the scan, mirroring
+    :func:`_find_latest_retrospective`.
+    """
+    if not retro_dir.is_dir():
+        return 0, []
+
+    try:
+        retro_paths = list(retro_dir.glob("*.md"))
+    except OSError:
+        return 0, []
+
+    cutoff = datetime.now(tz=UTC).timestamp() - max_age_days * 86400
+    pending: list[str] = []
+    for path in retro_paths:
+        try:
+            if path.stat().st_mtime < cutoff:
+                continue
+            with path.open(encoding="utf-8", errors="replace") as handle:
+                head = handle.read(MAX_RETRO_CHARS)
+        except OSError:
+            continue
+        if RETRO_STATE_MARKER in head:
+            pending.append(path.name)
+
+    pending.sort()
+    return len(pending), pending
+
+
+_RETRO_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
+
+
+def _skeleton_dates(filenames: list[str]) -> list[str]:
+    """Extract leading ``YYYY-MM-DD`` dates from skeleton filenames (Issue #2079).
+
+    Auto-retro skeletons are named ``YYYY-MM-DD-auto-retro.md``. The fill
+    reminder needs the date argument for ``/retro fill <date>``. Filenames
+    without a leading date are skipped. Order is preserved; duplicates removed.
+    """
+    seen: set[str] = set()
+    dates: list[str] = []
+    for name in filenames:
+        match = _RETRO_DATE_RE.match(name)
+        if match and match.group(1) not in seen:
+            seen.add(match.group(1))
+            dates.append(match.group(1))
+    return dates
 
 
 def _write_audit_log(project_dir: str, loaded_files: list[str]) -> None:
@@ -173,6 +243,19 @@ def main() -> None:
                 f"{retro_content}"
             )
             loaded_files.append(f"retrospective/{latest_retro.name}")
+
+    # 3. Remind about unfilled retro skeletons (Issue #2079). Surface a count
+    # and the fill command so the next interactive session can complete them.
+    pending_count, pending_names = _count_pending_skeletons(retro_dir)
+    if pending_count:
+        listed = ", ".join(pending_names)
+        fill_dates = ", ".join(_skeleton_dates(pending_names)) or "<date>"
+        output_parts.append(
+            f"## ⏳ {pending_count} retro(s) need completion\n\n"
+            f"Unfilled skeletons (last {PENDING_RETRO_MAX_AGE_DAYS} days): {listed}\n\n"
+            f"Run `/retro fill {fill_dates}` to populate and clear them."
+        )
+        loaded_files.append(f"pending-retros:{pending_count}")
 
     # Output to stdout (injected into Claude's context)
     if output_parts:
