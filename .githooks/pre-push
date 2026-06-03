@@ -847,9 +847,10 @@ fi
     # Issue #2045: gate on canonical changes and pass --ignore for all synced
     # copies (ai_review_common, hook_utilities, github_core in .claude/lib/ and
     # src/copilot-cli/lib/) so pytest collection doesn't trip duplicate-module errors.
-    # PR #2053: override Claude Code session env vars (CLAUDE_PLUGIN_ROOT,
-    # CLAUDE_PROJECT_DIR) for pytest's environment. When pre-push runs from
-    # inside a Claude Code session, those vars leak into the pytest subprocess:
+    # PR #2053: override Git hook and Claude Code session env vars for pytest.
+    # Git exports GIT_DIR/GIT_WORK_TREE to hooks. If pytest inherits them, tests
+    # that create nested git repositories can mutate the branch being pushed.
+    # Claude Code vars also leak into the pytest subprocess:
     #   * CLAUDE_PLUGIN_ROOT points at whichever plugin loaded the active tool
     #     (e.g. context-mode). Several PreToolUse hooks trust it, look for a
     #     sibling lib/ that does not exist there, and sys.exit(2) at module
@@ -866,7 +867,7 @@ fi
         if set_python_cmd; then
             if [ -d "$REPO_ROOT/tests" ]; then
                 TEST_OUTPUT=$(mktemp)
-                if env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
+                if env -u GIT_DIR -u GIT_WORK_TREE -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
                     --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \
                     --ignore="$REPO_ROOT/.claude/lib/hook_utilities" \
                     --ignore="$REPO_ROOT/.claude/lib/github_core" \
