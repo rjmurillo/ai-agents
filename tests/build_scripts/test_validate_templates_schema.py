@@ -60,8 +60,8 @@ artifacts:
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
     eventRemap:
-      PreToolUse: preToolUse
-      PostToolUse: postToolUse
+      PreToolUse: PreToolUse
+      PostToolUse: PostToolUse
     eventDrop:
       - SubagentStop
       - PreCompact

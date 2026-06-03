@@ -40,7 +40,7 @@ jobs:
     outputs:
       python-changed: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.python }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Check for Python file changes
         uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
@@ -89,7 +89,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         if: steps.should-run.outputs.skip != 'true'
 
       - name: Setup code environment
@@ -163,7 +163,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup code environment
         uses: ./.github/actions/setup-code-env
@@ -227,3 +227,40 @@ jobs:
           echo ""
           echo "See the 'python' filter in check-paths job for paths that trigger tests."
           echo "Reference: .github/workflows/pytest.yml"
+
+  # ─── Windows pwsh contract test (fix #2231 item 1) ─────────────────────────
+  # The PowerShell path-resolution contract test is guarded by
+  # `skipif(shutil.which("pwsh") is None)`, so it never runs on Linux ubuntu
+  # runners. Windows is where #2205 was first reported. This job ensures the
+  # pwsh branch of test_generate_hooks_runtime_contract.py runs on an always-on
+  # Windows runner. No auth or external credentials needed: the test is purely
+  # path-resolution (generates hooks into a tmp dir and verifies resolution).
+  test-windows-pwsh:
+    name: Run Python Tests (Windows - pwsh contract)
+    needs: check-paths
+    if: needs.check-paths.outputs.python-changed == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          enable-cache: true
+
+      - name: Run pwsh hook contract tests
+        shell: pwsh
+        run: uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k "powershell"

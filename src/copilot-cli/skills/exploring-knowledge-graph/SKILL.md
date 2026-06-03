@@ -135,6 +135,15 @@ Use [curating-memories](../curating-memories/SKILL.md) instead when:
 - Updating, obsoleting, or linking specific memories
 - Cleaning up duplicate or stale content
 
+## Broader Context Gather
+
+The phases above traverse the Forgetful graph. When graph traversal is one part
+of a wider pre-work context gather across Serena, Context7, DeepWiki, and the
+web, see [references/context-retrieval.md](references/context-retrieval.md) for
+the five-source strategy, the untrusted-content guard, the output structure, and
+the citation discipline. That reference folds in the guidance from the former
+`context-retrieval` agent.
+
 ---
 
 ## Anti-Patterns

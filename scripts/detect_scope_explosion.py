@@ -64,8 +64,55 @@ def get_current_branch() -> str | None:
     return branch if branch else None
 
 
+def _ref_exists(ref: str) -> bool:
+    """Return True if a git ref resolves locally.
+
+    Args:
+        ref: The ref name to check (e.g. "origin/main", "main").
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def resolve_base_ref(base_branch: str) -> str | None:
+    """Resolve the most accurate base ref for diff comparison.
+
+    In a worktree (or any checkout where the local trunk branch lags the
+    remote), the local ``main`` ref can be stale and produce a diff full of
+    files the PR never touched. Prefer ``origin/<base>`` when it exists so the
+    scope check reflects the real PR diff (Issue #2207).
+
+    Resolution order:
+      1. ``origin/<base_branch>`` if the ref exists locally.
+      2. ``<base_branch>`` as a local fallback.
+      3. None if neither resolves.
+
+    Args:
+        base_branch: The plain branch name (e.g. "main").
+
+    Returns:
+        The resolved ref string, or None if no candidate exists.
+    """
+    remote_ref = f"origin/{base_branch}"
+    if _ref_exists(remote_ref):
+        return remote_ref
+    if _ref_exists(base_branch):
+        return base_branch
+    return None
+
+
 def get_merge_base(base_branch: str) -> str | None:
     """Find the merge base between HEAD and the base branch.
+
+    Prefers ``origin/<base_branch>`` over the local branch ref to avoid stale
+    merge bases in worktrees where local ``main`` lags the remote
+    (Issue #2207).
 
     Args:
         base_branch: The branch to compare against (e.g. "main").
@@ -73,8 +120,11 @@ def get_merge_base(base_branch: str) -> str | None:
     Returns:
         Merge base commit SHA, or None if not found.
     """
+    base_ref = resolve_base_ref(base_branch)
+    if base_ref is None:
+        return None
     result = subprocess.run(
-        ["git", "merge-base", "HEAD", base_branch],
+        ["git", "merge-base", "HEAD", base_ref],
         capture_output=True,
         text=True,
         timeout=10,

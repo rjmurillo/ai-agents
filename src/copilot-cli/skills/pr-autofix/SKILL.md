@@ -97,6 +97,29 @@ python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {pr} | 
 python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --pull-request {pr} --enable --merge-method SQUASH
 ```
 
+### Exit-100 sentinel: `test_pr_merged.py`
+
+`test_pr_merged.py` returns exit code **100** (not 0) when the PR IS merged.
+This is the documented contract for the pre-review skip-check use case
+(Skill-PR-Review-007). Treating 100 as a failure causes wasted polling loops
+(observed on PRs #2240, #2269; see issue #2277).
+
+When invoking from autofix code, do ONE of:
+
+```bash
+PR_NUMBER="123"
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" | jq -e '.merged == true'
+```
+
+or:
+
+```bash
+PR_NUMBER="123"
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" --exit-zero-on-merged
+```
+
+The flag returns 0 for both merged and not-merged PRs. JSON payload is unchanged.
+
 ## Completion Gate
 
 Run after all threads resolved and CI passes:

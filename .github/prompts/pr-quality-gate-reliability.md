@@ -24,6 +24,7 @@ Ground findings in the project's reliability artifacts. All paths are under `.cl
 - `slo-designer` skill: invoke when the change defines or affects a reliability target (latency, availability, error rate). It produces SLIs, SLO targets, alerting thresholds, and error-budget calculations.
 - `chaos-experiment` skill: invoke when the change adds a new failure mode worth a game-day or failure-injection plan. It guides steady-state baselines, hypotheses, and injection design.
 - `.claude/rules/release-it.md`: the path-scoped stability-patterns rule (timeouts, retries with backoff and jitter, circuit breakers, bulkheads, bounded queues, idempotency, graceful degradation). Cite the specific section a finding maps to.
+- `.claude/skills/observability/references/distributed-systems-fallacies.md`: the 8 Fallacies of Distributed Computing. Use it to name the failure a cross-boundary call invites: a retry that assumes the request rather than the response was lost (fallacy 1), a chatty loop that ignores latency and transport cost (fallacies 2 and 7), a config that assumes a fixed topology (fallacy 5).
 
 ## Analysis Focus Areas
 

@@ -37,6 +37,57 @@ build_parser = _mod.build_parser
 normalize_check = _mod.normalize_check
 fetch_checks = _mod.fetch_checks
 build_output = _mod.build_output
+dedupe_checks = _mod.dedupe_checks
+
+
+# ---------------------------------------------------------------------------
+# Test helpers
+# ---------------------------------------------------------------------------
+
+
+def _check(name: str, *, passing=False, failing=False, pending=False,
+           required=True, state="COMPLETED", conclusion="", details=""):
+    """Build a normalized check dict for dedupe tests."""
+    return {
+        "Name": name,
+        "Type": "CheckRun",
+        "State": state,
+        "Conclusion": conclusion,
+        "DetailsUrl": details,
+        "IsRequired": required,
+        "IsPending": pending,
+        "IsPassing": passing,
+        "IsFailing": failing,
+    }
+
+
+def _check_run_node(name, status, conclusion, *, required=True):
+    return {
+        "__typename": "CheckRun",
+        "name": name,
+        "status": status,
+        "conclusion": conclusion,
+        "detailsUrl": "",
+        "isRequired": required,
+    }
+
+
+def _rollup_response(nodes, state="FAILURE", number=2201):
+    return {
+        "repository": {
+            "pullRequest": {
+                "number": number,
+                "commits": {
+                    "nodes": [
+                        {"commit": {"statusCheckRollup": {
+                            "state": state,
+                            "contexts": {"nodes": nodes},
+                        }}},
+                    ],
+                },
+            },
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +173,20 @@ class TestNormalizeCheck:
         }
         result = normalize_check(ctx)
         assert result["IsPending"] is True
+
+    @pytest.mark.parametrize("conclusion", ["STALE", "STARTUP_FAILURE"])
+    def test_check_run_stale_and_startup_failure_are_failing(self, conclusion):
+        ctx = {
+            "__typename": "CheckRun",
+            "name": "build",
+            "status": "COMPLETED",
+            "conclusion": conclusion,
+            "detailsUrl": "",
+            "isRequired": True,
+        }
+        result = normalize_check(ctx)
+        assert result["IsFailing"] is True
+        assert result["IsPassing"] is False
 
     def test_status_context(self):
         ctx = {
@@ -710,7 +775,18 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "number": 42,
-                    "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {"nodes": []},
+                                    },
+                                },
+                            },
+                        ],
+                    },
                 },
             },
         }
@@ -730,6 +806,32 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["ChecksIncomplete"] is True
 
+    def test_wait_genuine_no_checks_settles_immediately(self, capsys):
+        """#2304: --wait settles missing rollups as real no-check PRs."""
+        no_checks_gql = {
+            "repository": {
+                "pullRequest": {
+                    "number": 42,
+                    "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
+                },
+            },
+        }
+        with patch("get_pr_checks.assert_gh_authenticated"), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql", return_value=no_checks_gql,
+        ), patch("get_pr_checks.time.sleep") as sleep_mock:
+            rc = main([
+                "--pull-request", "42", "--wait",
+                "--timeout-seconds", "10", "--output-format", "json",
+            ])
+        assert rc == 0
+        sleep_mock.assert_not_called()
+        output = json.loads(capsys.readouterr().out)["Data"]
+        assert output["HasChecks"] is False
+        assert output["ChecksIncomplete"] is False
+
     def test_wait_empty_then_populated_settles(self, capsys):
         """#2304: a transient empty poll must not terminate --wait; once the
         rollup populates, the populated result wins (no false 'no checks')."""
@@ -737,7 +839,18 @@ class TestMain:
             "repository": {
                 "pullRequest": {
                     "number": 42,
-                    "commits": {"nodes": [{"commit": {"statusCheckRollup": None}}]},
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "statusCheckRollup": {
+                                        "state": "PENDING",
+                                        "contexts": {"nodes": []},
+                                    },
+                                },
+                            },
+                        ],
+                    },
                 },
             },
         }
@@ -1013,6 +1126,38 @@ class TestBuildOutputAdditional:
         assert output["PendingCount"] == 1
         assert output["AllPassing"] is False
 
+    def test_failed_pending_duplicate_counts_as_failed_and_pending(self):
+        checks = dedupe_checks([
+            _check("build", failing=True, conclusion="FAILURE"),
+            _check("build", pending=True, state="IN_PROGRESS"),
+        ])
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "FAILURE",
+            "Checks": checks,
+        }
+        output = build_output(check_data, "o", "r")
+        assert output["FailedCount"] == 1
+        assert output["PendingCount"] == 1
+        assert output["AllPassing"] is False
+
+    def test_passing_pending_duplicate_counts_as_pending_not_all_passing(self):
+        checks = dedupe_checks([
+            _check("build", passing=True, conclusion="SUCCESS"),
+            _check("build", pending=True, state="IN_PROGRESS"),
+        ])
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "PENDING",
+            "Checks": checks,
+        }
+        output = build_output(check_data, "o", "r")
+        assert output["FailedCount"] == 0
+        assert output["PendingCount"] == 1
+        assert output["AllPassing"] is False
+
     def test_has_checks_false(self):
         check_data = {
             "Number": 42,
@@ -1022,3 +1167,216 @@ class TestBuildOutputAdditional:
         }
         output = build_output(check_data, "o", "r")
         assert output["AllPassing"] is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: dedupe_checks (superseded check runs, Issue #2208)
+# ---------------------------------------------------------------------------
+
+
+class TestDedupeChecks:
+    def test_empty_list_returns_empty(self):
+        assert dedupe_checks([]) == []
+
+    def test_single_check_passes_through(self):
+        checks = [_check("build", passing=True)]
+        assert dedupe_checks(checks) == checks
+
+    def test_distinct_names_preserved_in_order(self):
+        checks = [
+            _check("build", passing=True),
+            _check("test", failing=True),
+            _check("lint", pending=True),
+        ]
+        result = dedupe_checks(checks)
+        assert [c["Name"] for c in result] == ["build", "test", "lint"]
+
+    def test_passing_supersedes_earlier_failure(self):
+        """A re-run SUCCESS wins over a stale FAILURE for the same name."""
+        checks = [
+            _check("Validate PR", failing=True, conclusion="FAILURE"),
+            _check("Validate PR", passing=True, conclusion="SUCCESS"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+        assert result[0]["IsFailing"] is False
+
+    def test_passing_supersedes_later_failure(self):
+        """Order does not matter: a passing run wins even when seen first."""
+        checks = [
+            _check("Validate PR", passing=True, conclusion="SUCCESS"),
+            _check("Validate PR", failing=True, conclusion="FAILURE"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+
+    def test_required_status_survives_when_any_duplicate_is_required(self):
+        """A required duplicate keeps the deduped row required."""
+        checks = [
+            _check("security", passing=True, conclusion="SUCCESS", required=False),
+            _check("security", failing=True, conclusion="FAILURE", required=True),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+        assert result[0]["IsRequired"] is True
+
+    def test_null_name_collapses_to_empty_name(self):
+        """Explicit null names dedupe through the empty-name bucket."""
+        checks = [
+            {**_check("ignored", failing=True, conclusion="FAILURE"), "Name": None},
+            {**_check("", passing=True, conclusion="SUCCESS"), "Name": ""},
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Name"] == ""
+        assert result[0]["IsPassing"] is True
+
+    def test_real_failure_with_no_passing_run_survives(self):
+        """No passing run means the failing entry is kept (true failure)."""
+        checks = [
+            _check("test", failing=True, conclusion="FAILURE"),
+            _check("test", failing=True, conclusion="TIMED_OUT"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+
+    def test_failure_supersedes_unknown_conclusion(self):
+        """Unknown conclusions do not hide real failures."""
+        checks = [
+            _check("test", conclusion="UNKNOWN"),
+            _check("test", failing=True, conclusion="FAILURE"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Conclusion"] == "FAILURE"
+        assert result[0]["IsFailing"] is True
+
+    def test_failure_supersedes_pending_but_keeps_pending_signal(self):
+        """A pending re-run keeps wait polling active after a failure."""
+        checks = [
+            _check("build", failing=True, conclusion="FAILURE"),
+            _check("build", pending=True, state="IN_PROGRESS"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert result[0]["IsPending"] is True
+
+    def test_passing_supersedes_pending_but_keeps_pending_signal(self):
+        """A same-name pending run keeps wait polling active."""
+        checks = [
+            _check("build", pending=True, state="IN_PROGRESS"),
+            _check("build", passing=True, conclusion="SUCCESS"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+        assert result[0]["IsPending"] is True
+
+    def test_status_context_dedupes_by_name(self):
+        """StatusContext entries dedupe by Name like CheckRun entries."""
+        checks = [
+            {
+                "Name": "ci/travis", "Type": "StatusContext",
+                "State": "FAILURE", "Conclusion": "FAILURE", "DetailsUrl": "",
+                "IsRequired": True, "IsPending": False,
+                "IsPassing": False, "IsFailing": True,
+            },
+            {
+                "Name": "ci/travis", "Type": "StatusContext",
+                "State": "SUCCESS", "Conclusion": "SUCCESS", "DetailsUrl": "",
+                "IsRequired": True, "IsPending": False,
+                "IsPassing": True, "IsFailing": False,
+            },
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+
+    def test_check_run_preferred_over_same_name_status_context(self):
+        """A StatusContext duplicate cannot mask a failing CheckRun."""
+        checks = [
+            {
+                "Name": "build", "Type": "StatusContext",
+                "State": "SUCCESS", "Conclusion": "SUCCESS", "DetailsUrl": "",
+                "IsRequired": True, "IsPending": False,
+                "IsPassing": True, "IsFailing": False,
+            },
+            _check("build", failing=True, conclusion="FAILURE"),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["Type"] == "CheckRun"
+        assert result[0]["IsFailing"] is True
+
+
+# ---------------------------------------------------------------------------
+# Tests: fetch_checks + main with superseded runs (Issue #2208 scenario)
+# ---------------------------------------------------------------------------
+
+
+class TestSupersededCheckRuns:
+    def test_fetch_checks_collapses_superseded_failure(self):
+        """fetch_checks dedupes a stale FAILURE against a fresh SUCCESS."""
+        nodes = [
+            _check_run_node("Validate PR", "COMPLETED", "FAILURE"),
+            _check_run_node("Validate PR", "COMPLETED", "SUCCESS"),
+        ]
+        with patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes),
+        ):
+            result = fetch_checks("o", "r", 2201)
+        assert len(result["Checks"]) == 1
+        assert result["Checks"][0]["IsPassing"] is True
+
+    def test_main_superseded_failure_returns_0(self, capsys):
+        """End-to-end: PR #2201 shape (stale FAILURE + fresh SUCCESS) is ready.
+
+        Reproduces Issue #2208: an older Validate PR run failed while a newer
+        run succeeded on the same commit. Before the fix, FailedCount was 1
+        and the exit code was 1; after dedupe it is 0.
+        """
+        nodes = [
+            _check_run_node("Validate PR", "COMPLETED", "FAILURE"),
+            _check_run_node("Validate PR", "COMPLETED", "SUCCESS"),
+        ]
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes),
+        ):
+            rc = main(["--pull-request", "2201"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailedCount"] == 0
+        assert output["Data"]["PassedCount"] == 1
+        assert output["Data"]["AllPassing"] is True
+
+    def test_main_genuine_failure_still_returns_1(self, capsys):
+        """A name with only failing runs still blocks (no false PASS)."""
+        nodes = [
+            _check_run_node("test", "COMPLETED", "FAILURE"),
+            _check_run_node("test", "COMPLETED", "FAILURE"),
+        ]
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes),
+        ):
+            rc = main(["--pull-request", "42"])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["FailedCount"] == 1

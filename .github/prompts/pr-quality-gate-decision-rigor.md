@@ -24,6 +24,8 @@ Ground findings in the project's decision artifacts. All paths are under `.claud
 - `decision-critic` skill: stress-tests reasoning before commitment by surfacing hidden assumptions, verifying claims, and generating adversarial perspectives. Invoke when an ADR or design review is staged.
 - `pre-mortem` skill: prospective hindsight. Imagine the decision has failed, then work backward to the causes. Invoke when the change commits to a path that is expensive to reverse.
 - `.claude/skills/decision-critic/references/critical-thinking-survivorship-bias.md`: the survivorship-bias reference. Use it to check that a decision citing success evidence has also examined the failures that used the same approach but are not visible.
+- `.claude/skills/decision-critic/references/decision-pre-committed-metrics.md`: the pre-committed-metrics reference. Use it when the diff stages acceptance criteria, an eval target, or a success metric. Check that the threshold and its consequence are written down before the work, not read off whatever number looks good after.
+- `.claude/skills/decision-critic/references/mental-models-galls-law.md`: the Gall's Law reference. A complex system that works evolved from a simple system that worked. Use it when a decision proposes a new system or major redesign: check that it starts from a working simple version and evolves, rather than a big-bang cutover designed from scratch.
 
 ## Analysis Focus Areas
 
@@ -56,6 +58,12 @@ Ground findings in the project's decision artifacts. All paths are under `.claud
 - Is the decision reversible, and does the record say so?
 - For an irreversible or expensive-to-reverse choice, is the bar for evidence and alternatives met?
 
+### 6. Start Simple (Gall's Law Lens)
+
+- For a decision that proposes a new system or a major redesign, does it start from a working simple version and evolve, or design the full complex system up front?
+- Is the complexity justified by real feedback, or by imagined future needs? Treat "we will need this for scale later" as a YAGNI flag.
+- Is there a big-bang cutover where an incremental path would lower failure risk? Gall's Law: a complex system that works is invariably found to have evolved from a simple system that worked.
+
 ## Output Requirements
 
 Provide your analysis in this format:
@@ -69,6 +77,7 @@ Provide your analysis in this format:
 | Alternatives Considered | | |
 | Bias Examined | | |
 | Failure Modes Named | | |
+| Starts Simple (Gall's Law) | | |
 
 **Overall Decision Rigor Score**: X/5
 
@@ -80,7 +89,7 @@ Provide your analysis in this format:
 
 ### Recommendations
 
-1. [Specific rigor improvements; cite `decision-critic`, `pre-mortem`, or the survivorship-bias reference where relevant]
+1. [Specific rigor improvements; cite `decision-critic`, `pre-mortem`, the survivorship-bias reference, or the Gall's Law reference where relevant]
 
 ### Verdict
 
@@ -117,7 +126,7 @@ After your human-readable analysis, emit a fenced JSON block matching the inline
   "findings": [
     {
       "severity": "critical|high|medium|low",
-      "category": "assumptions|claims|alternatives|bias|failure-modes|reversibility",
+      "category": "assumptions|claims|alternatives|bias|failure-modes|reversibility|complexity",
       "description": "What was found",
       "location": "file:line",
       "recommendation": "Suggested fix"

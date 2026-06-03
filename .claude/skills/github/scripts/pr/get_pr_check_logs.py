@@ -81,7 +81,7 @@ _COMBINED_PATTERN = re.compile("|".join(_FAILURE_PATTERNS), re.IGNORECASE)
 _FAILING_CONCLUSIONS = ("FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "ERROR")
 
 
-def _is_failing(check: dict) -> bool:
+def _is_failing(check: object) -> bool:
     """Return True if a normalized check object represents a failing check.
 
     Prefer the producer-computed ``IsFailing`` flag from get_pr_checks.py
@@ -89,6 +89,8 @@ def _is_failing(check: dict) -> bool:
     state). Fall back to the ``Conclusion`` field only when ``IsFailing`` is
     absent, so callers that pipe minimal check data still work.
     """
+    if not isinstance(check, dict):
+        raise TypeError("check must be a dict")
     flag = check.get("IsFailing")
     if flag is not None:
         return bool(flag)
@@ -120,6 +122,27 @@ def is_github_actions_url(url: str) -> bool:
 # ---------------------------------------------------------------------------
 # Log fetching and parsing
 # ---------------------------------------------------------------------------
+
+
+def _unwrap_checks_payload(checks_data: dict[str, object]) -> dict[str, object] | None:
+    """Return the checks payload, or None when the envelope is malformed."""
+    if "Data" not in checks_data:
+        return checks_data
+    payload = checks_data["Data"]
+    return payload if isinstance(payload, dict) else None
+
+
+def _coerce_checks_list(payload: dict[str, object]) -> list[dict] | None:
+    """Return a checked list of check objects, or None when malformed."""
+    checks_value = payload.get("Checks")
+    if checks_value is None:
+        return []
+    if not isinstance(checks_value, list):
+        return None
+    if not all(isinstance(check, dict) for check in checks_value):
+        return None
+    return checks_value
+
 
 
 def get_failure_snippets(
@@ -334,11 +357,37 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-        if checks_data.get("Number") and pr_number == 0:
-            pr_number = checks_data["Number"]
+        # get_pr_checks.py wraps its payload in a standard skill envelope:
+        # {"Success": true, "Data": {"Number": ..., "Checks": [...]}, ...}
+        # Tolerate both the enveloped form (new) and bare form (legacy / tests)
+        # by falling back to the top-level object when "Data" is absent.
+        payload = _unwrap_checks_payload(checks_data)
+        if payload is None:
+            write_skill_error(
+                "Checks response contains malformed Data payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
+
+        if payload.get("Number") and pr_number == 0:
+            pr_number = payload["Number"]
+
+        checks_list = _coerce_checks_list(payload)
+        if checks_list is None:
+            write_skill_error(
+                "Checks response contains malformed Checks payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
 
         failing_checks = [
-            c for c in checks_data.get("Checks", [])
+            c for c in checks_list
             if _is_failing(c)
         ]
 
@@ -378,8 +427,30 @@ def main(argv: list[str] | None = None) -> int:
             print(result.stdout)
             return 2
 
+        # Same envelope-tolerant unwrap as pipeline mode above
+        payload = _unwrap_checks_payload(checks_data)
+        if payload is None:
+            write_skill_error(
+                "Checks response contains malformed Data payload",
+                3,
+                error_type="ApiError",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 3
+        checks_list = _coerce_checks_list(payload)
+        if checks_list is None:
+            write_skill_error(
+                "Checks response contains malformed Checks payload",
+                1,
+                error_type="InvalidParams",
+                output_format=fmt,
+                script_name="get_pr_check_logs.py",
+            )
+            return 1
+
         failing_checks = [
-            c for c in checks_data.get("Checks", [])
+            c for c in checks_list
             if _is_failing(c)
         ]
     else:

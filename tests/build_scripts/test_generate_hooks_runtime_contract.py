@@ -57,8 +57,8 @@ artifacts:
     outputConfig: "plugin/hooks/hooks.json"
     outputScripts: "plugin/hooks"
     eventRemap:
-      SessionStart: sessionStart
-      PreToolUse: preToolUse
+      SessionStart: SessionStart
+      PreToolUse: PreToolUse
     eventDrop: []
     matcherPolicy: "inline-script-shim"
     versionField: 1
@@ -182,7 +182,7 @@ def test_sessionstart_bash_command_launches_the_script(tmp_path: Path) -> None:
     plugin_root = str(tmp_path / "plugin")
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
-    entry = doc["hooks"]["sessionStart"][0]  # matcher-less: copied verbatim
+    entry = doc["hooks"]["SessionStart"][0]  # matcher-less: copied verbatim
     proc = subprocess.run(
         ["bash", "-c", entry["bash"]],
         env=env,
@@ -204,7 +204,7 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
     userland = tmp_path / "userland"
     env = _contract_env(copilot_root=plugin_root, claude_root=plugin_root)
     # Reconstruct the regression: strip the plugin-root anchor, keep the path.
-    bare = 'python3 -u "./hooks/sessionStart/init.py"'
+    bare = 'python3 -u "./hooks/SessionStart/init.py"'
     proc = subprocess.run(
         ["bash", "-c", bare],
         env=env,
@@ -216,6 +216,38 @@ def test_negative_control_bare_relative_path_fails(tmp_path: Path) -> None:
         check=False,
     )
     assert proc.returncode != 0, "bare relative path unexpectedly resolved"
+
+
+def test_anchor_is_load_bearing_when_no_plugin_root_var_set(tmp_path: Path) -> None:
+    """With neither plugin-root var set, the anchored path must NOT resolve.
+
+    This distinguishes "given the variable, the path resolves" (the positive
+    tests, which set the variable themselves) from "the variable is what makes it
+    resolve". With both vars unset the bash fallback expands to ``/hooks/...``
+    (absolute, off the filesystem root), so the anchored suffix is no longer
+    under any plugin root. Without this control the suite could pass while
+    production breaks if a host CLI stopped exporting the variable (the variable
+    would not actually be load-bearing).
+    NB: this verifies path resolution, not that the host CLI *sets* the variable;
+    only the real-CLI e2e (tests/e2e/test_cli_hook_e2e.py) verifies vendor behavior.
+    """
+    doc = _generate(tmp_path)
+    userland = tmp_path / "userland"
+    env = _contract_env(copilot_root=None, claude_root=None)
+    entry = doc["hooks"]["SessionStart"][0]
+    resolved = _bash_resolve(_path_arg(entry["bash"]), env, userland)
+    # Assert the fallback EXPANSION VALUE directly rather than probing the host
+    # root filesystem (a /hooks/... file on the runner would otherwise flake the
+    # test). With no plugin-root var the prefix collapses to empty, so the path
+    # is rooted at /hooks/ instead of under the plugin root: that proves the var
+    # is the load-bearing prefix.
+    assert resolved.startswith("/hooks/"), (
+        f"expected fallback to collapse to /hooks/..., got {resolved!r}; "
+        "the env var is not load-bearing"
+    )
+    assert not resolved.startswith(str(userland)), (
+        f"anchored path unexpectedly resolved under userland: {resolved!r}"
+    )
 
 
 @pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")

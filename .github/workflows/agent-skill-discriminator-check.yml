@@ -1,0 +1,110 @@
+# Agent-Skill Discriminator Check (Issue #2008)
+#
+# Phase 3 CI backstop for the agent-skill classification audit (Issue #2003).
+# Detects new or materially changed agents added in "skill shape" so the
+# catalog does not keep accumulating misclassification debt (the audit found
+# 42 percent of 23 agents were skill candidates).
+#
+# An agent scoring 2+ on c1 (slash-command Task invocation), c2 (>=70 percent
+# structured-reference body), and c3 (sibling skill in the same pipeline) fails
+# unless it carries 'isolation_required: true' in frontmatter OR the PR body
+# carries the token '[skill-discriminator: <rationale>]'.
+#
+# Logic lives in scripts/validation/check_agent_skill_discriminator.py per
+# ADR-006 (thin workflows) and ADR-042 (Python-first). Uses dorny/paths-filter
+# (Issue #103) so the workflow satisfies required-check contracts on every PR
+# and skips with a passing status when no agent files changed.
+
+name: Agent-Skill Discriminator Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-paths:
+    name: Detect agent changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    outputs:
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.agents }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Check path filters
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            agents:
+              - '.claude/agents/**.md'
+              - 'templates/agents/**.shared.md'
+              - 'scripts/validation/check_agent_skill_discriminator.py'
+              - '.github/workflows/agent-skill-discriminator-check.yml'
+
+  validate-discriminator:
+    name: Score changed agents
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14'
+
+      - name: Compute changed agent files
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          DELIMITER="agent_files_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          echo "files<<${DELIMITER}" >> "${GITHUB_OUTPUT}"
+          if [ -n "${BASE_SHA}" ] && [ -n "${HEAD_SHA}" ]; then
+            git diff --name-only --diff-filter=ACMR "${BASE_SHA}" "${HEAD_SHA}" \
+              -- .claude/agents templates/agents >> "${GITHUB_OUTPUT}"
+          else
+            git ls-files .claude/agents templates/agents >> "${GITHUB_OUTPUT}"
+          fi
+          echo "${DELIMITER}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run discriminator check
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          python3 scripts/validation/check_agent_skill_discriminator.py
+
+  skip-discriminator:
+    name: Skip discriminator (no agent changes)
+    needs: check-paths
+    if: needs.check-paths.outputs.should-run != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    steps:
+      - name: Checkout code
+        # Required for dorny/paths-filter pattern consistency.
+        # See: .serena/memories/ci-infrastructure-dorny-paths-filter-checkout.md
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Skip message
+        run: |
+          echo "No agent definition changes detected - skipping discriminator check"

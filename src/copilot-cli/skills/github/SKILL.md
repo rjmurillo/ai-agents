@@ -98,6 +98,7 @@ Need GitHub data?
 | `get_pr_reviewers.py` | Enumerate unique reviewers | `--pull-request`, `--exclude-bots` |
 | `get_unaddressed_comments.py` | Bot comments needing attention | `--pull-request` |
 | `get_unresolved_review_threads.py` | Unresolved thread IDs | `--pull-request` |
+| `wait_for_unresolved_zero.py` | Settling gate: poll until unresolved count holds at zero across bot scans | `--pull-request`, `--interval-seconds`, `--max-wait-seconds`, `--strict-pagination` |
 | `test_pr_merged.py` | Check if PR is merged | `--pull-request` |
 | `detect_copilot_followup_pr.py` | Detect Copilot follow-up PRs | `--pr-number`, `--owner`, `--repo` |
 | `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |

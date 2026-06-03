@@ -37,8 +37,8 @@ artifacts:
     outputConfig: "out/hooks.json"
     outputScripts: "out"
     eventRemap:
-      PreToolUse: preToolUse
-      SessionStart: sessionStart
+      PreToolUse: PreToolUse
+      SessionStart: SessionStart
     eventDrop: []
     matcherPolicy: "inline-script-shim"
     versionField: 1
@@ -76,7 +76,7 @@ def test_generator_anchors_script_path_to_plugin_root(tmp_path: Path) -> None:
     assert rc == 0
 
     out = json.loads((tmp_path / "out" / "hooks.json").read_text(encoding="utf-8"))
-    entry = out["hooks"]["sessionStart"][0]
+    entry = out["hooks"]["SessionStart"][0]
     # bash: POSIX parameter-expansion fallback COPILOT -> CLAUDE.
     assert "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/" in entry["bash"]
     # powershell: if/else subexpression with the SAME fallback order.
