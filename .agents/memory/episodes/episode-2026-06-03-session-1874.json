@@ -1,0 +1,99 @@
+{
+  "id": "episode-2026-06-03-session-1874",
+  "session": "2026-06-03-session-1874",
+  "timestamp": "2026-06-03T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Triage and resolve all open P1 and P2 issues: evaluate validity, priority, and merit; close with justification or fix",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triaged 42 open issues (40 P2 + 2 P1) from bodies in /tmp/issues + repo evidence",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#2291 fix get_pr_check_logs.py to consume IsFailing (incl StatusContext ERROR) with fallback set",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_get_pr_check_logs.py: 19 passed (3 new regression tests)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#2292 corrected get_pr_checks.py --output-format docs to {json,human,auto} in both SKILL.md mirrors",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#2229 fixed auto-retro Stop hook to emit relative INDEX link to .agents/retrospective/",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_auto_retrospective.py: 25 passed (1 new regression test)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "#2302 added chained-skill-script path resolution to /review; de-hardcoded axes 8/9; regenerated copilot mirror",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran combined affected suites",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/test_get_pr_check_logs.py tests/test_get_pr_checks.py tests/test_auto_retrospective.py: 89 passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-06-03T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: eaa4654131463bf8697a7b33f1a8dd58088ac492",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

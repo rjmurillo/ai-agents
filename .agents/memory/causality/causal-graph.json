@@ -4340,6 +4340,114 @@
         "episode-2026-06-02-session-1873"
       ],
       "created": "2026-06-02T04:20:23.797122+00:00"
+    },
+    {
+      "id": "d84b716305a1",
+      "type": "milestone",
+      "label": "milestone: Replace placeholder auto-retrospectives with real retrospectives for the #2205 work.",
+      "episodes": [
+        "episode-2026-06-02-session-1873"
+      ],
+      "created": "2026-06-03T09:36:14.304043+00:00"
+    },
+    {
+      "id": "e1da8e85383f",
+      "type": "milestone",
+      "label": "milestone: Triaged 42 open issues (40 P2 + 2 P1) from bodies in /tmp/issues + repo evidence",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304127+00:00"
+    },
+    {
+      "id": "7e7acd795e85",
+      "type": "milestone",
+      "label": "milestone: #2291 fix get_pr_check_logs.py to consume IsFailing (incl StatusContext ERROR) with fallback set",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304146+00:00"
+    },
+    {
+      "id": "ea19d27a8ebf",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_get_pr_check_logs.py: 19 passed (3 new regression tests)",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304164+00:00"
+    },
+    {
+      "id": "9eea62cead48",
+      "type": "milestone",
+      "label": "milestone: #2292 corrected get_pr_checks.py --output-format docs to {json,human,auto} in both SKILL.md mirrors",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304181+00:00"
+    },
+    {
+      "id": "45d30dc13b68",
+      "type": "milestone",
+      "label": "milestone: #2229 fixed auto-retro Stop hook to emit relative INDEX link to .agents/retrospective/",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304199+00:00"
+    },
+    {
+      "id": "261083a79cee",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_auto_retrospective.py: 25 passed (1 new regression test)",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304216+00:00"
+    },
+    {
+      "id": "6e8b802c5f8a",
+      "type": "milestone",
+      "label": "milestone: #2302 added chained-skill-script path resolution to /review; de-hardcoded axes 8/9; regenerated copilot mirror",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304233+00:00"
+    },
+    {
+      "id": "2c1de919d511",
+      "type": "milestone",
+      "label": "milestone: Ran combined affected suites",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304250+00:00"
+    },
+    {
+      "id": "7f1d218fa05c",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_get_pr_check_logs.py tests/test_get_pr_checks.py tests/test_auto_retrospective.py: 89 passed",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304267+00:00"
+    },
+    {
+      "id": "09c1883cffc3",
+      "type": "commit",
+      "label": "commit: Commit: eaa4654131463bf8697a7b33f1a8dd58088ac492",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304284+00:00"
+    },
+    {
+      "id": "41130d48453e",
+      "type": "outcome",
+      "label": "Outcome: success - Triage and resolve all open P1 and P2 issues: evaluate validity, priority, and merit; close with justification or fix",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-03T09:36:14.304302+00:00"
     }
   ],
   "patterns": [
@@ -4389,7 +4497,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 1,
+      "occurrences": 2,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -4398,7 +4506,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 2,
+      "occurrences": 4,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -4407,7 +4515,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 4,
+      "occurrences": 8,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -4416,7 +4524,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 6,
+      "occurrences": 12,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -4426,7 +4534,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -4434,7 +4542,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -4442,7 +4550,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -4450,7 +4558,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -4458,7 +4566,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -4466,7 +4574,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -4474,7 +4582,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -4482,7 +4590,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -4490,7 +4598,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -4498,7 +4606,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -4506,7 +4614,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -4514,7 +4622,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -4522,7 +4630,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -4530,7 +4638,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -4538,7 +4646,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -4546,7 +4654,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -4554,7 +4662,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -4562,7 +4670,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -4570,7 +4678,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -4578,7 +4686,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -4586,7 +4694,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -4594,7 +4702,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -4602,7 +4710,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -4610,7 +4718,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -4618,7 +4726,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -4626,7 +4734,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -4634,7 +4742,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -4642,7 +4750,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -4650,7 +4758,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -4658,7 +4766,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -4666,7 +4774,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -4674,7 +4782,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -4682,7 +4790,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -4690,7 +4798,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -4698,7 +4806,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -4706,7 +4814,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -4714,7 +4822,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -4722,7 +4830,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -4730,7 +4838,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -4738,7 +4846,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "count": 1,
+      "count": 2,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
