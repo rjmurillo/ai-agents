@@ -75,6 +75,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--pull-request", type=int, required=True, help="Pull request number",
     )
     parser.add_argument(
+        "--exit-100-on-merged",
+        action="store_true",
+        help=(
+            "Return exit code 100 (the legacy #2277 sentinel) when the PR is "
+            "merged, instead of the default 0. JSON output is unchanged."
+        ),
+    )
+    parser.add_argument(
         "--exit-zero-on-merged",
         action="store_true",
         help=(
@@ -124,7 +132,11 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(output, indent=2))
 
     if pr.get("merged"):
-        return 0 if args.exit_zero_on_merged else 100
+        # ADR-035: a successful verification exits 0; the merged state is in the
+        # JSON ("merged": true), which callers branch on. The legacy 100 sentinel
+        # (#2277) is now opt-in via --exit-100-on-merged for callers that branch
+        # on the exit code. Default flipped to 0 per #2308 and #2309.
+        return 100 if args.exit_100_on_merged else 0
 
     return 0
 

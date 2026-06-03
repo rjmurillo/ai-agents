@@ -98,7 +98,7 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is False
 
-    def test_pr_merged_returns_100(self, capsys):
+    def test_pr_merged_returns_0_by_default(self, capsys):
         graphql_data = {
             "repository": {
                 "pullRequest": {
@@ -119,10 +119,36 @@ class TestMain:
             return_value=graphql_data,
         ):
             rc = main(["--pull-request", "315"])
-        assert rc == 100
+        # ADR-035 (#2308, #2309): a successful merged verification exits 0; the
+        # merged state is in the JSON, not the exit code.
+        assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is True
         assert output["merged_by"] == "admin"
+
+    def test_pr_merged_with_exit_100_flag_returns_sentinel(self, capsys):
+        """--exit-100-on-merged restores the legacy #2277 sentinel."""
+        graphql_data = {
+            "repository": {
+                "pullRequest": {
+                    "state": "MERGED",
+                    "merged": True,
+                    "mergedAt": "2025-01-01T00:00:00Z",
+                    "mergedBy": {"login": "admin"},
+                },
+            },
+        }
+        with patch(
+            "test_pr_merged.assert_gh_authenticated",
+        ), patch(
+            "test_pr_merged.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "test_pr_merged.gh_graphql",
+            return_value=graphql_data,
+        ):
+            rc = main(["--pull-request", "315", "--exit-100-on-merged"])
+        assert rc == 100
 
     def test_pr_not_found_exits_2(self):
         graphql_data = {"repository": {"pullRequest": None}}
