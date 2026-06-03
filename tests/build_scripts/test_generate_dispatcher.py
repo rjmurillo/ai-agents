@@ -1,0 +1,112 @@
+"""Tests for the gated Copilot hook dispatcher emitter (ADR-067, #2295)."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+_REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(_REPO / "build" / "scripts"))
+
+import generate_dispatcher as gd  # noqa: E402
+
+
+class TestDispatcherEntry:
+    def test_entry_points_at_event_dispatcher(self):
+        entry = gd.dispatcher_entry("preToolUse", 90)
+        assert "/hooks/preToolUse/_dispatch.py" in entry["bash"]
+        assert "/hooks/preToolUse/_dispatch.py" in entry["powershell"]
+        assert entry["timeoutSec"] == 90
+        assert entry["type"] == "command"
+
+    def test_entry_prefers_copilot_root_with_claude_fallback(self):
+        entry = gd.dispatcher_entry("postToolUse", 30)
+        # Same resolution contract as the per-shim entries it replaces.
+        assert "COPILOT_PLUGIN_ROOT" in entry["bash"]
+        assert "CLAUDE_PLUGIN_ROOT" in entry["bash"]
+
+
+class TestEmit:
+    def test_manifest_is_ordered_and_named(self, tmp_path):
+        shims = ["b.py", "a.py", "c.py"]
+        gd.write_manifest(tmp_path, "preToolUse", shims)
+        data = json.loads((tmp_path / "_manifest.json").read_text())
+        assert data == {"event": "preToolUse", "shims": ["b.py", "a.py", "c.py"]}
+
+    def test_emit_writes_both_artifacts_and_returns_entry(self, tmp_path):
+        entry = gd.emit_dispatcher(tmp_path, "preToolUse", ["x.py"], 5)
+        assert (tmp_path / "_manifest.json").is_file()
+        assert (tmp_path / "_dispatch.py").is_file()
+        assert "/hooks/preToolUse/_dispatch.py" in entry["bash"]
+
+    def test_generated_entrypoint_dispatches_real_shims(self, tmp_path):
+        """End-to-end: the generated entrypoint + manifest + dispatcher lib run a
+        shim set in one process and honor fail-closed (a blocker denies)."""
+        # Stage a minimal plugin layout the entrypoint's bootstrap can resolve.
+        root = tmp_path / "plugin"
+        (root / ".claude-plugin").mkdir(parents=True)
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        lib = root / "lib"
+        lib.mkdir()
+        # Copy the real dispatcher lib and a minimal bootstrap into the lib/hooks.
+        src_lib = _REPO / ".claude" / "lib" / "hook_dispatch.py"
+        (lib / "hook_dispatch.py").write_text(src_lib.read_text())
+        event_dir = root / "hooks" / "preToolUse"
+        event_dir.mkdir(parents=True)
+        (event_dir / "_bootstrap.py").write_text(
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "def ensure_plugin_paths():\n"
+            "    root = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve()\n"
+            "    sys.path.insert(0, str(root / 'lib'))\n"
+        )
+        allow = "allow.py"
+        block = "block.py"
+        (event_dir / allow).write_text("import sys; sys.exit(0)\n")
+        (event_dir / block).write_text("import sys; sys.exit(2)\n")
+        gd.emit_dispatcher(event_dir, "preToolUse", [allow, block], 5)
+
+        env = dict(__import__("os").environ)
+        env["CLAUDE_PLUGIN_ROOT"] = str(root)
+        proc = subprocess.run(
+            [sys.executable, "-u", str(event_dir / "_dispatch.py")],
+            input=b'{"tool_name":"X"}',
+            capture_output=True,
+            env=env,
+            timeout=30,
+        )
+        # block.py exits 2 -> dispatcher denies (fail-closed) in one process.
+        assert proc.returncode == 2, proc.stderr.decode()
+
+    def test_generated_entrypoint_allows_when_all_allow(self, tmp_path):
+        root = tmp_path / "plugin"
+        (root / ".claude-plugin").mkdir(parents=True)
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        lib = root / "lib"
+        lib.mkdir()
+        (lib / "hook_dispatch.py").write_text(
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+        )
+        event_dir = root / "hooks" / "preToolUse"
+        event_dir.mkdir(parents=True)
+        (event_dir / "_bootstrap.py").write_text(
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "def ensure_plugin_paths():\n"
+            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+        )
+        (event_dir / "a.py").write_text("import sys; sys.exit(0)\n")
+        gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5)
+        env = dict(__import__("os").environ)
+        env["CLAUDE_PLUGIN_ROOT"] = str(root)
+        proc = subprocess.run(
+            [sys.executable, "-u", str(event_dir / "_dispatch.py")],
+            input=b"{}",
+            capture_output=True,
+            env=env,
+            timeout=30,
+        )
+        assert proc.returncode == 0, proc.stderr.decode()
