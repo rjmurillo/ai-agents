@@ -861,12 +861,23 @@ fi
     #     simulate a consumer repo via cwd=tmp_path, the inherited value
     #     overrides the simulation and is_project_repo() returns True, so the
     #     hook never prints [SKIP] and tests/test_hook_plugin_guards.py fails.
-    # CI runners do not export these variables, so behavior there is unchanged.
+    # Git also exports repository-local env vars into hooks. If they leak into
+    # pytest, tests that create throwaway git repos still operate on this repo.
+    # Unset them for pytest so each test's cwd and git config take effect.
+    # CI runners do not export the Claude variables, so behavior there is unchanged.
     if [ -n "$CHANGED_PY_CANONICAL" ]; then
         if set_python_cmd; then
             if [ -d "$REPO_ROOT/tests" ]; then
                 TEST_OUTPUT=$(mktemp)
-                if env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
+                if env \
+                    -u CLAUDE_PROJECT_DIR \
+                    -u GIT_DIR \
+                    -u GIT_WORK_TREE \
+                    -u GIT_INDEX_FILE \
+                    -u GIT_OBJECT_DIRECTORY \
+                    -u GIT_ALTERNATE_OBJECT_DIRECTORIES \
+                    CLAUDE_PLUGIN_ROOT="$REPO_ROOT/src/copilot-cli" \
+                    "${PYTHON_CMD[@]}" -m pytest "$REPO_ROOT/tests/" \
                     --ignore="$REPO_ROOT/.claude/lib/ai_review_common" \
                     --ignore="$REPO_ROOT/.claude/lib/hook_utilities" \
                     --ignore="$REPO_ROOT/.claude/lib/github_core" \
