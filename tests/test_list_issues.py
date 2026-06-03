@@ -130,7 +130,7 @@ class TestMain:
         ):
             rc = main([])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert len(output) == 2
         assert output[0]["number"] == 1
         assert output[0]["labels"] == ["bug"]
@@ -207,7 +207,7 @@ class TestMain:
         # --state is implicit-default 'open' here but must not be forwarded
         # when --search is set, since gh would ignore it anyway.
         assert "--state" not in cmd
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert len(output) == 1
 
     def test_api_error_exits_3(self):
@@ -299,7 +299,7 @@ class TestMain:
         ):
             rc = main([])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert len(output) == 1
         assert output[0]["number"] == 1
 
@@ -326,7 +326,7 @@ class TestMain:
         ):
             rc = main([])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert output[0]["labels"] == []
         assert output[0]["assignees"] == []
 
@@ -342,7 +342,7 @@ class TestMain:
         ):
             rc = main([])
         assert rc == 0
-        assert json.loads(capsys.readouterr().out) == []
+        assert json.loads(capsys.readouterr().out)["Data"]["issues"] == []
 
     def test_invalid_limit_exits_2(self):
         with patch(
@@ -379,7 +379,7 @@ class TestMain:
         ):
             rc = main([])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert output[0]["author"] is None
 
 

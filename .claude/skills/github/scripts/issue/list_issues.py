@@ -51,6 +51,11 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     resolve_repo_params,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,11 +88,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=30,
         help="Max number of issues to return (1-1000, default: 30)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     if not 1 <= args.limit <= 1000:
         error_and_exit("Limit must be between 1 and 1000.", 2)
@@ -173,7 +180,13 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(i, dict)
     ]
 
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        {"issues": output, "count": len(output)},
+        output_format=fmt,
+        human_summary=f"{len(output)} issue(s)",
+        status="PASS",
+        script_name="list_issues.py",
+    )
     return 0
 
 
