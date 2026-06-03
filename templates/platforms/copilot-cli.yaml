@@ -45,6 +45,10 @@ artifacts:
     scriptSource: ".claude/hooks"
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
+    # ADR-068 / #2295: collapse the PreToolUse per-shim entries into one
+    # in-process dispatcher entry (Copilot spawns one interpreter per shim
+    # per tool call; the aggregate cold-start blew the preToolUse timeout).
+    dispatcher: true
     eventRemap:
       PreToolUse: PreToolUse
       PostToolUse: PostToolUse
