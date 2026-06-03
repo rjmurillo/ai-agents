@@ -111,7 +111,7 @@ class TestMain:
         The legacy exit-100 sentinel made successful merge verification look
         like a failed call to most shell/automation consumers. The default now
         matches the convention that exit 0 means "the question I asked was
-        answered successfully" — here, "yes, the PR is merged".
+        answered successfully", here, "yes, the PR is merged".
 
         Callers that want the historical skip-review-work sentinel can opt in
         with --exit-100-on-merged.

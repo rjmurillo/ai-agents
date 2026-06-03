@@ -139,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(json.dumps(output, indent=2))
 
-    if pr.get("merged"):
+    if pr.get("merged") is True:
         return 100 if args.exit_100_on_merged else 0
 
     return 0
