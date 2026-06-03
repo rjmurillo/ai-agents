@@ -35,7 +35,6 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.github_core.repo import get_repo_root as _get_repo_root  # noqa: E402
 from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 
 # Patterns to detect raw gh usage
@@ -101,10 +100,20 @@ def get_repo_root(start_dir: Path) -> Path:
     Raises:
         RuntimeError: If not in a git repository.
     """
-    root = _get_repo_root(start_dir=start_dir)
-    if root is None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(start_dir), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"Could not find git repo root from: {start_dir}") from exc
+
+    if result.returncode != 0 or not result.stdout.strip():
         raise RuntimeError(f"Could not find git repo root from: {start_dir}")
-    return root
+    return Path(result.stdout.strip()).resolve()
 
 
 def get_skills_dir(repo_root: Path) -> Path:

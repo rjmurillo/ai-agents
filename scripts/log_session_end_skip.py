@@ -25,6 +25,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -83,9 +84,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         project_root = Path(__file__).resolve().parent.parent
         log_path = Path(args.log_path).resolve()
-        # Validate path safety using is_relative_to (CWE-22)
-        # Allow project root or /tmp for CI use cases
-        if not (log_path.is_relative_to(project_root) or log_path.is_relative_to("/tmp")):
+        temp_root = Path(tempfile.gettempdir()).resolve()
+        # Validate path safety using is_relative_to (CWE-22).
+        # Allow project root or the configured temp dir for CI use cases.
+        if not (log_path.is_relative_to(project_root) or log_path.is_relative_to(temp_root)):
             print(f"error: path traversal detected or unauthorized path: {args.log_path}", file=sys.stderr)
             return 2
     except Exception as e:

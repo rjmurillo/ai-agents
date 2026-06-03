@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 def get_repo_root() -> Path:
-    """Get the repository root via git rev-parse.
+    """Get the active worktree root via git rev-parse.
 
     Returns:
         Resolved Path to the repository root.
@@ -26,18 +26,13 @@ def get_repo_root() -> Path:
     """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--git-common-dir"],
+            ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
             check=True,
             timeout=5,
         )
-        git_common = Path(result.stdout.strip())
-        if not git_common.is_absolute():
-            git_common = (Path.cwd() / git_common).resolve()
-        else:
-            git_common = git_common.resolve()
-        return git_common.parent
+        return Path(result.stdout.strip()).resolve()
     except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as exc:
         raise RuntimeError("Unable to determine repository root") from exc
 
