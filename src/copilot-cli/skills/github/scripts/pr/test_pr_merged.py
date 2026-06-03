@@ -6,17 +6,22 @@ Use this before starting PR review work to prevent wasted effort on merged PRs.
 Per Skill-PR-Review-007: gh pr view may return stale data.
 
 Exit codes follow ADR-035:
-    0   - PR is NOT merged (safe to proceed with review)
+    0   - Query succeeded; merge state reported in JSON ``"merged"`` field
     2   - Error occurred (config/parse error)
     3   - External error (API failure)
     4   - Auth error
-    100 - PR IS merged (script-specific: skip review work)
+    100 - Legacy skip-review sentinel, only with ``--exit-100-on-merged``
 
-The exit-100 sentinel is intentional for the pre-review skip-check use case
-(Skill-PR-Review-007). Autonomous agents that drive PRs to merge should branch
-on the JSON ``"merged"`` field rather than the exit code. Callers that want
-standard exit semantics (0 for merged-success) can pass
-``--exit-zero-on-merged``; the JSON payload is unchanged. See issue #2277.
+The script exits 0 on a successful query regardless of merge state. Callers
+should branch on the JSON ``"merged"`` field. This makes the script behave
+like every other shell-friendly probe ("exit 0 means I answered your
+question") and stops a successful merge verification from looking like a
+failed call. See issue #2308.
+
+The legacy exit-100 sentinel from Skill-PR-Review-007 remains available via
+``--exit-100-on-merged`` for scripts that already encoded the "100 = skip
+review" convention. The opposite-named flag ``--exit-zero-on-merged`` from
+issue #2277 still parses (as a no-op) for backward compatibility.
 """
 
 from __future__ import annotations
@@ -78,9 +83,20 @@ def build_parser() -> argparse.ArgumentParser:
         "--exit-zero-on-merged",
         action="store_true",
         help=(
-            "Return exit code 0 (instead of the 100 sentinel) when the PR is "
-            "merged. JSON output is unchanged. Use this for autonomous "
-            "autofix agents that treat any nonzero exit as failure."
+            "Deprecated no-op (issue #2308 made exit 0 the default for merged "
+            "PRs). Kept for backward compatibility with callers that already "
+            "pass this flag. Use --exit-100-on-merged to restore the legacy "
+            "sentinel."
+        ),
+    )
+    parser.add_argument(
+        "--exit-100-on-merged",
+        action="store_true",
+        help=(
+            "Restore the legacy Skill-PR-Review-007 skip-review sentinel: "
+            "return exit code 100 (instead of 0) when the PR is merged. JSON "
+            "output is unchanged. Use this only for scripts that already "
+            "branch on the 100 sentinel."
         ),
     )
     return parser
@@ -123,8 +139,8 @@ def main(argv: list[str] | None = None) -> int:
 
     print(json.dumps(output, indent=2))
 
-    if pr.get("merged"):
-        return 0 if args.exit_zero_on_merged else 100
+    if pr.get("merged") is True:
+        return 100 if args.exit_100_on_merged else 0
 
     return 0
 

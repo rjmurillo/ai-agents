@@ -97,28 +97,35 @@ python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {pr} | 
 python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --pull-request {pr} --enable --merge-method SQUASH
 ```
 
-### Exit-100 sentinel: `test_pr_merged.py`
+### Merge-check exit codes: `test_pr_merged.py`
 
-`test_pr_merged.py` returns exit code **100** (not 0) when the PR IS merged.
-This is the documented contract for the pre-review skip-check use case
-(Skill-PR-Review-007). Treating 100 as a failure causes wasted polling loops
-(observed on PRs #2240, #2269; see issue #2277).
+As of issue #2308, `test_pr_merged.py` exits **0** on any successful query
+and reports merge state in the JSON `merged` field. This makes the script
+behave like every other shell-friendly probe: exit 0 means "I answered your
+question". Branch on the JSON, not the exit code.
 
-When invoking from autofix code, do ONE of:
+Earlier history: the script used to exit **100** when the PR was merged
+(Skill-PR-Review-007). Treating 100 as a failure caused wasted polling loops
+on PRs #2240, #2269 (#2277), and made successful merge verification look
+failed on PR #2289 (#2308).
+
+When invoking from autofix code:
 
 ```bash
 PR_NUMBER="123"
 python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" | jq -e '.merged == true'
 ```
 
-or:
+To restore the legacy skip-review sentinel (only for callers that already
+encoded "100 = merged"):
 
 ```bash
 PR_NUMBER="123"
-python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" --exit-zero-on-merged
+python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request "$PR_NUMBER" --exit-100-on-merged
 ```
 
-The flag returns 0 for both merged and not-merged PRs. JSON payload is unchanged.
+The legacy `--exit-zero-on-merged` flag (from #2277) still parses as a no-op
+for backward compatibility.
 
 ## Completion Gate
 

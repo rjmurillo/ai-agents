@@ -25,6 +25,7 @@ jobs:
     # privilege under pull_request_target.
     permissions:
       contents: read
+      pull-requests: read
     runs-on: ubuntu-24.04-arm
     if: github.actor == 'dependabot[bot]' || github.actor == 'dependabot-preview[bot]'
     steps:
@@ -32,7 +33,13 @@ jobs:
         id: dependabot-metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
         with:
-          github-token: "${{ secrets.GH_ACTIONS_PR_WRITE }}"
+          # GITHUB_TOKEN is always available to the workflow (including in
+          # Dependabot PR contexts where org/repo secrets are NOT exposed by
+          # default), so use it for the read-only metadata fetch. The
+          # GH_ACTIONS_PR_WRITE PAT is still required for the approval and
+          # auto-merge steps below because ruleset-required reviews must come
+          # from a real user identity. Fixes #2307.
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Approve PR
         run: gh pr review --approve "$PR_URL"
