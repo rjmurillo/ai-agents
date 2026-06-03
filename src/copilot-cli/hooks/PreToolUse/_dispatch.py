@@ -11,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
+_MAX_STDIN_BYTES = 2 * 1024 * 1024
+
 
 def _main() -> int:
     try:
@@ -22,7 +24,9 @@ def _main() -> int:
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
-        raw = sys.stdin.buffer.read()
+        raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
+        if len(raw) > _MAX_STDIN_BYTES:
+            raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
         return run_dispatch(event_dir, shims, raw)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(

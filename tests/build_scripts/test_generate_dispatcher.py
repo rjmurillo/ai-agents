@@ -146,6 +146,53 @@ class TestEmit:
         assert "hook-dispatch-entrypoint" in stderr
         assert "fail-closed" in stderr
 
+    def test_generated_entrypoint_oversized_stdin_fails_closed(self, tmp_path):
+        root = tmp_path / "plugin"
+        (root / ".claude-plugin").mkdir(parents=True)
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        lib = root / "lib"
+        lib.mkdir()
+        (lib / "hook_dispatch.py").write_text(
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+        )
+        event_dir = root / "hooks" / "preToolUse"
+        event_dir.mkdir(parents=True)
+        (event_dir / "_bootstrap.py").write_text(
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "def ensure_plugin_paths():\n"
+            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+        )
+        gd.write_entrypoint(event_dir)
+        gd.write_manifest(event_dir, "preToolUse", [])
+        env = dict(__import__("os").environ)
+        env["CLAUDE_PLUGIN_ROOT"] = str(root)
+
+        proc = subprocess.run(
+            [sys.executable, "-u", str(event_dir / "_dispatch.py")],
+            input=b"{" + b'"x":"' + (b"a" * (2 * 1024 * 1024)) + b'"}',
+            capture_output=True,
+            env=env,
+            timeout=30,
+        )
+
+        assert proc.returncode == 2
+        stderr = proc.stderr.decode()
+        assert "stdin exceeds 2097152 bytes" in stderr
+        assert "fail-closed" in stderr
+
+
+class TestShimBasename:
+    def test_extracts_python_shim_basename(self):
+        command = 'python3 -u "${ROOT}/hooks/PreToolUse/guard.py"'
+
+        assert gd._shim_basename(command) == "guard.py"
+
+    def test_rejects_intermediate_extension_match(self):
+        command = 'python3 -u "${ROOT}/hooks/PreToolUse/guard.py.tmp"'
+
+        assert gd._shim_basename(command) is None
+
 
 class TestConsolidate:
     def test_consolidates_gating_event_only(self, tmp_path):
