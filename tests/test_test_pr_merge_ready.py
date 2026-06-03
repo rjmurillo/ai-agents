@@ -98,6 +98,18 @@ class TestBuildParser:
         assert args.ignore_ci is True
         assert args.ignore_threads is True
 
+    def test_allow_blocked_defaults_false(self):
+        # issue #2326: BLOCKED blocks by default, so --allow-blocked must be
+        # opt-in (default False) rather than the prior implicit allow.
+        args = build_parser().parse_args(["--pull-request", "1"])
+        assert args.allow_blocked is False
+
+    def test_allow_blocked_flag(self):
+        args = build_parser().parse_args([
+            "--pull-request", "1", "--allow-blocked",
+        ])
+        assert args.allow_blocked is True
+
 
 # ---------------------------------------------------------------------------
 # Tests: check_merge_readiness
@@ -139,14 +151,62 @@ class TestCheckMergeReadiness:
         assert result["MergeStateStatus"] == "BEHIND"
         assert any("behind" in r.lower() for r in result["Reasons"])
 
-    def test_blocked_state_still_ready(self):
-        # issue #2157: BLOCKED usually means "awaiting required review", which
-        # is exactly when enabling auto-merge is correct. It must NOT block
-        # CanMerge; it is surfaced via MergeStateStatus for the agent.
+    def test_blocked_state_blocks_by_default(self):
+        # issue #2326 (supersedes the prior #2157 BLOCKED-is-ready behavior):
+        # BLOCKED means GitHub's branch protection still refuses the merge
+        # (missing review decision / unmet protection rule). Treating it as
+        # ready produced a false ready signal observed on PR #2323 and
+        # contradicted the repo's own four-condition merge gate. BLOCKED must
+        # make CanMerge False by default, with the blocker named in Reasons,
+        # while MergeStateStatus still surfaces the state for the agent.
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BLOCKED"
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["MergeStateStatus"] == "BLOCKED"
+        assert any("blocked" in r.lower() for r in result["Reasons"]), (
+            f"a BLOCKED merge state must name the blocker; reasons: "
+            f"{result['Reasons']}"
+        )
+        assert any(
+            "branch protection" in r.lower() or "review" in r.lower()
+            for r in result["Reasons"]
+        ), (
+            "blocker reason should name branch protection / missing review "
+            f"decision; reasons: {result['Reasons']}"
+        )
+
+    def test_blocked_state_no_other_blockers_still_blocks(self):
+        # The exact PR #2323 shape: OPEN, not draft, 0 unresolved threads,
+        # 0 failing checks, 0 pending checks, but mergeStateStatus=BLOCKED.
+        # Every other gate is clean, so without this fix CanMerge would be
+        # True (the false ready signal #2326 reports). With the fix, the
+        # only reason is the BLOCKED merge state.
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BLOCKED"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["UnresolvedThreads"] == 0
+        assert result["FailedRequiredChecks"] == []
+        assert result["PendingRequiredChecks"] == []
+        assert result["CIPassing"] is True
+        assert len(result["Reasons"]) == 1, (
+            "BLOCKED should be the sole blocker on an otherwise-clean PR; "
+            f"reasons: {result['Reasons']}"
+        )
+
+    def test_blocked_state_ready_with_allow_blocked(self):
+        # Auto-merge-eligible path preserved behind an explicit opt-in
+        # (the fd62812b5 / #2303 intent): when a pending required review is
+        # the sole blocker, --allow-blocked (allow_blocked=True) classifies
+        # BLOCKED as allowed so CanMerge is True. The state is still surfaced
+        # via MergeStateStatus.
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BLOCKED"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42, allow_blocked=True)
         assert result["CanMerge"] is True
         assert result["MergeStateStatus"] == "BLOCKED"
         assert result["Reasons"] == []
