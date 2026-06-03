@@ -456,6 +456,7 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
         f"[{filename}](../../.agents/retrospective/{filename}) | "
         f"Auto-generated session retro |"
     )
+    linked_filename = f"[{filename}](../../.agents/retrospective/{filename})"
     with open(index_path, "a+b") as f:
         if _lock_file is not None:
             _lock_file(f)
@@ -471,7 +472,19 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
                 # the same row, even if a later index update was lost.
                 f.seek(0)
                 existing = f.read().decode("utf-8", errors="replace")
-                if filename in existing:
+                if linked_filename in existing:
+                    return
+                bare_row = f"| {today} | {filename} |"
+                if bare_row in existing:
+                    updated = existing.replace(
+                        bare_row,
+                        f"| {today} | {linked_filename} |",
+                    )
+                    f.seek(0)
+                    f.truncate()
+                    f.write(updated.encode("utf-8"))
+                    if not updated.endswith("\n"):
+                        f.write(b"\n")
                     return
                 # Ensure file ends with a newline before appending the row
                 # so a previous write that lacked trailing '\n' does not
