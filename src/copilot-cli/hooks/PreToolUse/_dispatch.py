@@ -24,10 +24,23 @@ def _main() -> int:
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
+        timeouts = manifest.get("timeouts", {})
+        if not isinstance(timeouts, dict):
+            raise TypeError("manifest field 'timeouts' must be a dict when present")
+        shim_timeouts = {}
+        for shim in shims:
+            if not isinstance(shim, str):
+                raise TypeError("manifest field 'shims' must contain strings")
+            if shim not in timeouts:
+                continue
+            timeout_sec = int(timeouts[shim])
+            if timeout_sec <= 0:
+                raise ValueError(f"manifest timeout for {shim} must be positive")
+            shim_timeouts[shim] = timeout_sec
         raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
         if len(raw) > _MAX_STDIN_BYTES:
             raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
-        return run_dispatch(event_dir, shims, raw)
+        return run_dispatch(event_dir, shims, raw, shim_timeouts)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(
             f"hook-dispatch-entrypoint: {type(exc).__name__}: {exc}; denying (fail-closed)",

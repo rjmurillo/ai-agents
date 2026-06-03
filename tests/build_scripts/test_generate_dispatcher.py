@@ -36,6 +36,18 @@ class TestEmit:
         data = json.loads((tmp_path / "_manifest.json").read_text())
         assert data == {"event": "preToolUse", "shims": ["b.py", "a.py", "c.py"]}
 
+    def test_manifest_can_include_per_shim_timeouts(self, tmp_path):
+        shims = ["b.py", "a.py"]
+        gd.write_manifest(tmp_path, "preToolUse", shims, {"a.py": 5, "b.py": 90})
+
+        data = json.loads((tmp_path / "_manifest.json").read_text())
+
+        assert data == {
+            "event": "preToolUse",
+            "shims": ["b.py", "a.py"],
+            "timeouts": {"b.py": 90, "a.py": 5},
+        }
+
     def test_emit_writes_both_artifacts_and_returns_entry(self, tmp_path):
         entry = gd.emit_dispatcher(tmp_path, "preToolUse", ["x.py"], 5)
         assert (tmp_path / "_manifest.json").is_file()
@@ -181,6 +193,39 @@ class TestEmit:
         assert "stdin exceeds 2097152 bytes" in stderr
         assert "fail-closed" in stderr
 
+    def test_generated_entrypoint_invalid_timeout_manifest_fails_closed(self, tmp_path):
+        root = tmp_path / "plugin"
+        (root / ".claude-plugin").mkdir(parents=True)
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        lib = root / "lib"
+        lib.mkdir()
+        (lib / "hook_dispatch.py").write_text(
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+        )
+        event_dir = root / "hooks" / "preToolUse"
+        event_dir.mkdir(parents=True)
+        (event_dir / "_bootstrap.py").write_text(
+            "import os, sys\n"
+            "from pathlib import Path\n"
+            "def ensure_plugin_paths():\n"
+            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+        )
+        gd.write_entrypoint(event_dir)
+        gd.write_manifest(event_dir, "preToolUse", ["a.py"], {"a.py": 0})
+        env = dict(__import__("os").environ)
+        env["CLAUDE_PLUGIN_ROOT"] = str(root)
+
+        proc = subprocess.run(
+            [sys.executable, "-u", str(event_dir / "_dispatch.py")],
+            input=b"{}",
+            capture_output=True,
+            env=env,
+            timeout=30,
+        )
+
+        assert proc.returncode == 2
+        assert "manifest timeout for a.py must be positive" in proc.stderr.decode()
+
 
 class TestShimBasename:
     def test_extracts_python_shim_basename(self):
@@ -216,6 +261,7 @@ class TestConsolidate:
         assert new_out["PostToolUse"] == out["PostToolUse"]
         manifest = json.loads((hooks_dir / "PreToolUse" / "_manifest.json").read_text())
         assert manifest["shims"] == ["a.py", "b.py"]
+        assert manifest["timeouts"] == {"a.py": 5, "b.py": 90}
 
     def test_consolidate_handles_empty_event(self, tmp_path):
         out = {"PreToolUse": []}

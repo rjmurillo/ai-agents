@@ -60,6 +60,8 @@ class TestDispatcherArtifacts:
         assert (event_dir / "_dispatch.py").is_file()
         manifest = json.loads((event_dir / "_manifest.json").read_text())
         assert manifest["shims"], "empty manifest"
+        assert set(manifest["timeouts"]) == set(manifest["shims"])
+        assert _hooks()[_GATING][0]["timeoutSec"] == sum(manifest["timeouts"].values())
         for shim in manifest["shims"]:
             assert (event_dir / shim).is_file(), f"manifest shim {shim} missing on disk"
 

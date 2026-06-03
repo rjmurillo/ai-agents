@@ -63,10 +63,23 @@ def _main() -> int:
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
+        timeouts = manifest.get("timeouts", {})
+        if not isinstance(timeouts, dict):
+            raise TypeError("manifest field 'timeouts' must be a dict when present")
+        shim_timeouts = {}
+        for shim in shims:
+            if not isinstance(shim, str):
+                raise TypeError("manifest field 'shims' must contain strings")
+            if shim not in timeouts:
+                continue
+            timeout_sec = int(timeouts[shim])
+            if timeout_sec <= 0:
+                raise ValueError(f"manifest timeout for {shim} must be positive")
+            shim_timeouts[shim] = timeout_sec
         raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
         if len(raw) > _MAX_STDIN_BYTES:
             raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
-        return run_dispatch(event_dir, shims, raw)
+        return run_dispatch(event_dir, shims, raw, shim_timeouts)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(
             f"hook-dispatch-entrypoint: {type(exc).__name__}: {exc}; denying (fail-closed)",
@@ -90,11 +103,23 @@ def dispatcher_entry(event: str, timeout_sec: int) -> dict:
     }
 
 
-def write_manifest(event_dir: Path, event: str, shim_names: list[str]) -> Path:
+def write_manifest(
+    event_dir: Path,
+    event: str,
+    shim_names: list[str],
+    shim_timeouts: dict[str, int] | None = None,
+) -> Path:
     """Write the ordered shim manifest next to the shims; return its path."""
     manifest_path = event_dir / "_manifest.json"
+    manifest = {"event": event, "shims": list(shim_names)}
+    if shim_timeouts is not None:
+        manifest["timeouts"] = {
+            name: int(shim_timeouts[name])
+            for name in shim_names
+            if name in shim_timeouts
+        }
     manifest_path.write_text(
-        json.dumps({"event": event, "shims": list(shim_names)}, indent=2) + "\n",
+        json.dumps(manifest, indent=2) + "\n",
         encoding="utf-8",
     )
     return manifest_path
@@ -108,7 +133,11 @@ def write_entrypoint(event_dir: Path) -> Path:
 
 
 def emit_dispatcher(
-    event_dir: Path, event: str, shim_names: list[str], timeout_sec: int
+    event_dir: Path,
+    event: str,
+    shim_names: list[str],
+    timeout_sec: int,
+    shim_timeouts: dict[str, int] | None = None,
 ) -> dict:
     """Write manifest + entrypoint and return the single hooks.json entry.
 
@@ -116,7 +145,7 @@ def emit_dispatcher(
     replaces, so the consolidated entry preserves the cumulative budget from
     the separate host invocations.
     """
-    write_manifest(event_dir, event, shim_names)
+    write_manifest(event_dir, event, shim_names, shim_timeouts)
     write_entrypoint(event_dir)
     return dispatcher_entry(event, timeout_sec)
 
@@ -153,15 +182,19 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
         if event not in _CONSOLIDATE_EVENTS:
             new_out[event] = entries
             continue
-        shim_names = [
-            name
-            for name in (_shim_basename(e.get("bash", "")) for e in entries)
-            if name
+        shim_entries = [
+            (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
+            for entry in entries
+            if (name := _shim_basename(entry.get("bash", "")))
         ]
-        if not shim_names:
+        if not shim_entries:
             new_out[event] = entries
             continue
-        timeout = sum(int(e.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)) for e in entries)
+        shim_names = [name for name, _ in shim_entries]
+        shim_timeouts = dict(shim_entries)
+        timeout = sum(timeout_sec for _, timeout_sec in shim_entries)
         event_dir = Path(hooks_dir) / event
-        new_out[event] = [emit_dispatcher(event_dir, event, shim_names, timeout)]
+        new_out[event] = [
+            emit_dispatcher(event_dir, event, shim_names, timeout, shim_timeouts)
+        ]
     return new_out
