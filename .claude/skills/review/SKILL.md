@@ -45,7 +45,7 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
 - **Complexity tiers reference** (`engineering-complexity-tiers.md`): try each candidate in order, use the first that exists:
   1. `.claude/skills/analyze/references/engineering-complexity-tiers.md` (Claude Code project layout)
   2. `skills/analyze/references/engineering-complexity-tiers.md` resolved relative to plugin install root (vendored install)
-- **Chained-skill scripts** (axes 8 and 9: `golden-principles/scripts/scan_principles.py`, `taste-lints/scripts/taste_lints.py`): these are sibling skills, not under this skill's `references/`, so `CLAUDE_SKILL_DIR` does not locate them. For each, try each candidate in order, use the first that exists:
+- **Chained-skill scripts** (local axes 2 and 3: `golden-principles/scripts/scan_principles.py`, `taste-lints/scripts/taste_lints.py`): these are sibling skills, not under this skill's `references/`, so `CLAUDE_SKILL_DIR` does not locate them. For each, try each candidate in order, use the first that exists:
   1. `.claude/skills/{skill}/scripts/{script}` (Claude Code project layout)
   2. `skills/{skill}/scripts/{script}` resolved relative to plugin install root (vendored install)
 
