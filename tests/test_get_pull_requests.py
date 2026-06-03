@@ -113,7 +113,7 @@ class TestMain:
         ):
             rc = main([])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
         assert len(output) == 2
         assert output[0]["number"] == 1
 
@@ -133,7 +133,7 @@ class TestMain:
         ):
             rc = main(["--state", "merged"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
         assert len(output) == 1
         assert output[0]["state"] == "MERGED"
 
@@ -163,7 +163,7 @@ class TestMain:
         ):
             rc = main([])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
         assert output == []
 
     def test_search_filter(self, capsys):
@@ -186,7 +186,7 @@ class TestMain:
         assert "--state" not in cmd
         assert "--label" not in cmd
         assert "--author" not in cmd
-        output = json.loads(capsys.readouterr().out)
+        output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
         assert len(output) == 1
 
     def test_invalid_limit_exits_1(self):
