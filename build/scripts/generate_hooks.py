@@ -5,7 +5,9 @@ Reads ``artifacts.hooks`` from a platform YAML, parses Claude's
 ``settings.json`` ``hooks`` object, copies each registered Python script
 under ``.claude/hooks/`` into the Copilot output tree, and emits a
 ``hooks.json`` with the Copilot wire shape (``version: 1`` wrapper,
-lowercase event names, no ``matcher`` field, and script invocations
+PascalCase event names (which make Copilot CLI emit the VS Code-compatible
+snake_case payload the shims expect; see issue #2290), no ``matcher`` field,
+and script invocations
 anchored to the plugin root via ``${COPILOT_PLUGIN_ROOT}`` with a
 ``${CLAUDE_PLUGIN_ROOT}`` fallback).
 
@@ -213,9 +215,9 @@ def _build_shim(matcher: str) -> str:
 
     The shim:
 
-    - buffers stdin once into ``_raw`` (bytes), guaranteeing the original
-      script's ``sys.stdin.read()`` sees the same bytes the matcher
-      inspected;
+    - buffers stdin once into ``_raw`` (bytes), preserving those bytes for
+      already snake_case payloads and canonicalizing camelCase payloads before
+      replay so wrapped hooks read the schema they enforce;
     - dispatches by classified matcher kind;
     - exits 0 silently when the matcher does not fire (no-op = allow);
     - exits 2 to stderr on any internal error (regex parse, JSON decode,
@@ -307,18 +309,64 @@ def _shim_glob_match(args_glob, tool_args_norm):
 
 def _shim_should_fire(payload):
     kind, params = _shim_classify(_MATCHER)
+    # Support both VS Code-compatible snake_case (PascalCase event names)
+    # and native camelCase (camelCase event names) payloads.
+    # Copilot CLI sends snake_case when the event key is PascalCase,
+    # camelCase when the event key is camelCase. See issue #2290.
     tool_name = payload.get("tool_name")
+    if tool_name is None:
+        tool_name = payload.get("toolName")
     if not isinstance(tool_name, str):
-        raise ValueError("hook input missing string `tool_name` field")
+        raise ValueError("hook input missing string `tool_name`/`toolName` field")
     if kind == "regex":
         return _re.fullmatch(params["pattern"], tool_name) is not None
     if kind == "tool-glob":
         if tool_name != params["toolName"]:
             return False
-        norm_args = _shim_normalize_args(payload.get("tool_input"))
+        tool_args = payload.get("tool_input")
+        if tool_args is None:
+            tool_args = payload.get("toolArgs")
+        # camelCase payloads send toolArgs as a JSON string, not a parsed
+        # object. Parse it so _shim_normalize_args can extract "command".
+        if isinstance(tool_args, str):
+            try:
+                tool_args = _json.loads(tool_args)
+            except ValueError as exc:
+                # Host sent a string that is not valid JSON. Log so
+                # the operator can diagnose; fall through to normalize
+                # which treats raw strings as-is (glob may not match).
+                print(
+                    "matcher-shim [{{}}]: toolArgs is not valid JSON: {{}}".format(
+                        _MATCHER, exc
+                    ),
+                    file=_sys.stderr,
+                )
+        norm_args = _shim_normalize_args(tool_args)
         return _shim_glob_match(params["argsGlob"], norm_args)
     # bare
     return tool_name == params["toolName"]
+
+
+def _shim_replay_bytes(payload, raw):
+    replay = dict(payload)
+    changed = False
+    tool_name = replay.get("tool_name")
+    if tool_name is None and isinstance(replay.get("toolName"), str):
+        replay["tool_name"] = replay["toolName"]
+        changed = True
+    tool_input = replay.get("tool_input")
+    if tool_input is None and "toolArgs" in replay:
+        tool_args = replay.get("toolArgs")
+        if isinstance(tool_args, str):
+            try:
+                tool_args = _json.loads(tool_args)
+            except ValueError:
+                pass
+        replay["tool_input"] = tool_args
+        changed = True
+    if not changed:
+        return raw
+    return _json.dumps(replay, separators=(",", ":")).encode("utf-8")
 
 
 def _shim_dispatch():
@@ -361,10 +409,11 @@ def _shim_dispatch():
         )
     if not fire:
         _sys.exit(0)
-    # Replay raw bytes into a fresh stdin so the original script reads
-    # exactly what the shim inspected. Replace BEFORE calling original.
-    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(_raw), encoding="utf-8")
-    rc = _original_main(_raw)
+    # Replay a canonical payload into a fresh stdin so wrapped hooks enforce
+    # the same schema even when the host sent the camelCase variant.
+    _replay = _shim_replay_bytes(payload, _raw)
+    _sys.stdin = _io.TextIOWrapper(_io.BytesIO(_replay), encoding="utf-8")
+    rc = _original_main(_replay)
     if rc is None:
         rc = 0
     _sys.exit(int(rc))
@@ -951,6 +1000,45 @@ def _relative_script_target(
     return target_root / target_event / script_name
 
 
+def _ensure_exact_case_dir(directory: Path) -> None:
+    """Create ``directory`` ensuring its leaf name matches the exact case.
+
+    On a case-insensitive filesystem (Windows, default macOS), a plain
+    ``mkdir(exist_ok=True)`` silently reuses a pre-existing sibling whose name
+    differs only by case. The directory then keeps its old casing in git while
+    generated ``hooks.json`` paths use the new casing, producing a tree that
+    works locally but fails on case-sensitive Linux (issue #2290). This walks
+    the parent's real entries and renames any case-mismatched sibling to the
+    intended case (two-step through a temp name to survive case-insensitive
+    renames) before creating the directory.
+    """
+    parent = directory.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    target_name = directory.name
+    for entry in parent.iterdir():
+        if entry.name == target_name:
+            if not entry.is_dir():
+                raise NotADirectoryError(
+                    f"Target exists but is not a directory: {directory}"
+                )
+            return
+        if entry.is_dir() and entry.name.lower() == target_name.lower():
+            temp = parent / f"__case_fix_{target_name}"
+            suffix = 1
+            while temp.exists():
+                temp = parent / f"__case_fix_{target_name}_{suffix}"
+                suffix += 1
+            entry.rename(temp)
+            temp.rename(directory)
+            return
+        if entry.name.lower() == target_name.lower():
+            raise NotADirectoryError(
+                f"Case-conflicting path is not a directory: {entry}"
+            )
+    directory.mkdir(exist_ok=True)
+
+
+
 def _copy_script(
     source: Path,
     target: Path,
@@ -971,7 +1059,7 @@ def _copy_script(
         return False, f"NO-REGEN: {reason}"
     if what_if:
         return True, ""
-    target.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_exact_case_dir(target.parent)
     if not matcher:
         shutil.copyfile(source, target)
         return True, ""

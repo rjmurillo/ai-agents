@@ -46,11 +46,11 @@ artifacts:
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
     eventRemap:
-      PreToolUse: preToolUse
-      PostToolUse: postToolUse
-      Stop: sessionEnd
-      SessionStart: sessionStart
-      UserPromptSubmit: userPromptSubmitted
+      PreToolUse: PreToolUse
+      PostToolUse: PostToolUse
+      Stop: SessionEnd
+      SessionStart: SessionStart
+      UserPromptSubmit: UserPromptSubmit
     eventDrop:
       - SubagentStop
       - PermissionRequest

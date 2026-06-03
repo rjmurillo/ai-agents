@@ -39,12 +39,12 @@ custom instructions docs, command reference (all under
 | **Plugin component fields in `plugin.json`** | `agents` (default `agents/`), `skills` (default `skills/`), `commands` (no default), `hooks` (path-or-inline-object, no default), `mcpServers`, `lspServers`. All optional. |
 | **Hook config location** | `hooks.json` (Copilot-style at root) or `hooks/hooks.json` (Claude-style). Both supported by Copilot CLI. |
 | **Hook config required wrapping** | `{"version": 1, "hooks": {<event>: [{...}]}}`. The `version: 1` key is REQUIRED for Copilot CLI. |
-| **Hook events** | `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `errorOccurred` |
+| **Hook events** | `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse` |
 | **Hook entry shape** | `{type: "command", bash: "...", powershell: "...", cwd: ".", timeoutSec: N, env: {}, comment: "..."}` |
-| **Hook `cwd` field** | Defaults to plugin root. Scripts use relative paths anchored from `cwd`. There is **NO `${COPILOT_PLUGIN_ROOT}` env var** documented. |
+| **Hook `cwd` field** | Copilot CLI runs hooks from the user's working directory. Commands MUST anchor script paths with `${COPILOT_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_ROOT}`. |
 | **Hook `matcher` field** | **NOT SUPPORTED in Copilot CLI hooks**. Filtering must happen inside the hook script via the `toolName` JSON input field. |
-| **Hook input JSON for preToolUse** | `{timestamp, cwd, toolName, toolArgs}` |
-| **Hook output for preToolUse (deny)** | `{permissionDecision: "deny", permissionDecisionReason: "..."}` (only `"deny"` currently processed) |
+| **Hook input JSON for PreToolUse** | `{timestamp, cwd, tool_name, tool_input}` when event names are PascalCase. The matcher shim also accepts legacy `{toolName, toolArgs}` defensively. |
+| **Hook output for PreToolUse (deny)** | `{permissionDecision: "deny", permissionDecisionReason: "..."}` (only `"deny"` currently processed) |
 | **Agent file convention** | `<name>.agent.md`. Frontmatter `name`, `description`, `tools`. |
 | **Skill file convention** | `<name>/SKILL.md`. Frontmatter: `name` (required), `description` (required), `allowed-tools`, `user-invocable` (default `true` → `/SKILL-NAME` invocation), `disable-model-invocation`. |
 | **Custom slash commands in CLI** | **No custom slash commands**. Skills with `user-invocable: true` are the bridge — they fire as `/SKILL-NAME`. |
@@ -62,13 +62,13 @@ custom instructions docs, command reference (all under
 | D2 | **One plugin per provider** | Provider is axis of variation per CVA |
 | D3 | **Cursor + Codex out of scope** | User scoped to Claude + Copilot CLI |
 | D4 | **`.claude/<artifact>/` is canonical**; `.claude/settings.json` is canonical for hook registration | Single canonical authoring location |
-| D5 | **Hook config is generated** with native `version: 1` wrapper, lowercase events, no matcher field, scripts invoked via `python3 ./hooks/<event>/<script>.py` from default `cwd` (plugin root) | Customers receive working hooks; matcher logic moves into Python script body |
+| D5 | **Hook config is generated** with native `version: 1` wrapper, PascalCase events, no matcher field, and script paths anchored through `${COPILOT_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_ROOT}` | Customers receive working hooks; matcher logic moves into Python script body |
 | D6 | **Codex CLI out of scope** | User confirmed |
 | D7 | **Claude commands → Copilot skills with `user-invocable: true`** (bridge `/cmd` ↔ `/SKILL-NAME`) | Copilot CLI has no custom slash commands native to plugins; user-invocable skill is the documented equivalent |
 | D8 | **Custom instructions (`applyTo:`) generation is CONDITIONAL.** Generated under `.github/instructions/` IFF the source rule has a path scope, but since Copilot CLI per current docs does not consume them, ship a runtime warning until verified | Avoid shipping dead artifacts |
 | D9 | **Only `.claude-plugin/marketplace.json` is shared.** Each provider has its OWN `plugin.json` inside its own source dir: Claude at `.claude/.claude-plugin/plugin.json`, Copilot CLI at `src/copilot-cli/.claude-plugin/plugin.json`. The marketplace entry's `source:` path determines which `plugin.json` each provider reads — no field collision (e.g., Claude `mcpServers` declarations cannot accidentally load on Copilot side). | Verified marketplace discovery order; per-source isolation prevents cross-provider load |
 | D10 | **Hook `matcher` cannot be cross-generated.** Generator translates Claude's `matcher: "Bash(...)"` into a script-side `toolName`/`toolArgs` filter wrapping the original logic | Copilot CLI hooks lack matcher field |
-| D11 | **`${CLAUDE_PLUGIN_ROOT}` references in Claude hooks become `./` (cwd-relative) on Copilot side** | Copilot CLI has no plugin-root env var; uses `cwd` field |
+| D11 | **`${CLAUDE_PLUGIN_ROOT}` references in Claude hooks become plugin-root anchored Copilot commands** | Copilot CLI runs hooks from the user's working directory, so generated commands anchor through `${COPILOT_PLUGIN_ROOT}` with `${CLAUDE_PLUGIN_ROOT}` fallback |
 
 ## In scope
 
@@ -127,10 +127,10 @@ custom instructions docs, command reference (all under
 | **rules other frontmatter (`alwaysApply`, `priority`, `description`)** | preserved | dropped (`alwaysApply`/`priority` are Claude-only); `description` preserved |
 | **hooks path** | `.claude/hooks/<Event>/<script>.py` + `.claude/settings.json` | `src/copilot-cli/hooks/hooks.json` + `src/copilot-cli/hooks/<event>/<script>.py` |
 | **hooks JSON top-level wrapper** | `{hooks: {...}}` (Claude `hooks/hooks.json` format) | `{version: 1, hooks: {...}}` (Copilot requires `version: 1`) |
-| **hook event name casing** | `PreToolUse`, `PostToolUse`, `Stop`, `SessionStart`, `UserPromptSubmit`, `SubagentStop`, `PermissionRequest`, `Notification`, `PreCompact` | `preToolUse`, `postToolUse`, `sessionEnd`, `sessionStart`, `userPromptSubmitted`, `errorOccurred` |
+| **hook event name casing** | `PreToolUse`, `PostToolUse`, `Stop`, `SessionStart`, `UserPromptSubmit`, `SubagentStop`, `PermissionRequest`, `Notification`, `PreCompact` | `PreToolUse`, `PostToolUse`, `SessionEnd`, `SessionStart`, `UserPromptSubmit` |
 | **hook event coverage gaps** | n/a | Claude events not in Copilot: `SubagentStop`, `PermissionRequest`, `Notification`, `PreCompact`. These are dropped with warning emit. |
 | **hook entry matcher** | `{matcher: "Bash(git commit*)" \| "^(Edit\|Write)$" \| ...}` | **NOT SUPPORTED**. Generator wraps script with a `toolName`/`toolArgs` filter shim that exits 0 (no-op) when the matcher would not have fired. |
-| **hook script invocation** | `python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/<Event>/<script>.py"` | `python3 -u ./hooks/<event>/<script>.py` (relative to default `cwd`) |
+| **hook script invocation** | `python3 -u "${CLAUDE_PLUGIN_ROOT}/hooks/<Event>/<script>.py"` | `python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/<Event>/<script>.py"` for bash, with the equivalent PowerShell expression. |
 | **bash + powershell parity** | n/a (Claude uses single command string) | both `bash` and `powershell` keys emit the same `python3 ./...` invocation (Python cross-platform) |
 | **plugin install path** | `~/.claude/plugins/cache/<marketplace>/<plugin>/` | `~/.copilot/installed-plugins/<MARKETPLACE>/<PLUGIN-NAME>/` |
 
@@ -209,11 +209,11 @@ artifacts:
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
     eventRemap:
-      PreToolUse: preToolUse
-      PostToolUse: postToolUse
-      Stop: sessionEnd
-      SessionStart: sessionStart
-      UserPromptSubmit: userPromptSubmitted
+      PreToolUse: PreToolUse
+      PostToolUse: PostToolUse
+      Stop: SessionEnd
+      SessionStart: SessionStart
+      UserPromptSubmit: UserPromptSubmit
     eventDrop:
       - SubagentStop
       - PermissionRequest
@@ -287,8 +287,8 @@ For each Claude hook script registered in `.claude/settings.json.hooks.<Event>[]
    ```json
    {
      "type": "command",
-     "bash": "python3 -u \"./hooks/<event>/<script>.py\"",
-     "powershell": "python3 -u \"./hooks/<event>/<script>.py\"",
+     "bash": "python3 -u \"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/<Event>/<script>.py\"",
+     "powershell": "py -3 -u \"$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/hooks/<Event>/<script>.py\"",
      "cwd": ".",
      "timeoutSec": <copied or default 30>
    }
@@ -319,7 +319,7 @@ If a `.claude/<artifact>/<name>` source is deleted, the corresponding `src/copil
 
 This protects emergency hotfixes a customer applied to `src/copilot-cli/` between releases without forcing them to commit changes upstream.
 
-Verification: delete a source file → `python3 build/build_all.py --check` returns non-zero with orphan(s) listed; touch `src/copilot-cli/hooks/preToolUse/foo.py.noregen` → re-run generator → file unchanged; audit log lists `foo.py` as protected.
+Verification: delete a source file → `python3 build/build_all.py --check` returns non-zero with orphan(s) listed; touch `src/copilot-cli/hooks/PreToolUse/foo.py.noregen` → re-run generator → file unchanged; audit log lists `foo.py` as protected.
 
 **REQ-003-009 — Path traversal in template paths is rejected**
 Generators shall reject any `templates/platforms/copilot-cli.yaml` whose path values (`sourceDir`, `outputDir`, etc.) contain `..` or absolute paths, returning exit 2 (config error). Same applies to substitution-value paths.
