@@ -4479,7 +4479,7 @@
     {
       "id": "8e549dc0b906",
       "type": "test",
-      "label": "test: uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-067",
+      "label": "test: uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-068",
       "episodes": [
         "episode-2026-06-03-session-1874"
       ],
@@ -4497,7 +4497,7 @@
     {
       "id": "a6f3243a724d",
       "type": "milestone",
-      "label": "milestone: ADR-067 (DRAFT) single in-process dispatcher for Copilot hooks; adr-review applied",
+      "label": "milestone: ADR-068 (DRAFT) single in-process dispatcher for Copilot hooks; adr-review applied",
       "episodes": [
         "episode-2026-06-03-session-1874"
       ],
