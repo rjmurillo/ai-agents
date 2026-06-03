@@ -126,6 +126,13 @@ class TestRunDispatch:
         rc = run_dispatch(tmp_path, names, b"{}")
         assert rc == 2
 
+    def test_shim_timeout_fails_closed(self, tmp_path):
+        names = [_write_shim(tmp_path, "slow.py", "import time\n" "time.sleep(1)\n")]
+
+        rc = run_dispatch(tmp_path, names, b"{}", {"slow.py": 1e-6})
+
+        assert rc == 2
+
     def test_orphan_file_not_in_manifest_is_not_run(self, tmp_path):
         rec = tmp_path / "rec.txt"
         # registered shim

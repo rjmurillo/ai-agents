@@ -12,7 +12,7 @@ from scripts.github_core.repo import get_repo_root
 class TestGetRepoRoot:
     @patch("scripts.github_core.repo.subprocess.run")
     def test_returns_path_on_success(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(returncode=0, stdout="/repo/.git\n")
+        mock_run.return_value = MagicMock(returncode=0, stdout="/repo\n")
         assert get_repo_root() == Path("/repo")
 
     @patch("scripts.github_core.repo.subprocess.run")
