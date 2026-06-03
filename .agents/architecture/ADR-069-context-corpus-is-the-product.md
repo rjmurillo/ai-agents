@@ -6,7 +6,7 @@ consulted: ["analyst", "critic", "qa"]
 informed: ["implementer", "devops", "security", "roadmap"]
 ---
 
-# ADR-058: The Curated Context Corpus IS the Product — Orchestration Is Plumbing
+# ADR-069: The Curated Context Corpus IS the Product, Orchestration Is Plumbing
 
 ## Context and Problem Statement
 
@@ -63,7 +63,7 @@ Concretely, this ADR:
 ### What This ADR Is NOT
 
 - **Not** a reorganization of `.serena/memories/`, `.agents/`, `.claude/skills/`, or any other context source.
-- **Not** a new schema. ADR-058 does not define field requirements, frontmatter standards, or validation rules.
+- **Not** a new schema. ADR-069 does not define field requirements, frontmatter standards, or validation rules.
 - **Not** a deprecation of any existing agent, orchestration command, lifecycle hook, or workflow.
 - **Not** a commitment to build telemetry, an assembly layer, or a unified catalog as part of this ADR. Those are downstream issues.
 
@@ -128,7 +128,7 @@ Concretely, this ADR:
 | Component | Dependency Type | Required Update | Risk |
 |-----------|----------------|-----------------|------|
 | `.serena/memories/` | Indirect | None in this ADR; future ADRs may reference this principle when proposing memory-corpus changes | Low |
-| `.agents/architecture/` (other ADRs) | Indirect | None now; ADRs that touch context sources should cite ADR-058 | Low |
+| `.agents/architecture/` (other ADRs) | Indirect | None now; ADRs that touch context sources should cite ADR-069 | Low |
 | `.claude/skills/` | Indirect | None now; skill authors may cite the principle when justifying corpus-shaping skills | Low |
 | Lifecycle commands (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) | None | No change | None |
 | CI workflows | None | No change | None |
@@ -149,7 +149,7 @@ None of the above are part of this ADR's acceptance criteria.
 
 ## Related Decisions
 
-- **ADR-007** (Memory-First Architecture) — establishes that retrieval precedes reasoning; ADR-058 generalizes the principle from "memory" to "the entire curated corpus."
+- **ADR-007** (Memory-First Architecture): establishes that retrieval precedes reasoning; ADR-069 generalizes the principle from "memory" to "the entire curated corpus."
 - **ADR-017** (Tiered Memory Index Architecture) — provides one concrete realization of corpus organization within `.serena/memories/`.
 - **ADR-030** (Skills Pattern Superiority) — skills are one corpus surface among several.
 - **ADR-050** (ADR Protocol Sync) — governs how this ADR is propagated and discovered.

@@ -1,4 +1,4 @@
-# ADR-063: Plugin Hook Runtime-Contract Verification
+# ADR-071: Plugin Hook Runtime-Contract Verification
 
 ## Status
 
