@@ -20,6 +20,7 @@ order, the authoritative registered set, NOT a directory listing), it produces:
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 # Mirror contract from build/scripts/generate_hooks.py::_build_copilot_entry:
@@ -114,3 +115,52 @@ def emit_dispatcher(
     write_manifest(event_dir, event, shim_names)
     write_entrypoint(event_dir)
     return dispatcher_entry(event, timeout_sec)
+
+
+# Only the tool-gating event is consolidated: it is the one with the measured
+# spawn-storm timeout (#2295). PreToolUse short-circuits on the first denial,
+# which is correct for tool gating. Observational events (PostToolUse,
+# SessionStart, SessionEnd, UserPromptSubmit) keep per-shim entries; the host
+# runs all of them and a single-process short-circuit would change that. Both
+# casings are handled (Copilot event-name casing differs across generations).
+_CONSOLIDATE_EVENTS = ("PreToolUse", "preToolUse")
+_DEFAULT_TIMEOUT_SEC = 5
+_SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)")
+
+
+def _shim_basename(command: str) -> str | None:
+    """Extract the ``<name>.py`` basename from a generated hook command."""
+    match = _SCRIPT_RE.search(command or "")
+    return match.group(1) if match else None
+
+
+def consolidate(out: dict, hooks_dir: Path) -> dict:
+    """Collapse the tool-gating event's per-shim entries to one dispatcher entry.
+
+    ``out`` is the generator's ``{event: [entry, ...]}`` map. For the gating
+    event this writes ``_manifest.json`` + ``_dispatch.py`` into
+    ``hooks_dir/<event>/`` and returns a new map with a single dispatcher entry
+    for that event; all other events pass through unchanged. The shim order is
+    the registered hooks.json order (authoritative) and the consolidated
+    ``timeoutSec`` is the max of the per-shim timeouts.
+    """
+    new_out: dict = {}
+    for event, entries in out.items():
+        if event not in _CONSOLIDATE_EVENTS:
+            new_out[event] = entries
+            continue
+        shim_names = [
+            name
+            for name in (_shim_basename(e.get("bash", "")) for e in entries)
+            if name
+        ]
+        if not shim_names:
+            new_out[event] = entries
+            continue
+        timeout = max(
+            (int(e.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)) for e in entries),
+            default=_DEFAULT_TIMEOUT_SEC,
+        )
+        event_dir = Path(hooks_dir) / event
+        new_out[event] = [emit_dispatcher(event_dir, event, shim_names, timeout)]
+    return new_out

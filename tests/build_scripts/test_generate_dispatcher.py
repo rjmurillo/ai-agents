@@ -145,3 +145,31 @@ class TestEmit:
         stderr = proc.stderr.decode()
         assert "hook-dispatch-entrypoint" in stderr
         assert "fail-closed" in stderr
+
+
+class TestConsolidate:
+    def test_consolidates_gating_event_only(self, tmp_path):
+        hooks_dir = tmp_path / "hooks"
+        (hooks_dir / "PreToolUse").mkdir(parents=True)
+        out = {
+            "PreToolUse": [
+                {"bash": 'python3 -u "${ROOT}/hooks/PreToolUse/a.py"', "timeoutSec": 5},
+                {"bash": 'python3 -u "${ROOT}/hooks/PreToolUse/b.py"', "timeoutSec": 90},
+            ],
+            "PostToolUse": [
+                {"bash": 'python3 -u "${ROOT}/hooks/PostToolUse/c.py"', "timeoutSec": 30},
+            ],
+        }
+        new_out = gd.consolidate(out, hooks_dir)
+        # gating event collapsed to one dispatcher entry, max timeout
+        assert len(new_out["PreToolUse"]) == 1
+        assert "/hooks/PreToolUse/_dispatch.py" in new_out["PreToolUse"][0]["bash"]
+        assert new_out["PreToolUse"][0]["timeoutSec"] == 90
+        # observational event untouched (still per-shim)
+        assert new_out["PostToolUse"] == out["PostToolUse"]
+        manifest = json.loads((hooks_dir / "PreToolUse" / "_manifest.json").read_text())
+        assert manifest["shims"] == ["a.py", "b.py"]
+
+    def test_consolidate_handles_empty_event(self, tmp_path):
+        out = {"PreToolUse": []}
+        assert gd.consolidate(out, tmp_path) == {"PreToolUse": []}

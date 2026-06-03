@@ -1364,6 +1364,10 @@ def generate_hooks(
         str(item) for item in (stanza.get("eventDrop") or [])
     }
     version_field = int(stanza.get("versionField", 1) or 1)
+    # ADR-068 / #2295: when true, collapse the tool-gating event's per-shim
+    # entries into one in-process dispatcher entry. Default false keeps the
+    # byte-identical per-shim output for every other platform.
+    dispatcher_mode = bool(stanza.get("dispatcher", False))
 
     try:
         paths = _resolve_paths(repo_root, stanza)
@@ -1415,6 +1419,15 @@ def generate_hooks(
         )
         for target_event, entry in emitted:
             out.setdefault(target_event, []).append(entry)
+
+    # ADR-068 / #2295: consolidate the tool-gating event to one dispatcher
+    # entry, emitting _manifest.json + _dispatch.py next to the shims. The
+    # shims stay on disk (the dispatcher runs them in-process); only the
+    # hooks.json registration changes.
+    if dispatcher_mode and not what_if:
+        import generate_dispatcher
+
+        out = generate_dispatcher.consolidate(out, output_scripts)
 
     # Write hooks.json (overwrite). NO-REGEN on the config file itself
     # protects manual customer edits.
