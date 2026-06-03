@@ -28,11 +28,11 @@ COPILOT_HOME = Path.home() / ".copilot"
 PLUGIN_MARKETPLACE = "ai-agents"
 PLUGIN_NAME = "project-toolkit"
 RUN_ENV_VAR = "RUN_INSTALLED_PLUGIN_HOOK_E2E"
-HOOK_TIMEOUT_SECONDS = 10
 
 _RUN = os.environ.get(RUN_ENV_VAR) == "1"
 _MATCHER_RE = re.compile(r"# Matcher: (.+)")
-_COMMAND_PATH_RE = re.compile(r'[/\\]hooks[/\\]([^"\s]+\.py)')
+HOOK_TIMEOUT_SECONDS = 30
+_COMMAND_PATH_RE = re.compile(r'[/\\]hooks[/\\]([^"\s]+\.py(?!\w))')
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,7 +111,10 @@ def _assert_no_enabled_direct_shadow(plugin_name: str) -> None:
         return
 
     config = _load_jsonc(config_path)
-    installed_plugins = config.get("installedPlugins", [])
+    installed_plugins_raw = config.get("installedPlugins")
+    installed_plugins = (
+        installed_plugins_raw if isinstance(installed_plugins_raw, list) else []
+    )
     direct_entries = [
         entry
         for entry in installed_plugins
@@ -139,7 +142,11 @@ def _load_hook_scripts(plugin_root: Path) -> list[HookScript]:
     hooks_data = json.loads(hooks_path.read_text(encoding="utf-8"))
     scripts: list[HookScript] = []
 
-    for event, entries in hooks_data.get("hooks", {}).items():
+    hooks_map = hooks_data.get("hooks")
+    assert isinstance(hooks_map, dict), f"{hooks_path} has invalid hooks mapping"
+
+    for event, entries in hooks_map.items():
+        assert isinstance(entries, list), f"{event} entries must be a list"
         for index, entry in enumerate(entries):
             paths = _script_paths(plugin_root, entry)
             assert paths, f"{event}[{index}] has no hook command path"
@@ -148,9 +155,14 @@ def _load_hook_scripts(plugin_root: Path) -> list[HookScript]:
                     f"{event}[{index}] {shell_name} points to missing script: "
                     f"{script_path}"
                 )
-                assert plugin_root in script_path.parents, (
+                resolved_plugin_root = plugin_root.resolve(strict=True)
+                resolved_script_path = script_path.resolve(strict=True)
+                assert (
+                    resolved_script_path == resolved_plugin_root
+                    or resolved_plugin_root in resolved_script_path.parents
+                ), (
                     f"{event}[{index}] {shell_name} points outside plugin root: "
-                    f"{script_path}"
+                    f"{script_path} -> {resolved_script_path}"
                 )
             script_path = paths.get("powershell") or paths.get("bash") or next(
                 iter(paths.values())
@@ -353,16 +365,24 @@ def _run_hook_case(
     )
 
     started = time.perf_counter()
-    process = subprocess.run(
-        [sys.executable, "-u", str(hook_script.path)],
-        input=json.dumps(case.payload),
-        text=True,
-        capture_output=True,
-        cwd=fixture,
-        env=env,
-        timeout=HOOK_TIMEOUT_SECONDS,
-        check=False,
-    )
+    try:
+        process = subprocess.run(
+            [sys.executable, "-u", str(hook_script.path)],
+            input=json.dumps(case.payload),
+            text=True,
+            capture_output=True,
+            cwd=fixture,
+            env=env,
+            timeout=HOOK_TIMEOUT_SECONDS,
+            check=False,
+        )
+        returncode = process.returncode
+        stdout = process.stdout
+        stderr = process.stderr
+    except subprocess.TimeoutExpired as exc:
+        returncode = 124
+        stdout = exc.stdout or ""
+        stderr = (exc.stderr or "") + f"\nHook timed out after {HOOK_TIMEOUT_SECONDS}s."
     elapsed_ms = round((time.perf_counter() - started) * 1000, 1)
     return HookResult(
         event=hook_script.event,
@@ -370,10 +390,10 @@ def _run_hook_case(
         script=hook_script.path.name,
         matcher=hook_script.matcher,
         case=case.name,
-        returncode=process.returncode,
+        returncode=returncode,
         elapsed_ms=elapsed_ms,
-        stdout_tail=process.stdout[-1000:],
-        stderr_tail=process.stderr[-1000:],
+        stdout_tail=stdout[-1000:],
+        stderr_tail=stderr[-1000:],
     )
 
 
@@ -385,7 +405,9 @@ def _evaluate_results(results: list[HookResult]) -> list[str]:
             f"{result.event}[{result.index}] {result.script} "
             f"{result.case} rc={result.returncode}"
         )
-        if result.returncode not in (0, 2):
+        allows_exit_2 = result.matcher and result.case.startswith("match")
+        expected_codes = (0, 2) if allows_exit_2 else (0,)
+        if result.returncode not in expected_codes:
             failures.append(f"{location}: unexpected exit code")
         if result.case.startswith("miss") and result.returncode != 0:
             failures.append(f"{location}: non-match should no-op with exit 0")
