@@ -1,4 +1,4 @@
-"""Tests for the in-process hook dispatcher (ADR-067, #2295).
+"""Tests for the in-process hook dispatcher (ADR-068, #2295).
 
 These tests are the runtime-contract evidence for the dispatcher: they prove it
 runs exactly the manifest set, in order, with the host's stdin bytes, and that

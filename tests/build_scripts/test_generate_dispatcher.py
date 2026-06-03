@@ -1,4 +1,4 @@
-"""Tests for the gated Copilot hook dispatcher emitter (ADR-067, #2295)."""
+"""Tests for the gated Copilot hook dispatcher emitter (ADR-068, #2295)."""
 
 from __future__ import annotations
 

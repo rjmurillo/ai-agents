@@ -1,4 +1,4 @@
-"""In-process hook dispatcher for Copilot CLI (ADR-067, addresses #2295).
+"""In-process hook dispatcher for Copilot CLI (ADR-068, addresses #2295).
 
 Copilot CLI has no per-hook ``matcher`` support, so it runs every registered
 hook entry on every tool call. With one process per matcher shim, the aggregate
