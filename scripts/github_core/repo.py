@@ -13,11 +13,10 @@ def get_repo_root(
     start_dir: str | Path | None = None,
     timeout: int = _DEFAULT_TIMEOUT,
 ) -> Path | None:
-    """Return the main repository root, even when called from a worktree.
+    """Return the current worktree root.
 
-    Uses ``git rev-parse --git-common-dir`` which resolves to the main
-    repo's ``.git`` directory regardless of whether the current working
-    directory is a worktree or the main checkout.
+    Uses ``git rev-parse --show-toplevel`` so isolated git worktrees resolve to
+    their own checkout root instead of the bare repository's parent directory.
 
     Args:
         start_dir: Directory to run git from (``-C`` flag). ``None`` uses cwd.
@@ -29,7 +28,7 @@ def get_repo_root(
     cmd: list[str] = ["git"]
     if start_dir is not None:
         cmd.extend(["-C", str(start_dir)])
-    cmd.extend(["rev-parse", "--git-common-dir"])
+    cmd.extend(["rev-parse", "--show-toplevel"])
 
     try:
         result = subprocess.run(  # noqa: S603
@@ -44,12 +43,11 @@ def get_repo_root(
     if result.returncode != 0:
         return None
 
-    git_common = Path(result.stdout.strip())
-    if not git_common.is_absolute():
-        # Relative paths are relative to the working directory (or start_dir)
+    repo_root = Path(result.stdout.strip())
+    if not repo_root.is_absolute():
         base = Path(start_dir) if start_dir is not None else Path.cwd()
-        git_common = (base / git_common).resolve()
+        repo_root = (base / repo_root).resolve()
     else:
-        git_common = git_common.resolve()
+        repo_root = repo_root.resolve()
 
-    return git_common.parent
+    return repo_root

@@ -14,35 +14,37 @@ def _completed(stdout: str = "", rc: int = 0) -> subprocess.CompletedProcess[str
 
 
 class TestGetRepoRoot:
-    """get_repo_root returns the parent of git-common-dir."""
+    """get_repo_root returns the current worktree root."""
 
     @patch("scripts.github_core.repo.subprocess.run")
-    def test_absolute_git_common_dir(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout="/home/user/repo/.git\n")
+    def test_absolute_worktree_root(self, mock_run: patch) -> None:
+        mock_run.return_value = _completed(stdout="/home/user/repo\n")
         result = get_repo_root()
         assert result == Path("/home/user/repo")
 
     @patch("scripts.github_core.repo.subprocess.run")
-    def test_relative_git_common_dir(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout=".git\n")
+    def test_relative_worktree_root(self, mock_run: patch) -> None:
+        mock_run.return_value = _completed(stdout="repo\n")
         result = get_repo_root()
         assert result is not None
         assert result.is_absolute()
 
     @patch("scripts.github_core.repo.subprocess.run")
-    def test_worktree_resolves_to_main_repo(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout="/home/user/repo/.git\n")
+    def test_worktree_resolves_to_current_checkout(self, mock_run: patch) -> None:
+        mock_run.return_value = _completed(stdout="/home/user/worktree\n")
         result = get_repo_root()
-        assert result == Path("/home/user/repo")
+        assert result == Path("/home/user/worktree")
         cmd = mock_run.call_args[0][0]
-        assert cmd == ["git", "rev-parse", "--git-common-dir"]
+        assert cmd == ["git", "rev-parse", "--show-toplevel"]
 
     @patch("scripts.github_core.repo.subprocess.run")
     def test_start_dir_passed_as_git_c_flag(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout="/home/user/repo/.git\n")
-        get_repo_root(start_dir="/tmp/worktree")
+        mock_run.return_value = _completed(stdout="/home/user/worktree\n")
+        get_repo_root(start_dir="/home/user/worktree")
         cmd = mock_run.call_args[0][0]
-        assert cmd == ["git", "-C", "/tmp/worktree", "rev-parse", "--git-common-dir"]
+        assert cmd == [
+            "git", "-C", "/home/user/worktree", "rev-parse", "--show-toplevel",
+        ]
 
     @patch("scripts.github_core.repo.subprocess.run")
     def test_returns_none_on_nonzero_exit(self, mock_run: patch) -> None:
@@ -61,12 +63,12 @@ class TestGetRepoRoot:
 
     @patch("scripts.github_core.repo.subprocess.run")
     def test_custom_timeout_passed(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout="/repo/.git\n")
+        mock_run.return_value = _completed(stdout="/repo\n")
         get_repo_root(timeout=5)
         assert mock_run.call_args[1]["timeout"] == 5
 
     @patch("scripts.github_core.repo.subprocess.run")
     def test_relative_path_resolved_against_start_dir(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout=".git\n")
-        result = get_repo_root(start_dir="/tmp/my-worktree")
-        assert result == Path("/tmp/my-worktree")
+        mock_run.return_value = _completed(stdout="repo\n")
+        result = get_repo_root(start_dir="/home/user/my-worktree")
+        assert result == Path("/home/user/my-worktree/repo")
