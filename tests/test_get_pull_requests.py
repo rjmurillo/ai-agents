@@ -196,7 +196,7 @@ class TestMain:
         output = json.loads(capsys.readouterr().out)["Data"]["pull_requests"]
         assert len(output) == 1
 
-    def test_invalid_limit_exits_1(self, capsys):
+    def test_invalid_limit_exits_2(self, capsys):
         with patch(
             "get_pull_requests.assert_gh_authenticated",
         ), patch(

@@ -9,7 +9,9 @@ Enumerates issues in a repository with filtering capabilities:
 - Search query
 - Result limit
 
-Returns a JSON array with issue metadata for downstream processing.
+Emits the standard skill envelope. In JSON mode, stdout is:
+``{"Success": bool, "Data": {"issues": [...], "count": int}, ...}``.
+Failure paths emit the same envelope with ``Error`` populated.
 
 Mirrors the PR-side ``get_pull_requests.py`` precedent so the
 ``invoke_skill_first_guard.py`` ``issue.list`` mapping resolves to a

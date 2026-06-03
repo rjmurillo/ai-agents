@@ -9,10 +9,13 @@ Enumerates PRs in a repository with filtering capabilities:
 - Head branch
 - Result limit
 
-Returns a JSON array with PR metadata for downstream processing.
+Emits the standard skill envelope. In JSON mode, stdout is:
+``{"Success": bool, "Data": {"pull_requests": [...], "count": int}, ...}``.
+Failure paths emit the same envelope with ``Error`` populated.
 
 Exit codes follow ADR-035:
     0 - Success
+    2 - Config / argument error
     3 - External error (API failure)
     4 - Auth error
 """
