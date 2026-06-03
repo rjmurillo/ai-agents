@@ -43,12 +43,12 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -86,15 +86,54 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _exit_with_error(
+    message: str,
+    exit_code: int,
+    fmt: str,
+    error_type: str = "General",
+) -> None:
+    write_skill_error(
+        message,
+        exit_code,
+        error_type=error_type,
+        output_format=fmt,
+        script_name="get_pull_requests.py",
+    )
+    raise SystemExit(exit_code)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
     if not 1 <= args.limit <= 1000:
-        error_and_exit("Limit must be between 1 and 1000.", 2)
+        _exit_with_error(
+            "Limit must be between 1 and 1000.",
+            2,
+            fmt,
+            "InvalidParams",
+        )
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
+    try:
+        assert_gh_authenticated()
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 4
+        _exit_with_error(
+            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+            code,
+            fmt,
+            "AuthError",
+        )
+    try:
+        resolved = resolve_repo_params(args.owner, args.repo)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+        _exit_with_error(
+            "Could not resolve repository parameters.",
+            code,
+            fmt,
+            "InvalidParams",
+        )
     owner, repo = resolved.owner, resolved.repo
     repo_flag = f"{owner}/{repo}"
 
@@ -129,16 +168,40 @@ def main(argv: list[str] | None = None) -> int:
         if args.head:
             list_args.extend(["--head", args.head])
 
-    result = subprocess.run(
-        list_args, capture_output=True, text=True, timeout=30, check=False,
-    )
+    try:
+        result = subprocess.run(
+            list_args, capture_output=True, text=True, timeout=30, check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _exit_with_error("Timed out waiting for gh pr list.", 3, fmt, "Timeout")
+    except FileNotFoundError:
+        _exit_with_error("gh CLI not found on PATH.", 3, fmt, "ApiError")
 
     if result.returncode != 0:
-        error_and_exit(
-            f"Failed to list PRs: {result.stderr or result.stdout}", 3,
+        _exit_with_error(
+            f"Failed to list PRs: {result.stderr or result.stdout}",
+            3,
+            fmt,
+            "ApiError",
         )
 
-    prs = json.loads(result.stdout)
+    try:
+        prs = json.loads(result.stdout)
+    except (json.JSONDecodeError, ValueError) as exc:
+        _exit_with_error(
+            f"Failed to parse JSON response from gh: {exc}",
+            3,
+            fmt,
+            "ApiError",
+        )
+
+    if not isinstance(prs, list):
+        _exit_with_error(
+            f"Expected a JSON array from gh, got {type(prs).__name__}.",
+            3,
+            fmt,
+            "ApiError",
+        )
 
     if args.state == "merged":
         prs = [p for p in prs if p.get("state") == "MERGED"]
