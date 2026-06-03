@@ -13,10 +13,12 @@ def get_repo_root(
     start_dir: str | Path | None = None,
     timeout: int = _DEFAULT_TIMEOUT,
 ) -> Path | None:
-    """Return the current worktree root.
+    """Return the current worktree root, or checkout root outside worktrees.
 
-    Uses ``git rev-parse --show-toplevel`` so isolated git worktrees resolve to
-    their own checkout root instead of the bare repository's parent directory.
+    Uses ``git rev-parse --show-toplevel`` because callers need the file tree
+    root, not the shared Git admin directory. Bare-backed worktrees have a
+    common dir outside the checkout, so ``--git-common-dir`` is not a safe
+    source for path anchoring.
 
     Args:
         start_dir: Directory to run git from (``-C`` flag). ``None`` uses cwd.
@@ -45,6 +47,7 @@ def get_repo_root(
 
     repo_root = Path(result.stdout.strip())
     if not repo_root.is_absolute():
+        # Relative paths are relative to the working directory (or start_dir).
         base = Path(start_dir) if start_dir is not None else Path.cwd()
         repo_root = (base / repo_root).resolve()
     else:

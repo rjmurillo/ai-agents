@@ -17,20 +17,20 @@ class TestGetRepoRoot:
     """get_repo_root returns the current worktree root."""
 
     @patch("scripts.github_core.repo.subprocess.run")
-    def test_absolute_worktree_root(self, mock_run: patch) -> None:
+    def test_absolute_show_toplevel(self, mock_run: patch) -> None:
         mock_run.return_value = _completed(stdout="/home/user/repo\n")
         result = get_repo_root()
         assert result == Path("/home/user/repo")
 
     @patch("scripts.github_core.repo.subprocess.run")
-    def test_relative_worktree_root(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout="repo\n")
+    def test_relative_show_toplevel(self, mock_run: patch) -> None:
+        mock_run.return_value = _completed(stdout=".\n")
         result = get_repo_root()
         assert result is not None
         assert result.is_absolute()
 
     @patch("scripts.github_core.repo.subprocess.run")
-    def test_worktree_resolves_to_current_checkout(self, mock_run: patch) -> None:
+    def test_worktree_resolves_to_checkout_root(self, mock_run: patch) -> None:
         mock_run.return_value = _completed(stdout="/home/user/worktree\n")
         result = get_repo_root()
         assert result == Path("/home/user/worktree")
@@ -42,9 +42,7 @@ class TestGetRepoRoot:
         mock_run.return_value = _completed(stdout="/home/user/worktree\n")
         get_repo_root(start_dir="/home/user/worktree")
         cmd = mock_run.call_args[0][0]
-        assert cmd == [
-            "git", "-C", "/home/user/worktree", "rev-parse", "--show-toplevel",
-        ]
+        assert cmd == ["git", "-C", "/home/user/worktree", "rev-parse", "--show-toplevel"]
 
     @patch("scripts.github_core.repo.subprocess.run")
     def test_returns_none_on_nonzero_exit(self, mock_run: patch) -> None:
@@ -69,6 +67,6 @@ class TestGetRepoRoot:
 
     @patch("scripts.github_core.repo.subprocess.run")
     def test_relative_path_resolved_against_start_dir(self, mock_run: patch) -> None:
-        mock_run.return_value = _completed(stdout="repo\n")
+        mock_run.return_value = _completed(stdout=".\n")
         result = get_repo_root(start_dir="/home/user/my-worktree")
-        assert result == Path("/home/user/my-worktree/repo")
+        assert result == Path("/home/user/my-worktree")

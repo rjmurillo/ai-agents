@@ -90,17 +90,18 @@ class TestMain:
 
     def test_returns_three_on_io_failure(self, tmp_path: Path, monkeypatch):
         mod = _load_module()
-        monkeypatch.setenv("TMPDIR", str(tmp_path.parent))
 
         def _raise(*_a, **_k):
             raise OSError("disk full")
 
         monkeypatch.setattr(mod, "append_event", _raise)
+        # Use active temp dir path, which is allowed by path validation.
         rc = mod.main(["--reason", "x", "--log-path", str(tmp_path / "s.jsonl")])
         assert rc == 3
 
     def test_rejects_path_traversal(self, tmp_path: Path):
         mod = _load_module()
+        # Attempt to write outside project root and /tmp
         rc = mod.main(["--reason", "x", "--log-path", "/etc/evil.jsonl"])
         assert rc == 2
 

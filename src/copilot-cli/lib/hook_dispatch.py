@@ -33,6 +33,7 @@ from __future__ import annotations
 import io
 import runpy
 import sys
+import threading
 from pathlib import Path
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
@@ -64,7 +65,65 @@ def _exit_code(exc: SystemExit) -> int:
     return 1
 
 
-def run_dispatch(event_dir: Path, shim_names: list[str], raw_stdin: bytes) -> int:
+def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
+    """Run one shim and translate its outcome to a hook exit code."""
+    _install_stdin(raw_stdin)
+    try:
+        runpy.run_path(str(shim_path), run_name="__main__")
+        # A shim that returns without calling sys.exit allowed the tool.
+        return ALLOW_EXIT
+    except SystemExit as exc:
+        return _exit_code(exc)
+    except Exception as exc:  # noqa: BLE001 - fail-closed is mandatory
+        print(
+            f"hook-dispatch: shim {name} raised "
+            f"{type(exc).__name__}: {exc}; denying (fail-closed)",
+            file=sys.stderr,
+        )
+        return BLOCK_EXIT
+
+
+def _run_shim_with_timeout(
+    shim_path: Path,
+    name: str,
+    raw_stdin: bytes,
+    timeout_sec: float | None,
+) -> int:
+    """Run one shim, enforcing its prior host timeout when provided."""
+    if timeout_sec is None:
+        return _run_shim(shim_path, name, raw_stdin)
+    if timeout_sec <= 0:
+        print(
+            f"hook-dispatch: shim {name} has invalid timeout {timeout_sec}; "
+            "denying (fail-closed)",
+            file=sys.stderr,
+        )
+        return BLOCK_EXIT
+
+    result = {"code": BLOCK_EXIT}
+
+    def _target() -> None:
+        result["code"] = _run_shim(shim_path, name, raw_stdin)
+
+    thread = threading.Thread(target=_target, daemon=True)
+    thread.start()
+    thread.join(timeout_sec)
+    if thread.is_alive():
+        print(
+            f"hook-dispatch: shim {name} exceeded {timeout_sec}s; "
+            "denying (fail-closed)",
+            file=sys.stderr,
+        )
+        return BLOCK_EXIT
+    return result["code"]
+
+
+def run_dispatch(
+    event_dir: Path,
+    shim_names: list[str],
+    raw_stdin: bytes,
+    shim_timeouts: dict[str, float] | None = None,
+) -> int:
     """Run each named shim in order, in-process; return the dispatch exit code.
 
     Returns ``ALLOW_EXIT`` (0) only when every shim allowed. Returns the first
@@ -88,20 +147,8 @@ def run_dispatch(event_dir: Path, shim_names: list[str], raw_stdin: bytes) -> in
                 )
                 return BLOCK_EXIT
 
-            _install_stdin(raw_stdin)
-            try:
-                runpy.run_path(str(shim_path), run_name="__main__")
-                # A shim that returns without calling sys.exit allowed the tool.
-                code = ALLOW_EXIT
-            except SystemExit as exc:
-                code = _exit_code(exc)
-            except Exception as exc:  # noqa: BLE001 - fail-closed is mandatory
-                print(
-                    f"hook-dispatch: shim {name} raised "
-                    f"{type(exc).__name__}: {exc}; denying (fail-closed)",
-                    file=sys.stderr,
-                )
-                return BLOCK_EXIT
+            timeout_sec = shim_timeouts.get(name) if shim_timeouts else None
+            code = _run_shim_with_timeout(shim_path, name, raw_stdin, timeout_sec)
 
             if code != ALLOW_EXIT:
                 return code
