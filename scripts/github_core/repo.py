@@ -33,7 +33,7 @@ def get_repo_root(
     cmd.extend(["rev-parse", "--show-toplevel"])
 
     try:
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
