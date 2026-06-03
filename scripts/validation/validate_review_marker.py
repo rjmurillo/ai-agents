@@ -1,0 +1,276 @@
+#!/usr/bin/env python3
+"""Validate that a SHA-bound ``Reviewed-By: /review@...`` marker covers a commit.
+
+The ``/review`` skill writes a git trailer on a PASS verdict so ``/ship`` can
+prove the code being shipped was reviewed at its current state. The trailer is
+the only durable, vendor-safe (no ``.agents/`` dependency) carrier: it lives in
+the commit, travels in every clone, and binds to a specific SHA. See Issue #1938.
+
+MARKER CONTRACT (the single source of truth for both the writer and this reader):
+
+    Reviewed-By: /review@<axis1,axis2,...> on <40-or-64-hex-sha>
+
+- ``/review@`` is a literal prefix.
+- ``<axis-list>`` is one or more comma-separated axis stems (``analyst``,
+  ``security``, ...). It MUST be non-empty.
+- `` on `` (space-on-space) separates the axis list from the reviewed SHA.
+- ``<sha>`` is the git object name of the commit whose review state the marker
+  asserts: the reviewed tip.
+
+WHY THE MARKER IS AN EMPTY COMMIT NAMING ITS PARENT (not its own SHA):
+A commit cannot name its own SHA in a trailer, because the SHA is a hash of the
+commit content, which includes the trailer; writing the SHA changes the SHA, and
+there is no fixed point. So ``/review`` reviews the tip X, then writes an EMPTY
+marker commit M on top whose trailer names X (``M``'s parent). M adds no code.
+SHA-binding holds: HEAD is M only while the reviewed code (X) is HEAD's parent.
+Land any new code commit and HEAD moves to a commit with no binding marker, so a
+stale review cannot ship. See
+``decision-review-marker-sha-binding-mechanism`` (Serena memory).
+
+This validator does not amend or write. It reads the ``Reviewed-By`` trailers on
+a commit (at the git I/O boundary, or passed in for tests) and answers one
+question: is the commit a marker whose trailer binds its parent (the reviewed
+code state)?
+
+EXIT CODES (``AGENTS.md``, ADR-035):
+    0 - A valid marker binds to the expected SHA.
+    1 - No marker, malformed marker, or marker binds to a different SHA.
+    2 - Configuration error (git unavailable, bad repo root, bad args).
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+# The trailer key the /review skill writes and /ship reads. Defined once here
+# and quoted verbatim in .claude/skills/review/SKILL.md and
+# .claude/commands/ship.md so the writer and reader never drift (see
+# .claude/rules/canonical-source-mirror.md).
+MARKER_TRAILER_KEY = "Reviewed-By"
+
+# Parse one marker value: "/review@<axes> on <sha>". The axis list is one or
+# more comma-separated stems; it must be non-empty. The SHA is 40 (sha1) or 64
+# (sha256) lowercase hex characters, matching git object-name widths.
+_MARKER_VALUE_RE = re.compile(
+    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on (?P<sha>[0-9a-f]{40}|[0-9a-f]{64})$"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ReviewMarker:
+    """A parsed, well-formed review marker."""
+
+    axes: tuple[str, ...]
+    sha: str
+
+
+def parse_marker(value: str) -> ReviewMarker | None:
+    """Parse one marker trailer value into a ``ReviewMarker``.
+
+    Returns ``None`` when ``value`` does not match the marker contract
+    (empty, wrong prefix, missing SHA, empty axis list, malformed SHA).
+    A malformed marker is an expected miss, not an exception: the caller
+    decides how to treat it.
+    """
+    match = _MARKER_VALUE_RE.match(value.strip())
+    if match is None:
+        return None
+    axes = tuple(match.group("axes").split(","))
+    return ReviewMarker(axes=axes, sha=match.group("sha"))
+
+
+def select_marker_for_sha(values: list[str], expected_sha: str) -> ReviewMarker | None:
+    """Return the first valid marker among ``values`` that binds ``expected_sha``.
+
+    ``values`` is the list of raw ``Reviewed-By`` trailer values found on a
+    commit (a commit may carry more than one trailer of the same key). A marker
+    binds the SHA only when it parses cleanly AND its recorded SHA equals
+    ``expected_sha``. Returns ``None`` when no value satisfies both.
+    """
+    for value in values:
+        marker = parse_marker(value)
+        if marker is not None and marker.sha == expected_sha:
+            return marker
+    return None
+
+
+def _run_git(args: list[str], repo_root: Path) -> tuple[int, str, str]:
+    """Run a git command in ``repo_root``; return (exit_code, stdout, stderr).
+
+    Bounded timeout: git is a local process but a wedged index or a network
+    remote on an auto-fetching config could hang it. A 15s ceiling keeps the
+    gate from stalling a ship.
+    """
+    if not shutil.which("git"):
+        return -1, "", "git not found on PATH"
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), *args],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except subprocess.TimeoutExpired:
+        return -1, "", "git command timed out after 15s"
+    return result.returncode, result.stdout, result.stderr
+
+
+def resolve_sha(ref: str, repo_root: Path) -> str | None:
+    """Resolve ``ref`` (e.g. ``HEAD`` or ``HEAD^``) to a full object name, or ``None``."""
+    exit_code, stdout, _ = _run_git(["rev-parse", "--verify", "--quiet", ref], repo_root)
+    if exit_code != 0:
+        return None
+    sha = stdout.strip()
+    return sha or None
+
+
+def read_marker_values(ref: str, repo_root: Path) -> list[str] | None:
+    """Read all ``Reviewed-By`` trailer values from the commit at ``ref``.
+
+    Returns the list of trailer values (one per ``Reviewed-By:`` line in the
+    commit's last paragraph), an empty list when the commit carries none, or
+    ``None`` when git could not read the commit (bad ref, git failure).
+    """
+    exit_code, stdout, _ = _run_git(
+        [
+            "log",
+            "-1",
+            f"--format=%(trailers:key={MARKER_TRAILER_KEY},valueonly,unfold)",
+            ref,
+        ],
+        repo_root,
+    )
+    if exit_code != 0:
+        return None
+    return [line for line in stdout.splitlines() if line.strip()]
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationOutcome:
+    """The result of checking a ref for a SHA-bound marker."""
+
+    ok: bool
+    exit_code: int
+    message: str
+
+
+def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
+    """Check that ``ref`` is a marker commit binding its parent (the reviewed code).
+
+    Resolves ``ref`` and its parent (``<ref>^``), reads the ``Reviewed-By``
+    trailers on ``ref``, and confirms one is a valid marker whose recorded SHA
+    equals the parent SHA. The marker is an empty commit naming the reviewed
+    tip, so binding to the parent is the SHA-binding check at the heart of the
+    ship gate (a commit cannot name its own SHA; see module docstring).
+    """
+    head_sha = resolve_sha(ref, repo_root)
+    if head_sha is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message=f"could not resolve ref '{ref}' to a commit",
+        )
+
+    parent_sha = resolve_sha(f"{ref}^", repo_root)
+    if parent_sha is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"{ref} ({head_sha[:12]}) has no parent commit, so it cannot be a "
+                f"review marker (a marker is an empty commit on top of the reviewed "
+                f"tip). Run /review on this branch."
+            ),
+        )
+
+    values = read_marker_values(ref, repo_root)
+    if values is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message=f"git could not read commit '{ref}'",
+        )
+
+    if not values:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"no '{MARKER_TRAILER_KEY}: /review@...' marker on {ref} ({head_sha[:12]}). "
+                f"Run /review on this branch; it writes the marker on a PASS verdict."
+            ),
+        )
+
+    marker = select_marker_for_sha(values, parent_sha)
+    if marker is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"'{MARKER_TRAILER_KEY}' marker on {ref} ({head_sha[:12]}) does not bind "
+                f"the reviewed tip {parent_sha[:12]} (it reviewed a different commit, or "
+                f"new code landed after review). Re-run /review."
+            ),
+        )
+
+    return ValidationOutcome(
+        ok=True,
+        exit_code=0,
+        message=(
+            f"reviewed: /review@{','.join(marker.axes)} binds {parent_sha[:12]} "
+            f"({len(marker.axes)} axis/axes)"
+        ),
+    )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Validate a SHA-bound 'Reviewed-By: /review@...' marker on a commit. "
+            "Used by /ship to prove the shipped code was reviewed at its current state."
+        )
+    )
+    parser.add_argument(
+        "--ref",
+        default="HEAD",
+        help=(
+            "Commit ref to check (default: HEAD). It must be a /review marker "
+            "commit whose Reviewed-By trailer binds its parent (the reviewed tip)."
+        ),
+    )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help=(
+            "Repository root. Defaults to three levels above this script "
+            "(scripts/validation/<script> -> repo root)."
+        ),
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    repo_root = args.repo_root or Path(__file__).resolve().parent.parent.parent
+    if not repo_root.is_dir():
+        print(f"[FAIL] invalid repo root: {repo_root}", file=sys.stderr)
+        return 2
+
+    outcome = validate_ref(args.ref, repo_root)
+    label = "PASS" if outcome.ok else "FAIL"
+    stream = sys.stdout if outcome.ok else sys.stderr
+    print(f"[{label}] {outcome.message}", file=stream)
+    return outcome.exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
