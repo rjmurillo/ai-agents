@@ -35,6 +35,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SPEC_PATH = REPO_ROOT / ".claude" / "commands" / "spec.md"
 GENERATOR_PATH = REPO_ROOT / ".claude" / "skills" / "spec-generator" / "SKILL.md"
+INTERVIEW_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
+)
 COMPLETENESS_PATH = REPO_ROOT / ".github" / "prompts" / "spec-check-completeness.md"
 REFERENCE_FRAGMENT = (
     REPO_ROOT / ".agents" / "specs" / "ontology" / "spec-ontology-elicitation.md"
@@ -51,6 +54,11 @@ def spec_text() -> str:
 @pytest.fixture(scope="module")
 def generator_text() -> str:
     return GENERATOR_PATH.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def interview_text() -> str:
+    return INTERVIEW_PATH.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -162,6 +170,18 @@ def test_ontology_fragment_carried_into_step_2(step_2_region: str) -> None:
     )
     assert "output PRD includes an `## Ontology` section" in step_2_region, (
         "Step 2 must require the PRD to carry the ontology section forward"
+    )
+
+
+def test_requirements_interview_outputs_ontology_section(
+    interview_text: str,
+) -> None:
+    """The interview PRD carries ontology forward before Step 6."""
+    assert "`Ontology`" in interview_text, (
+        "requirements-interview structured output must include Ontology"
+    )
+    assert "caller-provided OntologyFragment" in interview_text, (
+        "requirements-interview must summarize the provided OntologyFragment"
     )
 
 

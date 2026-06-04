@@ -36,7 +36,7 @@ When this skill activates, you become an adversarial requirements interviewer. T
 | Artifact | Location | Purpose |
 |----------|----------|---------|
 | Interview transcript | `.agents/specs/interviews/INTERVIEW-<slug>.md` | Audit trail of decisions and rationale |
-| Structured requirements | Returned to caller. `/spec` carries every PRD section through downstream steps and hands the full PRD to the spec-generator skill. | Problem, user stories, data model, integrations, failure modes, security, observability, acceptance criteria, out-of-scope, deferred, open questions |
+| Structured requirements | Returned to caller. `/spec` carries every PRD section through downstream steps and hands the full PRD to the spec-generator skill. | Problem, user stories, ontology, data model, integrations, failure modes, security, observability, acceptance criteria, out-of-scope, deferred, open questions |
 
 ## Process
 
@@ -91,7 +91,7 @@ The interview is complete when:
 
 ## Structured Output
 
-Return to the caller as Markdown with the sections below. Each section uses the headings `Problem`, `User stories`, `Data model`, `Integrations`, `Failure modes`, `Security`, `Observability`, `Acceptance criteria`, `Out of scope`, `Deferred`, and `Open questions`. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
+Return to the caller as Markdown with the sections below. Each section uses the headings `Problem`, `User stories`, `Ontology`, `Data model`, `Integrations`, `Failure modes`, `Security`, `Observability`, `Acceptance criteria`, `Out of scope`, `Deferred`, and `Open questions`. The `Ontology` section summarizes the caller-provided OntologyFragment when present so downstream steps keep O2 canonical names. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
 
 ## Handoff
 
