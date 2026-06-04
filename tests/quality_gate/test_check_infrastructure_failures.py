@@ -131,6 +131,24 @@ class TestMainWithFailures:
         assert rc == 0
         assert "gh CLI authentication failed" in capsys.readouterr().out
 
+    def test_missing_pr_metadata_skips_label_returns_zero(
+        self, tmp_path, monkeypatch, capsys
+    ) -> None:
+        results = self._seed_failure(tmp_path)
+        monkeypatch.delenv("PR_NUMBER", raising=False)
+        monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+        called = {"run": False}
+
+        def fake_run(*a, **k):  # noqa: ANN002, ANN003
+            called["run"] = True
+            return subprocess.CompletedProcess([], 0)
+
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        rc = main(["--results-dir", str(results)])
+        assert rc == 0
+        assert called["run"] is False
+        assert "PR_NUMBER or GITHUB_REPOSITORY is missing" in capsys.readouterr().out
+
     def test_label_add_failure_returns_zero(self, tmp_path, monkeypatch, capsys) -> None:
         results = self._seed_failure(tmp_path)
         monkeypatch.setenv("PR_NUMBER", "123")

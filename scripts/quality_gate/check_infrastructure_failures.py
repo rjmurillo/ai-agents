@@ -179,12 +179,16 @@ def main(argv: list[str] | None = None) -> int:
     attempts = ", ".join(f"{f.agent}: {f.retry_count} retries" for f in findings)
     print(f"Retry attempts: {attempts}")
 
+    pr_number = os.environ.get("PR_NUMBER", "").strip()
+    repository = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    if not pr_number or not repository:
+        print("::warning::PR_NUMBER or GITHUB_REPOSITORY is missing, cannot add label")
+        return 0
+
     if not _gh_authenticated(args.gh_timeout):
         print("::warning::gh CLI authentication failed, cannot add label")
         return 0
 
-    pr_number = os.environ.get("PR_NUMBER", "")
-    repository = os.environ.get("GITHUB_REPOSITORY", "")
     _add_label(pr_number, repository, args.gh_timeout)
     return 0
 
