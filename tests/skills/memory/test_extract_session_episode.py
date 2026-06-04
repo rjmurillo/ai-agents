@@ -258,6 +258,10 @@ def _gate(complete):
     return {"level": "MUST", "Complete": complete, "Evidence": "x"}
 
 
+def _lowercase_gate(complete):
+    return {"level": "MUST", "complete": complete, "evidence": "x"}
+
+
 def _json_log(work_log, end_complete=True):
     gate = _gate(end_complete)
     return {
@@ -290,6 +294,16 @@ class TestJsonSessionLogPath:
 
     def test_all_gates_complete_is_success(self):
         assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "20 passed"}])) == "success"
+
+    def test_lowercase_session_end_gates_are_success(self):
+        data = _json_log([{"task": "t", "outcome": "20 passed"}])
+        gate = _lowercase_gate(True)
+        data["protocolCompliance"]["sessionEnd"] = {
+            "checklistComplete": gate,
+            "changesCommitted": gate,
+            "validationPassed": gate,
+        }
+        assert extract_session_episode.json_outcome(data) == "success"
 
     def test_incomplete_gates_is_partial(self):
         assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "wip"}], end_complete=False)) == "partial"

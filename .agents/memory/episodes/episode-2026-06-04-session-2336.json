@@ -1,9 +1,9 @@
 {
-  "id": "episode-2026-06-04-session-2363",
-  "session": "2026-06-04-session-2363",
+  "id": "episode-2026-06-04-session-2336",
+  "session": "2026-06-04-session-2336",
   "timestamp": "2026-06-04T00:00:00+00:00",
   "outcome": "success",
-  "task": "Autofix and merge PR #2363 K1-K4 kill-criteria telemetry after review threads and CI gates pass.",
+  "task": "Autofix and merge PR #2359: sunset session-migration and finish session QA fold.",
   "decisions": [],
   "events": [],
   "metrics": {
