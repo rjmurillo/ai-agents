@@ -4502,6 +4502,123 @@
         "episode-2026-06-03-session-1874"
       ],
       "created": "2026-06-03T14:22:54.415056+00:00"
+    },
+    {
+      "id": "80d70bcda1e6",
+      "type": "milestone",
+      "label": "milestone: Recover the orphaned PR #2205 governance remediation onto a fresh PR off current main.",
+      "episodes": [
+        "episode-2026-06-02-session-1874"
+      ],
+      "created": "2026-06-04T06:52:32.373897+00:00"
+    },
+    {
+      "id": "f43dd4bf896a",
+      "type": "test",
+      "label": "test: PR #2206 squash-merged (d6bd06d7c); the core fix landed in main but the governance layer (rule generated-artifacts.md, ADR-063, FM #11, incident retro, CI anchoring gate step, canonical-source-mirror amendment, AGENTS boundary, load-bearing test, 2 feedback memories) was orphaned on the re-created branch. Created branch fix/2205-generated-artifact-governance off origin/main and restored the orphaned governance files (verified each edited file's diff vs main was exactly my edit, no 3-way needed). Filed #2258 for the pre-commit set -e scope-detector silent-kill bug found during the original landing. Verification: validate_hook_anchoring PASS; uv run pytest runtime-contract 6 passed; build_all --platform copilot-cli --check exit 0.",
+      "episodes": [
+        "episode-2026-06-02-session-1874"
+      ],
+      "created": "2026-06-04T06:52:32.373925+00:00"
+    },
+    {
+      "id": "da69cff09d6b",
+      "type": "outcome",
+      "label": "Outcome: success - Land orphaned PR 2205 governance remediation (rule, ADR-063, FM 11, incident retro, CI anchoring gate, memories) on a fresh PR off main after squash-merge orphaning",
+      "episodes": [
+        "episode-2026-06-02-session-1874"
+      ],
+      "created": "2026-06-04T06:52:32.373944+00:00"
+    },
+    {
+      "id": "787ed7cb3277",
+      "type": "test",
+      "label": "test: uv run pytest tests/test_hook_dispatch.py tests/build_scripts/test_generate_dispatcher.py: 17 passed; cutover gated per ADR-068",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-04T06:52:32.374213+00:00"
+    },
+    {
+      "id": "d54f9c3e3328",
+      "type": "milestone",
+      "label": "milestone: ADR-068 (DRAFT) single in-process dispatcher for Copilot hooks; adr-review applied",
+      "episodes": [
+        "episode-2026-06-03-session-1874"
+      ],
+      "created": "2026-06-04T06:52:32.374247+00:00"
+    },
+    {
+      "id": "529c3fe1602d",
+      "type": "milestone",
+      "label": "milestone: Read PR #2332 state and unresolved review threads",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374320+00:00"
+    },
+    {
+      "id": "5e8df0a943b0",
+      "type": "milestone",
+      "label": "milestone: Updated validate-adr-number-uniqueness remediation text",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374339+00:00"
+    },
+    {
+      "id": "892442f1636e",
+      "type": "milestone",
+      "label": "milestone: Updated debate-log H1",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374357+00:00"
+    },
+    {
+      "id": "3328c10d79e1",
+      "type": "milestone",
+      "label": "milestone: Ran scoped validation",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374375+00:00"
+    },
+    {
+      "id": "7021e1f19692",
+      "type": "milestone",
+      "label": "milestone: Ran full pre_pr validation",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374393+00:00"
+    },
+    {
+      "id": "c90f70273470",
+      "type": "milestone",
+      "label": "milestone: Aligned Post-PR Retrospective action pin contract",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374422+00:00"
+    },
+    {
+      "id": "bb2915d3fb70",
+      "type": "milestone",
+      "label": "milestone: Resolved follow-up ADR reference comments",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374441+00:00"
+    },
+    {
+      "id": "3a9e365c8d60",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix PR #2332 review feedback, validate ADR numbering, resolve threads, and merge if governance gates allow",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T06:52:32.374459+00:00"
     }
   ],
   "patterns": [
@@ -4551,7 +4668,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 3,
+      "occurrences": 5,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -4560,7 +4677,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 6,
+      "occurrences": 10,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -4569,7 +4686,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 12,
+      "occurrences": 20,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -4578,7 +4695,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 18,
+      "occurrences": 30,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -4588,7 +4705,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -4596,7 +4713,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -4604,7 +4721,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -4612,7 +4729,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -4620,7 +4737,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -4628,7 +4745,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -4636,7 +4753,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -4644,7 +4761,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -4652,7 +4769,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -4660,7 +4777,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -4668,7 +4785,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -4676,7 +4793,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -4684,7 +4801,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -4692,7 +4809,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -4700,7 +4817,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -4708,7 +4825,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -4716,7 +4833,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -4724,7 +4841,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -4732,7 +4849,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -4740,7 +4857,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -4748,7 +4865,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -4756,7 +4873,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -4764,7 +4881,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -4772,7 +4889,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -4780,7 +4897,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -4788,7 +4905,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -4796,7 +4913,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -4804,7 +4921,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -4812,7 +4929,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -4820,7 +4937,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -4828,7 +4945,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -4836,7 +4953,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -4844,7 +4961,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -4852,7 +4969,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -4860,7 +4977,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -4868,7 +4985,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -4876,7 +4993,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -4884,7 +5001,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -4892,7 +5009,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -4900,7 +5017,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "count": 3,
+      "count": 5,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
