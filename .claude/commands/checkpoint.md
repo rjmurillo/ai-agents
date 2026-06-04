@@ -1,7 +1,7 @@
 ---
-description: Write a timestamped mid-session checkpoint snapshot of decisions, progress, and next actions to .agents/checkpoints/. Use when you want a human-triggered save point during a long session.
+description: Write a timestamped mid-session checkpoint snapshot of decisions, progress, and next actions to .agents/checkpoints/, then link it from the active session log.
 argument-hint: optional-short-label
-allowed-tools: Bash(date:*), Write
+allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Glob, Read, Edit, Write
 ---
 
 # Checkpoint Command
@@ -9,7 +9,7 @@ allowed-tools: Bash(date:*), Write
 Capture the current state of work as a durable, timestamped snapshot. Use this
 mid-session when you want a recoverable save point before a risky change, at the
 end of a working block, or whenever the user asks to "checkpoint" progress. The
-file is the human-readable record; it is not a substitute for the session log.
+file is the human-readable record; the session log keeps a reference to it.
 
 Optional label for this checkpoint: $ARGUMENTS
 
@@ -78,10 +78,23 @@ Optional label for this checkpoint: $ARGUMENTS
    body. The checkpoint lands in git history; treat it as durable. If a value you
    would record looks like a secret, summarize it instead of copying it verbatim.
 
-6. Report the path you wrote and a one-line summary of what the checkpoint
-   captured. Do not commit the file; leave that to the user or the session-end
-   flow.
+6. Link the checkpoint from the active session log:
 
-This command only writes a snapshot file. It does not change session state, does
-not touch the session log, and does not push or commit. Keep it to the steps
-above.
+   - Get the current branch with `git branch --show-current`.
+   - Find `.agents/sessions/*.json` files, read the newest files first, and pick
+     the newest log whose `session.branch` equals the current branch.
+   - If no matching session log exists, report that no active session log was
+     found. Do not invent or modify a log.
+   - If a matching log exists, update a top-level `checkpoints` array. Create the
+     array when it is absent. Append an object with `path`, `created`, `label`,
+     and `branch` fields for this checkpoint. Preserve valid JSON.
+   - Run `python3 -m json.tool <session-log-path>` after editing. If JSON
+     validation fails, report the failure and do not claim the checkpoint was
+     linked from the session log.
+
+7. Report the path you wrote, the session log path you updated or the reason no
+   log was updated, and a one-line summary of what the checkpoint captured. Do
+   not commit the file; leave that to the user or the session-end flow.
+
+This command writes a snapshot file and records a reference in the active session
+log when one exists. It does not push or commit. Keep it to the steps above.
