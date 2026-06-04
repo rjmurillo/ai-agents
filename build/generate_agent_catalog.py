@@ -123,7 +123,8 @@ def _count_loc(content: str) -> int:
 def _parse_frontmatter(content: str, template: Path) -> dict[str, object]:
     """Extract and parse the YAML frontmatter block.
 
-    Raises CatalogError if the file has no frontmatter or the YAML is invalid.
+    Raises CatalogError if the file has no frontmatter, the YAML is invalid,
+    or required catalog fields are malformed.
     """
     match = _FRONTMATTER_RE.match(content.replace("\r\n", "\n"))
     if match is None:
@@ -139,6 +140,17 @@ def _parse_frontmatter(content: str, template: Path) -> dict[str, object]:
     return parsed
 
 
+def _require_frontmatter_string(frontmatter: dict[str, object], key: str, template: Path) -> str:
+    """Return a required non-empty string field from template frontmatter."""
+    value = frontmatter.get(key)
+    if not isinstance(value, str):
+        raise CatalogError(f"frontmatter field '{key}' in {template} must be a non-empty string")
+    stripped = value.strip()
+    if not stripped:
+        raise CatalogError(f"frontmatter field '{key}' in {template} must be a non-empty string")
+    return stripped
+
+
 def build_entry(template: Path) -> AgentEntry:
     """Build a catalog entry from one agent template file."""
     try:
@@ -147,10 +159,8 @@ def build_entry(template: Path) -> AgentEntry:
         raise CatalogError(f"cannot read {template}: {exc}") from exc
 
     frontmatter = _parse_frontmatter(content, template)
-    description_value = frontmatter.get("description")
-    description = str(description_value).strip() if description_value is not None else ""
-    tier_value = frontmatter.get("tier")
-    tier = str(tier_value).strip() if tier_value is not None else "unknown"
+    description = _require_frontmatter_string(frontmatter, "description", template)
+    tier = _require_frontmatter_string(frontmatter, "tier", template)
 
     return AgentEntry(
         name=_agent_name_from_path(template),

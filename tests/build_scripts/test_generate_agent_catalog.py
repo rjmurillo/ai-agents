@@ -171,6 +171,58 @@ def test_invalid_yaml_raises_catalog_error(tmp_path: Path) -> None:
         gac.collect_entries(templates_dir)
 
 
+@pytest.mark.parametrize("field", ["description", "tier"])
+def test_missing_required_frontmatter_field_raises_catalog_error(
+    tmp_path: Path, field: str
+) -> None:
+    # Arrange
+    templates_dir = tmp_path / "templates" / "agents"
+    templates_dir.mkdir(parents=True)
+    frontmatter_lines = {
+        "description": "description: A test agent.",
+        "tier": "tier: builder",
+    }
+    frontmatter_lines.pop(field)
+    (templates_dir / "broken.shared.md").write_text(
+        "---\n" + "\n".join(frontmatter_lines.values()) + "\n---\nbody\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(gac.CatalogError, match=rf"{field}.*broken\.shared\.md"):
+        gac.collect_entries(templates_dir)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("description", "[]"),
+        ("description", "''"),
+        ("tier", "[]"),
+        ("tier", "''"),
+    ],
+)
+def test_malformed_required_frontmatter_field_raises_catalog_error(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    # Arrange
+    templates_dir = tmp_path / "templates" / "agents"
+    templates_dir.mkdir(parents=True)
+    frontmatter_lines = {
+        "description": "description: A test agent.",
+        "tier": "tier: builder",
+    }
+    frontmatter_lines[field] = f"{field}: {value}"
+    (templates_dir / "broken.shared.md").write_text(
+        "---\n" + "\n".join(frontmatter_lines.values()) + "\n---\nbody\n",
+        encoding="utf-8",
+    )
+
+    # Act / Assert
+    with pytest.raises(gac.CatalogError, match=rf"{field}.*broken\.shared\.md"):
+        gac.collect_entries(templates_dir)
+
+
 def test_main_returns_config_error_when_templates_dir_missing(tmp_path: Path) -> None:
     # Arrange
     missing = tmp_path / "does-not-exist"
