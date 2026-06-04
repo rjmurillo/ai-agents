@@ -125,6 +125,10 @@ _NON_ACTIONABLE = re.compile(
     r"^(the|it|this|that|there)\b.*\b(was|were|is|are|seemed|felt)\b",
     re.IGNORECASE,
 )
+_ACTIONABLE_COPULA = re.compile(
+    r"^(the|it|this|that|there)\b.*\b(was|were|is|are)\s+to\b",
+    re.IGNORECASE,
+)
 
 
 def _is_actionable(text: str) -> bool:
@@ -137,6 +141,8 @@ def _is_actionable(text: str) -> bool:
     stripped = text.strip()
     if not stripped:
         return False
+    if _ACTIONABLE_COPULA.match(stripped):
+        return True
     # Pure description of a past state ("X was effective") is not actionable.
     return _NON_ACTIONABLE.match(stripped) is None
 

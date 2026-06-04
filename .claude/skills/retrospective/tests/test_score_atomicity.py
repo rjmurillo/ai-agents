@@ -114,6 +114,18 @@ def test_missing_metrics_costs_twenty_five_percent():
     assert result.breakdown["missing_evidence"] == 25
 
 
+def test_copula_to_guidance_counts_as_actionable():
+    # Arrange
+    learning = "The fix is to add a 30s timeout around each git subprocess call"
+
+    # Act
+    result = score_learning(learning)
+
+    # Assert
+    assert result.is_actionable is True
+    assert "no_action" not in result.breakdown
+
+
 def test_long_learning_loses_five_percent_per_extra_word():
     # Arrange: 17 words, actionable, with a metric, no vague or compound terms.
     learning = (
