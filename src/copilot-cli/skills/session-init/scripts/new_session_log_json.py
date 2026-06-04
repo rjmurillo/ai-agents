@@ -72,8 +72,13 @@ def _get_commit() -> str:
 
 
 def _get_repo_root() -> str:
+    # Use --show-toplevel (working tree root), not --git-common-dir.
+    # For linked worktrees created from bare repos, --git-common-dir
+    # points to shared Git storage outside the checkout (e.g.
+    # /tmp/bare.git), which misplaces .agents/sessions/ outside the
+    # worktree. See issue #2375.
     result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+        ["git", "rev-parse", "--show-toplevel"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
@@ -81,12 +86,12 @@ def _get_repo_root() -> str:
     raw = result.stdout.strip()
     if not raw:
         return _WORKSPACE
-    git_common = Path(raw)
-    if not git_common.is_absolute():
-        git_common = (Path.cwd() / git_common).resolve()
+    toplevel = Path(raw)
+    if not toplevel.is_absolute():
+        toplevel = (Path.cwd() / toplevel).resolve()
     else:
-        git_common = git_common.resolve()
-    return str(git_common.parent)
+        toplevel = toplevel.resolve()
+    return str(toplevel)
 
 
 def main(argv: list[str] | None = None) -> int:

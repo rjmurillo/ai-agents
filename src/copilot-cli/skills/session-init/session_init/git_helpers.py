@@ -46,14 +46,19 @@ def get_git_info() -> dict[str, str]:
         ApplicationFailedError: Unexpected errors during git command execution.
     """
     try:
-        git_common_raw = _run_git("rev-parse", "--git-common-dir") or ""
-        if git_common_raw:
-            git_common = Path(git_common_raw)
-            if not git_common.is_absolute():
-                git_common = (Path.cwd() / git_common).resolve()
+        # Use --show-toplevel (working tree root), not --git-common-dir.
+        # For linked worktrees created from bare repos, --git-common-dir
+        # points to shared Git storage outside the checkout (e.g.
+        # /tmp/bare.git), while --show-toplevel correctly returns the
+        # worktree root. See issue #2375.
+        toplevel_raw = _run_git("rev-parse", "--show-toplevel") or ""
+        if toplevel_raw:
+            toplevel = Path(toplevel_raw)
+            if not toplevel.is_absolute():
+                toplevel = (Path.cwd() / toplevel).resolve()
             else:
-                git_common = git_common.resolve()
-            repo_root = str(git_common.parent)
+                toplevel = toplevel.resolve()
+            repo_root = str(toplevel)
         else:
             repo_root = ""
 
