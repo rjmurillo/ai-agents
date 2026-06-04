@@ -22,16 +22,23 @@ import pytest
 # ---------------------------------------------------------------------------
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _EVAL_DIR = _REPO_ROOT / "scripts" / "eval"
-if str(_EVAL_DIR) not in sys.path:
+_path_added = str(_EVAL_DIR) not in sys.path
+if _path_added:
     sys.path.insert(0, str(_EVAL_DIR))
 
-_SPEC = importlib.util.spec_from_file_location(
-    "eval_skill_overlap", _EVAL_DIR / "eval-skill-overlap.py"
-)
-assert _SPEC is not None and _SPEC.loader is not None
-eso = importlib.util.module_from_spec(_SPEC)
-sys.modules["eval_skill_overlap"] = eso
-_SPEC.loader.exec_module(eso)
+try:
+    _SPEC = importlib.util.spec_from_file_location(
+        "eval_skill_overlap", _EVAL_DIR / "eval-skill-overlap.py"
+    )
+    assert _SPEC is not None and _SPEC.loader is not None
+    eso = importlib.util.module_from_spec(_SPEC)
+    sys.modules["eval_skill_overlap"] = eso
+    _SPEC.loader.exec_module(eso)
+finally:
+    if _path_added and str(_EVAL_DIR) in sys.path:
+        sys.path.remove(str(_EVAL_DIR))
+
+eso.RATE_LIMIT_SLEEP_SEC = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -438,6 +445,22 @@ def test_parse_judge_score_returns_zero_on_garbage():
     assert eso._parse_judge_score("not json at all") == 0.0
 
 
+def test_parse_judge_score_returns_zero_on_non_object_json():
+    # Act / Assert
+    assert eso._parse_judge_score("4") == 0.0
+
+
+def test_parse_judge_score_returns_zero_when_score_is_null():
+    # Act / Assert
+    assert eso._parse_judge_score('{"score": null}') == 0.0
+
+
+def test_parse_judge_score_clamps_out_of_range_values():
+    # Act / Assert
+    assert eso._parse_judge_score('{"score": 9}') == 5.0
+    assert eso._parse_judge_score('{"score": -1}') == 1.0
+
+
 # ===========================================================================
 # Report writers (positive)
 # ===========================================================================
@@ -505,6 +528,14 @@ def test_write_reports_is_idempotent_on_same_run_id(tmp_path):
     assert len(overlap_dirs) == 1
 
 
+def test_write_reports_rejects_run_id_path_traversal(tmp_path):
+    # Act / Assert: report writes must stay under the reports root.
+    with pytest.raises(ValueError, match="run id"):
+        eso.write_reports(
+            [_sample_result()], model="m", run_id="../escape", reports_dir=tmp_path
+        )
+
+
 # ===========================================================================
 # CLI run() exit codes (ADR-035) with mocked boundaries
 # ===========================================================================
@@ -521,6 +552,11 @@ def test_run_dry_run_exits_ok_without_api_calls(tmp_path, monkeypatch, capsys):
     def _boom():
         raise AssertionError("dry run must not load the API key")
 
+    skills_root = tmp_path / "skills_root"
+    skills_root.mkdir()
+    _make_skill_dir(skills_root, "a")
+    _make_skill_dir(skills_root, "b")
+    monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
     monkeypatch.setattr(eso, "_load_api_key", _boom)
     cluster = _write_valid_cluster(tmp_path)
     args = eso.build_parser().parse_args(["--pairs", str(cluster), "--dry-run"])
@@ -531,6 +567,22 @@ def test_run_dry_run_exits_ok_without_api_calls(tmp_path, monkeypatch, capsys):
     # Assert
     assert code == eso.EXIT_OK
     assert "Cost estimate" in capsys.readouterr().err
+
+
+def test_run_dry_run_returns_logic_exit_when_pair_skill_is_missing(tmp_path, monkeypatch):
+    # Arrange: dry-run validates filesystem inputs but still skips API calls.
+    skills_root = tmp_path / "skills_root"
+    skills_root.mkdir()
+    _make_skill_dir(skills_root, "a")
+    monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
+    cluster = _write_valid_cluster(tmp_path)
+    args = eso.build_parser().parse_args(["--pairs", str(cluster), "--dry-run"])
+
+    # Act
+    code = eso.run(args)
+
+    # Assert
+    assert code == eso.EXIT_LOGIC
 
 
 def test_run_returns_config_exit_on_bad_pairs_file(tmp_path):
@@ -592,11 +644,16 @@ def test_run_returns_external_exit_on_api_failure(tmp_path, monkeypatch):
 
 def test_run_returns_external_exit_when_api_key_missing(tmp_path, monkeypatch):
     # Arrange: live run, but the key load fails.
+    skills_root = tmp_path / "skills_root"
+    skills_root.mkdir()
+    _make_skill_dir(skills_root, "a")
+    _make_skill_dir(skills_root, "b")
     cluster = _write_valid_cluster(tmp_path)
 
     def _no_key():
         raise RuntimeError("ANTHROPIC_API_KEY not found")
 
+    monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
     monkeypatch.setattr(eso, "_load_api_key", _no_key)
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
 
@@ -605,6 +662,20 @@ def test_run_returns_external_exit_when_api_key_missing(tmp_path, monkeypatch):
 
     # Assert
     assert code == eso.EXIT_EXTERNAL
+
+
+def test_run_rejects_invalid_run_id_before_dry_run_success(tmp_path):
+    # Arrange
+    cluster = _write_valid_cluster(tmp_path)
+    args = eso.build_parser().parse_args(
+        ["--pairs", str(cluster), "--run-id", "../escape", "--dry-run"]
+    )
+
+    # Act
+    code = eso.run(args)
+
+    # Assert
+    assert code == eso.EXIT_CONFIG
 
 
 def test_run_full_live_path_writes_report(tmp_path, monkeypatch):
@@ -649,6 +720,11 @@ def test_main_dry_run_returns_zero(tmp_path, monkeypatch):
     def _no_key():
         raise AssertionError("no key in dry run")
 
+    skills_root = tmp_path / "skills_root"
+    skills_root.mkdir()
+    _make_skill_dir(skills_root, "a")
+    _make_skill_dir(skills_root, "b")
+    monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
     monkeypatch.setattr(eso, "_load_api_key", _no_key)
     cluster = _write_valid_cluster(tmp_path)
 

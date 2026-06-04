@@ -86,6 +86,7 @@ REPORTS_DIR = REPO_ROOT / "evals" / "reports"
 
 DEFAULT_MODEL = "claude-sonnet-4-20250514"
 RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; matches eval-knowledge-integration.py
+RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 # USD pricing. Reused from _eval_common conventions: Sonnet input/output blend.
 # A blended per-1K rate keeps the run-start estimate honest without tracking
@@ -369,6 +370,14 @@ def require_skill_dir(skill_name: str, skills_dir: Path = SKILLS_DIR) -> Path:
     return skill_dir
 
 
+def _validate_pair_skill_dirs(
+    pairs: list[tuple[str, str]], skills_dir: Path = SKILLS_DIR
+) -> None:
+    for skill_a, skill_b in pairs:
+        require_skill_dir(skill_a, skills_dir)
+        require_skill_dir(skill_b, skills_dir)
+
+
 def load_skill_context(skill_dir: Path) -> str:
     """Load SKILL.md and all references/ files for a skill directory."""
     parts: list[str] = []
@@ -432,8 +441,19 @@ def _parse_judge_score(raw: str) -> float:
             text = match.group(1).strip()
     try:
         parsed = json.loads(text)
-        return float(parsed.get("score", 0))
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except json.JSONDecodeError:
+        print(f"WARNING: failed to parse judge score: {text[:100]}", file=sys.stderr)
+        return 0.0
+    if not isinstance(parsed, dict):
+        print(f"WARNING: judge score payload is not an object: {text[:100]}", file=sys.stderr)
+        return 0.0
+    score = parsed.get("score")
+    if score is None:
+        print(f"WARNING: judge score missing or null: {text[:100]}", file=sys.stderr)
+        return 0.0
+    try:
+        return min(max(float(score), 1.0), 5.0)
+    except (TypeError, ValueError):
         print(f"WARNING: failed to parse judge score: {text[:100]}", file=sys.stderr)
         return 0.0
 
@@ -639,12 +659,16 @@ def write_reports(
     Returns the report directory. Idempotent: re-running with the same run_id
     overwrites the prior files.
     """
-    out_dir = reports_dir / f"overlap-{run_id}"
+    safe_run_id = _validate_run_id(run_id)
+    reports_root = reports_dir.resolve()
+    out_dir = (reports_root / f"overlap-{safe_run_id}").resolve()
+    if reports_root not in out_dir.parents:
+        raise ValueError(f"Invalid run id '{run_id}': report path escapes {reports_root}.")
     out_dir.mkdir(parents=True, exist_ok=True)
-    matrix = build_matrix(results, model=model, run_id=run_id)
+    matrix = build_matrix(results, model=model, run_id=safe_run_id)
     (out_dir / "matrix.json").write_text(json.dumps(matrix, indent=2), encoding="utf-8")
     (out_dir / "REPORT.md").write_text(
-        build_report_md(results, model=model, run_id=run_id), encoding="utf-8"
+        build_report_md(results, model=model, run_id=safe_run_id), encoding="utf-8"
     )
     return out_dir
 
@@ -658,6 +682,15 @@ def _make_run_id() -> str:
     return datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
 
 
+def _validate_run_id(run_id: str) -> str:
+    if not RUN_ID_RE.fullmatch(run_id) or ".." in run_id:
+        raise ValueError(
+            "run id must be 1-128 characters of letters, digits, '.', '_', or '-', "
+            "start with a letter or digit, and not contain '..'."
+        )
+    return run_id
+
+
 def run(args: argparse.Namespace) -> int:
     """Execute the analysis. Returns a process exit code (ADR-035)."""
     try:
@@ -665,6 +698,17 @@ def run(args: argparse.Namespace) -> int:
     except PairsFileError as exc:
         print(f"ERROR (config): {exc}", file=sys.stderr)
         return EXIT_CONFIG
+
+    try:
+        run_id = _validate_run_id(args.run_id or _make_run_id())
+    except ValueError as exc:
+        print(f"ERROR (config): {exc}", file=sys.stderr)
+        return EXIT_CONFIG
+    try:
+        _validate_pair_skill_dirs(config.pairs, SKILLS_DIR)
+    except MissingSkillError as exc:
+        print(f"ERROR (logic): {exc}", file=sys.stderr)
+        return EXIT_LOGIC
 
     cost = estimate_cost(config.pairs, config.prompts)
     print(cost.render(), file=sys.stderr)
@@ -684,7 +728,6 @@ def run(args: argparse.Namespace) -> int:
 
     respond = make_response_fn(api_key, args.model)
     judge = make_judge_fn(api_key, args.model)
-    run_id = args.run_id or _make_run_id()
 
     results: list[PairResult] = []
     try:

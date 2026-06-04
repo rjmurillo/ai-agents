@@ -139,6 +139,11 @@ Input is a `cluster.json` with a `pairs` list and a `prompts` map. See
 `examples/example-overlap-pairs.json`. The default run cost estimate prints at
 run start (API call count, token total, USD estimate).
 
+Dry-run validates the pair file, referenced skill directories, and `--run-id`
+before printing the cost estimate. `--run-id` accepts 1-128 characters: letters,
+digits, `.`, `_`, and `-`; it must start with a letter or digit and cannot
+contain `..`.
+
 Output lands at `evals/reports/overlap-<RUNID>/`: `matrix.json` (machine
 readable per-pair deltas and verdicts) and `REPORT.md` (prune/fold table).
 
