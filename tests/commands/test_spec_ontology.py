@@ -221,6 +221,19 @@ def test_generator_requires_canonical_name_reuse(generator_text: str) -> None:
     )
 
 
+def test_generator_design_traces_decision_rules_to_o5(
+    generator_text: str,
+) -> None:
+    """Design artifacts map domain decision rules to O5 ontology sources."""
+    lowered = generator_text.lower()
+    assert "decision-rule traceability" in lowered, (
+        "spec-generator must render design decision-rule traceability"
+    )
+    assert "ontologyfragment `## o5` source" in lowered, (
+        "design rule traceability must cite OntologyFragment O5 sources"
+    )
+
+
 # --- Negative: no new top-level step, no new verdict token ---
 
 

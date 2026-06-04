@@ -120,10 +120,11 @@ Frontmatter (all required unless noted): `type: design`, `id`, `title`, `status`
 1. Requirements Addressed (list REQ ids)
 2. Design Overview
 3. Component Architecture
-4. Technology Decisions (table: decision, choice, rationale)
-5. Security Considerations
-6. Testing Strategy
-7. Open Questions
+4. Technology Decisions (table: decision, choice, O5 source, rationale)
+5. Decision-rule Traceability (map each domain decision rule to its OntologyFragment `## O5` source)
+6. Security Considerations
+7. Testing Strategy
+8. Open Questions
 
 ### Task Structure
 
