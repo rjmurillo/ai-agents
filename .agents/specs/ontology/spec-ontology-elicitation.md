@@ -33,7 +33,7 @@ match the O1..O7 prompts in `.claude/commands/spec.md` Step 1.
 ## O5 Decision rules
 
 - Every entity named in a SpecArtifact must appear in the OntologyFragment by its O2 canonical name. Enforced at: spec-generator (Step 6) on write, CompletenessCheck (CI completeness check) on verdict.
-- An empty-entity feature (O1 = none) makes entity coverage vacuously satisfied only when generated requirements reference zero domain entities; the CompletenessCheck must not emit PARTIAL or FAIL for that empty-entity case. Enforced at: CompletenessCheck.
+- An empty-entity feature (O1 = none) makes entity coverage vacuously satisfied only when generated REQ, DESIGN, and TASK artifacts reference zero domain entities; the CompletenessCheck must not emit PARTIAL or FAIL for that empty-entity case. Enforced at: CompletenessCheck.
 - The OntologyFragment is never a halt: a missing or trivial fragment degrades gracefully and is recorded, not blocked. Enforced at: Step 1 elicitation.
 
 ## O6 Bounded-context boundaries

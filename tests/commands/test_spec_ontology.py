@@ -202,6 +202,12 @@ def test_ontology_checks_reference_real_spec_artifact_paths(
     assert ".agents/specs/requirements/REQ-NNN-{slug}.md" in spec_text, (
         "Step 1 ontology handoff must name the generated REQ artifact pattern"
     )
+    assert ".agents/specs/design/DESIGN-NNN-{slug}.md" in spec_text, (
+        "Step 1 ontology handoff must name the generated DESIGN artifact pattern"
+    )
+    assert ".agents/specs/tasks/TASK-NNN-{slug}.md" in spec_text, (
+        "Step 1 ontology handoff must name the generated TASK artifact pattern"
+    )
     assert "`requirements.md`" not in spec_text, (
         "Step 1 ontology handoff must not point at a non-emitted requirements.md"
     )
@@ -268,6 +274,9 @@ def test_generator_requires_canonical_name_reuse(generator_text: str) -> None:
     lowered = generator_text.lower()
     assert "canonical name" in lowered, (
         "spec-generator must require entities be named by their canonical O2 name"
+    )
+    assert "any req, design, or task artifact" in lowered, (
+        "spec-generator must apply O2 naming to REQ, DESIGN, and TASK artifacts"
     )
     assert "ask the caller/user to extend the ontologyfragment" in lowered, (
         "spec-generator must give non-/spec callers an actionable repair path"
@@ -458,8 +467,8 @@ def test_reference_fragment_exists_and_has_seven_sections() -> None:
 def test_reference_fragment_empty_entity_rule_matches_fail_closed_prompt() -> None:
     """The reference ontology records the same empty-entity guard as CI."""
     text = " ".join(REFERENCE_FRAGMENT.read_text(encoding="utf-8").lower().split())
-    assert "only when generated requirements reference zero domain entities" in text, (
-        "reference fragment must not allow O1=none to mask requirement entities"
+    assert "only when generated req, design, and task artifacts reference zero domain entities" in text, (
+        "reference fragment must not allow O1=none to mask spec-artifact entities"
     )
     assert "ci completeness check" in text, (
         "reference fragment must name the CI completeness check, not /spec Step 7"
