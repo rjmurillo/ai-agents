@@ -47,6 +47,21 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
+def _envelope(capsys) -> dict:
+    """Parse the captured stdout into the ADR-056 envelope dict.
+
+    The script emits the {Success, Data, Error, Metadata} envelope as JSON when
+    stdout is not a TTY (pytest's capsys redirect satisfies that). Tests assert
+    on the envelope and on its Data payload.
+    """
+    return json.loads(capsys.readouterr().out)
+
+
+def _data(capsys) -> dict:
+    """Return just the Data payload of the captured envelope."""
+    return _envelope(capsys)["Data"]
+
+
 def _graphql_response(threads=None, total_count=None):
     if threads is None:
         threads = []
@@ -159,7 +174,7 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = _data(capsys)
         assert isinstance(output, dict)
         assert isinstance(output["total_threads"], int)
         assert output["total_threads"] == 2
@@ -183,7 +198,7 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50", "--unresolved-only"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = _data(capsys)
         assert len(output["threads"]) == 1
         assert output["threads"][0]["is_resolved"] is False
 
@@ -201,7 +216,7 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50", "--include-comments"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = _data(capsys)
         assert output["threads"][0]["comments"] is not None
         assert len(output["threads"][0]["comments"]) == 1
 
@@ -218,8 +233,56 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
+        output = _data(capsys)
         assert output["total_threads"] == 0
+
+    def test_output_uses_standard_envelope(self, capsys):
+        """Contract: output is the ADR-056 envelope, not a flat lowercase dict.
+
+        Issue #2372: consumers reading `.Data` per the GitHub skill docs got
+        null because the script printed flat keys (success, threads, ...) at the
+        top level. This pins the {Success, Data, Error, Metadata} shape and that
+        the documented Data payload fields are all present and reachable.
+        """
+        threads = [_thread("PRRT_1", resolved=False), _thread("PRRT_2", resolved=True)]
+        response = _graphql_response(threads)
+        with patch(
+            "get_pr_review_threads.assert_gh_authenticated",
+        ), patch(
+            "get_pr_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout=response, rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+
+        envelope = _envelope(capsys)
+        assert set(envelope) == {"Success", "Data", "Error", "Metadata"}
+        assert envelope["Success"] is True
+        assert envelope["Error"] is None
+        assert envelope["Metadata"]["Script"] == "get_pr_review_threads.py"
+        assert "Version" in envelope["Metadata"]
+        assert "Timestamp" in envelope["Metadata"]
+
+        # No flat lowercase keys leak at the top level (the #2372 regression).
+        assert "success" not in envelope
+        assert "threads" not in envelope
+
+        data = envelope["Data"]
+        for key in (
+            "pull_request",
+            "owner",
+            "repo",
+            "total_threads",
+            "resolved_count",
+            "unresolved_count",
+            "pagination_truncated",
+            "threads",
+        ):
+            assert key in data, f"Data missing documented field: {key}"
+        assert data["threads"] is not None
 
     def test_api_error_exits_3(self):
         """Generic RuntimeError (not 'Could not resolve') exits with code 3."""
@@ -320,7 +383,7 @@ class TestMain:
         assert mock_query.call_count == 2, (
             "Pagination loop did not call the query twice; page 2 was missed"
         )
-        output = json.loads(capsys.readouterr().out)
+        output = _data(capsys)
         assert output["total_threads"] == 107
         assert output["unresolved_count"] == 100  # only page 1 unresolved
         assert output["resolved_count"] == 7
@@ -379,8 +442,7 @@ class TestMain:
         assert mock_query.call_count == cap, (
             f"Loop did not stop at cap; got {mock_query.call_count}, expected {cap}"
         )
-        captured = capsys.readouterr()
-        output = json.loads(captured.out)
+        output = _data(capsys)
         assert output["pagination_truncated"] is True, (
             "JSON output must surface pagination_truncated=True at cap"
         )

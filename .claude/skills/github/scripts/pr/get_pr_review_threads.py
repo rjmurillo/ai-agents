@@ -18,7 +18,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -51,6 +50,11 @@ from github_core.api import (  # noqa: E402
     gh_graphql,
     resolve_repo_params,
     transform_review_thread,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
 )
 
 # Page size for the reviewThreads connection. GitHub GraphQL caps connection
@@ -124,6 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-comments", action="store_true",
         help="Include all comments in each thread (not just first)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -332,8 +337,11 @@ def main(argv: list[str] | None = None) -> int:
     total = len(threads)
     unresolved = count_unresolved_threads(threads)
 
-    output = {
-        "success": True,
+    # ADR-056 standard envelope: callers read the documented {Success, Data,
+    # Error, Metadata} shape and parse `.Data` for the result (Issue #2372). The
+    # operation-specific fields below live under Data; write_skill_output adds
+    # Success, Error, and Metadata (Script/Version/Timestamp).
+    data = {
         "pull_request": pr,
         "owner": owner,
         "repo": repo,
@@ -344,7 +352,7 @@ def main(argv: list[str] | None = None) -> int:
         "threads": transformed,
     }
     # Truncation is signaled to consumers via two channels:
-    # - `pagination_truncated: bool` field in JSON output (machine-readable)
+    # - `pagination_truncated: bool` field in Data (machine-readable)
     # - `warnings.warn` emitted by `_collect_all_threads` (human-readable on
     #   stderr). Python's default warnings filter prints UserWarning to
     #   stderr at most once per call site; CI pipelines reading stderr for
@@ -352,7 +360,19 @@ def main(argv: list[str] | None = None) -> int:
     # No second `print(WARNING ...)` here: duplicate stderr output would
     # confuse callers parsing for a single signal.
 
-    print(json.dumps(output, indent=2))
+    fmt = get_output_format(args.output_format)
+    truncation_note = " (truncated)" if truncated else ""
+    summary = (
+        f"PR #{pr}: {total} review thread(s), {unresolved} unresolved"
+        f"{truncation_note}"
+    )
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=summary,
+        status="PASS",
+        script_name="get_pr_review_threads.py",
+    )
     return 0
 
 
