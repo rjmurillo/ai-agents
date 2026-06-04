@@ -20,8 +20,8 @@ boundaries hold:
 - Empty-entity features degrade gracefully with no spurious FAIL.
 
 The Claude canonical sources are tested. The Copilot twins are generated from
-them by `build/scripts/generate_skills.py` / `generate_commands.py`; their drift
-is guarded by `test_lifecycle_command_drift.py` and the build pipeline.
+them by `build/scripts/generate_skills.py` / `build/scripts/generate_commands.py`;
+their drift is guarded by `test_lifecycle_command_drift.py` and the build pipeline.
 """
 
 from __future__ import annotations
@@ -254,6 +254,9 @@ def test_generator_design_traces_decision_rules_to_o5(
     )
     assert "`2` configuration or file-read error" in lowered, (
         "spec-generator must document validator exit code 2"
+    )
+    assert ".claude/skills/spec-generator/scripts/validate_spec_frontmatter.py" in lowered, (
+        "spec-generator must cite the validator path that exists in the repo"
     )
 
 

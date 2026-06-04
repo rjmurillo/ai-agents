@@ -179,7 +179,7 @@ Frontmatter: every emitted file passes `validate_spec_frontmatter.py` (the BLOCK
 
 | Script | Usage | Exit codes |
 |--------|-------|------------|
-| `scripts/validate_spec_frontmatter.py` | Validate generated REQ/DESIGN/TASK frontmatter before reporting completion. | `0` valid, `1` validation failure, `2` configuration or file-read error |
+| `.claude/skills/spec-generator/scripts/validate_spec_frontmatter.py` | Validate generated REQ/DESIGN/TASK frontmatter before reporting completion. | `0` valid, `1` validation failure, `2` configuration or file-read error |
 
 ## Verification
 

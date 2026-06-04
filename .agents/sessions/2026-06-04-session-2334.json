@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, 924814989f, dc2c0b3fd0, a6d2eb976f, and this Step 2 handoff fix commit."
+        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, 924814989f, dc2c0b3fd0, a6d2eb976f, 34e5cc7365, and this validator-path fix commit."
       },
       "validationPassed": {
         "level": "MUST",
