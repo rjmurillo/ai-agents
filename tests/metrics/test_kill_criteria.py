@@ -98,15 +98,20 @@ def test_emit_event_rejects_unknown_kind_before_writing(tmp_path: Path) -> None:
 # --- CLI -----------------------------------------------------------------
 
 
-def test_cli_writes_event_and_returns_zero(tmp_path: Path, capsys) -> None:
-    events_path = tmp_path / "drift-events.jsonl"
+def test_cli_writes_event_and_returns_zero(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    monkeypatch.setattr(kill_criteria, "_repo_root", lambda: tmp_path)
+    events_path = "drift-events.jsonl"
 
     rc = kill_criteria.main(
-        ["--kind", "K2", "--detail", "ci regression", "--events-path", str(events_path)]
+        ["--kind", "K2", "--detail", "ci regression", "--events-path", events_path]
     )
 
     assert rc == 0
-    events = _read_events(events_path)
+    events = _read_events(tmp_path / events_path)
     assert events[0]["kind"] == "K2"
     printed = json.loads(capsys.readouterr().out.strip())
     assert printed["detail"] == "ci regression"
@@ -119,12 +124,31 @@ def test_cli_returns_three_when_write_fails(
         raise OSError("disk full")
 
     monkeypatch.setattr(kill_criteria, "_append_line", boom)
+    monkeypatch.setattr(kill_criteria, "_repo_root", lambda: tmp_path)
 
     rc = kill_criteria.main(
-        ["--kind", "K1", "--detail", "x", "--events-path", str(tmp_path / "e.jsonl")]
+        ["--kind", "K1", "--detail", "x", "--events-path", "e.jsonl"]
     )
 
     assert rc == 3
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "../drift-events.jsonl",
+        "/outside/drift-events.jsonl",
+        "C:\\outside\\drift-events.jsonl",
+        "nested/\nfile.jsonl",
+    ],
+)
+def test_cli_rejects_unsafe_events_path(raw: str, tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(kill_criteria, "_repo_root", lambda: tmp_path)
+
+    rc = kill_criteria.main(["--kind", "K1", "--detail", "x", "--events-path", raw])
+
+    assert rc == 2
+    assert not list(tmp_path.rglob("*.jsonl"))
 
 
 def test_cli_rejects_invalid_kind_argument(capsys) -> None:

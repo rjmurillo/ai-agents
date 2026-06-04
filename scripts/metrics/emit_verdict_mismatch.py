@@ -28,10 +28,21 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 
 from kill_criteria import emit_event  # noqa: E402
 
+_KNOWN_VERDICTS = {
+    "pass": "PASS",
+    "warn": "WARN",
+    "critical_fail": "CRITICAL_FAIL",
+}
+
 
 def verdicts_match(local: str, ci: str) -> bool:
     """Return True when the two verdicts are equal ignoring case and edge whitespace."""
     return local.strip().casefold() == ci.strip().casefold()
+
+
+def _safe_verdict_label(verdict: str) -> str:
+    """Return a non-secret verdict label for telemetry detail."""
+    return _KNOWN_VERDICTS.get(verdict.strip().casefold(), "UNRECOGNIZED")
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -53,9 +64,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     detail = (
         f"verdict mismatch commit={args.commit} "
-        f"local={args.local.strip()} ci={args.ci.strip()}"
+        f"local={_safe_verdict_label(args.local)} ci={_safe_verdict_label(args.ci)}"
     )
-    emit_event("K4", detail)
+    try:
+        emit_event("K4", detail)
+    except OSError as exc:
+        print(f"warning: verdict mismatch; could not emit K4 event: {exc}", file=sys.stderr)
+        return 1
     print("verdict MISMATCH; K4 kill-criteria event emitted.", file=sys.stderr)
     return 1
 

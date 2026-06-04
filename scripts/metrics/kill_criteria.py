@@ -59,9 +59,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final, Literal, TextIO
 
 KillCriterion = Literal["K1", "K2", "K3", "K4"]
 
@@ -73,7 +74,10 @@ SCHEMA_VERSION: Final[int] = 1
 EVENTS_RELPATH: Final[str] = ".agents/metrics/drift-events.jsonl"
 
 
-def _try_lock_helpers() -> tuple[object | None, object | None]:
+def _try_lock_helpers() -> tuple[
+    Callable[[TextIO], None] | None,
+    Callable[[TextIO], None] | None,
+]:
     """Return (lock_file, unlock_file) from hook_utilities, or (None, None).
 
     The drift-guard hook runs with ``hook_utilities`` already on
@@ -91,20 +95,8 @@ def _try_lock_helpers() -> tuple[object | None, object | None]:
 
 
 def _repo_root() -> Path:
-    """Resolve the repository root by walking up to the ``.git`` marker.
-
-    Falls back to the current working directory when no marker is found
-    so the emitter never raises purely on path resolution; the write
-    itself surfaces any real failure.
-    """
-    current = Path.cwd().resolve()
-    while True:
-        if (current / ".git").exists():
-            return current
-        parent = current.parent
-        if parent == current:
-            return Path.cwd().resolve()
-        current = parent
+    """Resolve the repository root anchored to this module's location."""
+    return Path(__file__).resolve().parents[2]
 
 
 def build_event(kind: KillCriterion, detail: str) -> dict[str, object]:
@@ -204,15 +196,45 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _safe_events_path(raw: str) -> Path:
+    """Return a repo-confined metrics path from a CLI string."""
+    if not raw or not raw.strip():
+        msg = "events path must not be empty"
+        raise ValueError(msg)
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in raw):
+        msg = "events path contains control characters"
+        raise ValueError(msg)
+
+    normalized = raw.replace("\\", "/")
+    if normalized.startswith("/") or normalized.startswith("~"):
+        msg = "events path must be relative to the repository root"
+        raise ValueError(msg)
+    if len(normalized) >= 2 and normalized[1] == ":":
+        msg = "events path must not use a drive-qualified path"
+        raise ValueError(msg)
+
+    parts = [part for part in normalized.split("/") if part not in {"", "."}]
+    if any(part == ".." for part in parts):
+        msg = "events path traversal is not allowed"
+        raise ValueError(msg)
+
+    repo_root = _repo_root()
+    candidate = (repo_root / Path(*parts)).resolve(strict=False)
+    if not candidate.is_relative_to(repo_root):
+        msg = "events path must stay within the repository root"
+        raise ValueError(msg)
+    return candidate
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. See module docstring for exit codes."""
     args = _parse_args(sys.argv[1:] if argv is None else argv)
-    events_path = Path(args.events_path) if args.events_path else None
     try:
+        events_path = _safe_events_path(args.events_path) if args.events_path else None
         event = emit_event(args.kind, args.detail, events_path=events_path)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 1
+        return 2 if args.events_path else 1
     except OSError as exc:
         print(f"error: could not write metrics file: {exc}", file=sys.stderr)
         return 3

@@ -81,6 +81,47 @@ def test_k3_emitted_when_vendored_suite_fails(
     assert "vendored install breakage" in emitted[0][1]
 
 
+def test_k3_redacts_suite_output_before_emit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load("check_vendored_install", "check_vendored_install.py")
+    emitted: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        module,
+        "_run_vendored_suite",
+        lambda: _fake_completed(1, "failed with Bearer abc123def456ghi"),
+    )
+    monkeypatch.setattr(
+        module, "emit_event", lambda kind, detail: emitted.append((kind, detail))
+    )
+
+    rc = module.main()
+
+    assert rc == 1
+    assert "[redacted: bearer-token]" in emitted[0][1]
+    assert "abc123def456ghi" not in emitted[0][1]
+
+
+def test_k3_returns_one_when_emit_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load("check_vendored_install", "check_vendored_install.py")
+    monkeypatch.setattr(
+        module,
+        "_run_vendored_suite",
+        lambda: _fake_completed(1, "1 failed, 4 passed"),
+    )
+
+    def boom(_kind: str, _detail: str) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(module, "emit_event", boom)
+
+    rc = module.main()
+
+    assert rc == 1
+
+
 def test_k3_returns_three_when_suite_cannot_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -158,3 +199,43 @@ def test_k4_emitted_when_verdicts_diverge(
     assert "commit=abc123" in emitted[0][1]
     assert "local=PASS" in emitted[0][1]
     assert "ci=WARN" in emitted[0][1]
+
+
+def test_k4_does_not_emit_raw_unrecognized_verdicts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load("emit_verdict_mismatch", "emit_verdict_mismatch.py")
+    emitted: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        module, "emit_event", lambda kind, detail: emitted.append((kind, detail))
+    )
+
+    rc = module.main(
+        [
+            "--commit",
+            "abc123",
+            "--local",
+            "Bearer abc123def456ghi",
+            "--ci",
+            "WARN",
+        ]
+    )
+
+    assert rc == 1
+    assert "local=UNRECOGNIZED" in emitted[0][1]
+    assert "abc123def456ghi" not in emitted[0][1]
+
+
+def test_k4_returns_one_when_emit_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load("emit_verdict_mismatch", "emit_verdict_mismatch.py")
+
+    def boom(_kind: str, _detail: str) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(module, "emit_event", boom)
+
+    rc = module.main(["--commit", "abc123", "--local", "PASS", "--ci", "WARN"])
+
+    assert rc == 1

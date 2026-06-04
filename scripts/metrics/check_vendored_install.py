@@ -32,8 +32,10 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
 
 sys.path.insert(0, str(_SCRIPT_DIR))
+sys.path.insert(0, str(_PROJECT_ROOT / "scripts"))
 
 from kill_criteria import emit_event  # noqa: E402
+from redact_secrets import redact  # noqa: E402
 
 VENDORED_TEST = "tests/integration/test_vendored_install.py"
 
@@ -69,7 +71,15 @@ def main() -> int:
 
     tail = (result.stdout or result.stderr).strip().splitlines()[-1:]
     summary = tail[0] if tail else "vendored-install suite failed"
-    emit_event("K3", f"vendored install breakage: {summary}")
+    detail = redact(f"vendored install breakage: {summary}").text
+    try:
+        emit_event("K3", detail)
+    except OSError as exc:
+        print(
+            f"warning: vendored-install suite failed; could not emit K3 event: {exc}",
+            file=sys.stderr,
+        )
+        return 1
     print(
         "vendored-install suite FAILED; K3 kill-criteria event emitted.",
         file=sys.stderr,
