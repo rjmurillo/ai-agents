@@ -1,4 +1,4 @@
-"""Tests for ``scripts/validation/validate_review_marker.py``.
+"""Tests for the ``/review`` skill's review-marker validator.
 
 Locks the SHA-bound review-marker contract that ``/ship`` depends on (Issue
 #1938). The marker format is::
@@ -23,6 +23,12 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "validate_review_marker.py"
+SKILL_SCRIPT_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "review" / "scripts" / "validate_review_marker.py"
+)
+COPILOT_SCRIPT_PATH = (
+    REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "validate_review_marker.py"
+)
 
 
 def _load_module():
@@ -328,6 +334,21 @@ def test_validate_ref_reports_git_missing(monkeypatch: pytest.MonkeyPatch, git_r
     assert outcome.message == "git not found on PATH"
 
 
+def test_validate_ref_reports_initial_git_failure(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path
+) -> None:
+    """Initial ref resolution preserves git's actionable stderr."""
+
+    def fail_git(args: list[str], repo_root: Path) -> tuple[int, str, str]:
+        return -1, "", "git command timed out after 15s"
+
+    monkeypatch.setattr(vrm, "_run_git", fail_git)
+    outcome = vrm.validate_ref("HEAD", git_repo)
+    assert outcome.ok is False
+    assert outcome.exit_code == 2
+    assert "git command timed out after 15s" in outcome.message
+
+
 def test_validate_ref_fails_when_marker_commit_has_multiple_parents(git_repo: Path) -> None:
     """A merge commit cannot serve as the review marker."""
     reviewed_tip = _git(git_repo, "rev-parse", "HEAD")
@@ -349,6 +370,27 @@ def test_validate_ref_fails_when_marker_commit_has_multiple_parents(git_repo: Pa
     assert outcome.ok is False
     assert outcome.exit_code == 1
     assert "single-parent" in outcome.message
+
+
+def test_source_validator_cli_runs() -> None:
+    """The source-repo validator still exposes the CLI."""
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "Validate a SHA-bound" in result.stdout
+
+
+def test_copilot_plugin_contains_review_validator() -> None:
+    """Vendored plugin installs include the same validator under the review skill."""
+    source_text = SCRIPT_PATH.read_text(encoding="utf-8")
+    assert SKILL_SCRIPT_PATH.read_text(encoding="utf-8") == source_text
+    assert COPILOT_SCRIPT_PATH.read_text(encoding="utf-8") == SKILL_SCRIPT_PATH.read_text(
+        encoding="utf-8"
+    )
 
 
 # --- validate_ref: edge -----------------------------------------------------
