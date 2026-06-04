@@ -89,6 +89,7 @@ def _clean_env() -> dict[str, str]:
     return env
 
 
+@pytest.mark.smoke
 @requires_copilot
 def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     """copilot plugin install -> hook resolves from install tree, not cwd."""
@@ -155,6 +156,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             pass
 
 
+@pytest.mark.smoke
 @requires_claude
 def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
     """claude --plugin-dir -> hook resolves via ${CLAUDE_PLUGIN_ROOT}, not cwd."""
