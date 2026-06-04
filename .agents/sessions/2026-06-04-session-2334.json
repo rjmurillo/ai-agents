@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits through b9e7fe3d96 plus this plugin version bump refresh commit."
+        "evidence": "Created commits through 2eac647d01 plus this main refresh merge commit."
       },
       "validationPassed": {
         "level": "MUST",
