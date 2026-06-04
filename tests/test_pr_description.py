@@ -133,6 +133,52 @@ class TestOverall:
         assert result.returncode == 1
 
 
+class TestExitMessageMatchesExitCode:
+    """Regression tests for #2369: the printed summary must agree with the exit code.
+
+    The validator printed 'Validation passed' to stderr whenever no errors
+    existed, even when --fail-on-violation promoted warnings to violations and
+    the process exited 1. The summary and the exit code must never disagree.
+    """
+
+    def test_passed_not_printed_when_warnings_are_fatal(self):
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 1
+        assert "Validation passed" not in result.stderr
+
+    def test_warning_fatal_message_present_when_warnings_are_fatal(self):
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 1
+        assert "Validation failed" in result.stderr
+        assert "treated as violations" in result.stderr
+
+    def test_passed_printed_in_default_mode_with_warnings(self):
+        """Without --fail-on-violation, warnings are non-fatal: exit 0, pass message."""
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 0
+        assert "Validation passed" in result.stderr
+
+    def test_passed_not_printed_when_errors_are_fatal(self):
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "Bad title", "--body", "Closes #123",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 1
+        assert "Validation passed" not in result.stderr
+
+
 class TestInlineCitationStripping:
     """Regression tests for #2252: inline citation cues must not produce false positives.
 
