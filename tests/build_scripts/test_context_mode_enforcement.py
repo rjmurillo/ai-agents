@@ -29,12 +29,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 TWIN_DIR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "references"
 PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
+REVIEW_SKILL_PATHS = (
+    REPO_ROOT / ".claude" / "skills" / "review" / "SKILL.md",
+    REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "SKILL.md",
+)
 
 # The contract phrases the prompt body MUST carry. Kept in one place so the
 # tests stay aligned if the wording is revised.
 _SECTION_HEADER = "## Context Mode Enforcement (REQUIRED)"
 _FORBID_PASS = "you MUST NOT emit `PASS`"
 _HEADER_LINE_PREFIX = "<!-- CONTEXT_MODE: ${CONTEXT_MODE}"
+_LOCAL_INPUT_HEADER = (
+    "Every Task input for a canonical axis MUST begin with "
+    "`CONTEXT_MODE: $CONTEXT_MODE`"
+)
+_LOCAL_UNKNOWN_MODE = "If context completeness is unknown, use `partial`."
 
 
 def _canonical_roles() -> list[str]:
@@ -149,4 +158,33 @@ def test_enforcement_handles_missing_mode(role: str) -> None:
     text = (CANONICAL_DIR / f"{role}.md").read_text(encoding="utf-8")
     assert "missing or unrecognized `CONTEXT_MODE`" in text, (
         f"{role}.md does not pin the missing/unknown-mode behavior to not-full"
+    )
+
+
+@pytest.mark.parametrize("skill_path", REVIEW_SKILL_PATHS)
+def test_review_skill_prepends_context_mode_to_local_axis_inputs(
+    skill_path: Path,
+) -> None:
+    """Local /review must pass the same context-mode signal as CI.
+
+    Otherwise the axis prompts treat missing CONTEXT_MODE as not-full and forbid
+    PASS even when local /review has the complete diff.
+    """
+    text = skill_path.read_text(encoding="utf-8")
+    assert _LOCAL_INPUT_HEADER in text, (
+        f"{skill_path} does not require CONTEXT_MODE at the start of axis input"
+    )
+    assert "CONTEXT_MODE-prefixed diff" in text, (
+        f"{skill_path} does not route Stage-1/Stage-2 inputs through the header"
+    )
+
+
+@pytest.mark.parametrize("skill_path", REVIEW_SKILL_PATHS)
+def test_review_skill_fails_closed_when_local_context_is_unknown(
+    skill_path: Path,
+) -> None:
+    """Unknown local context completeness must route to partial, not full."""
+    text = skill_path.read_text(encoding="utf-8")
+    assert _LOCAL_UNKNOWN_MODE in text, (
+        f"{skill_path} does not route unknown context completeness to partial"
     )
