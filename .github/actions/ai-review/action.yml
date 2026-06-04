@@ -541,6 +541,9 @@ runs:
                   fi
                 fi
                 CONTEXT="## Specification"$'\n'"$CONTEXT"$'\n\n'"## Implementation Changes"$'\n'"$PR_DIFF"
+              else
+                CONTEXT_MODE="partial"
+                CONTEXT="## Specification"$'\n'"$CONTEXT"$'\n\n'"## Implementation Changes"$'\n'"[No PR diff provided]"
               fi
             else
               CONTEXT="Spec file not found: $CONTEXT_PATH"
@@ -605,7 +608,8 @@ runs:
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
         COPILOT_AGENT: ${{ inputs.agent }}
         COPILOT_MODEL: ${{ inputs.copilot-model }}
-        # Computed context mode (full|summary|error) from the Build context step.
+        # Computed context mode (full|summary|partial) from the Build context step.
+        # The internal "error" mode skips invocation before prompt assembly.
         # Injected into the prompt so the reviewer model sees how much of the
         # diff it actually received and can refuse PASS when it is not full
         # (AI-REVIEW-MODEL-POLICY.md "CONTEXT_MODE Header (REQUIRED)", issue #1981).

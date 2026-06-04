@@ -133,8 +133,8 @@ def test_transform_context_mode_header_is_literal_not_format_expanded() -> None:
     )
     out = gen.transform(text, "x")
     assert "${CONTEXT_MODE}" in out
-    # The unexpanded single-brace form must NOT appear (would mean a bug).
-    assert "{role}" not in out
+    # The pre-format escape form must NOT appear (would mean a bug).
+    assert "${{CONTEXT_MODE}}" not in out
 
 
 def test_transform_context_mode_header_is_idempotent() -> None:

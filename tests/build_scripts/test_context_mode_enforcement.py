@@ -220,6 +220,13 @@ def test_spec_file_context_marks_diff_failure_summary() -> None:
     assert "Diff unavailable, showing file list only" in block
 
 
+def test_spec_file_context_without_pr_marks_partial() -> None:
+    """A spec-file review without a PR diff lacks implementation evidence."""
+    block = _spec_file_context_block()
+    assert 'CONTEXT_MODE="partial"' in block
+    assert "[No PR diff provided]" in block
+
+
 @pytest.mark.parametrize("path", _shipped_review_surfaces())
 def test_not_material_guidance_does_not_bypass_context_mode(path: Path) -> None:
     """Not-material shortcuts must not allow PASS when context is partial."""
