@@ -24,21 +24,31 @@ VALID_LANGUAGES = ("python", "actions")
 
 
 def get_repo_root() -> str | None:
-    """Get the git repository root path."""
+    """Get the current worktree root path, or None outside a working tree.
+
+    Uses --show-toplevel, not --git-common-dir. In a LINKED worktree the
+    common dir is the MAIN checkout's shared .git, so dirname(common-dir)
+    is the main checkout, not this worktree (#2373). --show-toplevel returns
+    the current worktree root in every layout and fails in a bare repository.
+    Canonical reference: scripts/github_core/repo.py::get_repo_root.
+    """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "--git-common-dir"],
+            ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
             timeout=10,
         )
         if result.returncode == 0:
-            git_common = Path(result.stdout.strip())
-            if not git_common.is_absolute():
-                git_common = (Path.cwd() / git_common).resolve()
+            raw = result.stdout.strip()
+            if not raw:
+                return None
+            toplevel = Path(raw)
+            if not toplevel.is_absolute():
+                toplevel = (Path.cwd() / toplevel).resolve()
             else:
-                git_common = git_common.resolve()
-            return str(git_common.parent)
+                toplevel = toplevel.resolve()
+            return str(toplevel)
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
     return None

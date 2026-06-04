@@ -72,8 +72,13 @@ def _get_commit() -> str:
 
 
 def _get_repo_root() -> str:
+    # Use --show-toplevel, not --git-common-dir. In a LINKED worktree the
+    # common dir is the MAIN checkout's shared .git, so dirname(common-dir)
+    # is the main checkout, not this worktree. --show-toplevel returns the
+    # current worktree root in every layout (#2375).
+    # Canonical reference: scripts/github_core/repo.py::get_repo_root.
     result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+        ["git", "rev-parse", "--show-toplevel"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
@@ -81,12 +86,12 @@ def _get_repo_root() -> str:
     raw = result.stdout.strip()
     if not raw:
         return _WORKSPACE
-    git_common = Path(raw)
-    if not git_common.is_absolute():
-        git_common = (Path.cwd() / git_common).resolve()
+    toplevel = Path(raw)
+    if not toplevel.is_absolute():
+        toplevel = (Path.cwd() / toplevel).resolve()
     else:
-        git_common = git_common.resolve()
-    return str(git_common.parent)
+        toplevel = toplevel.resolve()
+    return str(toplevel)
 
 
 def main(argv: list[str] | None = None) -> int:
