@@ -92,7 +92,11 @@ def add_causal_edge(
             existing["weight"] = round(
                 (existing["weight"] + weight) / 2, 2,
             )
-            existing["count"] = existing.get("count", 1) + 1
+            existing["evidence_count"] = existing.get(
+                "evidence_count",
+                existing.get("count", 1),
+            ) + 1
+            existing.pop("count", None)
             edge_result: dict[str, Any] = existing
             return edge_result
 
@@ -101,7 +105,7 @@ def add_causal_edge(
         "target": target_id,
         "type": edge_type,
         "weight": weight,
-        "count": 1,
+        "evidence_count": 1,
         "created": datetime.now(UTC).isoformat(),
     }
     graph["edges"].append(edge)
