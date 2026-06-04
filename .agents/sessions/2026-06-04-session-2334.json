@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits through 1a38e36db2 plus this frontmatter/body schema clarification commit."
+        "evidence": "Created commits through b9e7fe3d96 plus this plugin version bump refresh commit."
       },
       "validationPassed": {
         "level": "MUST",
