@@ -30,6 +30,7 @@ import os
 import shutil
 import subprocess
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -40,7 +41,6 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 import generate_hooks  # noqa: E402
 
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
-_PROBE_NAME = "hook-e2e-probe"
 _PROMPT = "Reply with exactly the word: ok"
 
 requires_copilot = pytest.mark.skipif(
@@ -75,6 +75,10 @@ def _manifest(name: str) -> str:
     )
 
 
+def _probe_name() -> str:
+    return f"hook-e2e-probe-{uuid.uuid4().hex[:12]}"
+
+
 def _clean_env() -> dict[str, str]:
     """Env for the CLI subprocess with inherited plugin-root vars stripped.
 
@@ -92,6 +96,7 @@ def _clean_env() -> dict[str, str]:
 @requires_copilot
 def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     """copilot plugin install -> hook resolves from install tree, not cwd."""
+    probe_name = _probe_name()
     plugin = tmp_path / "plugin"
     userland = tmp_path / "userland"
     marker = tmp_path / "copilot_marker.txt"
@@ -99,7 +104,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     _write_probe_script(plugin / "hooks" / "sessionStart" / "probe.py", marker)
     (plugin / ".claude-plugin").mkdir(parents=True)
     (plugin / ".claude-plugin" / "plugin.json").write_text(
-        _manifest(_PROBE_NAME), encoding="utf-8"
+        _manifest(probe_name), encoding="utf-8"
     )
     # Use the exact command shape the generator emits.
     entry = generate_hooks._build_copilot_entry("sessionStart", "probe.py")
@@ -148,7 +153,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         # has already asserted the behavior under test.
         try:
             subprocess.run(
-                ["copilot", "plugin", "uninstall", _PROBE_NAME],
+                ["copilot", "plugin", "uninstall", probe_name],
                 capture_output=True,
                 text=True,
                 timeout=180,
@@ -161,13 +166,14 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
 @requires_claude
 def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
     """claude --plugin-dir -> hook resolves via ${CLAUDE_PLUGIN_ROOT}, not cwd."""
+    probe_name = _probe_name()
     plugin = tmp_path / "plugin"
     userland = tmp_path / "userland"
     marker = tmp_path / "claude_marker.txt"
     userland.mkdir()
     _write_probe_script(plugin / "hooks" / "probe.py", marker)
     (plugin / ".claude-plugin").mkdir(parents=True)
-    (plugin / ".claude-plugin" / "plugin.json").write_text(_manifest(_PROBE_NAME), encoding="utf-8")
+    (plugin / ".claude-plugin" / "plugin.json").write_text(_manifest(probe_name), encoding="utf-8")
     (plugin / "hooks" / "hooks.json").write_text(
         json.dumps(
             {
