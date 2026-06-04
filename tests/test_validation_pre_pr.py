@@ -784,3 +784,67 @@ class TestValidateGitHooksInstalled:
             repo_root_index = command.index("--repo-root")
             assert "--check" in command
             assert command[repo_root_index + 1] == str(tmp_path)
+
+
+class TestValidateVendorPortability:
+    """The vendor-portability gate wraps check_vendor_portability.py (#2050).
+
+    Exit-code contract mirrored from the wrapped script:
+    0 (no new offenders / no scan roots) -> pass, 1 (new offender) -> fail,
+    2 (config error) -> fail. A missing wrapped script raises MissingScriptSkip.
+    """
+
+    def _make_repo(self, tmp_path: Path) -> Path:
+        (tmp_path / "scripts" / "validation").mkdir(parents=True)
+        (tmp_path / "scripts" / "validation" / "check_vendor_portability.py").write_text(
+            "# stub\n", encoding="utf-8"
+        )
+        return tmp_path
+
+    def test_passes_when_checker_exits_zero(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (0, "[PASS] No new vendor-portability offenders.\n", "")
+            assert validate_vendor_portability(repo) is True
+
+    def test_fails_on_new_offender_exit_one(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (1, "[FAIL] 1 new vendor-portability offender(s).\n", "")
+            assert validate_vendor_portability(repo) is False
+
+    def test_fails_on_config_error_exit_two(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (2, "", "[FAIL] repo root not found")
+            assert validate_vendor_portability(repo) is False
+
+    def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
+        import pytest
+
+        from scripts.validation.pre_pr import (
+            MissingScriptSkip,
+            validate_vendor_portability,
+        )
+
+        with pytest.raises(MissingScriptSkip):
+            validate_vendor_portability(tmp_path)
+
+    def test_passes_repo_root_to_checker(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (0, "", "")
+            validate_vendor_portability(repo)
+
+        mock_run.assert_called_once()
+        command = mock_run.call_args.args[0]
+        repo_root_index = command.index("--repo-root")
+        assert command[repo_root_index + 1] == str(repo)
