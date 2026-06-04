@@ -116,9 +116,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Read drift details
-          DRIFT_DETAILS=$(cat drift-details.md)
-
           # Create issue body (unquoted EOF allows variable expansion)
           cat << EOF > issue-body.md
           ## Agent Drift Detected
