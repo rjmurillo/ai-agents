@@ -5,8 +5,6 @@
 
 .claude/skills/adr-review/scripts/detect_adr_changes.py
 .claude/skills/adr-review/tests/test_detect_adr_changes.py
-.claude/skills/chaos-experiment/scripts/generate_experiment.py
-.claude/skills/chaos-experiment/scripts/validate_experiment.py
 .claude/skills/chestertons-fence/scripts/investigate.py
 .claude/skills/github/scripts/pr/new_pr.py
 .claude/skills/golden-principles/scripts/scan_principles.py
@@ -31,5 +29,3 @@
 .claude/skills/session/tests/test_session_eligibility.py
 .claude/skills/steering-matcher/get_applicable_steering.py
 .claude/skills/steering-matcher/scripts/get_applicable_steering.py
-.claude/skills/threat-modeling/scripts/generate_threat_matrix.py
-.claude/skills/threat-modeling/scripts/validate_threat_model.py
