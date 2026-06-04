@@ -1416,3 +1416,89 @@ class TestSupersededCheckRuns:
         names = [c["Name"] for c in data["Checks"]]
         assert names.count("Validate PR") == 1
         assert names.count("Validate PR title") == 1
+
+    def test_dual_row_required_or_semantics(self, capsys):
+        """Issue #2325: When a check name has both CheckRun (not required) and
+        StatusContext (required), --required-only should include it because any
+        row carries isRequired=true.
+
+        Reproduces scenario: Analyst check publishes both a CheckRun and a
+        StatusContext; the CheckRun is isRequired=false but the StatusContext is
+        isRequired=true. The name should be treated as required.
+        """
+        nodes = [
+           {
+               "__typename": "CheckRun",
+               "name": "Analyst",
+               "status": "IN_PROGRESS",
+               "conclusion": "",
+               "detailsUrl": "",
+               "isRequired": False,
+           },
+           {
+               "__typename": "StatusContext",
+               "context": "Analyst",
+               "state": "PENDING",
+               "targetUrl": "",
+               "isRequired": True,
+           },
+        ]
+        with patch(
+           "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+           "get_pr_checks.resolve_repo_params",
+           return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+           "get_pr_checks.gh_graphql",
+           return_value=_rollup_response(nodes),
+        ):
+           rc = main(["--pull-request", "2325", "--required-only"])
+        # Must exit 7 (timeout pending) or return pending count > 0, not exit 0.
+        # With --required-only, the Analyst check (required via StatusContext)
+        # must appear in the output.
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        assert data["PendingCount"] > 0, \
+           "Expected pending count > 0 for pending required Analyst check"
+        names = [c["Name"] for c in data["Checks"]]
+        assert "Analyst" in names, \
+           "Expected Analyst check in --required-only output (required via StatusContext)"
+        checks = {c["Name"]: c for c in data["Checks"]}
+        assert checks["Analyst"]["IsRequired"] is True, \
+           "Expected Analyst check marked as required (OR of both rows)"
+
+    def test_failed_required_check_required_only_includes_failed_list(self, capsys):
+        """Issue #2325: --required-only output should expose FailedRequiredChecks
+        list so downstream agents can distinguish pending vs. failed required checks.
+
+        When a required check fails, it must appear in both Checks[] and
+        FailedRequiredChecks[] (new field).
+        """
+        nodes = [
+           _check_run_node("CI/lint", "COMPLETED", "FAILURE", required=True),
+           _check_run_node("CI/test", "IN_PROGRESS", "", required=True),
+        ]
+        with patch(
+           "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+           "get_pr_checks.resolve_repo_params",
+           return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+           "get_pr_checks.gh_graphql",
+           return_value=_rollup_response(nodes),
+        ):
+           rc = main(["--pull-request", "2325", "--required-only"])
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        # Should have both failed and pending required checks visible.
+        assert data["FailedCount"] == 1
+        assert data["PendingCount"] == 1
+        # New fields for structured output to downstream agents.
+        assert "FailedRequiredChecks" in data, \
+           "Expected FailedRequiredChecks list in --required-only output"
+        assert "PendingRequiredChecks" in data, \
+           "Expected PendingRequiredChecks list in --required-only output"
+        assert "CI/lint" in data["FailedRequiredChecks"], \
+           "Expected failed required check in FailedRequiredChecks list"
+        assert "CI/test" in data["PendingRequiredChecks"], \
+           "Expected pending required check in PendingRequiredChecks list"
