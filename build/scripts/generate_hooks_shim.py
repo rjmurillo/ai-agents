@@ -19,7 +19,7 @@ Three classes are supported (see :func:`classify_matcher`):
 
 - ``regex``: pattern starts with ``^`` AND ends with ``$``.
   Example: ``^(Edit|Write)$`` (anchored full-tool-name match).
-- ``tool-glob``: pattern matches ``^[A-Za-z_]\\w*\\((.*)\\)$``.
+- ``tool-glob``: pattern matches ``^[A-Za-z_][A-Za-z0-9_]*\\((.*)\\)$``.
   Example: ``Bash(git commit*|gh pr create*)`` (toolName then
   fnmatch on the args). ``|`` inside the parens is OR-folded across
   branches; whitespace in tool args is collapsed before matching.
@@ -80,7 +80,7 @@ def classify_matcher(pattern: str) -> tuple[str, dict[str, str]]:
     The classification is explicit (not heuristic):
 
     1. Pattern starts with ``^`` AND ends with ``$`` -> regex.
-    2. Pattern matches ``^[A-Za-z_]\\w*\\(.*\\)$`` -> tool-glob.
+    2. Pattern matches ``^[A-Za-z_][A-Za-z0-9_]*\\(.*\\)$`` -> tool-glob.
     3. Otherwise -> bare tool name.
 
     MIRROR: ``classify_matcher`` (build-time, this function) and

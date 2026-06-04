@@ -23,7 +23,7 @@ Three classes are supported (see :func:`classify_matcher`):
 
 - ``regex``: pattern starts with ``^`` AND ends with ``$``.
   Example: ``^(Edit|Write)$`` (anchored full-tool-name match).
-- ``tool-glob``: pattern matches ``^[A-Za-z_]\\w*\\((.*)\\)$``.
+- ``tool-glob``: pattern matches ``^[A-Za-z_][A-Za-z0-9_]*\\((.*)\\)$``.
   Example: ``Bash(git commit*|gh pr create*)`` (toolName then
   fnmatch on the args). ``|`` inside the parens is OR-folded across
   branches; whitespace in tool args is collapsed before matching.

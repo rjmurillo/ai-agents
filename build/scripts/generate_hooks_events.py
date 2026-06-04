@@ -150,7 +150,10 @@ def _emit_one_hook(
     """
     matcher = group.get("matcher")
     cmd = hook.get("command", "") or ""
-    timeout = int(hook.get("timeout", _DEFAULT_TIMEOUT_SEC) or _DEFAULT_TIMEOUT_SEC)
+    timeout_value = hook.get("timeout")
+    timeout = int(
+        _DEFAULT_TIMEOUT_SEC if timeout_value is None else timeout_value
+    )
     src = _resolve_script_path(script_source, cmd, claude_event)
     if src is None:
         result.entries.append(
@@ -285,7 +288,8 @@ def generate_hooks(
     event_drop: set[str] = {
         str(item) for item in (stanza.get("eventDrop") or [])
     }
-    version_field = int(stanza.get("versionField", 1) or 1)
+    version_field_value = stanza.get("versionField")
+    version_field = int(1 if version_field_value is None else version_field_value)
     # ADR-068 / #2295: when true, collapse the tool-gating event's per-shim
     # entries into one in-process dispatcher entry. Default false keeps the
     # byte-identical per-shim output for every other platform.
@@ -329,16 +333,20 @@ def generate_hooks(
                 file=sys.stderr,
             )
             continue
-        emitted = _process_event(
-            claude_event,
-            groups,
-            event_remap=event_remap,
-            event_drop=event_drop,
-            script_source=script_source,
-            output_scripts=output_scripts,
-            what_if=what_if,
-            result=result,
-        )
+        try:
+            emitted = _process_event(
+                claude_event,
+                groups,
+                event_remap=event_remap,
+                event_drop=event_drop,
+                script_source=script_source,
+                output_scripts=output_scripts,
+                what_if=what_if,
+                result=result,
+            )
+        except GenerateHooksError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2, result
         for target_event, entry in emitted:
             out.setdefault(target_event, []).append(entry)
 

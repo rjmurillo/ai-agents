@@ -187,14 +187,26 @@ def _resolve_script_path(
     needle = ".claude/hooks/"
     if needle in rel:
         rel = rel.split(needle, 1)[1]
-    candidate = script_source / rel
-    if candidate.is_file():
+    candidate = _resolve_script_candidate(script_source, rel)
+    if candidate is not None:
         return candidate
     # Flat layout fallback: caller wrote ``.claude/hooks/foo.py`` but the
     # script lives at ``.claude/hooks/<Event>/foo.py``.
-    nested = script_source / claude_event / rel
-    if nested.is_file():
-        return nested
+    return _resolve_script_candidate(script_source, str(Path(claude_event) / rel))
+
+
+def _resolve_script_candidate(script_source: Path, rel: str) -> Path | None:
+    """Return a source script candidate only when it stays under script_source."""
+    resolved_base = script_source.resolve()
+    candidate = (script_source / rel).resolve()
+    try:
+        candidate.relative_to(resolved_base)
+    except ValueError as exc:
+        raise GenerateHooksError(
+            f"hook command path escapes scriptSource: {rel}"
+        ) from exc
+    if candidate.is_file():
+        return candidate
     return None
 
 
