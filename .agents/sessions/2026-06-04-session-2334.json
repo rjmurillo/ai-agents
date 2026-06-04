@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, 924814989f, dc2c0b3fd0, a6d2eb976f, 34e5cc7365, 0d8011e5f9, 8783ddf066, c783a2e3f8, 0c8e94f19a, and this interview ontology output fix commit."
+        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, 924814989f, dc2c0b3fd0, a6d2eb976f, 34e5cc7365, 0d8011e5f9, 8783ddf066, c783a2e3f8, 0c8e94f19a, 82b30d892b, and this plugin version bump commit."
       },
       "validationPassed": {
         "level": "MUST",
