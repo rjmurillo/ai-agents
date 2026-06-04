@@ -30,15 +30,19 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.backlog_triage_summary import (
-    TriageResult,
-    load_results,
-)
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+_summary = importlib.import_module("scripts.backlog_triage_summary")
+TriageResult = _summary.TriageResult
+load_results = _summary.load_results
 
 MANIFEST_VERSION = 1
 

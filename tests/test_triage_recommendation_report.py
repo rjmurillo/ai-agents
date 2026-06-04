@@ -9,6 +9,8 @@ missing-dir and count-mismatch edge cases.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from scripts.backlog_triage_summary import (
@@ -29,6 +31,8 @@ from scripts.triage_recommendation_report import (
     recommend_actions,
     render_report,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _result(
@@ -260,3 +264,28 @@ class TestMain:
         assert json.loads(manifest_path.read_text())["issues_triaged"] == 1
         assert "Backlog Triage Recommendations" in report_path.read_text()
         assert "expected 2" in capsys.readouterr().err
+
+    def test_direct_script_invocation_imports_scripts_package(self, tmp_path: Path):
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _write_result(results_dir, "r.json", {"number": 1, "title": "t", "verdict": "STALE"})
+        manifest_path = tmp_path / "manifest.json"
+        report_path = tmp_path / "report.md"
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "scripts/triage_recommendation_report.py",
+                "--results-dir", str(results_dir),
+                "--manifest", str(manifest_path),
+                "--report", str(report_path),
+            ],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+
+        assert completed.returncode == 0, completed.stderr
+        assert json.loads(manifest_path.read_text())["actions"][0]["category"] == ACTION_CLOSE
