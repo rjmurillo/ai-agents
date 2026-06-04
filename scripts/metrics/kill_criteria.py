@@ -49,8 +49,7 @@ time on ``(ts, kind, detail)``.
 
 Exit Codes (ADR-035), CLI only:
     0 = event written
-    1 = logic error (unknown kind)
-    2 = usage / configuration error (bad arguments)
+    2 = usage / configuration error (bad arguments, unknown kind, unsafe path)
     3 = external failure (could not write the metrics file)
 """
 
@@ -231,10 +230,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     try:
         events_path = _safe_events_path(args.events_path) if args.events_path else None
-        event = emit_event(args.kind, args.detail, events_path=events_path)
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
-        return 2 if args.events_path else 1
+        return 2
+    try:
+        event = emit_event(args.kind, args.detail, events_path=events_path)
     except OSError as exc:
         print(f"error: could not write metrics file: {exc}", file=sys.stderr)
         return 3

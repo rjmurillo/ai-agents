@@ -96,12 +96,12 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     userland = tmp_path / "userland"
     marker = tmp_path / "copilot_marker.txt"
     userland.mkdir()
-    _write_probe_script(plugin / "hooks" / "sessionStart" / "probe.py", marker)
+    _write_probe_script(plugin / "hooks" / "SessionStart" / "probe.py", marker)
     (plugin / "plugin.json").write_text(_manifest(_PROBE_NAME), encoding="utf-8")
     # Use the exact command shape the generator emits.
-    entry = generate_hooks._build_copilot_entry("sessionStart", "probe.py")
+    entry = generate_hooks._build_copilot_entry("SessionStart", "probe.py")
     (plugin / "hooks" / "hooks.json").write_text(
-        json.dumps({"hooks": {"sessionStart": [entry]}, "version": 1}), encoding="utf-8"
+        json.dumps({"hooks": {"SessionStart": [entry]}, "version": 1}), encoding="utf-8"
     )
 
     try:

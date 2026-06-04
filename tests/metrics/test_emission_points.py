@@ -98,14 +98,16 @@ def test_k3_redacts_suite_output_before_emit(
     rc = module.main()
 
     assert rc == 1
-    assert "[redacted: bearer-token]" in emitted[0][1]
-    assert "abc123def456ghi" not in emitted[0][1]
+    assert emitted == [
+        ("K3", "vendored install breakage: failed with [redacted: bearer-token]")
+    ]
 
 
 def test_k3_returns_one_when_emit_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     module = _load("check_vendored_install", "check_vendored_install.py")
+    calls: list[tuple[str, str]] = []
     monkeypatch.setattr(
         module,
         "_run_vendored_suite",
@@ -113,6 +115,7 @@ def test_k3_returns_one_when_emit_fails(
     )
 
     def boom(_kind: str, _detail: str) -> None:
+        calls.append((_kind, _detail))
         raise OSError("disk full")
 
     monkeypatch.setattr(module, "emit_event", boom)
@@ -120,6 +123,7 @@ def test_k3_returns_one_when_emit_fails(
     rc = module.main()
 
     assert rc == 1
+    assert calls == [("K3", "vendored install breakage: 1 failed, 4 passed")]
 
 
 def test_k3_returns_three_when_suite_cannot_run(
