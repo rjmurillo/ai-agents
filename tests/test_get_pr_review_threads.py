@@ -15,6 +15,29 @@ from scripts.github_core.api import RepoInfo
 from tests.mock_fidelity import assert_mock_keys_match
 
 # ---------------------------------------------------------------------------
+# Envelope helpers (ADR-056)
+# ---------------------------------------------------------------------------
+
+
+def _parse_envelope(captured_out: str) -> dict:
+    """Parse the JSON envelope from captured stdout."""
+    out = captured_out.strip()
+    assert out, "expected JSON envelope on stdout; got empty output"
+    return json.loads(out)
+
+
+def _assert_envelope_shape(envelope: dict, *, success: bool) -> None:
+    """Assert the ADR-056 envelope shape."""
+    assert set(envelope.keys()) == {"Success", "Data", "Error", "Metadata"}, (
+        f"envelope keys mismatch: {sorted(envelope.keys())}"
+    )
+    assert envelope["Success"] is success
+    assert isinstance(envelope["Metadata"], dict)
+    assert envelope["Metadata"].get("Script") == "get_pr_review_threads.py"
+    assert "Version" in envelope["Metadata"]
+    assert "Timestamp" in envelope["Metadata"]
+
+# ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
@@ -131,7 +154,7 @@ class TestMain:
                 main(["--pull-request", "1"])
             assert exc.value.code == 4
 
-    def test_pr_not_found_exits_2(self):
+    def test_pr_not_found_returns_2(self, capsys):
         with patch(
             "get_pr_review_threads.assert_gh_authenticated",
         ), patch(
@@ -141,9 +164,12 @@ class TestMain:
             "subprocess.run",
             return_value=_completed(rc=1, stderr="Could not resolve"),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "999"])
-            assert exc.value.code == 2
+            rc = main(["--pull-request", "999"])
+        assert rc == 2
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Code"] == 2
+        assert envelope["Error"]["Type"] == "NotFound"
 
     def test_success_all_threads(self, capsys):
         threads = [_thread("PRRT_1", resolved=False), _thread("PRRT_2", resolved=True)]
@@ -159,15 +185,16 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert isinstance(output, dict)
-        assert isinstance(output["total_threads"], int)
-        assert output["total_threads"] == 2
-        assert isinstance(output["unresolved_count"], int)
-        assert output["unresolved_count"] == 1
-        assert isinstance(output["resolved_count"], int)
-        assert output["resolved_count"] == 1
-        assert isinstance(output["threads"], list)
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=True)
+        data = envelope["Data"]
+        assert data["TotalThreads"] == 2
+        assert data["UnresolvedCount"] == 1
+        assert data["ResolvedCount"] == 1
+        assert isinstance(data["Threads"], list)
+        assert data["PullRequest"] == 50
+        assert data["Owner"] == "o"
+        assert data["Repo"] == "r"
 
     def test_unresolved_only_filter(self, capsys):
         threads = [_thread("PRRT_1", resolved=False), _thread("PRRT_2", resolved=True)]
@@ -183,9 +210,9 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50", "--unresolved-only"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert len(output["threads"]) == 1
-        assert output["threads"][0]["is_resolved"] is False
+        data = _parse_envelope(capsys.readouterr().out)["Data"]
+        assert len(data["Threads"]) == 1
+        assert data["Threads"][0]["is_resolved"] is False
 
     def test_include_comments(self, capsys):
         threads = [_thread("PRRT_1")]
@@ -201,9 +228,9 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50", "--include-comments"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["threads"][0]["comments"] is not None
-        assert len(output["threads"][0]["comments"]) == 1
+        data = _parse_envelope(capsys.readouterr().out)["Data"]
+        assert data["Threads"][0]["comments"] is not None
+        assert len(data["Threads"][0]["comments"]) == 1
 
     def test_empty_threads(self, capsys):
         response = _graphql_response([])
@@ -218,11 +245,12 @@ class TestMain:
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
-        output = json.loads(capsys.readouterr().out)
-        assert output["total_threads"] == 0
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=True)
+        assert envelope["Data"]["TotalThreads"] == 0
 
-    def test_api_error_exits_3(self):
-        """Generic RuntimeError (not 'Could not resolve') exits with code 3."""
+    def test_api_error_returns_3(self, capsys):
+        """Generic RuntimeError (not 'Could not resolve') returns code 3 with ApiError envelope."""
         with patch(
             "get_pr_review_threads.assert_gh_authenticated",
         ), patch(
@@ -232,12 +260,15 @@ class TestMain:
             "get_pr_review_threads._run_threads_query",
             side_effect=RuntimeError("rate limit exceeded"),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "50"])
-            assert exc.value.code == 3
+            rc = main(["--pull-request", "50"])
+        assert rc == 3
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "ApiError"
 
-    def test_threads_none_exits_2(self):
-        """PR found but reviewThreads nodes is None exits with code 2."""
+    def test_threads_none_returns_2(self, capsys):
+        """PR found but reviewThreads nodes is None returns code 2."""
         data = {
             "repository": {
                 "pullRequest": {
@@ -254,12 +285,14 @@ class TestMain:
             "get_pr_review_threads._run_threads_query",
             return_value=data,
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "50"])
-            assert exc.value.code == 2
+            rc = main(["--pull-request", "50"])
+        assert rc == 2
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Type"] == "NotFound"
 
-    def test_missing_pull_request_exits_2(self):
-        """Missing pullRequest in response exits with code 2."""
+    def test_missing_pull_request_returns_2(self, capsys):
+        """Missing pullRequest in response returns code 2."""
         data = {"repository": {}}
         with patch(
             "get_pr_review_threads.assert_gh_authenticated",
@@ -270,9 +303,11 @@ class TestMain:
             "get_pr_review_threads._run_threads_query",
             return_value=data,
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "50"])
-            assert exc.value.code == 2
+            rc = main(["--pull-request", "50"])
+        assert rc == 2
+        envelope = _parse_envelope(capsys.readouterr().out)
+        _assert_envelope_shape(envelope, success=False)
+        assert envelope["Error"]["Type"] == "NotFound"
 
     def test_paginates_across_multiple_pages(self, capsys):
         """The PR #1887 cliff: a >100-thread PR must report all threads, not page 1.
@@ -320,12 +355,12 @@ class TestMain:
         assert mock_query.call_count == 2, (
             "Pagination loop did not call the query twice; page 2 was missed"
         )
-        output = json.loads(capsys.readouterr().out)
-        assert output["total_threads"] == 107
-        assert output["unresolved_count"] == 100  # only page 1 unresolved
-        assert output["resolved_count"] == 7
+        output = _parse_envelope(capsys.readouterr().out)["Data"]
+        assert output["TotalThreads"] == 107
+        assert output["UnresolvedCount"] == 100  # only page 1 unresolved
+        assert output["ResolvedCount"] == 7
 
-        ids = {t["thread_id"] for t in output["threads"]}
+        ids = {t["thread_id"] for t in output["Threads"]}
         assert any(i.startswith("p1-") for i in ids), "page 1 IDs missing"
         assert any(i.startswith("p2-") for i in ids), "page 2 IDs missing (cliff returned)"
 
@@ -380,15 +415,15 @@ class TestMain:
             f"Loop did not stop at cap; got {mock_query.call_count}, expected {cap}"
         )
         captured = capsys.readouterr()
-        output = json.loads(captured.out)
-        assert output["pagination_truncated"] is True, (
-            "JSON output must surface pagination_truncated=True at cap"
+        output = _parse_envelope(captured.out)["Data"]
+        assert output["PaginationTruncated"] is True, (
+            "JSON output must surface PaginationTruncated=True at cap"
         )
         # Partial threads still returned, not discarded. The warnings.warn
         # at cap is captured by pytest.warns above; consumers also see
-        # `pagination_truncated=True` in JSON. No second stderr print line
-        # is emitted (duplicate signaling would confuse parsers).
-        assert len(output["threads"]) == cap
+        # `Data.PaginationTruncated=True` in JSON. No second stderr print
+        # line is emitted (duplicate signaling would confuse parsers).
+        assert len(output["Threads"]) == cap
 
     def test_collect_all_threads_return_contract(self, caplog):
         """Document the (None, 0, False) vs ([], 0, False) distinction.
