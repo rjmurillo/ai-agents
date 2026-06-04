@@ -178,9 +178,11 @@ Smell: code that waits "as long as it takes," or a deadline parameter that is pa
 
 ## Silent API Migration Failures
 
+Wiki source: `wiki/concepts/Reliability/Silent API Migration Failures.md`.
+
 The worst integration failure is the one that raises no error. A call to a deprecated API that was replaced by a new entry point can load, parse, and pass every static check, then do nothing at runtime. There is no exception to catch, no log line, no failed health probe. The infrastructure looks healthy while a load-bearing piece of it is dead.
 
-Source: a hook registered against a removed `registerHook` API (replaced by an `on` API) ran for 19 days doing nothing. Every hook was syntactically correct and loaded without error. The only signal was a downstream fitness metric stuck at 49 percent, and that signal was misattributed to the tool the hook was meant to protect, not to the hook infrastructure itself. The fix was a one-line rename. Finding it took targeted investigation because nothing pointed at the hook.
+Incident source: a hook registered against a removed `registerHook` API (replaced by an `on` API) ran for 19 days doing nothing. Every hook was syntactically correct and loaded without error. The only signal was a downstream fitness metric stuck at 49 percent, and that signal was misattributed to the tool the hook was meant to protect, not to the hook infrastructure itself. The fix was a one-line rename. Finding it took targeted investigation because nothing pointed at the hook.
 
 Apply when:
 
@@ -192,7 +194,7 @@ Rules:
 
 - Behavioral smoke test, not load-time validation. "The hook loaded" and "the schema validates" prove the artifact is well-formed, not that it runs. Assert the side effect actually happened: the hook fired, the callback ran, the event was received. A hook that loads but never fires is worse than one that crashes, because the crash is visible.
 - Treat a silent no-op as a failure mode of every fire-and-forget integration. If a registration call cannot fail loudly when the target API is gone, add a probe that exercises the registered behavior end to end and fails when it does not run.
-- On a dependency or host upgrade, re-verify each integration point empirically. Do not assume a method name survived the bump because the code still imports cleanly. Run the target and observe the effect (see the Integration Points and `generated-artifacts` rules for the verify-the-contract-empirically pattern).
+- On a dependency or host upgrade, re-verify each integration point empirically. Do not assume a method name survived the bump because the code still imports cleanly. Run the target and observe the effect (see the Integration Points and generated artifacts rules for the verify-the-contract-empirically pattern).
 - Instrument the downstream signal so a stuck metric points at the right layer. The 19-day delay above came from attributing a fitness number to the wrong component. A fired-count or last-fired-timestamp per hook would have localized the failure in minutes.
 
 Smell: a hook, subscriber, or callback that is registered and then never asserted to have run; a migration PR that renames an integration call with no test that exercises the renamed call against the live host; a quality metric that drifts for weeks while every static check stays green.
