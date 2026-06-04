@@ -29,7 +29,8 @@ Input env vars:
 
 Exit codes (ADR-035):
     0 - comment posted (poster returned 0)
-    1 - missing PR_NUMBER/REPORT_FILE, report file absent, or poster failed
+    1 - missing/invalid PR_NUMBER or REPORT_FILE, or report file absent
+    other non-zero - propagated from the retry wrapper / poster
     3 - subprocess timed out (external/dependency failure)
 """
 
@@ -42,7 +43,12 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_GITHUB_SCRIPTS = _SCRIPT_DIR.parents[1] / ".github" / "scripts"
+try:
+    from .path_utils import REPOSITORY_ROOT, resolve_workspace_path
+except ImportError:  # pragma: no cover - script execution path
+    from path_utils import REPOSITORY_ROOT, resolve_workspace_path
+
+_GITHUB_SCRIPTS = REPOSITORY_ROOT / ".github" / "scripts"
 
 _MARKER = "AI-PR-QUALITY-GATE"
 
@@ -82,14 +88,22 @@ def main(argv: list[str] | None = None) -> int:
     if not pr_number:
         print("::error::PR_NUMBER environment variable is missing")
         return 1
+    if not pr_number.isdecimal():
+        print("::error::PR_NUMBER must contain digits only")
+        return 1
     if not report_file:
         print("::error::REPORT_FILE environment variable is missing")
         return 1
-    if not Path(report_file).is_file():
-        print(f"::error::Report file not found: {report_file}")
+    try:
+        report_path = resolve_workspace_path(Path(report_file), "REPORT_FILE")
+    except ValueError as exc:
+        print(f"::error::{exc}")
+        return 1
+    if not report_path.is_file():
+        print(f"::error::Report file not found: {report_path}")
         return 1
 
-    command = build_command(pr_number, report_file)
+    command = build_command(pr_number, str(report_path))
     try:
         result = subprocess.run(command, timeout=args.timeout, check=False)
     except subprocess.TimeoutExpired:

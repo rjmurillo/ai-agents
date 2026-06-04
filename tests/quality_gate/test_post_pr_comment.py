@@ -23,18 +23,18 @@ from scripts.quality_gate.post_pr_comment import build_command, main
 
 class TestBuildCommand:
     def test_includes_retry_wrapper_and_poster(self) -> None:
-        cmd = build_command("123", "/tmp/report.md")
+        cmd = build_command("123", "/workspace/report.md")
         joined = " ".join(cmd)
         assert "run_with_retry.py" in joined
         assert "--" in cmd
         assert "post_issue_comment.py" in joined
 
     def test_passes_issue_body_marker_and_update_flag(self) -> None:
-        cmd = build_command("123", "/tmp/report.md")
+        cmd = build_command("123", "/workspace/report.md")
         assert "--issue" in cmd
         assert cmd[cmd.index("--issue") + 1] == "123"
         assert "--body-file" in cmd
-        assert cmd[cmd.index("--body-file") + 1] == "/tmp/report.md"
+        assert cmd[cmd.index("--body-file") + 1] == "/workspace/report.md"
         assert "--marker" in cmd
         assert cmd[cmd.index("--marker") + 1] == "AI-PR-QUALITY-GATE"
         assert "--update-if-exists" in cmd
@@ -48,10 +48,19 @@ class TestBuildCommand:
 class TestGuards:
     def test_missing_pr_number_returns_one(self, monkeypatch, capsys) -> None:
         monkeypatch.delenv("PR_NUMBER", raising=False)
-        monkeypatch.setenv("REPORT_FILE", "/tmp/x.md")
+        monkeypatch.setenv("REPORT_FILE", "/workspace/x.md")
         rc = main([])
         assert rc == 1
         assert "PR_NUMBER environment variable is missing" in capsys.readouterr().out
+
+    def test_non_digit_pr_number_returns_one(self, monkeypatch, capsys, tmp_path) -> None:
+        report = tmp_path / "report.md"
+        report.write_text("body", encoding="utf-8")
+        monkeypatch.setenv("PR_NUMBER", "1;echo")
+        monkeypatch.setenv("REPORT_FILE", str(report))
+        rc = main([])
+        assert rc == 1
+        assert "PR_NUMBER must contain digits only" in capsys.readouterr().out
 
     def test_missing_report_file_var_returns_one(self, monkeypatch, capsys) -> None:
         monkeypatch.setenv("PR_NUMBER", "123")
@@ -66,6 +75,14 @@ class TestGuards:
         rc = main([])
         assert rc == 1
         assert "Report file not found" in capsys.readouterr().out
+
+    def test_report_file_outside_workspace_returns_one(self, monkeypatch, capsys, tmp_path) -> None:
+        outside = tmp_path.parent / "outside.md"
+        monkeypatch.setenv("PR_NUMBER", "123")
+        monkeypatch.setenv("REPORT_FILE", str(outside))
+        rc = main([])
+        assert rc == 1
+        assert "REPORT_FILE must stay within" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
