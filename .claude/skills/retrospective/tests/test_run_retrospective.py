@@ -182,6 +182,21 @@ def test_integration_run_writes_conformant_artifact(tmp_path):
     assert "Step 1: Shipped X -> ok" in content
 
 
+def test_scope_date_controls_artifact_date_and_prefix(tmp_path):
+    # Arrange
+    _write_session(tmp_path, {"workLog": ["scoped work"]})
+
+    # Act
+    rc = main(["--project-dir", str(tmp_path), "--scope", "2026-06-03"])
+
+    # Assert
+    assert rc == 0
+    written = tmp_path / ".agents" / "retrospective" / "2026-06-03-2026-06-03.md"
+    assert written.is_file()
+    content = written.read_text(encoding="utf-8")
+    assert "- **Date**: 2026-06-03" in content
+
+
 def test_fill_mode_writes_alongside_skeleton(tmp_path):
     # Arrange: an existing auto-retro skeleton the Stop hook would have produced.
     retro_dir = tmp_path / ".agents" / "retrospective"

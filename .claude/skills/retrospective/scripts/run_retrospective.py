@@ -109,6 +109,21 @@ def _render_session_context(evidence: EvidenceLike) -> str:
     return "\n".join(lines)
 
 
+def _scope_date(scope: str) -> str | None:
+    """Return the ISO date prefix from a retrospective scope when present."""
+    candidate = scope.strip()[:10]
+    try:
+        datetime.strptime(candidate, "%Y-%m-%d")
+    except ValueError:
+        return None
+    return candidate
+
+
+def _artifact_date(scope: str) -> str:
+    """Return the artifact date, preferring a dated retrospective scope."""
+    return _scope_date(scope) or datetime.now(tz=UTC).strftime("%Y-%m-%d")
+
+
 def _render_learnings(learnings: list[str]) -> tuple[str, bool]:
     """Render the Phase 4 learnings block, scoring each learning.
 
@@ -323,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: project dir not found: {args.project_dir}", file=sys.stderr)
         return 2
 
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    today = _artifact_date(args.scope)
     retro_dir = project_dir / ".agents" / "retrospective"
 
     try:
