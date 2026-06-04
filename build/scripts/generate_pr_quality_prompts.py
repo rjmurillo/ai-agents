@@ -55,9 +55,9 @@ _FILENAME_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # The CONTEXT_MODE line is REQUIRED by AI-REVIEW-MODEL-POLICY.md ("CONTEXT_MODE
 # Header (REQUIRED)"): every prompt must declare the context-mode contract so a
 # reviewer model can refuse PASS when it did not receive the full diff. The line
-# names the runtime placeholder the ai-review action substitutes with the
-# computed mode (full|summary|partial); the literal placeholder keeps the
-# generated artifact static and idempotent. Issue #1981.
+# names the static placeholder used in generated prompt files. The ai-review
+# action prepends the resolved CONTEXT_MODE header separately at runtime, so the
+# generated artifact stays static and idempotent. Issue #1981.
 _CI_HEADER_TEMPLATE = (
     "<!-- GENERATED -- DO NOT EDIT -->\n"
     "<!-- Source: .claude/skills/review/references/{role}.md -->\n"

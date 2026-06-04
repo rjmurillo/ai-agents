@@ -110,8 +110,9 @@ def test_transform_prepends_static_ci_header() -> None:
 def test_transform_emits_context_mode_header_line() -> None:
     """Issue #1981: every generated prompt MUST carry the CONTEXT_MODE header
     line so the reviewer model sees the context-mode contract. The literal
-    `${CONTEXT_MODE}` placeholder is substituted at runtime by the ai-review
-    action; it stays literal in the generated artifact to keep output static.
+    `${CONTEXT_MODE}` placeholder stays literal in the generated artifact. The
+    ai-review action prepends the resolved CONTEXT_MODE header separately at
+    runtime.
     """
     text = (
         "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
