@@ -251,11 +251,82 @@ def compute_provisional_tier(q4_text: str, entity_count: int) -> int:
     return max(hours_tier, entity_tier)
 
 
+def _is_fence_line(stripped: str) -> tuple[str, int] | None:
+    """Return (fence_char, run_length) if the line opens or closes a fence.
+
+    A fence is a run of three or more backticks or tildes at the start of the
+    (already left-stripped) line. Returns None for any other line.
+    """
+    for ch in ("`", "~"):
+        run = 0
+        for c in stripped:
+            if c == ch:
+                run += 1
+            else:
+                break
+        if run >= 3:
+            return ch, run
+    return None
+
+
+def _block_boundary_offset(after_heading: str) -> int:
+    """Return the offset where the Step 0.5 block ends, respecting code fences.
+
+    The block terminates at the first line that, OUTSIDE any code fence, is one
+    of: a bare horizontal rule (`---`), a sibling h3 (`### `), or an h2 (`## `).
+    Heading-shaped and rule-shaped lines INSIDE a fenced code block (for example
+    the `### Direct prior art from memory` lines and any `---` inside the
+    PriorArtBlock schema example) do not terminate the block. The Step 0.5
+    heading itself is skipped: the search starts after the first newline so the
+    opening `### Step 0.5 ...` line never matches the h3 boundary.
+
+    Tracks the OPENING fence run length so a four-backtick outer fence stays open
+    across an inner three-backtick block (CommonMark: a closing fence uses the
+    same character and at least as many of them as the opening fence).
+
+    Returns the length of `after_heading` when no boundary is found, so the block
+    runs to end of input.
+    """
+    fence_char: str | None = None
+    fence_len = 0
+    offset = 0
+    first_line = True
+    for line in after_heading.splitlines(keepends=True):
+        if first_line:
+            first_line = False
+            offset += len(line)
+            continue
+        fence = _is_fence_line(line.lstrip())
+        if fence is not None:
+            ch, run = fence
+            if fence_char is None:
+                fence_char = ch
+                fence_len = run
+            elif fence_char == ch and run >= fence_len:
+                fence_char = None
+                fence_len = 0
+            offset += len(line)
+            continue
+        if fence_char is None and (
+            line.startswith("### ")
+            or line.startswith("## ")
+            or line.rstrip("\n").rstrip() == "---"
+        ):
+            return offset
+        offset += len(line)
+    return len(after_heading)
+
+
 def extract_step0_5_block(spec_text: str) -> str:
     """Return the full Step 0.5 block from spec.md.
 
-    The block runs from the Step 0.5 heading to the next horizontal rule
-    delimiter that closes it. Raises ValueError if the heading is absent.
+    The block runs from the Step 0.5 heading to its closing boundary: the first
+    bare horizontal rule (`---`), sibling h3 (`### `), or h2 (`## `) that appears
+    OUTSIDE a code fence. Anchoring on the next sibling boundary (not only a
+    literal `\\n---\\n`) hardens the parser against prose churn: a horizontal
+    rule inserted inside a fenced example no longer truncates the block early,
+    and a stray sibling heading terminates it instead of over-running to the next
+    `---`. Raises ValueError if the heading is absent.
     """
     start = spec_text.find(STEP_0_5_HEADING)
     if start == -1:
@@ -263,12 +334,8 @@ def extract_step0_5_block(spec_text: str) -> str:
             f"Step 0.5 heading not found: {STEP_0_5_HEADING!r}"
         )
     after_heading = spec_text[start:]
-    end_match = re.search(r"\n---\n", after_heading)
-    if end_match is None:
-        raise ValueError(
-            "Step 0.5 closing delimiter `\\n---\\n` not found"
-        )
-    return after_heading[: end_match.start()]
+    end = _block_boundary_offset(after_heading)
+    return after_heading[:end]
 
 
 def extract_step0_5_subsection(spec_text: str, subsection_heading: str) -> str:
@@ -304,34 +371,24 @@ def extract_step0_5_subsection(spec_text: str, subsection_heading: str) -> str:
     fence_len = 0
     offset = 0
     for line in after_heading.splitlines(keepends=True):
-        stripped = line.lstrip()
-        # Detect opening or closing fence.
-        for ch in ("`", "~"):
-            run = 0
-            for c in stripped:
-                if c == ch:
-                    run += 1
-                else:
-                    break
-            if run < 3:
-                continue
+        fence = _is_fence_line(line.lstrip())
+        if fence is not None:
+            ch, run = fence
             if fence_char is None:
                 fence_char = ch
                 fence_len = run
-                break
-            if fence_char == ch and run >= fence_len:
+            elif fence_char == ch and run >= fence_len:
                 fence_char = None
                 fence_len = 0
-                break
-        else:
-            # No fence on this line: check for sibling boundary.
-            if fence_char is None and (
-                line.startswith("#### ")
-                or line.startswith("### ")
-                or line.rstrip("\n").rstrip() == "---"
-            ):
-                end = offset
-                break
+            offset += len(line)
+            continue
+        if fence_char is None and (
+            line.startswith("#### ")
+            or line.startswith("### ")
+            or line.rstrip("\n").rstrip() == "---"
+        ):
+            end = offset
+            break
         offset += len(line)
     return after_heading[:end]
 
@@ -340,10 +397,13 @@ def extract_step9_block(spec_text: str) -> str:
     """Return the Step 9 numbered-list item including all 9a-9d checks.
 
     Step 9 is the last top-level numbered item before the
-    `## Evaluation Axes` h2 heading.
+    `## Evaluation Axes` h2 heading. The opener is anchored on `^9. ` (any
+    step-9 opening line), not the specific `Task(subagent_type="critic")`
+    wording, so rephrasing the step's first sentence does not break the
+    extractor.
     """
     step9_match = re.search(
-        r"^9\. Task\(subagent_type=\"critic\"\).*?(?=^## Evaluation Axes)",
+        r"^9\. .*?(?=^## Evaluation Axes)",
         spec_text,
         re.DOTALL | re.MULTILINE,
     )

@@ -34,6 +34,7 @@ import pytest
 from tests.commands.step0_5_parser import (
     GUARD_STRING,
     HALT_BLOCK_FIELDS,
+    STEP_0_5_HEADING,
     VALID_HALT_TRIGGERS,
     adjudicate_entity_scope,
     compute_provisional_tier,
@@ -839,3 +840,144 @@ def test_step0_5_block_byte_identical_across_spec_and_skill(
     assert extract_step0_5_block(spec_text) == extract_step0_5_block(
         skill_text
     )
+
+
+# ---------------------------------------------------------------------------
+# Adversarial delimiter hardening (Issue #1976)
+#
+# The Step 0.5 block extractor used to terminate on the first literal
+# `\n---\n`. A horizontal rule inserted inside a fenced example would truncate
+# the block early; a rephrased Step 9 opener would break the Step 9 extractor.
+# These tests pin the hardened behavior with synthetic specs so they stay valid
+# as the real spec.md prose churns.
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_spec(step0_5_body: str) -> str:
+    """Wrap a Step 0.5 body in a minimal spec.md skeleton for parser tests."""
+    return (
+        "### Step 0: First Principles Gate\n\n"
+        "Preamble.\n\n"
+        f"{STEP_0_5_HEADING}\n\n"
+        f"{step0_5_body}\n"
+        "---\n\n"
+        "1. Clarify the problem. Step 1 body.\n"
+    )
+
+
+def test_step0_5_block_ignores_horizontal_rule_inside_fenced_example():
+    """A `---` inside a fenced code block does not terminate the Step 0.5 block.
+
+    Prose churn that adds a horizontal-rule line inside the PriorArtBlock schema
+    example must not truncate the extracted block before its real boundary.
+    """
+    body = (
+        "Some prose before the example.\n\n"
+        "```markdown\n"
+        "## Prior Art / Constraints\n"
+        "\n"
+        "---\n"
+        "\n"
+        "### Direct prior art from memory\n"
+        "```\n\n"
+        "Trailing prose that MUST appear in the extracted block."
+    )
+    block = extract_step0_5_block(_synthetic_spec(body))
+    assert "Trailing prose that MUST appear in the extracted block." in block
+    assert "### Direct prior art from memory" in block
+    # The Step 1 body lives past the closing `---` and must NOT be captured.
+    assert "Clarify the problem" not in block
+
+
+def test_step0_5_block_terminates_on_bare_horizontal_rule_outside_fence():
+    """A bare `---` line outside any fence closes the block (legacy behavior)."""
+    body = "Body line one.\nBody line two."
+    block = extract_step0_5_block(_synthetic_spec(body))
+    assert "Body line two." in block
+    assert "Clarify the problem" not in block
+
+
+def test_step0_5_block_terminates_on_sibling_h3_before_any_rule():
+    """A sibling h3 outside a fence closes the block even with no `---` first.
+
+    The hardened extractor anchors on the next sibling boundary, so a sibling
+    h3 that appears before the closing rule terminates the block instead of
+    over-running to a later `---`.
+    """
+    spec = (
+        "### Step 0: First Principles Gate\n\n"
+        f"{STEP_0_5_HEADING}\n\n"
+        "Step 0.5 body content.\n\n"
+        "### Some Sibling Section\n\n"
+        "Sibling content that is NOT part of Step 0.5.\n"
+        "---\n"
+    )
+    block = extract_step0_5_block(spec)
+    assert "Step 0.5 body content." in block
+    assert "Some Sibling Section" not in block
+    assert "Sibling content" not in block
+
+
+def test_step0_5_block_handles_four_backtick_outer_fence():
+    """A four-backtick outer fence stays open across an inner three-backtick run.
+
+    CommonMark: a closing fence uses the same character and at least as many of
+    them as the opening fence. A `---` between the inner ``` lines must not close
+    the block.
+    """
+    body = (
+        "````markdown\n"
+        "Example halt block:\n"
+        "```step0_5-halt\n"
+        "trigger: H6\n"
+        "```\n"
+        "---\n"
+        "More fenced content.\n"
+        "````\n\n"
+        "Real trailing body."
+    )
+    block = extract_step0_5_block(_synthetic_spec(body))
+    assert "Real trailing body." in block
+    assert "Clarify the problem" not in block
+
+
+def test_step0_5_block_missing_heading_raises():
+    """Absent Step 0.5 heading raises ValueError, not a silent empty block."""
+    with pytest.raises(ValueError, match="Step 0.5 heading not found"):
+        extract_step0_5_block("### Step 0: only\n\nNo gate here.\n")
+
+
+def test_extract_step9_block_matches_rephrased_opener():
+    """Step 9 extraction anchors on `9. ` (any opener), not the critic wording.
+
+    A rephrased Step 9 first sentence must not break extraction.
+    """
+    spec = (
+        "8. Prior step.\n"
+        "9. Skeptical reviewer pass. Rephrased opener with no critic Task call. "
+        "Checks 9a through 9d follow.\n"
+        "   - Check 9d: Prior Art / Constraints elicitation.\n"
+        "## Evaluation Axes\n"
+        "Axes body.\n"
+    )
+    block = extract_step9_block(spec)
+    assert block.startswith("9. Skeptical reviewer pass.")
+    assert "Check 9d" in block
+    assert "Evaluation Axes" not in block
+
+
+def test_extract_step9_block_still_matches_canonical_critic_opener():
+    """The relaxed anchor still matches the canonical Task(critic) opener."""
+    spec = (
+        '9. Task(subagent_type="critic"): skeptical review. 9a-9d follow.\n'
+        "## Evaluation Axes\n"
+    )
+    block = extract_step9_block(spec)
+    assert block.startswith('9. Task(subagent_type="critic")')
+    assert "Evaluation Axes" not in block
+
+
+def test_extract_step9_block_missing_raises():
+    """Absent Step 9 block raises ValueError."""
+    with pytest.raises(ValueError, match="Step 9 block not found"):
+        extract_step9_block("8. only step.\n## Evaluation Axes\n")
