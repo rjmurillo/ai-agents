@@ -4,8 +4,8 @@
 Parses session logs and extracts structured episode data per ADR-038.
 Extraction targets: session metadata, decisions, events, metrics, and lessons.
 
-Session logs are JSON (see ``scripts/validate_session_json.py`` and the
-``session-migration`` skill). The JSON path is primary: ``outcome`` is derived
+Session logs are JSON (see ``scripts/validate_session_json.py``). The JSON
+path is primary: ``outcome`` is derived
 from the ``protocolCompliance.sessionEnd`` MUST gates and events are typed from
 the ``workLog`` structure, NOT from substring matching, which previously
 mistyped every JSON line containing "fail"/"error" as an error event and forced
