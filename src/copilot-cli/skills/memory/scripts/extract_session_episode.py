@@ -515,7 +515,7 @@ def looks_like_json_session(content: str) -> dict[str, Any] | None:
 def _gate_complete(data: dict, phase: str, gate: str) -> bool:
     compliance = _as_dict(data.get("protocolCompliance"))
     g = _as_dict(_as_dict(compliance.get(phase)).get(gate))
-    return bool(g.get("Complete"))
+    return bool(g.get("Complete") if "Complete" in g else g.get("complete"))
 
 
 def _collect_shas(data: dict, *, include_starting: bool) -> list[str]:
