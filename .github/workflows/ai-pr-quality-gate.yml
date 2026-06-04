@@ -214,6 +214,9 @@ jobs:
 
     outputs:
       test-summary: ${{ steps.summary.outputs.test_summary }}
+      # Issue #2108: surface the deterministic pytest status as an external
+      # signal for the gate aggregator (scripts/external_signals/gate_aggregator.py).
+      pytest-status: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
 
     steps:
       - name: Checkout repository
@@ -541,7 +544,7 @@ jobs:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, infra-check, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review, reliability-review, observability-review, agent-safety-review, decision-rigor-review]
+    needs: [check-changes, infra-check, run-tests, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review, reliability-review, observability-review, agent-safety-review, decision-rigor-review]
     # Always run to produce a SUCCESS check (not SKIPPED) for rulesets.
     # Step-level conditions gate the actual work.
     if: always()
@@ -622,6 +625,30 @@ jobs:
           AGENT_SAFETY_INFRA: ${{ steps.load-results.outputs['agent-safety_infra'] }}
           DECISION_RIGOR_INFRA: ${{ steps.load-results.outputs['decision-rigor_infra'] }}
         run: python3 .github/scripts/aggregate_quality_verdicts.py
+
+      # Issue #2108 / #1855: enforce the closed-loop rule (no PASS on LLM
+      # verdicts alone) by feeding the deterministic pytest status plus the ten
+      # agent verdicts into scripts/external_signals/gate_aggregator.py. This
+      # is observable (continue-on-error) and reported below; it does not yet
+      # replace the authoritative gate in check_critical_failures.py. Swapping
+      # the final gate is tracked as a follow-up (see PR description).
+      - name: External-signal gate (observe)
+        if: steps.should-run.outputs.skip != 'true'
+        id: external-gate
+        continue-on-error: true
+        env:
+          PYTEST_STATUS: ${{ needs.run-tests.outputs.pytest-status }}
+          SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
+          QA_VERDICT: ${{ steps.aggregate.outputs.qa_verdict }}
+          ANALYST_VERDICT: ${{ steps.aggregate.outputs.analyst_verdict }}
+          ARCHITECT_VERDICT: ${{ steps.aggregate.outputs.architect_verdict }}
+          DEVOPS_VERDICT: ${{ steps.aggregate.outputs.devops_verdict }}
+          ROADMAP_VERDICT: ${{ steps.aggregate.outputs.roadmap_verdict }}
+          RELIABILITY_VERDICT: ${{ steps.aggregate.outputs.reliability_verdict }}
+          OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
+          AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
+          DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
+        run: python3 scripts/quality_gate/external_signal_gate.py
 
       - name: Generate Report
         if: steps.should-run.outputs.skip != 'true'
