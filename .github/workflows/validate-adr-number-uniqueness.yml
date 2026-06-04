@@ -68,27 +68,29 @@ jobs:
       - name: Show remediation on failure
         if: failure()
         run: |
-          echo ""
-          echo "=== ADR Number Uniqueness Validation Failed ==="
-          echo ""
-          echo "Two ADR files under .agents/architecture/ share the same"
-          echo "number. This is the concurrent-PR race described in #2253:"
-          echo "your branch picked an ADR number that another PR has since"
-          echo "merged to main."
-          echo ""
-          echo "To fix:"
-          echo "  1. Get the next free number:"
-          echo "       python3 scripts/validation/check_adr_uniqueness.py --print-next"
-          echo "  2. Rename your ADR file to ADR-<new>-<slug>.md"
-          echo "  3. Update the '# ADR-NNN:' heading inside the file"
-          echo "  4. Sweep references:"
-          echo "       git grep -nE 'ADR-<old>\\b' .agents/ .claude/ src/ docs/"
-          echo "  5. Re-run the gate locally:"
-          echo "       python3 scripts/validation/check_adr_uniqueness.py"
-          echo ""
-          echo "See issue #2253 for context. The former #2228 duplicates"
-          echo "(ADR-058, ADR-062, ADR-063) were renumbered to 069/070/071;"
-          echo "the allowlist is now empty and the gate has zero exceptions."
+          printf '%s\n' \
+            "" \
+            "=== ADR Number Uniqueness Validation Failed ===" \
+            "" \
+            "Two ADR files under .agents/architecture/ share the same" \
+            "number. This is the concurrent-PR race described in #2253:" \
+            "your branch picked an ADR number that another PR has since" \
+            "merged to main." \
+            "" \
+            "To fix:" \
+            "  1. Get the next free number:" \
+            "       python3 scripts/validation/check_adr_uniqueness.py --print-next" \
+            "  2. Rename your ADR file to ADR-<new>-<slug>.md" \
+            "  3. Update the '# ADR-NNN:' heading inside the file" \
+            "  4. Sweep references:" \
+            "       git grep -nE 'ADR-<old>\\b' .agents/ .claude/ src/ docs/" \
+            "  5. Re-run the gate locally:" \
+            "       python3 scripts/validation/check_adr_uniqueness.py" \
+            "" \
+            "See issue #2253 for context. In #2228, the incoming ADR" \
+            "files that collided with canonical ADR-058, ADR-062, and" \
+            "ADR-063 were renumbered to ADR-069, ADR-070, and ADR-071;" \
+            "the allowlist is empty and the gate has zero exceptions."
 
   skip-validation:
     name: Skip Validation (No ADR Changes)

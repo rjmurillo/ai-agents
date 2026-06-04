@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-06-04-session-1875",
+  "session": "2026-06-04-session-1875",
+  "timestamp": "2026-06-04T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autofix PR #2332 review feedback, validate ADR numbering, resolve threads, and merge if governance gates allow",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read PR #2332 state and unresolved review threads",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated validate-adr-number-uniqueness remediation text",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated debate-log H1",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran scoped validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran full pre_pr validation",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

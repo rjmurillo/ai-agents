@@ -1,4 +1,4 @@
-# ADR-063 Review Debate Log
+# ADR-071 Review Debate Log (renumbered from ADR-063)
 
 **ADR**: `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` (renumbered from ADR-063 per #2228)
 **Date**: 2026-06-02
