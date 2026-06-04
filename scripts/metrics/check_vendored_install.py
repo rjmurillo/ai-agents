@@ -31,11 +31,10 @@ from pathlib import Path
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
 
-sys.path.insert(0, str(_SCRIPT_DIR))
-sys.path.insert(0, str(_PROJECT_ROOT / "scripts"))
+sys.path.insert(0, str(_PROJECT_ROOT))
 
-from kill_criteria import emit_event  # noqa: E402
-from redact_secrets import redact  # noqa: E402
+from scripts.metrics.kill_criteria import emit_event  # noqa: E402
+from scripts.redact_secrets import redact  # noqa: E402
 
 VENDORED_TEST = "tests/integration/test_vendored_install.py"
 

@@ -24,9 +24,10 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(_SCRIPT_DIR))
+_PROJECT_ROOT = _SCRIPT_DIR.parents[1]
+sys.path.insert(0, str(_PROJECT_ROOT))
 
-from kill_criteria import emit_event  # noqa: E402
+from scripts.metrics.kill_criteria import emit_event  # noqa: E402
 
 _KNOWN_VERDICTS = {
     "pass": "PASS",

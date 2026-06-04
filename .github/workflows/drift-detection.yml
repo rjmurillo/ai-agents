@@ -39,13 +39,14 @@ jobs:
           # Set outputs based on exit code
           if [ "${EXIT_CODE:-0}" = "1" ]; then
             echo "drift_detected=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          elif [ "${EXIT_CODE:-0}" = "0" ]; then
+            echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+            exit 0
           else
             echo "drift_detected=false" >> "$GITHUB_OUTPUT"
+            exit "${EXIT_CODE:-0}"
           fi
-
-          # Exit with original code for workflow status
-          exit "${EXIT_CODE:-0}"
-        continue-on-error: true
 
       # K2 (REQ-008-09): record a generator-regression kill-criteria event
       # when template drift is detected. The emitter owns the JSONL schema;
