@@ -302,6 +302,13 @@ def test_generator_design_traces_decision_rules_to_o5(
     assert "ontologyfragment `## o5` source" in lowered, (
         "design rule traceability must cite OntologyFragment O5 sources"
     )
+
+
+def test_generator_documents_validator_script_contract(
+    generator_text: str,
+) -> None:
+    """The validator script path and exit codes stay explicit."""
+    lowered = generator_text.lower()
     assert "`2` configuration or file-read error" in lowered, (
         "spec-generator must document validator exit code 2"
     )
