@@ -67,6 +67,7 @@ _PYTEST_VERDICT = {
 # Agent verdict tokens that gate_aggregator does not know, mapped to one it does.
 _AGENT_VERDICT_ALIAS = {
     "COMPLIANT": "PASS",
+    "NEEDS_REVIEW": "FAIL",
     "NON_COMPLIANT": "FAIL",
     "PARTIAL": "WARN",
     "": "UNKNOWN",

@@ -67,6 +67,9 @@ class TestAgentSignal:
     def test_non_compliant_aliases_to_fail(self) -> None:
         assert agent_signal("qa", "NON_COMPLIANT") == "llm:qa=FAIL"
 
+    def test_needs_review_aliases_to_fail(self) -> None:
+        assert agent_signal("qa", "NEEDS_REVIEW") == "llm:qa=FAIL"
+
     def test_compliant_aliases_to_pass(self) -> None:
         assert agent_signal("qa", "COMPLIANT") == "llm:qa=PASS"
 
@@ -129,6 +132,12 @@ class TestMain:
     def test_non_compliant_agent_blocks(self, monkeypatch) -> None:
         _set_all(monkeypatch, "PASS", "PASS")
         monkeypatch.setenv("QA_VERDICT", "NON_COMPLIANT")
+        rc = main([])
+        assert rc == 1
+
+    def test_needs_review_agent_blocks(self, monkeypatch) -> None:
+        _set_all(monkeypatch, "PASS", "PASS")
+        monkeypatch.setenv("QA_VERDICT", "NEEDS_REVIEW")
         rc = main([])
         assert rc == 1
 
