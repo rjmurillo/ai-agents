@@ -173,7 +173,8 @@ There is no single threshold. The threshold is the CI lower bound > 0 in conjunc
 |---|---|---|
 | `graduate-to-CI` | recall delta > 0 AND 95% CI lower bound > 0 AND flakiness = false AND error count = 0 | A follow-up issue is opened in the project tracker for CI integration scoped to the agent under test only. Multi-agent rollout remains deferred. CI integration requires a separate security review of the runner's API surface. |
 | `keep-as-audit` | positive delta but CI spans zero, OR minor flakiness, OR error count > 0 but < 10% | Runner remains offline-only. A re-run is scheduled for the next Anthropic model bump or quarterly, whichever first. |
-| `scrap` | no meaningful delta (CI centered on zero or negative) under a symmetric experimental design, OR methodology flaw discovered during spike | `evals/<agent>-spike/` is moved to `evals/_archive/<agent>-spike-<RUN_ID>/`. The methodology ADR (this one or its successor) is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. |
+| `scrap` (methodology flaw) | a methodology flaw is discovered during the spike (the experiment design itself was wrong) | The runner (`scripts/eval/eval-agent-vs-baseline.py` plus its modules and tests) AND the corpus and run directory are moved to `evals/_archive/<agent>-spike-<RUN_ID>/`. The methodology ADR (this one or its successor) is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. The decision is not face-saving; `scrap` is a real outcome and the ADR treats it as such. |
+| `scrap` (negative or null delta, or fixed bug) | no meaningful delta (CI centered on zero or negative) on a sound methodology, OR an implementation bug that has since been fixed | Only the corpus and run directory are moved to `evals/_archive/<agent>-spike-<RUN_ID>/`. The runner stays in `scripts/eval/` because the methodology is sound and lives on for the next agent. This ADR stays at its prior status (it is NOT superseded). The agent under test loses its eval; the methodology-as-code is preserved. |
 | `halt-due-to-flakiness` | flakiness > 30% of fixtures after the contingency rerun (per AC-10) | The methodology produces no graduate / audit / scrap verdict on this run. Investigate variance source (control test: same fixture × same variant × N=10 runs to quantify temperature=0 non-determinism on long context). Consider corpus expansion (N≥30) before next attempt. **Do NOT graduate to CI without resolving the variance.** Underlying numbers may be reported as informational but are non-normative. |
 
 These criteria are normative. The ADR does not soften "scrap" into "needs more work" or "halt-due-to-flakiness" into a soft pass. Each outcome is a real outcome and the methodology treats it as such. `halt-due-to-flakiness` is in particular not a path to graduation; it is a halt that requires variance investigation before another verdict-grade run is attempted.
@@ -340,7 +341,7 @@ Run the agent and a deliberately-naive baseline against the same held-out corpus
 - Agent specialization claims now have an empirical validation path.
 - Methodology is reproducible and version-controlled.
 - Per-agent calibration prevents over-fitting a global threshold.
-- The `scrap` outcome with archive + supersede consequences keeps the methodology honest.
+- The two-branch `scrap` outcome keeps the methodology honest: methodology-flaw archives the runner and supersedes the ADR; negative-or-null delta (or fixed bug) on sound methodology archives only the corpus, preserving the runner and ADR for the next agent.
 - Cost is bounded (~$1-3 per run at v1 scale).
 
 ### Negative
