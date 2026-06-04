@@ -1,6 +1,6 @@
 ---
 name: spec-generator
-version: 1.0.0
+version: 1.0.1
 model: claude-sonnet-4-6
 description: >-
   Transform feature descriptions into 3-tier specifications (Requirements,
@@ -102,6 +102,27 @@ Frontmatter (all required unless noted): `type: requirement`, `id`, `title`, `st
 3. Acceptance Criteria (checkboxes, each pass/fail testable)
 4. Rationale
 5. Dependencies
+
+The body sections carry SPDD REASONS Canvas labels for interop with SPDD
+(Spec-Driven Development) tooling. R, E, and A map onto the five sections
+above; S, O, N, and the second S are additive labeled subsections, used only
+when the requirement needs them, that surface structure, operations, norms,
+and safeguards already partially captured in the DESIGN and TASK files. New
+specs SHOULD adopt the labels; existing REQ files are not retrofitted.
+
+- **R (Requirements)**: the Requirement Statement (section 1).
+- **E (Entities)**: named domain entities and data the requirement touches,
+  recorded in Context (section 2).
+- **A (Approach)**: the chosen direction and its justification, recorded in
+  Rationale (section 4).
+- **S (Structure)**: additive. Components, modules, or boundaries the
+  requirement implies; cross-references the DESIGN Component Architecture.
+- **O (Operations)**: additive. Runtime behaviors, commands, and workflows;
+  cross-references the TASK Implementation Notes.
+- **N (Norms)**: additive. Standards, conventions, and policy constraints the
+  requirement must honor (coding standards, governance rules, ADRs).
+- **S (Safeguards)**: additive. Security, validation, and failure-mode
+  guarantees; cross-references the DESIGN Security Considerations.
 
 ### Design Structure
 
