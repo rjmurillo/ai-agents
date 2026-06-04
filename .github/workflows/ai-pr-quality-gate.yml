@@ -630,60 +630,12 @@ jobs:
 
       - name: Validate artifact download
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Write-Output "Checking for required verdict files..."
-
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
-          $missingFiles = @()
-
-          foreach ($agent in $agents) {
-            $verdictFile = "ai-review-results/$agent-verdict.txt"
-            if (-not (Test-Path $verdictFile)) {
-              $missingFiles += "$agent-verdict.txt"
-            }
-          }
-
-          if ($missingFiles.Count -gt 0) {
-            Write-Output "::error::Artifact download incomplete - missing files:"
-            foreach ($file in $missingFiles) {
-              Write-Output "::error::  - $file"
-            }
-            Write-Output "::error::This indicates agent review jobs failed or artifacts were not uploaded"
-            exit 1
-          }
-
-          Write-Output "✓ All required verdict files present"
+        run: python3 scripts/quality_gate/validate_artifact_download.py
 
       - name: Load review results
         if: steps.should-run.outputs.skip != 'true'
         id: load-results
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
-
-          Write-Output "Loaded verdicts:"
-
-          foreach ($agent in $agents) {
-            $verdictFile = "ai-review-results/$agent-verdict.txt"
-            $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
-
-            # Read verdict (file existence already validated)
-            $rawVerdict = Get-Content $verdictFile -Raw
-            $verdict = if ($rawVerdict) { $rawVerdict.Trim() } else { "NEEDS_REVIEW" }
-
-            # Read infrastructure flag
-            $rawInfra = if (Test-Path $infraFile) { Get-Content $infraFile -Raw } else { $null }
-            $infra = if ($rawInfra) { $rawInfra.Trim() } else { "false" }
-
-            Write-Output "  ${agent}: $verdict (infra: $infra)"
-
-            # Export to GITHUB_OUTPUT
-            "${agent}_verdict=$verdict" >> $env:GITHUB_OUTPUT
-            "${agent}_infra=$infra" >> $env:GITHUB_OUTPUT
-          }
+        run: python3 scripts/quality_gate/load_review_results.py
 
       - name: Aggregate Verdicts
         if: steps.should-run.outputs.skip != 'true'
