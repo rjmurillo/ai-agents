@@ -238,7 +238,7 @@ Any of these means you are near the limit. Do not push through. Checkpoint.
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
 - **Explicit handoffs**: never let context decay across agents
-- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst → context-retrieval if analyst errors)
+- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the exploring-knowledge-graph skill for context)
 - **Observability**: log routing decisions with rationale
 
 ## Orchestration Budget
