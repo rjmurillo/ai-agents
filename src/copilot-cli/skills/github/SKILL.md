@@ -1,6 +1,6 @@
 ---
 name: github
-version: 4.0.0
+version: 4.1.0
 model: claude-opus-4-6
 description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges)
   using Python scripts with structured output and error handling. Use when working
@@ -37,7 +37,7 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 | `create a PR` | new_pr.py |
 | `respond to review comments` | post_pr_comment_reply.py |
 | `check CI status` | get_pr_checks.py / get_pr_check_logs.py |
-| `close issue, add label to issue` | close_pr.py / set_issue_labels.py |
+| `close issue, add label to issue` | close_issue.py / set_issue_labels.py |
 | `list actionable items, check notifications` | get_actionable_items.py |
 
 ---
@@ -72,6 +72,7 @@ Need GitHub data?
    ├─ Set issue milestone → set_issue_milestone.py
    ├─ Set PR/issue milestone (auto-detect) → set_item_milestone.py
    ├─ Assign issue → set_issue_assignee.py
+   ├─ Close issue → close_issue.py
    ├─ Resolve threads → resolve_pr_review_thread.py
    ├─ Unresolve threads → unresolve_pr_review_thread.py
    ├─ Process AI triage → invoke_pr_comment_processing.py
@@ -124,6 +125,7 @@ Need GitHub data?
 | `set_issue_labels.py` | Apply labels (auto-create) | `--issue`, `--labels`, `--priority` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone` |
 | `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker` |
+| `close_issue.py` | Close issue with optional comment | `--issue`, `--reason {completed,not planned}`, `--comment`/`--comment-file` |
 | `invoke_copilot_assignment.py` | Synthesize context for Copilot | `--issue-number`, `--what-if` |
 | `set_issue_assignee.py` | Assign users to issues | `--issue`, `--assignees` |
 
