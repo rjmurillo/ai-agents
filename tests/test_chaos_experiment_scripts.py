@@ -7,6 +7,7 @@ functionality used by the chaos-experiment skill.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -48,6 +49,70 @@ from validate_experiment import (
 from validate_experiment import (
     validate_path_no_traversal as validate_validate_path,
 )
+
+
+def _import_generate_experiment_with_env(env: dict[str, str]) -> subprocess.CompletedProcess:
+    script = SKILL_SCRIPTS_PATH / "generate_experiment.py"
+    code = "\n".join(
+        [
+            "import importlib.util",
+            "import sys",
+            f"spec = importlib.util.spec_from_file_location('probe_generate', {str(script)!r})",
+            "module = importlib.util.module_from_spec(spec)",
+            "sys.modules[spec.name] = module",
+            "spec.loader.exec_module(module)",
+            "print(getattr(module.paths, 'SOURCE', module.paths.__file__))",
+        ]
+    )
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+
+class TestGenerateExperimentPathBootstrap:
+    """Tests for importing the vendor-portable path helper."""
+
+    def test_prefers_copilot_plugin_root_over_claude_plugin_root(self, tmp_path: Path) -> None:
+        copilot_root = tmp_path / "copilot"
+        claude_root = tmp_path / "claude"
+        for root, source in ((copilot_root, "copilot"), (claude_root, "claude")):
+            lib_dir = root / "lib"
+            lib_dir.mkdir(parents=True)
+            (lib_dir / "paths.py").write_text(
+                f"SOURCE = {source!r}\n"
+                "def resolve_artifact_root(subdir):\n"
+                "    raise AssertionError('not called')\n",
+                encoding="utf-8",
+            )
+        env = os.environ.copy()
+        env["COPILOT_PLUGIN_ROOT"] = str(copilot_root)
+        env["CLAUDE_PLUGIN_ROOT"] = str(claude_root)
+
+        result = _import_generate_experiment_with_env(env)
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == "copilot"
+
+    def test_missing_plugin_lib_fails_before_importing_default_paths(self, tmp_path: Path) -> None:
+        fallback_dir = tmp_path / "fallback"
+        fallback_dir.mkdir()
+        (fallback_dir / "paths.py").write_text(
+            "SOURCE = 'fallback'\n",
+            encoding="utf-8",
+        )
+        env = os.environ.copy()
+        env["COPILOT_PLUGIN_ROOT"] = str(tmp_path / "missing-plugin")
+        env["PYTHONPATH"] = str(fallback_dir)
+
+        result = _import_generate_experiment_with_env(env)
+
+        assert result.returncode != 0
+        assert "Expected portability helper lib directory not found" in result.stderr
+        assert "fallback" not in result.stdout
 
 
 class TestGenerateExperimentId:
@@ -943,6 +1008,31 @@ class TestGenerateExperimentCLI:
         assert "API Gateway Test" in content
         assert "Payment Service" in content
         assert "Jane" in content
+
+    def test_default_output_routes_through_artifact_root(
+        self, script_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without --output, the file lands under the portability artifact root.
+
+        Issue #2050: the default output must route through the
+        resolve_artifact_root helper, not a hard-coded .agents/chaos. The
+        AI_AGENTS_ARTIFACT_ROOT override redirects every skill's artifacts to
+        a consumer-chosen location, so the document must appear under
+        <override>/chaos.
+        """
+        env = dict(os.environ, AI_AGENTS_ARTIFACT_ROOT=str(tmp_path))
+        result = subprocess.run(
+            [sys.executable, str(script_path), "--name", "Default Routed"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+
+        assert result.returncode == 0
+        created_files = list((tmp_path / "chaos").glob("*.md"))
+        assert len(created_files) == 1
+        assert "Default Routed" in created_files[0].read_text()
 
 
 class TestValidateExperimentCLI:
