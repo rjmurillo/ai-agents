@@ -12,15 +12,19 @@ import importlib.util
 import json
 import subprocess
 import sys
+from datetime import date
+from hashlib import sha1
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 _SCRIPT = _SCRIPT_DIR / "extract_evidence.py"
+_MODULE_NAME = f"retrospective_extract_evidence_{sha1(str(_SCRIPT).encode()).hexdigest()[:12]}"
+_GIT_TEST_TIMEOUT_SECONDS = 30
 
-_spec = importlib.util.spec_from_file_location("extract_evidence", _SCRIPT)
+_spec = importlib.util.spec_from_file_location(_MODULE_NAME, _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
-sys.modules["extract_evidence"] = _mod
+sys.modules[_MODULE_NAME] = _mod
 _spec.loader.exec_module(_mod)
 
 gather_evidence = _mod.gather_evidence
@@ -43,14 +47,27 @@ def _init_git_repo(root: Path) -> None:
         ["git", "config", "user.email", "t@t.com"],
         ["git", "config", "user.name", "Test"],
     ):
-        subprocess.run(cmd, cwd=root, capture_output=True, check=True)
+        subprocess.run(
+            cmd,
+            cwd=root,
+            capture_output=True,
+            check=True,
+            timeout=_GIT_TEST_TIMEOUT_SECONDS,
+        )
     (root / "f.txt").write_text("x", encoding="utf-8")
-    subprocess.run(["git", "add", "."], cwd=root, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "add", "."],
+        cwd=root,
+        capture_output=True,
+        check=True,
+        timeout=_GIT_TEST_TIMEOUT_SECONDS,
+    )
     subprocess.run(
         ["git", "commit", "-m", "feat: seed commit for evidence test"],
         cwd=root,
         capture_output=True,
         check=True,
+        timeout=_GIT_TEST_TIMEOUT_SECONDS,
     )
 
 
@@ -95,6 +112,48 @@ def test_gather_evidence_picks_most_recent_session(tmp_path):
 
     # Assert
     assert chosen == new
+
+
+def test_find_recent_session_log_prefers_today_over_newer_older_log(tmp_path):
+    # Arrange: an older-day log has newer mtime, but today's log wins.
+    sessions = tmp_path / ".agents" / "sessions"
+    older = _write_session(
+        sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
+    )
+    today = _write_session(
+        sessions, "2026-06-03-session-1-today.json", {"workLog": ["today work"]}
+    )
+    import os
+
+    os.utime(today, (1_000_000, 1_000_000))
+    os.utime(older, (2_000_000, 2_000_000))
+
+    # Act
+    chosen = find_recent_session_log(sessions, today=date(2026, 6, 3))
+
+    # Assert
+    assert chosen == today
+
+
+def test_find_recent_session_log_uses_yesterday_when_today_missing(tmp_path):
+    # Arrange
+    sessions = tmp_path / ".agents" / "sessions"
+    older = _write_session(
+        sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
+    )
+    yesterday = _write_session(
+        sessions, "2026-06-02-session-1-yesterday.json", {"workLog": ["yesterday"]}
+    )
+    import os
+
+    os.utime(yesterday, (1_000_000, 1_000_000))
+    os.utime(older, (2_000_000, 2_000_000))
+
+    # Act
+    chosen = find_recent_session_log(sessions, today=date(2026, 6, 3))
+
+    # Assert
+    assert chosen == yesterday
 
 
 # --- Negative: missing sources are marked absent, not crashed ---------------
@@ -151,11 +210,63 @@ def test_parse_session_log_returns_empty_on_corrupt_json(tmp_path):
     path.write_text("{not json", encoding="utf-8")
 
     # Act
-    work, outcomes = parse_session_log(path)
+    result = parse_session_log(path)
+    work, outcomes = result
 
     # Assert: degraded to empty, no exception.
     assert work == []
     assert outcomes == []
+    assert result.error is not None
+
+
+def test_parse_session_log_returns_error_on_invalid_utf8(tmp_path):
+    # Arrange: invalid UTF-8 on disk.
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True)
+    path = sessions / "2026-06-03-session-0-bad-utf8.json"
+    path.write_bytes(b"\xff")
+
+    # Act
+    result = parse_session_log(path)
+
+    # Assert: degraded to empty, no exception.
+    assert result.work_items == []
+    assert result.outcomes == []
+    assert "UnicodeDecodeError" in result.error
+
+
+def test_parse_session_log_respects_explicit_empty_worklog(tmp_path):
+    # Arrange: the current field is authoritative even when empty.
+    sessions = tmp_path / ".agents" / "sessions"
+    path = _write_session(
+        sessions,
+        "2026-06-03-session-4-empty-current.json",
+        {"workLog": [], "work": ["legacy work"]},
+    )
+
+    # Act
+    result = parse_session_log(path)
+
+    # Assert
+    assert result.work_items == []
+    assert result.error is None
+
+
+def test_gather_evidence_marks_parse_failure_not_empty_session(tmp_path):
+    # Arrange: a corrupt log should not be described as an empty session.
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True)
+    path = sessions / "2026-06-03-session-0-bad.json"
+    path.write_text("{not json", encoding="utf-8")
+
+    # Act
+    evidence = gather_evidence(tmp_path, "bad")
+
+    # Assert
+    assert evidence.session_log_path == str(path)
+    assert evidence.session_log_available is False
+    assert any("could not be parsed" in note for note in evidence.notes)
+    assert not any("no work or outcomes" in note for note in evidence.notes)
 
 
 def test_session_with_no_work_is_marked_unavailable(tmp_path):

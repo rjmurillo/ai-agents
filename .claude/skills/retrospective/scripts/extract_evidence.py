@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Gather Phase 0 evidence for a retrospective.
 
-Collects the three evidence sources the retrospective workflow consumes: the
-most-recent session log under ``.agents/sessions/``, the ``git log`` over the
-retrospective period, and (optionally) GitHub activity. Each source degrades
-gracefully: a missing source is marked absent in the returned ``Evidence``
-rather than failing the whole gather, per the SKILL.md Inputs contract
-("When a source is unavailable, degrade gracefully ... mark the missing
-sections, never substitute invented data").
+Collects the evidence sources this script currently supports: the recent
+session log under ``.agents/sessions/`` and the ``git log`` over the
+retrospective period. Each source degrades clearly: a missing or unreadable
+source is marked absent in the returned ``Evidence`` rather than failing the
+whole gather, per the SKILL.md Inputs contract ("When a source is unavailable,
+degrade gracefully ... mark the missing sections, never substitute invented
+data").
 
 System of record: the session log is the SoR for what happened in a session;
 git history is corroborating derived evidence (see
@@ -30,8 +30,9 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 # Bound the git call so a wedged repo cannot hang the retrospective.
@@ -70,22 +71,46 @@ class Evidence:
     notes: list[str] = field(default_factory=list)
 
 
-def find_recent_session_log(sessions_dir: Path) -> Path | None:
-    """Return the most recent ``*-session-*.json`` file, or None when absent.
+@dataclass(frozen=True, slots=True)
+class SessionLogParseResult:
+    """Parsed session-log fields plus an error when parsing failed."""
 
-    Picks the newest by modification time. Returns None when the directory is
-    missing or holds no session logs, so the caller can mark the source absent.
+    work_items: list[str]
+    outcomes: list[str]
+    error: str | None = None
+
+    def __iter__(self) -> Iterator[list[str]]:
+        """Keep legacy tuple-unpacking callers source-compatible."""
+        yield self.work_items
+        yield self.outcomes
+
+
+def _newest_session_log(candidates: list[Path]) -> Path:
+    """Return the newest candidate by mtime, then name."""
+    try:
+        return max(candidates, key=lambda f: (f.stat().st_mtime, f.name))
+    except OSError:
+        return sorted(candidates, key=lambda p: p.name)[-1]
+
+
+def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Path | None:
+    """Return the current session log by date priority, or None when absent.
+
+    Matches the Stop-hook lookup order: prefer today's logs, then yesterday's
+    logs only when today has none, then fall back to the newest older log.
     """
     if not sessions_dir.is_dir():
         return None
     candidates = list(sessions_dir.glob("*-session-*.json"))
     if not candidates:
         return None
-    try:
-        return max(candidates, key=lambda f: f.stat().st_mtime)
-    except OSError:
-        # Stat failed (race or permission); fall back to a stable name sort.
-        return sorted(candidates, key=lambda p: p.name)[-1]
+    today = today or datetime.now(tz=UTC).date()
+    for target_day in (today, today - timedelta(days=1)):
+        prefix = f"{target_day.isoformat()}-session-"
+        dated = [path for path in candidates if path.name.startswith(prefix)]
+        if dated:
+            return _newest_session_log(dated)
+    return _newest_session_log(candidates)
 
 
 def _format_work_item(item: object) -> str:
@@ -135,27 +160,28 @@ def _coerce_to_list(value: object) -> list[object]:
     return []
 
 
-def parse_session_log(path: Path) -> tuple[list[str], list[str]]:
+def parse_session_log(path: Path) -> SessionLogParseResult:
     """Read work items and outcomes from a session log.
 
-    Returns two lists of formatted strings. On any parse or IO error, returns
-    empty lists; the caller marks the source degraded.
+    Returns formatted fields plus parse status. On parse or IO error, returns
+    empty lists with an error so the caller can mark the source degraded
+    without mislabeling it as an empty session.
     """
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return [], []
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return SessionLogParseResult([], [], f"{type(exc).__name__}: {exc}")
     if not isinstance(data, dict):
-        return [], []
+        return SessionLogParseResult([], [], "session log root is not an object")
 
     work_raw = data.get("workLog")
-    if not work_raw:
+    if work_raw is None:
         work_raw = data.get("work", [])
     outcomes_raw = data.get("outcomes", [])
 
     work = [_format_work_item(i) for i in _coerce_to_list(work_raw)[:_MAX_WORK_ITEMS]]
     outcomes = [_format_work_item(o) for o in _coerce_to_list(outcomes_raw)[:_MAX_WORK_ITEMS]]
-    return work, outcomes
+    return SessionLogParseResult(work, outcomes)
 
 
 def gather_git_log(
@@ -215,9 +241,17 @@ def gather_evidence(
         session_log_available = False
         session_log_path = ""
     else:
-        work_items, outcomes = parse_session_log(session_log)
+        parsed_session = parse_session_log(session_log)
+        work_items = parsed_session.work_items
+        outcomes = parsed_session.outcomes
         session_log_path = str(session_log)
-        if not work_items and not outcomes:
+        if parsed_session.error is not None:
+            session_log_available = False
+            notes.append(
+                f"Session log {session_log.name} could not be parsed: "
+                f"{parsed_session.error}."
+            )
+        elif not work_items and not outcomes:
             session_log_available = False
             notes.append(f"Session log {session_log.name} had no work or outcomes.")
         else:
