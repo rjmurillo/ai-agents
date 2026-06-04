@@ -70,6 +70,8 @@ else:
 # the open flags compose; the Path.is_symlink() pre-check still guards there.
 _O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _OPEN_FLAGS = os.O_WRONLY | os.O_APPEND | os.O_CREAT | _O_NOFOLLOW
+_FILE_MODE = 0o600
+_PROJECT_DIR = Path(__file__).resolve().parents[1]
 
 
 class MetricsWriteError(Exception):
@@ -88,17 +90,46 @@ def _reject_symlink(target: Path) -> None:
         )
 
 
+def _resolve_target_parent(target: Path) -> Path:
+    """Resolve the parent without following a final-component symlink."""
+    return target.parent.resolve() / target.name
+
+
+def _anchor_target(
+    target: Path,
+    base_dir: str | os.PathLike[str] | None,
+) -> Path:
+    base_path = Path(base_dir) if base_dir is not None else None
+    if base_path is not None and not base_path.is_absolute():
+        base_path = _PROJECT_DIR / base_path
+
+    if base_path is not None:
+        anchored = target if target.is_absolute() else base_path / target
+        return _resolve_under(anchored, base_path)
+
+    if target.is_absolute():
+        return _resolve_target_parent(target)
+
+    return _resolve_under(_PROJECT_DIR / target, _PROJECT_DIR)
+
+
+def _write_all(fd: int, data: bytes, target: Path) -> None:
+    remaining = memoryview(data)
+    while remaining:
+        written = os.write(fd, remaining)
+        if written == 0:
+            raise MetricsWriteError(f"failed to append tally to {target}: zero-byte write")
+        remaining = remaining[written:]
+
+
 def _resolve_under(target: Path, base: Path) -> Path:
-    """Return ``target`` resolved, confirming it stays under ``base``.
+    """Return ``target`` with its parent resolved, confirming it stays under ``base``.
 
     Rejects ``..`` traversal that would escape the allowed base directory. The
     base itself is resolved so a symlinked base does not produce a false escape.
     """
     resolved_base = base.resolve()
-    # Resolve the parent (which must exist or be creatable) and re-attach the
-    # final component, so a not-yet-existing tally file still resolves cleanly.
-    resolved_parent = target.parent.resolve()
-    candidate = resolved_parent / target.name
+    candidate = _resolve_target_parent(target)
     if resolved_base not in candidate.parents and candidate != resolved_base:
         raise MetricsWriteError(
             f"refusing to append outside base directory (CWE-23 traversal): "
@@ -121,30 +152,25 @@ def safe_append_tally(
     closes the check-then-open TOCTOU window (CWE-367). The append holds an
     exclusive advisory lock so concurrent writers serialize.
 
-    ``line`` is written as a single record; a trailing newline is added if the
-    caller did not supply one. When ``base_dir`` is given, the resolved target
-    must stay under it or the write is rejected as a traversal escape.
+    ``line`` is written as one complete record; a trailing newline is added if
+    the caller did not supply one. Relative paths are anchored to the project
+    directory or to ``base_dir`` before resolution. When ``base_dir`` is given,
+    the resolved target must stay under it or the write is rejected as a
+    traversal escape.
 
     Returns the resolved path written. Raises ``MetricsWriteError`` on any
     rejection or failure.
     """
-    target = Path(path)
-    if base_dir is not None:
-        target = _resolve_under(target, Path(base_dir))
-
+    target = _anchor_target(Path(path), base_dir)
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    # Pre-check: reject an already-present symlink before we touch the path.
     _reject_symlink(target)
 
     record = line if line.endswith("\n") else line + "\n"
 
     try:
-        fd = os.open(target, _OPEN_FLAGS, 0o644)
+        fd = os.open(target, _OPEN_FLAGS, _FILE_MODE)
     except OSError as exc:
-        # ELOOP (or EMLINK on some kernels) is the O_NOFOLLOW refusal of a
-        # symlink that was swapped in after the pre-check: report it as the
-        # link-following rejection it is, not a generic write failure.
         raise MetricsWriteError(
             f"cannot open tally file {target} (symlink or open failure, "
             f"CWE-59/CWE-367): {exc}"
@@ -153,7 +179,7 @@ def safe_append_tally(
     try:
         _lock(fd)
         try:
-            os.write(fd, record.encode("utf-8"))
+            _write_all(fd, record.encode("utf-8"), target)
         finally:
             _unlock(fd)
     except OSError as exc:

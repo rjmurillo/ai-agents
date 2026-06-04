@@ -9,6 +9,7 @@ real temp files and real symlinks under pytest's tmp_path.
 from __future__ import annotations
 
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -23,6 +24,15 @@ from metrics_writer import (  # noqa: E402
 )
 
 _TALLY = "2026-06-03T00:00:00Z | pass | none | none"
+
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip(
+            "symlink creation unavailable on this platform; PR #2354 tracks coverage"
+        )
 
 
 # --- positive: normal append -------------------------------------------------
@@ -62,6 +72,49 @@ def test_append_preserves_caller_supplied_newline(tmp_path: Path) -> None:
 
     # No doubled newline when the caller already terminated the record.
     assert target.read_text(encoding="utf-8") == _TALLY + "\n"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file mode semantics")
+def test_append_creates_owner_only_file(tmp_path: Path) -> None:
+    target = tmp_path / "metrics.md"
+
+    safe_append_tally(target, _TALLY)
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_relative_path_without_base_is_anchored_to_project_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(metrics_writer, "_PROJECT_DIR", tmp_path)
+    relative_target = Path("metrics") / "tally.md"
+
+    written = safe_append_tally(relative_target, _TALLY)
+
+    assert written == tmp_path / relative_target
+    assert written.read_text(encoding="utf-8") == _TALLY + "\n"
+
+
+def test_relative_path_escape_from_project_dir_is_rejected(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(metrics_writer, "_PROJECT_DIR", tmp_path / "project")
+
+    with pytest.raises(MetricsWriteError, match="traversal"):
+        safe_append_tally(Path("..") / "outside.md", _TALLY)
+
+    assert not (tmp_path / "outside.md").exists()
+
+
+def test_relative_path_with_relative_base_is_anchored_to_project_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(metrics_writer, "_PROJECT_DIR", tmp_path)
+
+    written = safe_append_tally(Path("nested") / "metrics.md", _TALLY, base_dir="base")
+
+    assert written == tmp_path / "base" / "nested" / "metrics.md"
+    assert written.read_text(encoding="utf-8") == _TALLY + "\n"
 
 
 # --- positive: exclusive lock held during the write --------------------------
@@ -123,7 +176,7 @@ def test_symlink_target_is_rejected_by_precheck(tmp_path: Path) -> None:
     secret = tmp_path / "secret.txt"
     secret.write_text("do not touch", encoding="utf-8")
     link = tmp_path / "STEP-0.5-METRICS.md"
-    link.symlink_to(secret)
+    _symlink_or_skip(link, secret)
 
     with pytest.raises(MetricsWriteError, match="CWE-59"):
         safe_append_tally(link, _TALLY)
@@ -146,6 +199,10 @@ def test_symlink_swapped_after_precheck_is_rejected_by_open(
 
     if not getattr(os, "O_NOFOLLOW", 0):
         pytest.skip("platform lacks O_NOFOLLOW; pre-check is the only gate")
+
+    probe = tmp_path / "probe-link"
+    _symlink_or_skip(probe, secret)
+    probe.unlink()
 
     def swap_in_symlink(t: Path) -> None:
         # Pre-check returns clean, but plants the link before os.open runs.
@@ -208,6 +265,39 @@ def test_write_failure_is_wrapped(tmp_path: Path, monkeypatch) -> None:
         safe_append_tally(target, _TALLY)
 
 
+def test_short_write_retries_until_record_is_complete(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "metrics.md"
+    real_write = os.write
+    writes: list[bytes] = []
+
+    def short_write(fd: int, data: bytes) -> int:
+        chunk_size = max(1, len(data) // 2)
+        chunk = data[:chunk_size]
+        writes.append(bytes(chunk))
+        return real_write(fd, chunk)
+
+    monkeypatch.setattr(metrics_writer.os, "write", short_write)
+
+    safe_append_tally(target, _TALLY)
+
+    assert len(writes) > 1
+    assert target.read_text(encoding="utf-8") == _TALLY + "\n"
+
+
+def test_zero_byte_write_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "metrics.md"
+
+    def zero_write(fd: int, data: bytes) -> int:
+        return 0
+
+    monkeypatch.setattr(metrics_writer.os, "write", zero_write)
+
+    with pytest.raises(MetricsWriteError, match="zero-byte write"):
+        safe_append_tally(target, _TALLY)
+
+
 # --- CLI argv exit-code contract ---------------------------------------------
 
 
@@ -224,7 +314,7 @@ def test_cli_rejects_symlink_with_exit_one(tmp_path: Path) -> None:
     secret = tmp_path / "secret.txt"
     secret.write_text("x", encoding="utf-8")
     link = tmp_path / "metrics.md"
-    link.symlink_to(secret)
+    _symlink_or_skip(link, secret)
 
     rc = metrics_writer.main([str(link), _TALLY])
 
