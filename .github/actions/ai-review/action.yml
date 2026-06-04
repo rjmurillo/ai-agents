@@ -523,7 +523,23 @@ runs:
               CONTEXT=$(cat "$CONTEXT_PATH")
               # If PR number also provided, append the diff
               if [ -n "$PR_NUMBER" ]; then
-                PR_DIFF=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null | head -500 || echo "")
+                PR_DIFF=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true)
+                if [ -n "$PR_DIFF" ]; then
+                  PR_DIFF_LINES=$(printf '%s\n' "$PR_DIFF" | wc -l)
+                  if [ "$PR_DIFF_LINES" -gt "$MAX_DIFF_LINES" ]; then
+                    CONTEXT_MODE="partial"
+                    PR_DIFF_PREVIEW=$(printf '%s\n' "$PR_DIFF" | head -n "$MAX_DIFF_LINES")
+                    PR_DIFF="[Diff truncated to first $MAX_DIFF_LINES of $PR_DIFF_LINES lines]"$'\n'"$PR_DIFF_PREVIEW"
+                  fi
+                else
+                  CONTEXT_MODE="summary"
+                  PR_DIFF=$(gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --name-only 2>/dev/null || true)
+                  if [ -n "$PR_DIFF" ]; then
+                    PR_DIFF="[Diff unavailable, showing file list only]"$'\n'"$PR_DIFF"
+                  else
+                    PR_DIFF="[Diff unavailable]"
+                  fi
+                fi
                 CONTEXT="## Specification"$'\n'"$CONTEXT"$'\n\n'"## Implementation Changes"$'\n'"$PR_DIFF"
               fi
             else

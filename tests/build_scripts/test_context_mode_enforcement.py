@@ -29,6 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_DIR = REPO_ROOT / ".claude" / "skills" / "review" / "references"
 TWIN_DIR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "references"
 PROMPTS_DIR = REPO_ROOT / ".github" / "prompts"
+AI_REVIEW_ACTION = REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
 REVIEW_SKILL_PATHS = (
     REPO_ROOT / ".claude" / "skills" / "review" / "SKILL.md",
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "SKILL.md",
@@ -53,6 +54,20 @@ def _canonical_roles() -> list[str]:
 
 def _prompt_path(role: str) -> Path:
     return PROMPTS_DIR / f"pr-quality-gate-{role}.md"
+
+
+def _shipped_review_surfaces() -> list[Path]:
+    roles = _canonical_roles()
+    return (
+        [CANONICAL_DIR / f"{role}.md" for role in roles]
+        + [TWIN_DIR / f"{role}.md" for role in roles]
+        + [_prompt_path(role) for role in roles]
+    )
+
+
+def _spec_file_context_block() -> str:
+    text = AI_REVIEW_ACTION.read_text(encoding="utf-8")
+    return text.split("spec-file)", 1)[1].split("\n          *)", 1)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -188,3 +203,26 @@ def test_review_skill_fails_closed_when_local_context_is_unknown(
     assert _LOCAL_UNKNOWN_MODE in text, (
         f"{skill_path} does not route unknown context completeness to partial"
     )
+
+
+def test_spec_file_context_marks_truncated_diff_partial() -> None:
+    """A spec-file review must not label a bounded diff preview as full."""
+    block = _spec_file_context_block()
+    assert "head -500" not in block
+    assert 'CONTEXT_MODE="partial"' in block
+    assert "Diff truncated to first $MAX_DIFF_LINES" in block
+
+
+def test_spec_file_context_marks_diff_failure_summary() -> None:
+    """A spec-file diff fallback carries only file names, so PASS is forbidden."""
+    block = _spec_file_context_block()
+    assert 'CONTEXT_MODE="summary"' in block
+    assert "Diff unavailable, showing file list only" in block
+
+
+@pytest.mark.parametrize("path", _shipped_review_surfaces())
+def test_not_material_guidance_does_not_bypass_context_mode(path: Path) -> None:
+    """Not-material shortcuts must not allow PASS when context is partial."""
+    text = path.read_text(encoding="utf-8")
+    assert "record PASS and move on" not in text
+    assert "record `PASS` and move on" not in text
