@@ -14,10 +14,13 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import re
 import subprocess
 import sys
+import tempfile
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -63,23 +66,30 @@ def _git_env() -> dict[str, str]:
 
 
 def get_repo_root() -> str:
-    """Get the git repository root directory."""
+    """Get the current worktree root directory.
+
+    Uses --show-toplevel, not --git-common-dir. In a LINKED worktree the
+    common dir is the MAIN checkout's shared .git, so dirname(common-dir)
+    is the main checkout, not this worktree (#2387). --show-toplevel returns
+    the current worktree root in every layout. Canonical reference:
+    scripts/github_core/repo.py::get_repo_root.
+    """
     result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+        ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
         timeout=10,
         env=_git_env(),
     )
-    if result.returncode != 0:
+    if result.returncode != 0 or not result.stdout.strip():
         print("Not in a git repository", file=sys.stderr)
         raise SystemExit(2)
-    git_common = Path(result.stdout.strip())
-    if not git_common.is_absolute():
-        git_common = (Path.cwd() / git_common).resolve()
+    toplevel = Path(result.stdout.strip())
+    if not toplevel.is_absolute():
+        toplevel = (Path.cwd() / toplevel).resolve()
     else:
-        git_common = git_common.resolve()
-    return str(git_common.parent)
+        toplevel = toplevel.resolve()
+    return str(toplevel)
 
 
 def validate_conventional_commit(title: str) -> bool:
@@ -136,6 +146,59 @@ def _extract_validatable_session_logs(
     return [f for f in matched if f.endswith(".json")], bool(legacy_md)
 
 
+@contextlib.contextmanager
+def _session_log_for_validation(
+    repo_root: str, head: str, session_log: str
+) -> Iterator[str | None]:
+    """Yield a filesystem path to the session log to validate, or None.
+
+    The changed-file list comes from ``git diff base...head`` (refs), so the
+    log lives at ``head:<path>`` in git history. For a branch that is not
+    checked out into the current worktree, ``repo_root/<path>`` does not
+    exist on disk, which produced an opaque "Session End validation failed"
+    (#2387). Read the content from the branch ref via ``git show`` into a
+    temp file (scratch in ``$TMPDIR`` per AGENTS.md, never the working tree)
+    and yield that path. Fall back to the working-tree copy when the ref read
+    fails but the file is present locally; yield None when neither source has
+    the content, so the caller skips validation rather than fail spuriously.
+    """
+    show = subprocess.run(
+        ["git", "show", f"{head}:{session_log}"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=_git_env(),
+    )
+    if show.returncode == 0:
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".json",
+            prefix="session-log-",
+            delete=False,
+        )
+        try:
+            tmp.write(show.stdout)
+            tmp.close()
+            yield tmp.name
+        finally:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp.name)
+        return
+
+    worktree_path = os.path.join(repo_root, session_log)
+    if os.path.exists(worktree_path):
+        yield worktree_path
+        return
+
+    print(
+        f"  WARNING: session log {session_log} not found at {head} or in the "
+        "working tree; skipping Session End validation.",
+        file=sys.stderr,
+    )
+    yield None
+
+
 def run_validations(
     repo_root: str,
     base: str,
@@ -186,20 +249,23 @@ def run_validations(
             session_log = sorted(session_logs, key=_session_sort_key)[-1]
             validate_script = os.path.join(repo_root, "scripts/validate_session_json.py")
             if os.path.exists(validate_script):
-                session_log_path = os.path.join(repo_root, session_log)
-                vresult = subprocess.run(
-                    [
-                        sys.executable,
-                        validate_script,
-                        session_log_path,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-                if vresult.returncode != 0:
-                    print("Session End validation failed", file=sys.stderr)
-                    raise SystemExit(1)
+                with _session_log_for_validation(
+                    repo_root, head, session_log
+                ) as session_log_path:
+                    if session_log_path is not None:
+                        vresult = subprocess.run(
+                            [
+                                sys.executable,
+                                validate_script,
+                                session_log_path,
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=60,
+                        )
+                        if vresult.returncode != 0:
+                            print("Session End validation failed", file=sys.stderr)
+                            raise SystemExit(1)
         elif not has_legacy_md:
             print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
     else:
