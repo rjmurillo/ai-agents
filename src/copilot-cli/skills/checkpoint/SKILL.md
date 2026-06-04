@@ -2,7 +2,7 @@
 name: checkpoint
 description: Write a timestamped mid-session checkpoint snapshot of decisions, progress, and next actions to .agents/checkpoints/, then link it from the active session log.
 argument-hint: optional-short-label
-allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Glob, Read, Edit, Write
+allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
 user-invocable: true
 ---
 
@@ -15,7 +15,31 @@ file is the human-readable record; the session log keeps a reference to it.
 
 Optional label for this checkpoint: $ARGUMENTS
 
-## Your task
+## Triggers
+
+| Trigger | Effect |
+| --- | --- |
+| `/checkpoint` | Write a timestamped checkpoint and link it from the active session log. |
+| `/checkpoint label` | Write a labeled checkpoint and link it from the active session log. |
+
+## Process
+
+### Phase 1: Build checkpoint path
+
+Resolve the timestamp, active session log, label, slug, and collision-safe
+checkpoint path.
+
+### Phase 2: Write redacted checkpoint
+
+Render the checkpoint body, run it through the secret redactor, and write only
+to a path that does not already exist.
+
+### Phase 3: Link session log
+
+Append checkpoint metadata to the active JSON session log when one exists, then
+validate the JSON.
+
+## Steps
 
 1. Get the current UTC timestamp for the filename and the file body:
 
@@ -26,21 +50,38 @@ Optional label for this checkpoint: $ARGUMENTS
    Use the output as `YYYYMMDD-HHMMSS`. Also record the full ISO 8601 UTC time
    (`date -u +%Y-%m-%dT%H:%M:%SZ`) for the body.
 
-2. Build the filename slug from `$ARGUMENTS`:
+2. Identify the active session log and default label:
+
+   - Get the current branch with `git branch --show-current`.
+   - Find `.agents/sessions/*.json` files and sort by filename descending. The
+    filename order is the canonical "newest" order because session logs are
+    named with `YYYY-MM-DD-session-NN`.
+   - Read candidates in that order until you find the first log whose
+    `session.branch` equals the current branch. That file is the active session
+    log.
+   - If `$ARGUMENTS` is empty after trimming, derive the label from the active
+    session log's `session.objective`. If no active session log exists, derive
+    it from the current branch. If that is empty, use `checkpoint`.
+
+3. Build the filename slug from the label:
 
    - Lowercase the label, replace every run of non-alphanumeric characters with a
      single hyphen, and strip leading and trailing hyphens.
    - Truncate the slug to 40 characters.
-   - If `$ARGUMENTS` is empty after trimming, omit the slug entirely.
-   - Filename with a label: `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md`.
-   - Filename without a label: `CHECKPOINT-YYYYMMDD-HHMMSS.md`.
+   - Filename: `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md`.
+   - If slug generation returns an empty string, use `checkpoint` as the slug.
 
-3. Write the checkpoint to `.agents/checkpoints/<filename>` using the Write tool.
+4. Write the checkpoint to `.agents/checkpoints/<filename>` using the Write tool.
    The directory already exists (tracked via `.gitkeep`). Do not overwrite an
-   existing file; the timestamp makes collisions unlikely, but if the exact path
-   exists, append a `-2` (then `-3`, and so on) before `.md`.
+   existing file. Use this collision loop before writing:
 
-4. Use this exact section structure. Fill each section from the current
+   - Start with `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md`.
+   - Check whether `.agents/checkpoints/<candidate>` already exists with Glob.
+   - If it exists, try `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>-2.md`, then `-3`, and
+    continue until Glob returns no match.
+   - Write only to the first path that does not already exist.
+
+5. Use this exact section structure. Fill each section from the current
    conversation and git state. Write "None" under a heading when a section has no
    content; never leave a heading empty.
 
@@ -76,27 +117,45 @@ Optional label for this checkpoint: $ARGUMENTS
    Files, issues, PRs, ADRs, session logs, and memories a reader needs to resume.
    ```
 
-5. Do not redact by default, but never paste credentials, tokens, or PII into the
-   body. The checkpoint lands in git history; treat it as durable. If a value you
-   would record looks like a secret, summarize it instead of copying it verbatim.
+6. Redact secrets before writing. The checkpoint lands in git history; treat it
+   as durable. Do not paste live credentials, tokens, or PII. Before using Write,
+   run the checkpoint body through `python3 scripts/redact_secrets.py` and write
+   the redacted output. If the redactor is unavailable or fails, stop and report
+   the failure instead of writing unredacted durable text.
 
-6. Link the checkpoint from the active session log:
+7. Link the checkpoint from the active session log:
 
-   - Get the current branch with `git branch --show-current`.
-   - Find `.agents/sessions/*.json` files, read the newest files first, and pick
-     the newest log whose `session.branch` equals the current branch.
-   - If no matching session log exists, report that no active session log was
-     found. Do not invent or modify a log.
-   - If a matching log exists, update a top-level `checkpoints` array. Create the
+   - If no active session log was found in step 2, report that no active session
+     log was found. Do not invent or modify a log.
+   - If the active session log exists, update a top-level `checkpoints` array. Create the
      array when it is absent. Append an object with `path`, `created`, `label`,
      and `branch` fields for this checkpoint. Preserve valid JSON.
    - Run `python3 -m json.tool <session-log-path>` after editing. If JSON
      validation fails, report the failure and do not claim the checkpoint was
      linked from the session log.
 
-7. Report the path you wrote, the session log path you updated or the reason no
+8. Report the path you wrote, the session log path you updated or the reason no
    log was updated, and a one-line summary of what the checkpoint captured. Do
    not commit the file; leave that to the user or the session-end flow.
+
+## Verification
+
+- [ ] Checkpoint file path did not already exist before Write.
+- [ ] Checkpoint body was redacted with `scripts/redact_secrets.py` before Write.
+- [ ] Active session log was updated, or the "no active session log" reason was reported.
+- [ ] Updated session log passed `python3 -m json.tool` when a log was modified.
+
+## Anti-Patterns
+
+- Do not overwrite an existing checkpoint path.
+- Do not write unredacted durable text when the redactor fails.
+- Do not create or guess a session log when no active branch-matching log exists.
+- Do not commit, push, or merge from this command.
+
+## Extension Points
+
+- Add a restore command separately. Checkpoint only writes and links snapshots.
+- Add automatic checkpointing separately. This command stays human-triggered.
 
 This command writes a snapshot file and records a reference in the active session
 log when one exists. It does not push or commit. Keep it to the steps above.

@@ -30,20 +30,41 @@ def test_checkpoint_can_read_and_edit_session_log(checkpoint_text: str) -> None:
     assert "Write" in checkpoint_text
     assert "Bash(git branch:*)" in checkpoint_text
     assert "Bash(python3 -m json.tool:*)" in checkpoint_text
+    assert "Bash(python3 scripts/redact_secrets.py:*)" in checkpoint_text
+    assert "## Triggers" in checkpoint_text
+    assert "## Process" in checkpoint_text
+    assert "## Verification" in checkpoint_text
 
 
 def test_checkpoint_links_created_file_from_active_session_log(checkpoint_text: str) -> None:
     assert "Link the checkpoint from the active session log" in checkpoint_text
     assert "session.branch" in checkpoint_text
     assert "equals the current branch" in checkpoint_text
+    assert "sort by filename descending" in checkpoint_text
+    assert "That file is the active session" in checkpoint_text
     assert "top-level `checkpoints` array" in checkpoint_text
     assert "Append an object with `path`, `created`, `label`," in checkpoint_text
+
+
+def test_checkpoint_derives_default_slug_and_handles_collisions(checkpoint_text: str) -> None:
+    assert "If `$ARGUMENTS` is empty after trimming" in checkpoint_text
+    assert "derive the label from the active" in checkpoint_text
+    assert "session.objective" in checkpoint_text
+    assert "CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md" in checkpoint_text
+    assert "Use this collision loop before writing" in checkpoint_text
+    assert "then `-3`" in checkpoint_text
+
+
+def test_checkpoint_redacts_before_writing_durable_text(checkpoint_text: str) -> None:
+    assert "Redact secrets before writing" in checkpoint_text
+    assert "python3 scripts/redact_secrets.py" in checkpoint_text
+    assert "instead of writing unredacted durable text" in checkpoint_text
 
 
 def test_checkpoint_fails_closed_when_session_log_update_is_unsafe(
     checkpoint_text: str,
 ) -> None:
-    assert "If no matching session log exists" in checkpoint_text
+    assert "If no active session log was found" in checkpoint_text
     assert "Do not invent or modify a log" in checkpoint_text
     assert re.search(r"If JSON\s+validation fails", checkpoint_text)
     assert re.search(r"do not claim the checkpoint was\s+linked", checkpoint_text)
