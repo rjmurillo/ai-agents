@@ -149,26 +149,28 @@ go install github.com/rhysd/actionlint/cmd/actionlint@latest
 **Local validation**:
 
 ```bash
-# Validate all workflow files (scope to .github/workflows/ explicitly)
-actionlint .github/workflows/
+# Validate all workflow files (scope to .github/workflows/ with a glob)
+actionlint .github/workflows/*.yml
 
 # Validate specific workflow
 actionlint .github/workflows/pester-tests.yml
 
 # JSON output for parsing
-actionlint -format json .github/workflows/
+actionlint -format json .github/workflows/*.yml
 ```
 
-> **Scope actionlint to `.github/workflows/`.** A bare `actionlint` with no
-> path argument recursively scans every `.yml`/`.yaml` file, including
+> **Scope actionlint to the workflow files, not the repo.** A bare `actionlint`
+> with no path argument recursively scans every `.yml`/`.yaml` file, including
 > composite action definitions under `.github/actions/*/action.yml`.
 > actionlint validates workflow files only; it parses a composite `action.yml`
 > as if it were a workflow and emits false errors (missing `on:`/`jobs:` keys,
 > unexpected `runs:` and `inputs:`). Composite actions cannot be validated with
-> actionlint. Always pass `.github/workflows/` so the scan never reaches
-> `.github/actions/`. The automated toolchain (`scripts/validation/pre_pr.py`,
-> `run_workflow_local_test.py`) already restricts the scan correctly; this note
-> keeps manual invocations aligned.
+> actionlint. Pass an explicit file glob such as `.github/workflows/*.yml` so the
+> scan never reaches `.github/actions/`. Do not pass the bare directory
+> `.github/workflows/`: actionlint rejects a directory argument with
+> "is a directory". The automated toolchain (`scripts/validation/pre_pr.py`,
+> `run_workflow_local_test.py`) already globs the workflow files correctly; this
+> note keeps manual invocations aligned.
 
 **Integration points**:
 
