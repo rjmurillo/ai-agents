@@ -30,24 +30,27 @@ When this skill activates, you become an adversarial requirements interviewer. T
 
 - Free-form problem statement, issue body, or feature title.
 - Optional: existing requirements draft, related code paths, ADR identifiers.
+- Optional: OntologyFragment from `/spec` Step 1. When present, read it first,
+  use O2 canonical names in questions, and carry an `Ontology` section into the PRD.
 
 ## Outputs
 
 | Artifact | Location | Purpose |
 |----------|----------|---------|
 | Interview transcript | `.agents/specs/interviews/INTERVIEW-<slug>.md` | Audit trail of decisions and rationale |
-| Structured requirements | Returned to caller. `/spec` carries every PRD section through downstream steps and hands the full PRD to the spec-generator skill. | Problem, user stories, data model, integrations, failure modes, security, observability, acceptance criteria, out-of-scope, deferred, open questions |
+| Structured requirements | Returned to caller. `/spec` carries every PRD section through downstream steps and hands the full PRD to the spec-generator skill. | Problem, user stories, ontology, data model, integrations, failure modes, security, observability, acceptance criteria, out-of-scope, deferred, open questions |
 
 ## Process
 
 1. **Restate the problem** in one sentence. Confirm with the user before continuing.
-2. **Build the design tree.** Identify the top-level branches: user stories, data model, integrations, failure modes, security, scope boundaries, observability.
-3. **Walk one branch at a time, depth first.** Resolve dependencies before siblings. A storage decision constrains the consistency model; ask the storage question first.
-4. **For every question, propose your recommended answer.** Cite the source: code path, ADR, prior art, or stated assumption. The user confirms or corrects. Do not ask open-ended questions without a default.
-5. **If the codebase can answer it, answer it.** Grep before you ask. Cite the file and line. The user confirms ownership of the answer.
-6. **Surface unknown unknowns.** For each branch, ask "what would have to be true for this to fail in production?" Capture failure modes, not just happy paths.
-7. **Stop when the design tree has no unresolved leaves.** Every branch ends with either a confirmed decision, an explicit deferral, or an out-of-scope marker.
-8. **Emit the structured output** in the format below.
+2. **Read the OntologyFragment if provided.** Use O2 canonical names in every question and add an `Ontology` PRD section summarizing O1-O7.
+3. **Build the design tree.** Identify the top-level branches: user stories, ontology, data model, integrations, failure modes, security, scope boundaries, observability.
+4. **Walk one branch at a time, depth first.** Resolve dependencies before siblings. A storage decision constrains the consistency model; ask the storage question first.
+5. **For every question, propose your recommended answer.** Cite the source: code path, ADR, prior art, or stated assumption. The user confirms or corrects. Do not ask open-ended questions without a default.
+6. **If the codebase can answer it, answer it.** Grep before you ask. Cite the file and line. The user confirms ownership of the answer.
+7. **Surface unknown unknowns.** For each branch, ask "what would have to be true for this to fail in production?" Capture failure modes, not just happy paths.
+8. **Stop when the design tree has no unresolved leaves.** Every branch ends with either a confirmed decision, an explicit deferral, or an out-of-scope marker.
+9. **Emit the structured output** in the format below.
 
 ## Question Discipline
 
@@ -63,12 +66,13 @@ When this skill activates, you become an adversarial requirements interviewer. T
 Walk these in order. Skip a branch only with explicit justification.
 
 1. **User stories.** Who triggers the behavior? What outcome do they observe? What measurable success condition closes the story?
-2. **Data model.** What entities exist? What identity, invariants, and lifecycle do they have? What persists, what is derived?
-3. **Integrations.** Which external systems does this touch? What are their failure modes and idempotency guarantees?
-4. **Failure modes.** Retries, partial failures, conflicting writes, replay, schema evolution. Each gets an explicit answer.
-5. **Security.** Authentication, authorization, secrets, PII, input validation. Cite the relevant rule under `.claude/rules/security.md` or `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`.
-6. **Observability.** What signals prove the feature works in production? Logs, metrics, traces, alerts.
-7. **Scope boundaries.** What is explicitly out of scope? What is deferred to a follow-up? What is rejected and why?
+2. **Ontology.** Which O1-O7 concepts from the OntologyFragment are in scope, and which open ontology questions remain?
+3. **Data model.** What entities exist? What identity, invariants, and lifecycle do they have? What persists, what is derived?
+4. **Integrations.** Which external systems does this touch? What are their failure modes and idempotency guarantees?
+5. **Failure modes.** Retries, partial failures, conflicting writes, replay, schema evolution. Each gets an explicit answer.
+6. **Security.** Authentication, authorization, secrets, PII, input validation. Cite the relevant rule under `.claude/rules/security.md` or `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`.
+7. **Observability.** What signals prove the feature works in production? Logs, metrics, traces, alerts.
+8. **Scope boundaries.** What is explicitly out of scope? What is deferred to a follow-up? What is rejected and why?
 
 ## Anti-Patterns
 
@@ -91,7 +95,7 @@ The interview is complete when:
 
 ## Structured Output
 
-Return to the caller as Markdown with the sections below. Each section uses the headings `Problem`, `User stories`, `Data model`, `Integrations`, `Failure modes`, `Security`, `Observability`, `Acceptance criteria`, `Out of scope`, `Deferred`, and `Open questions`. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
+Return to the caller as Markdown with the sections below. Each section uses the headings `Problem`, `User stories`, `Ontology`, `Data model`, `Integrations`, `Failure modes`, `Security`, `Observability`, `Acceptance criteria`, `Out of scope`, `Deferred`, and `Open questions`. The `Ontology` section summarizes the caller-provided OntologyFragment when present so downstream steps keep O2 canonical names. Acceptance criteria use EARS syntax (`WHEN ... THE SYSTEM SHALL ... SO THAT ...`).
 
 ## Handoff
 

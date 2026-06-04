@@ -6,7 +6,7 @@
 ## Constraints (HIGH confidence)
 
 - Copilot CLI event name casing is load-bearing for payload field names. camelCase events send `toolName`/`toolArgs`, PascalCase events send `tool_name`/`tool_input`. Always use PascalCase in `eventRemap` to get snake_case payloads matching what hook scripts expect. (Session fix/2290, 2026-06-02)
-- Verify stdin payload format empirically (probe plugin) before implementing shim dispatch logic. ADR-063 verified env vars and cwd but NOT stdin field names. The cost of a probe is 15 minutes; the cost of assumption is a P0. (Session fix/2290, 2026-06-02)
+- Verify stdin payload format empirically (probe plugin) before implementing shim dispatch logic. ADR-071 (formerly ADR-063, renumbered per #2228) verified env vars and cwd but NOT stdin field names. The cost of a probe is 15 minutes; the cost of assumption is a P0. (Session fix/2290, 2026-06-02)
 - Never use raw `gh` commands in Claude Code sessions. Use `.claude/skills/github/scripts/` instead. `invoke_skill_first_guard` blocks raw `gh` calls. (Session fix/2290, 2026-06-02)
 
 ## Edge Cases (MED confidence)
