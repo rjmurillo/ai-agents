@@ -5,8 +5,8 @@ Pins behaviour of the ADR-number-collision gate:
 - pos: a unique-number tree returns exit 0
 - neg: a tree with a colliding ADR number returns exit 1
 - edge: README and non-ADR files are ignored; missing directory is a
-  config error (exit 2 per ADR-035); the #2228 allowlist suppresses
-  pre-existing duplicates (58/62/63) but not new ones
+  config error (exit 2 per ADR-035); the #2228 allowlist is now empty, so
+  the formerly-exempt 58/62/63 fail when duplicated and pass when unique
 - branch: --print-next returns max(existing)+1, exit 0; empty tree
   yields 001; padding width is respected
 """
@@ -88,49 +88,50 @@ def test_new_duplicate_fails(tmp_path: Path) -> None:
     assert "next free ADR number: 071" in result.stdout
 
 
-def test_duplicate_outside_allowlist_fails_even_when_allowlisted_present(
-    tmp_path: Path,
-) -> None:
-    """Allowlist suppresses #2228 dupes but never new ones in the same tree."""
+def test_multiple_duplicate_numbers_all_reported(tmp_path: Path) -> None:
+    """With the empty allowlist (#2228 resolved), every duplicate fails."""
     adr_dir = _scaffold(tmp_path)
-    # Pre-existing dupe (allowlisted)
     _make_adr(adr_dir, 58, "agent-eval")
     _make_adr(adr_dir, 58, "context-corpus")
-    # New, post-merge dupe must fail.
     _make_adr(adr_dir, 80, "first")
     _make_adr(adr_dir, 80, "second")
 
     result = _run(tmp_path)
     assert result.returncode == 1
+    # No exceptions remain: both the formerly-allowlisted 58 and the new 80 fail.
+    assert "ADR-058" in result.stdout
     assert "ADR-080" in result.stdout
-    # The allowlisted number must not be listed as a failure.
-    assert "ADR-058" not in result.stdout
 
 
 # --- edge -------------------------------------------------------------------
 
 
-def test_allowlist_suppresses_known_2228_duplicates(tmp_path: Path) -> None:
+def test_formerly_allowlisted_numbers_now_fail_when_duplicated(
+    tmp_path: Path,
+) -> None:
+    """#2228 emptied the allowlist; 58/62/63 duplicates are no longer exempt."""
     adr_dir = _scaffold(tmp_path)
     for num in (58, 62, 63):
         _make_adr(adr_dir, num, "first")
         _make_adr(adr_dir, num, "second")
 
     result = _run(tmp_path)
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "[PASS]" in result.stdout
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "[FAIL]" in result.stdout
+    assert "ADR-058" in result.stdout
+    assert "ADR-062" in result.stdout
+    assert "ADR-063" in result.stdout
 
 
-def test_new_duplicate_of_allowlisted_number_fails(tmp_path: Path) -> None:
+def test_single_files_at_formerly_duplicated_numbers_pass(tmp_path: Path) -> None:
+    """After dedup, one file per number (incl. 58/62/63) is unique and passes."""
     adr_dir = _scaffold(tmp_path)
-    _make_adr(adr_dir, 58, "agent-eval")
-    _make_adr(adr_dir, 58, "context-corpus")
-    _make_adr(adr_dir, 58, "third-one")
+    for num in (58, 62, 63):
+        _make_adr(adr_dir, num, "only-one")
 
     result = _run(tmp_path)
-    assert result.returncode == 1
-    assert "ADR-058" in result.stdout
-    assert "next free ADR number: 059" in result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "[PASS]" in result.stdout
 
 
 def test_readme_and_non_adr_files_are_ignored(tmp_path: Path) -> None:

@@ -10,15 +10,15 @@ exact next free number to use.
 Files are scanned by filename: `ADR-NNN-<slug>.md` in
 `.agents/architecture/`. README and DESIGN-REVIEW prefixes are ignored.
 
-A small allowlist exists for known pre-existing duplicates tracked by
-Issue #2228 (ADR-058, ADR-062, ADR-063). Those collisions exist on main
-today and the cleanup is owned by #2228; this gate must not block merges
-on a problem it did not introduce. Once #2228 lands, the allowlist below
-should be emptied.
+The pre-existing duplicates tracked by Issue #2228 (ADR-058, ADR-062,
+ADR-063) were resolved by renaming the non-canonical file in each pair to
+the next free number (069, 070, 071). The allowlist is therefore empty: the
+gate now enforces uniqueness with zero exceptions. Do NOT re-add numbers to
+the allowlist for new collisions; renumber the incoming ADR instead.
 
 Exit codes (per ADR-035):
-    0 - all ADR numbers unique (or only allowlisted dupes remain)
-    1 - one or more new duplicates detected
+    0 - all ADR numbers unique
+    1 - one or more duplicates detected
     2 - config error (e.g. architecture directory missing)
 
 Operator helpers:
@@ -37,10 +37,10 @@ from pathlib import Path
 # ADR-NNN-<slug>.md. We accept 2+ digits to be forgiving but normalise to int.
 ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 
-# Pre-existing duplicate ADR numbers on main, tracked by Issue #2228.
-# This gate intentionally does NOT fail on these; #2228 owns the cleanup.
-# Remove a number from this set the moment #2228 deduplicates it.
-KNOWN_DUPLICATES_ISSUE_2228 = frozenset({58, 62, 63})
+# Issue #2228 deduplicated the formerly-colliding numbers (58/62/63), so the
+# allowlist is now empty: the gate enforces uniqueness with zero exceptions.
+# Do NOT re-add numbers here for new collisions; renumber the incoming ADR.
+KNOWN_DUPLICATES_ISSUE_2228: frozenset[int] = frozenset()
 
 
 def collect_adr_numbers(adr_dir: Path) -> dict[int, list[Path]]:
@@ -130,8 +130,10 @@ def main() -> int:
             "\nRename the file, update the `# ADR-NNN:` heading, and sweep "
             "references with:\n"
             "  git grep -nE 'ADR-OLD\\b' .agents/ .claude/ src/ docs/\n\n"
-            "Pre-existing duplicates from issue #2228 are intentionally "
-            "allowlisted; do not extend the allowlist for new collisions."
+            "Issue #2228 is already resolved: the incoming files that "
+            "collided with canonical ADR-058, ADR-062, and ADR-063 were "
+            "renumbered to ADR-069, ADR-070, and ADR-071. The allowlist is "
+            "empty; do not add exceptions for new collisions."
         )
         return 1
 

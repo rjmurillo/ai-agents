@@ -4,6 +4,7 @@
   "title": "Example PR",
   "body": "PR description text.",
   "headRefName": "feature-branch",
+  "headRefOid": "abc123def4567890abc123def4567890abc12345",
   "baseRefName": "main",
   "state": "OPEN",
   "author": {

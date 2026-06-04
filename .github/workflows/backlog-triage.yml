@@ -17,6 +17,14 @@ on:
         description: 'Max open issues to triage'
         type: number
         default: 100
+      apply:
+        description: 'Apply the approved-action manifest (human-approval-gated; manifest must set approved: true)'
+        type: boolean
+        default: false
+      approved_manifest_json:
+        description: 'Approved manifest JSON to apply when apply is true'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -32,6 +40,7 @@ env:
 jobs:
   # Job 1: Discover open issues to triage
   discover-issues:
+    if: github.event_name != 'workflow_dispatch' || !inputs.apply
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
     outputs:
@@ -160,3 +169,95 @@ jobs:
       - name: Fail on incomplete triage summary
         if: steps.summary.outcome == 'failure'
         run: exit 1
+
+  # Job 4: Build the recommendation report and approval manifest (read-only).
+  # Phase 3 (issue #2261). Proposes actions grouped by category. Applies nothing;
+  # a human reviews the report, trims the manifest, and sets approved: true.
+  recommend:
+    needs: [discover-issues, summarize]
+    if: always() && needs.discover-issues.outputs['has-issues'] == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Download triage results
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/triage-results
+          pattern: backlog-triage-*
+          merge-multiple: true
+
+      - name: Build recommendation report and manifest
+        id: recommend
+        continue-on-error: true
+        env:
+          RESULTS_DIR: ${{ runner.temp }}/triage-results
+          MANIFEST_PATH: ${{ runner.temp }}/backlog-triage-manifest.json
+          REPORT_PATH: ${{ runner.temp }}/backlog-triage-recommendations.md
+          EXPECTED_COUNT: ${{ needs.discover-issues.outputs.count }}
+        run: >-
+          python3 scripts/triage_recommendation_report.py
+          --results-dir "$RESULTS_DIR"
+          --manifest "$MANIFEST_PATH"
+          --report "$REPORT_PATH"
+          --github-step-summary "$GITHUB_STEP_SUMMARY"
+          --expected-count "$EXPECTED_COUNT"
+
+      - name: Upload recommendation manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: backlog-triage-manifest
+          path: |
+            ${{ runner.temp }}/backlog-triage-manifest.json
+            ${{ runner.temp }}/backlog-triage-recommendations.md
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Fail on incomplete recommendation manifest
+        if: steps.recommend.outcome == 'failure'
+        run: exit 1
+
+  # Job 5: Apply the human-approved manifest. Opt-in via workflow_dispatch only;
+  # never runs on the schedule. A human supplies approved_manifest_json from a
+  # reviewed report. The executor refuses to mutate unless the manifest itself
+  # sets approved: true, so --apply alone cannot bypass review.
+  apply:
+    if: github.event_name == 'workflow_dispatch' && inputs.apply
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: '3.14'
+
+      - name: Apply approved manifest
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+          APPROVED_MANIFEST_JSON: ${{ inputs.approved_manifest_json }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: >-
+          python3 scripts/triage_batch_apply.py
+          --manifest-env APPROVED_MANIFEST_JSON
+          --owner "$REPO_OWNER"
+          --repo "$REPO_NAME"
+          --apply

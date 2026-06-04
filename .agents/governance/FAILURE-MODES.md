@@ -25,7 +25,7 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 8 | Security drift | Critical | `2026-01-04-pr760-security-suppression-failure.md` |
 | 9 | Confident-incorrectness recurrence | High | `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
 | 10 | Silent defaults and guard-clause suppression | High | PR #1965 round-9/round-11 fixes; daniel.haxx.se 2026-05-11 |
-| 11 | Customer-facing generated artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-063 |
+| 11 | Customer-facing generated artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071 |
 
 ---
 
@@ -472,7 +472,7 @@ smoke MUST be loud.
 ### References
 
 - `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`
-- ADR-063 (plugin hook runtime-contract verification)
+- ADR-071 (plugin hook runtime-contract verification)
 - `.claude/rules/generated-artifacts.md`
 - `.claude/rules/canonical-source-mirror.md` (self-referential test anti-pattern)
 - Issues #2205 (fix), #2223 (follow-up debt)

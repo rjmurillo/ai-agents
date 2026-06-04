@@ -6,7 +6,7 @@ consulted: ["analyst", "critic", "qa"]
 informed: ["implementer", "devops", "security", "roadmap"]
 ---
 
-# ADR-058: The Curated Context Corpus IS the Product — Orchestration Is Plumbing
+# ADR-069: The Curated Context Corpus IS the Product, Orchestration Is Plumbing
 
 ## Context and Problem Statement
 
@@ -14,19 +14,19 @@ The competitive value of this repository over a generic Copilot or Claude prompt
 
 Today these artifacts live across many locations with no unified theory of why they exist together or what role each plays at inference time:
 
-- `.serena/memories/` — learned patterns, skills (Zettelkasten atomic notes, tiered)
-- `.agents/architecture/` — ADRs and architectural decisions
-- `.agents/governance/` — constraints and policies
-- `.agents/HANDOFF.md`, `.agents/SESSION-PROTOCOL.md` — session bridge / protocol
-- `templates/agents/` — agent definitions (YAML frontmatter + Markdown)
-- `.claude/skills/*/SKILL.md` — skill definitions
-- `.github/instructions/` — platform-specific rules with `applyTo` globs
-- `.github/prompts/` — quality gate prompts
-- `.baseline/` — coverage thresholds (JSON with schema)
+- `.serena/memories/`: learned patterns, skills (Zettelkasten atomic notes, tiered)
+- `.agents/architecture/`: ADRs and architectural decisions
+- `.agents/governance/`: constraints and policies
+- `.agents/HANDOFF.md`, `.agents/SESSION-PROTOCOL.md`: session bridge / protocol
+- `templates/agents/`: agent definitions (YAML frontmatter + Markdown)
+- `.claude/skills/*/SKILL.md`: skill definitions
+- `.github/instructions/`: platform-specific rules with `applyTo` globs
+- `.github/prompts/`: quality gate prompts
+- `.baseline/`: coverage thresholds (JSON with schema)
 - `CLAUDE.md`, `AGENTS.md`, root entry-point context
-- `scripts/memory/`, `scripts/memory_sync/` — index maintenance
+- `scripts/memory/`, `scripts/memory_sync/`: index maintenance
 
-This catalog is descriptive, not prescriptive — it names the territory as it currently exists. **This ADR does not propose reorganizing any of it.**
+This catalog is descriptive, not prescriptive. It names the territory as it currently exists. **This ADR does not propose reorganizing any of it.**
 
 ## Frame: LLMs as Ghosts, Not Animals
 
@@ -52,10 +52,10 @@ Concretely, this ADR:
 
 1. **Establishes the principle** as a first-class architectural commitment, on equal footing with ADR-007 (memory-first architecture) and ADR-017 (tiered memory index).
 2. **Catalogs the existing context sources** (see Context section above) as a snapshot of the territory, without reorganizing them.
-3. **Names — but explicitly does not answer — the open questions** that downstream work will address:
+3. **Names, but explicitly does not answer, the open questions** that downstream work will address:
    - **Corpus catalog**: What is the authoritative, machine-readable inventory of all context artifacts the system can assemble?
    - **Schema spike**: Should there be a canonical schema for context artifacts, or a family of per-type schemas, or none at all? (Schema-first risks killing the corpus this principle is trying to protect.)
-   - **Assembly-layer prototype**: What does a context-assembly layer look like in practice — RAG, rule-based, agent-mediated, hybrid? Likely needs prototyping before deciding.
+   - **Assembly-layer prototype**: What does a context-assembly layer look like in practice (RAG, rule-based, agent-mediated, hybrid)? Likely needs prototyping before deciding.
    - **Telemetry-of-influence**: What signal would prove a given artifact actually influenced output, beyond "it was in the prompt window"?
    - **Curation cadence**: What is the cadence and ownership for pruning stale artifacts, refreshing summaries, and retiring obsolete patterns?
 4. **Does not prescribe** answers to any of the above. Each becomes a separate, appropriately-sized issue **after** this ADR merges.
@@ -63,7 +63,7 @@ Concretely, this ADR:
 ### What This ADR Is NOT
 
 - **Not** a reorganization of `.serena/memories/`, `.agents/`, `.claude/skills/`, or any other context source.
-- **Not** a new schema. ADR-058 does not define field requirements, frontmatter standards, or validation rules.
+- **Not** a new schema. ADR-069 does not define field requirements, frontmatter standards, or validation rules.
 - **Not** a deprecation of any existing agent, orchestration command, lifecycle hook, or workflow.
 - **Not** a commitment to build telemetry, an assembly layer, or a unified catalog as part of this ADR. Those are downstream issues.
 
@@ -72,7 +72,7 @@ Concretely, this ADR:
 ### What Currently Exists
 
 - **Structure/pattern being changed**: Implicit, distributed treatment of context artifacts across multiple directories with no unified architectural narrative.
-- **When introduced**: Incrementally over the project's history — `.serena/memories/` (ADR-007 era), `.agents/` (ADR-008 era), `.claude/skills/` (ADR-030), governance and instructions added piecemeal.
+- **When introduced**: Incrementally over the project's history: `.serena/memories/` (ADR-007 era), `.agents/` (ADR-008 era), `.claude/skills/` (ADR-030), governance and instructions added piecemeal.
 - **Original author and context**: Multiple authors; each subsystem solved a local problem (memory retrieval, session handoff, agent definitions, skill discovery) without a unifying principle for *why context lives where it lives*.
 
 ### Historical Rationale
@@ -96,7 +96,7 @@ Concretely, this ADR:
 | Status quo (no ADR) | Zero cost; nothing breaks | Contributors continue investing in the wrong layer; no shared vocabulary for "context is the product" | Status quo is the problem this ADR addresses |
 | ADR + immediate canonical schema | Forces consistency; enables tooling | Schema-first kills the corpus before the principle lands; existing artifacts revolt against retrofit | Premature; better to prototype assembly before locking schema |
 | ADR + immediate catalog + schema + assembly + telemetry + cadence (the original issue scope) | Comprehensive | A 12-month roadmap dressed as one decision; high blast radius; mixes principle with implementation | Per the issue's edit log, this scope was explicitly stripped |
-| Principle-only ADR with named open questions (this ADR) | Establishes vocabulary; preserves optionality; downstream issues can be sized appropriately | Doesn't deliver any tooling itself | Chosen — matches the issue's deliverable scope and protects the corpus from premature schema |
+| Principle-only ADR with named open questions (this ADR) | Establishes vocabulary; preserves optionality; downstream issues can be sized appropriately | Doesn't deliver any tooling itself | Chosen: matches the issue's deliverable scope and protects the corpus from premature schema |
 
 ### Trade-offs
 
@@ -115,7 +115,7 @@ Concretely, this ADR:
 
 ### Negative
 
-- Risk of misuse as a rhetorical cudgel against legitimate orchestration improvements. Mitigation: the principle says orchestration is plumbing, not that plumbing is worthless — plumbing failures still ship broken software.
+- Risk of misuse as a rhetorical cudgel against legitimate orchestration improvements. Mitigation: the principle says orchestration is plumbing, not that plumbing is worthless; plumbing failures still ship broken software.
 - Risk that "principle without implementation" reads as procedural overhead. Mitigation: the downstream issues are real work, not paperwork; they are deferred precisely so they can be sized properly.
 
 ### Neutral
@@ -128,7 +128,7 @@ Concretely, this ADR:
 | Component | Dependency Type | Required Update | Risk |
 |-----------|----------------|-----------------|------|
 | `.serena/memories/` | Indirect | None in this ADR; future ADRs may reference this principle when proposing memory-corpus changes | Low |
-| `.agents/architecture/` (other ADRs) | Indirect | None now; ADRs that touch context sources should cite ADR-058 | Low |
+| `.agents/architecture/` (other ADRs) | Indirect | None now; ADRs that touch context sources should cite ADR-069 | Low |
 | `.claude/skills/` | Indirect | None now; skill authors may cite the principle when justifying corpus-shaping skills | Low |
 | Lifecycle commands (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) | None | No change | None |
 | CI workflows | None | No change | None |
@@ -139,25 +139,25 @@ This ADR is documentation-only. There is no code change, no schema change, no mi
 
 **Post-merge follow-ups** (to be filed as separate issues, per the originating issue's Deliverable section):
 
-1. Corpus catalog — authoritative inventory of context artifacts.
-2. Schema spike — investigate whether a canonical or per-type schema is desirable, with explicit attention to the schema-first risk.
-3. Assembly-layer prototype — explore RAG / rule-based / hybrid context assembly.
-4. Telemetry-of-influence — define signal that an artifact actually influenced output.
-5. Curation cadence — define ownership and cadence for pruning, refreshing, retiring.
+1. Corpus catalog: authoritative inventory of context artifacts.
+2. Schema spike: investigate whether a canonical or per-type schema is desirable, with explicit attention to the schema-first risk.
+3. Assembly-layer prototype: explore RAG / rule-based / hybrid context assembly.
+4. Telemetry-of-influence: define signal that an artifact actually influenced output.
+5. Curation cadence: define ownership and cadence for pruning, refreshing, retiring.
 
 None of the above are part of this ADR's acceptance criteria.
 
 ## Related Decisions
 
-- **ADR-007** (Memory-First Architecture) — establishes that retrieval precedes reasoning; ADR-058 generalizes the principle from "memory" to "the entire curated corpus."
-- **ADR-017** (Tiered Memory Index Architecture) — provides one concrete realization of corpus organization within `.serena/memories/`.
-- **ADR-030** (Skills Pattern Superiority) — skills are one corpus surface among several.
-- **ADR-050** (ADR Protocol Sync) — governs how this ADR is propagated and discovered.
-- **ADR-053** (ADR Exception Criteria) — clarifies when ADRs are required; this ADR is in-scope.
+- **ADR-007** (Memory-First Architecture): establishes that retrieval precedes reasoning; ADR-069 generalizes the principle from "memory" to "the entire curated corpus."
+- **ADR-017** (Tiered Memory Index Architecture): provides one concrete realization of corpus organization within `.serena/memories/`.
+- **ADR-030** (Skills Pattern Superiority): skills are one corpus surface among several.
+- **ADR-050** (ADR Protocol Sync): governs how this ADR is propagated and discovered.
+- **ADR-053** (ADR Exception Criteria): clarifies when ADRs are required; this ADR is in-scope.
 
 ## References
 
-- Issue [#1859](https://github.com/rjmurillo/ai-agents/issues/1859) — originating issue and edit log.
-- Related issues: [#1769](https://github.com/rjmurillo/ai-agents/issues/1769) (refactor: extract monolith `.agents/*.md` — this ADR reframes the *why*), [#1728](https://github.com/rjmurillo/ai-agents/issues/1728) (context pressure detection — measurement complement), [#1854](https://github.com/rjmurillo/ai-agents/issues/1854), [#1855](https://github.com/rjmurillo/ai-agents/issues/1855), [#1857](https://github.com/rjmurillo/ai-agents/issues/1857) (eval/gate/router companions).
-- Frame: *LLMs as Ghosts not Animals* (`wiki/concepts/AI Strategy/LLMs as Ghosts not Animals.md`, as cited in the originating issue) — no learning between runs; the corpus is what persists.
-- ADR-TEMPLATE.md — `.agents/architecture/ADR-TEMPLATE.md`.
+- Issue [#1859](https://github.com/rjmurillo/ai-agents/issues/1859): originating issue and edit log.
+- Related issues: [#1769](https://github.com/rjmurillo/ai-agents/issues/1769) (refactor: extract monolith `.agents/*.md`; this ADR reframes the *why*), [#1728](https://github.com/rjmurillo/ai-agents/issues/1728) (context pressure detection, the measurement complement), [#1854](https://github.com/rjmurillo/ai-agents/issues/1854), [#1855](https://github.com/rjmurillo/ai-agents/issues/1855), [#1857](https://github.com/rjmurillo/ai-agents/issues/1857) (eval/gate/router companions).
+- Frame: *LLMs as Ghosts not Animals* (`wiki/concepts/AI Strategy/LLMs as Ghosts not Animals.md`, as cited in the originating issue): no learning between runs; the corpus is what persists.
+- ADR-TEMPLATE.md: `.agents/architecture/ADR-TEMPLATE.md`.
