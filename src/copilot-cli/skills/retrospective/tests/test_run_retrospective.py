@@ -52,6 +52,13 @@ _REQUIRED_HEADINGS = (
 )
 
 
+_REQUIRED_TEMPLATE_LINES = (
+    "- **Statement**: [Atomic - max 15 words]",
+    "| [Strategy] | [Outcome] | [1-10] | [%] |",
+    '"skill_id": "{domain}-{description}"',
+)
+
+
 def _write_session(tmp_path: Path, payload: dict) -> Path:
     sessions = tmp_path / ".agents" / "sessions"
     sessions.mkdir(parents=True, exist_ok=True)
@@ -91,9 +98,11 @@ def test_artifact_has_all_canonical_headings(tmp_path):
     # Act
     artifact, _ = render_artifact("headings", "2026-06-03", evidence, [])
 
-    # Assert: every canonical heading is present.
+    # Assert: every required heading and load-bearing placeholder is present.
     for heading in _REQUIRED_HEADINGS:
         assert heading in artifact, f"missing heading: {heading}"
+    for line in _REQUIRED_TEMPLATE_LINES:
+        assert line in artifact, f"missing template line: {line}"
 
 
 # --- Negative: a below-threshold learning flips the exit signal -------------

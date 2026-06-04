@@ -4,7 +4,7 @@
 This is the thin Phase 0..5 orchestrator the SKILL.md contract describes. It
 gathers evidence (Phase 0 via ``extract_evidence``), scores any supplied
 learnings (Phase 4 via ``score_atomicity``), and writes a retrospective artifact
-whose section headings match the canonical Learning Extraction Template at
+using the section order from
 ``.claude/skills/retrospective/references/learning-template.md``.
 
 The interpretive phases (Five Whys, fishbone, diagnosis prose) are authored by
@@ -118,11 +118,11 @@ def _render_learnings(learnings: list[str]) -> tuple[str, bool]:
     if not learnings:
         return (
             "### Learning 1\n"
-            "- **Statement**: _UNFILLED: extract an atomic learning (max 15 words)._\n"
-            "- **Atomicity Score**: _pending_\n"
-            "- **Evidence**: _UNFILLED._\n"
+            "- **Statement**: [Atomic - max 15 words]\n"
+            "- **Atomicity Score**: [%]\n"
+            "- **Evidence**: [Execution detail]\n"
             "- **Skill Operation**: ADD | UPDATE | TAG | REMOVE\n"
-            "- **Target Skill ID**: _If UPDATE/TAG/REMOVE_",
+            "- **Target Skill ID**: [If UPDATE/TAG/REMOVE]",
             False,
         )
 
@@ -136,9 +136,9 @@ def _render_learnings(learnings: list[str]) -> tuple[str, bool]:
             f"### Learning {index}\n"
             f"- **Statement**: {learning.strip()}\n"
             f"- **Atomicity Score**: {result.score}% ({result.quality})\n"
-            f"- **Evidence**: _UNFILLED: cite the execution detail._\n"
+            f"- **Evidence**: [Execution detail]\n"
             f"- **Skill Operation**: ADD | UPDATE | TAG | REMOVE\n"
-            f"- **Target Skill ID**: _If UPDATE/TAG/REMOVE_"
+            f"- **Target Skill ID**: [If UPDATE/TAG/REMOVE]"
         )
     return "\n\n".join(blocks), any_below
 
@@ -146,13 +146,11 @@ def _render_learnings(learnings: list[str]) -> tuple[str, bool]:
 def render_artifact(
     scope: str, today: str, evidence: EvidenceLike, learnings: list[str]
 ) -> tuple[str, bool]:
-    """Render a retrospective artifact matching the canonical template shape.
+    """Render a retrospective artifact with the template's section order.
 
-    The section headings and order mirror
-    ``references/learning-template.md`` so downstream readers and the
-    auto-retro fill path see a consistent structure. Interpretive sections
-    (Phase 1 insights, Phase 2/3 prose) are left as explicit UNFILLED prompts
-    for the agent or reviewer; the data-bearing sections are populated.
+    Interpretive sections (Phase 1 insights, Phase 2/3 prose) are left as
+    placeholders for the agent or reviewer; the data-bearing sections are
+    populated.
 
     Returns the rendered markdown and whether any learning scored below the
     persistence threshold.
@@ -165,43 +163,46 @@ def render_artifact(
 
 ## Session Info
 - **Date**: {today}
-- **Agents**: _UNFILLED: list participating agents._
-- **Task Type**: _UNFILLED: Feature | Bug | Research_
+- **Agents**: [List]
+- **Task Type**: [Feature | Bug | Research]
 - **Outcome**: {outcome}
 
 ## Phase 0: Data Gathering
 {session_context}
 
 ## Phase 1: Insights Generated
-_UNFILLED: Five Whys (if failure), Fishbone (if complex), Patterns and Shifts, Learning Matrix._
+[Five Whys output if failure]
+[Fishbone output if complex]
+[Patterns and Shifts output]
+[Learning Matrix output]
 
 ## Phase 2: Diagnosis
 
 ### Successes (Tag: helpful)
 | Strategy | Evidence | Impact | Atomicity |
 |----------|----------|--------|-----------|
-| _UNFILLED_ | _UNFILLED_ | _1-10_ | _%_ |
+| [Strategy] | [Outcome] | [1-10] | [%] |
 
 ### Failures (Tag: harmful)
 | Strategy | Error Type | Root Cause | Prevention | Atomicity |
 |----------|------------|------------|------------|-----------|
-| _UNFILLED_ | _UNFILLED_ | _UNFILLED_ | _UNFILLED_ | _%_ |
+| [Strategy] | [Type] | [Cause] | [Fix] | [%] |
 
 ### Near Misses
 | What Almost Failed | Recovery | Learning |
 |--------------------|----------|----------|
-| _UNFILLED_ | _UNFILLED_ | _UNFILLED_ |
+| [Situation] | [Save] | [Takeaway] |
 
 ## Phase 3: Decisions
 
 ### Action Classification
-_UNFILLED: Keep/Drop/Add/Modify table._
+[Keep/Drop/Add/Modify table]
 
 ### SMART Validation
-_UNFILLED: Validation for each new skill._
+[Validation for each new skill]
 
 ### Action Sequence
-_UNFILLED: Ordered actions with dependencies._
+[Ordered actions with dependencies]
 
 ## Phase 4: Extracted Learnings
 
@@ -210,7 +211,15 @@ _UNFILLED: Ordered actions with dependencies._
 ## Skillbook Updates
 
 ### ADD
-_UNFILLED: one JSON block per skill to add._
+```json
+{{
+  "skill_id": "{{domain}}-{{description}}",
+  "statement": "[Atomic]",
+  "context": "[When to apply]",
+  "evidence": "[Source]",
+  "atomicity": [%]
+}}
+```
 
 ### UPDATE
 
