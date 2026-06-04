@@ -755,6 +755,29 @@ def validate_spec_id_uniqueness(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_vendor_portability(repo_root: Path) -> bool:
+    """Fail when a new skill script hard-codes an upstream-only path (Issue #2050).
+
+    Wraps ``scripts/validation/check_vendor_portability.py``. The script exits 0
+    when there are no NEW offenders (baseline-listed debt is allowed) or no scan
+    roots are present, 1 when a NEW offender is found, and 2 on a configuration
+    error. Exit 1 and 2 are both hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_vendor_portability.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_vendor_portability.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 
@@ -807,6 +830,30 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     # Default mode is soft-warn; the script already exits 0 unless
     # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
     # so CI can opt into strict mode by setting the env var.
+    return exit_code == 0
+
+
+def validate_orchestrator_citations(repo_root: Path) -> bool:
+    """Verify orchestrator prose path citations resolve to real files.
+
+    Wraps ``scripts/validation/check_orchestrator_citations.py``, which fails
+    when a backtick path citation in ``.claude/commands/pr-quality/all.md``
+    points to a file that no longer exists. A stale citation (e.g. the removed
+    ``AIReviewCommon.psm1`` reference fixed in PR #1934) sends the next reader
+    to a dead pointer. See Issue #1966.
+    """
+    script = repo_root / "scripts" / "validation" / "check_orchestrator_citations.py"
+    if not script.exists():
+        print("[WARNING] check_orchestrator_citations.py not found (skipping)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    if stdout.strip():
+        print(stdout.strip())
+    if stderr.strip():
+        print(stderr.strip(), file=sys.stderr)
     return exit_code == 0
 
 
@@ -1087,6 +1134,51 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_review_marker(repo_root: Path) -> bool:
+    """Advisory check for a SHA-bound ``Reviewed-By: /review@...`` marker on HEAD.
+
+    Wraps ``scripts/validation/validate_review_marker.py`` (Issue #1938). The
+    marker is the ``/ship`` precondition: it proves ``/review`` passed on the
+    exact code being shipped. ``/ship`` itself blocks on a missing marker (AC1);
+    here the check is **advisory** by default, because most pre-PR pushes are
+    mid-development and have not run ``/review`` yet. Blocking every such push
+    would break normal iteration.
+
+    Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (returns False when
+    HEAD has no binding marker). Mirrors the advisory/enforced pattern used by
+    ``validate_command_bundle_coverage`` (``BUNDLE_CHECK_ENFORCED``).
+    """
+    enforced = os.environ.get("REVIEW_MARKER_ENFORCED", "").lower() in ("1", "true")
+
+    script = repo_root / "scripts" / "validation" / "validate_review_marker.py"
+    if not script.exists():
+        if enforced:
+            print("[FAIL] validate_review_marker.py not present")
+            return False
+        print("[WARN] validate_review_marker.py not found (advisory skip)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:20]:
+            print(line)
+
+    if exit_code == 0:
+        return True
+
+    if enforced:
+        # exit 1 (no/stale marker) and exit 2 (config) both block in enforced mode.
+        return False
+    print(
+        "  Note: advisory only (default). /ship blocks on this; pre_pr does not. "
+        "Set REVIEW_MARKER_ENFORCED=1 to make it BLOCKING here. See Issue #1938."
+    )
+    return True
+
+
 def validate_command_bundle_coverage(repo_root: Path) -> bool:
     """SPEC-005 advisory check: each lifecycle command invokes its bundled skills.
 
@@ -1253,6 +1345,13 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_spec_id_uniqueness(repo_root),
     )
 
+    # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
+    run_validation(
+        "Vendor Portability",
+        state,
+        lambda: validate_vendor_portability(repo_root),
+    )
+
     # 3.77 Sync Registry Provenance (Issue #1909)
     run_validation(
         "Sync Registry Provenance",
@@ -1266,6 +1365,15 @@ def main(argv: list[str] | None = None) -> int:
         "Canonical Citation Check",
         state,
         lambda: validate_canonical_citations(repo_root),
+    )
+
+    # 3.82 Orchestrator Citation Check (Issue #1966). Fails when a backtick
+    # path citation in .claude/commands/pr-quality/all.md points to a file
+    # that no longer exists.
+    run_validation(
+        "Orchestrator Citation Check",
+        state,
+        lambda: validate_orchestrator_citations(repo_root),
     )
 
     # 3.85 Em/en-dash branch-wide check (Issue #1923, REQ-006-AC7)
@@ -1358,6 +1466,14 @@ def main(argv: list[str] | None = None) -> int:
         "Command-Skill Bundle Coverage",
         state,
         lambda: validate_command_bundle_coverage(repo_root),
+    )
+
+    # 7b. Review Marker (advisory by default; /ship blocks, Issue #1938).
+    # Reports whether HEAD carries a SHA-bound Reviewed-By: /review@... marker.
+    run_validation(
+        "Review Marker (SHA-bound /review)",
+        state,
+        lambda: validate_review_marker(repo_root),
     )
 
     total_duration = time.monotonic() - start_time

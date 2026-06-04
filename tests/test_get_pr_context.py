@@ -69,6 +69,7 @@ def _pr_data(**overrides):
         "title": "Test PR",
         "body": "Description",
         "headRefName": "feature",
+        "headRefOid": "abc123def4567890abc123def4567890abc12345",
         "baseRefName": "main",
         "state": "OPEN",
         "author": {"login": "alice"},
@@ -225,6 +226,8 @@ class TestMainSuccess:
         assert data["state"] == "OPEN"
         assert data["author"] == "alice"
         assert data["head_branch"] == "feature"
+        assert isinstance(data["head_sha"], str)
+        assert data["head_sha"] == "abc123def4567890abc123def4567890abc12345"
         assert data["base_branch"] == "main"
         assert isinstance(data["labels"], list)
         assert data["labels"] == ["bug"]
@@ -331,6 +334,61 @@ class TestMainSuccess:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["author"] is None
+
+    def test_null_author(self, capsys):
+        """PR with explicit null author returns None."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(author=None), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["author"] is None
+
+    def test_head_sha_maps_from_head_ref_oid(self, capsys):
+        """head_sha is sourced directly from the gh headRefOid field (#2315)."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=_pr_json(headRefOid="0123456789abcdef0123456789abcdef01234567"),
+                rc=0,
+            ),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["head_sha"] == (
+            "0123456789abcdef0123456789abcdef01234567"
+        )
+
+    def test_head_sha_missing_key_is_none(self, capsys):
+        """If headRefOid is absent from the response, head_sha is None (no KeyError)."""
+        raw = json.loads(_pr_json())
+        del raw["headRefOid"]
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=json.dumps(raw), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["head_sha"] is None
+
+    def test_head_sha_empty_string_maps_through(self, capsys):
+        """An empty headRefOid maps through unchanged (not coerced to None)."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(headRefOid=""), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["head_sha"] == ""
 
 
 # ---------------------------------------------------------------------------

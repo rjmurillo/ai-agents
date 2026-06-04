@@ -379,6 +379,7 @@ CLASSIFY and ROUTE
 
 ## Related Documents
 
+- [When to Use the Lifecycle Commands](./when-to-use.md)
 - [Orchestrator Routing Algorithm](./orchestrator-routing-algorithm.md)
 - [Routing Flowchart](./diagrams/routing-flowchart.md)
 - [Agent Interview Protocol](../.agents/governance/agent-interview-protocol.md)
