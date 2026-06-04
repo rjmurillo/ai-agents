@@ -189,6 +189,9 @@ def test_requirements_interview_outputs_ontology_section(
     assert "Read the OntologyFragment if provided" in interview_text, (
         "requirements-interview process must read the fragment before elicitation"
     )
+    assert "2. **Ontology.**" in interview_text, (
+        "requirements-interview branch checklist must include ontology"
+    )
 
 
 def test_ontology_checks_reference_real_spec_artifact_paths(
@@ -369,6 +372,9 @@ def test_completeness_check_treats_fragment_as_canonical_source(
     )
     assert "run entity coverage and decision-rule traceability only when an ontologyfragment exists" in normalized, (
         "ontology checks must not fail degraded runs that lack a fragment"
+    )
+    assert "referenced anywhere in a generated requirement file" in normalized, (
+        "entity coverage must apply to the full generated requirement file"
     )
 
 

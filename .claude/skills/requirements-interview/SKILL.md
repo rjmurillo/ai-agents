@@ -66,12 +66,13 @@ When this skill activates, you become an adversarial requirements interviewer. T
 Walk these in order. Skip a branch only with explicit justification.
 
 1. **User stories.** Who triggers the behavior? What outcome do they observe? What measurable success condition closes the story?
-2. **Data model.** What entities exist? What identity, invariants, and lifecycle do they have? What persists, what is derived?
-3. **Integrations.** Which external systems does this touch? What are their failure modes and idempotency guarantees?
-4. **Failure modes.** Retries, partial failures, conflicting writes, replay, schema evolution. Each gets an explicit answer.
-5. **Security.** Authentication, authorization, secrets, PII, input validation. Cite the relevant rule under `.claude/rules/security.md` or `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`.
-6. **Observability.** What signals prove the feature works in production? Logs, metrics, traces, alerts.
-7. **Scope boundaries.** What is explicitly out of scope? What is deferred to a follow-up? What is rejected and why?
+2. **Ontology.** Which O1-O7 concepts from the OntologyFragment are in scope, and which open ontology questions remain?
+3. **Data model.** What entities exist? What identity, invariants, and lifecycle do they have? What persists, what is derived?
+4. **Integrations.** Which external systems does this touch? What are their failure modes and idempotency guarantees?
+5. **Failure modes.** Retries, partial failures, conflicting writes, replay, schema evolution. Each gets an explicit answer.
+6. **Security.** Authentication, authorization, secrets, PII, input validation. Cite the relevant rule under `.claude/rules/security.md` or `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`.
+7. **Observability.** What signals prove the feature works in production? Logs, metrics, traces, alerts.
+8. **Scope boundaries.** What is explicitly out of scope? What is deferred to a follow-up? What is rejected and why?
 
 ## Anti-Patterns
 

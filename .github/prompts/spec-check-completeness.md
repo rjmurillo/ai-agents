@@ -131,8 +131,8 @@ local degraded-run evidence, not a canonical source; record the ontology checks 
 `N/A` and do not lower the verdict for ontology coverage in that case.
 
 1. **Entity coverage**: when an OntologyFragment exists, every domain entity
-   referenced in a requirement's statement or acceptance criteria must appear in the
-   OntologyFragment by its canonical O2 name. The requirement's `## Ontology`
+   referenced anywhere in a generated requirement file (`REQ-NNN-{slug}.md`) must
+   appear in the OntologyFragment by its canonical O2 name. The requirement's `## Ontology`
    section is evidence that the requirement uses those names; it cannot introduce an
    entity absent from the fragment. When no OntologyFragment exists, the
    requirement's `## Ontology` section is local evidence only. An entity named in a
