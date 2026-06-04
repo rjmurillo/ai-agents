@@ -86,6 +86,15 @@ def test_emit_event_returns_written_event(tmp_path: Path) -> None:
     assert returned == _read_events(events_path)[0]
 
 
+def test_repo_root_is_anchored_to_module_not_cwd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert kill_criteria._repo_root() == Path(kill_criteria.__file__).resolve().parents[2]
+
+
 def test_emit_event_rejects_unknown_kind_before_writing(tmp_path: Path) -> None:
     events_path = tmp_path / "drift-events.jsonl"
 
