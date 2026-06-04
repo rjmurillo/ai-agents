@@ -65,7 +65,12 @@ def _write_result(directory: Path, name: str, payload: dict | str) -> Path:
 class TestRecommendActions:
     def test_close_verdict_yields_close_action(self):
         actions = recommend_actions(_result(number=5, verdict="STALE"))
-        assert RecommendedAction(issue=5, category=ACTION_CLOSE, rationale="verdict STALE") in actions
+        expected = RecommendedAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="verdict STALE",
+        )
+        assert expected in actions
 
     def test_pass_verdict_yields_no_close(self):
         actions = recommend_actions(_result(number=5, verdict="PASS"))
@@ -243,11 +248,15 @@ class TestMain:
         results_dir = tmp_path / "results"
         results_dir.mkdir()
         _write_result(results_dir, "r.json", {"number": 1, "title": "t"})
+        manifest_path = tmp_path / "manifest.json"
+        report_path = tmp_path / "report.md"
         rc = main([
             "--results-dir", str(results_dir),
-            "--manifest", str(tmp_path / "manifest.json"),
-            "--report", str(tmp_path / "report.md"),
+            "--manifest", str(manifest_path),
+            "--report", str(report_path),
             "--expected-count", "2",
         ])
         assert rc == 1
+        assert json.loads(manifest_path.read_text())["issues_triaged"] == 1
+        assert "Backlog Triage Recommendations" in report_path.read_text()
         assert "expected 2" in capsys.readouterr().err

@@ -10,6 +10,7 @@ boundary with a fake; domain logic is never mocked.
 from __future__ import annotations
 
 import json
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from scripts.triage_batch_apply import (
     OUTCOME_FAILED,
     OUTCOME_PLANNED,
     OUTCOME_SKIPPED,
+    CliGitHubGateway,
     IssueState,
     ManifestAction,
     apply_action,
@@ -171,11 +173,24 @@ class TestAdvisoryAndUnknown:
         assert outcome.outcome == OUTCOME_SKIPPED
         assert "advisory" in outcome.detail
 
-    def test_missing_issue_is_skipped(self):
+    def test_missing_state_plans_in_dry_run(self):
+        gw = FakeGateway({})
+        outcome = apply_action(ManifestAction(issue=99, category=ACTION_CLOSE), gw, mutate=False)
+        assert outcome.outcome == OUTCOME_PLANNED
+        assert "state unavailable" in outcome.detail
+
+    def test_missing_state_fails_in_apply_mode(self):
         gw = FakeGateway({})
         outcome = apply_action(ManifestAction(issue=99, category=ACTION_CLOSE), gw, mutate=True)
-        assert outcome.outcome == OUTCOME_SKIPPED
-        assert "not found" in outcome.detail
+        assert outcome.outcome == OUTCOME_FAILED
+        assert "state unavailable" in outcome.detail
+
+    def test_missing_state_plans_label_action_in_dry_run(self):
+        gw = FakeGateway({})
+        action = ManifestAction(issue=99, category=ACTION_RELABEL, labels=("agent-qa",))
+        outcome = apply_action(action, gw, mutate=False)
+        assert outcome.outcome == OUTCOME_PLANNED
+        assert "would add agent-qa" in outcome.detail
 
 
 class TestPartialFailure:
@@ -206,6 +221,44 @@ class TestParseActions:
         assert [a.issue for a in actions] == [1]
 
 
+class TestCliGitHubGateway:
+    class StubGateway(CliGitHubGateway):
+        def __init__(self, result: subprocess.CompletedProcess[str]) -> None:
+            super().__init__("owner", "repo")
+            self._result = result
+
+        def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
+            return self._result
+
+    def test_null_payload_fields_fall_back_to_safe_values(self):
+        result = subprocess.CompletedProcess(
+            ["gh"], 0,
+            stdout=json.dumps({"number": None, "state": None, "labels": None}),
+            stderr="",
+        )
+        gateway = self.StubGateway(result)
+
+        state = gateway.get_issue_state(42)
+
+        assert state == IssueState(number=42, state="", labels=frozenset())
+
+    def test_non_dict_labels_are_ignored(self):
+        result = subprocess.CompletedProcess(
+            ["gh"], 0,
+            stdout=json.dumps({
+                "number": 7,
+                "state": "OPEN",
+                "labels": [{"name": "bug"}, None, "bad", {"name": None}],
+            }),
+            stderr="",
+        )
+        gateway = self.StubGateway(result)
+
+        state = gateway.get_issue_state(7)
+
+        assert state == IssueState(number=7, state="OPEN", labels=frozenset({"bug", ""}))
+
+
 class TestMain:
     def test_dry_run_does_not_mutate(self, tmp_path: Path, capsys):
         manifest_path = _write_manifest(
@@ -219,7 +272,7 @@ class TestMain:
         assert gw.closed == []
         assert "DRY-RUN" in capsys.readouterr().out
 
-    def test_apply_without_approval_does_not_mutate(self, tmp_path: Path, capsys):
+    def test_apply_without_approval_is_config_error(self, tmp_path: Path, capsys):
         manifest_path = _write_manifest(
             tmp_path / "m.json",
             [{"issue": 5, "category": ACTION_CLOSE}],
@@ -227,7 +280,7 @@ class TestMain:
         )
         gw = FakeGateway({5: _open(5)})
         rc = main(["--manifest", str(manifest_path), "--apply"], gateway=gw)
-        assert rc == 0
+        assert rc == 2
         assert gw.closed == []
         assert "not approved" in capsys.readouterr().err
 
@@ -241,6 +294,21 @@ class TestMain:
         rc = main(["--manifest", str(manifest_path), "--apply"], gateway=gw)
         assert rc == 0
         assert gw.closed == [5]
+
+    def test_approved_manifest_json_apply_mutates(self):
+        manifest = json.dumps(_manifest(
+            [{"issue": 5, "category": ACTION_CLOSE}],
+            approved=True,
+        ))
+        gw = FakeGateway({5: _open(5)})
+        rc = main(["--manifest-json", manifest, "--apply"], gateway=gw)
+        assert rc == 0
+        assert gw.closed == [5]
+
+    def test_invalid_manifest_json_is_config_error(self, capsys):
+        rc = main(["--manifest-json", "{not json"])
+        assert rc == 2
+        assert "not valid JSON" in capsys.readouterr().err
 
     def test_missing_manifest_is_config_error(self, tmp_path: Path, capsys):
         rc = main(["--manifest", str(tmp_path / "absent.json")])

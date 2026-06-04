@@ -16,10 +16,10 @@ without explicit human approval.
 
 Idempotency: before each mutation the executor fetches the issue's current state
 and skips the action if the issue is already in the target state (already
-closed, label already present, milestone already set). The natural idempotency
-key is the issue number plus the action category, so re-running the same
-approved manifest is a no-op. Side effects flow through the GitHub gateway only;
-the executor never writes any other store.
+closed or label already present). The natural idempotency key is the issue number
+plus the action category, so re-running the same approved manifest is a no-op.
+Side effects flow through the GitHub gateway only; the executor never writes any
+other store.
 
 Categories ``decompose`` and ``batch`` are advisory only. They have no automated
 mutation, so they are always reported as skipped with a reason; a human handles
@@ -137,11 +137,27 @@ class GitHubGateway(Protocol):
 def _positive_int(value: object) -> int | None:
     if isinstance(value, bool):
         return None
+    if not isinstance(value, (str, bytes, bytearray, int, float)):
+        return None
     try:
-        number = int(value)  # type: ignore[arg-type]
+        number = int(value)
     except (TypeError, ValueError):
         return None
     return number if number > 0 else None
+
+
+def load_manifest_json(raw: str, source: str) -> dict[str, object]:
+    """Load and minimally validate manifest JSON. Raises ValueError on bad input."""
+
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as err:
+        raise ValueError(f"manifest {source} is not valid JSON: {err}") from err
+    if not isinstance(data, dict):
+        raise ValueError(f"manifest {source} must be a JSON object")
+    if not isinstance(data.get("actions"), list):
+        raise ValueError(f"manifest {source} must have an 'actions' array")
+    return data
 
 
 def load_manifest(path: Path) -> dict[str, object]:
@@ -151,15 +167,7 @@ def load_manifest(path: Path) -> dict[str, object]:
         raw = path.read_text(encoding="utf-8")
     except OSError as err:
         raise ValueError(f"cannot read manifest {path}: {err}") from err
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, ValueError) as err:
-        raise ValueError(f"manifest {path} is not valid JSON: {err}") from err
-    if not isinstance(data, dict):
-        raise ValueError(f"manifest {path} must be a JSON object")
-    if not isinstance(data.get("actions"), list):
-        raise ValueError(f"manifest {path} must have an 'actions' array")
-    return data
+    return load_manifest_json(raw, str(path))
 
 
 def parse_actions(manifest: dict[str, object]) -> list[ManifestAction]:
@@ -215,9 +223,7 @@ def _apply_close(
 ) -> ActionOutcome:
     state = gateway.get_issue_state(action.issue)
     if state is None:
-        return ActionOutcome(
-            action.issue, action.category, OUTCOME_SKIPPED, "issue not found",
-        )
+        return _unavailable_state_outcome(action, mutate=mutate, planned_detail="would close")
     if state.state.upper() == "CLOSED":
         return ActionOutcome(
             action.issue, action.category, OUTCOME_SKIPPED, "already closed",
@@ -243,9 +249,8 @@ def _apply_labels(
         )
     state = gateway.get_issue_state(action.issue)
     if state is None:
-        return ActionOutcome(
-            action.issue, action.category, OUTCOME_SKIPPED, "issue not found",
-        )
+        detail = "would add " + ", ".join(target_labels)
+        return _unavailable_state_outcome(action, mutate=mutate, planned_detail=detail)
     missing = [label for label in target_labels if label not in state.labels]
     if not missing:
         return ActionOutcome(
@@ -269,6 +274,24 @@ def _target_labels(action: ManifestAction) -> list[str]:
     if action.category == ACTION_PRIORITIZE and action.priority:
         return [f"priority:{action.priority}"]
     return [label for label in action.labels if label]
+
+
+def _unavailable_state_outcome(
+    action: ManifestAction, *, mutate: bool, planned_detail: str,
+) -> ActionOutcome:
+    if mutate:
+        return ActionOutcome(
+            action.issue,
+            action.category,
+            OUTCOME_FAILED,
+            "issue state unavailable",
+        )
+    return ActionOutcome(
+        action.issue,
+        action.category,
+        OUTCOME_PLANNED,
+        f"issue state unavailable; {planned_detail}",
+    )
 
 
 def run_batch(
@@ -312,12 +335,20 @@ class CliGitHubGateway:
             data = json.loads(result.stdout)
         except (json.JSONDecodeError, ValueError):
             return None
+        raw_labels = data.get("labels")
+        labels_list = raw_labels if isinstance(raw_labels, list) else []
         labels = frozenset(
-            str(label.get("name", "")) for label in data.get("labels", [])
+            str(label.get("name") or "")
+            for label in labels_list
+            if isinstance(label, dict)
         )
+        raw_number = data.get("number")
+        number = int(raw_number) if raw_number is not None else issue
+        raw_state = data.get("state")
+        state = str(raw_state) if raw_state is not None else ""
         return IssueState(
-            number=int(data.get("number", issue)),
-            state=str(data.get("state", "")),
+            number=number,
+            state=state,
             labels=labels,
         )
 
@@ -351,9 +382,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Apply a human-approved backlog-triage action manifest.",
     )
-    parser.add_argument(
-        "--manifest", required=True,
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--manifest",
         help="Path to the approval manifest produced by triage_recommendation_report.py.",
+    )
+    source.add_argument(
+        "--manifest-json",
+        default="",
+        help="Approval manifest JSON supplied by a human workflow_dispatch input.",
     )
     parser.add_argument(
         "--owner", default="", help="Repository owner (e.g. rjmurillo).",
@@ -372,7 +409,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None, *, gateway: GitHubGateway | None = None) -> int:
     args = parse_args(argv)
     try:
-        manifest = load_manifest(Path(args.manifest))
+        manifest = (
+            load_manifest(Path(args.manifest))
+            if args.manifest
+            else load_manifest_json(args.manifest_json, "--manifest-json")
+        )
     except ValueError as err:
         print(str(err), file=sys.stderr)
         return 2
@@ -404,6 +445,7 @@ def main(argv: list[str] | None = None, *, gateway: GitHubGateway | None = None)
             "Manifest not approved (approved != true); no mutations performed.",
             file=sys.stderr,
         )
+        return 2
     if any(item.outcome == OUTCOME_FAILED for item in outcomes):
         failed = sum(1 for item in outcomes if item.outcome == OUTCOME_FAILED)
         print(f"{failed} action(s) failed against the GitHub API", file=sys.stderr)
