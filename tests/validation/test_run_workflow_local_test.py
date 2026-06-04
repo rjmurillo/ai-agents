@@ -179,6 +179,75 @@ def test_no_full_does_not_require_docker(all_tools, monkeypatch, tmp_path):
     assert r.exit_code == 0
 
 
+# --- linked-worktree detection (Issue #2344) -----------------------------
+
+
+def _make_linked_worktree(tmp_path, gitdir_target: str = "/some/main/.git/worktrees/wt"):
+    """Stage a fake linked worktree: ``.git`` is a file with ``gitdir: <path>``."""
+    (tmp_path / ".git").write_text(f"gitdir: {gitdir_target}\n", encoding="utf-8")
+    (tmp_path / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    return tmp_path
+
+
+def test_linked_worktree_detected_returns_path(tmp_path):
+    _make_linked_worktree(tmp_path, gitdir_target="/main/.git/worktrees/abc")
+    assert w._linked_worktree_gitdir(tmp_path) == "/main/.git/worktrees/abc"
+
+
+def test_main_worktree_with_dotgit_dir_returns_none(tmp_path):
+    (tmp_path / ".git").mkdir()
+    assert w._linked_worktree_gitdir(tmp_path) is None
+
+
+def test_no_dotgit_at_all_returns_none(tmp_path):
+    assert w._linked_worktree_gitdir(tmp_path) is None
+
+
+def test_dotgit_file_without_gitdir_prefix_returns_none(tmp_path):
+    (tmp_path / ".git").write_text("not a gitdir marker\n", encoding="utf-8")
+    assert w._linked_worktree_gitdir(tmp_path) is None
+
+
+def test_linked_worktree_is_exit_3_not_exit_1(all_tools, monkeypatch, tmp_path):
+    # The whole point: a linked worktree must surface as a tool/env failure
+    # (exit 3) BEFORE the act stages run, not as a workflow failure (exit 1).
+    _make_linked_worktree(tmp_path)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    called = {"act": False}
+
+    def _act(f, r):
+        called["act"] = True
+        return _ok("gh act -n")
+
+    monkeypatch.setattr(w, "_act_dryrun_stage", _act)
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert called["act"] is False  # never reach act
+    assert "linked git worktree" in r.note
+    assert "SKIP_WORKFLOW_LOCAL_TEST" in r.note
+    assert "#2344" in r.note
+
+
+def test_linked_worktree_bypass_still_works(monkeypatch, tmp_path):
+    # Bypass short-circuits BEFORE the linked-worktree check; the env flag is
+    # the documented escape hatch and must continue to work from a worktree.
+    _make_linked_worktree(tmp_path)
+    monkeypatch.setenv(w._BYPASS_ENV, "true")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert r.bypassed is True
+
+
+def test_main_worktree_unaffected(all_tools, monkeypatch, tmp_path):
+    # A regular checkout (.git is a directory) must not trigger the gate.
+    (tmp_path / ".git").mkdir()
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
+    monkeypatch.setattr(w, "_act_full_stage", lambda f, r: _ok("gh act (full)"))
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+
+
 # --- stage ordering + short-circuit --------------------------------------
 
 

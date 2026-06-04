@@ -24,6 +24,24 @@ block with an actionable message. A documented bypass exists for workflows that
 genuinely cannot run under act (secrets, ARM-only runners): set
 ``SKIP_WORKFLOW_LOCAL_TEST=true``; the bypass is logged, not hidden.
 
+When ``SKIP_WORKFLOW_LOCAL_TEST=true`` is allowed
+-------------------------------------------------
+
+The bypass is intended for environment limitations, NOT to mask workflow
+defects. Allowed cases:
+
+- The workflow requires secrets that cannot be provided to ``gh act``
+  (e.g. ``BOT_PAT``, OIDC-only credentials).
+- The workflow targets an ARM-only or self-hosted runner that ``act`` cannot
+  emulate (composite actions pinned to ``runs-on: [self-hosted, arm64]``).
+- The runner reports exit 3 because of an environment incompatibility it
+  could detect precisely (e.g. ``linked git worktree`` per Issue #2344) and
+  re-running from the main worktree is not feasible.
+- Docker is unavailable on the host and ``--no-full`` is not an option.
+
+Not allowed: silencing a workflow that genuinely fails the dry-run or full
+execution stages. Those are workflow defects and must be fixed.
+
 CLI
 ---
 
@@ -113,6 +131,35 @@ def _gh_act_available() -> bool:
     """True when the ``gh act`` extension is installed."""
     rc, _, _ = _run(["gh", "act", "--help"], timeout=20)
     return rc == 0
+
+
+def _linked_worktree_gitdir(repo_root: Path) -> str | None:
+    """Return the absolute gitdir path if ``repo_root`` is a linked worktree.
+
+    Per ``git-worktree(1)``, a linked worktree's ``.git`` is a regular file
+    whose contents are ``gitdir: <absolute path>`` pointing into the main
+    repo's ``.git/worktrees/<name>/`` directory. The main worktree has a
+    ``.git`` *directory* instead. Returns ``None`` for the main worktree,
+    a non-git checkout, or any unreadable ``.git`` marker.
+
+    ``act`` / ``gh act`` resolves git metadata via go-git and trips on this
+    layout under pr-autofix's bare-clone cache
+    (``$HOME/.cache/pr-autofix/<repo>.git/worktrees/<id>/``) — full execution
+    produces what looks like a workflow failure. The caller uses this to
+    emit a precise exit-3 environment error before that misdirection occurs.
+    See Issue #2344.
+    """
+    dot_git = repo_root / ".git"
+    if not dot_git.is_file():
+        return None
+    try:
+        marker = dot_git.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    prefix = "gitdir:"
+    if not marker.startswith(prefix):
+        return None
+    return marker[len(prefix):].strip() or None
 
 
 def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int, str, str]:
@@ -259,6 +306,25 @@ def run_local_test(
         report.note = (
             "gh act extension not installed. Install it via "
             f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true."
+        )
+        return report
+
+    # Linked-worktree gate. ``act`` / ``gh act`` resolves git metadata via
+    # go-git and fails opaquely from a linked worktree (the ``.git`` file +
+    # ``.git/worktrees/<name>/`` layout); pr-autofix runs under exactly that
+    # shape at ``$HOME/.cache/pr-autofix/<repo>.git/worktrees/<id>/``. Without
+    # this gate the failure surfaces as a workflow validation error and the
+    # agent reaches for ``SKIP_WORKFLOW_LOCAL_TEST=true`` for a valid workflow.
+    # Surface it as exit 3 (tool/env), not exit 1 (workflow), with bypass
+    # guidance. See Issue #2344.
+    linked_gitdir = _linked_worktree_gitdir(repo_root)
+    if linked_gitdir is not None:
+        report.exit_code = 3
+        report.note = (
+            "gh act does not support running from a linked git worktree "
+            f"({repo_root} -> {linked_gitdir}). Re-run from the main worktree, "
+            f"or set {_BYPASS_ENV}=true to bypass (logged). "
+            "Tracked in Issue #2344."
         )
         return report
 
