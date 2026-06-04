@@ -220,6 +220,25 @@ class TestParseActions:
         actions = parse_actions(manifest)
         assert [a.issue for a in actions] == [1]
 
+    def test_drops_non_string_labels(self):
+        manifest = {
+            "actions": [
+                {
+                    "issue": 1,
+                    "category": ACTION_RELABEL,
+                    "labels": ["agent-qa", None, 7, " "],
+                },
+            ],
+        }
+        actions = parse_actions(manifest)
+        assert actions == [
+            ManifestAction(issue=1, category=ACTION_RELABEL, labels=("agent-qa",)),
+        ]
+
+    def test_drops_fractional_issue_numbers(self):
+        manifest = {"actions": [{"issue": 1.5, "category": ACTION_CLOSE}]}
+        assert parse_actions(manifest) == []
+
 
 class TestCliGitHubGateway:
     class StubGateway(CliGitHubGateway):
@@ -302,6 +321,17 @@ class TestMain:
         ))
         gw = FakeGateway({5: _open(5)})
         rc = main(["--manifest-json", manifest, "--apply"], gateway=gw)
+        assert rc == 0
+        assert gw.closed == [5]
+
+    def test_approved_manifest_env_apply_mutates(self, monkeypatch):
+        manifest = json.dumps(_manifest(
+            [{"issue": 5, "category": ACTION_CLOSE}],
+            approved=True,
+        ))
+        monkeypatch.setenv("APPROVED_MANIFEST_JSON", manifest)
+        gw = FakeGateway({5: _open(5)})
+        rc = main(["--manifest-env", "APPROVED_MANIFEST_JSON", "--apply"], gateway=gw)
         assert rc == 0
         assert gw.closed == [5]
 

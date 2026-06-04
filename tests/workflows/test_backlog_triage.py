@@ -28,8 +28,16 @@ def _step(job: dict[str, Any], name: str) -> dict[str, Any]:
     raise AssertionError(f"missing step {name!r}")
 
 
+def _workflow_dispatch(workflow: dict[str, Any]) -> dict[str, Any]:
+    trigger = workflow.get("on") or workflow.get(True)
+    assert isinstance(trigger, dict)
+    dispatch = trigger.get("workflow_dispatch")
+    assert isinstance(dispatch, dict)
+    return dispatch
+
+
 class TestRecommendationArtifacts:
-    def test_recommendation_upload_runs_after_count_mismatch(self) -> None:
+    def test_recommendation_build_is_failure_isolated_until_upload(self) -> None:
         workflow = _load_workflow()
         recommend = workflow["jobs"]["recommend"]
         build = _step(recommend, "Build recommendation report and manifest")
@@ -50,7 +58,7 @@ class TestApplyApprovalGate:
 
     def test_dispatch_input_carries_human_approved_manifest(self) -> None:
         workflow = _load_workflow()
-        dispatch = workflow[True]["workflow_dispatch"]
+        dispatch = _workflow_dispatch(workflow)
         inputs = dispatch["inputs"]
 
         assert "approved_manifest_json" in inputs
@@ -64,5 +72,4 @@ class TestApplyApprovalGate:
         assert "Download approval manifest" not in with_names
 
         apply_step = _step(apply, "Apply approved manifest")
-        assert "--manifest-json" in apply_step["run"]
-        assert "$APPROVED_MANIFEST_JSON" in apply_step["run"]
+        assert "--manifest-env APPROVED_MANIFEST_JSON" in apply_step["run"]

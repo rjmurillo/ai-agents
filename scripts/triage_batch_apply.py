@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -96,7 +97,7 @@ class ManifestAction:
             return None
         labels_raw = raw.get("labels")
         labels = (
-            tuple(str(item).strip() for item in labels_raw if str(item).strip())
+            tuple(item.strip() for item in labels_raw if isinstance(item, str) and item.strip())
             if isinstance(labels_raw, list)
             else ()
         )
@@ -136,6 +137,8 @@ class GitHubGateway(Protocol):
 
 def _positive_int(value: object) -> int | None:
     if isinstance(value, bool):
+        return None
+    if isinstance(value, float) and not value.is_integer():
         return None
     if not isinstance(value, (str, bytes, bytearray, int, float)):
         return None
@@ -392,6 +395,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="",
         help="Approval manifest JSON supplied by a human workflow_dispatch input.",
     )
+    source.add_argument(
+        "--manifest-env",
+        default="",
+        help="Name of an environment variable containing approval manifest JSON.",
+    )
     parser.add_argument(
         "--owner", default="", help="Repository owner (e.g. rjmurillo).",
     )
@@ -412,7 +420,10 @@ def main(argv: list[str] | None = None, *, gateway: GitHubGateway | None = None)
         manifest = (
             load_manifest(Path(args.manifest))
             if args.manifest
-            else load_manifest_json(args.manifest_json, "--manifest-json")
+            else load_manifest_json(
+                args.manifest_json if args.manifest_json else os.environ.get(args.manifest_env, ""),
+                "--manifest-json" if args.manifest_json else f"${args.manifest_env}",
+            )
         )
     except ValueError as err:
         print(str(err), file=sys.stderr)

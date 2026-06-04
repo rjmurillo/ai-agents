@@ -257,7 +257,7 @@ jobs:
           REPO_NAME: ${{ github.event.repository.name }}
         run: >-
           python3 scripts/triage_batch_apply.py
-          --manifest-json "$APPROVED_MANIFEST_JSON"
+          --manifest-env APPROVED_MANIFEST_JSON
           --owner "$REPO_OWNER"
           --repo "$REPO_NAME"
           --apply

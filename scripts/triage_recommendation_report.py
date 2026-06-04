@@ -208,10 +208,10 @@ def render_report(results: list[TriageResult]) -> str:
     lines: list[str] = [
         "## Backlog Triage Recommendations",
         "",
-        "Proposed actions for the open-issue backlog (issue #2261, part of ",
-        "epic #1799). This is a proposal, not an approval. Review each action, ",
-        "trim the manifest to the ones you approve, set `approved: true`, then ",
-        "run the batch-apply executor. Nothing is applied until you do.",
+        "Proposed actions for the open-issue backlog (issue #2261, part of epic #1799). "
+        "This is a proposal, not an approval. Review each action, trim the manifest to "
+        "the ones you approve, set `approved: true`, then run the batch-apply executor. "
+        "Nothing is applied until you do.",
         "",
     ]
     actions = collect_actions(results)
