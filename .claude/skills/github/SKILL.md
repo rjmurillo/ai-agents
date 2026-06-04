@@ -1,6 +1,6 @@
 ---
 name: github
-version: 4.0.0
+version: 4.1.0
 model: claude-opus-4-6
 description: Execute GitHub operations (PRs, issues, milestones, labels, comments, merges)
   using Python scripts with structured output and error handling. Use when working
