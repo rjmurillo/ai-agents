@@ -23,6 +23,15 @@ def test_pre_push_only_skips_when_head_has_no_review_marker() -> None:
     assert "grep -q '^/review@'" in text
     assert "/ship enforces presence" in text
     assert "record_fail \"Review marker validation failed" in text
+    skip_index = text.index("Review marker validation (no marker on HEAD")
+    validator_index = text.index("Review marker validator is a symlink")
+    assert skip_index < validator_index
+
+
+def test_pre_push_passes_repo_root_to_validator() -> None:
+    """Vendored validator copy checks this repo, not the script directory."""
+    text = PRE_PUSH_HOOK.read_text(encoding="utf-8")
+    assert '--repo-root "$REPO_ROOT"' in text
 
 
 def test_pre_push_hook_bash_syntax() -> None:
