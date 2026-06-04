@@ -20,8 +20,10 @@ _BUILD_SCRIPTS = Path(__file__).resolve().parent.parent / "build" / "scripts"
 sys.path.insert(0, str(_BUILD_SCRIPTS))
 
 from detect_agent_drift import (  # noqa: E402
+    KNOWN_BASELINE_DRIFT,
     AgentResult,
     SectionResult,
+    _classify_overall,
     calculate_similarity,
     compare_agent,
     format_json,
@@ -249,6 +251,53 @@ class TestCompareAgent:
         for section in result.sections:
             if section.section == "Memory Protocol":
                 assert section.similarity == 100.0
+
+
+class TestKnownBaselineDrift:
+    """Tests for the accepted-drift baseline (Issue #2374).
+
+    A baselined agent at or above its recorded floor is "OK (baselined)" and
+    does not fail the gate; the same agent below the floor still fails, so the
+    baseline cannot hide a regression.
+    """
+
+    def test_above_threshold_is_ok(self) -> None:
+        assert _classify_overall("merge-resolver", 95.0, 80) == "OK"
+
+    def test_baselined_at_floor_is_baselined(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT["merge-resolver"]
+        assert _classify_overall("merge-resolver", floor, 80) == "OK (baselined)"
+
+    def test_baselined_above_floor_below_threshold_is_baselined(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT["merge-resolver"]
+        assert (
+            _classify_overall("merge-resolver", floor + 0.9, 80) == "OK (baselined)"
+        )
+
+    def test_baselined_below_floor_still_drifts(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT["merge-resolver"]
+        assert (
+            _classify_overall("merge-resolver", floor - 0.1, 80) == "DRIFT DETECTED"
+        )
+
+    def test_non_baselined_below_threshold_drifts(self) -> None:
+        assert _classify_overall("architect", 50.0, 80) == "DRIFT DETECTED"
+
+    def test_baselined_agent_excluded_from_drift_count(self) -> None:
+        # Claude has the enriched sections; vscode lacks them, driving overall
+        # similarity to 0 for this synthetic pair. The synthetic agent name is
+        # baselined with a floor of 0, so it must report as baselined, not drift.
+        claude = (
+            "---\nname: baselined-fixture\n---\n## Core Mission\n\n"
+            "Rich Claude-only mission text that the counterpart does not carry."
+        )
+        vscode = "---\ndescription: baselined-fixture\n---\n# Title\n\nNo matching section."
+        KNOWN_BASELINE_DRIFT["baselined-fixture"] = 0.0
+        try:
+            result = compare_agent(claude, vscode, "baselined-fixture", 80)
+            assert result.status == "OK (baselined)"
+        finally:
+            del KNOWN_BASELINE_DRIFT["baselined-fixture"]
 
 
 class TestRunDetection:
