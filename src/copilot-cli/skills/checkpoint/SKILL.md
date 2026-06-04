@@ -99,7 +99,8 @@ the JSON.
 
    ## Completed
 
-   Work finished and verified, with file paths or commit SHAs as evidence.
+   Work finished and verified, with file paths or short commit SHAs (7-12
+   characters) as evidence.
 
    ## Pending
 
@@ -123,7 +124,9 @@ the JSON.
    run the checkpoint body through `python3 scripts/redact_secrets.py` and write
    the redacted output. If the redactor is unavailable or fails, stop and report
    the failure instead of writing unredacted durable text. Only after redaction
-   succeeds, use Write on the collision-free path from step 4.
+   succeeds, use Write on the collision-free path from step 4. Use short commit
+   SHAs rather than full 40-character SHAs because the redactor masks long hex
+   strings.
 
 7. Link the checkpoint from the active session log:
 

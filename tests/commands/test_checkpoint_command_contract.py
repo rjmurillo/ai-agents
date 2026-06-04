@@ -60,6 +60,8 @@ def test_checkpoint_redacts_before_writing_durable_text(checkpoint_text: str) ->
     assert "python3 scripts/redact_secrets.py" in checkpoint_text
     assert "instead of writing unredacted durable text" in checkpoint_text
     assert "Only after redaction" in checkpoint_text
+    assert "short commit" in checkpoint_text
+    assert "redactor masks long hex" in checkpoint_text
 
 
 def test_checkpoint_selects_path_before_write(checkpoint_text: str) -> None:
