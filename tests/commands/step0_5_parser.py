@@ -153,15 +153,21 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
     and returns its `aliases` object. Implements the lookup side of rule 5 in
     `.claude/commands/spec.md`, subsection `#### Step 0.5 topic extraction`.
     Returns an empty dict when the file or the `aliases` key is absent so a
-    missing table degrades to a pass-through rather than an error.
+    missing table degrades to a pass-through rather than an error. Malformed
+    JSON and invalid `aliases` shapes raise so bad config cannot silently widen
+    Step 0.5 scope.
     """
     target = path if path is not None else SPEC_ENTITY_ALIASES_PATH
     if not target.is_file():
         return {}
     data = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"alias table must be a JSON object: {target}")
     aliases = data.get("aliases")
-    if not isinstance(aliases, dict):
+    if aliases is None:
         return {}
+    if not isinstance(aliases, dict):
+        raise ValueError(f"alias table 'aliases' must be an object: {target}")
     return {str(k): str(v) for k, v in aliases.items()}
 
 
@@ -202,9 +208,9 @@ def entity_matches_answer(entity_name: str, answer: str) -> bool:
 
     Mirrors the auto-mode adjudication rule in `.claude/commands/spec.md`,
     subsection `#### Step 0.5 entity adjudication`. Both inputs are normalized
-    with `normalize_topic`, then tokenized on `-`. The entity matches the
-    answer only when the entity's normalized token sequence appears as a
-    contiguous run of whole tokens inside the answer's token sequence:
+    with rules 1-5. The entity matches the answer only when the entity's
+    canonical normalized token sequence equals a contiguous whole-token span
+    inside the answer after that span also passes through the alias table:
 
     - A single-token entity matches only a standalone token.
     - A multi-token entity matches only a contiguous token run.
@@ -223,14 +229,17 @@ def entity_matches_answer(entity_name: str, answer: str) -> bool:
     this function pins the same semantics deterministically so #1973's
     behavioral tests run without an LLM in the loop.
     """
-    entity_tokens = _tokenize_normalized(normalize_topic(entity_name))
+    aliases = load_entity_aliases()
+    normalized_entity = normalize_topic_with_aliases(entity_name, aliases)
+    entity_tokens = _tokenize_normalized(normalized_entity)
     answer_tokens = _tokenize_normalized(normalize_topic(answer))
     if not entity_tokens:
         return False
-    span = len(entity_tokens)
-    for start in range(0, len(answer_tokens) - span + 1):
-        if answer_tokens[start:start + span] == entity_tokens:
-            return True
+    for start in range(len(answer_tokens)):
+        for end in range(start + 1, len(answer_tokens) + 1):
+            candidate = "-".join(answer_tokens[start:end])
+            if normalize_topic_with_aliases(candidate, aliases) == normalized_entity:
+                return True
     return False
 
 

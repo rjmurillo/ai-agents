@@ -824,6 +824,13 @@ def test_adjudicate_matches_against_any_answer_in_the_list():
     assert adjudicate_entity_scope("service-mesh", answers) == "blast-radius"
 
 
+def test_entity_adjudication_applies_aliases_to_entity_and_answer_spans():
+    """Rule 5 aliases apply before whole-token adjudication."""
+    assert entity_matches_answer("spec-pipeline", "the spec command") is True
+    assert entity_matches_answer("spec", "the spec pipeline") is True
+    assert adjudicate_entity_scope("spec-pipeline", ["the spec command"]) == "in-scope"
+
+
 # ---------------------------------------------------------------------------
 # Mirror parity: spec.md and Copilot CLI SKILL.md must agree byte-for-byte
 # on the Step 0.5 block. Same invariant as test_spec_step0.py for Step 0.
@@ -1096,6 +1103,32 @@ def test_load_entity_aliases_missing_file_returns_empty(tmp_path):
     """A missing alias file degrades to an empty table (pass-through)."""
     missing = tmp_path / "absent.json"
     assert load_entity_aliases(missing) == {}
+
+
+def test_load_entity_aliases_null_aliases_returns_empty(tmp_path):
+    """An explicit null aliases key is equivalent to the optional key missing."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": null}', encoding="utf-8")
+
+    assert load_entity_aliases(target) == {}
+
+
+def test_load_entity_aliases_malformed_json_fails_closed(tmp_path):
+    """Malformed alias config raises instead of silently disabling aliases."""
+    target = tmp_path / "aliases.json"
+    target.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(json.JSONDecodeError):
+        load_entity_aliases(target)
+
+
+def test_load_entity_aliases_rejects_non_object_aliases(tmp_path):
+    """Invalid alias shapes raise instead of widening Step 0.5 scope silently."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": []}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="'aliases' must be an object"):
+        load_entity_aliases(target)
 
 
 def test_spec_md_documents_alias_lookup_step(step0_5_block: str):
