@@ -35,10 +35,12 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 from typing import Protocol
+
+UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -60,7 +62,7 @@ def _load_sibling(module_name: str) -> ModuleType:
     package import. This keeps the three scripts independently runnable while
     letting the orchestrator reuse the evidence and scoring logic.
     """
-    registered_name = f"_retrospective_{module_name}"
+    registered_name = f"{__name__}._retrospective_{module_name}"
     spec = importlib.util.spec_from_file_location(
         registered_name, _SCRIPT_DIR / f"{module_name}.py"
     )

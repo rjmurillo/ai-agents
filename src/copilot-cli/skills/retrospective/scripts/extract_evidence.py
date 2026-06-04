@@ -32,8 +32,10 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 # Bound the git call so a wedged repo cannot hang the retrospective.
 _GIT_TIMEOUT_SECONDS = 15
