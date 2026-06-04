@@ -6,7 +6,7 @@
 
 A test is self-referential when it calls a generator (or any producer) and asserts on that producer's own output. It pins the output to itself. It confirms the producer is internally consistent. It does NOT verify the output against the canonical contract the output is supposed to honor.
 
-The classic shape: assert the generator emits string X, then check the generator emitted string X. Both halves come from the same source, so the test passes whenever the generator agrees with itself, which is always.
+The classic shape: assert the generator emits string X, then check the generator emitted string X. Both halves come from the same source, so the test can stay green when the generator is consistently wrong in the same direction.
 
 ## Why it proves nothing about the contract
 
@@ -16,9 +16,9 @@ This is the canonical-source-mirror anti-pattern applied at the test layer. The 
 
 ## The evidence
 
-PR #2205 shipped `tests/build_scripts/test_generate_hooks_plugin_root.py`, a string-match test against `generate_hooks._build_copilot_entry`. It asserted the generator produced specific command strings, then checked the generator produced those strings. It passed on every CI run.
+The PR #2205 retrospective names session 1872 `tests/build_scripts/test_generate_hooks_plugin_root.py` as the example. The test guarded the string shape produced by `generate_hooks._build_copilot_entry` with hard-coded expectations, but it did not execute the generated artifact under the host runtime contract.
 
-Meanwhile the generated `hooks.json` used bare `./hooks/...` paths with `cwd: "."`. Copilot CLI runs plugin hooks with cwd = the user's working directory, not the plugin install dir, so every hook failed at launch with "No such file or directory". The self-referential test was green while customer environments were wedged for 33 days (v0.3.0 to v0.5.6). The only recovery was uninstalling the plugin. The test never exercised the one thing that mattered: whether the artifact resolves under the host's real cwd and environment.
+The verifiable failure mode was the missing runtime-contract check. The generated `hooks.json` used bare `./hooks/...` paths with `cwd: "."`. Copilot CLI runs plugin hooks with cwd = the user's working directory, not the plugin install dir, so every hook failed at launch with "No such file or directory". The shape-only guard was green while customer environments were wedged for 33 days (v0.3.0 to v0.5.6). The only recovery was uninstalling the plugin. The test never exercised the one thing that mattered: whether the artifact resolves under the host's real cwd and environment.
 
 ## How to write the correct test
 
