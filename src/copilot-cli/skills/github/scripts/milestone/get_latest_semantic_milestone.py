@@ -15,7 +15,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import sys
@@ -40,6 +39,11 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     gh_api_paginated,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
 )
 
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
@@ -81,11 +85,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -96,8 +102,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if not milestones:
         print(f"No open milestones found in {owner}/{repo}", file=sys.stderr)
-        result = {"title": "", "number": 0, "found": False}
-        print(json.dumps(result, indent=2))
+        write_skill_output(
+            {"title": "", "number": 0, "found": False},
+            output_format=fmt,
+            human_summary=f"No open milestones found in {owner}/{repo}",
+            status="WARNING",
+            script_name="get_latest_semantic_milestone.py",
+        )
         _write_github_output({
             "milestone_title": "",
             "milestone_number": "0",
@@ -120,8 +131,13 @@ def main(argv: list[str] | None = None) -> int:
             f"No semantic version milestones found. Available: {available}",
             file=sys.stderr,
         )
-        result = {"title": "", "number": 0, "found": False}
-        print(json.dumps(result, indent=2))
+        write_skill_output(
+            {"title": "", "number": 0, "found": False},
+            output_format=fmt,
+            human_summary=f"No semantic version milestones found. Available: {available}",
+            status="WARNING",
+            script_name="get_latest_semantic_milestone.py",
+        )
         _write_github_output({
             "milestone_title": "",
             "milestone_number": "0",
@@ -139,12 +155,18 @@ def main(argv: list[str] | None = None) -> int:
 
     latest = max(semantic, key=lambda m: _parse_semver_tuple(m["title"]))
 
-    result = {
-        "title": latest["title"],
-        "number": latest["number"],
-        "found": True,
-    }
-    print(json.dumps(result, indent=2))
+    write_skill_output(
+        {
+            "title": latest["title"],
+            "number": latest["number"],
+            "found": True,
+        },
+        output_format=fmt,
+        human_summary=(
+            f"Latest semantic milestone: {latest['title']} (ID: {latest['number']})"
+        ),
+        script_name="get_latest_semantic_milestone.py",
+    )
 
     _write_github_output({
         "milestone_title": latest["title"],
