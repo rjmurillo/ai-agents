@@ -47,10 +47,10 @@ def is_trusted(event_name: str, repository: str, expected_repo: str) -> tuple[bo
     """
     if event_name not in _TRUSTED_EVENTS:
         allowed = ", ".join(sorted(_TRUSTED_EVENTS))
-        return (False, f"event '{event_name}' is not a trusted trigger (allowed: {allowed})")
+        return (False, f"event is not a trusted trigger (allowed: {allowed})")
     if repository != expected_repo:
-        return (False, f"repository '{repository}' is not the trusted repo '{expected_repo}'")
-    return (True, f"trusted context: event '{event_name}' on '{repository}'")
+        return (False, "repository is not the trusted repo")
+    return (True, "trusted context: approved event on the trusted repo")
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
