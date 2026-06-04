@@ -63,6 +63,8 @@ class TestGetLabels:
     def test_adjacent_labels(self):
         labels = get_labels("LABEL:bug LABEL:urgent")
         assert len(labels) == 2
+
+
 # ---------------------------------------------------------------------------
 # Milestone parsing
 # ---------------------------------------------------------------------------
@@ -83,6 +85,8 @@ class TestGetMilestone:
 
     def test_milestone_with_numbers(self):
         assert get_milestone("MILESTONE: Sprint-42") == "Sprint-42"
+
+
 # ---------------------------------------------------------------------------
 # Formatting: collapsible section
 # ---------------------------------------------------------------------------
@@ -102,6 +106,8 @@ class TestFormatCollapsibleSection:
         assert "Line 1" in result
         assert "Line 2" in result
         assert "Line 3" in result
+
+
 # ---------------------------------------------------------------------------
 # Formatting: verdict alert
 # ---------------------------------------------------------------------------
@@ -132,6 +138,8 @@ class TestFormatVerdictAlert:
     def test_unknown_note(self):
         result = format_verdict_alert("UNKNOWN")
         assert "[!NOTE]" in result
+
+
 # ---------------------------------------------------------------------------
 # Formatting: markdown table row
 # ---------------------------------------------------------------------------
@@ -146,6 +154,8 @@ class TestFormatMarkdownTableRow:
 
     def test_many_columns(self):
         assert format_markdown_table_row(["A", "B", "C", "D", "E"]) == "| A | B | C | D | E |"
+
+
 # ---------------------------------------------------------------------------
 # Formatting: JSON escaping
 # ---------------------------------------------------------------------------
@@ -164,6 +174,8 @@ class TestConvertToJsonEscaped:
 
     def test_plain_string(self):
         assert convert_to_json_escaped("test") == '"test"'
+
+
 # ---------------------------------------------------------------------------
 # Workflow: initialization
 # ---------------------------------------------------------------------------
@@ -188,6 +200,8 @@ class TestInitializeAIReview:
             result = initialize_ai_review()
         assert result == target
         assert Path(target).exists()
+
+
 # ---------------------------------------------------------------------------
 # Workflow: retry logic
 # ---------------------------------------------------------------------------
@@ -231,6 +245,8 @@ class TestInvokeWithRetry:
                 invoke_with_retry(_always_fail, max_retries=3, initial_delay=1)
 
         assert delays == [1, 2]
+
+
 # ---------------------------------------------------------------------------
 # Workflow: logging
 # ---------------------------------------------------------------------------
@@ -243,6 +259,8 @@ class TestWriteLog:
         with caplog.at_level(logging.INFO):
             write_log("Test message")
         assert "Test message" in caplog.text
+
+
 class TestWriteLogError:
     def test_logs_error(self, caplog):
         import logging
@@ -250,6 +268,8 @@ class TestWriteLogError:
         with caplog.at_level(logging.ERROR):
             write_log_error("Failure message")
         assert "ERROR: Failure message" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # Workflow: environment validation
 # ---------------------------------------------------------------------------
@@ -277,6 +297,8 @@ class TestAssertEnvironmentVariables:
         with patch.dict(os.environ, {"EMPTY_VAR": ""}):
             with pytest.raises(RuntimeError, match="EMPTY_VAR"):
                 assert_environment_variables(["EMPTY_VAR"])
+
+
 # ---------------------------------------------------------------------------
 # Security-hardened JSON parsing: labels
 # ---------------------------------------------------------------------------
@@ -362,6 +384,8 @@ class TestGetLabelsFromAIOutput:
         assert "bug" in labels
         assert "enhancement" in labels
         assert "evil; rm -rf /" not in labels
+
+
 # ---------------------------------------------------------------------------
 # Security-hardened JSON parsing: milestones
 # ---------------------------------------------------------------------------
@@ -401,6 +425,8 @@ class TestGetMilestoneFromAIOutput:
     def test_rejects_over_50_chars(self):
         long = "v" + "1" * 50
         assert get_milestone_from_ai_output(f'{{"milestone":"{long}"}}') is None
+
+
 # ---------------------------------------------------------------------------
 # Integration: complete AI output parsing
 # ---------------------------------------------------------------------------
@@ -408,12 +434,14 @@ class TestGetMilestoneFromAIOutput:
 
 class TestJSONParsingIntegration:
     def test_complete_triage_output(self):
-        output = json.dumps({
-            "category": "bug",
-            "labels": ["bug", "critical", "needs-triage"],
-            "milestone": "v1.2.0",
-            "confidence": 0.95,
-        })
+        output = json.dumps(
+            {
+                "category": "bug",
+                "labels": ["bug", "critical", "needs-triage"],
+                "milestone": "v1.2.0",
+                "confidence": 0.95,
+            }
+        )
         labels = get_labels_from_ai_output(output)
         milestone = get_milestone_from_ai_output(output)
         assert len(labels) == 3
@@ -440,6 +468,8 @@ class TestJSONParsingIntegration:
         for inp in malicious:
             get_labels_from_ai_output(inp)
             get_milestone_from_ai_output(inp)
+
+
 # ---------------------------------------------------------------------------
 # Regression: security review output truncation (#2006)
 # ---------------------------------------------------------------------------
@@ -459,6 +489,8 @@ _TRUNCATED_SECURITY_OUTPUT = (
     "**Location**: complete_session_log.py:383-399\n"
     "The broad `except Exception`"
 )
+
+
 class TestSecurityTruncationRegression:
     """#2006: the security prompt now emits the VERDICT on the first line, so a
     review truncated by the output budget is still parseable."""
@@ -473,8 +505,7 @@ class TestSecurityTruncationRegression:
         # New shape (#2006): VERDICT first. Even when the findings below are cut
         # off, the verdict is recovered by both verdict parsers.
         leading = (
-            "VERDICT: PASS\nMESSAGE: No security issues found\n\n"
-            + _TRUNCATED_SECURITY_OUTPUT
+            "VERDICT: PASS\nMESSAGE: No security issues found\n\n" + _TRUNCATED_SECURITY_OUTPUT
         )
         assert extract_verdict(leading) == "PASS"
         assert get_verdict(leading) == "PASS"

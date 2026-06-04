@@ -79,7 +79,7 @@ jobs:
           PYTHON_CHANGED: ${{ needs.check-paths.outputs.python-changed }}
         run: |
           if [ "$PYTHON_CHANGED" != "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "No Python files changed - skipping tests"
           fi
 

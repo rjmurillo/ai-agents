@@ -98,15 +98,11 @@ class TestGetFailureCategory:
 
     def test_missing_docs_is_code_quality(self):
         assert (
-            get_failure_category(message="Missing documentation for public API")
-            == "CODE_QUALITY"
+            get_failure_category(message="Missing documentation for public API") == "CODE_QUALITY"
         )
 
     def test_message_checked_before_stderr(self):
-        assert (
-            get_failure_category(message="rate limit exceeded", stderr="")
-            == "INFRASTRUCTURE"
-        )
+        assert get_failure_category(message="rate limit exceeded", stderr="") == "INFRASTRUCTURE"
 
     def test_stderr_checked_when_message_no_match(self):
         assert (
@@ -117,6 +113,8 @@ class TestGetFailureCategory:
     def test_case_insensitive(self):
         assert get_failure_category(message="RATE LIMIT EXCEEDED") == "INFRASTRUCTURE"
         assert get_failure_category(message="Rate Limit") == "INFRASTRUCTURE"
+
+
 # ---------------------------------------------------------------------------
 # Spec validation
 # ---------------------------------------------------------------------------

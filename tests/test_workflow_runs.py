@@ -28,6 +28,8 @@ from scripts.ai_review_common import (
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
+
+
 # ---------------------------------------------------------------------------
 # Workflow: PR changed files
 # ---------------------------------------------------------------------------
@@ -38,7 +40,7 @@ class TestGetPRChangedFiles:
         stdout = "src/main.py\nREADME.md\nsrc/utils.py\n"
         with patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}):
             with patch("subprocess.run", return_value=_completed(stdout=stdout)):
-                result = get_pr_changed_files(123, pattern=r"\.py$")
+                result = get_pr_changed_files(123, pattern=r"(?i)\.py(?!\.\w)$")
         assert result == ["src/main.py", "src/utils.py"]
 
     def test_returns_all_when_no_pattern(self):
@@ -53,6 +55,8 @@ class TestGetPRChangedFiles:
             with patch("subprocess.run", return_value=_completed(rc=1, stderr="err")):
                 result = get_pr_changed_files(1)
         assert result == []
+
+
 # ---------------------------------------------------------------------------
 # Workflow: workflow run analysis
 # ---------------------------------------------------------------------------
@@ -99,6 +103,8 @@ class TestGetWorkflowRunsByPR:
         ):
             with pytest.raises(RuntimeError, match="Invalid JSON"):
                 get_workflow_runs_by_pr(1, repository="o/r")
+
+
 class TestRunsOverlap:
     def test_overlapping_runs(self):
         run1 = {"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T01:00:00Z"}
@@ -140,6 +146,8 @@ class TestRunsOverlap:
         run1 = {"created_at": "2026-01-01T01:00:00Z", "updated_at": "2026-01-01T02:00:00Z"}
         run2 = {"created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T01:00:00Z"}
         assert runs_overlap(run1, run2) is False
+
+
 class TestGetConcurrencyGroupFromRun:
     def test_quality_gate_pr(self):
         run = {
