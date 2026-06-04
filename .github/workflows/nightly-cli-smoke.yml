@@ -11,7 +11,7 @@
 #   - Triggers only on schedule and workflow_dispatch. GitHub never fires these
 #     from a fork, so a fork PR can never reach the secret-bearing job.
 #   - A trusted-context gate (scripts/validation/assert_trusted_smoke_context.py,
-#     ADR-006: decision in Python, not YAML) re-checks event + repository and
+#     ADR-006: decision in Python, not YAML) re-checks event, repository, and ref
 #     fails closed, so a fork running this workflow on its own schedule is denied.
 #   - Least-privilege: top-level permissions are contents: read.
 #   - Every action is pinned to a commit SHA (no floating tags).
@@ -65,10 +65,12 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
         run: |
           trusted=$(python3 scripts/validation/assert_trusted_smoke_context.py \
             --event-name "$EVENT_NAME" \
-            --repository "$REPOSITORY")
+            --repository "$REPOSITORY" \
+            --ref "$REF")
           echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
 
   smoke:
@@ -131,7 +133,7 @@ jobs:
         # (which pytest exits 0 for) is still caught and reported as a red job.
         if: always()
         shell: bash
-        run: python3 scripts/validation/assert_smoke_ran.py smoke-report.xml
+        run: uv run python scripts/validation/assert_smoke_ran.py smoke-report.xml
 
   smoke-result:
     name: Smoke Result

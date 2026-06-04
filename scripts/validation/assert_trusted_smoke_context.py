@@ -20,6 +20,8 @@ Authorized when ALL hold:
 - ``--repository`` equals the expected trusted repo (default
   ``rjmurillo/ai-agents``), so a fork running this workflow on its own schedule
   does not match and is denied.
+- ``--ref`` equals the expected trusted ref (default ``refs/heads/main``), so a
+  manual dispatch from another branch cannot run code with smoke secrets.
 
 Prints ``true`` or ``false`` to stdout for the workflow to branch on.
 
@@ -38,9 +40,16 @@ EXIT_USAGE = 2
 
 _TRUSTED_EVENTS = frozenset({"schedule", "workflow_dispatch"})
 _DEFAULT_TRUSTED_REPO = "rjmurillo/ai-agents"
+_DEFAULT_TRUSTED_REF = "refs/heads/main"
 
 
-def is_trusted(event_name: str, repository: str, expected_repo: str) -> tuple[bool, str]:
+def is_trusted(
+    event_name: str,
+    repository: str,
+    expected_repo: str,
+    ref: str = _DEFAULT_TRUSTED_REF,
+    expected_ref: str = _DEFAULT_TRUSTED_REF,
+) -> tuple[bool, str]:
     """Return ``(trusted, reason)`` for the given execution context.
 
     Fail-closed: an unrecognized event or a non-matching repository is untrusted.
@@ -48,9 +57,11 @@ def is_trusted(event_name: str, repository: str, expected_repo: str) -> tuple[bo
     if event_name not in _TRUSTED_EVENTS:
         allowed = ", ".join(sorted(_TRUSTED_EVENTS))
         return (False, f"event is not a trusted trigger (allowed: {allowed})")
-    if repository != expected_repo:
+    if repository.casefold() != expected_repo.casefold():
         return (False, "repository is not the trusted repo")
-    return (True, "trusted context: approved event on the trusted repo")
+    if ref != expected_ref:
+        return (False, "ref is not the trusted ref")
+    return (True, "trusted context: approved event, repo, and ref")
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -68,16 +79,32 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="The github.repository the workflow is running in (owner/name).",
     )
     parser.add_argument(
+        "--ref",
+        required=True,
+        help="The github.ref the workflow is running from.",
+    )
+    parser.add_argument(
         "--expected-repo",
         default=_DEFAULT_TRUSTED_REPO,
         help=f"The trusted repository (default: {_DEFAULT_TRUSTED_REPO}).",
+    )
+    parser.add_argument(
+        "--expected-ref",
+        default=_DEFAULT_TRUSTED_REF,
+        help=f"The trusted ref (default: {_DEFAULT_TRUSTED_REF}).",
     )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
-    trusted, _ = is_trusted(args.event_name, args.repository, args.expected_repo)
+    trusted, _ = is_trusted(
+        args.event_name,
+        args.repository,
+        args.expected_repo,
+        args.ref,
+        args.expected_ref,
+    )
     # stdout: the machine-readable decision the workflow branches on.
     print("true" if trusted else "false")
     # stderr: static audit trail only. CodeQL treats repository input as sensitive.

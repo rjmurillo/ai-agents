@@ -25,45 +25,78 @@ gate = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(gate)
 
 _REPO = "rjmurillo/ai-agents"
+_REF = "refs/heads/main"
 
 
 def test_trusted_when_scheduled_on_trusted_repo() -> None:
-    trusted, reason = gate.is_trusted("schedule", _REPO, _REPO)
+    trusted, reason = gate.is_trusted("schedule", _REPO, _REPO, _REF, _REF)
 
     assert trusted is True
     assert "trusted context" in reason
 
 
 def test_trusted_when_dispatched_on_trusted_repo() -> None:
-    trusted, _ = gate.is_trusted("workflow_dispatch", _REPO, _REPO)
+    trusted, _ = gate.is_trusted("workflow_dispatch", _REPO, _REPO, _REF, _REF)
+
+    assert trusted is True
+
+
+def test_trusted_repo_comparison_is_case_insensitive() -> None:
+    trusted, _ = gate.is_trusted("schedule", _REPO.upper(), _REPO.lower(), _REF, _REF)
 
     assert trusted is True
 
 
 def test_denied_for_pull_request_event() -> None:
-    trusted, reason = gate.is_trusted("pull_request", _REPO, _REPO)
+    trusted, reason = gate.is_trusted("pull_request", _REPO, _REPO, _REF, _REF)
 
     assert trusted is False
     assert "not a trusted trigger" in reason
 
 
 def test_denied_for_fork_repository() -> None:
-    trusted, reason = gate.is_trusted("schedule", "attacker/ai-agents", _REPO)
+    trusted, reason = gate.is_trusted("schedule", "attacker/ai-agents", _REPO, _REF, _REF)
 
     assert trusted is False
     assert "not the trusted repo" in reason
 
 
 def test_denied_for_unknown_event() -> None:
-    trusted, _ = gate.is_trusted("push", _REPO, _REPO)
+    trusted, _ = gate.is_trusted("push", _REPO, _REPO, _REF, _REF)
 
     assert trusted is False
+
+
+def test_denied_for_untrusted_ref() -> None:
+    trusted, reason = gate.is_trusted(
+        "workflow_dispatch",
+        _REPO,
+        _REPO,
+        "refs/heads/feature",
+        _REF,
+    )
+
+    assert trusted is False
+    assert "not the trusted ref" in reason
 
 
 def test_main_prints_true_and_exits_zero_when_trusted(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    code = gate.main(["--event-name", "schedule", "--repository", _REPO, "--expected-repo", _REPO])
+    code = gate.main(
+        [
+            "--event-name",
+            "schedule",
+            "--repository",
+            _REPO,
+            "--ref",
+            _REF,
+            "--expected-repo",
+            _REPO,
+            "--expected-ref",
+            _REF,
+        ]
+    )
 
     captured = capsys.readouterr()
     assert code == gate.EXIT_OK
@@ -78,6 +111,8 @@ def test_main_prints_false_when_untrusted(capsys: pytest.CaptureFixture[str]) ->
             "schedule",
             "--repository",
             "fork/ai-agents",
+            "--ref",
+            _REF,
             "--expected-repo",
             _REPO,
         ]
@@ -91,7 +126,7 @@ def test_main_prints_false_when_untrusted(capsys: pytest.CaptureFixture[str]) ->
 
 
 def test_main_uses_default_expected_repo(capsys: pytest.CaptureFixture[str]) -> None:
-    code = gate.main(["--event-name", "workflow_dispatch", "--repository", _REPO])
+    code = gate.main(["--event-name", "workflow_dispatch", "--repository", _REPO, "--ref", _REF])
 
     captured = capsys.readouterr()
     assert code == gate.EXIT_OK

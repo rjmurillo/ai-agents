@@ -59,8 +59,12 @@ def _failed_case(classname: str, name: str) -> str:
 
 
 def test_returns_ok_when_smoke_case_passed(tmp_path: Path) -> None:
+    cases = _passed_case(
+        _SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves"
+    ) + _passed_case(_SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves")
     report = _write_report(
-        tmp_path, _passed_case(_SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves")
+        tmp_path,
+        cases,
     )
 
     exit_code, message = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e")
@@ -70,8 +74,12 @@ def test_returns_ok_when_smoke_case_passed(tmp_path: Path) -> None:
 
 
 def test_returns_not_run_when_smoke_case_skipped(tmp_path: Path) -> None:
+    cases = _passed_case(_SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves") + _skipped_case(
+        _SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves"
+    )
     report = _write_report(
-        tmp_path, _skipped_case(_SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves")
+        tmp_path,
+        cases,
     )
 
     exit_code, message = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e")
@@ -90,8 +98,12 @@ def test_returns_not_run_when_no_smoke_case_collected(tmp_path: Path) -> None:
 
 
 def test_returns_not_run_when_smoke_case_failed(tmp_path: Path) -> None:
+    cases = _passed_case(_SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves") + _failed_case(
+        _SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves"
+    )
     report = _write_report(
-        tmp_path, _failed_case(_SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves")
+        tmp_path,
+        cases,
     )
 
     exit_code, message = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e")
@@ -112,15 +124,29 @@ def test_skipped_among_passed_smoke_cases_still_fails(tmp_path: Path) -> None:
 
 
 def test_parses_testsuites_wrapper_shape(tmp_path: Path) -> None:
+    cases = _passed_case(
+        _SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves"
+    ) + _passed_case(_SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves")
     report = _write_report(
         tmp_path,
-        _passed_case(_SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves"),
+        cases,
         wrap=True,
     )
 
     exit_code, _ = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e")
 
     assert exit_code == EXIT_OK
+
+
+def test_returns_not_run_when_smoke_set_is_incomplete(tmp_path: Path) -> None:
+    report = _write_report(
+        tmp_path, _passed_case(_SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves")
+    )
+
+    exit_code, message = assert_smoke_ran.evaluate(report, "test_cli_hook_e2e")
+
+    assert exit_code == EXIT_NOT_RUN
+    assert "incomplete" in message
 
 
 def test_rejects_report_with_doctype(tmp_path: Path) -> None:
@@ -150,8 +176,12 @@ def test_raises_when_report_malformed(tmp_path: Path) -> None:
 
 
 def test_main_exits_zero_when_smoke_ran(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    cases = _passed_case(
+        _SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves"
+    ) + _passed_case(_SMOKE_CLASS, "test_claude_plugin_dir_hook_resolves")
     report = _write_report(
-        tmp_path, _passed_case(_SMOKE_CLASS, "test_copilot_vendor_install_hook_resolves")
+        tmp_path,
+        cases,
     )
 
     code = assert_smoke_ran.main([str(report)])
@@ -187,6 +217,8 @@ def test_main_honors_custom_smoke_substr(
 ) -> None:
     report = _write_report(tmp_path, _passed_case("custom.module", "test_my_smoke"))
 
-    code = assert_smoke_ran.main([str(report), "--smoke-substr", "test_my_smoke"])
+    code = assert_smoke_ran.main(
+        [str(report), "--smoke-substr", "test_my_smoke", "--expected-count", "1"]
+    )
 
     assert code == EXIT_OK
