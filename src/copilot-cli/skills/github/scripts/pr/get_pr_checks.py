@@ -310,7 +310,13 @@ def build_output(
     for each name, matching test_pr_merge_ready.py semantics. Returns
     structured lists of pending and failed required checks.
     """
-    checks = check_data.get("Checks", [])
+    checks_value = check_data.get("Checks")
+    if checks_value is None:
+        checks = []
+    elif not isinstance(checks_value, list):
+        raise ValueError("Checks must be a list")
+    else:
+        checks = checks_value
     
     # Group by name and apply OR semantics for isRequired flag.
     checks_by_name, is_required_by_name, _ = group_checks_by_name(checks)

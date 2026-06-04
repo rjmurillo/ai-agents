@@ -1140,6 +1140,8 @@ class TestBuildOutputAdditional:
         output = build_output(check_data, "o", "r")
         assert output["FailedCount"] == 1
         assert output["PendingCount"] == 1
+        assert output["FailedRequiredChecks"] == ["build"]
+        assert output["PendingRequiredChecks"] == ["build"]
         assert output["AllPassing"] is False
 
     def test_passing_pending_duplicate_counts_as_pending_not_all_passing(self):
@@ -1167,6 +1169,27 @@ class TestBuildOutputAdditional:
         }
         output = build_output(check_data, "o", "r")
         assert output["AllPassing"] is False
+
+    def test_null_checks_list_is_empty(self):
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "UNKNOWN",
+            "Checks": None,
+        }
+        output = build_output(check_data, "o", "r")
+        assert output["Checks"] == []
+        assert output["AllPassing"] is False
+
+    def test_malformed_checks_payload_is_rejected(self):
+        check_data = {
+            "Number": 42,
+            "HasChecks": True,
+            "OverallState": "UNKNOWN",
+            "Checks": {"Name": "build"},
+        }
+        with pytest.raises(ValueError, match="Checks must be a list"):
+            build_output(check_data, "o", "r")
 
 
 # ---------------------------------------------------------------------------
@@ -1422,7 +1445,7 @@ class TestSupersededCheckRuns:
         StatusContext (required), --required-only should include it because any
         row carries isRequired=true.
 
-        Reproduces scenario: Analyst check publishes both a CheckRun and a
+        Reproduces scenario: Analyst and QA checks publish both a CheckRun and a
         StatusContext; the CheckRun is isRequired=false but the StatusContext is
         isRequired=true. The name should be treated as required.
         """
@@ -1442,6 +1465,21 @@ class TestSupersededCheckRuns:
                "targetUrl": "",
                "isRequired": True,
            },
+           {
+              "__typename": "CheckRun",
+              "name": "QA",
+              "status": "IN_PROGRESS",
+              "conclusion": "",
+              "detailsUrl": "",
+              "isRequired": False,
+           },
+           {
+              "__typename": "StatusContext",
+              "context": "QA",
+              "state": "PENDING",
+              "targetUrl": "",
+              "isRequired": True,
+           },
         ]
         with patch(
            "get_pr_checks.assert_gh_authenticated",
@@ -1453,19 +1491,16 @@ class TestSupersededCheckRuns:
            return_value=_rollup_response(nodes),
         ):
            rc = main(["--pull-request", "2325", "--required-only"])
-        # Must exit 7 (timeout pending) or return pending count > 0, not exit 0.
-        # With --required-only, the Analyst check (required via StatusContext)
-        # must appear in the output.
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
-        assert data["PendingCount"] > 0, \
-           "Expected pending count > 0 for pending required Analyst check"
+        assert data["PendingCount"] == 2
         names = [c["Name"] for c in data["Checks"]]
-        assert "Analyst" in names, \
-           "Expected Analyst check in --required-only output (required via StatusContext)"
+        assert "Analyst" in names
+        assert "QA" in names
+        assert data["PendingRequiredChecks"] == ["Analyst", "QA"]
         checks = {c["Name"]: c for c in data["Checks"]}
-        assert checks["Analyst"]["IsRequired"] is True, \
-           "Expected Analyst check marked as required (OR of both rows)"
+        assert checks["Analyst"]["IsRequired"] is True
+        assert checks["QA"]["IsRequired"] is True
 
     def test_failed_required_check_required_only_includes_failed_list(self, capsys):
         """Issue #2325: --required-only output should expose FailedRequiredChecks
