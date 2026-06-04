@@ -203,10 +203,10 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     Minimal parser: only the top-level ``key: value`` pairs in the leading
     ``---`` fenced block. Nested mappings (e.g. ``metadata:``) are skipped.
     Mirrors the lightweight approach used by
-    ``scripts/validation/pre_pr.py:_parse_yaml_frontmatter`` (top-level keys
-    only, no external YAML dependency); this copy stops at the first nested
-    block and does not coerce booleans or integers because the comparison
-    here is string-based.
+    ``scripts/validation/yaml_utils.py:_parse_yaml_frontmatter`` (top-level
+    keys only, no external YAML dependency); this copy stops at the first
+    nested block and does not coerce booleans or integers because the
+    comparison here is string-based.
     """
     if not text.startswith("---"):
         return {}
@@ -231,8 +231,8 @@ def parse_frontmatter(text: str) -> dict[str, str]:
         # Strip inline YAML comments (e.g. "model: opus  # override") so the
         # trailing comment is not captured as part of the value, which would
         # cause silent false negatives. Mirrors
-        # scripts/validation/pre_pr.py:_parse_yaml_frontmatter (only strip when
-        # the value does not open with a quote; cut at the first "#").
+        # scripts/validation/yaml_utils.py:_parse_yaml_frontmatter (only strip
+        # when the value does not open with a quote; cut at the first "#").
         if value[0] not in ('"', "'"):
             comment_pos = value.find("#")
             if comment_pos > 0:

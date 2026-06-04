@@ -37,7 +37,22 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+# Frontmatter parsing and DESIGN-REVIEW validation live in sibling modules
+# (issue #2223). Re-exported here so ``_parse_yaml_frontmatter`` and
+# ``validate_design_review_frontmatter`` stay importable from ``pre_pr``.
+from validate_design_review import (  # noqa: E402, F401
+    _BLOCKING_STATUSES,
+    _REQUIRED_FRONTMATTER_FIELDS,
+    _VALID_PRIORITIES,
+    _VALID_STATUSES,
+    validate_design_review_frontmatter,
+)
+from yaml_utils import _parse_yaml_frontmatter  # noqa: E402, F401
 
 
 class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
@@ -573,141 +588,6 @@ def validate_hook_anchoring(repo_root: Path) -> bool:
         if detail:
             print(detail)
     return exit_code == 0
-
-
-def _parse_yaml_frontmatter(text: str) -> dict[str, Any] | None:
-    """Parse YAML frontmatter from markdown text.
-
-    Returns parsed dict or None if no frontmatter found.
-    Uses a minimal parser to avoid external dependencies.
-    """
-    if not text.startswith("---"):
-        return None
-
-    end_index = text.find("\n---", 3)
-    if end_index == -1:
-        return None
-
-    frontmatter_text = text[4:end_index].strip()
-    result: dict[str, Any] = {}
-
-    for line in frontmatter_text.split("\n"):
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        colon_pos = line.find(":")
-        if colon_pos == -1:
-            continue
-
-        key = line[:colon_pos].strip()
-        value = line[colon_pos + 1 :].strip()
-
-        # Strip inline YAML comments (e.g., "APPROVED  # valid values")
-        # Only strip if not inside quotes
-        if value and value[0] not in ('"', "'"):
-            comment_pos = value.find("#")
-            if comment_pos > 0:
-                value = value[:comment_pos].strip()
-
-        # Strip quotes
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-            value = value[1:-1]
-
-        # Parse booleans
-        if value.lower() == "true":
-            result[key] = True
-        elif value.lower() == "false":
-            result[key] = False
-        # Parse integers
-        elif value.isdigit():
-            result[key] = int(value)
-        else:
-            result[key] = value
-
-    return result
-
-
-_REQUIRED_FRONTMATTER_FIELDS = {"status", "priority", "blocking", "reviewer", "date"}
-_VALID_STATUSES = {"APPROVED", "NEEDS_CHANGES", "NEEDS_ADR", "BLOCKED", "REJECTED"}
-_VALID_PRIORITIES = {"P0", "P1", "P2"}
-_BLOCKING_STATUSES = {"NEEDS_ADR", "BLOCKED", "REJECTED"}
-
-
-def validate_design_review_frontmatter(repo_root: Path) -> bool:
-    """Validate YAML frontmatter in DESIGN-REVIEW documents.
-
-    Checks all .agents/architecture/DESIGN-REVIEW-*.md files for:
-    - Presence of YAML frontmatter
-    - Required fields (status, priority, blocking, reviewer, date)
-    - Valid status and priority values
-    - Blocking consistency (blocking=true when status is NEEDS_ADR/BLOCKED/REJECTED)
-
-    Returns True if all files pass or no files exist.
-    """
-    review_dir = repo_root / ".agents" / "architecture"
-    if not review_dir.is_dir():
-        print("[WARNING] No .agents/architecture/ directory found")
-        return True
-
-    review_files = sorted(review_dir.glob("DESIGN-REVIEW-*.md"))
-    if not review_files:
-        print("No DESIGN-REVIEW files found. Nothing to validate.")
-        return True
-
-    print(f"Validating {len(review_files)} DESIGN-REVIEW file(s)...")
-
-    all_passed = True
-    blocking_reviews: list[str] = []
-
-    for filepath in review_files:
-        text = filepath.read_text(encoding="utf-8")
-        frontmatter = _parse_yaml_frontmatter(text)
-
-        if frontmatter is None:
-            print(f"  [FAIL] {filepath.name}: missing YAML frontmatter")
-            all_passed = False
-            continue
-
-        # Check required fields
-        missing = _REQUIRED_FRONTMATTER_FIELDS - set(frontmatter.keys())
-        if missing:
-            print(f"  [FAIL] {filepath.name}: missing fields: {', '.join(sorted(missing))}")
-            all_passed = False
-            continue
-
-        # Validate status value
-        status = str(frontmatter["status"]).strip()
-        if status not in _VALID_STATUSES:
-            print(f"  [FAIL] {filepath.name}: invalid status '{status}'")
-            all_passed = False
-
-        # Validate priority value
-        priority = str(frontmatter["priority"]).strip()
-        if priority not in _VALID_PRIORITIES:
-            print(f"  [FAIL] {filepath.name}: invalid priority '{priority}'")
-            all_passed = False
-
-        # Check blocking consistency
-        blocking = frontmatter.get("blocking", False)
-        if status in _BLOCKING_STATUSES and not blocking:
-            print(
-                f"  [WARNING] {filepath.name}: status '{status}' should have blocking: true"
-            )
-
-        if blocking and status in _BLOCKING_STATUSES:
-            blocking_reviews.append(filepath.name)
-
-        print(f"  [PASS] {filepath.name} (status={status}, blocking={blocking})")
-
-    if blocking_reviews:
-        print()
-        print(f"[WARNING] {len(blocking_reviews)} blocking review(s) detected:")
-        for name in blocking_reviews:
-            print(f"  - {name}")
-        print("  These will block PR merges via synthesis-panel-gate.yml")
-
-    return all_passed
 
 
 def validate_build_gates(repo_root: Path) -> bool:
