@@ -135,11 +135,17 @@ cd "$REPO_ROOT"
 #
 IS_MERGE=0
 MERGE_BASE=""
-if [ -f "$REPO_ROOT/.git/MERGE_HEAD" ]; then
+# Resolve MERGE_HEAD through git, not a hardcoded "$REPO_ROOT/.git/MERGE_HEAD".
+# In a linked worktree, ".git" is a file pointing at the worktree-specific git
+# dir, so the literal ".git/MERGE_HEAD" path does not exist and merge state is
+# missed. `git rev-parse --git-path MERGE_HEAD` returns the correct path under
+# the active worktree whether ".git" is a directory or a file (Issue #2376).
+MERGE_HEAD_PATH=$(git rev-parse --git-path MERGE_HEAD 2>/dev/null || echo "")
+if [ -n "$MERGE_HEAD_PATH" ] && [ -f "$MERGE_HEAD_PATH" ]; then
     IS_MERGE=1
     echo_info "Merge commit detected - validating branch-specific changes only"
     # Get the merge base to identify branch-specific files
-    MERGE_HEAD=$(cat "$REPO_ROOT/.git/MERGE_HEAD")
+    MERGE_HEAD=$(cat "$MERGE_HEAD_PATH")
     MERGE_BASE=$(git merge-base HEAD "$MERGE_HEAD" 2>/dev/null || echo "")
 fi
 
