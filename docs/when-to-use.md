@@ -16,20 +16,21 @@ This guide sits above both: it tells you which phases to run before you route.
 
 ## How to read the fitness table
 
-Each row is a task shape. The columns are the six lifecycle commands. A check
-means "run this phase." A dash means "skip it for this shape." The rightmost
-column gives a concrete example, several harvested from this repo's own
-retrospectives under `.agents/retrospective/`.
+Each row is a task shape. The columns are the six lifecycle commands. `yes`
+means run this phase. `no` means skip it for this shape. `maybe` means run it
+only when the task has ambiguity or risk that this phase can reduce. The
+rightmost column gives a concrete example, several harvested from this repo's
+own retrospectives under `.agents/retrospective/`.
 
 | Task shape | /spec | /plan | /build | /test | /review | /ship | Concrete example |
 |------------|:-----:|:-----:|:------:|:-----:|:-------:|:-----:|------------------|
 | Scaled delivery (new feature, multi-file, multi-domain) | yes | yes | yes | yes | yes | yes | OAuth2 login flow with JWT tokens. New surface, new failure modes, cross-cutting auth concerns. Run the whole chain. |
 | Compliance or guardrail change (governance, security gate, validator) | yes | yes | yes | yes | yes | yes | The push-guard framework in PR #1887. It changed a canonical contract. Skipping `/spec` against the real regex produced "confident incorrectness": 69 commits, 11+ review rounds. The spec phase exists to pin the contract before you build against it. |
 | Defect mitigation (fix the fix, recurring failure) | yes | yes | yes | yes | yes | yes | PR #1989 reworked three earlier mitigations. It skipped the spec-against-current-state step, inherited a misdiagnosed root cause, and reproduced all three predecessor failure modes in 21 commits. A fix that already failed once needs the full lifecycle, not a shortcut. |
-| Hotfix (single known defect, clear root cause, small blast radius) | no | no | yes | yes | yes | yes | "Fix null reference in `UserService.GetById`." Root cause is known, fix is local. Go straight to `/build`, prove it with `/test`, then `/review` and `/ship`. The Quick Fix Workflow in workflow-commands.md is this shape. |
-| Customer-facing generated artifact (plugin manifest, hook script, CLI config) | yes | maybe | yes | yes | yes | yes | PR #2205 shipped a Copilot CLI `hooks.json` with a bad path. It passed structural tests but was never run in its target runtime. It wedged every customer environment for 33 days across 6 releases. `/test` here means a runtime-contract test, not a schema check. Never skip `/test` and `/review` on an artifact a customer installs. |
+| Hotfix (single known defect, clear root cause, small blast radius) | no | no | yes | yes | yes | yes | "Fix null reference in `UserService.GetById`." Root cause is known, fix is local. Go straight to `/build`, prove it with `/test`, then run `/review` before `/ship`. This row adds the `/review` preflight required by `/ship`; the Quick Fix Workflow in workflow-commands.md shows only the shorter build/test/ship skeleton. |
+| Customer-facing generated artifact (plugin manifest, hook script, CLI config) | yes | maybe | yes | yes | yes | yes | Issue #2205 shipped a Copilot CLI `hooks.json` with a bad path. It passed structural tests but was never run in its target runtime. It wedged every customer environment for 33 days across 6 releases. `/test` here means a runtime-contract test, not a schema check. Never skip `/test` and `/review` on an artifact a customer installs. |
 | Exploratory spike (research, "should we", unknown answer) | yes | maybe | no | no | no | no | "Should we migrate from REST to gRPC for internal services?" Run `/spec` to frame the question and search for prior art. Stop there, or run `/plan` to sketch the path. Do not `/build` until the question is answered. The Research-First Workflow in workflow-commands.md is this shape. |
-| Documentation-only change (README, guide, comment) | no | no | yes | maybe | maybe | yes | This very file. No spec, no plan. Write it, run markdownlint as the test, optional review for accuracy, then ship. |
+| Documentation-only change (README, guide, comment) | no | no | yes | maybe | yes | yes | This very file. No spec, no plan. Write it, run markdownlint as the test, run `/review` for accuracy and `/ship` preflight, then ship. |
 | Context black hole (vague scope, no acceptance criteria, "we should add") | yes | yes | no | no | no | no | A GitHub issue that says "we should add caching somewhere." Run `/spec` to force testable acceptance criteria out of the vagueness. Do not build until the scope is bounded. The ideation workflow (`docs/ideation-workflow.md`) feeds this. |
 
 ## Anti-recommendations: when the full lifecycle is overkill
@@ -41,8 +42,9 @@ not by accident.
 ### Typo, comment, or single-line doc fix
 
 Do not run `/spec`. Do not run `/plan`. There is no design decision here. Edit
-the file, run markdownlint if it is markdown, and ship. Running the spec phase
-on a typo trains you to skim past the spec phase when it matters.
+the file and run markdownlint if it is markdown. If you invoke `/ship`, run
+`/review` first because `/ship` requires it. Running the spec phase on a typo
+trains you to skim past the spec phase when it matters.
 
 ### Reverting a known-bad commit
 
@@ -80,7 +82,7 @@ When the task shape is not obvious, answer these in order:
    you build. Skipping it is how PR #1887 and PR #1989 spent dozens of commits.
 3. **Does a customer install or run the output?** If yes, `/test` and `/review`
    are mandatory, and `/test` means running the artifact in its real runtime.
-   PR #2205 is the cost of skipping this.
+   Issue #2205 is the cost of skipping this.
 4. **Is the blast radius small and reversible?** If yes, you can drop `/spec`
    and `/plan` and start at `/build`. If no, run the full chain.
 
