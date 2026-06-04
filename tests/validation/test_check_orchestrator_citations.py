@@ -59,6 +59,11 @@ def test_extract_picks_up_bare_path() -> None:
     assert coc.extract_path_citations(text) == ["scripts/validation/pr_description.py"]
 
 
+def test_extract_picks_up_uppercase_extension() -> None:
+    text = "See `scripts/validation/PR_DESCRIPTION.PY` for the pattern."
+    assert coc.extract_path_citations(text) == ["scripts/validation/PR_DESCRIPTION.PY"]
+
+
 @pytest.mark.parametrize(
     "noise",
     [
@@ -91,6 +96,26 @@ def test_broken_citation_detected(tmp_path: Path) -> None:
     assert len(broken) == 1
     assert broken[0].path == "scripts/gone.py"
     assert broken[0].source == _TARGET
+
+
+def test_directory_citation_is_broken(tmp_path: Path) -> None:
+    """A directory named like a file does not satisfy a file citation."""
+    directory = tmp_path / "scripts" / "fake.py"
+    directory.mkdir(parents=True)
+    _write_file(tmp_path, _TARGET, "Logic in `scripts/fake.py:run`.\n")
+    broken = coc.collect_broken_citations(tmp_path)
+    assert len(broken) == 1
+    assert broken[0].path == "scripts/fake.py"
+
+
+def test_traversal_citation_is_broken_even_when_target_exists(tmp_path: Path) -> None:
+    """A citation that resolves outside the repo root fails closed."""
+    outside_file = tmp_path.parent / "outside.py"
+    outside_file.write_text("x = 1\n", encoding="utf-8")
+    _write_file(tmp_path, _TARGET, "Logic in `../outside.py:run`.\n")
+    broken = coc.collect_broken_citations(tmp_path)
+    assert len(broken) == 1
+    assert broken[0].path == "../outside.py"
 
 
 def test_symbol_suffix_stripped_before_resolving(tmp_path: Path) -> None:

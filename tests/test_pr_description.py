@@ -287,3 +287,20 @@ class TestMarkdownLinkTargetExtraction:
         extract = _import_extract_mentioned_files()
         body = "Generated [config](build/tsconfig.spec.json) output."
         assert "build/tsconfig.spec.json" in extract(body)
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/org/repo/blob/main/scripts/validator.py",
+            "http://example.com/config.json",
+            "ftp://example.com/files/workflow.yml",
+            "//example.com/static/app.js",
+            "www.example.com/docs/readme.md",
+        ],
+    )
+    def test_link_target_ignores_external_urls(self, url: str):
+        """External URLs ending in known extensions are not repo file mentions."""
+        extract = _import_extract_mentioned_files()
+        body = f"Check [the linked file]({url}) for details."
+        assert url not in extract(body)
+        assert Path(url).name not in extract(body)

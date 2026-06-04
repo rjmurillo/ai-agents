@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Get context and metadata for a GitHub Pull Request.
 
-Retrieves comprehensive PR information including:
+Retrieves PR information including:
 - Basic metadata (number, title, body, state, author)
-- Branch information (head, base, commits)
+- Branch information (head branch, head SHA, base, commits)
 - Labels and reviewers
 - Optionally includes diff or changed files
 
@@ -52,7 +52,7 @@ from github_core.output import (  # noqa: E402
 )
 
 _JSON_FIELDS = (
-    "number,title,body,headRefName,baseRefName,state,author,labels,"
+    "number,title,body,headRefName,headRefOid,baseRefName,state,author,labels,"
     "reviewRequests,commits,additions,deletions,changedFiles,"
     "mergeable,mergedAt,mergedBy,createdAt,updatedAt"
 )
@@ -110,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     pr_data = json.loads(pr_result.stdout)
 
     labels = [label.get("name", "") for label in pr_data.get("labels", [])]
+    author = pr_data.get("author")
     merged_by = pr_data.get("mergedBy")
 
     data: dict = {
@@ -117,8 +118,9 @@ def main(argv: list[str] | None = None) -> int:
         "title": pr_data.get("title"),
         "body": pr_data.get("body"),
         "state": pr_data.get("state"),
-        "author": pr_data.get("author", {}).get("login"),
+        "author": author.get("login") if isinstance(author, dict) else None,
         "head_branch": pr_data.get("headRefName"),
+        "head_sha": pr_data.get("headRefOid"),
         "base_branch": pr_data.get("baseRefName"),
         "labels": labels,
         "commits": len(pr_data.get("commits", [])),

@@ -33,6 +33,35 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | `Add-CommentReaction` | `repos/{owner}/{repo}/pulls/comments/{id}/reactions` or `issues/comments/{id}/reactions` |
 | `Invoke-CopilotAssignment` | `repos/{owner}/{repo}/issues/{issue}/comments`, `gh issue edit --add-assignee` |
 
+## `get_pr_context.py` Output Fields
+
+The `Data` object returned by `get_pr_context.py` includes these fields.
+
+| Field | Type | Source (`gh pr view --json`) | Notes |
+|-------|------|------------------------------|-------|
+| `number` | int | `number` | PR number |
+| `title` | string | `title` | PR title |
+| `body` | string | `body` | PR description |
+| `state` | string | `state` | `OPEN`, `CLOSED`, or `MERGED` |
+| `author` | string \| null | `author.login` | Login of the PR author |
+| `head_branch` | string | `headRefName` | Source branch name |
+| `head_sha` | string \| null | `headRefOid` | Head commit SHA. Use as the expected remote SHA for force-push and push safety checks: compare the local branch ref against this before any push. `null` if the API omits `headRefOid` or returns it as `null`. |
+| `base_branch` | string | `baseRefName` | Target branch name |
+| `labels` | list[string] | `labels[].name` | Label names |
+| `commits` | int | `len(commits)` | Number of commits |
+| `additions` | int | `additions` | Lines added |
+| `deletions` | int | `deletions` | Lines removed |
+| `changed_files` | int | `changedFiles` | Files changed |
+| `mergeable` | string | `mergeable` | `MERGEABLE`, `CONFLICTING`, or `UNKNOWN` |
+| `merged` | bool | `bool(mergedAt)` | Whether the PR is merged |
+| `merged_by` | string \| null | `mergedBy.login` | Who merged the PR |
+| `created_at` | string | `createdAt` | ISO 8601 timestamp |
+| `updated_at` | string | `updatedAt` | ISO 8601 timestamp |
+| `diff` | string \| null | `gh pr diff` | Populated only with `--include-diff` |
+| `files` | list[string] \| null | `gh pr diff --name-only` | Populated only with `--include-changed-files` |
+| `owner` | string | (resolved) | Repository owner |
+| `repo` | string | (resolved) | Repository name |
+
 ## Shared Module Functions
 
 All scripts import `modules/GitHubCore.psm1`:

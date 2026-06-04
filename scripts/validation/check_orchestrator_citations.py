@@ -42,7 +42,8 @@ _TARGET_FILES: tuple[str, ...] = (".claude/commands/pr-quality/all.md",)
 # (`/pr-quality:security`) do not match: a slash command has no extension,
 # and a bare token has no `/`.
 _PATH_CITATION: re.Pattern[str] = re.compile(
-    r"`((?:[\w.\-]+/)+[\w.\-]+\.(?:py|md|ps1|json|yml|yaml|sh|ts|js|cs))(?::[\w.]+)?`"
+    r"`((?:[\w.\-]+/)+[\w.\-]+\.(?:py|md|ps1|json|yml|yaml|sh|ts|js|cs))(?::[\w.]+)?`",
+    re.IGNORECASE,
 )
 
 
@@ -65,14 +66,22 @@ def check_file(repo_root: Path, rel_source: str) -> list[BrokenCitation]:
     A target file that is absent yields no broken citations; a downstream
     installer may not ship the orchestrator command, and that is benign.
     """
-    source_path = repo_root / rel_source
+    resolved_root = repo_root.resolve()
+    source_path = (resolved_root / rel_source).resolve()
+    if not source_path.is_relative_to(resolved_root):
+        return []
     if not source_path.is_file():
         return []
 
     text = source_path.read_text(encoding="utf-8")
     broken: list[BrokenCitation] = []
     for cited in extract_path_citations(text):
-        if not (repo_root / cited).exists():
+        try:
+            cited_path = (resolved_root / cited).resolve()
+            exists = cited_path.is_relative_to(resolved_root) and cited_path.is_file()
+        except (OSError, RuntimeError, ValueError):
+            exists = False
+        if not exists:
             broken.append(BrokenCitation(source=rel_source, path=cited))
     return broken
 
