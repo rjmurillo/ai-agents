@@ -36,10 +36,41 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-# Exit codes (ADR-035 compliant)
-EXIT_SUCCESS = 0
-EXIT_ERROR = 1
-EXIT_VULNERABILITIES = 10
+# Sibling helper modules (scan_patterns, scan_format, scan_constants) live in
+# this script's directory. When the scanner is run directly
+# (`python3 scan_vulnerabilities.py`), Python already puts that directory on
+# sys.path[0]. When the module is loaded by path via importlib (the test suite
+# does this with module name "scan_vulnerabilities"), the directory is NOT on
+# sys.path, so the sibling imports below would fail. Add the directory
+# explicitly so both invocation paths resolve the helpers.
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+from scan_constants import (  # noqa: E402
+    EXIT_ERROR,
+    EXIT_SUCCESS,
+    EXIT_VULNERABILITIES,
+)
+from scan_format import format_console_output  # noqa: E402
+from scan_patterns import CWE78_PATTERNS  # noqa: E402
+
+# Re-export the sibling-module symbols so existing callers and tests that read
+# `scan_vulnerabilities.CWE78_PATTERNS`, `.format_console_output`, and the exit
+# codes keep working after the extraction (issue #1848). Exit codes are
+# ADR-035 compliant; their single source of truth is `scan_constants.py`.
+__all__ = [
+    "CWE78_PATTERNS",
+    "EXIT_ERROR",
+    "EXIT_SUCCESS",
+    "EXIT_VULNERABILITIES",
+    "format_console_output",
+    "format_json_output",
+    "get_language",
+    "is_line_suppressed",
+    "main",
+    "scan_file",
+]
 
 # Suppression comment pattern
 SUPPRESSION_PATTERN = re.compile(
@@ -73,162 +104,6 @@ class ScanResult:
     vulnerabilities: list = field(default_factory=list)
     suppressed: list = field(default_factory=list)
     errors: list = field(default_factory=list)
-
-
-# CWE-78: Command Injection patterns by language
-CWE78_PATTERNS = {
-    "python": [
-        {
-            "pattern": re.compile(
-                r'subprocess\.(run|call|Popen|check_output|check_call)\s*\(\s*f["\']',
-            ),
-            "description": "Subprocess with f-string command (potential injection)",
-            "severity": "CRITICAL",
-            "recommendation": "Use list form of command arguments instead of shell string",
-        },
-        {
-            "pattern": re.compile(
-                r"subprocess\.(run|call|Popen|check_output|check_call)\s*\([^)]*shell\s*=\s*True",
-            ),
-            "description": "Subprocess with shell=True",
-            "severity": "HIGH",
-            "recommendation": "Avoid shell=True; use list form of command arguments",
-        },
-        {
-            "pattern": re.compile(
-                r'subprocess\.(run|call|Popen|check_output|check_call)\s*\(\s*["\'][^"\']*\s*\+',
-            ),
-            "description": "Subprocess with string concatenation",
-            "severity": "CRITICAL",
-            "recommendation": "Use list form of command arguments instead of string concatenation",
-        },
-        {
-            "pattern": re.compile(
-                r"eval\s*\(\s*(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "eval() with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Never use eval() with user input",
-        },
-        {
-            "pattern": re.compile(
-                r"exec\s*\(\s*(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "exec() with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Never use exec() with user input",
-        },
-    ],
-    "powershell": [
-        {
-            "pattern": re.compile(
-                r'Invoke-Expression\s+["\'][^"\']*\$(\w+)',
-            ),
-            "description": "Invoke-Expression with variable interpolation",
-            "severity": "CRITICAL",
-            "recommendation": (
-                "Avoid Invoke-Expression; use direct cmdlet calls or & "
-                "operator with validated arguments"
-            ),
-        },
-        {
-            "pattern": re.compile(
-                r"Invoke-Expression\s+\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Invoke-Expression with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Never use Invoke-Expression with user input",
-        },
-        {
-            "pattern": re.compile(
-                r"&\s+\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Call operator with potentially unvalidated command",
-            "severity": "HIGH",
-            "recommendation": "Validate command before execution",
-        },
-        {
-            "pattern": re.compile(
-                r"Start-Process\s+[^-]*-ArgumentList\s+[^|]*\$(\w*(user|input|param|arg|request)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Start-Process with potentially unvalidated arguments",
-            "severity": "HIGH",
-            "recommendation": "Validate all arguments before passing to Start-Process",
-        },
-    ],
-    "bash": [
-        {
-            "pattern": re.compile(
-                r"eval\s+[\"']?\$",
-            ),
-            "description": "eval with variable expansion",
-            "severity": "CRITICAL",
-            "recommendation": "Avoid eval; use direct command execution with proper quoting",
-        },
-        {
-            "pattern": re.compile(
-                r"\$\(\s*\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Command substitution with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Validate input before command substitution",
-        },
-        {
-            "pattern": re.compile(
-                r"`\s*\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Backtick command substitution with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Validate input before command substitution; prefer $() syntax",
-        },
-        {
-            "pattern": re.compile(
-                r"(?<![\"'])\$\w+(?![\"'\w])",
-            ),
-            "description": "Unquoted variable expansion (potential word splitting/injection)",
-            "severity": "MEDIUM",
-            "recommendation": 'Quote all variable expansions: use "$var" instead of $var',
-        },
-    ],
-    "csharp": [
-        {
-            "pattern": re.compile(
-                r"Process\.Start\s*\([^)]*(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Process.Start with potentially unvalidated command",
-            "severity": "HIGH",
-            "recommendation": "Validate command and arguments before execution",
-        },
-        {
-            "pattern": re.compile(
-                r'ProcessStartInfo\s*\{[^}]*Arguments\s*=\s*\$"',
-            ),
-            "description": "ProcessStartInfo with interpolated arguments",
-            "severity": "HIGH",
-            "recommendation": (
-                "Validate all arguments; avoid string interpolation in "
-                "command arguments"
-            ),
-        },
-        {
-            "pattern": re.compile(
-                r'new\s+Process\s*\(\s*\)\s*\{[^}]*FileName\s*=\s*(\w*(user|input|param|arg|request|cmd)\w*)',
-                re.IGNORECASE,
-            ),
-            "description": "Process with potentially unvalidated FileName",
-            "severity": "HIGH",
-            "recommendation": "Validate FileName before process creation",
-        },
-    ],
-}
 
 
 def get_language(file_path: str) -> str | None:
@@ -329,60 +204,6 @@ def scan_file(
                     break
 
     return vulnerabilities, suppressed
-
-
-def format_console_output(result: ScanResult) -> str:
-    """Format scan result for console output."""
-    output = ["=== Security Vulnerability Scan ===", ""]
-
-    if result.errors:
-        output.append("Errors:")
-        for error in result.errors:
-            output.append(f"  {error}")
-        output.append("")
-
-    if not result.vulnerabilities:
-        output.append(f"Files scanned: {result.files_scanned}")
-        output.append("No vulnerabilities found.")
-        if result.suppressed:
-            output.append(f"Suppressed findings: {len(result.suppressed)}")
-        return "\n".join(output)
-
-    # Group by severity
-    by_severity: dict[str, list[Vulnerability]] = {
-        "CRITICAL": [], "HIGH": [], "MEDIUM": [], "LOW": []
-    }
-    for vuln in result.vulnerabilities:
-        by_severity.get(vuln.severity, by_severity["MEDIUM"]).append(vuln)
-
-    for severity in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
-        for vuln in by_severity[severity]:
-            output.append(f"[{vuln.cwe}] {vuln.title}")
-            output.append(f"  File: {vuln.file}:{vuln.line}")
-            output.append(f"  Pattern: {vuln.pattern}")
-            output.append(f"  Code: {vuln.code}")
-            output.append(f"  Severity: {vuln.severity}")
-            output.append(f"  Recommendation: {vuln.recommendation}")
-            output.append("")
-
-    # Summary
-    output.append("=== Summary ===")
-    output.append(f"Files scanned: {result.files_scanned}")
-    output.append(f"Vulnerabilities found: {len(result.vulnerabilities)}")
-
-    cwe_counts: dict[str, int] = {}
-    for vuln in result.vulnerabilities:
-        cwe_counts[vuln.cwe] = cwe_counts.get(vuln.cwe, 0) + 1
-    for cwe, count in sorted(cwe_counts.items()):
-        output.append(f"  {cwe} (Command Injection): {count}")
-
-    if result.suppressed:
-        output.append(f"Suppressed findings: {len(result.suppressed)}")
-
-    output.append("")
-    output.append(f"Exit code: {EXIT_VULNERABILITIES} (vulnerabilities detected)")
-
-    return "\n".join(output)
 
 
 _JSON_SCHEMA_VERSION = 2
