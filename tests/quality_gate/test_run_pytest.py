@@ -89,40 +89,51 @@ class TestEnvironmentReady:
 
 class TestRunPytest:
     def test_pass_on_zero_exit(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
             return subprocess.CompletedProcess(cmd, 0, stdout="5 passed in 1s\n", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
-        status, summary = run_pytest(["pytest"], 10)
+        status, summary = run_pytest(["pytest"], 10, Path.cwd())
         assert status == "PASS"
         assert summary == "5 passed in 1s"
 
     def test_fail_on_nonzero_exit(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
             return subprocess.CompletedProcess(cmd, 1, stdout="1 failed in 1s\n", stderr="")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
-        status, summary = run_pytest(["pytest"], 10)
+        status, summary = run_pytest(["pytest"], 10, Path.cwd())
         assert status == "FAIL"
         assert summary == "1 failed in 1s"
 
     def test_timeout_is_error(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
             raise subprocess.TimeoutExpired(cmd, timeout)
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
-        status, summary = run_pytest(["pytest"], 5)
+        status, summary = run_pytest(["pytest"], 5, Path.cwd())
         assert status == "ERROR"
         assert "timed out" in summary
 
     def test_os_error_is_error_with_collapsed_newlines(self, monkeypatch) -> None:
-        def fake_run(cmd, timeout, capture_output, text, check):  # noqa: ANN001
+        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
             raise OSError("line1\nline2")
 
         monkeypatch.setattr(mod.subprocess, "run", fake_run)
-        status, summary = run_pytest(["pytest"], 5)
+        status, summary = run_pytest(["pytest"], 5, Path.cwd())
         assert status == "ERROR"
         assert "\n" not in summary
+
+    def test_passes_project_root_as_cwd(self, tmp_path: Path, monkeypatch) -> None:
+        seen = {}
+
+        def fake_run(cmd, timeout, cwd, capture_output, text, check):  # noqa: ANN001
+            seen["cwd"] = cwd
+            return subprocess.CompletedProcess(cmd, 0, stdout="1 passed in 1s\n", stderr="")
+
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        run_pytest(["pytest"], 10, tmp_path)
+        assert seen["cwd"] == tmp_path
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +168,20 @@ class TestMain:
         output.touch()
         monkeypatch.setenv("GITHUB_OUTPUT", str(output))
         monkeypatch.setattr(mod, "environment_ready", lambda root: True)
-        monkeypatch.setattr(mod, "run_pytest", lambda cmd, timeout: ("PASS", "9 passed"))
+        monkeypatch.setattr(mod, "run_pytest", lambda cmd, timeout, cwd: ("PASS", "9 passed"))
         rc = main(["--project-root", str(tmp_path)])
         assert rc == 0
         text = output.read_text(encoding="utf-8")
         assert "pytest_status=PASS" in text
         assert "pytest_summary=9 passed" in text
+
+    def test_rejects_project_root_outside_workspace(self, tmp_path, monkeypatch, capsys) -> None:
+        output = tmp_path / "gh_output"
+        output.touch()
+        monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+        rc = main(["--project-root", str(tmp_path.parent / "outside")])
+        assert rc == 1
+        assert "project-root must stay within" in capsys.readouterr().err
 
     def test_missing_github_output_returns_two(self, tmp_path, monkeypatch) -> None:
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)

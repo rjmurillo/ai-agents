@@ -30,6 +30,7 @@ Input env vars:
 Exit codes (ADR-035):
     0 - status and summary written (the step is continue-on-error; a test
         failure does NOT fail this step, matching the original)
+    1 - unsafe project root
     2 - GITHUB_OUTPUT is not set (config error)
 """
 
@@ -42,6 +43,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    from .path_utils import resolve_workspace_path
+except ImportError:  # pragma: no cover - script execution path
+    from path_utils import resolve_workspace_path
 
 _SUMMARY_PATTERN = re.compile(r"passed|failed|error")
 _NO_SUMMARY = "No test summary available"
@@ -72,7 +78,7 @@ def environment_ready(project_root: Path) -> bool:
     return python_available and (project_root / "pyproject.toml").is_file()
 
 
-def run_pytest(command: list[str], timeout: float) -> tuple[str, str]:
+def run_pytest(command: list[str], timeout: float, cwd: Path | None = None) -> tuple[str, str]:
     """Run pytest, returning ``(status, summary)``.
 
     Status is PASS/FAIL by exit code, or ERROR when the runner cannot launch or
@@ -83,6 +89,7 @@ def run_pytest(command: list[str], timeout: float) -> tuple[str, str]:
         result = subprocess.run(
             command,
             timeout=timeout,
+            cwd=cwd,
             capture_output=True,
             text=True,
             check=False,
@@ -122,8 +129,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if environment_ready(args.project_root):
-        status, summary = run_pytest(build_pytest_command(), args.timeout)
+    try:
+        project_root = resolve_workspace_path(args.project_root, "project-root")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if environment_ready(project_root):
+        status, summary = run_pytest(build_pytest_command(), args.timeout, project_root)
     else:
         status, summary = "SKIPPED", "Python test environment not available"
 
