@@ -16,24 +16,34 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-# Resolve the vendor-portable path helper at .claude/lib/paths.py (Issue #2050).
-# In a vendored plugin install the consumer repo has no .agents/ tree, so the
-# default output directory must route through resolve_artifact_root rather than
-# a hard-coded .agents/chaos. Bootstrap .claude/lib onto sys.path the same way
-# the merge-resolver skill does: CLAUDE_PLUGIN_ROOT, then GITHUB_WORKSPACE, then
-# the lib/ sibling of the .claude-plugin marker (parents[3] for this script).
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
-if _plugin_root:
-    _LIB_DIR = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _LIB_DIR = os.path.join(_workspace, ".claude", "lib")
-else:
-    _LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
-if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
-    sys.path.insert(0, _LIB_DIR)
 
-import paths  # noqa: E402
+def _resolve_paths_lib_dir() -> Path:
+    """Resolve the plugin path-helper lib directory or fail with context."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        lib_dir = Path(plugin_root) / "lib"
+    elif workspace := os.environ.get("GITHUB_WORKSPACE"):
+        lib_dir = Path(workspace) / ".claude" / "lib"
+    else:
+        lib_dir = Path(__file__).resolve().parents[3] / "lib"
+
+    if not lib_dir.is_dir():
+        raise RuntimeError(
+            "Expected portability helper lib directory not found: "
+            f"{lib_dir}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+            "plugin root, or run from an ai-agents checkout."
+        )
+    return lib_dir.resolve()
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+try:
+    import paths  # noqa: E402
+except ImportError as exc:  # pragma: no cover - guarded by explicit path check
+    raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
 # Default artifact subdirectory written under the artifact root (Issue #2050).
 _CHAOS_SUBDIR = "chaos"
