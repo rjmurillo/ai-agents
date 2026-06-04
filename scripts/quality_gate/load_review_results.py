@@ -42,7 +42,6 @@ import os
 import sys
 from pathlib import Path
 
-_SCRIPT_DIR = Path(__file__).resolve().parent
 try:
     from .path_utils import REPOSITORY_ROOT, resolve_workspace_path
 except ImportError:  # pragma: no cover - script execution path
