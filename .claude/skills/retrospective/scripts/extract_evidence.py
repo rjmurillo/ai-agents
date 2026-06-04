@@ -95,6 +95,15 @@ def _newest_session_log(candidates: list[Path]) -> Path:
         return sorted(candidates, key=lambda p: p.name)[-1]
 
 
+def _scope_date(scope: str) -> date | None:
+    """Return an ISO date prefix from a retrospective scope when present."""
+    candidate = scope.strip()[:10]
+    try:
+        return date.fromisoformat(candidate)
+    except ValueError:
+        return None
+
+
 def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Path | None:
     """Return the current session log by date priority, or None when absent.
 
@@ -235,7 +244,7 @@ def gather_evidence(
     notes: list[str] = []
 
     sessions_dir = project_dir / ".agents" / "sessions"
-    session_log = find_recent_session_log(sessions_dir)
+    session_log = find_recent_session_log(sessions_dir, today=_scope_date(scope))
     if session_log is None:
         notes.append("No session log found under .agents/sessions/.")
         work_items: list[str] = []

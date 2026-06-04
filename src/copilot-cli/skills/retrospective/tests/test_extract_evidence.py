@@ -156,6 +156,22 @@ def test_find_recent_session_log_uses_yesterday_when_today_missing(tmp_path):
     assert chosen == yesterday
 
 
+def test_gather_evidence_uses_scope_date_for_session_selection(tmp_path):
+    # Arrange: current-day work exists, but the retrospective is scoped earlier.
+    sessions = tmp_path / ".agents" / "sessions"
+    _write_session(sessions, "2026-06-04-session-1-current.json", {"workLog": ["current"]})
+    scoped = _write_session(
+        sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]}
+    )
+
+    # Act
+    evidence = gather_evidence(tmp_path, "2026-06-03")
+
+    # Assert
+    assert evidence.session_log_path == str(scoped)
+    assert evidence.work_items == ["scoped"]
+
+
 # --- Negative: missing sources are marked absent, not crashed ---------------
 
 
