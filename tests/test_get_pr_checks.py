@@ -72,7 +72,22 @@ def _check_run_node(name, status, conclusion, *, required=True):
     }
 
 
-def _rollup_response(nodes, state="FAILURE", number=2201):
+def _rollup_response(
+    nodes,
+    state="FAILURE",
+    number=2201,
+    *,
+    oid="abc123",
+    page_info=None,
+    total_count=None,
+):
+    contexts = {
+        "nodes": nodes,
+    }
+    if page_info is not None:
+        contexts["pageInfo"] = page_info
+    if total_count is not None:
+        contexts["totalCount"] = total_count
     return {
         "repository": {
             "pullRequest": {
@@ -81,9 +96,49 @@ def _rollup_response(nodes, state="FAILURE", number=2201):
                     "nodes": [
                         {"commit": {"statusCheckRollup": {
                             "state": state,
-                            "contexts": {"nodes": nodes},
+                            "contexts": contexts,
                         }}},
                     ],
+                },
+            },
+        },
+    }
+
+
+def _rollup_response_with_commit_oid(
+    nodes,
+    state="FAILURE",
+    number=2201,
+    *,
+    oid="abc123",
+    page_info=None,
+    total_count=None,
+):
+    response = _rollup_response(
+        nodes,
+        state,
+        number,
+        oid=oid,
+        page_info=page_info,
+        total_count=total_count,
+    )
+    commit = response["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+    commit["oid"] = oid
+    return response
+
+
+def _contexts_page_response(nodes, *, has_next=False, end_cursor=None):
+    return {
+        "repository": {
+            "object": {
+                "statusCheckRollup": {
+                    "contexts": {
+                        "pageInfo": {
+                            "hasNextPage": has_next,
+                            "endCursor": end_cursor,
+                        },
+                        "nodes": nodes,
+                    },
                 },
             },
         },
@@ -1537,3 +1592,72 @@ class TestSupersededCheckRuns:
            "Expected failed required check in FailedRequiredChecks list"
         assert "CI/test" in data["PendingRequiredChecks"], \
            "Expected pending required check in PendingRequiredChecks list"
+
+    def test_required_only_paginates_pending_review_checks(self, capsys):
+        """Issue #2325: required review checks after the first 100 contexts
+        must stay visible to --required-only callers."""
+        first_page = _rollup_response_with_commit_oid(
+            [_check_run_node("Validate PR", "COMPLETED", "SUCCESS", required=True)],
+            state="PENDING",
+            page_info={"hasNextPage": True, "endCursor": "cursor-1"},
+            total_count=102,
+        )
+        second_page = _contexts_page_response([
+            {
+               "__typename": "CheckRun",
+               "name": "Analyst Review",
+               "status": "QUEUED",
+               "conclusion": "",
+               "detailsUrl": "",
+               "isRequired": True,
+            },
+            {
+               "__typename": "CheckRun",
+               "name": "QA Review",
+               "status": "QUEUED",
+               "conclusion": "",
+               "detailsUrl": "",
+               "isRequired": True,
+            },
+        ])
+        with patch(
+           "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+           "get_pr_checks.resolve_repo_params",
+           return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+           "get_pr_checks.gh_graphql",
+           side_effect=[first_page, second_page],
+        ):
+           rc = main(["--pull-request", "2325", "--required-only"])
+
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        assert rc == 0
+        assert data["PendingRequiredChecks"] == ["Analyst Review", "QA Review"]
+        assert data["PendingCount"] == 2
+        assert data["AllPassing"] is False
+
+    def test_required_only_fails_closed_when_contexts_page_missing(self, capsys):
+        first_page = _rollup_response_with_commit_oid(
+            [_check_run_node("Validate PR", "COMPLETED", "SUCCESS", required=True)],
+            state="PENDING",
+            page_info={"hasNextPage": True, "endCursor": None},
+            total_count=101,
+        )
+        with patch(
+           "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+           "get_pr_checks.resolve_repo_params",
+           return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+           "get_pr_checks.gh_graphql",
+           return_value=first_page,
+        ):
+           rc = main(["--pull-request", "2325", "--required-only"])
+
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        assert rc == 7
+        assert data["ChecksIncomplete"] is True
+        assert data["AllPassing"] is False

@@ -66,9 +66,15 @@ query($owner: String!, $repo: String!, $number: Int!) {
             commits(last: 1) {
                 nodes {
                     commit {
+                        oid
                         statusCheckRollup {
                             state
                             contexts(first: 100) {
+                                totalCount
+                                pageInfo {
+                                    hasNextPage
+                                    endCursor
+                                }
                                 nodes {
                                     ... on CheckRun {
                                         __typename
@@ -94,6 +100,43 @@ query($owner: String!, $repo: String!, $number: Int!) {
         }
     }
 }"""
+
+_CHECKS_PAGE_QUERY = """\
+query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $cursor: String!) {
+    repository(owner: $owner, name: $repo) {
+        object(oid: $oid) {
+            ... on Commit {
+                statusCheckRollup {
+                    contexts(first: 100, after: $cursor) {
+                        pageInfo {
+                            hasNextPage
+                            endCursor
+                        }
+                        nodes {
+                            ... on CheckRun {
+                                __typename
+                                name
+                                status
+                                conclusion
+                                detailsUrl
+                                isRequired(pullRequestNumber: $number)
+                            }
+                            ... on StatusContext {
+                                __typename
+                                context
+                                state
+                                targetUrl
+                                isRequired(pullRequestNumber: $number)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}"""
+
+_CONTEXTS_MAX_PAGES = 50
 
 # Pending statuses for CheckRun
 _PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
@@ -241,6 +284,47 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
+def _paginate_contexts(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    oid: str,
+    start_cursor: str | None,
+) -> tuple[list[dict], bool]:
+    """Fetch remaining status-check contexts by cursor pagination."""
+    if not start_cursor:
+        return [], False
+
+    extras: list[dict] = []
+    cursor = start_cursor
+    for _ in range(_CONTEXTS_MAX_PAGES):
+        try:
+            data = gh_graphql(
+                _CHECKS_PAGE_QUERY,
+                {
+                    "owner": owner,
+                    "repo": repo,
+                    "oid": oid,
+                    "number": pr_number,
+                    "cursor": cursor,
+                },
+            )
+        except RuntimeError:
+            return extras, False
+        commit_obj = (data.get("repository") or {}).get("object") or {}
+        rollup = commit_obj.get("statusCheckRollup") or {}
+        contexts_obj = rollup.get("contexts") or {}
+        extras.extend(contexts_obj.get("nodes") or [])
+        page_info = contexts_obj.get("pageInfo") or {}
+        if not page_info.get("hasNextPage", False):
+            return extras, True
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            return extras, False
+
+    return extras, False
+
+
 def fetch_checks(
     owner: str, repo: str, pr_number: int,
 ) -> dict:
@@ -270,7 +354,8 @@ def fetch_checks(
         }
 
     commit = commits[0]
-    rollup = commit.get("commit", {}).get("statusCheckRollup")
+    commit_obj = commit.get("commit", {}) or {}
+    rollup = commit_obj.get("statusCheckRollup")
     if not rollup:
         return {
             "Number": pr.get("number"),
@@ -280,7 +365,22 @@ def fetch_checks(
         }
 
     overall_state = rollup.get("state", "UNKNOWN")
-    context_nodes = rollup.get("contexts", {}).get("nodes", [])
+    contexts_obj = rollup.get("contexts", {}) or {}
+    context_nodes = list(contexts_obj.get("nodes", []) or [])
+    page_info = contexts_obj.get("pageInfo") or {}
+    total_contexts = contexts_obj.get("totalCount")
+    pages_complete = True
+    if page_info.get("hasNextPage", False):
+        extras, pages_complete = _paginate_contexts(
+            owner,
+            repo,
+            pr_number,
+            commit_obj.get("oid", ""),
+            page_info.get("endCursor"),
+        )
+        context_nodes.extend(extras)
+    elif total_contexts is not None:
+        pages_complete = total_contexts <= len(context_nodes)
 
     checks = []
     for ctx in context_nodes:
@@ -295,6 +395,7 @@ def fetch_checks(
         "Checks": checks,
         "OverallState": overall_state,
         "HasChecks": True,
+        "ChecksIncomplete": not pages_complete,
     }
 
 
@@ -340,11 +441,13 @@ def build_output(
     passed_count = sum(1 for c in filtered_checks if c.get("IsPassing"))
 
     has_checks = check_data.get("HasChecks", False)
+    checks_incomplete = bool(check_data.get("ChecksIncomplete", False))
     all_passing = (
         has_checks
         and len(filtered_checks) > 0
         and failed_count == 0
         and pending_count == 0
+        and not checks_incomplete
     )
 
     # Extract lists of pending and failed required checks for structured
@@ -378,7 +481,7 @@ def build_output(
         # was still empty (transient GraphQL race), distinguishing it from a
         # PR that genuinely has no checks (HasChecks False, ChecksIncomplete
         # False). See #2304. Set authoritatively by main() under --wait.
-        "ChecksIncomplete": False,
+        "ChecksIncomplete": checks_incomplete,
         # Lists of required check names by verdict, for structured output.
         # Helps downstream agents distinguish pending required checks from
         # failed ones and from non-required checks.
@@ -492,6 +595,9 @@ def main(argv: list[str] | None = None) -> int:
             return 3
 
         output = build_output(check_data, owner, repo, args.required_only)
+        checks_incomplete = checks_incomplete or bool(
+            output.get("ChecksIncomplete", False)
+        )
 
         # Under --wait, an empty present rollup is usually a transient GraphQL
         # race, not "no checks configured". Keep polling only when GitHub
