@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = str(
     _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "validate_pr_description.py"
@@ -217,3 +219,71 @@ class TestInlineCitationStripping:
         extract = self._import_extract()
         body = "See\n`scripts/next_line.py`: updated validator logic."
         assert "scripts/next_line.py" in extract(body)
+
+
+def _import_extract_mentioned_files():
+    """Load extract_mentioned_files from pr_description.py by path."""
+    import importlib.util
+
+    pr_desc_path = str(_REPO_ROOT / "scripts" / "validation" / "pr_description.py")
+    spec = importlib.util.spec_from_file_location("pr_desc_link_mod", pr_desc_path)
+    assert spec is not None
+    assert spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["pr_desc_link_mod"] = mod
+    spec.loader.exec_module(mod)
+    return mod.extract_mentioned_files
+
+
+class TestMarkdownLinkTargetExtraction:
+    """Tests for #2113: markdown link targets [label](path.ext) are extracted.
+
+    Before the fifth FILE_MENTION_PATTERNS entry, only the bracket label
+    ([config.json]) was captured. The inline-link target ([text](path.ext))
+    was dropped, so a PR body that cited a changed file only as a link target
+    escaped the description-vs-diff drift check.
+    """
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            ("Updated [label](config.json) for the gate.", "config.json"),
+            (
+                "See [the workflow](.github/workflows/ci.yml) for details.",
+                ".github/workflows/ci.yml",
+            ),
+            (
+                "Touched [parser](scripts/validation/pr_description.py) here.",
+                "scripts/validation/pr_description.py",
+            ),
+        ],
+    )
+    def test_link_target_extracted(self, body: str, expected: str):
+        extract = _import_extract_mentioned_files()
+        assert expected in extract(body)
+
+    def test_label_form_still_extracted(self):
+        """The pre-existing [config.json] label form keeps working."""
+        extract = _import_extract_mentioned_files()
+        body = "The `[config.json]` reference still resolves."
+        assert "config.json" in extract(body)
+
+    def test_link_target_respects_double_extension_boundary(self):
+        """_EXT_BOUNDARY rejects a backup suffix on a link target."""
+        extract = _import_extract_mentioned_files()
+        body = "Restored from [backup](path/to/runs.json.bak) earlier."
+        mentioned = extract(body)
+        assert "runs.json" not in mentioned
+        assert "path/to/runs.json.bak" not in mentioned
+
+    def test_link_target_respects_longer_extension_boundary(self):
+        """A jsonl link target must not collapse to json (issue #1874 boundary)."""
+        extract = _import_extract_mentioned_files()
+        body = "Wrote [results](data/runs.jsonl) for analysis."
+        assert "data/runs.json" not in extract(body)
+
+    def test_link_target_last_segment_extension_matches(self):
+        """A genuine multi-dotted filename whose last segment is a known ext matches."""
+        extract = _import_extract_mentioned_files()
+        body = "Generated [config](build/tsconfig.spec.json) output."
+        assert "build/tsconfig.spec.json" in extract(body)
