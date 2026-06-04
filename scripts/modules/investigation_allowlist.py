@@ -1,7 +1,7 @@
 """Shared investigation-only allowlist for ADR-034 QA exemption.
 
 Single source of truth for investigation artifact path patterns.
-Consumers: validate_session_json.py and the session skill.
+Consumers: validate_session_json.py, the session skill, validate_investigation_claims.py, and tests.
 
 See: ADR-034 Investigation Session QA Exemption
 """

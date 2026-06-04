@@ -31,9 +31,9 @@ SO THAT session operations have one active entrypoint and no dead markdown-to-JS
 
 ## Context
 
-Issue #1946 covers the second skill-catalog prune milestone. The `session-qa-eligibility` behavior was already folded into `session`: the `session` skill owns `Test-InvestigationEligibility` and the ADR-034 allowlist. The remaining M2 work removes the one-shot `session-migration` skill after auditing that active session logs are created as JSON.
+Issue #1946 covers the second skill-catalog prune milestone. The `session-qa-eligibility` behavior was already folded into `session`: the `session` skill owns `Test-InvestigationEligibility` and the ADR-034 allowlist. This PR covers the M2 skill-catalog subset: removing the one-shot `session-migration` skill after auditing that active session logs are created as JSON.
 
-Historical markdown files under `.agents/sessions/` remain an archive. They are not active inputs to `validate_session_json.py`, which validates explicit JSON paths.
+Historical markdown files under `.agents/sessions/` remain an archive. They are not active inputs to `validate_session_json.py`, which validates explicit JSON paths. Issue #1946's stricter AC6 wording about zero markdown session logs remains follow-up work, so this PR references the issue rather than closing it.
 
 ## Acceptance Criteria
 
