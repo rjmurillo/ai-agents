@@ -768,25 +768,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
-        run: |
-          if [ -z "$PR_NUMBER" ]; then
-            echo "::error::PR_NUMBER environment variable is missing"
-            exit 1
-          fi
-          if [ -z "$REPORT_FILE" ]; then
-            echo "::error::REPORT_FILE environment variable is missing"
-            exit 1
-          fi
-          if [ ! -f "$REPORT_FILE" ]; then
-            echo "::error::Report file not found: $REPORT_FILE"
-            exit 1
-          fi
-          python3 .github/scripts/run_with_retry.py -- \
-            python3 .github/scripts/post_issue_comment.py \
-            --issue "$PR_NUMBER" \
-            --body-file "$REPORT_FILE" \
-            --marker "AI-PR-QUALITY-GATE" \
-            --update-if-exists
+        run: python3 scripts/quality_gate/post_pr_comment.py
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'
