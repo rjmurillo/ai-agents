@@ -1,10 +1,12 @@
-"""Committed-artifact regression for the Copilot PreToolUse dispatcher cutover.
+"""Committed-artifact regression for the Copilot universal dispatcher cutover.
 
-ADR-068 / #2295. Asserts the generated src/copilot-cli/hooks/ tree consolidates
-the tool-gating event (PreToolUse) to one dispatcher entry and that the
-generated entrypoint runs the real guard set in one process with correct
-allow/deny behavior. Observational events keep per-shim entries. Runs in CI
-against the committed artifacts using this repo as the plugin root.
+ADR-068 / #2295 / #2342. Asserts the generated src/copilot-cli/hooks/ tree
+consolidates EVERY event to one dispatcher entry, that the tool-gating event
+(PreToolUse) runs in gate mode (fail-closed short-circuit, unchanged) and the
+observational events (PostToolUse, SessionStart, SessionEnd, UserPromptSubmit)
+run in observe mode (all shims run, exit 0), and that the generated entrypoint
+runs the real guard set in one process with the right behavior per mode. Runs
+in CI against the committed artifacts using this repo as the plugin root.
 """
 
 from __future__ import annotations
@@ -19,6 +21,8 @@ _REPO = Path(__file__).resolve().parents[2]
 _COPILOT = _REPO / "src" / "copilot-cli"
 _HOOKS_JSON = _COPILOT / "hooks" / "hooks.json"
 _GATING = "PreToolUse"
+_OBSERVE_EVENTS = ("PostToolUse", "SessionStart", "SessionEnd", "UserPromptSubmit")
+_ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 
 
 def _hooks() -> dict:
@@ -39,31 +43,38 @@ def _run_entry(event: str, payload: dict) -> subprocess.CompletedProcess:
 
 
 class TestDispatcherArtifacts:
-    def test_gating_event_is_one_dispatcher_entry(self):
-        entries = _hooks()[_GATING]
-        assert len(entries) == 1, f"{_GATING}: expected 1 dispatcher entry, got {len(entries)}"
-        assert f"/hooks/{_GATING}/_dispatch.py" in entries[0]["bash"]
-        assert f"/hooks/{_GATING}/_dispatch.py" in entries[0]["powershell"]
+    def test_every_event_is_one_dispatcher_entry(self):
+        hooks = _hooks()
+        # #2342: exactly five events, each collapsed to a single dispatcher entry.
+        assert set(hooks) == set(_ALL_EVENTS), f"unexpected event set: {sorted(hooks)}"
+        for event in _ALL_EVENTS:
+            entries = hooks[event]
+            assert len(entries) == 1, f"{event}: expected 1 dispatcher entry, got {len(entries)}"
+            assert f"/hooks/{event}/_dispatch.py" in entries[0]["bash"]
+            assert f"/hooks/{event}/_dispatch.py" in entries[0]["powershell"]
 
-    def test_observational_events_stay_per_shim(self):
-        # Only the tool-gating event is consolidated; the rest keep per-shim
-        # entries so the host runs all observers (no short-circuit change).
-        for event, entries in _hooks().items():
-            if event == _GATING:
-                continue
-            assert not any("_dispatch.py" in e.get("bash", "") for e in entries), (
-                f"{event}: unexpectedly consolidated"
+    def test_manifest_modes_match_event_role(self):
+        # PreToolUse gates (fail-closed); the rest observe (run all, exit 0).
+        for event in _ALL_EVENTS:
+            manifest = json.loads(
+                (_COPILOT / "hooks" / event / "_manifest.json").read_text()
             )
+            expected = "gate" if event == _GATING else "observe"
+            assert manifest["mode"] == expected, f"{event}: mode={manifest['mode']!r}"
 
-    def test_gating_manifest_and_entrypoint_present(self):
-        event_dir = _COPILOT / "hooks" / _GATING
-        assert (event_dir / "_dispatch.py").is_file()
-        manifest = json.loads((event_dir / "_manifest.json").read_text())
-        assert manifest["shims"], "empty manifest"
-        assert set(manifest["timeouts"]) == set(manifest["shims"])
-        assert _hooks()[_GATING][0]["timeoutSec"] == sum(manifest["timeouts"].values())
-        for shim in manifest["shims"]:
-            assert (event_dir / shim).is_file(), f"manifest shim {shim} missing on disk"
+    def test_each_event_has_manifest_entrypoint_and_bootstrap(self):
+        for event in _ALL_EVENTS:
+            event_dir = _COPILOT / "hooks" / event
+            assert (event_dir / "_dispatch.py").is_file(), f"{event}: no _dispatch.py"
+            # The entrypoint imports ensure_plugin_paths from a sibling
+            # _bootstrap.py; every consolidated event dir needs its own copy.
+            assert (event_dir / "_bootstrap.py").is_file(), f"{event}: no _bootstrap.py"
+            manifest = json.loads((event_dir / "_manifest.json").read_text())
+            assert manifest["shims"], f"{event}: empty manifest"
+            assert set(manifest["timeouts"]) == set(manifest["shims"])
+            assert _hooks()[event][0]["timeoutSec"] == sum(manifest["timeouts"].values())
+            for shim in manifest["shims"]:
+                assert (event_dir / shim).is_file(), f"{event}: manifest shim {shim} missing"
 
     def test_pretooluse_allows_non_matching_tool(self):
         proc = _run_entry(_GATING, {"tool_name": "____NoSuchTool____", "tool_input": {}})
@@ -77,3 +88,14 @@ class TestDispatcherArtifacts:
         )
         assert proc.returncode != 0, "dispatcher allowed a tool a guard blocks"
         assert b"Raw" in proc.stdout or b"Blocked" in proc.stdout or b"skill" in proc.stderr.lower()
+
+    def test_observe_events_run_in_one_process_and_return_zero(self):
+        # Each observational dispatcher runs its real shim set end to end and
+        # returns 0 (observe mode never gates). This exercises the committed
+        # artifact under the real plugin-root contract, not a string match.
+        for event in _OBSERVE_EVENTS:
+            proc = _run_entry(event, {"tool_name": "Read", "tool_input": {}})
+            assert proc.returncode == 0, (
+                f"{event}: observe dispatcher returned {proc.returncode}\n"
+                f"{proc.stderr.decode()[:600]}"
+            )
