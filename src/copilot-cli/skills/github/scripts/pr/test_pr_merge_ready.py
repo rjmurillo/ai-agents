@@ -528,18 +528,17 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     return mergeable
 
 
-# GitHub computes mergeability asynchronously and can leave a PR in
-# ``mergeable == "CONFLICTING"`` / ``mergeStateStatus in {"DIRTY",
-# "CONFLICTING"}`` after the base branch advanced, even when the branch is
-# already an ancestor of the base and a local merge is clean (issue #2368,
-# observed on PR #2334). These are the only states where a safe base-ref
-# refresh is the documented remedy, so they are the only states for which the
-# advisory fires.
+# GitHub reports conflicts in two places:
+# - mergeable field: set to "CONFLICTING" when a real merge conflict exists.
+# - mergeStateStatus field: set to "DIRTY" when the status cache is stale.
+# These are the only states where a safe base-ref refresh is the documented
+# remedy, so they are the only states for which the stale-conflict advisory
+# fires (issue #2368, observed on PR #2334).
 _STALE_DIRTY_MERGEABLE = frozenset({"CONFLICTING"})
-_STALE_DIRTY_STATE = frozenset({"DIRTY", "CONFLICTING"})
+_STALE_DIRTY_STATE = frozenset({"DIRTY"})
 
 
-def stale_dirty_suspected(mergeable: str, merge_state_status: str) -> bool:
+def stale_dirty_suspected(mergeable: str | None, merge_state_status: str | None) -> bool:
     """Report whether a reported conflict may be a stale GitHub cache.
 
     Returns ``True`` when GitHub reports a DIRTY/CONFLICTING conflict, which is
@@ -550,14 +549,18 @@ def stale_dirty_suspected(mergeable: str, merge_state_status: str) -> bool:
     as stale and issuing a safe base-ref refresh. When the local check shows a
     real conflict, the conflict is authoritative and the PR stays blocked.
 
+    Detection works on two fields:
+    - mergeable == "CONFLICTING": real merge conflict detected by GitHub
+    - mergeStateStatus == "DIRTY": stale cache (status computation incomplete)
+
     The script is a pure GitHub-API probe with no working tree, so it cannot run
     the ancestry check itself; it surfaces the suspicion and defers the
     git-truth decision to the caller. Safe fallback: absent a local refresh,
     ``CanMerge`` stays ``False``, so a true conflict is never silently merged.
     """
     return (
-        mergeable in _STALE_DIRTY_MERGEABLE
-        or merge_state_status in _STALE_DIRTY_STATE
+        (mergeable or "") in _STALE_DIRTY_MERGEABLE
+        or (merge_state_status or "") in _STALE_DIRTY_STATE
     )
 
 
@@ -856,7 +859,7 @@ def check_merge_readiness(
         "Mergeable": mergeable,
         "MergeStateStatus": pr.get("mergeStateStatus", ""),
         "StaleDirtySuspected": stale_dirty_suspected(
-            mergeable, pr.get("mergeStateStatus", "")
+            mergeable or "", pr.get("mergeStateStatus") or ""
         ),
         "UnresolvedThreads": unresolved_count,
         "TotalThreads": total_threads,

@@ -789,7 +789,6 @@ class TestStaleDirtySuspected:
             ("CONFLICTING", "DIRTY"),       # both signals present
             ("CONFLICTING", "CLEAN"),       # mergeable signal alone
             ("MERGEABLE", "DIRTY"),         # state signal alone
-            ("UNKNOWN", "CONFLICTING"),     # state == CONFLICTING alone
         ],
     )
     def test_flags_dirty_or_conflicting(self, mergeable, merge_state_status):
