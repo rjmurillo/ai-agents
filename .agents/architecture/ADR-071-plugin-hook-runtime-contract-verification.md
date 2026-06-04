@@ -1,4 +1,4 @@
-# ADR-063: Plugin Hook Runtime-Contract Verification
+# ADR-071: Plugin Hook Runtime-Contract Verification
 
 ## Status
 
@@ -6,7 +6,7 @@ Accepted (2026-06-02, six-agent adr-review: 2 Accept, 4 Disagree-and-Commit, 0
 Block). The P0 dissent proposed a committed launcher-level fail-open follow-up;
 that was subsequently rejected in favor of prevention plus loud failure (issue
 #2230 closed addressed-by-prevention), and Decision item 5 records the
-fail-closed position. Debate log: `.agents/critique/ADR-063-debate-log.md`.
+fail-closed position. Debate log: `.agents/critique/ADR-071-debate-log.md`.
 
 ## Date
 
@@ -219,7 +219,7 @@ item 5.)
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke (forced in pre-push).
 - Serena memory `decision-copilot-cli-hook-plugin-root-contract`. Verified contract.
 - `.github/workflows/validate-plugin-manifests.yml`. Server-side anchoring gate.
-- `.agents/critique/ADR-063-debate-log.md`. Six-agent review debate.
+- `.agents/critique/ADR-071-debate-log.md`. Six-agent review debate.
 - Issues #2205 (fix), #2223 (module-size/complexity debt), #2230 (launcher
   fail-open, closed: rejected, addressed-by-prevention), #2231 (Windows
   contract sim, glob artifact discovery, authenticated nightly smoke).

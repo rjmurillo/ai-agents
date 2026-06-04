@@ -1,6 +1,6 @@
-# ADR-063 Review Debate Log
+# ADR-071 Review Debate Log (renumbered from ADR-063)
 
-**ADR**: `.agents/architecture/ADR-063-plugin-hook-runtime-contract-verification.md`
+**ADR**: `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` (renumbered from ADR-063 per #2228)
 **Date**: 2026-06-02
 **Protocol**: 6-agent adr-review (architect, critic, independent-thinker, security, analyst, high-level-advisor)
 **Outcome**: Consensus reached. 2 Accept, 4 Disagree-and-Commit, 0 Block. P0/P1 dissents resolved in revision.
@@ -34,4 +34,4 @@ No Pass-Through (all agents produced substantive, cited findings). No Groundhog 
 
 ## Disposition
 
-ADR-063 status set to Accepted. All P0 issues resolved in code/ADR; all P1 issues resolved or tracked with an issue (#2230, #2231). Dissent preserved here.
+ADR-071 status set to Accepted. All P0 issues resolved in code/ADR; all P1 issues resolved or tracked with an issue (#2230, #2231). Dissent preserved here.
