@@ -19,7 +19,20 @@ from pathlib import Path
 
 
 def _find_hooks_dir(root: Path) -> str | None:
-    """Return hooks dir, trying both PreToolUse (Claude) and preToolUse (copilot-cli)."""
+    """Return the event-hooks dir this bootstrap belongs to.
+
+    The dispatcher (ADR-068, #2342) copies one ``_bootstrap.py`` into EVERY
+    consolidated event dir (``PreToolUse``, ``PostToolUse``, ``SessionStart``,
+    ``SessionEnd``, ``UserPromptSubmit``). A guard imports its same-event
+    siblings (e.g. PreToolUse's ``push_guard_base``), so the dir that must land
+    on ``sys.path`` is the one this file lives in, not a hard-coded
+    ``PreToolUse``. Prefer the bootstrap's own parent (the event dir); fall back
+    to the PreToolUse variants for callers that resolve from the plugin root and
+    whose own dir is not discoverable from ``root``.
+    """
+    own = Path(__file__).resolve().parent
+    if (own.parent.name == "hooks") and own.is_dir():
+        return str(own)
     for variant in ("PreToolUse", "preToolUse"):
         candidate = root / "hooks" / variant
         if candidate.is_dir():
