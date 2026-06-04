@@ -35,25 +35,27 @@ import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
-# Sibling helper modules (scan_patterns, scan_format, scan_constants) live in
-# this script's directory. When the scanner is run directly
-# (`python3 scan_vulnerabilities.py`), Python already puts that directory on
-# sys.path[0]. When the module is loaded by path via importlib (the test suite
-# does this with module name "scan_vulnerabilities"), the directory is NOT on
-# sys.path, so the sibling imports below would fail. Add the directory
-# explicitly so both invocation paths resolve the helpers.
+# Sibling helpers must import when this file is loaded by path in tests.
+# Keep any sys.path change scoped to this import block.
 _SCRIPT_DIR = str(Path(__file__).resolve().parent)
+_added_to_path = False
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
+    _added_to_path = True
 
-from scan_constants import (  # noqa: E402
-    EXIT_ERROR,
-    EXIT_SUCCESS,
-    EXIT_VULNERABILITIES,
-)
-from scan_format import format_console_output  # noqa: E402
-from scan_patterns import CWE78_PATTERNS  # noqa: E402
+try:
+    from scan_constants import (  # noqa: E402
+        EXIT_ERROR,
+        EXIT_SUCCESS,
+        EXIT_VULNERABILITIES,
+    )
+    from scan_format import format_console_output  # noqa: E402
+    from scan_patterns import CWE78_PATTERNS  # noqa: E402
+finally:
+    if _added_to_path:
+        sys.path.remove(_SCRIPT_DIR)
 
 # Re-export the sibling-module symbols so existing callers and tests that read
 # `scan_vulnerabilities.CWE78_PATTERNS`, `.format_console_output`, and the exit
@@ -184,8 +186,8 @@ def scan_file(
         # Check CWE-78 patterns
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
-                # Mypy type narrowing: pattern_info["pattern"] is re.Pattern at runtime
-                if pattern_info["pattern"].search(line):  # type: ignore[attr-defined]
+                pattern = cast(re.Pattern[str], pattern_info["pattern"])
+                if pattern.search(line):
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:
@@ -219,6 +221,12 @@ def format_json_output(result: ScanResult) -> str:
     CWE-22 detection moved to CodeQL (PR #1851, see
     `.agents/architecture/ADR-054-local-security-scanning.md` amendment).
     """
+    by_cwe: dict[str, int] = {}
+    by_severity: dict[str, int] = {}
+    for vuln in result.vulnerabilities:
+        by_cwe[vuln.cwe] = by_cwe.get(vuln.cwe, 0) + 1
+        by_severity[vuln.severity] = by_severity.get(vuln.severity, 0) + 1
+
     output = {
         "schema_version": _JSON_SCHEMA_VERSION,
         "scan_timestamp": result.scan_timestamp,
@@ -240,8 +248,8 @@ def format_json_output(result: ScanResult) -> str:
         "errors": result.errors,
         "summary": {
             "total": len(result.vulnerabilities),
-            "by_cwe": {},
-            "by_severity": {},
+            "by_cwe": by_cwe,
+            "by_severity": by_severity,
             # Delegated CWE classes — this scanner does not detect them; the named
             # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
             # this scanner means "not detected here", NOT "no findings"; use the
@@ -259,18 +267,10 @@ def format_json_output(result: ScanResult) -> str:
         "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
     }
 
-    # Mypy type narrowing: output is dict[str, Any] at runtime
-    summary = output["summary"]  # type: ignore[index]
-    by_cwe = summary["by_cwe"]  # type: ignore[index]
-    by_severity = summary["by_severity"]  # type: ignore[index]
-    for vuln in result.vulnerabilities:
-        by_cwe[vuln.cwe] = by_cwe.get(vuln.cwe, 0) + 1
-        by_severity[vuln.severity] = by_severity.get(vuln.severity, 0) + 1
-
     return json.dumps(output, indent=2)
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
@@ -335,15 +335,15 @@ def main():
     # accepted for backward compatibility (with a stderr warning) and any
     # other value is a typo that would otherwise produce a misleading
     # zero-finding result.
-    _SUPPORTED_CWES = {78}
-    _DELEGATED_CWES = {22}
+    supported_cwes = {78}
+    delegated_cwes = {22}
     if args.cwe:
-        unsupported = set(args.cwe) - _SUPPORTED_CWES - _DELEGATED_CWES
+        unsupported = set(args.cwe) - supported_cwes - delegated_cwes
         if unsupported:
             print(
                 f"ERROR: --cwe {sorted(unsupported)} not supported by this "
-                f"scanner. Supported: {sorted(_SUPPORTED_CWES)} "
-                f"(delegated to other tools: {sorted(_DELEGATED_CWES)}).",
+                f"scanner. Supported: {sorted(supported_cwes)} "
+                f"(delegated to other tools: {sorted(delegated_cwes)}).",
                 file=sys.stderr,
             )
             sys.exit(EXIT_ERROR)

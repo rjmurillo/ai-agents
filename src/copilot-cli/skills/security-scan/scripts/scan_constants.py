@@ -1,7 +1,7 @@
 """Exit-code constants for the security scanner (ADR-035 compliant).
 
 Single source of truth shared by ``scan_vulnerabilities.py`` (the entry point)
-and ``_format.py`` (console formatter). Extracted so the formatter can reference
+and ``scan_format.py`` (console formatter). Extracted so the formatter can reference
 ``EXIT_VULNERABILITIES`` without importing the main module, which would create an
 import cycle. The values are unchanged from the original inline definitions.
 

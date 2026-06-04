@@ -30,10 +30,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 import pytest
 
@@ -62,6 +64,36 @@ def _load_scanner() -> ModuleType:
 scanner = _load_scanner()
 
 
+def test_path_based_import_removes_temporary_sibling_import_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Path-based import must not leave the scanner directory on sys.path."""
+    script_dir = str(SCANNER_PATH.parent)
+    monkeypatch.setattr(
+        sys,
+        "path",
+        [entry for entry in sys.path if entry != script_dir],
+    )
+    for module_name in [
+        "scan_constants",
+        "scan_format",
+        "scan_patterns",
+        "scan_vulnerabilities_path_isolation",
+    ]:
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    spec = importlib.util.spec_from_file_location(
+        "scan_vulnerabilities_path_isolation",
+        SCANNER_PATH,
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "scan_vulnerabilities_path_isolation", module)
+    spec.loader.exec_module(module)
+
+    assert script_dir not in sys.path
+
+
 def _descriptions_for(language: str, line: str) -> list[str]:
     """Return descriptions of every CWE-78 pattern that matches `line`.
 
@@ -69,11 +101,12 @@ def _descriptions_for(language: str, line: str) -> list[str]:
     checked against the whole pattern set for a language. Used by the
     parametrized positive and negative pattern tests.
     """
-    return [
-        str(info["description"])
-        for info in scanner.CWE78_PATTERNS[language]
-        if info["pattern"].search(line)  # type: ignore[attr-defined]
-    ]
+    descriptions = []
+    for info in scanner.CWE78_PATTERNS[language]:
+        pattern = cast(re.Pattern[str], info["pattern"])
+        if pattern.search(line):
+            descriptions.append(str(info["description"]))
+    return descriptions
 
 
 def _write(tmp_path: Path, name: str, body: str) -> str:
