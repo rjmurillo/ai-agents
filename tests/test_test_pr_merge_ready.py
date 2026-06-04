@@ -98,18 +98,6 @@ class TestBuildParser:
         assert args.ignore_ci is True
         assert args.ignore_threads is True
 
-    def test_allow_blocked_defaults_false(self):
-        # issue #2326: BLOCKED blocks by default, so --allow-blocked must be
-        # opt-in (default False) rather than the prior implicit allow.
-        args = build_parser().parse_args(["--pull-request", "1"])
-        assert args.allow_blocked is False
-
-    def test_allow_blocked_flag(self):
-        args = build_parser().parse_args([
-            "--pull-request", "1", "--allow-blocked",
-        ])
-        assert args.allow_blocked is True
-
 
 # ---------------------------------------------------------------------------
 # Tests: check_merge_readiness
@@ -197,18 +185,13 @@ class TestCheckMergeReadiness:
             f"reasons: {result['Reasons']}"
         )
 
-    def test_blocked_state_ready_with_allow_blocked(self):
-        # Auto-merge-eligible path preserved behind an explicit opt-in
-        # (the fd62812b5 / #2303 intent): when a pending required review is
-        # the sole blocker, --allow-blocked (allow_blocked=True) classifies
-        # BLOCKED as allowed so CanMerge is True. The state is still surfaced
-        # via MergeStateStatus.
+    def test_null_merge_state_status_normalizes_to_empty_string(self):
         pr_data = json.loads(json.dumps(_OPEN_PR))
-        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BLOCKED"
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = None
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
-            result = check_merge_readiness("o", "r", 42, allow_blocked=True)
+            result = check_merge_readiness("o", "r", 42)
         assert result["CanMerge"] is True
-        assert result["MergeStateStatus"] == "BLOCKED"
+        assert result["MergeStateStatus"] == ""
         assert result["Reasons"] == []
 
     def test_unresolved_threads(self):

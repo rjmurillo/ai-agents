@@ -502,9 +502,12 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
     return pr
 
 
-def _evaluate_pr_state(
-    pr: dict, reasons: list[str], allow_blocked: bool = False
-) -> str:
+def _merge_state_status(pr: dict) -> str:
+    value = pr.get("mergeStateStatus")
+    return "" if value is None else str(value)
+
+
+def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     """Append draft/state/merge-conflict reasons; return mergeable string.
 
     Also gates on ``mergeStateStatus == BEHIND`` (issue #2157): a branch
@@ -513,23 +516,16 @@ def _evaluate_pr_state(
     ``DIRTY``, and ``UNKNOWN`` are already covered by the ``isDraft`` and
     ``mergeable`` checks.
 
-    ``mergeStateStatus == BLOCKED`` blocks by default (issue #2326). A
-    BLOCKED state means GitHub's branch protection still refuses the merge:
-    a missing required review decision, an unmet branch-protection rule, or
-    another protection gate. The previous behavior treated BLOCKED as a
-    pass on the theory that "awaiting required review" is when enabling
-    auto-merge is correct; that produced a false ready signal for PRs that
-    branch protection actually refused (observed on PR #2323) and conflicted
-    with this repo's own four-condition merge gate
-    (``.claude/commands/pr-autofix.md``, ``.claude/commands/pr-review-config.yaml``),
-    which both require ``mergeStateStatus in ('CLEAN', 'UNSTABLE')``.
-
-    The auto-merge-eligible case (a clean PR that is only BLOCKED because a
-    required review is still pending) stays available behind an explicit
-    opt-in: pass ``allow_blocked=True`` (CLI ``--allow-blocked``) to classify
-    BLOCKED as allowed. When allowed, no reason is appended, but the state is
-    still surfaced via the ``MergeStateStatus`` output field so callers can
-    see it.
+    ``mergeStateStatus == BLOCKED`` blocks (issue #2326). A BLOCKED state
+    means GitHub's branch protection still refuses the merge: a missing
+    required review decision, an unmet branch-protection rule, or another
+    protection gate. The previous behavior treated BLOCKED as a pass on the
+    theory that "awaiting required review" is when enabling auto-merge is
+    correct; that produced a false ready signal for PRs that branch protection
+    actually refused (observed on PR #2323) and conflicted with this repo's
+    own four-condition merge gate (``.claude/commands/pr-autofix.md``,
+    ``.claude/commands/pr-review-config.yaml``), which both require
+    ``mergeStateStatus in ('CLEAN', 'UNSTABLE')``.
     """
     if pr["state"] != "OPEN":
         reasons.append(f"PR is {pr['state'].lower()}, not open")
@@ -540,14 +536,13 @@ def _evaluate_pr_state(
         reasons.append("PR has merge conflicts")
     elif mergeable == "UNKNOWN":
         reasons.append("Merge status is being calculated")
-    merge_state = pr.get("mergeStateStatus")
+    merge_state = _merge_state_status(pr)
     if merge_state == "BEHIND":
         reasons.append("Branch is behind base; update against the base branch before merging")
-    elif merge_state == "BLOCKED" and not allow_blocked:
+    elif merge_state == "BLOCKED":
         reasons.append(
             "Merge blocked by branch protection (missing review decision or "
-            "unmet protection rule); pass --allow-blocked only when a pending "
-            "required review is the sole blocker and auto-merge will land it"
+            "unmet protection rule)"
         )
     return mergeable
 
@@ -812,14 +807,14 @@ def check_merge_readiness(
     ignore_ci: bool = False,
     ignore_threads: bool = False,
     include_non_required: bool = False,
-    allow_blocked: bool = False,
 ) -> dict:
     """Check if a PR is ready to merge. Sergeant orchestrator."""
     op_start = time.monotonic()
     pr = _fetch_pr_data(owner, repo, pr_number, op_start)
 
     reasons: list[str] = []
-    mergeable = _evaluate_pr_state(pr, reasons, allow_blocked)
+    merge_state = _merge_state_status(pr)
+    mergeable = _evaluate_pr_state(pr, reasons)
     unresolved_count, total_threads, threads_pages_complete = _evaluate_review_threads(
         pr, ignore_threads, reasons, owner, repo, pr_number,
     )
@@ -846,7 +841,7 @@ def check_merge_readiness(
         "State": pr["state"],
         "IsDraft": pr.get("isDraft", False),
         "Mergeable": mergeable,
-        "MergeStateStatus": pr.get("mergeStateStatus", ""),
+        "MergeStateStatus": merge_state,
         "UnresolvedThreads": unresolved_count,
         "TotalThreads": total_threads,
         "FailedRequiredChecks": failed_required,
@@ -888,15 +883,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-non-required", action="store_true",
         help="Non-required check failures also block merge",
     )
-    parser.add_argument(
-        "--allow-blocked", action="store_true",
-        help=(
-            "Classify mergeStateStatus=BLOCKED as allowed (does not block "
-            "CanMerge). Use only when a pending required review is the sole "
-            "blocker and auto-merge will land it; BLOCKED blocks by default "
-            "(issue #2326)."
-        ),
-    )
     return parser
 
 
@@ -915,7 +901,6 @@ def main(argv: list[str] | None = None) -> int:
         ignore_ci=args.ignore_ci,
         ignore_threads=args.ignore_threads,
         include_non_required=args.include_non_required,
-        allow_blocked=args.allow_blocked,
     )
 
     print(json.dumps(result, indent=2))
