@@ -1,9 +1,9 @@
 {
-  "id": "episode-2026-06-04-session-2363",
-  "session": "2026-06-04-session-2363",
+  "id": "episode-2026-06-04-session-2364",
+  "session": "2026-06-04-session-2364",
   "timestamp": "2026-06-04T00:00:00+00:00",
   "outcome": "success",
-  "task": "Autofix and merge PR #2363 K1-K4 kill-criteria telemetry after review threads and CI gates pass.",
+  "task": "Retry PR 2357 from true remote head, merge current main, resolve causal graph conflict, validate gates, and merge if ready.",
   "decisions": [],
   "events": [],
   "metrics": {
