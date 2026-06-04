@@ -231,8 +231,54 @@ CWE78_PATTERNS = {
 }
 
 
+# Shebang interpreters mapped to the scanner's language keys. Covers the common
+# forms a Bash hook uses: "#!/usr/bin/env bash", "#!/bin/bash", "#!/bin/sh", and
+# "#!/usr/bin/env sh". POSIX "sh" scripts share the CWE-78 surface (command
+# substitution, eval) the bash patterns target, so they map to "bash" too.
+_SHEBANG_INTERPRETERS = {
+    "bash": "bash",
+    "sh": "bash",
+}
+
+
+def detect_shebang_language(file_path: str) -> str | None:
+    """Detect language from a script's shebang line for extensionless files.
+
+    Reads only the first line. Returns a language key when the shebang names a
+    known interpreter (bash or sh), else None. Files that cannot be read (binary,
+    missing, permission denied) return None rather than raising, so the caller's
+    extensionless fallback degrades to "unsupported" instead of crashing.
+    """
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            first_line = f.readline()
+    except OSError:
+        return None
+
+    if not first_line.startswith("#!"):
+        return None
+
+    # The interpreter is the basename of the path, or the argument after
+    # "env". Examples: "#!/bin/bash" -> "bash"; "#!/usr/bin/env bash" -> "bash".
+    tokens = first_line[2:].strip().split()
+    if not tokens:
+        return None
+
+    interpreter = os.path.basename(tokens[0])
+    if interpreter == "env" and len(tokens) > 1:
+        interpreter = os.path.basename(tokens[1])
+
+    return _SHEBANG_INTERPRETERS.get(interpreter)
+
+
 def get_language(file_path: str) -> str | None:
-    """Detect language from file extension."""
+    """Detect language from file extension, falling back to shebang detection.
+
+    Files with a recognized extension resolve by extension. Files with no
+    recognized extension (for example, the executable Bash hook
+    ``.githooks/pre-push``) fall back to reading the shebang line so they are
+    not silently skipped as unsupported. Refs issue #2367.
+    """
     ext = Path(file_path).suffix.lower()
     language_map = {
         ".py": "python",
@@ -242,7 +288,11 @@ def get_language(file_path: str) -> str | None:
         ".bash": "bash",
         ".cs": "csharp",
     }
-    return language_map.get(ext)
+    language = language_map.get(ext)
+    if language is not None:
+        return language
+
+    return detect_shebang_language(file_path)
 
 
 def get_staged_files() -> list[str]:
@@ -264,13 +314,21 @@ def get_staged_files() -> list[str]:
 
 
 def get_directory_files(directory: str) -> list[str]:
-    """Get all scannable files from a directory."""
+    """Get all scannable files from a directory.
+
+    Includes files with a recognized extension plus extensionless files whose
+    shebang names a supported interpreter (for example, ``.githooks/pre-push``).
+    Refs issue #2367.
+    """
     supported_extensions = {".py", ".ps1", ".psm1", ".sh", ".bash", ".cs"}
     files = []
     for root, _, filenames in os.walk(directory):
         for filename in filenames:
+            path = os.path.join(root, filename)
             if Path(filename).suffix.lower() in supported_extensions:
-                files.append(os.path.join(root, filename))
+                files.append(path)
+            elif detect_shebang_language(path) is not None:
+                files.append(path)
     return files
 
 

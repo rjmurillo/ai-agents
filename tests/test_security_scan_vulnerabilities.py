@@ -112,6 +112,67 @@ def test_get_language_maps_extension(filename: str, expected: str | None) -> Non
 
 
 # ---------------------------------------------------------------------------
+# Shebang detection for extensionless scripts (issue #2367)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("shebang", "expected"),
+    [
+        ("#!/usr/bin/env bash\n", "bash"),
+        ("#!/bin/bash\n", "bash"),
+        ("#!/bin/sh\n", "bash"),
+        ("#!/usr/bin/env sh\n", "bash"),
+        ("#!/usr/bin/env python3\n", None),
+        ("#!/usr/bin/perl\n", None),
+        ("not a shebang\n", None),
+        ("", None),
+    ],
+)
+def test_detect_shebang_language(
+    tmp_path: Path, shebang: str, expected: str | None
+) -> None:
+    target = tmp_path / "hook"
+    target.write_text(shebang, encoding="utf-8")
+    assert scanner.detect_shebang_language(str(target)) == expected
+
+
+def test_detect_shebang_language_missing_file_returns_none(tmp_path: Path) -> None:
+    assert scanner.detect_shebang_language(str(tmp_path / "absent")) is None
+
+
+def test_get_language_falls_back_to_shebang_for_extensionless(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "pre-push"
+    target.write_text("#!/usr/bin/env bash\necho hi\n", encoding="utf-8")
+    assert scanner.get_language(str(target)) == "bash"
+
+
+def test_get_language_extensionless_without_shebang_is_none(tmp_path: Path) -> None:
+    target = tmp_path / "data"
+    target.write_text("plain text, no shebang\n", encoding="utf-8")
+    assert scanner.get_language(str(target)) is None
+
+
+def test_get_directory_files_includes_extensionless_shebang_scripts(
+    tmp_path: Path,
+) -> None:
+    hook = tmp_path / "pre-push"
+    hook.write_text("#!/usr/bin/env bash\necho hi\n", encoding="utf-8")
+    plain = tmp_path / "notes"
+    plain.write_text("no shebang here\n", encoding="utf-8")
+    py = tmp_path / "module.py"
+    py.write_text("x = 1\n", encoding="utf-8")
+
+    found = scanner.get_directory_files(str(tmp_path))
+
+    assert str(hook) in found
+    assert str(py) in found
+    assert str(plain) not in found
+
+
+# ---------------------------------------------------------------------------
 # CWE-78 positive detections, one parametrize per language
 # ---------------------------------------------------------------------------
 
@@ -487,6 +548,24 @@ def test_cli_exit_success_when_only_unsupported_files(tmp_path: Path) -> None:
     result = _run_cli(name, cwd=tmp_path)
     assert result.returncode == scanner.EXIT_SUCCESS
     assert "No supported files found" in result.stdout
+
+
+def test_cli_scans_extensionless_bash_hook(tmp_path: Path) -> None:
+    """An extensionless Bash hook (the .githooks/pre-push shape) must be scanned,
+    not skipped as unsupported. Refs issue #2367."""
+    name = _write(tmp_path, "pre-push", "#!/usr/bin/env bash\necho clean\n")
+    result = _run_cli(name, cwd=tmp_path)
+    assert result.returncode == scanner.EXIT_SUCCESS
+    assert "No supported files found" not in result.stdout
+
+
+def test_cli_detects_injection_in_extensionless_bash_hook(tmp_path: Path) -> None:
+    """The extensionless hook is scanned for real CWE-78 findings, not merely
+    recognized. Negative control for the shebang fallback. Refs issue #2367."""
+    name = _write(tmp_path, "pre-push", '#!/usr/bin/env bash\neval "$cmd"\n')
+    result = _run_cli(name, cwd=tmp_path)
+    assert result.returncode == scanner.EXIT_VULNERABILITIES
+    assert "CWE-78" in result.stdout
 
 
 def test_cli_json_output_reports_findings(tmp_path: Path) -> None:
