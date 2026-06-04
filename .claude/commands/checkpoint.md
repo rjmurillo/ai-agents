@@ -1,7 +1,7 @@
 ---
 description: Write a timestamped mid-session checkpoint snapshot of decisions, progress, and next actions to .agents/checkpoints/, then link it from the active session log.
 argument-hint: optional-short-label
-allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
+allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 -c:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
 ---
 
 # Checkpoint Command
@@ -80,8 +80,8 @@ validate the JSON.
    - Write only to the first path that does not already exist.
 
 5. Use this exact section structure. Fill each section from the current
-   conversation and git state. Write "None" under a heading when a section has no
-   content; never leave a heading empty.
+   conversation and git state. Write "(none)" under a heading when a section has
+   no content; never leave a heading empty.
 
    ```markdown
    # Checkpoint YYYYMMDD-HHMMSS
@@ -125,9 +125,15 @@ validate the JSON.
 
    - If no active session log was found in step 2, report that no active session
      log was found. Do not invent or modify a log.
-   - If the active session log exists, update a top-level `checkpoints` array. Create the
-     array when it is absent. Append an object with `path`, `created`, `label`,
-     and `branch` fields for this checkpoint. Preserve valid JSON.
+   - If the active session log exists, read the full original JSON first. Build
+     the complete updated JSON in memory with a top-level `checkpoints` array.
+     Create the array when it is absent. Append an object with `path`, `created`,
+     `label`, and `branch` fields for this checkpoint.
+   - Validate the complete updated JSON string before editing the file. Use
+     `python3 -c 'import json,sys; json.loads(sys.argv[1])' '<updated-json>'`.
+     If validation fails, leave the original session log unchanged and report the
+     failure.
+   - Persist the updated JSON only after the validate-first step succeeds.
    - Run `python3 -m json.tool <session-log-path>` after editing. If JSON
      validation fails, report the failure and do not claim the checkpoint was
      linked from the session log.
@@ -141,6 +147,7 @@ validate the JSON.
 - [ ] Checkpoint file path did not already exist before Write.
 - [ ] Checkpoint body was redacted with `scripts/redact_secrets.py` before Write.
 - [ ] Active session log was updated, or the "no active session log" reason was reported.
+- [ ] Updated session log JSON was validated before editing the original file.
 - [ ] Updated session log passed `python3 -m json.tool` when a log was modified.
 
 ## Anti-Patterns
@@ -148,6 +155,7 @@ validate the JSON.
 - Do not overwrite an existing checkpoint path.
 - Do not write unredacted durable text when the redactor fails.
 - Do not create or guess a session log when no active branch-matching log exists.
+- Do not edit a session log before validating the complete updated JSON string.
 - Do not commit, push, or merge from this command.
 
 ## Extension Points

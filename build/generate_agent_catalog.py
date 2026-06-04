@@ -17,7 +17,7 @@ frontmatter.
 
 EXIT CODES (ADR-035):
   0  - Success (or --check passed with no drift)
-  1  - Logic error (--check found drift, or generation failed)
+  1  - Logic error (--check found drift)
   2  - Configuration error (templates directory missing)
   3  - External error (a template could not be read or parsed)
 
