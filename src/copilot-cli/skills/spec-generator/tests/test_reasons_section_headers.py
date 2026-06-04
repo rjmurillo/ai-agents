@@ -53,17 +53,18 @@ def test_canonical_skill_has_each_reasons_label(label: str):
     assert label in section
 
 
-def test_canonical_skill_preserves_existing_five_body_sections():
-    """The REASONS labels are additive; the original 5 sections still exist."""
+def test_canonical_skill_preserves_existing_body_sections():
+    """The REASONS labels are additive; existing sections still exist."""
     section = _requirement_structure_section(
         CANONICAL_SKILL.read_text(encoding="utf-8")
     )
     for item in (
         "1. Requirement Statement (EARS format, single behavior)",
         "2. Context",
-        "3. Acceptance Criteria (checkboxes, each pass/fail testable)",
-        "4. Rationale",
-        "5. Dependencies",
+        "3. Ontology (entities this requirement touches, by canonical name; see below)",
+        "4. Acceptance Criteria (checkboxes, each pass/fail testable)",
+        "5. Rationale",
+        "6. Dependencies",
     ):
         assert item in section
 

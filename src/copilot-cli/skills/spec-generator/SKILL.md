@@ -114,7 +114,7 @@ When `/spec` Step 6 passes an OntologyFragment (the contents of `.agents/specs/o
 When no OntologyFragment is passed (a caller other than `/spec` Step 6, or a degraded run), emit the `## Ontology` section with a single line `No OntologyFragment supplied; entities named inline from the PRD data model.` so the section is never silently absent. A feature with no domain entities (config change, doc fix) renders `## Ontology` with `none (no domain entities)`; this is not an error.
 
 The body sections carry SPDD REASONS Canvas labels for interop with SPDD
-(Spec-Driven Development) tooling. R, E, and A map onto the five sections
+(Spec-Driven Development) tooling. R, E, and A map onto the six sections
 above; S, O, N, and the second S are additive labeled subsections, used only
 when the requirement needs them, that surface structure, operations, norms,
 and safeguards already partially captured in the DESIGN and TASK files. New
@@ -122,9 +122,9 @@ specs SHOULD adopt the labels; existing REQ files are not retrofitted.
 
 - **R (Requirements)**: the Requirement Statement (section 1).
 - **E (Entities)**: named domain entities and data the requirement touches,
-  recorded in Context (section 2).
+  recorded in Ontology (section 3).
 - **A (Approach)**: the chosen direction and its justification, recorded in
-  Rationale (section 4).
+  Rationale (section 5).
 - **S (Structure)**: additive. Components, modules, or boundaries the
   requirement implies; cross-references the DESIGN Component Architecture.
 - **O (Operations)**: additive. Runtime behaviors, commands, and workflows;
