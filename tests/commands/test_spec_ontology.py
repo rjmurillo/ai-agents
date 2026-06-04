@@ -83,6 +83,16 @@ def step_6_region(spec_text: str) -> str:
     return spec_text[start : min(end_candidates)]
 
 
+@pytest.fixture(scope="module")
+def step_2_region(spec_text: str) -> str:
+    """Return the substring covering Step 2 of /spec."""
+    start = spec_text.find("2. **Run the adversarial requirements interview**")
+    assert start != -1, "Step 2 anchor not found in spec.md"
+    end = spec_text.find("\n3. ", start)
+    assert end != -1, "Step 2 has no terminator (`\\n3. `)"
+    return spec_text[start:end]
+
+
 # --- Positive: the ontology elicitation step exists and is well-formed ---
 
 
@@ -138,6 +148,16 @@ def test_ontology_fragment_carried_into_step_6(step_6_region: str) -> None:
     )
     assert ".agents/specs/ontology/" in step_6_region, (
         "Step 6 must name the OntologyFragment path passed to spec-generator"
+    )
+
+
+def test_ontology_fragment_carried_into_step_2(step_2_region: str) -> None:
+    """Step 2 receives the fragment before the PRD is written."""
+    assert "OntologyFragment from Step 1" in step_2_region, (
+        "Step 2 must pass the OntologyFragment into requirements-interview"
+    )
+    assert "output PRD includes an `## Ontology` section" in step_2_region, (
+        "Step 2 must require the PRD to carry the ontology section forward"
     )
 
 
