@@ -168,13 +168,20 @@ _RETRO_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 def _is_pending_skeleton_recent(
     path: Path, cutoff_date: date, cutoff_mtime: float
 ) -> bool:
-    match = _RETRO_DATE_RE.match(path.name)
-    if match:
-        try:
-            return datetime.strptime(match.group(1), "%Y-%m-%d").date() >= cutoff_date
-        except ValueError:
-            pass
+    filename_date = _filename_date(path.name)
+    if filename_date is not None:
+        return filename_date >= cutoff_date
     return path.stat().st_mtime >= cutoff_mtime
+
+
+def _filename_date(filename: str) -> date | None:
+    match = _RETRO_DATE_RE.match(filename)
+    if not match:
+        return None
+    try:
+        return datetime.strptime(match.group(1), "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def _skeleton_dates(filenames: list[str]) -> list[str]:
@@ -187,11 +194,23 @@ def _skeleton_dates(filenames: list[str]) -> list[str]:
     seen: set[str] = set()
     dates: list[str] = []
     for name in filenames:
-        match = _RETRO_DATE_RE.match(name)
-        if match and match.group(1) not in seen:
-            seen.add(match.group(1))
-            dates.append(match.group(1))
+        filename_date = _filename_date(name)
+        if filename_date is None:
+            continue
+        date_text = filename_date.isoformat()
+        if date_text not in seen:
+            seen.add(date_text)
+            dates.append(date_text)
     return dates
+
+
+def _pending_skeleton_summary(filenames: list[str]) -> str:
+    dates = _skeleton_dates(filenames)
+    undated_count = sum(1 for name in filenames if _filename_date(name) is None)
+    parts = [f"{date_text}-auto-retro.md" for date_text in dates]
+    if undated_count:
+        parts.append(f"{undated_count} undated skeleton file(s)")
+    return ", ".join(parts) if parts else f"{len(filenames)} skeleton file(s)"
 
 
 def _write_audit_log(project_dir: str, loaded_files: list[str]) -> None:
@@ -262,7 +281,7 @@ def main() -> None:
     # and the fill command so the next interactive session can complete them.
     pending_count, pending_names = _count_pending_skeletons(retro_dir)
     if pending_count:
-        listed = ", ".join(pending_names)
+        listed = _pending_skeleton_summary(pending_names)
         dates = _skeleton_dates(pending_names)
         fill_hint = dates[0] if dates else "<date>"
         other_dates = (
