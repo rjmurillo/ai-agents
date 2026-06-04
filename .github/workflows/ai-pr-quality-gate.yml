@@ -117,26 +117,7 @@ jobs:
           GH_ACTOR: ${{ github.actor }}
           GH_EVENT_NAME: ${{ github.event_name }}
           RELEVANT: ${{ steps.filter.outputs.relevant }}
-        run: |
-          # Skip AI review for bot actors but still emit status checks
-          if [ "$GH_ACTOR" = "dependabot[bot]" ] || [ "$GH_ACTOR" = "github-actions[bot]" ]; then
-            echo "should-run=false" >> $GITHUB_OUTPUT
-            echo "Decision: Skip review (bot actor: $GH_ACTOR)"
-          elif [ "$GH_EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "should-run=true" >> $GITHUB_OUTPUT
-            echo "Decision: Run review (manual trigger)"
-          else
-            echo "Relevant files changed: $RELEVANT"
-
-            # Run review if relevant files changed, skip otherwise
-            if [ "$RELEVANT" = "true" ]; then
-              echo "should-run=true" >> $GITHUB_OUTPUT
-              echo "Decision: Run review (relevant files changed)"
-            else
-              echo "should-run=false" >> $GITHUB_OUTPUT
-              echo "Decision: Skip review (no relevant files changed)"
-            fi
-          fi
+        run: python3 scripts/quality_gate/determine_should_run.py
 
 # ==============================================================================
 # Infrastructure Health Check (Issue #153)
