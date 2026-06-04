@@ -257,9 +257,10 @@ def format_text(
     lines: list[str] = []
     lines.append("")
     lines.append("=== Agent Drift Detection ===")
-    lines.append(
-        "Comparing: src/claude vs src/vs-code-agents, plus shared-template install copies"
-    )
+    comparison_text = "Comparing: src/claude vs src/vs-code-agents"
+    if any(result.comparison == _INSTALL_COMPARISON_LABEL for result in results):
+        comparison_text += ", plus shared-template install copies"
+    lines.append(comparison_text)
     lines.append(f"Similarity Threshold: {threshold}%")
     lines.append("")
 
@@ -650,13 +651,16 @@ def _exit_code(
     ``--fail-on-install-drift`` promotes it to blocking once those are
     reconciled.
     """
-    blocking_statuses = {"DRIFT DETECTED"}
-    if fail_on_install:
-        blocking_statuses.add("NO COUNTERPART")
-
     blocking_drift = any(
-        r.status in blocking_statuses
-        and (fail_on_install or r.comparison != _INSTALL_COMPARISON_LABEL)
+        (
+            r.status == "DRIFT DETECTED"
+            and (fail_on_install or r.comparison != _INSTALL_COMPARISON_LABEL)
+        )
+        or (
+            fail_on_install
+            and r.status == "NO COUNTERPART"
+            and r.comparison == _INSTALL_COMPARISON_LABEL
+        )
         for r in results
     )
     return 1 if blocking_drift else 0

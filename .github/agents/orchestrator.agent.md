@@ -514,7 +514,7 @@ ELSE:
 **Invocation**:
 
 ```text
-Skill(context-gather): Gather context for: [task summary]. Domains: [domains]. Focus on: [key topics]
+Skill(skill="context-gather", args="Gather context for: [task summary]. Domains: [domains]. Focus on: [key topics]")
 ```
 
 **Context pruning**: After context-gather returns, extract only the sections relevant to the selected agent sequence. Discard framework docs if no framework is involved. Discard cross-project patterns if the task is project-specific.
@@ -522,7 +522,7 @@ Skill(context-gather): Gather context for: [task summary]. Domains: [domains]. F
 **Tracking**: Record the invocation decision in the Classification Summary below:
 
 ```text
-Context Retrieval: [INVOKED/SKIPPED]
+Context Gather: [INVOKED/SKIPPED]
 Reason: [user request | complexity=Complex | Security domain | confidence<60% | domains>=3 | token budget <20% | no trigger matched]
 ```
 

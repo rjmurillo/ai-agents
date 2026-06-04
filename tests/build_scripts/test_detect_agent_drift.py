@@ -268,6 +268,17 @@ def test_exit_code_missing_install_counterpart_blocks_when_flag_set() -> None:
     assert drift._exit_code([install], [install], fail_on_install=True) == 1
 
 
+def test_exit_code_missing_vendored_counterpart_does_not_block_strict_install() -> None:
+    vendored = drift.AgentResult(
+        agent_name="claude-instructions.template",
+        overall_similarity=None,
+        status="NO COUNTERPART",
+        comparison="src-claude vs src-vscode",
+    )
+
+    assert drift._exit_code([vendored], [], fail_on_install=True) == 0
+
+
 def test_exit_code_zero_when_no_drift() -> None:
     assert drift._exit_code([], [], fail_on_install=False) == 0
 
