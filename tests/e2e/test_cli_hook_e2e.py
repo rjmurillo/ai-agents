@@ -97,7 +97,10 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     marker = tmp_path / "copilot_marker.txt"
     userland.mkdir()
     _write_probe_script(plugin / "hooks" / "sessionStart" / "probe.py", marker)
-    (plugin / "plugin.json").write_text(_manifest(_PROBE_NAME), encoding="utf-8")
+    (plugin / ".claude-plugin").mkdir(parents=True)
+    (plugin / ".claude-plugin" / "plugin.json").write_text(
+        _manifest(_PROBE_NAME), encoding="utf-8"
+    )
     # Use the exact command shape the generator emits.
     entry = generate_hooks._build_copilot_entry("sessionStart", "probe.py")
     (plugin / "hooks" / "hooks.json").write_text(
