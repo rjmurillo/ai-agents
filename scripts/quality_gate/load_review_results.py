@@ -31,6 +31,7 @@ Input env vars:
 
 Exit codes (ADR-035):
     0 - all outputs written
+    1 - unsafe results directory
     2 - GITHUB_OUTPUT is not set (config error)
 """
 
@@ -42,7 +43,12 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_GITHUB_SCRIPTS = _SCRIPT_DIR.parents[1] / ".github" / "scripts"
+try:
+    from .path_utils import REPOSITORY_ROOT, resolve_workspace_path
+except ImportError:  # pragma: no cover - script execution path
+    from path_utils import REPOSITORY_ROOT, resolve_workspace_path
+
+_GITHUB_SCRIPTS = REPOSITORY_ROOT / ".github" / "scripts"
 sys.path.insert(0, str(_GITHUB_SCRIPTS))
 
 from quality_gate_agents import QUALITY_GATE_AGENTS  # noqa: E402
@@ -103,7 +109,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    rows = collect(args.results_dir)
+    try:
+        results_dir = resolve_workspace_path(args.results_dir, "results-dir")
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    rows = collect(results_dir)
 
     print("Loaded verdicts:")
     for agent, verdict, infra in rows:

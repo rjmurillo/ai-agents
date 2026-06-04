@@ -30,6 +30,7 @@ Args:
 
 Exit codes (ADR-035):
     0 - detection ran (label add is best-effort; failures do not fail the step)
+    1 - unsafe results directory
 """
 
 from __future__ import annotations
@@ -42,7 +43,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_GITHUB_SCRIPTS = _SCRIPT_DIR.parents[1] / ".github" / "scripts"
+try:
+    from .path_utils import REPOSITORY_ROOT, resolve_workspace_path
+except ImportError:  # pragma: no cover - script execution path
+    from path_utils import REPOSITORY_ROOT, resolve_workspace_path
+
+_GITHUB_SCRIPTS = REPOSITORY_ROOT / ".github" / "scripts"
 sys.path.insert(0, str(_GITHUB_SCRIPTS))
 
 from quality_gate_agents import QUALITY_GATE_AGENTS  # noqa: E402
@@ -152,7 +158,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    findings = detect_failures(args.results_dir)
+    try:
+        results_dir = resolve_workspace_path(args.results_dir, "results-dir")
+    except ValueError as exc:
+        print(f"::error::{exc}", file=sys.stderr)
+        return 1
+
+    findings = detect_failures(results_dir)
 
     for finding in findings:
         print(
