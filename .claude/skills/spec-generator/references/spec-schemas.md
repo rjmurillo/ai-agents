@@ -131,8 +131,20 @@ tags:
 
 1. **ID Uniqueness**: No duplicate `REQ-NNN` across all requirement files
 2. **EARS Compliance**: Body must contain EARS-format requirement statement
-3. **Testability**: Must have acceptance criteria section
-4. **Category Match**: Category should match requirement type
+3. **Ontology Trace**: Must have an Ontology section using O2 canonical entity names when an OntologyFragment is supplied
+4. **Testability**: Must have acceptance criteria section
+5. **Category Match**: Category should match requirement type
+
+### Required Sections
+
+| Section | Purpose |
+|---------|---------|
+| Requirement Statement | EARS requirement statement |
+| Context | Problem context and scope |
+| Ontology | Entities this requirement touches, by O2 canonical name |
+| Acceptance Criteria | Pass/fail criteria |
+| Rationale | Why the behavior matters |
+| Dependencies | Related constraints or prerequisites |
 
 ### Example
 
@@ -220,7 +232,7 @@ tags:
 1. **ID Uniqueness**: No duplicate `DESIGN-NNN` across all design files
 2. **Requirement Coverage**: `related` must include at least one valid `REQ-NNN`
 3. **No Orphans**: Referenced requirements must exist
-4. **Completeness**: Must have Design Overview, Component Details sections
+4. **Completeness**: Must have Design Overview, Component Architecture, Technology Decisions, and Decision-rule Traceability sections
 
 ### Required Sections
 
@@ -228,8 +240,9 @@ tags:
 |---------|---------|
 | Requirements Addressed | List of REQ-NNN with brief descriptions |
 | Design Overview | High-level approach |
-| Component Details | Detailed component descriptions |
-| Technology Decisions | Key technology choices with rationale |
+| Component Architecture | Detailed component descriptions |
+| Technology Decisions | Table with decision, choice, O5 source, and rationale |
+| Decision-rule Traceability | Map each domain decision rule to its OntologyFragment `## O5` source |
 | Security Considerations | Security-relevant aspects |
 | Testing Strategy | How design will be validated |
 

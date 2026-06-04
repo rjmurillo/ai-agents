@@ -38,6 +38,9 @@ GENERATOR_PATH = REPO_ROOT / ".claude" / "skills" / "spec-generator" / "SKILL.md
 INTERVIEW_PATH = (
     REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
 )
+GENERATOR_SCHEMA_PATH = (
+    REPO_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-schemas.md"
+)
 COMPLETENESS_PATH = REPO_ROOT / ".github" / "prompts" / "spec-check-completeness.md"
 REFERENCE_FRAGMENT = (
     REPO_ROOT / ".agents" / "specs" / "ontology" / "spec-ontology-elicitation.md"
@@ -59,6 +62,11 @@ def generator_text() -> str:
 @pytest.fixture(scope="module")
 def interview_text() -> str:
     return INTERVIEW_PATH.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def generator_schema_text() -> str:
+    return GENERATOR_SCHEMA_PATH.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -299,6 +307,21 @@ def test_generator_design_traces_decision_rules_to_o5(
     )
     assert ".claude/skills/spec-generator/scripts/validate_spec_frontmatter.py" in lowered, (
         "spec-generator must cite the validator path that exists in the repo"
+    )
+
+
+def test_generator_schema_documents_ontology_sections(
+    generator_schema_text: str,
+) -> None:
+    """The schema reference matches the ontology body contract."""
+    assert "Ontology Trace" in generator_schema_text, (
+        "schema reference must require the REQ Ontology section"
+    )
+    assert "Decision-rule Traceability" in generator_schema_text, (
+        "schema reference must require design decision-rule traceability"
+    )
+    assert "O5 source" in generator_schema_text, (
+        "schema reference must include O5 source in Technology Decisions"
     )
 
 
