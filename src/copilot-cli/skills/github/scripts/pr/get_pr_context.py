@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Get context and metadata for a GitHub Pull Request.
 
-Retrieves comprehensive PR information including:
+Retrieves PR information including:
 - Basic metadata (number, title, body, state, author)
 - Branch information (head branch, head SHA, base, commits)
 - Labels and reviewers
