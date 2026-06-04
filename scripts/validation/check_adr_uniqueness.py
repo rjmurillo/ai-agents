@@ -130,8 +130,10 @@ def main() -> int:
             "\nRename the file, update the `# ADR-NNN:` heading, and sweep "
             "references with:\n"
             "  git grep -nE 'ADR-OLD\\b' .agents/ .claude/ src/ docs/\n\n"
-            "Pre-existing duplicates from issue #2228 are intentionally "
-            "allowlisted; do not extend the allowlist for new collisions."
+            "Issue #2228 is already resolved: the incoming files that "
+            "collided with canonical ADR-058, ADR-062, and ADR-063 were "
+            "renumbered to ADR-069, ADR-070, and ADR-071. The allowlist is "
+            "empty; do not add exceptions for new collisions."
         )
         return 1
 

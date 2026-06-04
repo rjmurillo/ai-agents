@@ -45,6 +45,22 @@
       "content": "Ran full pre_pr validation",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Aligned Post-PR Retrospective action pin contract",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-04T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved follow-up ADR reference comments",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

@@ -68,7 +68,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "ADR uniqueness passed, actionlint passed on changed workflow, and targeted pytest passed 37 tests"
+        "Evidence": "ADR uniqueness passed, actionlint passed on changed workflows, and targeted pytest passed 47 tests"
       }
     }
   },
@@ -92,11 +92,19 @@
     {
       "action": "Ran full pre_pr validation",
       "outcome": "Changed workflow local run passed; remaining full-suite failures are unrelated repository-wide markdown lint, ai-spec-validation shellcheck findings, and merge-resolver drift"
+    },
+    {
+      "action": "Aligned Post-PR Retrospective action pin contract",
+      "outcome": "Updated workflow and test constant to main-canonical Claude Code action SHA; tests/workflows/test_post_pr_retrospective.py passed 10 tests"
+    },
+    {
+      "action": "Resolved follow-up ADR reference comments",
+      "outcome": "Updated check_adr_uniqueness.py remediation, renamed ADR-071 debate log, updated ADR-071 inbound references, and reran adr-review change detection"
     }
   ],
   "nextSteps": [
-    "Commit and push PR #2332 autofix changes",
-    "Resolve both review threads with evidence",
-    "Wait for required checks and merge only if four-condition gate and governance gates allow it"
+    "Push follow-up review-thread fixes",
+    "Resolve new review threads with evidence",
+    "Merge only if four-condition gate and governance gates allow it"
   ]
 }
