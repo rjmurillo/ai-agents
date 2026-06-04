@@ -154,6 +154,10 @@ def test_cli_returns_three_when_write_fails(
         "/outside/drift-events.jsonl",
         "C:\\outside\\drift-events.jsonl",
         "nested/\nfile.jsonl",
+        ".",
+        "nested/",
+        "nested//file.jsonl",
+        "drift-events.txt",
     ],
 )
 def test_cli_rejects_unsafe_events_path(raw: str, tmp_path: Path, monkeypatch) -> None:

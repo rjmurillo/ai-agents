@@ -211,10 +211,19 @@ def _safe_events_path(raw: str) -> Path:
     if len(normalized) >= 2 and normalized[1] == ":":
         msg = "events path must not use a drive-qualified path"
         raise ValueError(msg)
+    if normalized.endswith("/") or "//" in normalized:
+        msg = "events path must name a JSONL file without empty path parts"
+        raise ValueError(msg)
 
     parts = [part for part in normalized.split("/") if part not in {"", "."}]
+    if not parts:
+        msg = "events path must name a JSONL file"
+        raise ValueError(msg)
     if any(part == ".." for part in parts):
         msg = "events path traversal is not allowed"
+        raise ValueError(msg)
+    if parts[-1] == ".." or not parts[-1].endswith(".jsonl"):
+        msg = "events path must end in .jsonl"
         raise ValueError(msg)
 
     repo_root = _repo_root()
