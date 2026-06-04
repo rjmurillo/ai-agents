@@ -643,23 +643,14 @@ def test_generator_emits_version_one_wrapper(tmp_path: Path) -> None:
     assert "hooks" in out
 
 
-def test_generator_preserves_explicit_zero_version_field(tmp_path: Path) -> None:
-    cfg, _ = _setup_full_fixture(tmp_path)
-    text = cfg.read_text(encoding="utf-8")
-    cfg.write_text(text.replace("    versionField: 1", "    versionField: 0"), encoding="utf-8")
-
-    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
-
-    assert rc == 0
-    out = json.loads((tmp_path / "out" / "hooks.json").read_text())
-    assert out["version"] == 0
-
-
-def test_generator_fails_2_on_empty_version_field(tmp_path: Path) -> None:
+@pytest.mark.parametrize("yaml_value", ["0", '""', "1.5", "true"])
+def test_generator_fails_2_on_invalid_version_field(
+    tmp_path: Path, yaml_value: str
+) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     text = cfg.read_text(encoding="utf-8")
     cfg.write_text(
-        text.replace("    versionField: 1", '    versionField: ""'),
+        text.replace("    versionField: 1", f"    versionField: {yaml_value}"),
         encoding="utf-8",
     )
 
@@ -703,23 +694,13 @@ def test_generator_emits_python3_and_py3_invocation(tmp_path: Path) -> None:
     assert entry["cwd"] == "."
 
 
-def test_generator_preserves_explicit_zero_timeout(tmp_path: Path) -> None:
+@pytest.mark.parametrize("timeout_value", [0, "", 1.5, True])
+def test_generator_fails_2_on_invalid_timeout(
+    tmp_path: Path, timeout_value: object
+) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-    settings["hooks"]["PreToolUse"][0]["hooks"][0]["timeout"] = 0
-    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-
-    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
-
-    assert rc == 0
-    out = json.loads((tmp_path / "out" / "hooks.json").read_text())
-    assert out["hooks"]["PreToolUse"][0]["timeoutSec"] == 0
-
-
-def test_generator_fails_2_on_empty_timeout(tmp_path: Path) -> None:
-    cfg, _ = _setup_full_fixture(tmp_path)
-    settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-    settings["hooks"]["PreToolUse"][0]["hooks"][0]["timeout"] = ""
+    settings["hooks"]["PreToolUse"][0]["hooks"][0]["timeout"] = timeout_value
     (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
 
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)

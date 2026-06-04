@@ -255,16 +255,26 @@ def _process_event(
 
 
 def _int_field_or_default(
-    value: str | bytes | bytearray | int | float | None,
+    value: str | int | None,
     default: int,
     field_name: str,
 ) -> int:
     if value is None:
         return default
-    try:
-        return int(value)
-    except (TypeError, ValueError) as exc:
-        raise GenerateHooksError(f"{field_name} must be an integer") from exc
+    if isinstance(value, bool):
+        raise GenerateHooksError(f"{field_name} must be a positive integer")
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if not stripped.isascii() or not stripped.isdecimal():
+            raise GenerateHooksError(f"{field_name} must be a positive integer")
+        parsed = int(stripped)
+    else:
+        raise GenerateHooksError(f"{field_name} must be a positive integer")
+    if parsed <= 0:
+        raise GenerateHooksError(f"{field_name} must be a positive integer")
+    return parsed
 
 
 def generate_hooks(
