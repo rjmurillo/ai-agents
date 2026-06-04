@@ -26,6 +26,8 @@ def test_ship_docs_use_review_skill_validator_paths() -> None:
     for path in (SHIP_COMMAND, COPILOT_SHIP_SKILL):
         text = path.read_text(encoding="utf-8")
         assert "review/scripts/validate_review_marker.py" in text
+        assert "$COPILOT_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" in text
+        assert "$CLAUDE_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" in text
         assert '--repo-root "$(pwd)"' in text
         assert "scripts/validation/validate_review_marker.py --ref HEAD" not in text
 
