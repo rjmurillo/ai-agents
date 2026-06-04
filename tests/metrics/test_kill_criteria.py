@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -41,7 +42,7 @@ def test_build_event_accepts_every_valid_kind(kind: str) -> None:
 
 def test_build_event_rejects_unknown_kind() -> None:
     with pytest.raises(ValueError, match="unknown kill criterion"):
-        kill_criteria.build_event("K9", "detail")  # type: ignore[arg-type]
+        kill_criteria.build_event(cast(kill_criteria.KillCriterion, "K9"), "detail")
 
 
 # --- emit_event (write boundary mocked via tmp_path) ---------------------
@@ -99,7 +100,11 @@ def test_emit_event_rejects_unknown_kind_before_writing(tmp_path: Path) -> None:
     events_path = tmp_path / "drift-events.jsonl"
 
     with pytest.raises(ValueError):
-        kill_criteria.emit_event("BOGUS", "x", events_path=events_path)  # type: ignore[arg-type]
+        kill_criteria.emit_event(
+            cast(kill_criteria.KillCriterion, "BOGUS"),
+            "x",
+            events_path=events_path,
+        )
 
     assert not events_path.exists()
 

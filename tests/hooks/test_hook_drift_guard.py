@@ -41,9 +41,11 @@ def _load_guard_module():
         spec = importlib.util.spec_from_file_location(
             "invoke_hook_drift_guard", module_path
         )
-        mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        assert spec is not None
+        assert spec.loader is not None
+        mod = importlib.util.module_from_spec(spec)
         sys.modules["invoke_hook_drift_guard"] = mod
-        spec.loader.exec_module(mod)  # type: ignore[union-attr]
+        spec.loader.exec_module(mod)
         return mod
     finally:
         if not already_present and hook_dir_str in sys.path:
