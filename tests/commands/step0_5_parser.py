@@ -24,7 +24,19 @@ boundaries use the next sibling heading at the same depth.
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
+
+# Repo-relative path to the alias table consumed by normalize rule 5. Mirrors
+# the path documented in `.claude/commands/spec.md`, subsection
+# `#### Step 0.5 topic extraction`, rule 5 (Issue #1978).
+SPEC_ENTITY_ALIASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / ".agents"
+    / "dictionaries"
+    / "spec-entity-aliases.json"
+)
 
 STEP_0_5_HEADING = "### Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
 GUARD_STRING = "<!-- step0.5:incomplete-without-2b -->"
@@ -132,6 +144,44 @@ def normalize_topic(raw: str) -> str:
     lowered = stripped.lower()
     collapsed = _SEPARATOR_RUN_RE.sub("-", lowered)
     return collapsed.strip("-")
+
+
+def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
+    """Load the Step 0.5 entity-alias table as an alias->canonical mapping.
+
+    Reads `.agents/dictionaries/spec-entity-aliases.json` (or `path` when given)
+    and returns its `aliases` object. Implements the lookup side of rule 5 in
+    `.claude/commands/spec.md`, subsection `#### Step 0.5 topic extraction`.
+    Returns an empty dict when the file or the `aliases` key is absent so a
+    missing table degrades to a pass-through rather than an error.
+    """
+    target = path if path is not None else SPEC_ENTITY_ALIASES_PATH
+    if not target.is_file():
+        return {}
+    data = json.loads(target.read_text(encoding="utf-8"))
+    aliases = data.get("aliases")
+    if not isinstance(aliases, dict):
+        return {}
+    return {str(k): str(v) for k, v in aliases.items()}
+
+
+def normalize_topic_with_aliases(
+    raw: str, aliases: "dict[str, str] | None" = None
+) -> str:
+    """Normalize a topic, then apply the rule-5 alias substitution.
+
+    Runs `normalize_topic` (rules 1-4), then looks the result up in the alias
+    table (rule 5). On an exact match the canonical value is returned; on a miss
+    the rule-4 result is returned unchanged. `aliases` may be passed to avoid
+    repeated file reads; when None the table is loaded from the canonical path.
+
+    Mirrors `.claude/commands/spec.md`, subsection `#### Step 0.5 topic
+    extraction`, rule 5: "Look up the result of rule 4 ... On a hit, substitute
+    the canonical value; on a miss, keep the rule-4 result unchanged."
+    """
+    normalized = normalize_topic(raw)
+    table = aliases if aliases is not None else load_entity_aliases()
+    return table.get(normalized, normalized)
 
 
 def _tokenize_normalized(normalized: str) -> list[str]:

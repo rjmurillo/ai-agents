@@ -192,8 +192,9 @@ Topics are derived mechanically from Q3 and Q4 named entities. One topic per dis
 2. Strip leading path separators (`/`, `\`) AND leading dots (`.`).
 3. Lowercase the string.
 4. Collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`.
+5. Look up the result of rule 4 in `.agents/dictionaries/spec-entity-aliases.json` (exact match on the normalized string against the `aliases` keys). On a hit, substitute the canonical value; on a miss, keep the rule-4 result unchanged. This collapses known synonyms (for example `memory-skill` to `memory`, `spec` to `spec-pipeline`) so distinct names for the same entity search as one topic. Adjudication and matching use the post-substitution canonical string.
 
-Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 2 strips the leading dot and any leading slashes). `spec pipeline` normalizes to `spec-pipeline`. These are distinct topics.
+Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 2 strips the leading dot and any leading slashes); this string is not an alias key, so rule 5 leaves it unchanged. `spec pipeline` normalizes to `spec-pipeline` after rule 4; `spec` normalizes to `spec` after rule 4, then rule 5 substitutes the canonical `spec-pipeline`, so both resolve to the same topic.
 
 The agent lists the derived topics explicitly in the Step 0.5 preamble before running any searches. Auto-mode adjudication (defined under entity discovery below) compares discovered entity names against Q answers using the same normalization.
 
@@ -249,7 +250,7 @@ The halt itself, the metrics tally, and the supplemental traversal hook are defi
 
 #### Step 0.5 PriorArtBlock output schema
 
-The gate emits a Markdown block embedded into the PRD as its first section, named `## Prior Art / Constraints`. The block has three required subsections; each must be present even if empty (an empty subsection contains a coverage note, not blank text):
+The gate emits a Markdown block embedded into the PRD as its first section, named `## Prior Art / Constraints`. The h2 heading MUST be exactly `## Prior Art / Constraints`; any trailing parenthetical (for example `## Prior Art / Constraints (auto-generated)`) is optional metadata. Step 9 check 9d matches by substring (`## Prior Art / Constraints`), so a trailing parenthetical does not break the check. The block has three required subsections; each must be present even if empty (an empty subsection contains a coverage note, not blank text):
 
 ```markdown
 ## Prior Art / Constraints
