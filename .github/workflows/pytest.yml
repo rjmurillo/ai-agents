@@ -79,7 +79,7 @@ jobs:
           PYTHON_CHANGED: ${{ needs.check-paths.outputs.python-changed }}
         run: |
           if [ "$PYTHON_CHANGED" != "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "No Python files changed - skipping tests"
           fi
 
@@ -120,9 +120,16 @@ jobs:
           mkdir -p artifacts
           pytest --cov --cov-report=xml:artifacts/coverage.xml --junitxml=artifacts/pytest-results.xml
 
+      # Issue #1963: test_ai_review.py was split by tested module into
+      # test_verdict.py (get_verdict, merge_verdicts, extract_verdict, verdict
+      # presentation helpers) and test_quality_gate.py (get_failure_category,
+      # spec_validation_failed). scripts.ai_review_common.verdict hosts all of
+      # those plus the label/milestone helpers that remain in test_ai_review.py,
+      # so the 100% gate must run all three files. Running test_ai_review.py
+      # alone now reports 63% and trips --cov-fail-under=100.
       - name: Pin ai_review_common.verdict coverage at 100% (REQ-008-07)
         if: steps.should-run.outputs.skip != 'true'
-        run: pytest tests/test_ai_review.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
+        run: pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov=scripts.ai_review_common.verdict --cov-branch --cov-fail-under=100
 
       # Issue #2063 (revised): module-name form is the canonical form for this
       # repository. The file-path form (--cov=.claude/skills/.../*.py) was
