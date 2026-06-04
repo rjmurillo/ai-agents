@@ -131,7 +131,8 @@ local degraded-run evidence, not a canonical source; record the ontology checks 
 `N/A` and do not lower the verdict for ontology coverage in that case.
 
 1. **Entity coverage**: when an OntologyFragment exists, every domain entity
-   referenced anywhere in a generated requirement file (`REQ-NNN-{slug}.md`) must
+   referenced anywhere in generated spec artifacts (`REQ-NNN-{slug}.md`,
+   `DESIGN-NNN-{slug}.md`, and `TASK-NNN-{slug}.md`) must
    appear in the OntologyFragment by its canonical O2 name. The requirement's `## Ontology`
    section is evidence that the requirement uses those names; it cannot introduce an
    entity absent from the fragment. When no OntologyFragment exists, the

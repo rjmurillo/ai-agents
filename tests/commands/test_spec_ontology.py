@@ -373,8 +373,8 @@ def test_completeness_check_treats_fragment_as_canonical_source(
     assert "run entity coverage and decision-rule traceability only when an ontologyfragment exists" in normalized, (
         "ontology checks must not fail degraded runs that lack a fragment"
     )
-    assert "referenced anywhere in a generated requirement file" in normalized, (
-        "entity coverage must apply to the full generated requirement file"
+    assert "referenced anywhere in generated spec artifacts" in normalized, (
+        "entity coverage must apply to all generated spec artifacts"
     )
 
 

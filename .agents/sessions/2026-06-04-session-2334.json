@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, 924814989f, dc2c0b3fd0, a6d2eb976f, 34e5cc7365, 0d8011e5f9, 8783ddf066, c783a2e3f8, 0c8e94f19a, 82b30d892b, c0a2a9af89, 4a6393b241, 5565e07f22, and this entity-scope fix commit."
+        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, 924814989f, dc2c0b3fd0, a6d2eb976f, 34e5cc7365, 0d8011e5f9, 8783ddf066, c783a2e3f8, 0c8e94f19a, 82b30d892b, c0a2a9af89, 4a6393b241, 5565e07f22, 0d8dfaad2d, and this spec-artifact coverage fix commit."
       },
       "validationPassed": {
         "level": "MUST",
