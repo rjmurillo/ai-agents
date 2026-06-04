@@ -51,12 +51,13 @@ _TEMPLATE_GLOB = "*.shared.md"
 _OUTPUT_RELATIVE = Path("docs") / "agent-catalog.md"
 
 _HEADER = (
-    "<!-- GENERATED FILE. Do not edit by hand.\n"
-    "     Source: templates/agents/*.shared.md\n"
-    "     Regenerate: python3 build/generate_agent_catalog.py\n"
-    "     Validated by: scripts/validation/validate_agent_catalog.py -->\n"
-    "\n"
     "# Agent Catalog\n"
+    "\n"
+    "> [!NOTE]\n"
+    "> Generated file. Do not edit by hand.\n"
+    "> Source: `templates/agents/*.shared.md`.\n"
+    "> Regenerate: `python3 build/generate_agent_catalog.py`.\n"
+    "> Validated by: `scripts/validation/validate_agent_catalog.py`.\n"
     "\n"
     "Auto-generated index of every agent template under `templates/agents/`.\n"
     "Each row links the agent name to its tier, line count, and description.\n"
@@ -217,14 +218,24 @@ def build_parser() -> argparse.ArgumentParser:
 def _resolve_paths(args: argparse.Namespace) -> tuple[Path, Path]:
     """Resolve the templates directory and output path from parsed args."""
     if args.templates_path is not None:
-        templates_dir = args.templates_path
-        repo_root = templates_dir.resolve().parent.parent
+        templates_dir = _resolve_cli_path(args.templates_path)
+        candidate_agents_dir = templates_dir / "agents"
+        if candidate_agents_dir.is_dir() and not any(templates_dir.glob(_TEMPLATE_GLOB)):
+            templates_dir = candidate_agents_dir
     else:
-        repo_root = _REPO_ROOT
-        templates_dir = repo_root / "templates" / "agents"
+        templates_dir = _REPO_ROOT / "templates" / "agents"
 
-    output_path = args.output if args.output is not None else (repo_root / _OUTPUT_RELATIVE)
+    output_path = (
+        _resolve_cli_path(args.output) if args.output is not None else (_REPO_ROOT / _OUTPUT_RELATIVE)
+    )
     return templates_dir, output_path
+
+
+def _resolve_cli_path(path: Path) -> Path:
+    """Resolve CLI paths relative to the repository root, not the caller CWD."""
+    if path.is_absolute():
+        return path.resolve()
+    return (_REPO_ROOT / path).resolve()
 
 
 def _run_check(templates_dir: Path, output_path: Path) -> int:
@@ -259,7 +270,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.check:
             return _run_check(templates_dir, output_path)
         generate(templates_dir, output_path)
-    except CatalogError as exc:
+    except (CatalogError, OSError, UnicodeDecodeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 3
 

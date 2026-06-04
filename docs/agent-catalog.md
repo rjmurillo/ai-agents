@@ -1,9 +1,10 @@
-<!-- GENERATED FILE. Do not edit by hand.
-     Source: templates/agents/*.shared.md
-     Regenerate: python3 build/generate_agent_catalog.py
-     Validated by: scripts/validation/validate_agent_catalog.py -->
-
 # Agent Catalog
+
+> [!NOTE]
+> Generated file. Do not edit by hand.
+> Source: `templates/agents/*.shared.md`.
+> Regenerate: `python3 build/generate_agent_catalog.py`.
+> Validated by: `scripts/validation/validate_agent_catalog.py`.
 
 Auto-generated index of every agent template under `templates/agents/`.
 Each row links the agent name to its tier, line count, and description.

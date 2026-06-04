@@ -7,9 +7,8 @@ stale or missing, so CI catches a forgotten regeneration before merge.
 
 This validator delegates the drift contract to build/generate_agent_catalog.py
 rather than reimplementing the table format. The generator is the single owner
-of the contract (canonical-source-mirror.md); this script only invokes its
-``--check`` path and maps the result onto the ADR-035 exit codes the runner
-expects.
+of the contract (canonical-source-mirror.md); this script invokes its
+``--check`` path and returns that ADR-035 exit code unchanged.
 
 EXIT CODES (ADR-035):
   0  - Catalog matches the templates.
@@ -31,8 +30,6 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "build"))
 
-import generate_agent_catalog  # noqa: E402
-
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the agent-catalog drift check.
@@ -46,6 +43,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if not templates_dir.is_dir():
         print(f"Error: templates directory not found: {templates_dir}", file=sys.stderr)
+        return 2
+
+    try:
+        import generate_agent_catalog  # noqa: PLC0415
+    except ImportError as exc:
+        print(f"Error: cannot import build/generate_agent_catalog.py: {exc}", file=sys.stderr)
         return 2
 
     return generate_agent_catalog.main(

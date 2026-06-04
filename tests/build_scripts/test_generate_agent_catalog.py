@@ -195,6 +195,69 @@ def test_main_returns_external_error_on_bad_template(tmp_path: Path) -> None:
     assert code == 3
 
 
+def test_main_returns_external_error_on_unreadable_output_parent(tmp_path: Path) -> None:
+    # Arrange
+    templates_dir = tmp_path / "templates" / "agents"
+    _write_template(templates_dir, "alpha")
+    output_path = tmp_path / "catalog-parent"
+    output_path.write_text("not a directory", encoding="utf-8")
+
+    # Act
+    code = gac.main(["--templates-path", str(templates_dir), "--output", str(output_path / "out.md")])
+
+    # Assert
+    assert code == 3
+
+
+def test_templates_root_argument_normalizes_to_agents_subdirectory(tmp_path: Path) -> None:
+    # Arrange
+    templates_root = tmp_path / "templates"
+    _write_template(templates_root / "agents", "alpha")
+    output_path = tmp_path / "docs" / "agent-catalog.md"
+
+    # Act
+    code = gac.main(["--templates-path", str(templates_root), "--output", str(output_path)])
+
+    # Assert
+    assert code == 0
+    assert "[alpha](../templates/agents/alpha.shared.md)" in output_path.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_relative_templates_path_resolves_from_repo_root() -> None:
+    # Act
+    templates_dir, output_path = gac._resolve_paths(
+        gac.build_parser().parse_args(["--templates-path", "templates"])
+    )
+
+    # Assert
+    assert templates_dir == REPO_ROOT / "templates" / "agents"
+    assert output_path == REPO_ROOT / "docs" / "agent-catalog.md"
+
+
+def test_validator_returns_config_error_when_generator_import_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Arrange
+    import builtins
+
+    from scripts.validation import validate_agent_catalog
+
+    original_import = builtins.__import__
+
+    def fake_import(name: str, *args: object, **kwargs: object) -> object:
+        if name == "generate_agent_catalog":
+            raise ImportError("boom")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    # Act
+    code = validate_agent_catalog.main([])
+
+    # Assert
+    assert code == 2
+
+
 # Drift detection ------------------------------------------------------------
 
 
