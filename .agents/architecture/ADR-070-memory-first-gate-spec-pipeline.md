@@ -1,4 +1,4 @@
-# ADR-062: Memory-First Gate Is a BLOCKING Step in the Spec Pipeline
+# ADR-070: Memory-First Gate Is a BLOCKING Step in the Spec Pipeline
 
 ## Status
 
