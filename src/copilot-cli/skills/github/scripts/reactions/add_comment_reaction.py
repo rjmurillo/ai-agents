@@ -14,7 +14,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -38,6 +37,11 @@ if _lib_dir not in sys.path:
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
 )
 
 REACTION_EMOJI: dict[str, str] = {
@@ -79,11 +83,13 @@ def build_parser() -> argparse.ArgumentParser:
         choices=VALID_REACTIONS,
         help="Reaction type",
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -140,7 +146,16 @@ def main(argv: list[str] | None = None) -> int:
         "results": results,
     }
 
-    print(json.dumps(summary, indent=2))
+    write_skill_output(
+        summary,
+        output_format=fmt,
+        human_summary=(
+            f"Applied '{args.reaction}' to {succeeded}/{len(args.comment_id)} "
+            f"comment(s) ({failed} failed)"
+        ),
+        status="PASS" if failed == 0 else "FAIL",
+        script_name="add_comment_reaction.py",
+    )
 
     if failed > 0:
         return 3
