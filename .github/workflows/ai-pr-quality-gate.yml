@@ -292,31 +292,10 @@ jobs:
 
       - name: Generate test summary
         id: summary
-        shell: python3 {0}
         env:
           PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
           PYTEST_SUMMARY: ${{ steps.pytest.outputs.pytest_summary || 'Not executed' }}
-        run: |
-          import os
-          import random
-
-          pytest_status = os.environ.get('PYTEST_STATUS', 'SKIPPED')
-          pytest_summary = os.environ.get('PYTEST_SUMMARY', 'Not executed')
-
-          summary = "## Pre-executed Test Results\n\n"
-          summary += "### pytest (Python)\n"
-          summary += f"- **Status**: {pytest_status}\n"
-          summary += f"- **Summary**: {pytest_summary}\n"
-
-          # Write to GITHUB_OUTPUT using heredoc delimiter
-          delimiter = f"EOF_SUMMARY_{random.randint(1000, 9999)}"
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"test_summary<<{delimiter}\n")
-              f.write(summary)
-              f.write(f"{delimiter}\n")
-
-          print("Generated test summary:")
-          print(summary)
+        run: python3 scripts/quality_gate/generate_test_summary.py
 
 # ==============================================================================
 # Agent Review Jobs (10 Static Jobs)
