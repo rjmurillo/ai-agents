@@ -545,8 +545,8 @@ Use classification + domains to select the appropriate sequence from **Agent Seq
 - **Complexity**: [Simple/Standard/Complex]
 - **Risk Level**: [Low/Medium/High/Critical]
 - **Classification Confidence**: [0-100% numeric, e.g. 85%]
-- **Context Retrieval**: [INVOKED/SKIPPED]
-- **Context Retrieval Reason**: [Why]
+- **Context Gather**: [INVOKED/SKIPPED]
+- **Context Gather Reason**: [Why]
 
 ### Agent Sequence Selected
 [Sequence from routing table]
