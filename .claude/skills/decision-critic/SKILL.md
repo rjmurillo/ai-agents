@@ -2,11 +2,6 @@
 name: decision-critic
 version: 1.0.0
 description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality. Do NOT use to surface failure risks pre-launch (use pre-mortem) or to probe why a constraint exists (use chestertons-fence).
-triggers:
-  - "validate my thinking"
-  - "poke holes in this decision"
-  - "stress-test this"
-  - "criticize this approach"
 model: claude-opus-4-6
 license: MIT
 ---
@@ -75,7 +70,7 @@ Use this skill when:
 - Evaluating a plan, ADR, or design before commitment
 - You want structured adversarial feedback, not just a second opinion
 
-Use `independent-thinker` agent instead when:
+Use the independent-thinker agent instead when:
 
 - You need strategic challenge on direction (whether, not how)
 - The question is about project scope or priorities, not technical reasoning
