@@ -129,6 +129,22 @@ def test_run_detection_restrict_to_excludes_freestanding(fake_repo: Path) -> Non
     assert "claude-only" not in names
 
 
+def test_run_detection_restrict_to_reports_missing_source(fake_repo: Path) -> None:
+    (fake_repo / ".claude" / "agents" / "beta.md").unlink()
+
+    results = drift.run_detection(
+        fake_repo / ".claude" / "agents",
+        fake_repo / ".github" / "agents",
+        threshold=80,
+        restrict_to=frozenset({"alpha", "beta"}),
+    )
+    by_name = {r.agent_name: r for r in results}
+
+    assert by_name["alpha"].status == "OK"
+    assert by_name["beta"].status == "NO COUNTERPART"
+    assert by_name["beta"].overall_similarity is None
+
+
 def test_run_detection_stamps_comparison_label(fake_repo: Path) -> None:
     results = drift.run_detection(
         fake_repo / ".claude" / "agents",
@@ -176,6 +192,21 @@ def test_install_detection_flags_drift(fake_repo: Path) -> None:
     assert by_name["beta"].status == "DRIFT DETECTED"
 
 
+def test_install_detection_flags_missing_shared_agent(fake_repo: Path) -> None:
+    (fake_repo / ".claude" / "agents" / "beta.md").unlink()
+
+    results = drift.run_install_detection(
+        fake_repo / "templates" / "agents",
+        fake_repo / ".claude" / "agents",
+        fake_repo / ".github" / "agents",
+        threshold=80,
+    )
+    by_name = {r.agent_name: r for r in results}
+
+    assert by_name["alpha"].status == "OK"
+    assert by_name["beta"].status == "NO COUNTERPART"
+
+
 def test_install_detection_returns_empty_without_templates(tmp_path: Path) -> None:
     (tmp_path / ".claude" / "agents").mkdir(parents=True)
     (tmp_path / ".github" / "agents").mkdir(parents=True)
@@ -212,6 +243,12 @@ def test_exit_code_install_drift_is_advisory_by_default() -> None:
     install = _drift_result("orchestrator", drift._INSTALL_COMPARISON_LABEL)
 
     assert drift._exit_code([install], [install], fail_on_install=False) == 0
+
+
+def test_exit_code_uses_comparison_label_for_install_results() -> None:
+    install = _drift_result("orchestrator", drift._INSTALL_COMPARISON_LABEL)
+
+    assert drift._exit_code([install], [], fail_on_install=False) == 0
 
 
 def test_exit_code_install_drift_blocks_when_flag_set() -> None:
@@ -280,6 +317,30 @@ def test_main_install_drift_blocks_with_flag(fake_repo: Path) -> None:
     )
 
     assert exit_code == 1
+
+
+def test_main_missing_install_path_returns_exit_2(
+    fake_repo: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = drift.main(
+        [
+            "--claude-path",
+            str(fake_repo / "templates" / "agents"),
+            "--vscode-path",
+            str(fake_repo / "templates" / "agents"),
+            "--templates-path",
+            str(fake_repo / "missing" / "templates"),
+            "--claude-install-path",
+            str(fake_repo / ".claude" / "agents"),
+            "--github-install-path",
+            str(fake_repo / ".github" / "agents"),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 2
+    assert "install comparison path(s) not found" in captured.err
 
 
 def test_main_skip_install_comparison_only_vendored(fake_repo: Path) -> None:

@@ -257,7 +257,9 @@ def format_text(
     lines: list[str] = []
     lines.append("")
     lines.append("=== Agent Drift Detection ===")
-    lines.append("Comparing: shared-template agents across vendored and install copies")
+    lines.append(
+        "Comparing: src/claude vs src/vs-code-agents, plus shared-template install copies"
+    )
     lines.append(f"Similarity Threshold: {threshold}%")
     lines.append("")
 
@@ -402,24 +404,26 @@ def run_detection(
 
     Compares each ``claude_path/{name}.md`` against
     ``vscode_path/{name}.agent.md``. When ``restrict_to`` is given, only agents
-    whose stem is in that set are compared; this scopes the install-copy
-    comparison (``.claude/agents`` vs ``.github/agents``) to shared-template
-    agents so freestanding agents are not flagged as missing a counterpart.
-    ``comparison`` labels which pair the results came from.
+    whose stem is in that set are compared, even when one side is missing.
+    This scopes the install-copy comparison (``.claude/agents`` vs
+    ``.github/agents``) to shared-template agents so freestanding agents are not
+    flagged as missing a counterpart. ``comparison`` labels which pair the
+    results came from.
     """
     results: list[AgentResult] = []
 
-    claude_files = sorted(claude_path.glob("*.md"))
+    if restrict_to is None:
+        agent_names = sorted(p.stem for p in claude_path.glob("*.md"))
+    else:
+        agent_names = sorted(restrict_to)
 
-    for claude_file in claude_files:
-        agent_name = claude_file.stem
+    for agent_name in agent_names:
         if agent_name in _NON_AGENT_FILENAMES:
             continue
-        if restrict_to is not None and agent_name not in restrict_to:
-            continue
+        claude_file = claude_path / f"{agent_name}.md"
         vscode_file = vscode_path / f"{agent_name}.agent.md"
 
-        if not vscode_file.exists():
+        if not claude_file.exists() or not vscode_file.exists():
             results.append(
                 AgentResult(
                     agent_name=agent_name,
@@ -578,6 +582,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     claude_install_path = args.claude_install_path or (repo_root / ".claude" / "agents")
     github_install_path = args.github_install_path or (repo_root / ".github" / "agents")
 
+    if not args.skip_install_comparison:
+        install_paths = (
+            ("shared templates", templates_path),
+            ("Claude install agents", claude_install_path),
+            ("GitHub install agents", github_install_path),
+        )
+        missing_install_paths = [
+            f"{label}: {path}" for label, path in install_paths if not path.is_dir()
+        ]
+        if missing_install_paths:
+            print(
+                "Error: install comparison path(s) not found:\n"
+                + "\n".join(f"  - {path}" for path in missing_install_paths),
+                file=sys.stderr,
+            )
+            return 2
+
     start_time = time.monotonic()
     results = run_detection(claude_path, vscode_path, args.similarity_threshold)
     install_results: list[AgentResult] = []
@@ -629,10 +650,9 @@ def _exit_code(
     ``--fail-on-install-drift`` promotes it to blocking once those are
     reconciled.
     """
-    install_set = {id(r) for r in install_results}
     blocking_drift = any(
         r.status == "DRIFT DETECTED"
-        and (fail_on_install or id(r) not in install_set)
+        and (fail_on_install or r.comparison != _INSTALL_COMPARISON_LABEL)
         for r in results
     )
     return 1 if blocking_drift else 0
