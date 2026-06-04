@@ -88,14 +88,15 @@ def add_causal_edge(
     # Check for existing edge
     for existing in graph["edges"]:
         if existing["source"] == source_id and existing["target"] == target_id:
-            # Update weight (running average)
-            existing["weight"] = round(
-                (existing["weight"] + weight) / 2, 2,
+            previous_evidence_count = int(
+                existing.get("evidence_count", existing.get("count", 1)),
             )
-            existing["evidence_count"] = existing.get(
-                "evidence_count",
-                existing.get("count", 1),
-            ) + 1
+            existing["weight"] = round(
+                (existing["weight"] * previous_evidence_count + weight)
+                / (previous_evidence_count + 1),
+                2,
+            )
+            existing["evidence_count"] = previous_evidence_count + 1
             existing.pop("count", None)
             edge_result: dict[str, Any] = existing
             return edge_result

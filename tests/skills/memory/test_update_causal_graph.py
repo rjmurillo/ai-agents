@@ -64,6 +64,7 @@ class TestAddCausalEdge:
         edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6)
         assert len(graph["edges"]) == 1
         assert edge["evidence_count"] == 2
+        assert edge["weight"] == 0.7
         assert "count" not in edge
 
     def test_migrates_legacy_count_key(self):
@@ -83,6 +84,7 @@ class TestAddCausalEdge:
         edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6)
 
         assert edge["evidence_count"] == 10
+        assert edge["weight"] == 0.78
         assert "count" not in edge
 
 

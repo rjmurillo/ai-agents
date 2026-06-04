@@ -151,7 +151,13 @@ def test_k3_returns_three_when_suite_cannot_run(
 
 @pytest.mark.parametrize(
     ("local", "ci"),
-    [("PASS", "PASS"), ("PASS", "pass"), ("  WARN ", "warn")],
+    [
+        ("PASS", "PASS"),
+        ("PASS", "pass"),
+        ("PASS", "COMPLIANT"),
+        ("  WARN ", "warn"),
+        ("WARN", "PARTIAL"),
+    ],
 )
 def test_k4_verdicts_match_is_case_and_whitespace_insensitive(
     local: str, ci: str
@@ -226,7 +232,7 @@ def test_k4_does_not_emit_raw_unrecognized_verdicts(
     )
 
     assert rc == 1
-    assert "local=UNRECOGNIZED" in emitted[0][1]
+    assert "local=UNKNOWN" in emitted[0][1]
     assert "abc123def456ghi" not in emitted[0][1]
 
 

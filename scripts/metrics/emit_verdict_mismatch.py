@@ -27,23 +27,19 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parents[1]
 sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.ai_review_common.verdict import merge_verdicts  # noqa: E402
 from scripts.metrics.kill_criteria import emit_event  # noqa: E402
-
-_KNOWN_VERDICTS = {
-    "pass": "PASS",
-    "warn": "WARN",
-    "critical_fail": "CRITICAL_FAIL",
-}
 
 
 def verdicts_match(local: str, ci: str) -> bool:
-    """Return True when the two verdicts are equal ignoring case and edge whitespace."""
-    return local.strip().casefold() == ci.strip().casefold()
+    """Return True when two verdicts collapse to the same canonical outcome."""
+    return _canonical_verdict(local) == _canonical_verdict(ci)
 
 
-def _safe_verdict_label(verdict: str) -> str:
+def _canonical_verdict(verdict: str) -> str:
     """Return a non-secret verdict label for telemetry detail."""
-    return _KNOWN_VERDICTS.get(verdict.strip().casefold(), "UNRECOGNIZED")
+    token = verdict.strip().upper()
+    return merge_verdicts([token])
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -65,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     detail = (
         f"verdict mismatch commit={args.commit} "
-        f"local={_safe_verdict_label(args.local)} ci={_safe_verdict_label(args.ci)}"
+        f"local={_canonical_verdict(args.local)} ci={_canonical_verdict(args.ci)}"
     )
     try:
         emit_event("K4", detail)
