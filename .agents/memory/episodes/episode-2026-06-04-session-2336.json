@@ -2,7 +2,7 @@
   "id": "episode-2026-06-04-session-2336",
   "session": "2026-06-04-session-2336",
   "timestamp": "2026-06-04T00:00:00+00:00",
-  "outcome": "partial",
+  "outcome": "success",
   "task": "Autofix and merge PR #2359: sunset session-migration and finish session QA fold.",
   "decisions": [],
   "events": [],

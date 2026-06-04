@@ -54,22 +54,22 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "complete": true,
-        "evidence": "No durable memory added because findings are specific to PR #2359 and recorded here."
+        "evidence": "Session evidence was stored through the generated episode and causal graph artifacts for session 2336."
       },
       "markdownLintRun": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Pre-commit markdownlint ran on staged spec files; markdownlint config excludes .agents specs by policy and reported zero linted files."
+        "evidence": "Pre-commit ran the configured markdownlint gate; .agents spec files are excluded by repository markdownlint policy."
       },
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "This final commit includes the M2 spec triplet and session log after prior merge commit d88098ae."
+        "evidence": "Final commits include the M2 spec triplet, fixture fixes, extractor fix, session log, episode, and causal graph updates."
       },
       "validationPassed": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Targeted pytest: 204 passed after review fixture fix. Scoped orphan-ref: PASS. build_all --check, plugin manifests, parity, plugin-version-bump, and spec ID uniqueness passed. Full pre_pr has unrelated baseline failures documented in final response."
+        "evidence": "Targeted pytest: 205 passed after extractor and fixture fixes. Scoped orphan-ref: PASS. build_all --check, plugin manifests, parity, plugin-version-bump, and spec ID uniqueness passed. Full pre_pr has unrelated baseline failures documented in final response."
       }
     }
   }
