@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from test_helpers import make_completed_process
 
 # Ensure importability
@@ -48,9 +47,9 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "123", "--reaction", "eyes"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["succeeded"] == 1
-        assert result["failed"] == 0
-        assert result["results"][0]["success"] is True
+        assert result["Data"]["succeeded"] == 1
+        assert result["Data"]["failed"] == 0
+        assert result["Data"]["results"][0]["success"] is True
 
     def test_batch_success(self, _import_module, capsys):
         mod = _import_module
@@ -62,9 +61,9 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "1", "2", "3", "--reaction", "heart"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["total_count"] == 3
-        assert result["succeeded"] == 3
-        assert result["failed"] == 0
+        assert result["Data"]["total_count"] == 3
+        assert result["Data"]["succeeded"] == 3
+        assert result["Data"]["failed"] == 0
 
     def test_partial_failure(self, _import_module, capsys):
         mod = _import_module
@@ -81,11 +80,14 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", side_effect=side_effect),
         ):
-            rc = mod.main(["--comment-id", "1", "2", "3", "--comment-type", "issue", "--reaction", "rocket"])
+            rc = mod.main([
+                "--comment-id", "1", "2", "3",
+                "--comment-type", "issue", "--reaction", "rocket",
+            ])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
-        assert result["succeeded"] == 2
-        assert result["failed"] == 1
+        assert result["Data"]["succeeded"] == 2
+        assert result["Data"]["failed"] == 1
 
     def test_duplicate_reaction_succeeds(self, _import_module, capsys):
         mod = _import_module
@@ -99,7 +101,7 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "1", "--reaction", "+1"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["succeeded"] == 1
+        assert result["Data"]["succeeded"] == 1
 
     def test_review_endpoint(self, _import_module):
         mod = _import_module

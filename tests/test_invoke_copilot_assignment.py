@@ -254,5 +254,6 @@ def test_prepare_context_only(mock_run, capsys):
 
     assert rc == 0
     output = _extract_json(capsys.readouterr().out)
-    assert "context_file" in output
-    assert output["existing_synthesis_id"] is None
+    assert output["Success"] is True
+    assert "context_file" in output["Data"]
+    assert output["Data"]["existing_synthesis_id"] is None
