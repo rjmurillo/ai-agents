@@ -7,6 +7,7 @@ functionality used by the chaos-experiment skill.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -943,6 +944,31 @@ class TestGenerateExperimentCLI:
         assert "API Gateway Test" in content
         assert "Payment Service" in content
         assert "Jane" in content
+
+    def test_default_output_routes_through_artifact_root(
+        self, script_path: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without --output, the file lands under the portability artifact root.
+
+        Issue #2050: the default output must route through the
+        resolve_artifact_root helper, not a hard-coded .agents/chaos. The
+        AI_AGENTS_ARTIFACT_ROOT override redirects every skill's artifacts to
+        a consumer-chosen location, so the document must appear under
+        <override>/chaos.
+        """
+        env = dict(os.environ, AI_AGENTS_ARTIFACT_ROOT=str(tmp_path))
+        result = subprocess.run(
+            [sys.executable, str(script_path), "--name", "Default Routed"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+
+        assert result.returncode == 0
+        created_files = list((tmp_path / "chaos").glob("*.md"))
+        assert len(created_files) == 1
+        assert "Default Routed" in created_files[0].read_text()
 
 
 class TestValidateExperimentCLI:

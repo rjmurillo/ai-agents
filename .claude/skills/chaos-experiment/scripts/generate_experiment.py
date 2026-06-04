@@ -16,6 +16,28 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+# Resolve the vendor-portable path helper at .claude/lib/paths.py (Issue #2050).
+# In a vendored plugin install the consumer repo has no .agents/ tree, so the
+# default output directory must route through resolve_artifact_root rather than
+# a hard-coded .agents/chaos. Bootstrap .claude/lib onto sys.path the same way
+# the merge-resolver skill does: CLAUDE_PLUGIN_ROOT, then GITHUB_WORKSPACE, then
+# the lib/ sibling of the .claude-plugin marker (parents[3] for this script).
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root:
+    _LIB_DIR = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _LIB_DIR = os.path.join(_workspace, ".claude", "lib")
+else:
+    _LIB_DIR = str(Path(__file__).resolve().parents[3] / "lib")
+if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+import paths  # noqa: E402
+
+# Default artifact subdirectory written under the artifact root (Issue #2050).
+_CHAOS_SUBDIR = "chaos"
+
 
 @dataclass
 class Result:
@@ -128,9 +150,6 @@ def save_document(content: str, output_dir: Path, name: str) -> Path:
 
 def main() -> Result:
     """Main entry point."""
-    _proj = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
-    os.makedirs(os.path.join(_proj, ".agents"), exist_ok=True)
-
     parser = argparse.ArgumentParser(
         description="Generate a chaos experiment document",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -138,7 +157,7 @@ def main() -> Result:
 Examples:
     python generate_experiment.py --name "API Gateway Resilience"
     python generate_experiment.py --name "DB Failover" --system "Payment Service"
-    python generate_experiment.py --name "Cache Partition" --output .agents/chaos/
+    python generate_experiment.py --name "Cache Partition" --output ./out/chaos/
         """,
     )
 
@@ -170,8 +189,11 @@ Examples:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(".agents/chaos"),
-        help="Output directory (default: .agents/chaos/)",
+        default=None,
+        help=(
+            "Output directory (default: the artifact root's chaos/ subdir, "
+            "<cwd>/.agents/chaos unless AI_AGENTS_ARTIFACT_ROOT is set)"
+        ),
     )
     parser.add_argument(
         "--json",
@@ -204,8 +226,15 @@ Examples:
                 data={"content_length": len(content)},
             )
 
-        # Save the document
-        output_path = save_document(content, args.output, args.name)
+        # Resolve the output directory. An explicit --output is honored as-is;
+        # otherwise route through the portability helper so a vendored consumer
+        # repo writes under its own artifact root, not a hard-coded .agents/
+        # (Issue #2050). resolve_artifact_root creates the directory lazily.
+        if args.output is not None:
+            output_dir = args.output
+        else:
+            output_dir = paths.resolve_artifact_root(_CHAOS_SUBDIR)
+        output_path = save_document(content, output_dir, args.name)
 
         result = Result(
             success=True,
