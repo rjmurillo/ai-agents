@@ -25,7 +25,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates every canonical axis the project ships, plus three local-only skill axes that CI cannot afford. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` rather than hardcoding a list, so adding a `references/{role}.md` file enrolls the axis with no edit to this skill body. When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline copies the entire skill directory (including `references/`) into vendored plugin installs so the command runs without a CI dependency in any harness that supports plugins.
+`/review` evaluates every canonical axis the project ships, plus three local-only skill axes that CI cannot afford. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` rather than hardcoding a list, so adding a `references/{role}.md` file enrolls the axis with no edit to this skill body. When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline copies the entire skill directory (including `references/` and `scripts/`) into vendored plugin installs so the command runs without a CI dependency in any harness that supports plugins.
 
 The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` runs first and gates Stage 2: a `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE) short-circuits the review (see Process step 2). Its CI mirror emits `UNKNOWN` when no linked spec is available; the caller decides how that verdict gates its workflow.
 
@@ -50,6 +50,12 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
   2. `skills/{skill}/scripts/{script}` resolved relative to plugin install root (vendored install)
 
 The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before reporting an error. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling), do not abort the review.
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker that `/ship` requires. | `0` valid marker, `1` missing or stale marker, `2` config error |
 
 ## Process
 
@@ -83,7 +89,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The skill body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve the verdict library via the "Path resolution" section. The build pipeline copies the entire skill directory (including `references/`) into plugin installs at `src/copilot-cli/skills/review/`, so `${CLAUDE_SKILL_DIR}/references/` resolves in both layouts without a fallback chain, and the axis set is discovered from that directory. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this skill for project maintainers reading the prose, not as runtime dependencies.
+`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The skill body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve the verdict library via the "Path resolution" section. The build pipeline copies the entire skill directory (including `references/` and `scripts/`) into plugin installs at `src/copilot-cli/skills/review/`, so `${CLAUDE_SKILL_DIR}/references/` resolves in both layouts without a fallback chain, and the axis set is discovered from that directory. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this skill for project maintainers reading the prose, not as runtime dependencies.
 
 ## UNKNOWN handling
 
@@ -134,7 +140,7 @@ short-circuit, and on `UNKNOWN`: a non-PASS verdict must not leave a marker.
 
 The marker is a git trailer (vendor-safe: it lives in the commit, travels in every
 clone, needs no `.agents/` access). Its contract, quoted verbatim from the reader
-`scripts/validation/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`),
+`.claude/skills/review/scripts/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`),
 is:
 
 ```text

@@ -19,8 +19,10 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 
 1. **Pipeline health** - Invoke Skill(skill="pipeline-validator"). All CI checks green? No suppressed failures?
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff?
-3. **Reviewed on this SHA** - The shipped code must carry a SHA-bound `/review` PASS marker (Issue #1938). Run:
-   - `python3 scripts/validation/validate_review_marker.py --ref HEAD`
+3. **Reviewed on this SHA** - The shipped code must carry a SHA-bound `/review` PASS marker (Issue #1938). Run the review-skill validator:
+   - If `CLAUDE_SKILL_DIR` is set: `python3 "$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py" --ref HEAD`
+   - Source checkout fallback: `python3 .claude/skills/review/scripts/validate_review_marker.py --ref HEAD`
+   - Vendored plugin fallback: `python3 skills/review/scripts/validate_review_marker.py --ref HEAD`
 
    The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent). Exit `1` means no marker, a stale marker, or new code landed after review; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped. Because `/review` is the strict superset of CI (Child 1 #1934), a passing marker covers golden-principles, taste-lints, and code-quality too; there is no separate standards check.
 4. **Tests passing** - All tests green? No skipped tests without justification?
