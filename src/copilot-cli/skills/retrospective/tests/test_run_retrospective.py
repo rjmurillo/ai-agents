@@ -12,9 +12,11 @@ import importlib.util
 import json
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from hashlib import sha1
 from pathlib import Path
+
+UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 _SCRIPT = _SCRIPT_DIR / "run_retrospective.py"
