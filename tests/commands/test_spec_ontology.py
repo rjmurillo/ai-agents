@@ -141,6 +141,38 @@ def test_ontology_fragment_carried_into_step_6(step_6_region: str) -> None:
     )
 
 
+def test_ontology_checks_reference_real_spec_artifact_paths(
+    spec_text: str,
+    completeness_text: str,
+) -> None:
+    """Ontology coverage points at generated REQ and DESIGN artifacts."""
+    assert ".agents/specs/requirements/REQ-NNN-{slug}.md" in spec_text, (
+        "Step 1 ontology handoff must name the generated REQ artifact pattern"
+    )
+    assert "`requirements.md`" not in spec_text, (
+        "Step 1 ontology handoff must not point at a non-emitted requirements.md"
+    )
+    assert ".agents/specs/design/DESIGN-NNN-{slug}.md" in completeness_text, (
+        "completeness prompt must name the generated DESIGN artifact pattern"
+    )
+    assert "`design.md`" not in completeness_text, (
+        "completeness prompt must not point at a non-emitted design.md"
+    )
+
+
+def test_ontology_coverage_not_mislabeled_as_step_7(spec_text: str) -> None:
+    """The ontology coverage gate lives in CI, not /spec Step 7."""
+    assert "Step 7 completeness" not in spec_text, (
+        "ontology completeness must not be mislabeled as /spec Step 7"
+    )
+    assert "Step 7 ontology" not in spec_text, (
+        "ontology coverage must not be mislabeled as /spec Step 7"
+    )
+    assert "CI completeness check" in spec_text, (
+        "ontology coverage handoff must name the CI completeness check"
+    )
+
+
 def test_ontology_in_prd_output_schema(spec_text: str) -> None:
     """The PRD output schema lists an Ontology section."""
     # The output schema is a bulleted list near the end of the file.

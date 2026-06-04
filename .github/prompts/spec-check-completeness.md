@@ -134,9 +134,10 @@ and would silently drop the verdict.
    it means two artifacts may name the same concept differently. Treat one such gap
    as a minor gap (lean PARTIAL); treat a requirement whose primary entity is
    entirely absent from the OntologyFragment as a critical gap (lean FAIL).
-2. **Decision-rule traceability**: every domain decision rule in `design.md` should
-   trace to an `## O5` decision-rule source in the OntologyFragment. An unsourced
-   decision rule is a PARTIAL-level gap.
+2. **Decision-rule traceability**: every domain decision rule in
+   `.agents/specs/design/DESIGN-NNN-{slug}.md` should trace to an `## O5`
+   decision-rule source in the OntologyFragment. An unsourced decision rule is a
+   PARTIAL-level gap.
 
 Degradation (no spurious failures):
 
