@@ -179,6 +179,29 @@ def test_estimate_cost_counts_calls_across_both_prompt_sets():
     assert "USD" in cost.render()
 
 
+def test_estimate_cost_uses_central_pricing_for_model(monkeypatch):
+    # Arrange
+    monkeypatch.setitem(
+        eso.MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
+        "unit-test-model",
+        {"input": 0.002, "output": 0.006},
+    )
+    pairs = [("a", "b")]
+    prompts = {"a": [{"prompt": "p", "expected": "e"}], "b": []}
+
+    # Act
+    cost = eso.estimate_cost(pairs, prompts, model="unit-test-model", calls_per_prompt=1)
+
+    # Assert: blended rate is midpoint of central input/output rates.
+    assert cost.usd_estimate == round(eso.EST_TOKENS_PER_CALL / 1000 * 0.004, 4)
+
+
+def test_estimate_cost_rejects_unpriced_model():
+    # Act / Assert
+    with pytest.raises(eso.PricingError, match="No pricing rate"):
+        eso.estimate_cost([("a", "b")], {"a": [{"prompt": "p", "expected": "e"}]}, model="x")
+
+
 def test_estimate_cost_zero_for_empty_prompt_sets():
     # Arrange: a pair whose skills have no prompts (degenerate edge).
     pairs = [("a", "b")]
@@ -260,6 +283,18 @@ def test_load_pairs_file_raises_on_wrong_pair_arity(tmp_path):
 
     # Act / Assert
     with pytest.raises(eso.PairsFileError, match="two"):
+        eso.load_pairs_file(str(f))
+
+
+def test_load_pairs_file_raises_on_self_pair(tmp_path):
+    # Arrange
+    payload = _valid_pairs_payload()
+    payload["pairs"] = [["a", "a"]]
+    f = tmp_path / "c.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+
+    # Act / Assert
+    with pytest.raises(eso.PairsFileError, match="self-pair"):
         eso.load_pairs_file(str(f))
 
 
@@ -440,19 +475,22 @@ def test_parse_judge_score_extracts_from_code_fence():
     assert eso._parse_judge_score(raw) == 4.0
 
 
-def test_parse_judge_score_returns_zero_on_garbage():
+def test_parse_judge_score_raises_on_garbage():
     # Act / Assert
-    assert eso._parse_judge_score("not json at all") == 0.0
+    with pytest.raises(eso.JudgeScoreError, match="not valid JSON"):
+        eso._parse_judge_score("not json at all")
 
 
-def test_parse_judge_score_returns_zero_on_non_object_json():
+def test_parse_judge_score_raises_on_non_object_json():
     # Act / Assert
-    assert eso._parse_judge_score("4") == 0.0
+    with pytest.raises(eso.JudgeScoreError, match="not an object"):
+        eso._parse_judge_score("4")
 
 
-def test_parse_judge_score_returns_zero_when_score_is_null():
+def test_parse_judge_score_raises_when_score_is_null():
     # Act / Assert
-    assert eso._parse_judge_score('{"score": null}') == 0.0
+    with pytest.raises(eso.JudgeScoreError, match="missing or null"):
+        eso._parse_judge_score('{"score": null}')
 
 
 def test_parse_judge_score_clamps_out_of_range_values():
@@ -598,6 +636,25 @@ def test_run_returns_config_exit_on_bad_pairs_file(tmp_path):
     assert code == eso.EXIT_CONFIG
 
 
+def test_run_returns_config_exit_on_unpriced_model(tmp_path, monkeypatch):
+    # Arrange
+    skills_root = tmp_path / "skills_root"
+    skills_root.mkdir()
+    _make_skill_dir(skills_root, "a")
+    _make_skill_dir(skills_root, "b")
+    monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
+    cluster = _write_valid_cluster(tmp_path)
+    args = eso.build_parser().parse_args(
+        ["--pairs", str(cluster), "--model", "missing-model", "--dry-run"]
+    )
+
+    # Act
+    code = eso.run(args)
+
+    # Assert
+    assert code == eso.EXIT_CONFIG
+
+
 def test_run_returns_logic_exit_when_skill_dir_missing(tmp_path, monkeypatch):
     # Arrange: valid cluster, but skills resolve against an empty dir, so the
     # pair references skills that do not exist -> logic error (exit 1).
@@ -633,6 +690,33 @@ def test_run_returns_external_exit_on_api_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(eso, "_load_api_key", lambda: "fake-key")
     monkeypatch.setattr(eso, "make_response_fn", lambda key, model: _failing_respond)
     monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: (lambda p, r, e: 3.0))
+    args = eso.build_parser().parse_args(["--pairs", str(cluster)])
+
+    # Act
+    code = eso.run(args)
+
+    # Assert
+    assert code == eso.EXIT_EXTERNAL
+
+
+def test_run_returns_external_exit_on_invalid_judge_payload(tmp_path, monkeypatch):
+    # Arrange: invalid judge output must stop the run, not skew the verdict.
+    skills_root = tmp_path / "skills_root"
+    skills_root.mkdir()
+    _make_skill_dir(skills_root, "a")
+    _make_skill_dir(skills_root, "b")
+    cluster = _write_valid_cluster(tmp_path)
+
+    monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
+    monkeypatch.setattr(eso, "_load_api_key", lambda: "fake-key")
+    monkeypatch.setattr(eso, "make_response_fn", lambda key, model: (lambda p, c: "r"))
+    monkeypatch.setattr(
+        eso,
+        "make_judge_fn",
+        lambda key, model: (
+            lambda p, r, e: (_ for _ in ()).throw(eso.JudgeScoreError("bad score"))
+        ),
+    )
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
 
     # Act

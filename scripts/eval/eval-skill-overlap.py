@@ -65,7 +65,11 @@ from typing import Any, Literal
 # ---------------------------------------------------------------------------
 from _anthropic_api import call_api as _call_api
 from _anthropic_api import load_api_key as _load_api_key
-from _eval_common import EST_TOKENS_PER_CALL
+from _eval_common import (
+    EST_TOKENS_PER_CALL,
+    MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
+    PRICING_RATE_AS_OF,
+)
 
 # ---------------------------------------------------------------------------
 # Exit codes (ADR-035-exit-code-standardization.md). Named so call sites read
@@ -87,11 +91,6 @@ REPORTS_DIR = REPO_ROOT / "evals" / "reports"
 DEFAULT_MODEL = "claude-sonnet-4-20250514"
 RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; matches eval-knowledge-integration.py
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-
-# USD pricing. Reused from _eval_common conventions: Sonnet input/output blend.
-# A blended per-1K rate keeps the run-start estimate honest without tracking
-# input/output split before the calls are made.
-USD_PER_1K_TOKENS_BLENDED = 0.009  # midpoint of $0.003 in / $0.015 out
 
 # Verdict thresholds. A delta is "meaningful help" when a skill's enhanced score
 # beats baseline by at least DELTA_HELP_THRESHOLD on the relevant prompt set.
@@ -116,14 +115,20 @@ class CostEstimate:
     def render(self) -> str:
         return (
             f"Cost estimate: {self.api_calls} API calls, "
-            f"~{self.est_tokens:,} tokens, ~${self.usd_estimate:.2f} USD"
+            f"~{self.est_tokens:,} tokens, ~${self.usd_estimate:.2f} USD "
+            f"(pricing as of {PRICING_RATE_AS_OF})"
         )
+
+
+class PricingError(ValueError):
+    """Raised when a model has no central eval pricing entry."""
 
 
 def estimate_cost(
     pairs: list[tuple[str, str]],
     prompts: dict[str, list[dict[str, Any]]],
     *,
+    model: str = DEFAULT_MODEL,
     calls_per_prompt: int = 6,
 ) -> CostEstimate:
     """Estimate API cost for the run.
@@ -139,8 +144,18 @@ def estimate_cost(
         total_prompts += len(prompts.get(skill_b, []))
     api_calls = total_prompts * calls_per_prompt
     est_tokens = api_calls * EST_TOKENS_PER_CALL
-    usd = est_tokens / 1000.0 * USD_PER_1K_TOKENS_BLENDED
+    usd = est_tokens / 1000.0 * _blended_rate_for_model(model)
     return CostEstimate(api_calls=api_calls, est_tokens=est_tokens, usd_estimate=round(usd, 4))
+
+
+def _blended_rate_for_model(model: str) -> float:
+    rates = MODEL_PRICING_RATES_USD_PER_1K_TOKENS.get(model)
+    if rates is None:
+        raise PricingError(
+            f"No pricing rate for model_id={model!r}. "
+            "Add it to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in _eval_common.py."
+        )
+    return (rates["input"] + rates["output"]) / 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +299,11 @@ def load_pairs_file(path: str) -> PairsConfig:
             raise PairsFileError(
                 f"Pairs file {path}: pair {index} must be a [skillA, skillB] list of two "
                 "non-empty strings."
+            )
+        if entry[0] == entry[1]:
+            raise PairsFileError(
+                f"Pairs file {path}: pair {index} is a self-pair for '{entry[0]}'. "
+                "Use two different skills."
             )
         pairs.append((entry[0], entry[1]))
 
@@ -432,8 +452,12 @@ def make_judge_fn(api_key: str, model: str) -> JudgeFn:
     return _judge
 
 
+class JudgeScoreError(ValueError):
+    """Raised when the LLM judge returns a malformed score payload."""
+
+
 def _parse_judge_score(raw: str) -> float:
-    """Extract the integer score from a judge response. Defaults to 0.0 on miss."""
+    """Extract the score from a judge response or raise on malformed payload."""
     text = raw.strip()
     if "```" in text:
         match = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
@@ -441,21 +465,17 @@ def _parse_judge_score(raw: str) -> float:
             text = match.group(1).strip()
     try:
         parsed = json.loads(text)
-    except json.JSONDecodeError:
-        print(f"WARNING: failed to parse judge score: {text[:100]}", file=sys.stderr)
-        return 0.0
+    except json.JSONDecodeError as exc:
+        raise JudgeScoreError(f"Judge score payload is not valid JSON: {text[:100]}") from exc
     if not isinstance(parsed, dict):
-        print(f"WARNING: judge score payload is not an object: {text[:100]}", file=sys.stderr)
-        return 0.0
+        raise JudgeScoreError(f"Judge score payload is not an object: {text[:100]}")
     score = parsed.get("score")
     if score is None:
-        print(f"WARNING: judge score missing or null: {text[:100]}", file=sys.stderr)
-        return 0.0
+        raise JudgeScoreError(f"Judge score missing or null: {text[:100]}")
     try:
         return min(max(float(score), 1.0), 5.0)
-    except (TypeError, ValueError):
-        print(f"WARNING: failed to parse judge score: {text[:100]}", file=sys.stderr)
-        return 0.0
+    except (TypeError, ValueError) as exc:
+        raise JudgeScoreError(f"Judge score is not numeric: {text[:100]}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -710,7 +730,11 @@ def run(args: argparse.Namespace) -> int:
         print(f"ERROR (logic): {exc}", file=sys.stderr)
         return EXIT_LOGIC
 
-    cost = estimate_cost(config.pairs, config.prompts)
+    try:
+        cost = estimate_cost(config.pairs, config.prompts, model=args.model)
+    except PricingError as exc:
+        print(f"ERROR (config): {exc}", file=sys.stderr)
+        return EXIT_CONFIG
     print(cost.render(), file=sys.stderr)
 
     if args.dry_run:
@@ -746,6 +770,9 @@ def run(args: argparse.Namespace) -> int:
     except MissingSkillError as exc:
         print(f"ERROR (logic): {exc}", file=sys.stderr)
         return EXIT_LOGIC
+    except JudgeScoreError as exc:
+        print(f"ERROR (external): LLM judge returned invalid score payload: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
     except RuntimeError as exc:
         print(f"ERROR (external): Anthropic API failure: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
