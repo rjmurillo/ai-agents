@@ -232,6 +232,9 @@ def test_generator_design_traces_decision_rules_to_o5(
     assert "ontologyfragment `## o5` source" in lowered, (
         "design rule traceability must cite OntologyFragment O5 sources"
     )
+    assert "`2` configuration or file-read error" in lowered, (
+        "spec-generator must document validator exit code 2"
+    )
 
 
 # --- Negative: no new top-level step, no new verdict token ---
@@ -310,6 +313,9 @@ def test_completeness_check_treats_fragment_as_canonical_source(
     )
     assert "cannot introduce an entity absent from the fragment" in normalized, (
         "REQ-local `## Ontology` sections must not mask fragment drift"
+    )
+    assert "run entity coverage and decision-rule traceability only when an ontologyfragment exists" in normalized, (
+        "ontology checks must not fail degraded runs that lack a fragment"
     )
 
 

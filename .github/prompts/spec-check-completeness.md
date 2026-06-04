@@ -125,6 +125,11 @@ extractor in `.github/actions/ai-review/action.yml` reads the plain
 ontology token would require a coordinated allowlist update; without that change,
 the gate returns `NEEDS_REVIEW` instead of the intended domain verdict.
 
+Run entity coverage and decision-rule traceability only when an OntologyFragment
+exists. A requirement-level `## Ontology` section emitted without a fragment is
+local degraded-run evidence, not a canonical source; record the ontology checks as
+`N/A` and do not lower the verdict for ontology coverage in that case.
+
 1. **Entity coverage**: when an OntologyFragment exists, every domain entity
    referenced in a requirement's statement or acceptance criteria must appear in the
    OntologyFragment by its canonical O2 name. The requirement's `## Ontology`
@@ -135,15 +140,16 @@ the gate returns `NEEDS_REVIEW` instead of the intended domain verdict.
    it means two artifacts may name the same concept differently. Treat one such gap
    as a minor gap (lean PARTIAL); treat a requirement whose primary entity is
    entirely absent from the OntologyFragment as a critical gap (lean FAIL).
-2. **Decision-rule traceability**: every domain decision rule in
+2. **Decision-rule traceability**: when an OntologyFragment exists, every domain decision rule in
    `.agents/specs/design/DESIGN-NNN-{slug}.md` should trace to an `## O5`
    decision-rule source in the OntologyFragment. An unsourced decision rule is a
    PARTIAL-level gap.
 
 Degradation (no spurious failures):
 
-- If the specification carries NO OntologyFragment and NO `## Ontology` sections, the
-  ontology checks are `N/A`; do not lower the verdict for their absence.
+- If the specification carries NO OntologyFragment, the ontology checks are `N/A`;
+  do not lower the verdict for its absence. Requirement-level `## Ontology` sections
+  from degraded runs are local evidence only, not a substitute fragment.
 - If the OntologyFragment exists but declares `none (no domain entities)` and the
   generated requirements also reference no domain entities, entity coverage is
   vacuously satisfied; do not emit PARTIAL or FAIL for an empty-entity feature. If
