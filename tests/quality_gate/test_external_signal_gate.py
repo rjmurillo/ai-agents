@@ -67,6 +67,12 @@ class TestAgentSignal:
     def test_non_compliant_aliases_to_fail(self) -> None:
         assert agent_signal("qa", "NON_COMPLIANT") == "llm:qa=FAIL"
 
+    def test_compliant_aliases_to_pass(self) -> None:
+        assert agent_signal("qa", "COMPLIANT") == "llm:qa=PASS"
+
+    def test_partial_aliases_to_warn(self) -> None:
+        assert agent_signal("qa", "PARTIAL") == "llm:qa=WARN"
+
     def test_empty_verdict_is_unknown(self) -> None:
         assert agent_signal("analyst", "") == "llm:analyst=UNKNOWN"
 
@@ -125,6 +131,18 @@ class TestMain:
         monkeypatch.setenv("QA_VERDICT", "NON_COMPLIANT")
         rc = main([])
         assert rc == 1
+
+    def test_compliant_agent_passes(self, monkeypatch, capsys) -> None:
+        _set_all(monkeypatch, "COMPLIANT", "PASS")
+        rc = main([])
+        assert rc == 0
+        assert "PASS" in capsys.readouterr().out
+
+    def test_partial_agent_warns(self, monkeypatch, capsys) -> None:
+        _set_all(monkeypatch, "PARTIAL", "PASS")
+        rc = main([])
+        assert rc == 0
+        assert "WARN" in capsys.readouterr().out
 
     def test_closed_loop_refused_when_pytest_skipped(self, monkeypatch, capsys) -> None:
         # SKIPPED -> external:pytest=UNKNOWN, so no usable external signal; the

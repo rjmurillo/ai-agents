@@ -43,7 +43,6 @@ import os
 import sys
 from pathlib import Path
 
-_SCRIPT_DIR = Path(__file__).resolve().parent
 try:
     from .path_utils import REPOSITORY_ROOT
 except ImportError:  # pragma: no cover - script execution path
@@ -67,7 +66,9 @@ _PYTEST_VERDICT = {
 
 # Agent verdict tokens that gate_aggregator does not know, mapped to one it does.
 _AGENT_VERDICT_ALIAS = {
+    "COMPLIANT": "PASS",
     "NON_COMPLIANT": "FAIL",
+    "PARTIAL": "WARN",
     "": "UNKNOWN",
 }
 
