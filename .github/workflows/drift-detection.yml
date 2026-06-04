@@ -47,6 +47,31 @@ jobs:
           exit ${EXIT_CODE:-0}
         continue-on-error: true
 
+      # K2 (REQ-008-09): record a generator-regression kill-criteria event
+      # when template drift is detected. The emitter owns the JSONL schema;
+      # this step is a single logic-free CLI call (ADR-006).
+      - name: Emit K2 kill-criteria event
+        id: emit-k2
+        if: steps.drift.outputs.drift_detected == 'true'
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 scripts/metrics/kill_criteria.py \
+            --kind K2 \
+            --detail "agent drift detected run=$RUN_ID"
+        continue-on-error: true
+
+      # The events file is git-ignored, so upload it as an artifact to make
+      # the K2 count survive the ephemeral runner.
+      - name: Upload kill-criteria events
+        if: steps.drift.outputs.drift_detected == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: drift-events-${{ github.run_id }}
+          path: .agents/metrics/drift-events.jsonl
+          if-no-files-found: ignore
+        continue-on-error: true
+
       - name: Collect drift details
         id: details
         if: steps.drift.outputs.drift_detected == 'true'
