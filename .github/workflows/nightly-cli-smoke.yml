@@ -1,0 +1,166 @@
+# Nightly Real-CLI Hook Smoke (issue #2231 items 3-4, ADR-071)
+#
+# Installs the real Copilot and Claude CLIs and runs the plugin hook end to end
+# on ubuntu/macos/windows. This is the authenticated cross-platform smoke that
+# ADR-071 deferred: the no-auth gates (validate_hook_anchoring,
+# test_generate_hooks_runtime_contract) verify path resolution in PR CI; this
+# job verifies the real CLI launcher contract that bare CI cannot, on the
+# platforms (Windows PowerShell) where #2205 was reported.
+#
+# Security (.claude/rules/security.md, issue #2231 item 3):
+#   - Triggers only on schedule and workflow_dispatch. GitHub never fires these
+#     from a fork, so a fork PR can never reach the secret-bearing job.
+#   - A trusted-context gate (scripts/validation/assert_trusted_smoke_context.py,
+#     ADR-006: decision in Python, not YAML) re-checks event, repository, and ref
+#     fails closed, so a fork running this workflow on its own schedule is denied.
+#   - Least-privilege: top-level permissions are contents: read.
+#   - Every action is pinned to a commit SHA (no floating tags).
+#   - Auth tokens come from the secrets manager (secrets.*), scoped to the smoke
+#     job's env only, never written to the repo.
+#
+# Loud, not silent (.claude/rules/generated-artifacts.md, issue #2231 item 4):
+#   The smoke tests skip without RUN_CLI_E2E=1 and the CLIs, and a skip reads as
+#   a pass in a green summary. scripts/validation/assert_smoke_ran.py parses the
+#   JUnit report and fails the job if the smoke was skipped or not collected, so
+#   a missing auth secret surfaces as a red run, not a silent green one.
+#
+# Local equivalent:
+#   RUN_CLI_E2E=1 uv run pytest tests/e2e/test_cli_hook_e2e.py -m smoke -v
+
+name: Nightly CLI Smoke
+
+on:
+  schedule:
+    # 06:00 UTC daily. Off the top of the hour to avoid the cron thundering herd.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  authorize:
+    name: Trusted-context gate
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    outputs:
+      trusted: ${{ steps.gate.outputs.trusted }}
+    steps:
+      - name: Harden Runner
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Check trusted context
+        id: gate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
+        run: |
+          trusted=$(python3 scripts/validation/assert_trusted_smoke_context.py \
+            --event-name "$EVENT_NAME" \
+            --repository "$REPOSITORY" \
+            --ref "$REF")
+          echo "trusted=$trusted" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: Smoke (${{ matrix.os }})
+    needs: authorize
+    if: needs.authorize.outputs.trusted == 'true'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      RUN_CLI_E2E: '1'
+      # Scoped, least-privilege tokens from the secrets manager. The e2e harness
+      # skips loudly when a CLI is unauthenticated; the smoke gate then fails the
+      # job, so a missing secret is a red run, never a silent green one.
+      ANTHROPIC_API_KEY: ${{ secrets.SMOKE_ANTHROPIC_API_KEY }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.SMOKE_COPILOT_CLI_TOKEN }}
+    steps:
+      - name: Harden Runner
+        # Windows and macOS runners do not support harden-runner; gate it.
+        if: runner.os == 'Linux'
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+
+      - name: Setup Python
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+        with:
+          enable-cache: true
+
+      - name: Setup Node
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
+        with:
+          node-version: 'lts/*'
+
+      - name: Install Claude and Copilot CLIs
+        shell: bash
+        run: npm install -g @anthropic-ai/claude-code @github/copilot
+
+      - name: Run real-CLI hook smoke
+        shell: bash
+        run: uv run pytest tests/e2e/test_cli_hook_e2e.py -m smoke --junitxml=smoke-report.xml
+
+      - name: Assert the smoke actually ran
+        # always(): the gate must run even if the smoke step failed, so a skip
+        # (which pytest exits 0 for) is still caught and reported as a red job.
+        if: always()
+        shell: bash
+        run: uv run python scripts/validation/assert_smoke_ran.py smoke-report.xml
+
+  smoke-result:
+    name: Smoke Result
+    needs: [authorize, smoke]
+    # Pass-through summary so the run has one terminal status to alert on.
+    if: always()
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Report
+        shell: bash
+        env:
+          AUTHORIZE_RESULT: ${{ needs.authorize.result }}
+          TRUSTED: ${{ needs.authorize.outputs.trusted }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          if [ "$AUTHORIZE_RESULT" != "success" ]; then
+            echo "::error::Trusted-context gate result: $AUTHORIZE_RESULT"
+            exit 1
+          fi
+          if [ "$TRUSTED" != "true" ]; then
+            echo "::error::Untrusted context; smoke skipped. Run on trusted repo via schedule/workflow_dispatch."
+            exit 1
+          fi
+          if [ "$SMOKE_RESULT" != "success" ]; then
+            echo "::error::Nightly smoke result: $SMOKE_RESULT"
+            exit 1
+          fi
+          echo "Nightly CLI smoke passed on all platforms."

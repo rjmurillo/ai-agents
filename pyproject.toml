@@ -42,6 +42,7 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "security: Security-focused tests",
+    "smoke: Real-CLI smoke tests (need auth/credits; nightly only). The smoke gate asserts these were not skipped (issue #2231 item 4).",
 ]
 
 [tool.coverage.run]

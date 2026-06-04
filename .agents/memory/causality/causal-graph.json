@@ -4627,7 +4627,16 @@
       "episodes": [
         "episode-2026-06-04-session-2334"
       ],
-      "created": "2026-06-04T09:58:26.321404+00:00"
+      "created": "2026-06-04T09:03:28.707051+00:00"
+    },
+    {
+      "id": "96fb73bd7292",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve PR 2353 merge conflicts and finish PR",
+      "episodes": [
+        "episode-2026-06-04-session-2335"
+      ],
+      "created": "2026-06-04T11:48:07.863954+00:00"
     }
   ],
   "patterns": [
