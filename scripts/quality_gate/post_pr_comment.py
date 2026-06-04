@@ -52,7 +52,19 @@ _GITHUB_SCRIPTS = REPOSITORY_ROOT / ".github" / "scripts"
 _MARKER = "AI-PR-QUALITY-GATE"
 
 
-def build_command(pr_number: str, report_file: str) -> list[str]:
+def parse_pr_number(raw_pr_number: str) -> int | None:
+    """Return a positive PR number, or None when the value is invalid."""
+
+    try:
+        pr_number = int(raw_pr_number)
+    except ValueError:
+        return None
+    if pr_number <= 0:
+        return None
+    return pr_number
+
+
+def build_command(pr_number: int, report_file: str) -> list[str]:
     """Return the run_with_retry + post_issue_comment argv (verbatim shape)."""
 
     return [
@@ -62,7 +74,7 @@ def build_command(pr_number: str, report_file: str) -> list[str]:
         sys.executable,
         str(_GITHUB_SCRIPTS / "post_issue_comment.py"),
         "--issue",
-        pr_number,
+        str(pr_number),
         "--body-file",
         report_file,
         "--marker",
@@ -87,8 +99,9 @@ def main(argv: list[str] | None = None) -> int:
     if not pr_number:
         print("::error::PR_NUMBER environment variable is missing")
         return 1
-    if not pr_number.isdecimal():
-        print("::error::PR_NUMBER must contain digits only")
+    parsed_pr_number = parse_pr_number(pr_number)
+    if parsed_pr_number is None:
+        print("::error::PR_NUMBER must be a positive integer")
         return 1
     if not report_file:
         print("::error::REPORT_FILE environment variable is missing")
@@ -102,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"::error::Report file not found: {report_path}")
         return 1
 
-    command = build_command(pr_number, str(report_path))
+    command = build_command(parsed_pr_number, str(report_path))
     try:
         result = subprocess.run(command, timeout=args.timeout, check=False)
     except subprocess.TimeoutExpired:

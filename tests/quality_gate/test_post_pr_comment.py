@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts.quality_gate import post_pr_comment
-from scripts.quality_gate.post_pr_comment import build_command, main
+from scripts.quality_gate.post_pr_comment import build_command, main, parse_pr_number
 
 
 # ---------------------------------------------------------------------------
@@ -23,14 +23,14 @@ from scripts.quality_gate.post_pr_comment import build_command, main
 
 class TestBuildCommand:
     def test_includes_retry_wrapper_and_poster(self) -> None:
-        cmd = build_command("123", "/workspace/report.md")
+        cmd = build_command(123, "/workspace/report.md")
         joined = " ".join(cmd)
         assert "run_with_retry.py" in joined
         assert "--" in cmd
         assert "post_issue_comment.py" in joined
 
     def test_passes_issue_body_marker_and_update_flag(self) -> None:
-        cmd = build_command("123", "/workspace/report.md")
+        cmd = build_command(123, "/workspace/report.md")
         assert "--issue" in cmd
         assert cmd[cmd.index("--issue") + 1] == "123"
         assert "--body-file" in cmd
@@ -38,6 +38,25 @@ class TestBuildCommand:
         assert "--marker" in cmd
         assert cmd[cmd.index("--marker") + 1] == "AI-PR-QUALITY-GATE"
         assert "--update-if-exists" in cmd
+
+
+# ---------------------------------------------------------------------------
+# parse_pr_number
+# ---------------------------------------------------------------------------
+
+
+class TestParsePrNumber:
+    def test_accepts_positive_integer(self) -> None:
+        assert parse_pr_number("123") == 123
+
+    def test_rejects_shell_metacharacters(self) -> None:
+        assert parse_pr_number("1;echo") is None
+
+    def test_rejects_zero(self) -> None:
+        assert parse_pr_number("0") is None
+
+    def test_rejects_negative(self) -> None:
+        assert parse_pr_number("-1") is None
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +79,7 @@ class TestGuards:
         monkeypatch.setenv("REPORT_FILE", str(report))
         rc = main([])
         assert rc == 1
-        assert "PR_NUMBER must contain digits only" in capsys.readouterr().out
+        assert "PR_NUMBER must be a positive integer" in capsys.readouterr().out
 
     def test_missing_report_file_var_returns_one(self, monkeypatch, capsys) -> None:
         monkeypatch.setenv("PR_NUMBER", "123")
