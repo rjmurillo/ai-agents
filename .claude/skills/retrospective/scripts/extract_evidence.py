@@ -39,7 +39,7 @@ UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 # Bound the git call so a wedged repo cannot hang the retrospective.
 _GIT_TIMEOUT_SECONDS = 15
-# Cap how many session-log work items we surface, matching the Stop hook.
+# Cap session-log work items so the evidence artifact stays readable.
 _MAX_WORK_ITEMS = 25
 # Cap commits pulled into the evidence to keep the artifact readable.
 _DEFAULT_COMMIT_LIMIT = 50
@@ -105,10 +105,9 @@ def _scope_date(scope: str) -> date | None:
 
 
 def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Path | None:
-    """Return the current session log by date priority, or None when absent.
+    """Return the session log for a target date priority, or None when absent.
 
-    Matches the Stop-hook lookup order: prefer today's logs, then yesterday's
-    logs only when today has none, then fall back to the newest older log.
+    Prefers the target date, then the previous day, then the newest older log.
     """
     if not sessions_dir.is_dir():
         return None
