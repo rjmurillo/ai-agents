@@ -1142,6 +1142,15 @@ def test_load_entity_aliases_rejects_non_object_aliases(tmp_path):
         load_entity_aliases(target)
 
 
+def test_load_entity_aliases_rejects_non_string_entries(tmp_path):
+    """Alias entries must be strings so config errors fail closed."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": {"spec": 7}}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="string aliases to string canonicals"):
+        load_entity_aliases(target)
+
+
 def test_spec_md_documents_alias_lookup_step(step0_5_block: str):
     """spec.md normalization block documents rule 5 and the dictionary path."""
     assert ".agents/dictionaries/spec-entity-aliases.json" in step0_5_block

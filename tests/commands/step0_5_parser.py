@@ -168,7 +168,13 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
         return {}
     if not isinstance(aliases, dict):
         raise ValueError(f"alias table 'aliases' must be an object: {target}")
-    return {str(k): str(v) for k, v in aliases.items()}
+    for key, value in aliases.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ValueError(
+                "alias table entries must map string aliases to string canonicals: "
+                f"{target}"
+            )
+    return aliases
 
 
 def normalize_topic_with_aliases(

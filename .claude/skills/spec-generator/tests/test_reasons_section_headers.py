@@ -12,7 +12,18 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+
+def _repo_root(start: Path) -> Path:
+    """Find the repository root from canonical and generated test locations."""
+    for candidate in (start, *start.parents):
+        if (candidate / ".claude").is_dir() and (
+            candidate / "src" / "copilot-cli"
+        ).is_dir():
+            return candidate
+    raise RuntimeError(f"repository root not found from {start}")
+
+
+REPO_ROOT = _repo_root(Path(__file__).resolve())
 CANONICAL_SKILL = REPO_ROOT / ".claude" / "skills" / "spec-generator" / "SKILL.md"
 MIRROR_SKILL = (
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "spec-generator" / "SKILL.md"
