@@ -103,10 +103,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
     marker = tmp_path / "copilot_marker.txt"
     userland.mkdir()
     _write_probe_script(plugin / "hooks" / "SessionStart" / "probe.py", marker)
-    (plugin / ".claude-plugin").mkdir(parents=True)
-    (plugin / ".claude-plugin" / "plugin.json").write_text(
-        _manifest(probe_name), encoding="utf-8"
-    )
+    (plugin / "plugin.json").write_text(_manifest(probe_name), encoding="utf-8")
     # Use the exact command shape the generator emits.
     entry = generate_hooks._build_copilot_entry("SessionStart", "probe.py")
     (plugin / "hooks" / "hooks.json").write_text(
@@ -141,13 +138,9 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
             )
         except subprocess.TimeoutExpired:
             pytest.skip("copilot run exceeded 240s (CLI/infra latency)")
-        if not marker.is_file():
-            error_tail = run.stderr[-600:]
-            path_errors = ("No such file", "can't open file", "cannot open file")
-            assert not any(error in error_tail for error in path_errors), (
-                f"hook path failed. stdout={run.stdout[-600:]!r} stderr={error_tail!r}"
-            )
-            pytest.skip("copilot CLI completed without executing the installed probe hook")
+        assert marker.is_file(), (
+            f"hook never ran. stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+        )
         text = marker.read_text(encoding="utf-8")
         assert "MARKER" in text
         # Resolved from the install tree (anchored), not from the foreign cwd.
@@ -179,7 +172,9 @@ def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
     userland.mkdir()
     _write_probe_script(plugin / "hooks" / "probe.py", marker)
     (plugin / ".claude-plugin").mkdir(parents=True)
-    (plugin / ".claude-plugin" / "plugin.json").write_text(_manifest(probe_name), encoding="utf-8")
+    (plugin / ".claude-plugin" / "plugin.json").write_text(
+        _manifest(probe_name), encoding="utf-8"
+    )
     hook_command = f'"{sys.executable}" -u "${{CLAUDE_PLUGIN_ROOT}}/hooks/probe.py"'
     (plugin / "hooks" / "hooks.json").write_text(
         json.dumps(

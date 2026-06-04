@@ -72,10 +72,14 @@ def _divergent_body(name: str) -> str:
 def fake_repo(tmp_path: Path) -> Path:
     """Build a small repo tree with templates and install copies."""
     templates = tmp_path / "templates" / "agents"
+    src_claude = tmp_path / "src" / "claude"
+    src_vscode = tmp_path / "src" / "vs-code-agents"
     claude_install = tmp_path / ".claude" / "agents"
     github_install = tmp_path / ".github" / "agents"
     for name in ("alpha", "beta"):
         _write_agent(templates / f"{name}.shared.md", name)
+        _write_agent(src_claude / f"{name}.md", name)
+        _write_agent(src_vscode / f"{name}.agent.md", name)
         _write_agent(claude_install / f"{name}.md", name)
         _write_agent(github_install / f"{name}.agent.md", name)
     # Directory metadata that must be ignored.
@@ -236,25 +240,25 @@ def _drift_result(name: str, comparison: str) -> object:
 def test_exit_code_vendored_drift_always_blocks() -> None:
     vendored = _drift_result("merge-resolver", "src-claude vs src-vscode")
 
-    assert drift._exit_code([vendored], [], fail_on_install=False) == 1
+    assert drift._exit_code([vendored], fail_on_install=False) == 1
 
 
 def test_exit_code_install_drift_is_advisory_by_default() -> None:
     install = _drift_result("orchestrator", drift._INSTALL_COMPARISON_LABEL)
 
-    assert drift._exit_code([install], [install], fail_on_install=False) == 0
+    assert drift._exit_code([install], fail_on_install=False) == 0
 
 
 def test_exit_code_uses_comparison_label_for_install_results() -> None:
     install = _drift_result("orchestrator", drift._INSTALL_COMPARISON_LABEL)
 
-    assert drift._exit_code([install], [], fail_on_install=False) == 0
+    assert drift._exit_code([install], fail_on_install=False) == 0
 
 
 def test_exit_code_install_drift_blocks_when_flag_set() -> None:
     install = _drift_result("orchestrator", drift._INSTALL_COMPARISON_LABEL)
 
-    assert drift._exit_code([install], [install], fail_on_install=True) == 1
+    assert drift._exit_code([install], fail_on_install=True) == 1
 
 
 def test_exit_code_missing_install_counterpart_blocks_when_flag_set() -> None:
@@ -265,7 +269,7 @@ def test_exit_code_missing_install_counterpart_blocks_when_flag_set() -> None:
         comparison=drift._INSTALL_COMPARISON_LABEL,
     )
 
-    assert drift._exit_code([install], [install], fail_on_install=True) == 1
+    assert drift._exit_code([install], fail_on_install=True) == 1
 
 
 def test_exit_code_missing_vendored_counterpart_does_not_block_strict_install() -> None:
@@ -276,19 +280,18 @@ def test_exit_code_missing_vendored_counterpart_does_not_block_strict_install() 
         comparison="src-claude vs src-vscode",
     )
 
-    assert drift._exit_code([vendored], [], fail_on_install=True) == 0
+    assert drift._exit_code([vendored], fail_on_install=True) == 0
 
 
 def test_exit_code_zero_when_no_drift() -> None:
-    assert drift._exit_code([], [], fail_on_install=False) == 0
+    assert drift._exit_code([], fail_on_install=False) == 0
 
 
 # --- main() integration: install drift does not change the exit code --------
 
 
 def test_main_install_drift_advisory_exit_zero(fake_repo: Path) -> None:
-    # Diverge an install copy but keep the vendored dirs identical (point both
-    # at the same templates dir so vendored similarity is 100%).
+    # Diverge an install copy but keep the vendored dirs identical.
     _write_agent(
         fake_repo / ".github" / "agents" / "alpha.agent.md",
         "alpha",
@@ -298,9 +301,9 @@ def test_main_install_drift_advisory_exit_zero(fake_repo: Path) -> None:
     exit_code = drift.main(
         [
             "--claude-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "claude"),
             "--vscode-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "vs-code-agents"),
             "--templates-path",
             str(fake_repo / "templates" / "agents"),
             "--claude-install-path",
@@ -325,9 +328,9 @@ def test_main_install_drift_blocks_with_flag(fake_repo: Path) -> None:
     exit_code = drift.main(
         [
             "--claude-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "claude"),
             "--vscode-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "vs-code-agents"),
             "--templates-path",
             str(fake_repo / "templates" / "agents"),
             "--claude-install-path",
@@ -348,9 +351,9 @@ def test_main_missing_install_path_returns_exit_2(
     exit_code = drift.main(
         [
             "--claude-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "claude"),
             "--vscode-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "vs-code-agents"),
             "--templates-path",
             str(fake_repo / "missing" / "templates"),
             "--claude-install-path",
@@ -376,9 +379,9 @@ def test_main_skip_install_comparison_only_vendored(fake_repo: Path) -> None:
     exit_code = drift.main(
         [
             "--claude-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "claude"),
             "--vscode-path",
-            str(fake_repo / "templates" / "agents"),
+            str(fake_repo / "src" / "vs-code-agents"),
             "--skip-install-comparison",
         ]
     )

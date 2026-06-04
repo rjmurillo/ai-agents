@@ -101,6 +101,7 @@ Where `<topic>` is a short, normalized label for the subject (e.g., `pytest-fixt
 
 This skill searches the knowledge tiers using:
 
+- `mcp__forgetful__execute_forgetful_tool`
 - `mcp__serena__read_memory`, `mcp__serena__list_memories`
 - `mcp__context7__resolve-library-id`, `mcp__context7__get-library-docs`
 - `mcp__deepwiki__read_wiki_structure`, `mcp__deepwiki__read_wiki_contents`, `mcp__deepwiki__ask_question`

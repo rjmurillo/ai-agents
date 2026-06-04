@@ -635,12 +635,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print(output)
 
-    return _exit_code(results, install_results, fail_on_install=args.fail_on_install_drift)
+    return _exit_code(results, fail_on_install=args.fail_on_install_drift)
 
 
 def _exit_code(
     results: list[AgentResult],
-    install_results: list[AgentResult],
     fail_on_install: bool,
 ) -> int:
     """Return 1 when blocking drift exists, else 0.
