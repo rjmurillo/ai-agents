@@ -139,17 +139,37 @@ class TestCheckMergeReadiness:
         assert result["MergeStateStatus"] == "BEHIND"
         assert any("behind" in r.lower() for r in result["Reasons"])
 
-    def test_blocked_state_still_ready(self):
-        # issue #2157: BLOCKED usually means "awaiting required review", which
-        # is exactly when enabling auto-merge is correct. It must NOT block
-        # CanMerge; it is surfaced via MergeStateStatus for the agent.
+    def test_blocked_state_not_ready(self):
+        # issue #2326: GitHub reports mergeStateStatus=BLOCKED whenever branch
+        # protection is unsatisfied (missing required review, failing required
+        # check, missing required signature). CanMerge must be False so the
+        # autofix loop and humans alike treat the PR as not mergeable;
+        # MergeStateStatus stays surfaced for the agent. The earlier behavior
+        # (BLOCKED still allowed CanMerge=True so auto-merge could enable)
+        # produced the false-ready signal documented in PR #2323.
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BLOCKED"
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness("o", "r", 42)
-        assert result["CanMerge"] is True
+        assert result["CanMerge"] is False
         assert result["MergeStateStatus"] == "BLOCKED"
-        assert result["Reasons"] == []
+        assert any("blocked" in r.lower() for r in result["Reasons"])
+
+    def test_pr_2323_blocked_with_clean_threads_and_checks(self):
+        # Regression: PR #2323 shape from issue #2326. State=OPEN,
+        # mergeStateStatus=BLOCKED, zero unresolved threads, zero failing
+        # checks, zero pending checks. Previously CanMerge=True; now False.
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "BLOCKED"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["UnresolvedThreads"] == 0
+        assert result["FailedRequiredChecks"] == []
+        assert result["PendingRequiredChecks"] == []
+        assert result["MergeStateStatus"] == "BLOCKED"
+        assert result["CIPassing"] is True  # CI is clean; branch protection blocks
+        assert any("blocked" in r.lower() for r in result["Reasons"])
 
     def test_unresolved_threads(self):
         pr_data = json.loads(json.dumps(_OPEN_PR))

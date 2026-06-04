@@ -505,14 +505,27 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
 def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     """Append draft/state/merge-conflict reasons; return mergeable string.
 
-    Also gates on ``mergeStateStatus == BEHIND`` (issue #2157): a branch
-    behind its base cannot land, and this repo does not auto-update it on
-    auto-merge (issue #2048 concrete failure), so it must block. ``DRAFT``,
-    ``DIRTY``, and ``UNKNOWN`` are already covered by the ``isDraft`` and
-    ``mergeable`` checks. ``BLOCKED`` is intentionally NOT blocked: it
-    usually means "awaiting required review", which is exactly when enabling
-    auto-merge is the correct action; it stays surfaced via the
-    ``MergeStateStatus`` output field.
+    Gates on ``mergeStateStatus``:
+
+    - ``BEHIND`` (issue #2157): a branch behind its base cannot land, and
+      this repo does not auto-update it on auto-merge (issue #2048 concrete
+      failure), so it must block.
+    - ``BLOCKED`` (issue #2326): GitHub reports BLOCKED when branch
+      protection is unsatisfied (missing required review, failing required
+      check, missing required signature, etc.). PR #2323 demonstrated the
+      false-ready signal: ``CanMerge=true`` with ``mergeStateStatus=BLOCKED``
+      and no review decision caused the autofix loop to treat the PR as
+      mergeable even though branch protection still blocked it. The
+      four-condition autofix gate worked around this by re-checking
+      MergeStateStatus in the dispatcher's ``pass_when_python`` lambda; the
+      script now owns the check so callers don't have to second-guess.
+      An earlier comment claimed BLOCKED was the auto-merge enable signal
+      and should NOT block ``CanMerge``; that intent was wrong for the
+      autofix consumer because nothing in the script differentiated "block
+      that auto-merge can resolve" from "block that needs human action".
+
+    ``DRAFT``, ``DIRTY``, and ``UNKNOWN`` are covered by the ``isDraft``
+    and ``mergeable`` checks above.
     """
     if pr["state"] != "OPEN":
         reasons.append(f"PR is {pr['state'].lower()}, not open")
@@ -523,8 +536,14 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
         reasons.append("PR has merge conflicts")
     elif mergeable == "UNKNOWN":
         reasons.append("Merge status is being calculated")
-    if pr.get("mergeStateStatus") == "BEHIND":
+    merge_state = pr.get("mergeStateStatus") or ""
+    if merge_state == "BEHIND":
         reasons.append("Branch is behind base; update against the base branch before merging")
+    elif merge_state == "BLOCKED":
+        reasons.append(
+            "Branch protection blocks merge (mergeStateStatus=BLOCKED); "
+            "satisfy required reviews, checks, or signatures before merging"
+        )
     return mergeable
 
 
