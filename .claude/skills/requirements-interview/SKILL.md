@@ -30,6 +30,8 @@ When this skill activates, you become an adversarial requirements interviewer. T
 
 - Free-form problem statement, issue body, or feature title.
 - Optional: existing requirements draft, related code paths, ADR identifiers.
+- Optional: OntologyFragment from `/spec` Step 1. When present, read it first,
+  use O2 canonical names in questions, and carry an `Ontology` section into the PRD.
 
 ## Outputs
 
@@ -41,13 +43,14 @@ When this skill activates, you become an adversarial requirements interviewer. T
 ## Process
 
 1. **Restate the problem** in one sentence. Confirm with the user before continuing.
-2. **Build the design tree.** Identify the top-level branches: user stories, data model, integrations, failure modes, security, scope boundaries, observability.
-3. **Walk one branch at a time, depth first.** Resolve dependencies before siblings. A storage decision constrains the consistency model; ask the storage question first.
-4. **For every question, propose your recommended answer.** Cite the source: code path, ADR, prior art, or stated assumption. The user confirms or corrects. Do not ask open-ended questions without a default.
-5. **If the codebase can answer it, answer it.** Grep before you ask. Cite the file and line. The user confirms ownership of the answer.
-6. **Surface unknown unknowns.** For each branch, ask "what would have to be true for this to fail in production?" Capture failure modes, not just happy paths.
-7. **Stop when the design tree has no unresolved leaves.** Every branch ends with either a confirmed decision, an explicit deferral, or an out-of-scope marker.
-8. **Emit the structured output** in the format below.
+2. **Read the OntologyFragment if provided.** Use O2 canonical names in every question and add an `Ontology` PRD section summarizing O1-O7.
+3. **Build the design tree.** Identify the top-level branches: user stories, ontology, data model, integrations, failure modes, security, scope boundaries, observability.
+4. **Walk one branch at a time, depth first.** Resolve dependencies before siblings. A storage decision constrains the consistency model; ask the storage question first.
+5. **For every question, propose your recommended answer.** Cite the source: code path, ADR, prior art, or stated assumption. The user confirms or corrects. Do not ask open-ended questions without a default.
+6. **If the codebase can answer it, answer it.** Grep before you ask. Cite the file and line. The user confirms ownership of the answer.
+7. **Surface unknown unknowns.** For each branch, ask "what would have to be true for this to fail in production?" Capture failure modes, not just happy paths.
+8. **Stop when the design tree has no unresolved leaves.** Every branch ends with either a confirmed decision, an explicit deferral, or an out-of-scope marker.
+9. **Emit the structured output** in the format below.
 
 ## Question Discipline
 

@@ -183,6 +183,12 @@ def test_requirements_interview_outputs_ontology_section(
     assert "caller-provided OntologyFragment" in interview_text, (
         "requirements-interview must summarize the provided OntologyFragment"
     )
+    assert "Optional: OntologyFragment from `/spec` Step 1" in interview_text, (
+        "requirements-interview inputs must accept the Step 1 OntologyFragment"
+    )
+    assert "Read the OntologyFragment if provided" in interview_text, (
+        "requirements-interview process must read the fragment before elicitation"
+    )
 
 
 def test_ontology_checks_reference_real_spec_artifact_paths(
