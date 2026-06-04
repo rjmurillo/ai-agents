@@ -559,7 +559,7 @@ jobs:
           SHOULD_RUN: ${{ needs.check-changes.outputs.should-run }}
         run: |
           if [ "$SHOULD_RUN" != "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Skipped - no relevant file changes detected"
           fi
 
@@ -682,6 +682,7 @@ jobs:
           AGENT_SAFETY_CATEGORY: ${{ steps.aggregate.outputs['agent-safety_category'] }}
           DECISION_RIGOR_CATEGORY: ${{ steps.aggregate.outputs['decision-rigor_category'] }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          AI_REVIEW_DIR: ai-review
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
