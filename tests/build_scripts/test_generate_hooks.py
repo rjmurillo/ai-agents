@@ -655,6 +655,19 @@ def test_generator_preserves_explicit_zero_version_field(tmp_path: Path) -> None
     assert out["version"] == 0
 
 
+def test_generator_fails_2_on_empty_version_field(tmp_path: Path) -> None:
+    cfg, _ = _setup_full_fixture(tmp_path)
+    text = cfg.read_text(encoding="utf-8")
+    cfg.write_text(
+        text.replace("    versionField: 1", '    versionField: ""'),
+        encoding="utf-8",
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 2
+
+
 def test_generator_remaps_event_names(tmp_path: Path) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
@@ -701,6 +714,17 @@ def test_generator_preserves_explicit_zero_timeout(tmp_path: Path) -> None:
     assert rc == 0
     out = json.loads((tmp_path / "out" / "hooks.json").read_text())
     assert out["hooks"]["PreToolUse"][0]["timeoutSec"] == 0
+
+
+def test_generator_fails_2_on_empty_timeout(tmp_path: Path) -> None:
+    cfg, _ = _setup_full_fixture(tmp_path)
+    settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"][0]["timeout"] = ""
+    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 2
 
 
 def _find_shimmed_alpha(tmp_path: Path) -> Path:

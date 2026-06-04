@@ -150,9 +150,8 @@ def _emit_one_hook(
     """
     matcher = group.get("matcher")
     cmd = hook.get("command", "") or ""
-    timeout_value = hook.get("timeout")
-    timeout = int(
-        _DEFAULT_TIMEOUT_SEC if timeout_value is None else timeout_value
+    timeout = _int_field_or_default(
+        hook.get("timeout"), _DEFAULT_TIMEOUT_SEC, "hook.timeout"
     )
     src = _resolve_script_path(script_source, cmd, claude_event)
     if src is None:
@@ -255,6 +254,19 @@ def _process_event(
     return emitted
 
 
+def _int_field_or_default(
+    value: str | bytes | bytearray | int | float | None,
+    default: int,
+    field_name: str,
+) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise GenerateHooksError(f"{field_name} must be an integer") from exc
+
+
 def generate_hooks(
     config_path: Path,
     repo_root: Path,
@@ -288,8 +300,13 @@ def generate_hooks(
     event_drop: set[str] = {
         str(item) for item in (stanza.get("eventDrop") or [])
     }
-    version_field_value = stanza.get("versionField")
-    version_field = int(1 if version_field_value is None else version_field_value)
+    try:
+        version_field = _int_field_or_default(
+            stanza.get("versionField"), 1, "artifacts.hooks.versionField"
+        )
+    except GenerateHooksError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2, result
     # ADR-068 / #2295: when true, collapse the tool-gating event's per-shim
     # entries into one in-process dispatcher entry. Default false keeps the
     # byte-identical per-shim output for every other platform.
