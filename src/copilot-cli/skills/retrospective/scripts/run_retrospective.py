@@ -37,11 +37,23 @@ import importlib.util
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from types import ModuleType
+from typing import Protocol
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 
 
-def _load_sibling(module_name: str):
+class EvidenceLike(Protocol):
+    """Fields from extract_evidence.Evidence used by this renderer."""
+
+    work_items: list[str]
+    outcomes: list[str]
+    commits: list[str]
+    notes: list[str]
+    session_log_available: bool
+
+
+def _load_sibling(module_name: str) -> ModuleType:
     """Import a sibling script module by path.
 
     Skill scripts are not packaged, so we load by file location rather than a
@@ -72,7 +84,7 @@ score_learning = _score_mod.score_learning
 PERSISTENCE_THRESHOLD = _score_mod.PERSISTENCE_THRESHOLD
 
 
-def _render_session_context(evidence) -> str:
+def _render_session_context(evidence: EvidenceLike) -> str:
     """Render the Phase 0 session-context block from gathered evidence."""
     lines: list[str] = []
     if evidence.work_items:
@@ -129,7 +141,9 @@ def _render_learnings(learnings: list[str]) -> tuple[str, bool]:
     return "\n\n".join(blocks), any_below
 
 
-def render_artifact(scope: str, today: str, evidence, learnings: list[str]) -> tuple[str, bool]:
+def render_artifact(
+    scope: str, today: str, evidence: EvidenceLike, learnings: list[str]
+) -> tuple[str, bool]:
     """Render a retrospective artifact matching the canonical template shape.
 
     The section headings and order mirror
@@ -239,6 +253,15 @@ def _resolve_output_path(retro_dir: Path, scope: str, today: str, fill: str | No
     return retro_dir / f"{today}-{safe_scope}.md"
 
 
+def _require_project_output_path(path: Path, project_dir: Path) -> Path:
+    """Return a resolved output path only when it stays inside project_dir."""
+    resolved_project = project_dir.resolve()
+    resolved_path = path.resolve()
+    if not resolved_path.is_relative_to(resolved_project):
+        raise ValueError(f"output path escapes project dir: {path}")
+    return resolved_path
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
@@ -310,6 +333,12 @@ def main(argv: list[str] | None = None) -> int:
             output_path = project_dir / output_path
     else:
         output_path = _resolve_output_path(retro_dir, args.scope, today, args.fill)
+
+    try:
+        output_path = _require_project_output_path(output_path, project_dir)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)

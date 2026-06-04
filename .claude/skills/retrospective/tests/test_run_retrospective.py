@@ -12,16 +12,19 @@ import importlib.util
 import json
 import subprocess
 import sys
+from datetime import UTC, datetime
+from hashlib import sha1
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 _SCRIPT = _SCRIPT_DIR / "run_retrospective.py"
 _TEMPLATE = Path(__file__).resolve().parent.parent / "references" / "learning-template.md"
+_MODULE_NAME = f"retrospective_run_retrospective_{sha1(str(_SCRIPT).encode()).hexdigest()[:12]}"
 
-_spec = importlib.util.spec_from_file_location("run_retrospective", _SCRIPT)
+_spec = importlib.util.spec_from_file_location(_MODULE_NAME, _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
-sys.modules["run_retrospective"] = _mod
+sys.modules[_MODULE_NAME] = _mod
 _spec.loader.exec_module(_mod)
 
 render_artifact = _mod.render_artifact
@@ -53,6 +56,10 @@ def _write_session(tmp_path: Path, payload: dict) -> Path:
     path = sessions / "2026-06-03-session-1-demo.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def _today() -> str:
+    return datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
 
 # --- Positive: a populated session produces a scored artifact ---------------
@@ -155,7 +162,7 @@ def test_integration_run_writes_conformant_artifact(tmp_path):
 
     # Assert: exit zero, file written at the canonical path, headings present.
     assert rc == 0
-    written = tmp_path / ".agents" / "retrospective" / "2026-06-03-integration.md"
+    written = tmp_path / ".agents" / "retrospective" / f"{_today()}-integration.md"
     assert written.is_file()
     content = written.read_text(encoding="utf-8")
     for heading in _REQUIRED_HEADINGS:
@@ -210,7 +217,7 @@ def test_integration_subprocess_writes_file(tmp_path):
     assert result.returncode == 0
     out_path = Path(result.stdout.strip())
     assert out_path.is_file()
-    assert out_path.name == "2026-06-03-sub.md"
+    assert out_path.name == f"{_today()}-sub.md"
 
 
 # --- Error paths: ADR-035 exit codes ----------------------------------------
@@ -278,6 +285,58 @@ def test_cli_output_override_writes_to_explicit_path(tmp_path):
     # Assert
     assert rc == 0
     assert target.is_file()
+
+
+def test_cli_rejects_output_override_outside_project(tmp_path):
+    # Arrange
+    _write_session(tmp_path, {"workLog": ["work"]})
+    target = tmp_path.parent / "outside-retro.md"
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "escape",
+        "--output", str(target),
+    ])
+
+    # Assert
+    assert rc == 2
+    assert not target.exists()
+
+
+def test_cli_rejects_relative_output_traversal(tmp_path):
+    # Arrange
+    _write_session(tmp_path, {"workLog": ["work"]})
+    target = tmp_path.parent / "escape.md"
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "escape",
+        "--output", "../escape.md",
+    ])
+
+    # Assert
+    assert rc == 2
+    assert not target.exists()
+
+
+def test_cli_rejects_fill_path_outside_project(tmp_path):
+    # Arrange
+    _write_session(tmp_path, {"workLog": ["work"]})
+    outside = tmp_path.parent / "2026-06-03-auto-retro.md"
+    outside.write_text("# Retrospective\n", encoding="utf-8")
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "escape",
+        "--fill", str(outside),
+    ])
+
+    # Assert
+    assert rc == 2
+    assert not (tmp_path.parent / "2026-06-03-retro-filled.md").exists()
 
 
 def test_resolve_output_path_for_new_artifact(tmp_path):
