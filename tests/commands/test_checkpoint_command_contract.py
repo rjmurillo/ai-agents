@@ -30,7 +30,6 @@ def test_checkpoint_can_read_and_edit_session_log(checkpoint_text: str) -> None:
     assert "Write" in checkpoint_text
     assert "Bash(git branch:*)" in checkpoint_text
     assert "Bash(python3 -m json.tool:*)" in checkpoint_text
-    assert "Bash(python3 -c:*)" in checkpoint_text
     assert "Bash(python3 scripts/redact_secrets.py:*)" in checkpoint_text
     assert "## Triggers" in checkpoint_text
     assert "## Process" in checkpoint_text
@@ -52,7 +51,7 @@ def test_checkpoint_derives_default_slug_and_handles_collisions(checkpoint_text:
     assert "derive the label from the active" in checkpoint_text
     assert "session.objective" in checkpoint_text
     assert "CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md" in checkpoint_text
-    assert "Use this collision loop before writing" in checkpoint_text
+    assert re.search(r"Use this collision loop before\s+writing", checkpoint_text)
     assert "then `-3`" in checkpoint_text
 
 
@@ -60,6 +59,12 @@ def test_checkpoint_redacts_before_writing_durable_text(checkpoint_text: str) ->
     assert "Redact secrets before writing" in checkpoint_text
     assert "python3 scripts/redact_secrets.py" in checkpoint_text
     assert "instead of writing unredacted durable text" in checkpoint_text
+    assert "Only after redaction" in checkpoint_text
+
+
+def test_checkpoint_selects_path_before_write(checkpoint_text: str) -> None:
+    assert "Select the checkpoint path" in checkpoint_text
+    assert "do not use Write yet" in checkpoint_text
 
 
 def test_checkpoint_empty_sections_render_lowercase_none_marker(
@@ -73,6 +78,8 @@ def test_checkpoint_validates_updated_json_before_editing_original(
 ) -> None:
     assert re.search(r"Build\s+the complete updated JSON in memory", checkpoint_text)
     assert re.search(r"Validate the complete updated JSON string before editing", checkpoint_text)
+    assert "reads the full candidate from stdin" in checkpoint_text
+    assert "Never pass the JSON payload as a shell argument" in checkpoint_text
     assert "leave the original session log unchanged" in checkpoint_text
     assert "Persist the updated JSON only after" in checkpoint_text
 

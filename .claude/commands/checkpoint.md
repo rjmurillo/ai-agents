@@ -1,7 +1,7 @@
 ---
 description: Write a timestamped mid-session checkpoint snapshot of decisions, progress, and next actions to .agents/checkpoints/, then link it from the active session log.
 argument-hint: optional-short-label
-allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 -c:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
+allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
 ---
 
 # Checkpoint Command
@@ -27,15 +27,16 @@ Optional label for this checkpoint: $ARGUMENTS
 Resolve the timestamp, active session log, label, slug, and collision-safe
 checkpoint path.
 
-### Phase 2: Write redacted checkpoint
+### Phase 2: Build and redact checkpoint
 
-Render the checkpoint body, run it through the secret redactor, and write only
-to a path that does not already exist.
+Render the checkpoint body and run it through the secret redactor before any
+Write call.
 
-### Phase 3: Link session log
+### Phase 3: Persist and link
 
-Append checkpoint metadata to the active JSON session log when one exists, then
-validate the JSON.
+Write the redacted checkpoint to a path that does not already exist. Append
+checkpoint metadata to the active JSON session log when one exists, then validate
+the JSON.
 
 ## Steps
 
@@ -69,15 +70,15 @@ validate the JSON.
    - Filename: `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md`.
    - If slug generation returns an empty string, use `checkpoint` as the slug.
 
-4. Write the checkpoint to `.agents/checkpoints/<filename>` using the Write tool.
-   The directory already exists (tracked via `.gitkeep`). Do not overwrite an
-   existing file. Use this collision loop before writing:
+4. Select the checkpoint path. The directory already exists (tracked via
+   `.gitkeep`). Do not overwrite an existing file. Use this collision loop before
+   writing:
 
    - Start with `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md`.
    - Check whether `.agents/checkpoints/<candidate>` already exists with Glob.
    - If it exists, try `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>-2.md`, then `-3`, and
     continue until Glob returns no match.
-   - Write only to the first path that does not already exist.
+   - Select the first path that does not already exist, but do not use Write yet.
 
 5. Use this exact section structure. Fill each section from the current
    conversation and git state. Write "(none)" under a heading when a section has
@@ -115,11 +116,12 @@ validate the JSON.
    Files, issues, PRs, ADRs, session logs, and memories a reader needs to resume.
    ```
 
-6. Redact secrets before writing. The checkpoint lands in git history; treat it
+6. Redact secrets before writing, then write the checkpoint. The checkpoint lands in git history; treat it
    as durable. Do not paste live credentials, tokens, or PII. Before using Write,
    run the checkpoint body through `python3 scripts/redact_secrets.py` and write
    the redacted output. If the redactor is unavailable or fails, stop and report
-   the failure instead of writing unredacted durable text.
+   the failure instead of writing unredacted durable text. Only after redaction
+   succeeds, use Write on the collision-free path from step 4.
 
 7. Link the checkpoint from the active session log:
 
@@ -129,10 +131,12 @@ validate the JSON.
      the complete updated JSON in memory with a top-level `checkpoints` array.
      Create the array when it is absent. Append an object with `path`, `created`,
      `label`, and `branch` fields for this checkpoint.
-   - Validate the complete updated JSON string before editing the file. Use
-     `python3 -c 'import json,sys; json.loads(sys.argv[1])' '<updated-json>'`.
-     If validation fails, leave the original session log unchanged and report the
-     failure.
+   - Validate the complete updated JSON string before editing the file. Use a JSON
+     parser that reads the full candidate from stdin, such as
+     `python3 -m json.tool`. Never pass the JSON payload as a shell argument. If
+     your harness cannot validate the candidate without writing a scratch file,
+     leave the original session log unchanged and report that the session-log
+     link was skipped.
    - Persist the updated JSON only after the validate-first step succeeds.
    - Run `python3 -m json.tool <session-log-path>` after editing. If JSON
      validation fails, report the failure and do not claim the checkpoint was
