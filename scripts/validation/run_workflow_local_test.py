@@ -76,6 +76,32 @@ _ACTIONLINT_TIMEOUT = 60
 _ACT_DRYRUN_TIMEOUT = 120
 _ACT_FULL_TIMEOUT = 600
 
+# actionlint shells out to shellcheck for ``run:`` scripts. The info and style
+# tiers are advisory (SC2086 quoting advice, SC2129 grouped redirects) and are
+# not defects in a given change; on a clean checkout they produced 100+ findings
+# across untouched workflows and turned this gate red on baseline (Issue #2374).
+# Raise the shellcheck severity floor to ``warning`` so only ``warning`` and
+# ``error`` findings block. This keeps the gate consistent with
+# ``scripts/validation/pre_pr.py:validate_workflow_yaml``, which applies the same
+# floor; real bugs (SC2034 unused variable, SC2068 unquoted array) still fail.
+_SHELLCHECK_SEVERITY = "--severity=warning"
+
+
+def _shellcheck_env() -> dict[str, str]:
+    """Child env that raises the shellcheck severity floor to ``warning``.
+
+    Merges with the current ``SHELLCHECK_OPTS`` so an operator-set option (for
+    example ``--exclude=SC1091``) is preserved alongside the severity floor.
+    """
+    env = dict(os.environ)
+    existing = env.get("SHELLCHECK_OPTS", "").strip()
+    env["SHELLCHECK_OPTS"] = (
+        f"{existing} {_SHELLCHECK_SEVERITY}".strip()
+        if existing
+        else _SHELLCHECK_SEVERITY
+    )
+    return env
+
 
 @dataclass
 class StageResult:
@@ -115,8 +141,19 @@ def _gh_act_available() -> bool:
     return rc == 0
 
 
-def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int, str, str]:
-    """Run a command. Returns (exit_code, stdout, stderr); -1 on spawn error."""
+def _run(
+    cmd: list[str],
+    *,
+    timeout: int,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[int, str, str]:
+    """Run a command. Returns (exit_code, stdout, stderr); -1 on spawn error.
+
+    When ``env`` is provided it replaces the child environment entirely, so a
+    caller that only wants to add a variable should merge it with
+    ``os.environ`` first.
+    """
     try:
         proc = subprocess.run(
             cmd,
@@ -125,6 +162,7 @@ def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int,
             text=True,
             check=False,
             timeout=timeout,
+            env=env,
         )
     except FileNotFoundError:
         return -1, "", f"command not found: {cmd[0]}"
@@ -166,17 +204,84 @@ def _select_workflow_files(
 
 
 def _actionlint_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    rc, out, err = _run(["actionlint", *files], timeout=_ACTIONLINT_TIMEOUT, cwd=repo_root)
+    rc, out, err = _run(
+        ["actionlint", *files],
+        timeout=_ACTIONLINT_TIMEOUT,
+        cwd=repo_root,
+        env=_shellcheck_env(),
+    )
     if rc == 0:
         return StageResult("actionlint", True)
     return StageResult("actionlint", False, (out + err).strip()[:4000])
 
 
+# gh act defaults to the ``push`` event. A workflow with no ``push`` trigger
+# (for example schedule-only or workflow_dispatch-only) then makes act error
+# with "Could not find any stages to run", which used to fail this gate for a
+# changed schedule-only workflow even though the workflow is valid (Issue
+# #2374). Pick an event the workflow actually declares so act has a job graph
+# to walk. Preference order keeps the common PR-style events first.
+_ACT_EVENT_PREFERENCE = (
+    "push",
+    "pull_request",
+    "workflow_dispatch",
+    "schedule",
+    "workflow_call",
+)
+
+
+def _workflow_events(wf_path: Path) -> list[str]:
+    """Return the trigger event names declared in a workflow's ``on:`` block.
+
+    Handles the three YAML shapes for ``on``: a scalar (``on: push``), a list
+    (``on: [push, pull_request]``), and a map (``on:\\n  push:`` ...). The YAML
+    1.1 boolean coercion of the bare key ``on`` to ``True`` is handled by
+    checking both ``"on"`` and ``True`` keys. Returns an empty list when the
+    file cannot be read or parsed, so the caller falls back to act's default.
+    """
+    try:
+        import yaml
+
+        data = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    on = data.get("on", data.get(True))
+    if isinstance(on, str):
+        return [on]
+    if isinstance(on, list):
+        return [str(e) for e in on]
+    if isinstance(on, dict):
+        return [str(k) for k in on]
+    return []
+
+
+def _select_act_event(wf_path: Path) -> str | None:
+    """Choose an event for ``gh act -n`` based on the workflow's triggers.
+
+    Returns None when ``push`` is declared (act's default needs no override) or
+    when no events can be read (let act use its default and report its own
+    error). Otherwise returns the highest-preference declared event so act has
+    a runnable job graph.
+    """
+    events = _workflow_events(wf_path)
+    if not events or "push" in events:
+        return None
+    for candidate in _ACT_EVENT_PREFERENCE:
+        if candidate in events:
+            return candidate
+    return events[0]
+
+
 def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     for wf in files:
-        rc, out, err = _run(
-            ["gh", "act", "-n", "-W", wf], timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root
-        )
+        event = _select_act_event(repo_root / wf)
+        cmd = ["gh", "act", "-n"]
+        if event is not None:
+            cmd.append(event)
+        cmd += ["-W", wf]
+        rc, out, err = _run(cmd, timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root)
         if rc != 0:
             return StageResult(
                 "gh act -n", False, f"{wf}:\n{(out + err).strip()[:4000]}"
@@ -186,9 +291,12 @@ def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
     for wf in files:
-        rc, out, err = _run(
-            ["gh", "act", "-W", wf], timeout=_ACT_FULL_TIMEOUT, cwd=repo_root
-        )
+        event = _select_act_event(repo_root / wf)
+        cmd = ["gh", "act"]
+        if event is not None:
+            cmd.append(event)
+        cmd += ["-W", wf]
+        rc, out, err = _run(cmd, timeout=_ACT_FULL_TIMEOUT, cwd=repo_root)
         if rc != 0:
             return StageResult(
                 "gh act (full)", False, f"{wf}:\n{(out + err).strip()[:4000]}"
