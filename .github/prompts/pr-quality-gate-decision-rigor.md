@@ -40,7 +40,7 @@ keeps that change from passing on absent evidence. See
 
 ## When This Axis Applies
 
-Apply the focus areas below when the diff stages an ADR (an `ADR-*.md` file) or a design-review document, or when the PR description argues for a non-obvious technical choice with alternatives, trade-offs, or evidence. Routine code changes that do not record a decision do not need this axis; record PASS and move on.
+Apply the focus areas below when the diff stages an ADR (an `ADR-*.md` file) or a design-review document, or when the PR description argues for a non-obvious technical choice with alternatives, trade-offs, or evidence. When `CONTEXT_MODE` is `full`, routine code changes that do not record a decision do not need this axis and may emit `PASS`. When `CONTEXT_MODE` is `summary` or `partial`, emit `WARN` instead and state that line-level evidence is missing.
 
 ## Reference Material
 

@@ -40,7 +40,7 @@ keeps that change from passing on absent evidence. See
 
 ## When This Axis Applies
 
-Apply the focus areas below when the diff adds or changes executable code (functions, classes, modules, scripts). Documentation-only, config-only, and generated-output changes do not carry maintainability risk; record PASS and move on. Scope the assessment to the code the diff touches, not the whole repository.
+Apply the focus areas below when the diff adds or changes executable code (functions, classes, modules, scripts). When `CONTEXT_MODE` is `full`, documentation-only, config-only, and generated-output changes do not carry maintainability risk and may emit `PASS`. When `CONTEXT_MODE` is `summary` or `partial`, emit `WARN` instead and state that line-level evidence is missing. Scope the assessment to the code the diff touches, not the whole repository.
 
 ## Reference Material
 

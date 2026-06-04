@@ -40,7 +40,7 @@ keeps that change from passing on absent evidence. See
 
 ## When This Axis Applies
 
-Apply the focus areas below when the diff adds a new code path, a new agent step, or a new hook, or when it changes an existing path's failure or branching behavior. Documentation-only and pure-refactor changes that preserve observable behavior do not need an observability review; record PASS and move on.
+Apply the focus areas below when the diff adds a new code path, a new agent step, or a new hook, or when it changes an existing path's failure or branching behavior. When `CONTEXT_MODE` is `full`, documentation-only and pure-refactor changes that preserve observable behavior do not need an observability review and may emit `PASS`. When `CONTEXT_MODE` is `summary` or `partial`, emit `WARN` instead and state that line-level evidence is missing.
 
 ## Reference Material
 

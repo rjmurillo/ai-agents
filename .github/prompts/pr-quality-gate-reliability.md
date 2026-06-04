@@ -40,7 +40,7 @@ keeps that change from passing on absent evidence. See
 
 ## When This Axis Applies
 
-Apply the focus areas below when the diff touches an integration point: a network call, a child process, a queue read or write, a file watcher, an MCP request, an agent orchestration step, or a retry loop. When the change is purely in-process (pure functions, formatting helpers, local data transforms), this axis is not material; record PASS and move on. Do not invent circuit breakers for code that has no remote dependency.
+Apply the focus areas below when the diff touches an integration point: a network call, a child process, a queue read or write, a file watcher, an MCP request, an agent orchestration step, or a retry loop. When `CONTEXT_MODE` is `full` and the change is purely in-process (pure functions, formatting helpers, local data transforms), this axis is not material and may emit `PASS`. When `CONTEXT_MODE` is `summary` or `partial`, emit `WARN` instead and state that line-level evidence is missing. Do not invent circuit breakers for code that has no remote dependency.
 
 ## Reference Material
 
