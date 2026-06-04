@@ -1116,6 +1116,51 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_review_marker(repo_root: Path) -> bool:
+    """Advisory check for a SHA-bound ``Reviewed-By: /review@...`` marker on HEAD.
+
+    Wraps ``scripts/validation/validate_review_marker.py`` (Issue #1938). The
+    marker is the ``/ship`` precondition: it proves ``/review`` passed on the
+    exact code being shipped. ``/ship`` itself blocks on a missing marker (AC1);
+    here the check is **advisory** by default, because most pre-PR pushes are
+    mid-development and have not run ``/review`` yet. Blocking every such push
+    would break normal iteration.
+
+    Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (returns False when
+    HEAD has no binding marker). Mirrors the advisory/enforced pattern used by
+    ``validate_command_bundle_coverage`` (``BUNDLE_CHECK_ENFORCED``).
+    """
+    enforced = os.environ.get("REVIEW_MARKER_ENFORCED", "").lower() in ("1", "true")
+
+    script = repo_root / "scripts" / "validation" / "validate_review_marker.py"
+    if not script.exists():
+        if enforced:
+            print("[FAIL] validate_review_marker.py not present")
+            return False
+        print("[WARN] validate_review_marker.py not found (advisory skip)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:20]:
+            print(line)
+
+    if exit_code == 0:
+        return True
+
+    if enforced:
+        # exit 1 (no/stale marker) and exit 2 (config) both block in enforced mode.
+        return False
+    print(
+        "  Note: advisory only (default). /ship blocks on this; pre_pr does not. "
+        "Set REVIEW_MARKER_ENFORCED=1 to make it BLOCKING here. See Issue #1938."
+    )
+    return True
+
+
 def validate_command_bundle_coverage(repo_root: Path) -> bool:
     """SPEC-005 advisory check: each lifecycle command invokes its bundled skills.
 
@@ -1394,6 +1439,14 @@ def main(argv: list[str] | None = None) -> int:
         "Command-Skill Bundle Coverage",
         state,
         lambda: validate_command_bundle_coverage(repo_root),
+    )
+
+    # 7b. Review Marker (advisory by default; /ship blocks, Issue #1938).
+    # Reports whether HEAD carries a SHA-bound Reviewed-By: /review@... marker.
+    run_validation(
+        "Review Marker (SHA-bound /review)",
+        state,
+        lambda: validate_review_marker(repo_root),
     )
 
     total_duration = time.monotonic() - start_time
