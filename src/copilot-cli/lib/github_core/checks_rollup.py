@@ -1,4 +1,4 @@
-"""Shared logic for grouping and evaluating GitHub status check rollups.
+"""Canonical: scripts/github_core/checks_rollup.py. Sync via scripts/sync_plugin_lib.py.
 
 This module encodes the required-check semantics used by both get_pr_checks.py
 and test_pr_merge_ready.py, preventing drift between the two scripts.
@@ -75,7 +75,7 @@ def extract_required_check_lists(
 
         if check.get("IsFailing"):
             failed_required.append(name)
-        elif check.get("IsPending"):
+        if check.get("IsPending"):
             pending_required.append(name)
 
     return pending_required, failed_required
