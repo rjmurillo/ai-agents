@@ -367,31 +367,46 @@ fi
 # present but stale, malformed, or unverifiable, so ordinary pre-review pushes
 # still work while marker-bearing release pushes cannot carry a bad trailer.
 REVIEW_MARKER_SCRIPT="$REPO_ROOT/.claude/skills/review/scripts/validate_review_marker.py"
-REVIEW_MARKER_VALUES=$(git log -1 --format='%(trailers:key=Reviewed-By,valueonly,unfold)' HEAD 2>/dev/null)
-REVIEW_MARKER_READ_RC=$?
-if [ $REVIEW_MARKER_READ_RC -ne 0 ]; then
-    record_fail "Review marker validation could not inspect HEAD trailers"
-elif ! printf '%s\n' "$REVIEW_MARKER_VALUES" | grep -q '^/review@'; then
-    record_skip "Review marker validation (no marker on HEAD; /ship enforces presence)"
-elif [ -L "$REVIEW_MARKER_SCRIPT" ]; then
-    record_fail "Review marker validator is a symlink; refusing to trust it"
-elif [ ! -f "$REVIEW_MARKER_SCRIPT" ]; then
-    record_fail "Review marker validator missing at $REVIEW_MARKER_SCRIPT"
-elif ! set_python_cmd; then
-    record_fail "Review marker validation requires Python"
-else
-    REVIEW_MARKER_OUTPUT=$(mktemp)
-    TEMP_FILES+=("$REVIEW_MARKER_OUTPUT")
-    "${PYTHON_CMD[@]}" "$REVIEW_MARKER_SCRIPT" --ref HEAD --repo-root "$REPO_ROOT" > "$REVIEW_MARKER_OUTPUT" 2>&1
-    REVIEW_MARKER_RC=$?
-    if [ $REVIEW_MARKER_RC -eq 0 ]; then
-        record_pass "Review marker validation"
-    else
-        cat "$REVIEW_MARKER_OUTPUT"
-        record_fail "Review marker validation failed (exit $REVIEW_MARKER_RC)"
-        echo_info "  Fix: re-run /review so HEAD is an empty marker commit binding its parent."
+REVIEW_MARKER_FOUND=0
+REVIEW_MARKER_READY=0
+for pushed_sha in "${PVB_HEADS[@]}"; do
+    REVIEW_MARKER_VALUES=$(git log -1 --format='%(trailers:key=Reviewed-By,valueonly,unfold)' "$pushed_sha" 2>/dev/null)
+    REVIEW_MARKER_READ_RC=$?
+    if [ $REVIEW_MARKER_READ_RC -ne 0 ]; then
+        record_fail "Review marker validation could not inspect pushed ref ${pushed_sha:0:12}"
+        continue
     fi
-    rm -f "$REVIEW_MARKER_OUTPUT"
+    if ! printf '%s\n' "$REVIEW_MARKER_VALUES" | grep -q '^/review@'; then
+        continue
+    fi
+
+    REVIEW_MARKER_FOUND=1
+    if [ -L "$REVIEW_MARKER_SCRIPT" ]; then
+        record_fail "Review marker validator is a symlink; refusing to trust it"
+    elif [ ! -f "$REVIEW_MARKER_SCRIPT" ]; then
+        record_fail "Review marker validator missing at $REVIEW_MARKER_SCRIPT"
+    elif ! set_python_cmd; then
+        record_fail "Review marker validation requires Python"
+    else
+        REVIEW_MARKER_READY=1
+        REVIEW_MARKER_OUTPUT=$(mktemp)
+        TEMP_FILES+=("$REVIEW_MARKER_OUTPUT")
+        "${PYTHON_CMD[@]}" "$REVIEW_MARKER_SCRIPT" --ref "$pushed_sha" --repo-root "$REPO_ROOT" > "$REVIEW_MARKER_OUTPUT" 2>&1
+        REVIEW_MARKER_RC=$?
+        if [ $REVIEW_MARKER_RC -eq 0 ]; then
+            record_pass "Review marker validation (${pushed_sha:0:12})"
+        else
+            cat "$REVIEW_MARKER_OUTPUT"
+            record_fail "Review marker validation failed for ${pushed_sha:0:12} (exit $REVIEW_MARKER_RC)"
+            echo_info "  Fix: re-run /review so the pushed tip is an empty marker commit binding its parent."
+        fi
+        rm -f "$REVIEW_MARKER_OUTPUT"
+    fi
+done
+if [ $REVIEW_MARKER_FOUND -eq 0 ]; then
+    record_skip "Review marker validation (no marker on pushed refs; /ship enforces presence)"
+elif [ $REVIEW_MARKER_READY -eq 0 ]; then
+    echo_info "  Fix: restore $REVIEW_MARKER_SCRIPT and Python before pushing marker commits."
 fi
 
 # ============================================================================
