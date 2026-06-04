@@ -44,7 +44,7 @@
       "checklistComplete": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Resolved merge conflict, updated PR body, added M2 spec triplet, corrected negative-routing fixtures after review, and reran required checks."
+        "evidence": "Resolved merge conflict, updated PR body, added M2 spec triplet, corrected negative-routing fixtures after review, bumped plugin manifests to 0.5.110 after CI baseline advanced, and reran required checks."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -69,7 +69,7 @@
       "validationPassed": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Targeted pytest: 204 passed after review fixture fix. Scoped orphan-ref: PASS. build_all --check, plugin manifests, parity, spec ID uniqueness passed. Full pre_pr has unrelated baseline failures documented in final response."
+        "evidence": "Targeted pytest: 204 passed after review fixture fix. Scoped orphan-ref: PASS. build_all --check, plugin manifests, parity, plugin-version-bump, and spec ID uniqueness passed. Full pre_pr has unrelated baseline failures documented in final response."
       }
     }
   }
