@@ -229,47 +229,7 @@ jobs:
       - name: Run pytest
         id: pytest
         continue-on-error: true
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $ErrorActionPreference = 'Continue'
-
-          $pythonAvailable = Get-Command python -ErrorAction SilentlyContinue
-          $pyprojectExists = Test-Path "pyproject.toml"
-
-          if ($pythonAvailable -and $pyprojectExists) {
-            try {
-              # Prefer uv (installed by setup-code-env), fall back to python -m pytest
-              $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
-              if ($uvAvailable) {
-                $output = & uv run pytest --tb=short -q 2>&1 | Out-String
-              } else {
-                $output = & python -m pytest --tb=short -q 2>&1 | Out-String
-              }
-              $exitCode = $LASTEXITCODE
-              Write-Output $output
-
-              # Extract summary line for reporting context
-              $summaryLine = ($output -split "`n" | Where-Object { $_ -match "passed|failed|error" } | Select-Object -Last 1)
-              if (-not $summaryLine) {
-                $summaryLine = "No test summary available"
-              }
-              "pytest_summary=$summaryLine" >> $env:GITHUB_OUTPUT
-
-              # Use exit code as primary signal (not output parsing)
-              if ($exitCode -ne 0) {
-                "pytest_status=FAIL" >> $env:GITHUB_OUTPUT
-              } else {
-                "pytest_status=PASS" >> $env:GITHUB_OUTPUT
-              }
-            }
-            catch {
-              "pytest_status=ERROR" >> $env:GITHUB_OUTPUT
-              "pytest_summary=$($_.Exception.Message -replace "`n",' ')" >> $env:GITHUB_OUTPUT
-            }
-          } else {
-            "pytest_status=SKIPPED" >> $env:GITHUB_OUTPUT
-            "pytest_summary=Python test environment not available" >> $env:GITHUB_OUTPUT
-          }
+        run: python3 scripts/quality_gate/run_pytest.py
 
       - name: Generate test summary
         id: summary
