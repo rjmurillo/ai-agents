@@ -109,11 +109,83 @@ except ImportError:
 
 HOOK_NAME = "false-completion-gate"
 
+# Per-invocation cache of the resolved worktree root. One ``git rev-parse`` per
+# process is enough; ``_run_git`` can fire several times per invocation and must
+# not spawn a probe each time. A single-element list (not a bare module global
+# mutated via ``global``) is used so the cache survives the build-time shim that
+# indents this module body into a wrapper function: ``_resolve_worktree_root``
+# closes over the list rather than referencing a module-scope name that the
+# wrapper would shadow.
+_worktree_root_cache: list[str] = []
+
+
+def _resolve_worktree_root() -> str:
+    """Resolve the current worktree root, falling back to the project dir.
+
+    ``CLAUDE_PROJECT_DIR`` (consumed by ``get_project_directory``) points at the
+    MAIN checkout even when the agent runs inside a linked worktree, so the
+    session dir and staged diff would be read from the wrong tree and the gate
+    would block valid commits (issue #2382). ``git rev-parse --show-toplevel``
+    run from the current directory returns the worktree the commit is happening
+    in. On any git failure (not a repo, git missing, timeout) fall back to
+    ``get_project_directory`` so behavior is unchanged outside a worktree.
+
+    The result is cached per process so repeated ``_run_git`` calls do not each
+    spawn a probe.
+    """
+    if _worktree_root_cache:
+        return _worktree_root_cache[0]
+    _worktree_root_cache.append(_probe_worktree_root())
+    return _worktree_root_cache[0]
+
+
+def _probe_worktree_root() -> str:
+    """Run ``git rev-parse --show-toplevel``; fall back to the project dir."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return get_project_directory()
+    if result.returncode == 0:
+        top = result.stdout.strip()
+        if top:
+            return str(Path(top).resolve())
+    return get_project_directory()
+
+
 # Completion signal patterns in commit messages / PR titles
 COMPLETION_SIGNALS = re.compile(
     r"\b(done|fixed|complete[ds]?|finished|resolved|merged|shipped|closes?\s+#\d+)\b",
     re.IGNORECASE,
 )
+
+# A heading-style line is a section name, not a completion claim. Section
+# names like "## Completed" or "Finished:" inside a commit body trip the bare
+# word boundaries in COMPLETION_SIGNALS even though no work is being claimed
+# done (issue #2382). A heading line is one whose entire content (after
+# optional markdown ``#``/list ``-``/``*`` markers) is a single word optionally
+# followed by ``:``; real prose claims like "done with implementation" or
+# "completed migration" have trailing words and are NOT stripped.
+_HEADING_LINE = re.compile(r"^[#\-*\s]*\w+:?\s*$")
+
+
+def _strip_heading_lines(text: str) -> str:
+    """Drop section-heading lines so heading words do not read as claims.
+
+    Removes lines that are bare section names (a single token, optionally a
+    markdown heading or list marker, optionally a trailing colon). Prose lines
+    that contain a completion word followed by more words survive, so genuine
+    completion claims are still detected. Single-line subjects (the common
+    ``git commit -m`` case) are returned unchanged unless the subject itself is
+    nothing but a heading-style token.
+    """
+    kept = [line for line in text.splitlines() if not _HEADING_LINE.match(line)]
+    return "\n".join(kept)
 
 # Verification evidence patterns in session logs (command names)
 VERIFICATION_PATTERNS = [
@@ -181,9 +253,14 @@ def _extract_command(hook_input: dict) -> str:
     return command
 
 
-def _is_completion_claim(command: str) -> bool:
-    """Check if a command contains completion signals."""
-    return COMPLETION_SIGNALS.search(command) is not None
+def _is_completion_claim(text: str) -> bool:
+    """Check if text contains a completion claim, ignoring heading lines.
+
+    Section-heading words (``## Completed``, ``Finished:``) inside a multi-line
+    commit message or PR body are not completion claims; stripping them first
+    keeps innocuous commits from being blocked (issue #2382).
+    """
+    return COMPLETION_SIGNALS.search(_strip_heading_lines(text)) is not None
 
 
 def _extract_commit_message_file(command: str) -> str | None:
@@ -294,7 +371,7 @@ def _is_completion_claim_in_message_file(command: str) -> tuple[bool, bool]:
     message_content = _read_commit_message_file(message_file)
     if message_content is None:
         return (True, True)
-    return (COMPLETION_SIGNALS.search(message_content) is not None, False)
+    return (_is_completion_claim(message_content), False)
 
 
 def _extract_pr_body_file(command: str) -> str | None:
@@ -322,7 +399,7 @@ def _is_completion_claim_in_pr_body_file(command: str) -> tuple[bool, bool]:
     body_content = _read_commit_message_file(body_file)
     if body_content is None:
         return (True, True)
-    return (COMPLETION_SIGNALS.search(body_content) is not None, False)
+    return (_is_completion_claim(body_content), False)
 
 
 # Per-git-call timeout. The hook's outer timeout in .claude/settings.json
@@ -364,7 +441,7 @@ def _run_git(
     """
     if _deadline_exceeded(deadline):
         return None
-    project_dir = get_project_directory()
+    project_dir = _resolve_worktree_root()
     try:
         return subprocess.run(
             ["git", "-C", project_dir, *args],
@@ -612,7 +689,11 @@ def main() -> None:
     # through to the "no session log => allow" branch below.
     body_inferred = msg_unreadable or body_unreadable
 
-    project_dir = get_project_directory()
+    # Resolve the CURRENT worktree, not the MAIN checkout. In a linked
+    # worktree ``CLAUDE_PROJECT_DIR`` points at main, so the session dir and
+    # staged diff must come from ``git rev-parse --show-toplevel`` instead
+    # (issue #2382).
+    project_dir = _resolve_worktree_root()
 
     # Bypass for documentation-only changes
     if _is_documentation_only(is_branch_operation=bool(is_pr_create or is_pr_merge)):

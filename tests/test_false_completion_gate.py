@@ -25,6 +25,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / ".claude" / "hooks" / "Pre
 import invoke_false_completion_gate  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _reset_worktree_cache():
+    """Clear the per-process worktree-root cache between tests.
+
+    ``_resolve_worktree_root`` memoizes its result; without a reset one test's
+    resolved root would leak into the next and make assertions order-dependent.
+    """
+    invoke_false_completion_gate._worktree_root_cache.clear()
+    yield
+    invoke_false_completion_gate._worktree_root_cache.clear()
+
+
 class TestCompletionSignalDetection:
     """Test _is_completion_claim regex matching."""
 
@@ -168,7 +180,7 @@ class TestVerificationEvidence:
             return_value=hook_input,
         ), patch.object(
             invoke_false_completion_gate,
-            "get_project_directory",
+            "_resolve_worktree_root",
             return_value=str(tmp_path),
         ), patch.object(
             invoke_false_completion_gate,
@@ -255,7 +267,7 @@ class TestMain:
             invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
         ), patch.object(
             invoke_false_completion_gate,
-            "get_project_directory",
+            "_resolve_worktree_root",
             return_value=str(tmp_path),
         ), patch.object(
             invoke_false_completion_gate, "_is_documentation_only", return_value=False,
@@ -290,7 +302,7 @@ class TestMain:
             invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
         ), patch.object(
             invoke_false_completion_gate,
-            "get_project_directory",
+            "_resolve_worktree_root",
             return_value=str(tmp_path),
         ), patch.object(
             invoke_false_completion_gate, "_is_documentation_only", return_value=False,
@@ -315,7 +327,7 @@ class TestMain:
             invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
         ), patch.object(
             invoke_false_completion_gate,
-            "get_project_directory",
+            "_resolve_worktree_root",
             return_value=str(tmp_path),
         ), patch.object(
             invoke_false_completion_gate, "_is_documentation_only", return_value=True,
@@ -421,7 +433,7 @@ class TestBodyFileFailClosed:
             invoke_false_completion_gate, "_read_stdin_json", return_value=hook_input,
         ), patch.object(
             invoke_false_completion_gate,
-            "get_project_directory",
+            "_resolve_worktree_root",
             return_value=str(tmp_path),
         ), patch.object(
             invoke_false_completion_gate, "_is_documentation_only", return_value=False,
@@ -506,3 +518,176 @@ class TestDeadlineBudget:
             )
             == "origin/main"
         )
+
+
+class TestHeadingWordsDoNotTrip:
+    """Section-heading completion words in a body are not claims (issue #2382).
+
+    A commit body that names a section "## Completed" or "Finished:" must not
+    block the commit, but a prose claim ("done with the work") still must.
+    """
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "## Completed",
+            "### Finished",
+            "Completed:",
+            "Finished:",
+            "- Resolved",
+            "* Done",
+            "Done",
+            "feat: add parser\n\n## Completed\n\n## Finished",
+            "refactor: extract helper\n\nResolved:\nMerged:",
+        ],
+    )
+    def test_heading_words_are_not_claims(self, body: str) -> None:
+        assert invoke_false_completion_gate._is_completion_claim(body) is False
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "done with the implementation",
+            "feat: fixed the parser bug",
+            "completed the migration to v2",
+            "## Summary\n\nFinished the cleanup and shipped it",
+            "resolved issue in the handler",
+            "closes #42",
+        ],
+    )
+    def test_prose_claims_still_detected(self, body: str) -> None:
+        assert invoke_false_completion_gate._is_completion_claim(body) is True
+
+    def test_strip_heading_lines_keeps_prose(self) -> None:
+        text = "## Completed\nfinished the work here\n### Notes"
+        stripped = invoke_false_completion_gate._strip_heading_lines(text)
+        assert "finished the work here" in stripped
+        assert "## Completed" not in stripped
+        assert "### Notes" not in stripped
+
+    def test_body_file_heading_words_do_not_block(self, tmp_path: Path) -> None:
+        """A -F body whose only completion words are headings is not a claim."""
+        msg = tmp_path / "COMMIT_EDITMSG"
+        msg.write_text(
+            "refactor: extract helper\n\n## Completed\n\n## Finished\n",
+            encoding="utf-8",
+        )
+        command = f"git commit -F {msg}"
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            command
+        ) == (False, False)
+
+    def test_body_file_prose_claim_still_blocks(self, tmp_path: Path) -> None:
+        """A -F body with a real prose claim is still detected as a claim."""
+        msg = tmp_path / "COMMIT_EDITMSG"
+        msg.write_text(
+            "feat: parser\n\nfinished the migration and shipped it\n",
+            encoding="utf-8",
+        )
+        command = f"git commit -F {msg}"
+        assert invoke_false_completion_gate._is_completion_claim_in_message_file(
+            command
+        ) == (True, False)
+
+
+class TestWorktreeRootResolution:
+    """The gate resolves the CURRENT worktree, not the MAIN checkout (#2382)."""
+
+    def test_uses_show_toplevel_over_project_dir(self, monkeypatch) -> None:
+        """git rev-parse --show-toplevel wins over CLAUDE_PROJECT_DIR."""
+        worktree = "/work/tree/current"
+        main_checkout = "/main/checkout"
+
+        def fake_run(args, **kwargs):
+            assert args[:3] == ["git", "rev-parse", "--show-toplevel"]
+            return type(
+                "R", (), {"returncode": 0, "stdout": worktree + "\n", "stderr": ""}
+            )()
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate.subprocess, "run", fake_run
+        )
+        monkeypatch.setattr(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            lambda: main_checkout,
+        )
+        # Path.resolve() normalizes the value; compare on the basename so the
+        # test does not depend on the test runner's filesystem layout.
+        resolved = invoke_false_completion_gate._resolve_worktree_root()
+        assert resolved.endswith("current")
+        assert main_checkout not in resolved
+
+    def test_falls_back_to_project_dir_when_not_a_repo(self, monkeypatch) -> None:
+        """Non-zero git exit falls back to get_project_directory."""
+        main_checkout = "/main/checkout"
+
+        def fake_run(args, **kwargs):
+            return type(
+                "R", (), {"returncode": 128, "stdout": "", "stderr": "not a repo"}
+            )()
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate.subprocess, "run", fake_run
+        )
+        monkeypatch.setattr(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            lambda: main_checkout,
+        )
+        assert invoke_false_completion_gate._resolve_worktree_root() == main_checkout
+
+    def test_falls_back_when_git_missing(self, monkeypatch) -> None:
+        """OSError (git not installed) falls back to get_project_directory."""
+        main_checkout = "/main/checkout"
+
+        def fake_run(args, **kwargs):
+            raise OSError("git not found")
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate.subprocess, "run", fake_run
+        )
+        monkeypatch.setattr(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            lambda: main_checkout,
+        )
+        assert invoke_false_completion_gate._resolve_worktree_root() == main_checkout
+
+    def test_result_is_cached(self, monkeypatch) -> None:
+        """The probe runs once per process; the second call uses the cache."""
+        calls = {"n": 0}
+
+        def fake_run(args, **kwargs):
+            calls["n"] += 1
+            return type(
+                "R", (), {"returncode": 0, "stdout": "/work/tree\n", "stderr": ""}
+            )()
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate.subprocess, "run", fake_run
+        )
+        invoke_false_completion_gate._resolve_worktree_root()
+        invoke_false_completion_gate._resolve_worktree_root()
+        assert calls["n"] == 1
+
+    def test_run_git_targets_worktree_root(self, monkeypatch) -> None:
+        """_run_git binds git -C to the resolved worktree root."""
+        worktree = "/work/tree/current"
+        captured = {}
+
+        def fake_run(args, **kwargs):
+            if args[:3] == ["git", "rev-parse", "--show-toplevel"]:
+                return type(
+                    "R", (), {"returncode": 0, "stdout": worktree + "\n", "stderr": ""}
+                )()
+            captured["args"] = args
+            return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+        monkeypatch.setattr(
+            invoke_false_completion_gate.subprocess, "run", fake_run
+        )
+        invoke_false_completion_gate._run_git(["status"])
+        # git -C <worktree> status
+        assert captured["args"][1] == "-C"
+        assert captured["args"][2].endswith("current")
