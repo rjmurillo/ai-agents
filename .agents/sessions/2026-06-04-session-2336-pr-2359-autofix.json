@@ -44,7 +44,7 @@
       "checklistComplete": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Resolved review threads, merged current main repeatedly, renamed this session log from 2335 to 2336 after a parallel session collision, resolved a causal graph conflict by replaying session 2336 onto main, kept plugin manifests at 0.5.111, and reran required checks."
+        "evidence": "Resolved review threads, merged current main repeatedly, renamed this session log from 2335 to 2336 after a parallel session collision, resolved a causal graph conflict by replaying session 2336 onto main, bumped plugin manifests to 0.5.112 after base advanced, and reran required checks."
       },
       "handoffPreserved": {
         "level": "MUST",

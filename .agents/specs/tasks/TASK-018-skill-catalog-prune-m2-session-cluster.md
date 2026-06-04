@@ -82,4 +82,4 @@ Remove the `session-migration` skill and its tests, clean live references, regen
 - Scoped orphan-ref validator: `VERDICT: PASS`.
 - Full generation check: `build_all_check_pass`.
 - Plugin manifests: all validated.
-- Plugin parity: versions match at `0.5.111`.
+- Plugin parity: versions match at `0.5.112`.
