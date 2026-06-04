@@ -331,6 +331,22 @@ class TestValidateDesignReviewFrontmatter:
         # Blocking reviews still pass validation (they just warn)
         assert validate_design_review_frontmatter(tmp_path) is True
 
+    def test_blocking_null_does_not_count_as_blocking(
+        self, tmp_path: Path, capsys: Any
+    ) -> None:
+        content = (
+            '---\nstatus: "BLOCKED"\npriority: "P0"\n'
+            'blocking: null\nreviewer: "architect"\ndate: "2026-03-07"\n'
+            "---\n# Design Review: Test\n"
+        )
+        self._write_review(tmp_path, "DESIGN-REVIEW-test.md", content)
+
+        assert validate_design_review_frontmatter(tmp_path) is True
+
+        captured = capsys.readouterr()
+        assert "should have blocking: true" in captured.out
+        assert "blocking review(s) detected" not in captured.out
+
     def test_multiple_files_all_valid(self, tmp_path: Path) -> None:
         valid = (
             '---\nstatus: "APPROVED"\npriority: "P1"\n'

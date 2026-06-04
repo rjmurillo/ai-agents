@@ -80,12 +80,12 @@ def validate_design_review_frontmatter(repo_root: Path) -> bool:
 
         # Check blocking consistency
         blocking = frontmatter.get("blocking", False)
-        if status in _BLOCKING_STATUSES and not blocking:
+        if status in _BLOCKING_STATUSES and blocking is not True:
             print(
                 f"  [WARNING] {filepath.name}: status '{status}' should have blocking: true"
             )
 
-        if blocking and status in _BLOCKING_STATUSES:
+        if blocking is True and status in _BLOCKING_STATUSES:
             blocking_reviews.append(filepath.name)
 
         print(f"  [PASS] {filepath.name} (status={status}, blocking={blocking})")
