@@ -143,9 +143,11 @@ Degradation (no spurious failures):
 
 - If the specification carries NO OntologyFragment and NO `## Ontology` sections, the
   ontology checks are `N/A`; do not lower the verdict for their absence.
-- If the OntologyFragment exists but declares `none (no domain entities)` (a config
-  change, doc fix, or formatting tweak), entity coverage is vacuously satisfied; do
-  not emit PARTIAL or FAIL for an empty-entity feature.
+- If the OntologyFragment exists but declares `none (no domain entities)` and the
+  generated requirements also reference no domain entities, entity coverage is
+  vacuously satisfied; do not emit PARTIAL or FAIL for an empty-entity feature. If
+  requirements name domain entities while the fragment declares none, treat that as
+  a critical entity-coverage gap.
 
 Record ontology findings in the Missing Functionality section, not as a separate
 verdict token.

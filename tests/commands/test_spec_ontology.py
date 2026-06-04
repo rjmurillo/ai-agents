@@ -342,6 +342,19 @@ def test_completeness_check_no_spurious_fail_when_no_ontology(
     )
 
 
+def test_empty_entity_vacuous_coverage_requires_no_requirement_entities(
+    completeness_text: str,
+) -> None:
+    """Empty ontology coverage is vacuous only when REQs name no entities."""
+    lowered = " ".join(completeness_text.lower().split())
+    assert "requirements also reference no domain entities" in lowered, (
+        "empty-entity ontology must require generated requirements name no entities"
+    )
+    assert "critical entity-coverage gap" in lowered, (
+        "requirements naming entities against O1=none must fail closed"
+    )
+
+
 def test_ontology_fragment_never_halts(spec_text: str) -> None:
     """The OntologyFragment is never a halt condition (graceful degradation)."""
     # The Step 1 sub-step explicitly states the fragment is never a halt.
@@ -363,6 +376,17 @@ def test_reference_fragment_exists_and_has_seven_sections() -> None:
         assert re.search(rf"^## {prompt} ", text, re.MULTILINE), (
             f"reference OntologyFragment missing `## {prompt}` section"
         )
+
+
+def test_reference_fragment_empty_entity_rule_matches_fail_closed_prompt() -> None:
+    """The reference ontology records the same empty-entity guard as CI."""
+    text = " ".join(REFERENCE_FRAGMENT.read_text(encoding="utf-8").lower().split())
+    assert "only when generated requirements reference zero domain entities" in text, (
+        "reference fragment must not allow O1=none to mask requirement entities"
+    )
+    assert "ci completeness check" in text, (
+        "reference fragment must name the CI completeness check, not /spec Step 7"
+    )
 
 
 def test_reference_fragment_slug_matches_directory_convention() -> None:
