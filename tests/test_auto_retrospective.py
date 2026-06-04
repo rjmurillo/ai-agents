@@ -20,16 +20,31 @@ class TestAutoRetrospective(unittest.TestCase):
     """Test Stop auto-retrospective hook."""
 
     def test_tty_stdin_exits_zero(self):
-        with patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            result = invoke_auto_retrospective.main()
-            self.assertEqual(result, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            with patch("sys.stdin") as mock_stdin:
+                mock_stdin.isatty.return_value = True
+                with patch.object(
+                    invoke_auto_retrospective,
+                    "get_project_directory",
+                    return_value=tmp_path,
+                ):
+                    result = invoke_auto_retrospective.main()
+                    self.assertEqual(result, 0)
 
     def test_bypass_env_var(self):
-        with patch.dict("os.environ", {"SKIP_AUTO_RETRO": "true"}):
-            with patch("sys.stdin", StringIO("")):
-                result = invoke_auto_retrospective.main()
-                self.assertEqual(result, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            with patch.dict("os.environ", {"SKIP_AUTO_RETRO": "true"}):
+                with patch("sys.stdin", StringIO("")):
+                    with patch.object(
+                        invoke_auto_retrospective,
+                        "get_project_directory",
+                        return_value=tmp_path,
+                    ):
+                        result = invoke_auto_retrospective.main()
+                        self.assertEqual(result, 0)
 
     def test_skips_if_retro_exists_today(self):
         """Should not create duplicate retros."""

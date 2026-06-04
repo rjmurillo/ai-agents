@@ -27,7 +27,7 @@ from __future__ import annotations
 import os
 import re
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 # --- Standard hook boilerplate: resolve lib directory ---
@@ -129,7 +129,8 @@ def _count_pending_skeletons(
     """Count unfilled retro skeletons within ``max_age_days`` (Issue #2079).
 
     A skeleton is "pending" when it still carries the RETRO_STATE_MARKER and
-    its mtime is within the window. Returns ``(count, sorted_filenames)``.
+    its filename date is within the window. Filenames without a leading date
+    fall back to mtime. Returns ``(count, sorted_filenames)``.
 
     Fail-open: a missing directory yields ``(0, [])``; a per-file stat or read
     error skips that file rather than aborting the scan, mirroring
@@ -143,11 +144,12 @@ def _count_pending_skeletons(
     except OSError:
         return 0, []
 
-    cutoff = datetime.now(tz=UTC).timestamp() - max_age_days * 86400
+    cutoff_date = datetime.now(tz=UTC).date() - timedelta(days=max_age_days)
+    cutoff_mtime = datetime.now(tz=UTC).timestamp() - max_age_days * 86400
     pending: list[str] = []
     for path in retro_paths:
         try:
-            if path.stat().st_mtime < cutoff:
+            if not _is_pending_skeleton_recent(path, cutoff_date, cutoff_mtime):
                 continue
             with path.open(encoding="utf-8", errors="replace") as handle:
                 head = handle.read(MAX_RETRO_CHARS)
@@ -161,6 +163,18 @@ def _count_pending_skeletons(
 
 
 _RETRO_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
+
+
+def _is_pending_skeleton_recent(
+    path: Path, cutoff_date: date, cutoff_mtime: float
+) -> bool:
+    match = _RETRO_DATE_RE.match(path.name)
+    if match:
+        try:
+            return datetime.strptime(match.group(1), "%Y-%m-%d").date() >= cutoff_date
+        except ValueError:
+            pass
+    return path.stat().st_mtime >= cutoff_mtime
 
 
 def _skeleton_dates(filenames: list[str]) -> list[str]:
@@ -249,11 +263,18 @@ def main() -> None:
     pending_count, pending_names = _count_pending_skeletons(retro_dir)
     if pending_count:
         listed = ", ".join(pending_names)
-        fill_dates = ", ".join(_skeleton_dates(pending_names)) or "<date>"
+        dates = _skeleton_dates(pending_names)
+        fill_hint = dates[0] if dates else "<date>"
+        other_dates = (
+            f"\n\nOther available dates: {', '.join(dates[1:])}."
+            if len(dates) > 1
+            else ""
+        )
         output_parts.append(
             f"## ⏳ {pending_count} retro(s) need completion\n\n"
             f"Unfilled skeletons (last {PENDING_RETRO_MAX_AGE_DAYS} days): {listed}\n\n"
-            f"Run `/retro fill {fill_dates}` to populate and clear them."
+            f"Run `/retro fill {fill_hint}` to populate one skeleton and clear it."
+            f"{other_dates}"
         )
         loaded_files.append(f"pending-retros:{pending_count}")
 
