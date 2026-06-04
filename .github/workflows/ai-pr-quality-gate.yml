@@ -603,7 +603,6 @@ jobs:
       - name: Check for failed agents
         if: steps.should-run.outputs.skip != 'true'
         id: failed-agents
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           SECURITY_RESULT: ${{ needs.security-review.result }}
           QA_RESULT: ${{ needs.qa-review.result }}
@@ -615,42 +614,7 @@ jobs:
           OBSERVABILITY_RESULT: ${{ needs.observability-review.result }}
           AGENT_SAFETY_RESULT: ${{ needs.agent-safety-review.result }}
           DECISION_RIGOR_RESULT: ${{ needs.decision-rigor-review.result }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # Check if any agent review jobs failed by examining the needs context
-          # This step runs before downloading artifacts to surface failures early
-          # Note: Specific failed agents are identified later by examining individual verdicts (line 777+ in 'Check for Critical Failures' step)
-          $agentResults = @(
-            @{ Name = 'Security'; Result = $env:SECURITY_RESULT }
-            @{ Name = 'QA'; Result = $env:QA_RESULT }
-            @{ Name = 'Analyst'; Result = $env:ANALYST_RESULT }
-            @{ Name = 'Architect'; Result = $env:ARCHITECT_RESULT }
-            @{ Name = 'DevOps'; Result = $env:DEVOPS_RESULT }
-            @{ Name = 'Roadmap'; Result = $env:ROADMAP_RESULT }
-            @{ Name = 'Reliability'; Result = $env:RELIABILITY_RESULT }
-            @{ Name = 'Observability'; Result = $env:OBSERVABILITY_RESULT }
-            @{ Name = 'Agent Safety'; Result = $env:AGENT_SAFETY_RESULT }
-            @{ Name = 'Decision Rigor'; Result = $env:DECISION_RIGOR_RESULT }
-          )
-
-          Write-Output "Individual review results:"
-          $failedAgents = @()
-
-          foreach ($agent in $agentResults) {
-            Write-Output "  $($agent.Name): $($agent.Result)"
-            if ($agent.Result -in @('failure', 'cancelled')) {
-              $failedAgents += $agent.Name
-              Write-Output "::error::$($agent.Name) agent failed with result: $($agent.Result)"
-            }
-          }
-
-          if ($failedAgents.Count -gt 0) {
-            "has_failures=true" >> $env:GITHUB_OUTPUT
-            Write-Output "::warning::Failed agents: $($failedAgents -join ', ')"
-            Write-Output "::warning::Check individual job logs for details"
-          } else {
-            "has_failures=false" >> $env:GITHUB_OUTPUT
-          }
+        run: python3 scripts/quality_gate/check_failed_agents.py
 
       - name: Checkout repository
         if: steps.should-run.outputs.skip != 'true'
