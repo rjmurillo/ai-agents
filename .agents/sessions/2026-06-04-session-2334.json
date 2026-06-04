@@ -1,10 +1,11 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 2334,
     "date": "2026-06-04",
     "branch": "fix/p2-1925-spec-ontology",
     "startingCommit": "ae0bc6de834ad3cc17d4bc4a787ff2ba6da19d92",
-    "objective": "Autofix PR 2334 ontology elicitation pipeline review feedback and merge after gates pass."
+    "objective": "Autofix #1925 ontology elicitation pipeline review feedback and merge after gates pass."
   },
   "protocolCompliance": {
     "sessionStart": {
@@ -63,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, and the final design traceability fix commit."
+        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, 3fe16497a0, 924814989f, dc2c0b3fd0, and this session update commit."
       },
       "validationPassed": {
         "level": "MUST",

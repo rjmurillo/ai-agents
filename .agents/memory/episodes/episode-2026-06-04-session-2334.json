@@ -3,7 +3,7 @@
   "session": "2026-06-04-session-2334",
   "timestamp": "2026-06-04T00:00:00+00:00",
   "outcome": "partial",
-  "task": "Autofix PR 2334 ontology elicitation pipeline review feedback and merge after gates pass.",
+  "task": "Autofix #1925 ontology elicitation pipeline review feedback and merge after gates pass.",
   "decisions": [],
   "events": [],
   "metrics": {
