@@ -41,7 +41,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from pathlib import Path
 
 try:
     from .path_utils import REPOSITORY_ROOT
@@ -64,7 +63,7 @@ _PYTEST_VERDICT = {
     "SKIPPED": "UNKNOWN",
 }
 
-# Agent verdict tokens that gate_aggregator does not know, mapped to one it does.
+# Agent verdict tokens normalized to preserve the authoritative gate semantics.
 _AGENT_VERDICT_ALIAS = {
     "COMPLIANT": "PASS",
     "NEEDS_REVIEW": "FAIL",

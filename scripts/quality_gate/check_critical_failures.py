@@ -41,7 +41,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from pathlib import Path
 
 try:
     from .path_utils import REPOSITORY_ROOT
