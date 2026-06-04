@@ -528,6 +528,39 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     return mergeable
 
 
+# GitHub computes mergeability asynchronously and can leave a PR in
+# ``mergeable == "CONFLICTING"`` / ``mergeStateStatus in {"DIRTY",
+# "CONFLICTING"}`` after the base branch advanced, even when the branch is
+# already an ancestor of the base and a local merge is clean (issue #2368,
+# observed on PR #2334). These are the only states where a safe base-ref
+# refresh is the documented remedy, so they are the only states for which the
+# advisory fires.
+_STALE_DIRTY_MERGEABLE = frozenset({"CONFLICTING"})
+_STALE_DIRTY_STATE = frozenset({"DIRTY", "CONFLICTING"})
+
+
+def stale_dirty_suspected(mergeable: str, merge_state_status: str) -> bool:
+    """Report whether a reported conflict may be a stale GitHub cache.
+
+    Returns ``True`` when GitHub reports a DIRTY/CONFLICTING conflict, which is
+    the precondition for a stale-mergeability false positive. This is an
+    ADVISORY signal only: it does not relax ``CanMerge``. The caller (pr-autofix)
+    must confirm against local git, via ``git merge-base --is-ancestor
+    origin/<base> HEAD`` plus a clean trial merge, before treating the conflict
+    as stale and issuing a safe base-ref refresh. When the local check shows a
+    real conflict, the conflict is authoritative and the PR stays blocked.
+
+    The script is a pure GitHub-API probe with no working tree, so it cannot run
+    the ancestry check itself; it surfaces the suspicion and defers the
+    git-truth decision to the caller. Safe fallback: absent a local refresh,
+    ``CanMerge`` stays ``False``, so a true conflict is never silently merged.
+    """
+    return (
+        mergeable in _STALE_DIRTY_MERGEABLE
+        or merge_state_status in _STALE_DIRTY_STATE
+    )
+
+
 def _evaluate_review_threads(
     pr: dict, ignore_threads: bool, reasons: list[str],
     owner: str, repo: str, pr_number: int,
@@ -822,6 +855,9 @@ def check_merge_readiness(
         "IsDraft": pr.get("isDraft", False),
         "Mergeable": mergeable,
         "MergeStateStatus": pr.get("mergeStateStatus", ""),
+        "StaleDirtySuspected": stale_dirty_suspected(
+            mergeable, pr.get("mergeStateStatus", "")
+        ),
         "UnresolvedThreads": unresolved_count,
         "TotalThreads": total_threads,
         "FailedRequiredChecks": failed_required,

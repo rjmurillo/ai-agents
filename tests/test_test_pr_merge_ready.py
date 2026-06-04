@@ -35,6 +35,7 @@ _mod = _import_script("test_pr_merge_ready")
 main = _mod.main
 build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
+stale_dirty_suspected = _mod.stale_dirty_suspected
 
 
 # ---------------------------------------------------------------------------
@@ -774,3 +775,60 @@ class TestFetchedPagesCompleteFlag:
         assert result["CIPassing"] is False
         assert "ci" in result["FailedRequiredChecks"]
         assert result["CanMerge"] is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: stale_dirty_suspected (issue #2368)
+# ---------------------------------------------------------------------------
+
+
+class TestStaleDirtySuspected:
+    @pytest.mark.parametrize(
+        ("mergeable", "merge_state_status"),
+        [
+            ("CONFLICTING", "DIRTY"),       # both signals present
+            ("CONFLICTING", "CLEAN"),       # mergeable signal alone
+            ("MERGEABLE", "DIRTY"),         # state signal alone
+            ("UNKNOWN", "CONFLICTING"),     # state == CONFLICTING alone
+        ],
+    )
+    def test_flags_dirty_or_conflicting(self, mergeable, merge_state_status):
+        assert stale_dirty_suspected(mergeable, merge_state_status) is True
+
+    @pytest.mark.parametrize(
+        ("mergeable", "merge_state_status"),
+        [
+            ("MERGEABLE", "CLEAN"),         # the clean baseline
+            ("MERGEABLE", "BLOCKED"),       # awaiting review, not a conflict
+            ("MERGEABLE", "BEHIND"),        # behind != dirty; BEHIND has its own gate
+            ("UNKNOWN", "UNKNOWN"),         # still computing, not yet a conflict
+            ("", ""),                       # missing fields default to not-suspected
+        ],
+    )
+    def test_does_not_flag_non_conflict_states(self, mergeable, merge_state_status):
+        assert stale_dirty_suspected(mergeable, merge_state_status) is False
+
+
+class TestStaleDirtyInMergeReadiness:
+    def test_conflicting_sets_advisory_flag(self):
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeable"] = "CONFLICTING"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["StaleDirtySuspected"] is True
+
+    def test_advisory_does_not_relax_can_merge(self):
+        # The advisory is informational only. A CONFLICTING PR must still be
+        # blocked; the caller verifies against local git before any refresh.
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeable"] = "CONFLICTING"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["StaleDirtySuspected"] is True
+        assert result["CanMerge"] is False
+
+    def test_clean_pr_does_not_set_advisory_flag(self):
+        with patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["StaleDirtySuspected"] is False
+        assert result["CanMerge"] is True

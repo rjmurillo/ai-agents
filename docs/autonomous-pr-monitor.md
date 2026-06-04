@@ -608,6 +608,46 @@ done
 
 Do not attempt to land PRs while `mergeable` is `UNKNOWN`. Resolve status first, then proceed with tiering. If status remains stale after retry, enable auto-merge and let GitHub handle it when checks pass.
 
+### Stale DIRTY/CONFLICTING
+
+GitHub can also keep a PR in `mergeable == "CONFLICTING"` (or `mergeStateStatus == "DIRTY"`) after the base branch advanced, even when the branch is already an ancestor of the base and a local merge is clean. Observed on PR #2334 (issue #2368): the agent verified locally that `origin/main` was an ancestor of the PR head and a local merge was clean, yet GitHub still reported `DIRTY/CONFLICTING`. A safe base-ref refresh cleared the stale cache and the PR merged.
+
+`test_pr_merge_ready.py` surfaces this with the `StaleDirtySuspected` output field. It is `true` whenever GitHub reports `CONFLICTING`/`DIRTY`. It is an ADVISORY flag only: it does not relax `CanMerge`. The script is a pure GitHub-API probe with no working tree, so it cannot run the ancestry check itself. Confirm against local git before acting.
+
+Distinguish stale cache from a real conflict before any refresh:
+
+```bash
+PR=2334
+BRANCH="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.head_branch)"
+BASE="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.base_branch)"
+WT=".worktrees/pr-$PR"
+git worktree add "$WT" "$BRANCH"
+git -C "$WT" fetch origin "$BASE"
+
+# Stale-cache signal: base is already an ancestor of HEAD (exit 0) AND a trial
+# merge is clean. A real conflict makes the trial merge fail (non-zero).
+if git -C "$WT" merge-base --is-ancestor "origin/$BASE" HEAD; then
+  echo "base is an ancestor; stale DIRTY suspected"
+fi
+git -C "$WT" merge --no-commit --no-ff "origin/$BASE"   # clean? then stale. conflict? then real.
+git -C "$WT" merge --abort 2>/dev/null || true
+```
+
+Outcomes:
+
+- **Base is an ancestor AND trial merge is clean**: the `DIRTY/CONFLICTING` is stale. Issue a safe base-ref refresh (below). Do not treat the PR as permanently blocked.
+- **Trial merge reports conflicts**: the conflict is real and authoritative. Resolve it via the merge-resolver skill; do not refresh-and-hope. `StaleDirtySuspected` being `true` does not override a failing trial merge.
+
+Safe base-ref refresh (no force; runs the same merge as the Branch Update path, which is a no-op when already an ancestor and harmless otherwise):
+
+```bash
+git -C "$WT" merge origin/"$BASE" --no-edit   # no-op when already an ancestor
+git -C "$WT" push origin "$BRANCH"            # fast-forward-friendly; no --force
+git worktree remove --force "$WT"
+```
+
+Run the Force-Push Safety pre-push audit (verify the local tip matches the PR head SHA) before the push, then re-run the completion gate. After the push, GitHub recomputes mergeability from the fresh ref and clears the stale `DIRTY/CONFLICTING`.
+
 ## Branch Update Against Main
 
 If `mergeStateStatus == BEHIND` (or `BLOCKED` with no other obvious cause), the branch must be updated against `main` before the PR can land. Repos with linear-history requirements will not allow squash-merge to bypass this.
