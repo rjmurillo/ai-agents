@@ -682,6 +682,35 @@ def validate_sync_registry(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_agent_catalog(repo_root: Path) -> bool:
+    """Detect drift between docs/agent-catalog.md and templates/agents/.
+
+    Wraps ``scripts/validation/validate_agent_catalog.py``. The wrapped script
+    regenerates the catalog to a buffer and exits 0 when the committed file
+    matches, 1 on drift or a missing catalog, 2 on config error, and 3 on a bad
+    template. Any non-zero exit is a hard failure: a stale catalog is the exact
+    thing this gate exists to catch (Issue #1904).
+
+    Fails closed when the validator is absent rather than raising
+    MissingScriptSkip; a silent skip would defeat the gate.
+    """
+    script = repo_root / "scripts" / "validation" / "validate_agent_catalog.py"
+    if not script.exists():
+        print(
+            "[ERROR] validate_agent_catalog.py absent; the agent-catalog gate "
+            "cannot run. Hard failure: the gate is the point of registering "
+            "this validator.",
+            file=sys.stderr,
+        )
+        return False
+    exit_code, stdout, stderr = _run_subprocess([sys.executable, str(script)])
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_canonical_citations(repo_root: Path) -> bool:
     """Heuristic check for uncited mirror-claims.
 
@@ -1237,6 +1266,13 @@ def main(argv: list[str] | None = None) -> int:
         "Sync Registry Provenance",
         state,
         lambda: validate_sync_registry(repo_root),
+    )
+
+    # 3.78 Agent Catalog Drift (docs/agent-catalog.md vs templates/agents/; #1904)
+    run_validation(
+        "Agent Catalog Drift",
+        state,
+        lambda: validate_agent_catalog(repo_root),
     )
 
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
