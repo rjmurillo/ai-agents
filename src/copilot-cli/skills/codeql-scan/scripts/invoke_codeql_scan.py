@@ -46,21 +46,31 @@ def _color_print(message: str, msg_type: str = "info") -> None:
 
 
 def _get_repo_root() -> Path | None:
-    """Get the git repository root."""
+    """Get the git repository root for the *current* working tree.
+
+    Uses `git rev-parse --show-toplevel`, which returns the root of the
+    current working tree — for linked worktrees this is the worktree root,
+    not the main checkout. `--git-common-dir` was used previously but
+    points at the main checkout's `.git` directory even from a linked
+    worktree, which breaks worktree isolation (see #2373).
+    """
     result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+        ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
         return None
-    git_common = Path(result.stdout.strip())
-    if not git_common.is_absolute():
-        git_common = (Path.cwd() / git_common).resolve()
+    top = result.stdout.strip()
+    if not top:
+        return None
+    top_path = Path(top)
+    if not top_path.is_absolute():
+        top_path = (Path.cwd() / top_path).resolve()
     else:
-        git_common = git_common.resolve()
-    return git_common.parent
+        top_path = top_path.resolve()
+    return top_path
 
 
 def build_parser() -> argparse.ArgumentParser:

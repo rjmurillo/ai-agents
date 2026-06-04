@@ -145,3 +145,51 @@ class TestMain:
         with pytest.raises(SystemExit) as exc_info:
             main(["--help"])
         assert exc_info.value.code == 0
+
+
+class TestGetRepoRootWorktree:
+    """Regression tests for #2373: _get_repo_root must return the linked
+    worktree root, not the main checkout root, when invoked from a worktree.
+    """
+
+    def test_resolves_linked_worktree_root_via_show_toplevel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In a linked worktree, `git rev-parse --git-common-dir` points at
+        the MAIN checkout's .git directory, while `--show-toplevel` returns
+        the current worktree root. We must use the worktree root so that
+        `<root>/.codeql/scripts/...` resolves under the worktree.
+        """
+        main_checkout = tmp_path / "main-checkout"
+        main_checkout.mkdir()
+        worktree_root = tmp_path / "worktrees" / "pr-2354"
+        worktree_root.mkdir(parents=True)
+        # Simulate git's behavior: --git-common-dir resolves to the main
+        # checkout's .git (its parent is the WRONG root); --show-toplevel
+        # resolves to the current worktree root (the RIGHT root).
+        main_git_common = main_checkout / ".git"
+        main_git_common.mkdir()
+
+        def fake_run(args, **kwargs):
+            result = MagicMock()
+            if args[:2] == ["git", "rev-parse"]:
+                flag = args[2]
+                result.returncode = 0
+                if flag == "--show-toplevel":
+                    result.stdout = str(worktree_root) + "\n"
+                elif flag == "--git-common-dir":
+                    result.stdout = str(main_git_common) + "\n"
+                else:
+                    result.stdout = ""
+            else:
+                result.returncode = 0
+                result.stdout = ""
+            return result
+
+        with patch("subprocess.run", side_effect=fake_run):
+            root = _get_repo_root()
+        assert root == worktree_root, (
+            f"Expected linked worktree root {worktree_root}, got {root}. "
+            "Fix #2373: must use `git rev-parse --show-toplevel`, not "
+            "`--git-common-dir`."
+        )
