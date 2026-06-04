@@ -16,7 +16,7 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 
 1. **Pipeline health** - Invoke Skill(skill="pipeline-validator"). All CI checks green? No suppressed failures?
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff?
-3. **Reviewed on this SHA** - The shipped code must carry a SHA-bound `/review` PASS marker (Issue #1938). Run the review-skill validator:
+3. **Reviewed on this SHA** - The shipped code must carry a SHA-bound `/review` PASS marker (Issue #1938). First confirm `git status --porcelain` is empty. If any file is staged or modified, this check FAILS: commit the change, re-run `/review`, then re-run `/ship`. `/push-pr` must only push the existing marker commit; it must not create a new commit after this check passes. Then run the review-skill validator:
    - If `CLAUDE_SKILL_DIR` is set: `python3 "$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
    - If `COPILOT_PLUGIN_ROOT` is set: `python3 "$COPILOT_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
    - If `CLAUDE_PLUGIN_ROOT` is set: `python3 "$CLAUDE_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`

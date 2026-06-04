@@ -29,6 +29,8 @@ def test_ship_docs_use_review_skill_validator_paths() -> None:
         assert "$COPILOT_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" in text
         assert "$CLAUDE_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" in text
         assert '--repo-root "$(pwd)"' in text
+        assert "git status --porcelain" in text
+        assert "must not create a new commit after this check passes" in text
         assert "scripts/validation/validate_review_marker.py --ref HEAD" not in text
 
 
