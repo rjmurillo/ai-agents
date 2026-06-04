@@ -43,7 +43,9 @@ from tests.commands.step0_5_parser import (
     extract_step0_5_subsection,
     extract_step9_block,
     has_guard_string,
+    load_entity_aliases,
     normalize_topic,
+    normalize_topic_with_aliases,
     parse_halt_block,
     parse_tally_line,
     phases_needed,
@@ -981,3 +983,122 @@ def test_extract_step9_block_missing_raises():
     """Absent Step 9 block raises ValueError."""
     with pytest.raises(ValueError, match="Step 9 block not found"):
         extract_step9_block("8. only step.\n## Evaluation Axes\n")
+
+
+# ---------------------------------------------------------------------------
+# PriorArtBlock heading parenthetical contract (Issue #1977)
+#
+# The schema section must document that the h2 heading is exactly
+# `## Prior Art / Constraints`, any trailing parenthetical is optional, and
+# check 9d matches by substring. Static assertion on the extracted block.
+# ---------------------------------------------------------------------------
+
+
+def test_s12_prior_art_heading_contract_documented(step0_5_block: str):
+    """The PriorArtBlock schema states the exact-heading + substring-9d rule."""
+    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
+        step0_5_block
+    )
+    assert "any trailing parenthetical" in step0_5_block
+    assert "matches by substring" in step0_5_block
+
+
+def test_s12_prior_art_heading_contract_present_in_skill_mirror(skill_text: str):
+    """The contract sentence is mirrored in the Copilot CLI SKILL.md block.
+
+    The byte-identical parity test covers this implicitly, but a direct
+    assertion fails with a clearer message if the mirror drifts.
+    """
+    skill_block = extract_step0_5_block(skill_text)
+    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
+        skill_block
+    )
+
+
+# ---------------------------------------------------------------------------
+# Entity-name alias normalization (Issue #1978)
+#
+# Rule 5 of Step 0.5 topic extraction: after rules 1-4, look the normalized
+# string up in .agents/dictionaries/spec-entity-aliases.json and substitute
+# the canonical value on a hit.
+# ---------------------------------------------------------------------------
+
+ALIAS_TABLE_PATH = (
+    PROJECT_ROOT / ".agents" / "dictionaries" / "spec-entity-aliases.json"
+)
+
+
+def test_alias_table_file_exists_and_is_valid_json():
+    """The alias dictionary exists and parses as JSON with an aliases object."""
+    assert ALIAS_TABLE_PATH.is_file()
+    data = json.loads(ALIAS_TABLE_PATH.read_text(encoding="utf-8"))
+    assert isinstance(data.get("aliases"), dict)
+    assert 5 <= len(data["aliases"]) <= 20
+
+
+def test_alias_table_keys_are_already_normalized():
+    """Every alias key is itself the result of rules 1-4 (idempotent).
+
+    Rule 5 looks up the rule-4 output, so a key that is not already normalized
+    could never match and would be dead config.
+    """
+    aliases = load_entity_aliases()
+    for key in aliases:
+        assert normalize_topic(key) == key, (
+            f"alias key {key!r} is not in normalized form"
+        )
+
+
+def test_alias_table_canonical_values_are_normalized():
+    """Every canonical value is also normalized so adjudication is consistent."""
+    aliases = load_entity_aliases()
+    for value in aliases.values():
+        assert normalize_topic(value) == value, (
+            f"canonical value {value!r} is not in normalized form"
+        )
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("spec", "spec-pipeline"),
+        ("SPEC", "spec-pipeline"),
+        ("spec command", "spec-pipeline"),
+        ("memory skill", "memory"),
+        ("memory_search", "memory"),
+        ("knowledge graph", "exploring-knowledge-graph"),
+    ],
+)
+def test_normalize_topic_with_aliases_collapses_synonyms(
+    raw: str, expected: str
+):
+    """Known synonyms collapse to one canonical topic after rule 5."""
+    assert normalize_topic_with_aliases(raw) == expected
+
+
+def test_normalize_topic_with_aliases_passes_through_unknown_topics():
+    """A topic with no alias entry is returned as its rule-4 normalized form."""
+    # `auth service` normalizes to `auth-service`, which is not an alias key.
+    assert normalize_topic_with_aliases("auth service") == "auth-service"
+    assert normalize_topic_with_aliases(
+        ".claude/commands/spec.md"
+    ) == "claude/commands/spec.md"
+
+
+def test_normalize_topic_with_aliases_accepts_injected_table():
+    """An injected alias table avoids the file read and is honored verbatim."""
+    table = {"foo": "bar"}
+    assert normalize_topic_with_aliases("FOO", aliases=table) == "bar"
+    assert normalize_topic_with_aliases("baz", aliases=table) == "baz"
+
+
+def test_load_entity_aliases_missing_file_returns_empty(tmp_path):
+    """A missing alias file degrades to an empty table (pass-through)."""
+    missing = tmp_path / "absent.json"
+    assert load_entity_aliases(missing) == {}
+
+
+def test_spec_md_documents_alias_lookup_step(step0_5_block: str):
+    """spec.md normalization block documents rule 5 and the dictionary path."""
+    assert ".agents/dictionaries/spec-entity-aliases.json" in step0_5_block
+    assert "substitute the canonical value" in step0_5_block
