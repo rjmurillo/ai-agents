@@ -351,7 +351,7 @@ def main() -> int:
 Examples:
     python validate_experiment.py experiment.md
     python validate_experiment.py experiment.md --strict
-    python validate_experiment.py .agents/chaos/*.md --json
+    python validate_experiment.py ./chaos/*.md --json
 
 Exit Codes:
     0  - Validation passed

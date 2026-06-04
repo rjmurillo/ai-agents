@@ -755,6 +755,29 @@ def validate_spec_id_uniqueness(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_vendor_portability(repo_root: Path) -> bool:
+    """Fail when a new skill script hard-codes an upstream-only path (Issue #2050).
+
+    Wraps ``scripts/validation/check_vendor_portability.py``. The script exits 0
+    when there are no NEW offenders (baseline-listed debt is allowed) or no scan
+    roots are present, 1 when a NEW offender is found, and 2 on a configuration
+    error. Exit 1 and 2 are both hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_vendor_portability.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_vendor_portability.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 
@@ -1296,6 +1319,13 @@ def main(argv: list[str] | None = None) -> int:
         "Spec ID Uniqueness",
         state,
         lambda: validate_spec_id_uniqueness(repo_root),
+    )
+
+    # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
+    run_validation(
+        "Vendor Portability",
+        state,
+        lambda: validate_vendor_portability(repo_root),
     )
 
     # 3.77 Sync Registry Provenance (Issue #1909)
