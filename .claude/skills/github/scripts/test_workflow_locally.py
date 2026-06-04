@@ -35,8 +35,69 @@ def _check_command_exists(command: str) -> str | None:
 
 
 def _get_repo_root() -> str:
-    """Get the repository root directory."""
+    """Get the current worktree root directory.
+
+    Uses git rev-parse --show-toplevel rather than counting parent
+    directories from __file__. Path-counting is fragile to script relocation
+    (it resolved under .claude/, not the repo root) and wrong in a LINKED
+    worktree, where the script may be vendored at a different depth (#2377).
+    --show-toplevel returns the current worktree root in every layout.
+    Canonical reference: scripts/github_core/repo.py::get_repo_root.
+
+    Falls back to the four-parents path only when git is unavailable, so the
+    workflow-path resolution below still has a best-effort anchor.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return str(Path(result.stdout.strip()).resolve())
     return str(Path(__file__).resolve().parent.parent.parent.parent)
+
+
+def _read_worktree_gitdir(repo_root: str) -> str | None:
+    """Return the absolute GIT_DIR for a LINKED worktree, else None.
+
+    In a linked worktree, ``<repo_root>/.git`` is a FILE containing a single
+    line ``gitdir: <path>`` that points at the per-worktree admin directory
+    under the main checkout's ``.git/worktrees/<name>``. ``act`` / ``gh act``
+    run as a child process with ``cwd=repo_root`` and need ``GIT_DIR`` set to
+    that path because they cannot follow the file pointer themselves (#2344).
+
+    Returns the resolved absolute gitdir, or None when ``.git`` is a normal
+    directory (no override needed) or the pointer is unreadable.
+    """
+    git_path = Path(repo_root) / ".git"
+    if not git_path.is_file():
+        return None
+    try:
+        content = git_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not content.startswith("gitdir:"):
+        return None
+    pointer = content.split(":", 1)[1].strip()
+    if not pointer:
+        return None
+    gitdir = Path(pointer)
+    if not gitdir.is_absolute():
+        gitdir = (Path(repo_root) / gitdir).resolve()
+    else:
+        gitdir = gitdir.resolve()
+    return str(gitdir)
+
+
+def _act_env(repo_root: str) -> dict[str, str]:
+    """Build the subprocess env for act, GIT_DIR-aware for linked worktrees."""
+    env = dict(os.environ)
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is not None:
+        env["GIT_DIR"] = gitdir
+    return env
 
 
 def _resolve_act_runner() -> tuple[list[str], str] | None:
@@ -261,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     result = subprocess.run(
         [*act_argv, *act_args],
         cwd=repo_root,
+        env=_act_env(repo_root),
         check=False,
     )
 
