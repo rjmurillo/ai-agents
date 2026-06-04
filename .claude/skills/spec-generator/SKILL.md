@@ -27,7 +27,7 @@ This skill supersedes the former `spec-generator` agent. The change exists becau
 
 ## BLOCKING: Schema Compliance (read before writing any spec file)
 
-The canonical frontmatter schema is bundled at `references/spec-schemas.md` (mirror of `.agents/governance/spec-schemas.md`). You MUST:
+The canonical frontmatter schema is bundled at `references/spec-schemas.md` (frontmatter mirror of `.agents/governance/spec-schemas.md`). The body-section checklist in that reference extends the frontmatter schema with this skill's ontology contract; `validate_spec_frontmatter.py` validates frontmatter only, while structural tests and the CI completeness prompt enforce ontology body sections. You MUST:
 
 1. Read `references/spec-schemas.md` before emitting any frontmatter.
 2. Use only these enum values. They are copied verbatim from the schema:

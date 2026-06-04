@@ -330,6 +330,9 @@ def test_generator_schema_documents_ontology_sections(
     assert "O5 source" in generator_schema_text, (
         "schema reference must include O5 source in Technology Decisions"
     )
+    assert "validates frontmatter only" in generator_schema_text, (
+        "schema reference must distinguish frontmatter validation from ontology body checks"
+    )
 
 
 # --- Negative: no new top-level step, no new verdict token ---
