@@ -143,8 +143,17 @@ class TestValidate:
             return drifted_paths
 
         monkeypatch.setattr(guard, "_hook_diff_paths", staged_diff)
+        # K1 (REQ-008-09): a drift block is the raw K1 signal. Capture the
+        # emission so the test pins that a block records exactly one K1
+        # event carrying the drifted paths.
+        k1_calls: list[str] = []
+        monkeypatch.setattr(guard, "_emit_k1", lambda detail: k1_calls.append(detail))
         out = guard._validate([], [])
         assert out
+        # Exactly one K1 event, listing the drifted paths.
+        assert len(k1_calls) == 1
+        assert "invoke_x__Bash_abc.py" in k1_calls[0]
+        assert "invoke_y__Edit_def.py" in k1_calls[0]
         # First line names the failure mode.
         assert "Hook-shim drift detected" in out[0]
         # Drifted paths are listed verbatim.
@@ -292,3 +301,53 @@ class TestGuardWiring:
         assert args[1] == list(guard._GLOBS)
         assert args[2] == guard.GUARD_NAME
         assert kwargs.get("include_deletions") is False
+
+
+class TestEmitK1:
+    """Tests for _emit_k1 (REQ-008-09 K1 telemetry, fail-open)."""
+
+    def test_loads_emitter_and_records_k1(self, monkeypatch, tmp_path):
+        # _emit_k1 loads scripts/metrics/kill_criteria.py by file path and
+        # calls emit_event("K1", detail). The fake emitter records its
+        # arguments to a marker file so the test reads what was passed
+        # after the module was exec'd inside the helper.
+        marker = tmp_path / "k1.marker"
+        emitter = tmp_path / "scripts" / "metrics" / "kill_criteria.py"
+        emitter.parent.mkdir(parents=True)
+        emitter.write_text(
+            "from pathlib import Path\n"
+            f"_MARKER = Path({str(marker)!r})\n"
+            "def emit_event(kind, detail):\n"
+            "    _MARKER.write_text(f'{kind}\\t{detail}', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(guard, "get_project_directory", lambda: str(tmp_path))
+
+        guard._emit_k1("a/b.py,c/d.py")
+
+        assert marker.is_file(), "emitter was not invoked"
+        kind, detail = marker.read_text(encoding="utf-8").split("\t", 1)
+        assert kind == "K1"
+        assert detail == "a/b.py,c/d.py"
+
+    def test_fail_open_when_emitter_missing(self, monkeypatch, tmp_path):
+        # No scripts/metrics/kill_criteria.py under the project dir: must
+        # not raise. A telemetry gap can never block a push.
+        monkeypatch.setattr(guard, "get_project_directory", lambda: str(tmp_path))
+        guard._emit_k1("x/y.py")  # no exception == pass
+
+    def test_fail_open_when_emitter_raises(self, monkeypatch, tmp_path):
+        # An emitter that raises on import must be swallowed.
+        emitter = tmp_path / "scripts" / "metrics" / "kill_criteria.py"
+        emitter.parent.mkdir(parents=True)
+        emitter.write_text("raise RuntimeError('boom')\n", encoding="utf-8")
+        monkeypatch.setattr(guard, "get_project_directory", lambda: str(tmp_path))
+        guard._emit_k1("x/y.py")  # no exception == pass
+
+    def test_fail_open_when_get_project_directory_raises(self, monkeypatch):
+        # Even a failure resolving the project dir must not propagate.
+        def boom() -> str:
+            raise OSError("no cwd")
+
+        monkeypatch.setattr(guard, "get_project_directory", boom)
+        guard._emit_k1("x/y.py")  # no exception == pass
