@@ -13,7 +13,7 @@ related:
 
 ## Overview
 
-This document defines the YAML front matter schemas for the 3-tier specification layer: Requirements, Design, and Tasks. These schemas enable automated validation and ensure consistency across specification documents. Body-section checklists in this bundled reference extend the governance frontmatter mirror with the spec-generator ontology contract; `validate_spec_frontmatter.py` validates frontmatter only.
+This document defines the YAML front matter schemas for the 3-tier specification layer: Requirements, Design, and Tasks. These schemas enable automated validation and ensure consistency across specification documents. Body-section checklists in this bundled reference add the spec-generator ontology contract to the frontmatter schema whose canonical source is `.agents/governance/spec-schemas.md`; `validate_spec_frontmatter.py` validates frontmatter only.
 
 ## Common Fields
 
