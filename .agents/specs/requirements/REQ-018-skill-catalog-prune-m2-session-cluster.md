@@ -7,7 +7,10 @@ priority: P2
 category: maintainability
 epic: skill-catalog-health
 related:
-  - ISSUE-1946
+  - DESIGN-018
+  - TASK-018
+issues:
+  - 1946
 created: 2026-06-04
 updated: 2026-06-04
 author: richard
