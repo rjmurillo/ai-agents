@@ -30,12 +30,21 @@ from typing import Any
 
 
 def get_session_id_from_path(path: Path) -> str:
-    """Extract session ID from log file path."""
+    """Extract session ID from a log file path, preserving the full suffix.
+
+    The session ID drives the episode filename (``episode-<id>.json``). Two
+    parallel autofix sessions can share a session number but differ in their
+    descriptive suffix (``...-session-2335-pr-2353-autofix`` vs
+    ``...-session-2335-pr-2359-autofix``). Capturing only the number maps both
+    to ``episode-<date>-session-2335.json`` and produces an add/add merge
+    conflict (issue #2379). Capturing the full suffix keeps distinct sessions on
+    distinct episode files.
+    """
     stem = path.stem
-    match = re.search(r'(\d{4}-\d{2}-\d{2}-session-\d+)', stem)
+    match = re.search(r'(\d{4}-\d{2}-\d{2}-session-\d+(?:-.+)?)', stem)
     if match:
         return match.group(1)
-    match = re.search(r'(session-\d+)', stem)
+    match = re.search(r'(session-\d+(?:-.+)?)', stem)
     if match:
         return match.group(1)
     return stem
