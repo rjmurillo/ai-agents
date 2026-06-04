@@ -234,76 +234,113 @@ def check_adr_review_evidence(
         }
 
 
+def _read_git_commit_command() -> str | None:
+    """Read the gated git-commit command from stdin, or None to allow.
+
+    Returns the command string only when stdin carries a parseable hook
+    payload whose ``tool_input.command`` is a git commit. Any non-commit,
+    empty, or malformed payload returns ``None`` so the caller allows the
+    tool through (exit 0). Behavior is unchanged from the inlined version;
+    this only moves the input-parsing branches out of ``main`` (#2386).
+    """
+    if sys.stdin.isatty():
+        return None
+    input_json = sys.stdin.read()
+    if not input_json.strip():
+        return None
+    hook_input = json.loads(input_json)
+    tool_input = hook_input.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return None
+    command = tool_input.get("command")
+    if not command:
+        return None
+    if not is_git_commit_command(command):
+        return None
+    return command
+
+
+def _staged_adr_changes_or_block() -> tuple[list[str] | None, int | None]:
+    """Return staged ADR changes, or signal a fail-closed block.
+
+    Returns ``(changes, None)`` when the staged diff was read. On any git
+    error returns ``(None, 2)`` so the caller blocks the commit rather than
+    let an ADR change slip past an unreadable index. The fail-closed posture
+    is unchanged from the inlined version (#2386).
+    """
+    try:
+        return get_staged_adr_changes(), None
+    except (RuntimeError, FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
+        error_msg = f"Staged ADR check failed (fail-closed): {exc}"
+        print(error_msg, file=sys.stderr)
+        write_audit_log(error_msg)
+        return None, 2
+
+
+def _evaluate_adr_review(adr_changes: list[str], today: str) -> int:
+    """Decide the exit code once ADR changes are confirmed staged.
+
+    Blocks (exit 2) when there is no session log or the session lacks
+    adr-review evidence; allows (exit 0) otherwise. Block messages and
+    targets are identical to the inlined version (#2386).
+    """
+    project_dir = get_project_directory()
+    sessions_dir = os.path.join(project_dir, ".agents", "sessions")
+    session_log = get_today_session_log(sessions_dir, date=today)
+
+    changes_list = "\n".join(adr_changes)
+
+    if session_log is None:
+        print(_NO_SESSION_LOG_TEMPLATE.format(changes_list=changes_list))
+        print(
+            "Session blocked: ADR changes without review",
+            file=sys.stderr,
+        )
+        return 2
+
+    evidence = check_adr_review_evidence(session_log, project_dir)
+
+    if not evidence["complete"]:
+        print(
+            _NO_EVIDENCE_TEMPLATE.format(
+                changes_list=changes_list,
+                reason=evidence["reason"],
+                session_log_name=session_log.name,
+            )
+        )
+        print(
+            "Session blocked: ADR review not completed in session",
+            file=sys.stderr,
+        )
+        return 2
+
+    return 0
+
+
 def main() -> int:
-    """Main hook entry point. Returns exit code."""
+    """Main hook entry point. Returns exit code.
+
+    Sergeant: reads the command, checks for staged ADR changes, then defers
+    the review decision to ``_evaluate_adr_review``. Each step is a named
+    helper so the control flow stays under the complexity gate (#2386).
+    """
     if skip_if_consumer_repo("adr-review-guard"):
         return 0
     try:
         today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
-        if sys.stdin.isatty():
+        command = _read_git_commit_command()
+        if command is None:
             return 0
 
-        input_json = sys.stdin.read()
-        if not input_json.strip():
-            return 0
-
-        hook_input = json.loads(input_json)
-
-        tool_input = hook_input.get("tool_input")
-        if not isinstance(tool_input, dict):
-            return 0
-        command = tool_input.get("command")
-        if not command:
-            return 0
-
-        if not is_git_commit_command(command):
-            return 0
-
-        # Fail-closed: git errors block to prevent bypass.
-        try:
-            adr_changes = get_staged_adr_changes()
-        except (RuntimeError, FileNotFoundError, subprocess.TimeoutExpired, OSError) as exc:
-            error_msg = f"Staged ADR check failed (fail-closed): {exc}"
-            print(error_msg, file=sys.stderr)
-            write_audit_log(error_msg)
-            return 2
+        adr_changes, block_code = _staged_adr_changes_or_block()
+        if block_code is not None:
+            return block_code
 
         if not adr_changes:
             return 0
 
-        # ADR changes detected, verify review was done
-        project_dir = get_project_directory()
-        sessions_dir = os.path.join(project_dir, ".agents", "sessions")
-        session_log = get_today_session_log(sessions_dir, date=today)
-
-        changes_list = "\n".join(adr_changes)
-
-        if session_log is None:
-            print(_NO_SESSION_LOG_TEMPLATE.format(changes_list=changes_list))
-            print(
-                "Session blocked: ADR changes without review",
-                file=sys.stderr,
-            )
-            return 2
-
-        evidence = check_adr_review_evidence(session_log, project_dir)
-
-        if not evidence["complete"]:
-            print(
-                _NO_EVIDENCE_TEMPLATE.format(
-                    changes_list=changes_list,
-                    reason=evidence["reason"],
-                    session_log_name=session_log.name,
-                )
-            )
-            print(
-                "Session blocked: ADR review not completed in session",
-                file=sys.stderr,
-            )
-            return 2
-
-        return 0
+        return _evaluate_adr_review(adr_changes, today)
 
     except Exception as exc:
         # Fail-open on infrastructure errors
