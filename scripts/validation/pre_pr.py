@@ -855,6 +855,13 @@ def validate_agent_drift(repo_root: Path) -> bool:
     Per ADR-042 the legacy Detect-AgentDrift.ps1 was expunged in favor of the
     Python port at build/scripts/detect_agent_drift.py. Invoke the Python
     version directly so the drift gate continues to run after migration.
+
+    The detector runs two comparisons (Issue #2267): the vendored
+    src/claude vs src/vs-code-agents pair (blocking) and the hand-maintained
+    .claude/agents vs .github/agents install pair for shared-template agents
+    (advisory; reported but does not flip the exit code, because the two
+    self-host copies carry large pre-existing structural differences). Only
+    vendored drift blocks this gate.
     """
     python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
     if python_script.exists():
@@ -862,9 +869,11 @@ def validate_agent_drift(repo_root: Path) -> bool:
             [sys.executable, str(python_script)]
         )
         # Surface drift output for visibility (mirrors other Python validators).
+        # Cap at 100 lines: the detector now reports two comparisons (vendored
+        # and install), so 40 truncated the install-pass results (Issue #2267).
         output = (stdout or "") + (stderr or "")
         if output.strip():
-            for line in output.strip().splitlines()[:40]:
+            for line in output.strip().splitlines()[:100]:
                 print(line)
         return exit_code == 0
 
