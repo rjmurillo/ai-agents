@@ -146,6 +146,9 @@ def test_ontology_fragment_carried_into_step_6(step_6_region: str) -> None:
     assert "OntologyFragment" in step_6_region, (
         "Step 6 must pass the OntologyFragment to spec-generator"
     )
+    assert "Problem, User stories, Ontology, Data model" in step_6_region, (
+        "Step 6 must pass the PRD Ontology section to spec-generator"
+    )
     assert ".agents/specs/ontology/" in step_6_region, (
         "Step 6 must name the OntologyFragment path passed to spec-generator"
     )
