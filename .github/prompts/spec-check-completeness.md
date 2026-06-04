@@ -124,13 +124,16 @@ extractor in `.github/actions/ai-review/action.yml` anchors on a plain
 `VERDICT: PASS|PARTIAL|FAIL` line, so an `ONTOLOGY-INCOMPLETE` token would not match
 and would silently drop the verdict.
 
-1. **Entity coverage**: every domain entity referenced in a requirement's statement
-   or acceptance criteria must appear in the OntologyFragment (by its canonical O2
-   name) or in that requirement's `## Ontology` section. An entity named in a
-   requirement but absent from the ontology is an ubiquitous-language drift: it means
-   two artifacts may name the same concept differently. Treat one such gap as a minor
-   gap (lean PARTIAL); treat a requirement whose primary entity is entirely unnamed in
-   the ontology as a critical gap (lean FAIL).
+1. **Entity coverage**: when an OntologyFragment exists, every domain entity
+   referenced in a requirement's statement or acceptance criteria must appear in the
+   OntologyFragment by its canonical O2 name. The requirement's `## Ontology`
+   section is evidence that the requirement uses those names; it cannot introduce an
+   entity absent from the fragment. When no OntologyFragment exists, the
+   requirement's `## Ontology` section is local evidence only. An entity named in a
+   requirement but absent from the OntologyFragment is a ubiquitous-language drift:
+   it means two artifacts may name the same concept differently. Treat one such gap
+   as a minor gap (lean PARTIAL); treat a requirement whose primary entity is
+   entirely absent from the OntologyFragment as a critical gap (lean FAIL).
 2. **Decision-rule traceability**: every domain decision rule in `design.md` should
    trace to an `## O5` decision-rule source in the OntologyFragment. An unsourced
    decision rule is a PARTIAL-level gap.

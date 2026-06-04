@@ -552,6 +552,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
      - PASS: every PRD acceptance criterion either traces to the Q4 wedge or narrows it.
      - FAIL if any acceptance criterion adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
    - **Check 9d, Prior Art / Constraints elicitation**:
+     - Evaluate 9d independently from ontology checks: missing or present `## Ontology` and `## Data model` content cannot satisfy, fail, or distract from the required `## Prior Art / Constraints` section. Locate the literal prior-art section first; if it exists with the required subsection evidence or coverage note, 9d passes even when ontology coverage is checked later.
      - PASS: the PRD contains a "## Prior Art / Constraints" section with at least one sub-section ("### Direct prior art from memory", "### Connected context from exploring-knowledge-graph", or "### Coverage notes") that has either evidence content or a justified coverage note.
      - FAIL conditions (any one triggers a blocking FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) the Step 0.5 BLOCK itself in `.claude/commands/spec.md` (between the `### Step 0.5: Memory-First Gate` heading and the next `\n---\n` delimiter) contains the partial-implementation guard token (string `step0.5:incomplete-without-2b` wrapped in HTML-comment delimiters). Note: the same token appears in this 9d FAIL clause as documentation; check 9d MUST scope its match to the Step 0.5 block boundaries to avoid a tautological self-trigger from this Step 9 text.
      - On FAIL: report the verdict as FAIL and surface the gap as a blocking finding. The critic SHALL NOT return APPROVED while check 9d is a FAIL: a missing, absent, or empty Prior Art / Constraints section is a blocking gap, so the critic reports a FAIL verdict with a blocking finding and withholds APPROVED.
@@ -582,8 +583,8 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 
 - **Problem statement** (1-2 sentences)
 - **User stories** (who, action, observable outcome)
-- **Ontology** (from the Step 1 ontology elicitation: domain entities and value objects with their canonical names, relationships, aggregate boundaries, decision rules, bounded-context boundaries, open ontology questions; the OntologyFragment at `.agents/specs/ontology/<feature-slug>.md` is the single source for entity names that every later artifact reuses)
-- **Data model** (entities, identity, invariants, lifecycle; entity names match the Ontology section's canonical O2 names)
+- **Ontology** (Step 1 OntologyFragment summary: canonical O2 names, relationships, aggregate boundaries, decision rules, bounded-context boundaries, open questions)
+- **Data model** (entities, identity, invariants, lifecycle; entity names match the OntologyFragment O2 names)
 - **Integrations** (external systems, failure modes, idempotency)
 - **Failure modes** (retries, partial failures, conflicts, replay, schema evolution; initially drafted at Step 2 and written into the artifacts at Step 6, then augmented in place by the Step 9 `pre-mortem` skill: failure scenarios, modes, early warnings, prevention)
 - **Security** (authn, authz, secrets, PII, input validation; populated from the Step 6 `threat-modeling` skill: threats, trust boundaries, abuse cases, mitigations; or an explicit "no security surface" justification at Tier 1-2)

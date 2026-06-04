@@ -184,6 +184,9 @@ def test_generator_requires_canonical_name_reuse(generator_text: str) -> None:
     assert "canonical name" in lowered, (
         "spec-generator must require entities be named by their canonical O2 name"
     )
+    assert "ask the caller/user to extend the ontologyfragment" in lowered, (
+        "spec-generator must give non-/spec callers an actionable repair path"
+    )
 
 
 # --- Negative: no new top-level step, no new verdict token ---
@@ -249,6 +252,33 @@ def test_completeness_check_folds_ontology_into_verdict(completeness_text: str) 
     fail_region = lowered[fail_idx : fail_idx + 400]
     assert "entity" in fail_region and "ontology" in fail_region, (
         "FAIL guideline must name the absent-primary-entity ontology gap"
+    )
+
+
+def test_completeness_check_treats_fragment_as_canonical_source(
+    completeness_text: str,
+) -> None:
+    """When the fragment exists, REQ-local ontology text cannot mint entities."""
+    lowered = completeness_text.lower()
+    normalized = " ".join(lowered.split())
+    assert "every domain entity" in lowered and "ontologyfragment" in lowered, (
+        "completeness check must require entity coverage in the OntologyFragment"
+    )
+    assert "cannot introduce an entity absent from the fragment" in normalized, (
+        "REQ-local `## Ontology` sections must not mask fragment drift"
+    )
+
+
+def test_step_9_prior_art_check_independent_of_ontology(spec_text: str) -> None:
+    """Check 9d remains focused on Prior Art even when ontology text is present."""
+    start = spec_text.find("**Check 9d, Prior Art / Constraints elicitation**")
+    assert start != -1, "Check 9d heading not found"
+    region = spec_text[start : start + 1200].lower()
+    assert "evaluate 9d independently from ontology checks" in region, (
+        "Check 9d must state ontology coverage cannot affect prior-art verdicts"
+    )
+    assert "## prior art / constraints" in region, (
+        "Check 9d must keep the literal Prior Art / Constraints section salient"
     )
 
 

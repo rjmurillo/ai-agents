@@ -108,7 +108,7 @@ Frontmatter (all required unless noted): `type: requirement`, `id`, `title`, `st
 
 When `/spec` Step 6 passes an OntologyFragment (the contents of `.agents/specs/ontology/<feature-slug>.md`, produced by the Step 1 ontology elicitation), treat it as the single source of truth for domain vocabulary. The fragment has seven sections (`## O1` entities and value objects, `## O2` ubiquitous language / canonical names, `## O3` relationships, `## O4` aggregate boundaries, `## O5` decision rules, `## O6` bounded-context boundaries, `## O7` open ontology questions). Two rules bind every emitted requirement:
 
-1. **Reference entities by their O2 canonical name.** Do not introduce a synonym the fragment lists for retirement, and do not invent an entity name the fragment does not contain. If the requirement genuinely needs a concept absent from the fragment, stop and ask `/spec` to extend the OntologyFragment (O1/O2) first; do not silently mint a new name. A requirement that names an entity the OntologyFragment does not contain is the drift the Step 7 completeness check fails on.
+1. **Reference entities by their O2 canonical name.** Do not introduce a synonym the fragment lists for retirement, and do not invent an entity name the fragment does not contain. If the requirement genuinely needs a concept absent from the fragment, stop and ask the caller/user to extend the OntologyFragment (O1/O2) first; when invoked by `/spec`, update the Step 1 fragment before continuing. Do not silently mint a new name. A requirement that names an entity the OntologyFragment does not contain is the drift the Step 7 completeness check fails on.
 2. **Render an `## Ontology` body section.** Each emitted `REQ-NNN-{slug}.md` includes an `## Ontology` section (body item 3, placed after Context and before Acceptance Criteria) that lists the entities this requirement touches, each by its O2 canonical name, with a one-line note tying it to the requirement. If the requirement also encodes a domain rule, name the O5 decision rule it implements so design and completeness checks can trace it.
 
 When no OntologyFragment is passed (a caller other than `/spec` Step 6, or a degraded run), emit the `## Ontology` section with a single line `No OntologyFragment supplied; entities named inline from the PRD data model.` so the section is never silently absent. A feature with no domain entities (config change, doc fix) renders `## Ontology` with `none (no domain entities)`; this is not an error.
@@ -166,6 +166,19 @@ Frontmatter: every emitted file passes `validate_spec_frontmatter.py` (the BLOCK
 | Missing SO THAT clause | No rationale, no scope control |
 | Orphaned specs (no parent/child links) | Breaks traceability |
 | Frontmatter from memory | Ships invalid enums; read the schema and validate instead |
+
+## Process
+
+1. Read `references/spec-schemas.md`.
+2. Generate REQ, DESIGN, and TASK artifacts from the PRD input.
+3. Run the frontmatter validator on every emitted artifact.
+4. Return the artifact table, traceability summary, validator results, effort estimate, and next step.
+
+## Scripts
+
+| Script | Usage | Exit codes |
+|--------|-------|------------|
+| `scripts/validate_spec_frontmatter.py` | Validate generated REQ/DESIGN/TASK frontmatter before reporting completion. | `0` valid, `1` validation failure |
 
 ## Verification
 
