@@ -45,7 +45,7 @@ The `Data` object returned by `get_pr_context.py` includes these fields.
 | `state` | string | `state` | `OPEN`, `CLOSED`, or `MERGED` |
 | `author` | string \| null | `author.login` | Login of the PR author |
 | `head_branch` | string | `headRefName` | Source branch name |
-| `head_sha` | string \| null | `headRefOid` | Head commit SHA. Use as the expected remote SHA for force-push and push safety checks: compare the local branch ref against this before any push. `null` only if the API omits the field. |
+| `head_sha` | string \| null | `headRefOid` | Head commit SHA. Use as the expected remote SHA for force-push and push safety checks: compare the local branch ref against this before any push. `null` if the API omits `headRefOid` or returns it as `null`. |
 | `base_branch` | string | `baseRefName` | Target branch name |
 | `labels` | list[string] | `labels[].name` | Label names |
 | `commits` | int | `len(commits)` | Number of commits |

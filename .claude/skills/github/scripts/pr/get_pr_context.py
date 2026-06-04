@@ -110,6 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     pr_data = json.loads(pr_result.stdout)
 
     labels = [label.get("name", "") for label in pr_data.get("labels", [])]
+    author = pr_data.get("author")
     merged_by = pr_data.get("mergedBy")
 
     data: dict = {
@@ -117,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         "title": pr_data.get("title"),
         "body": pr_data.get("body"),
         "state": pr_data.get("state"),
-        "author": pr_data.get("author", {}).get("login"),
+        "author": author.get("login") if isinstance(author, dict) else None,
         "head_branch": pr_data.get("headRefName"),
         "head_sha": pr_data.get("headRefOid"),
         "base_branch": pr_data.get("baseRefName"),

@@ -335,6 +335,18 @@ class TestMainSuccess:
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["author"] is None
 
+    def test_null_author(self, capsys):
+        """PR with explicit null author returns None."""
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(author=None), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["author"] is None
+
     def test_head_sha_maps_from_head_ref_oid(self, capsys):
         """head_sha is sourced directly from the gh headRefOid field (#2315)."""
         auth_patch, repo_patch = _patch_auth_and_repo()
