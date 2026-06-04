@@ -257,6 +257,17 @@ def test_exit_code_install_drift_blocks_when_flag_set() -> None:
     assert drift._exit_code([install], [install], fail_on_install=True) == 1
 
 
+def test_exit_code_missing_install_counterpart_blocks_when_flag_set() -> None:
+    install = drift.AgentResult(
+        agent_name="orchestrator",
+        overall_similarity=None,
+        status="NO COUNTERPART",
+        comparison=drift._INSTALL_COMPARISON_LABEL,
+    )
+
+    assert drift._exit_code([install], [install], fail_on_install=True) == 1
+
+
 def test_exit_code_zero_when_no_drift() -> None:
     assert drift._exit_code([], [], fail_on_install=False) == 0
 

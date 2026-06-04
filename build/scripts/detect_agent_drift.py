@@ -650,8 +650,12 @@ def _exit_code(
     ``--fail-on-install-drift`` promotes it to blocking once those are
     reconciled.
     """
+    blocking_statuses = {"DRIFT DETECTED"}
+    if fail_on_install:
+        blocking_statuses.add("NO COUNTERPART")
+
     blocking_drift = any(
-        r.status == "DRIFT DETECTED"
+        r.status in blocking_statuses
         and (fail_on_install or r.comparison != _INSTALL_COMPARISON_LABEL)
         for r in results
     )
