@@ -124,8 +124,14 @@
       "action": "Added PriorArtBlock heading parenthetical contract sentence and entity-alias rule 5 to spec.md plus copilot mirror; created spec-entity-aliases.json; added load_entity_aliases and normalize_topic_with_aliases plus 15 tests",
       "verification": "uv run pytest tests/commands/test_spec_step0_5.py tests/commands/test_spec_step0.py: 168 passed",
       "result": "168 passed"
+    },
+    {
+      "step": "Issue 1996 REASONS section headers",
+      "action": "Added SPDD REASONS Canvas labels to spec-generator SKILL.md; bumped versions; regenerated copilot mirror; added static test",
+      "verification": "uv run pytest .claude/skills/spec-generator/tests tests/commands: 210 passed",
+      "result": "210 passed"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "4a6c9bd9d",
   "nextSteps": []
 }
