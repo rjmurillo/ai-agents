@@ -48,8 +48,18 @@ permissions:
 
 # Mitigation: Path filtering, timeouts, and PR-specific temp files reduce impact
 
+# Issue #2347: the group key includes github.event_name so a manual
+
+# workflow_dispatch rerun does NOT share a group with the pull_request run and
+
+# therefore cannot cancel it. A cancelled pull_request run used to leave the
+
+# SHA-keyed Aggregate Results check stuck in a blocking state with no successor
+
+# run to replace it, forcing a no-op commit to unblock the PR.
+
 concurrency:
-  group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: ai-quality-${{ github.event.pull_request.number || inputs.pr_number }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -567,8 +577,28 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
-      - name: Check for failed agents
+      # Issue #2347: a run cancelled by a newer run (cancel-in-progress) leaves
+      # review jobs in 'cancelled'. Detect that here and treat it like skip so
+      # the blocking gate does not fire and the SHA-keyed Aggregate Results
+      # check stays SUCCESS (neutral) instead of a stale failure.
+      - name: Detect superseded run
         if: steps.should-run.outputs.skip != 'true'
+        id: superseded
+        env:
+          SECURITY_RESULT: ${{ needs.security-review.result }}
+          QA_RESULT: ${{ needs.qa-review.result }}
+          ANALYST_RESULT: ${{ needs.analyst-review.result }}
+          ARCHITECT_RESULT: ${{ needs.architect-review.result }}
+          DEVOPS_RESULT: ${{ needs.devops-review.result }}
+          ROADMAP_RESULT: ${{ needs.roadmap-review.result }}
+          RELIABILITY_RESULT: ${{ needs.reliability-review.result }}
+          OBSERVABILITY_RESULT: ${{ needs.observability-review.result }}
+          AGENT_SAFETY_RESULT: ${{ needs.agent-safety-review.result }}
+          DECISION_RIGOR_RESULT: ${{ needs.decision-rigor-review.result }}
+        run: python3 scripts/quality_gate/check_superseded.py
+
+      - name: Check for failed agents
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         id: failed-agents
         env:
           SECURITY_RESULT: ${{ needs.security-review.result }}
@@ -584,7 +614,7 @@ jobs:
         run: python3 scripts/quality_gate/check_failed_agents.py
 
       - name: Download all review artifacts
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           pattern: review-*
@@ -592,16 +622,16 @@ jobs:
           merge-multiple: true
 
       - name: Validate artifact download
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         run: python3 scripts/quality_gate/validate_artifact_download.py
 
       - name: Load review results
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         id: load-results
         run: python3 scripts/quality_gate/load_review_results.py
 
       - name: Aggregate Verdicts
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         id: aggregate
         env:
           SECURITY_VERDICT: ${{ steps.load-results.outputs.security_verdict }}
@@ -633,7 +663,7 @@ jobs:
       # replace the authoritative gate in check_critical_failures.py. Swapping
       # the final gate is tracked as a follow-up (see PR description).
       - name: External-signal gate (observe)
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         id: external-gate
         continue-on-error: true
         env:
@@ -651,7 +681,7 @@ jobs:
         run: python3 scripts/quality_gate/external_signal_gate.py
 
       - name: Generate Report
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         id: report
         env:
           RUN_ID: ${{ github.run_id }}
@@ -686,7 +716,7 @@ jobs:
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -694,7 +724,7 @@ jobs:
         run: python3 scripts/quality_gate/check_infrastructure_failures.py
 
       - name: Post PR Comment
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -703,7 +733,7 @@ jobs:
         run: python3 scripts/quality_gate/post_pr_comment.py
 
       - name: Set Job Summary
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
@@ -712,7 +742,7 @@ jobs:
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Critical Failures
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run.outputs.skip != 'true' && steps.superseded.outputs.superseded != 'true'
         env:
           FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
           SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
