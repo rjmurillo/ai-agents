@@ -24,7 +24,20 @@ boundaries use the next sibling heading at the same depth.
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
+
+# Repo-relative path to the alias table consumed by normalize rule 5. Mirrors
+# the path documented in `.claude/commands/spec.md`, subsection
+# `#### Step 0.5 topic extraction`, rule 5 (Issue #1978).
+SPEC_ENTITY_ALIASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / ".agents"
+    / "dictionaries"
+    / "spec-entity-aliases.json"
+)
+_DEFAULT_ENTITY_ALIASES: dict[str, str] | None = None
 
 STEP_0_5_HEADING = "### Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
 GUARD_STRING = "<!-- step0.5:incomplete-without-2b -->"
@@ -134,6 +147,63 @@ def normalize_topic(raw: str) -> str:
     return collapsed.strip("-")
 
 
+def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
+    """Load the Step 0.5 entity-alias table as an alias->canonical mapping.
+
+    Reads `.agents/dictionaries/spec-entity-aliases.json` (or `path` when given)
+    and returns its `aliases` object. Implements the lookup side of rule 5 in
+    `.claude/commands/spec.md`, subsection `#### Step 0.5 topic extraction`.
+    Returns an empty dict when the file or the `aliases` key is absent so a
+    missing table degrades to a pass-through rather than an error. Malformed
+    JSON and invalid `aliases` shapes raise so bad config cannot silently widen
+    Step 0.5 scope.
+    """
+    global _DEFAULT_ENTITY_ALIASES
+    if path is None and _DEFAULT_ENTITY_ALIASES is not None:
+        return dict(_DEFAULT_ENTITY_ALIASES)
+
+    target = path if path is not None else SPEC_ENTITY_ALIASES_PATH
+    if not target.is_file():
+        return {}
+    data = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"alias table must be a JSON object: {target}")
+    aliases = data.get("aliases")
+    if aliases is None:
+        return {}
+    if not isinstance(aliases, dict):
+        raise ValueError(f"alias table 'aliases' must be an object: {target}")
+    for key, value in aliases.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ValueError(
+                "alias table entries must map string aliases to string canonicals: "
+                f"{target}"
+            )
+    loaded = dict(aliases)
+    if path is None:
+        _DEFAULT_ENTITY_ALIASES = loaded
+    return dict(loaded)
+
+
+def normalize_topic_with_aliases(
+    raw: str, aliases: "dict[str, str] | None" = None
+) -> str:
+    """Normalize a topic, then apply the rule-5 alias substitution.
+
+    Runs `normalize_topic` (rules 1-4), then looks the result up in the alias
+    table (rule 5). On an exact match the canonical value is returned; on a miss
+    the rule-4 result is returned unchanged. `aliases` may be passed to avoid
+    repeated file reads; when None the table is loaded from the canonical path.
+
+    Mirrors `.claude/commands/spec.md`, subsection `#### Step 0.5 topic
+    extraction`, rule 5: "Look up the result of rule 4 ... On a hit, substitute
+    the canonical value; on a miss, keep the rule-4 result unchanged."
+    """
+    normalized = normalize_topic(raw)
+    table = aliases if aliases is not None else load_entity_aliases()
+    return table.get(normalized, normalized)
+
+
 def _tokenize_normalized(normalized: str) -> list[str]:
     """Split a normalized hyphen-joined string into its token sequence.
 
@@ -152,9 +222,9 @@ def entity_matches_answer(entity_name: str, answer: str) -> bool:
 
     Mirrors the auto-mode adjudication rule in `.claude/commands/spec.md`,
     subsection `#### Step 0.5 entity adjudication`. Both inputs are normalized
-    with `normalize_topic`, then tokenized on `-`. The entity matches the
-    answer only when the entity's normalized token sequence appears as a
-    contiguous run of whole tokens inside the answer's token sequence:
+    with rules 1-5. The entity matches the answer only when the entity's
+    canonical normalized token sequence equals a contiguous whole-token span
+    inside the answer after that span also passes through the alias table:
 
     - A single-token entity matches only a standalone token.
     - A multi-token entity matches only a contiguous token run.
@@ -173,14 +243,17 @@ def entity_matches_answer(entity_name: str, answer: str) -> bool:
     this function pins the same semantics deterministically so #1973's
     behavioral tests run without an LLM in the loop.
     """
-    entity_tokens = _tokenize_normalized(normalize_topic(entity_name))
+    aliases = load_entity_aliases()
+    normalized_entity = normalize_topic_with_aliases(entity_name, aliases)
+    entity_tokens = _tokenize_normalized(normalized_entity)
     answer_tokens = _tokenize_normalized(normalize_topic(answer))
     if not entity_tokens:
         return False
-    span = len(entity_tokens)
-    for start in range(0, len(answer_tokens) - span + 1):
-        if answer_tokens[start:start + span] == entity_tokens:
-            return True
+    for start in range(len(answer_tokens)):
+        for end in range(start + 1, len(answer_tokens) + 1):
+            candidate = "-".join(answer_tokens[start:end])
+            if normalize_topic_with_aliases(candidate, aliases) == normalized_entity:
+                return True
     return False
 
 
@@ -251,11 +324,82 @@ def compute_provisional_tier(q4_text: str, entity_count: int) -> int:
     return max(hours_tier, entity_tier)
 
 
+def _is_fence_line(stripped: str) -> tuple[str, int] | None:
+    """Return (fence_char, run_length) if the line opens or closes a fence.
+
+    A fence is a run of three or more backticks or tildes at the start of the
+    (already left-stripped) line. Returns None for any other line.
+    """
+    for ch in ("`", "~"):
+        run = 0
+        for c in stripped:
+            if c == ch:
+                run += 1
+            else:
+                break
+        if run >= 3:
+            return ch, run
+    return None
+
+
+def _block_boundary_offset(after_heading: str) -> int:
+    """Return the offset where the Step 0.5 block ends, respecting code fences.
+
+    The block terminates at the first line that, OUTSIDE any code fence, is one
+    of: a bare horizontal rule (`---`), a sibling h3 (`### `), or an h2 (`## `).
+    Heading-shaped and rule-shaped lines INSIDE a fenced code block (for example
+    the `### Direct prior art from memory` lines and any `---` inside the
+    PriorArtBlock schema example) do not terminate the block. The Step 0.5
+    heading itself is skipped: the search starts after the first newline so the
+    opening `### Step 0.5 ...` line never matches the h3 boundary.
+
+    Tracks the OPENING fence run length so a four-backtick outer fence stays open
+    across an inner three-backtick block (CommonMark: a closing fence uses the
+    same character and at least as many of them as the opening fence).
+
+    Returns the length of `after_heading` when no boundary is found, so the block
+    runs to end of input.
+    """
+    fence_char: str | None = None
+    fence_len = 0
+    offset = 0
+    first_line = True
+    for line in after_heading.splitlines(keepends=True):
+        if first_line:
+            first_line = False
+            offset += len(line)
+            continue
+        fence = _is_fence_line(line.lstrip())
+        if fence is not None:
+            ch, run = fence
+            if fence_char is None:
+                fence_char = ch
+                fence_len = run
+            elif fence_char == ch and run >= fence_len:
+                fence_char = None
+                fence_len = 0
+            offset += len(line)
+            continue
+        if fence_char is None and (
+            line.startswith("### ")
+            or line.startswith("## ")
+            or line.rstrip("\n").rstrip() == "---"
+        ):
+            return offset
+        offset += len(line)
+    return len(after_heading)
+
+
 def extract_step0_5_block(spec_text: str) -> str:
     """Return the full Step 0.5 block from spec.md.
 
-    The block runs from the Step 0.5 heading to the next horizontal rule
-    delimiter that closes it. Raises ValueError if the heading is absent.
+    The block runs from the Step 0.5 heading to its closing boundary: the first
+    bare horizontal rule (`---`), sibling h3 (`### `), or h2 (`## `) that appears
+    OUTSIDE a code fence. Anchoring on the next sibling boundary (not only a
+    literal `\\n---\\n`) hardens the parser against prose churn: a horizontal
+    rule inserted inside a fenced example no longer truncates the block early,
+    and a stray sibling heading terminates it instead of over-running to the next
+    `---`. Raises ValueError if the heading is absent.
     """
     start = spec_text.find(STEP_0_5_HEADING)
     if start == -1:
@@ -263,12 +407,8 @@ def extract_step0_5_block(spec_text: str) -> str:
             f"Step 0.5 heading not found: {STEP_0_5_HEADING!r}"
         )
     after_heading = spec_text[start:]
-    end_match = re.search(r"\n---\n", after_heading)
-    if end_match is None:
-        raise ValueError(
-            "Step 0.5 closing delimiter `\\n---\\n` not found"
-        )
-    return after_heading[: end_match.start()]
+    end = _block_boundary_offset(after_heading)
+    return after_heading[:end]
 
 
 def extract_step0_5_subsection(spec_text: str, subsection_heading: str) -> str:
@@ -304,34 +444,24 @@ def extract_step0_5_subsection(spec_text: str, subsection_heading: str) -> str:
     fence_len = 0
     offset = 0
     for line in after_heading.splitlines(keepends=True):
-        stripped = line.lstrip()
-        # Detect opening or closing fence.
-        for ch in ("`", "~"):
-            run = 0
-            for c in stripped:
-                if c == ch:
-                    run += 1
-                else:
-                    break
-            if run < 3:
-                continue
+        fence = _is_fence_line(line.lstrip())
+        if fence is not None:
+            ch, run = fence
             if fence_char is None:
                 fence_char = ch
                 fence_len = run
-                break
-            if fence_char == ch and run >= fence_len:
+            elif fence_char == ch and run >= fence_len:
                 fence_char = None
                 fence_len = 0
-                break
-        else:
-            # No fence on this line: check for sibling boundary.
-            if fence_char is None and (
-                line.startswith("#### ")
-                or line.startswith("### ")
-                or line.rstrip("\n").rstrip() == "---"
-            ):
-                end = offset
-                break
+            offset += len(line)
+            continue
+        if fence_char is None and (
+            line.startswith("#### ")
+            or line.startswith("### ")
+            or line.rstrip("\n").rstrip() == "---"
+        ):
+            end = offset
+            break
         offset += len(line)
     return after_heading[:end]
 
@@ -340,10 +470,13 @@ def extract_step9_block(spec_text: str) -> str:
     """Return the Step 9 numbered-list item including all 9a-9d checks.
 
     Step 9 is the last top-level numbered item before the
-    `## Evaluation Axes` h2 heading.
+    `## Evaluation Axes` h2 heading. The opener is anchored on `^9. ` (any
+    step-9 opening line), not the specific `Task(subagent_type="critic")`
+    wording, so rephrasing the step's first sentence does not break the
+    extractor.
     """
     step9_match = re.search(
-        r"^9\. Task\(subagent_type=\"critic\"\).*?(?=^## Evaluation Axes)",
+        r"^9\. .*?(?=^## Evaluation Axes)",
         spec_text,
         re.DOTALL | re.MULTILINE,
     )
