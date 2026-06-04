@@ -42,7 +42,7 @@ keeps that change from passing on absent evidence. See
 
 ## When This Axis Applies
 
-Apply the focus areas below when the diff modifies an agent prompt or template, a skill (`SKILL.md` or its scripts), or a lifecycle hook (SessionStart, PreToolUse, PostToolUse, UserPromptSubmit, Stop). When the change does not touch agent behavior, tool access, or a guardrail, this axis is not material; record PASS and move on.
+Apply the focus areas below when the diff modifies an agent prompt or template, a skill (`SKILL.md` or its scripts), or a lifecycle hook (SessionStart, PreToolUse, PostToolUse, UserPromptSubmit, Stop). When `CONTEXT_MODE` is `full` and the change does not touch agent behavior, tool access, or a guardrail, this axis is not material and may emit `PASS`. When `CONTEXT_MODE` is `summary` or `partial`, emit `WARN` instead and state that line-level evidence is missing.
 
 ## Reference Material
 
