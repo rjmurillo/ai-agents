@@ -25,6 +25,7 @@ policy below; it is fully rebuildable by re-running this module.
 Exit codes follow ADR-035:
     0 - Success (an empty or missing results dir yields an empty manifest)
     1 - Logic error (loaded result count does not match --expected-count)
+    2 - Config error (cannot write manifest, report, or step summary)
 """
 
 from __future__ import annotations
@@ -316,11 +317,15 @@ def main(argv: list[str] | None = None) -> int:
     manifest = build_manifest(results)
     report = render_report(results)
 
-    Path(args.manifest).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    Path(args.report).write_text(report, encoding="utf-8")
-    if args.github_step_summary:
-        with Path(args.github_step_summary).open("a", encoding="utf-8") as handle:
-            handle.write(report)
+    try:
+        Path(args.manifest).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        Path(args.report).write_text(report, encoding="utf-8")
+        if args.github_step_summary:
+            with Path(args.github_step_summary).open("a", encoding="utf-8") as handle:
+                handle.write(report)
+    except OSError as err:
+        print(f"cannot write recommendation artifacts: {err}", file=sys.stderr)
+        return 2
     print(f"Wrote recommendation manifest to {args.manifest}")
     print(f"Wrote recommendation report to {args.report}")
 

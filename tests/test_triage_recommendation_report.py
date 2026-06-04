@@ -265,6 +265,22 @@ class TestMain:
         assert "Backlog Triage Recommendations" in report_path.read_text()
         assert "expected 2" in capsys.readouterr().err
 
+    def test_write_failure_returns_config_error(self, tmp_path: Path, capsys):
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        _write_result(results_dir, "r.json", {"number": 1, "title": "t", "verdict": "STALE"})
+        missing_parent = tmp_path / "missing" / "manifest.json"
+        report_path = tmp_path / "report.md"
+
+        rc = main([
+            "--results-dir", str(results_dir),
+            "--manifest", str(missing_parent),
+            "--report", str(report_path),
+        ])
+
+        assert rc == 2
+        assert "cannot write recommendation artifacts" in capsys.readouterr().err
+
     def test_direct_script_invocation_imports_scripts_package(self, tmp_path: Path):
         results_dir = tmp_path / "results"
         results_dir.mkdir()
