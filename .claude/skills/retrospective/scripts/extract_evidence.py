@@ -104,6 +104,12 @@ def _scope_date(scope: str) -> date | None:
         return None
 
 
+def _scope_since(scope: str) -> str | None:
+    """Return a git --since value from a dated retrospective scope."""
+    scoped_date = _scope_date(scope)
+    return scoped_date.isoformat() if scoped_date else None
+
+
 def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Path | None:
     """Return the session log for a target date priority, or None when absent.
 
@@ -267,7 +273,8 @@ def gather_evidence(
         else:
             session_log_available = True
 
-    git_available, commits = gather_git_log(project_dir, since)
+    git_since = since if since is not None else _scope_since(scope)
+    git_available, commits = gather_git_log(project_dir, git_since)
     if not git_available:
         notes.append("git history unavailable (not a repo, git missing, or timed out).")
 

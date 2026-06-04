@@ -172,6 +172,25 @@ def test_gather_evidence_uses_scope_date_for_session_selection(tmp_path):
     assert evidence.work_items == ["scoped"]
 
 
+def test_gather_evidence_defaults_git_since_from_scope_date(tmp_path, monkeypatch):
+    # Arrange
+    sessions = tmp_path / ".agents" / "sessions"
+    _write_session(sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]})
+    seen: dict[str, str | None] = {}
+
+    def _fake_git_log(_project_dir, since):
+        seen["since"] = since
+        return True, []
+
+    monkeypatch.setattr(_mod, "gather_git_log", _fake_git_log)
+
+    # Act
+    gather_evidence(tmp_path, "2026-06-03")
+
+    # Assert
+    assert seen["since"] == "2026-06-03"
+
+
 # --- Negative: missing sources are marked absent, not crashed ---------------
 
 
