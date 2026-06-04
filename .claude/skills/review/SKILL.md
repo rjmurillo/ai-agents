@@ -159,7 +159,7 @@ then write an **empty marker commit** on top of it:
 The marker commit adds no code. SHA-binding holds: the marker is valid only while
 its parent (the reviewed tip) is HEAD's parent. Land any new code commit and the
 marker no longer sits on HEAD's parent, so the review is correctly treated as stale.
-See `decision-review-marker-sha-binding-mechanism` (Serena memory) for the design.
+Issue #1938 records the design.
 
 Re-running `/review` after the verdict is still PASS writes another marker commit;
 that is safe (idempotent in effect: the latest marker binds the current tip).

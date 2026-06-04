@@ -29,6 +29,8 @@ SKILL_SCRIPT_PATH = (
 COPILOT_SCRIPT_PATH = (
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "validate_review_marker.py"
 )
+SHIP_COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "ship.md"
+COPILOT_SHIP_SKILL_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
 
 
 def _load_module():
@@ -391,6 +393,29 @@ def test_copilot_plugin_contains_review_validator() -> None:
     assert COPILOT_SCRIPT_PATH.read_text(encoding="utf-8") == SKILL_SCRIPT_PATH.read_text(
         encoding="utf-8"
     )
+
+
+def test_ship_docs_use_review_skill_validator_paths() -> None:
+    """Source and Copilot /ship docs point at plugin-shipped validator paths."""
+    for path in (SHIP_COMMAND_PATH, COPILOT_SHIP_SKILL_PATH):
+        text = path.read_text(encoding="utf-8")
+        assert "review/scripts/validate_review_marker.py" in text
+        assert '--repo-root "$(pwd)"' in text
+        assert "scripts/validation/validate_review_marker.py --ref HEAD" not in text
+
+
+def test_review_marker_docs_use_repo_resolvable_references() -> None:
+    """Shipped docs and scripts do not point at private memory identifiers."""
+    private_ref = "decision-review-marker-sha-binding-mechanism"
+    paths = [
+        SCRIPT_PATH,
+        SKILL_SCRIPT_PATH,
+        COPILOT_SCRIPT_PATH,
+        REPO_ROOT / ".claude" / "skills" / "review" / "SKILL.md",
+        REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "SKILL.md",
+    ]
+    for path in paths:
+        assert private_ref not in path.read_text(encoding="utf-8")
 
 
 # --- validate_ref: edge -----------------------------------------------------
