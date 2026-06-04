@@ -256,6 +256,17 @@ def test_s8_auto_mode_uses_whole_token_equality_not_substring(spec_text: str):
     )
 
 
+def test_s8_auto_mode_adjudication_applies_rule_5_aliases(spec_text: str):
+    """Auto-mode prose matches parser behavior for entity alias spans."""
+    body = extract_step0_5_subsection(
+        spec_text,
+        "#### Step 0.5 entity adjudication",
+    )
+    assert "applies topic normalization rules 1-5 to the discovered entity" in body
+    assert "every contiguous token span after applying rule 5 alias lookup" in body
+    assert "single-token alias such as `spec`" in body
+
+
 def test_s8_blast_radius_thresholds_2_human_3_auto(spec_text: str):
     body = extract_step0_5_subsection(
         spec_text,
