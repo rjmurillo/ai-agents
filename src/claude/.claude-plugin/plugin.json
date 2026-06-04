@@ -1,7 +1,7 @@
 {
   "name": "claude-agents",
   "description": "25 specialized agent definitions with templates and governance for Claude Code",
-  "version": "0.3.16",
+  "version": "0.3.17",
   "author": {
     "name": "rjmurillo"
   }
