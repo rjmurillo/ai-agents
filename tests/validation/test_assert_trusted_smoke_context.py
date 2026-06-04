@@ -86,6 +86,8 @@ def test_main_prints_false_when_untrusted(capsys: pytest.CaptureFixture[str]) ->
     captured = capsys.readouterr()
     assert code == gate.EXIT_OK
     assert captured.out.strip() == "false"
+    assert "fork/ai-agents" not in captured.err
+    assert _REPO not in captured.err
 
 
 def test_main_uses_default_expected_repo(capsys: pytest.CaptureFixture[str]) -> None:

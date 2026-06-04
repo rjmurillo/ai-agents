@@ -77,11 +77,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
-    trusted, reason = is_trusted(args.event_name, args.repository, args.expected_repo)
+    trusted, _ = is_trusted(args.event_name, args.repository, args.expected_repo)
     # stdout: the machine-readable decision the workflow branches on.
     print("true" if trusted else "false")
-    # stderr: the human-readable reason for the audit trail.
-    print(f"smoke trusted-context gate: {reason}", file=sys.stderr)
+    # stderr: static audit trail only. CodeQL treats repository input as sensitive.
+    print(
+        "smoke trusted-context gate: trusted"
+        if trusted
+        else "smoke trusted-context gate: untrusted",
+        file=sys.stderr,
+    )
     return EXIT_OK
 
 
