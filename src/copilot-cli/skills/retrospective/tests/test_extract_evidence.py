@@ -108,7 +108,7 @@ def test_gather_evidence_picks_most_recent_session(tmp_path):
     os.utime(new, (2_000_000, 2_000_000))
 
     # Act
-    chosen = find_recent_session_log(sessions)
+    chosen = find_recent_session_log(sessions, today=date(2026, 6, 10))
 
     # Assert
     assert chosen == new
