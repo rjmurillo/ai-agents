@@ -217,9 +217,12 @@ SO THAT the decision is anchored in measured behavior, not opinion.
 |---|---|---|
 | `graduate-to-CI` | recall delta > 0 AND 95% CI lower bound > 0 AND flakiness = false AND error count = 0 | A follow-up issue is opened in the project tracker for CI integration scoped to the security agent only; multi-agent rollout remains deferred. |
 | `keep-as-audit` | positive delta but CI spans zero, OR minor flakiness, OR error count > 0 but < 10% | Runner remains offline-only. A re-run is scheduled for the next Anthropic model bump or quarterly, whichever first. The ADR cadence section is the authoritative trigger. |
-| `scrap` | no meaningful delta (CI centered on zero or negative), OR methodology flaw discovered during spike | `evals/security-spike/` is moved to `evals/_archive/security-spike-<RUN_ID>/`; the ADR is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. The decision is not face-saving, `scrap` is a real outcome and the spec treats it as such. |
+| `scrap` (methodology flaw) | a methodology flaw is discovered during the spike (the experiment design itself was wrong) | The runner (`scripts/eval/eval-agent-vs-baseline.py` plus its six modules and tests) AND the corpus and run directory are moved to `evals/_archive/security-spike-<RUN_ID>/`; the ADR is marked `status: superseded` with a successor ADR documenting the methodology flaw and what would be tried instead. The decision is not face-saving, `scrap` is a real outcome and the spec treats it as such. |
+| `scrap` (negative or null delta, or fixed bug) | no meaningful delta (CI centered on zero or negative) on a sound methodology, OR an implementation bug that has since been fixed | Only the corpus and run directory are moved to `evals/_archive/security-spike-<RUN_ID>/`. The runner stays in `scripts/eval/` because the methodology is sound and lives on for the next agent. The ADR stays at its prior status (it is NOT superseded). The agent under test loses its eval; the methodology-as-code is preserved. |
 
 **Decision owner**: the architect role, via Tier 3 architecture review. The decision MUST be ratified in PR review by an architect-tier reviewer before the report is merged.
+
+**ADR follow-up**: ADR-058's normative scrap table should mirror this two-cause split. That edit is deferred to a dedicated adr-review pass (an ADR edit fires the BLOCKING adr-review consensus gate, which is out of scope for this spec change). See issue #1876.
 
 **Differential diagnosis for delta near zero**
 
