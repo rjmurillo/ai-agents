@@ -31,6 +31,7 @@ from pathlib import Path
 
 import pytest
 
+import tests.commands.step0_5_parser as step0_5_parser
 from tests.commands.step0_5_parser import (
     GUARD_STRING,
     HALT_BLOCK_FIELDS,
@@ -1149,6 +1150,20 @@ def test_load_entity_aliases_rejects_non_string_entries(tmp_path):
 
     with pytest.raises(ValueError, match="string aliases to string canonicals"):
         load_entity_aliases(target)
+
+
+def test_load_entity_aliases_caches_only_default_path(tmp_path, monkeypatch):
+    """Default alias loading is cached; explicit paths still read the file."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": {"spec": "spec-pipeline"}}', encoding="utf-8")
+    monkeypatch.setattr(step0_5_parser, "SPEC_ENTITY_ALIASES_PATH", target)
+    monkeypatch.setattr(step0_5_parser, "_DEFAULT_ENTITY_ALIASES", None)
+
+    assert load_entity_aliases() == {"spec": "spec-pipeline"}
+
+    target.write_text('{"aliases": {"spec": "changed"}}', encoding="utf-8")
+    assert load_entity_aliases() == {"spec": "spec-pipeline"}
+    assert load_entity_aliases(target) == {"spec": "changed"}
 
 
 def test_spec_md_documents_alias_lookup_step(step0_5_block: str):

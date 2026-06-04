@@ -37,6 +37,7 @@ SPEC_ENTITY_ALIASES_PATH = (
     / "dictionaries"
     / "spec-entity-aliases.json"
 )
+_DEFAULT_ENTITY_ALIASES: dict[str, str] | None = None
 
 STEP_0_5_HEADING = "### Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
 GUARD_STRING = "<!-- step0.5:incomplete-without-2b -->"
@@ -157,6 +158,10 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
     JSON and invalid `aliases` shapes raise so bad config cannot silently widen
     Step 0.5 scope.
     """
+    global _DEFAULT_ENTITY_ALIASES
+    if path is None and _DEFAULT_ENTITY_ALIASES is not None:
+        return dict(_DEFAULT_ENTITY_ALIASES)
+
     target = path if path is not None else SPEC_ENTITY_ALIASES_PATH
     if not target.is_file():
         return {}
@@ -174,7 +179,10 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
                 "alias table entries must map string aliases to string canonicals: "
                 f"{target}"
             )
-    return aliases
+    loaded = dict(aliases)
+    if path is None:
+        _DEFAULT_ENTITY_ALIASES = loaded
+    return dict(loaded)
 
 
 def normalize_topic_with_aliases(
