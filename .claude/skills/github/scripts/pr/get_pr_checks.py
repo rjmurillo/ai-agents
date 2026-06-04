@@ -43,6 +43,10 @@ from github_core.api import (  # noqa: E402
     gh_graphql,
     resolve_repo_params,
 )
+from github_core.checks_rollup import (  # noqa: E402
+    extract_required_check_lists,
+    group_checks_by_name,
+)
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
@@ -300,21 +304,47 @@ def build_output(
     repo: str,
     required_only: bool = False,
 ) -> dict:
-    """Build the final output object from check data."""
+    """Build the final output object from check data.
+    
+    Groups checks by name and ORs the required status across all rows
+    for each name, matching test_pr_merge_ready.py semantics. Returns
+    structured lists of pending and failed required checks.
+    """
     checks = check_data.get("Checks", [])
+    
+    # Group by name and apply OR semantics for isRequired flag.
+    checks_by_name, is_required_by_name, _ = group_checks_by_name(checks)
+    
+    # Apply required_only filter: keep only checks where any row for that
+    # name has isRequired=true.
     if required_only:
-        checks = [c for c in checks if c.get("IsRequired")]
+        checks_by_name = {
+            name: check for name, check in checks_by_name.items()
+            if is_required_by_name.get(name, False)
+        }
+    
+    # Update each check with the ORed required status.
+    for name, check in checks_by_name.items():
+        check["IsRequired"] = is_required_by_name.get(name, False)
+    
+    filtered_checks = list(checks_by_name.values())
 
-    failed_count = sum(1 for c in checks if c.get("IsFailing"))
-    pending_count = sum(1 for c in checks if c.get("IsPending"))
-    passed_count = sum(1 for c in checks if c.get("IsPassing"))
+    failed_count = sum(1 for c in filtered_checks if c.get("IsFailing"))
+    pending_count = sum(1 for c in filtered_checks if c.get("IsPending"))
+    passed_count = sum(1 for c in filtered_checks if c.get("IsPassing"))
 
     has_checks = check_data.get("HasChecks", False)
     all_passing = (
         has_checks
-        and len(checks) > 0
+        and len(filtered_checks) > 0
         and failed_count == 0
         and pending_count == 0
+    )
+
+    # Extract lists of pending and failed required checks for structured
+    # output so downstream agents can distinguish the two categories.
+    pending_required, failed_required = extract_required_check_lists(
+        filtered_checks, is_required_by_name
     )
 
     return {
@@ -332,7 +362,7 @@ def build_output(
                 "DetailsUrl": c["DetailsUrl"],
                 "IsRequired": c["IsRequired"],
             }
-            for c in checks
+            for c in filtered_checks
         ],
         "FailedCount": failed_count,
         "PendingCount": pending_count,
@@ -343,6 +373,11 @@ def build_output(
         # PR that genuinely has no checks (HasChecks False, ChecksIncomplete
         # False). See #2304. Set authoritatively by main() under --wait.
         "ChecksIncomplete": False,
+        # Lists of required check names by verdict, for structured output.
+        # Helps downstream agents distinguish pending required checks from
+        # failed ones and from non-required checks.
+        "PendingRequiredChecks": pending_required,
+        "FailedRequiredChecks": failed_required,
     }
 
 
