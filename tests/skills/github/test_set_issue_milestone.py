@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from test_helpers import make_completed_process
 
 # Ensure importability
@@ -24,14 +23,19 @@ def _mock_repo():
     return RepoInfo(owner="o", repo="r")
 
 
-def _extract_json(text: str) -> dict:
-    """Extract the last JSON object from multi-line output."""
-    idx = text.rfind("{")
-    if idx == -1:
-        raise ValueError(f"No JSON found in output: {text!r}")
-    return json.loads(text[idx:])
+def _extract_json(text):
+    """Extract the last JSON object from multi-line output.
 
-
+    Walks lines from the bottom; the canonical envelope is one line.
+    """
+    for line in reversed(text.strip().splitlines()):
+        candidate = line.strip()
+        if candidate.startswith("{"):
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+    raise ValueError("No JSON found in output: " + repr(text))
 @pytest.fixture
 def _import_module():
     import importlib
@@ -58,9 +62,9 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--milestone", "v1.0.0"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["action"] == "assigned"
-        assert result["milestone"] == "v1.0.0"
+        assert result["Success"] is True
+        assert result["Data"]["action"] == "assigned"
+        assert result["Data"]["milestone"] == "v1.0.0"
 
     def test_already_has_same_milestone(self, _import_module, capsys):
         mod = _import_module
@@ -75,7 +79,7 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--milestone", "v1.0.0"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "no_change"
+        assert result["Data"]["action"] == "no_change"
 
     def test_force_replace_milestone(self, _import_module, capsys):
         mod = _import_module
@@ -91,8 +95,8 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--milestone", "v1.0.0", "--force"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "replaced"
-        assert result["previous_milestone"] == "v0.9.0"
+        assert result["Data"]["action"] == "replaced"
+        assert result["Data"]["previous_milestone"] == "v0.9.0"
 
     def test_has_milestone_without_force_exits_5(self, _import_module):
         mod = _import_module
@@ -135,7 +139,7 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--clear"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "cleared"
+        assert result["Data"]["action"] == "cleared"
 
     def test_clear_no_milestone(self, _import_module, capsys):
         mod = _import_module
@@ -147,4 +151,4 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--clear"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "no_change"
+        assert result["Data"]["action"] == "no_change"

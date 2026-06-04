@@ -49,9 +49,9 @@ def test_finds_latest_milestone(mock_run, capsys):
     rc = main([])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["found"] is True
-    assert output["title"] == "0.10.0"
-    assert output["number"] == 2
+    assert output["Data"]["found"] is True
+    assert output["Data"]["title"] == "0.10.0"
+    assert output["Data"]["number"] == 2
 
 
 @patch("subprocess.run")
@@ -94,4 +94,4 @@ def test_single_milestone(mock_run, capsys):
     rc = main([])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["title"] == "1.0.0"
+    assert output["Data"]["title"] == "1.0.0"
