@@ -105,7 +105,7 @@ The implementer follow-up PR for #2271 MUST update prior governance surfaces to 
 | ADR-033 | Remove recommendations that downgrade blocking hook failures to advisory success. |
 | ADR-035 | Update hook exit-code guidance to D2 and remove fail-open semantics. |
 | ADR-062 LSP-first ADR | Reframe LSP handling per D3. |
-| ADR-062 memory-first gate ADR | Reframe fallback language as prevention and loud failure, not success-shaped degradation. |
+| ADR-070 memory-first gate ADR | Reframe fallback language as prevention and loud failure, not success-shaped degradation. |
 | Release It guidance | Scope graceful degradation away from hook invariants per D4. |
 | Memory cross-reference hooks | Remove launcher-level fail-open behavior and add fail-closed runtime-contract coverage. |
 
