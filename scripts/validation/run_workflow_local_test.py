@@ -115,12 +115,19 @@ def _gh_act_available() -> bool:
     return rc == 0
 
 
-def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int, str, str]:
+def _run(
+    cmd: list[str],
+    *,
+    timeout: int,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[int, str, str]:
     """Run a command. Returns (exit_code, stdout, stderr); -1 on spawn error."""
     try:
         proc = subprocess.run(
             cmd,
             cwd=str(cwd) if cwd else None,
+            env=env,
             capture_output=True,
             text=True,
             check=False,
@@ -131,6 +138,45 @@ def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int,
     except (OSError, subprocess.SubprocessError) as exc:
         return -1, "", f"{type(exc).__name__}: {exc}"
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def _read_worktree_gitdir(repo_root: Path) -> str | None:
+    """Return the absolute GIT_DIR for a LINKED worktree, else None.
+
+    In a linked worktree ``<repo_root>/.git`` is a FILE containing
+    ``gitdir: <path>`` that points at the per-worktree admin directory under
+    the main checkout's ``.git/worktrees/<name>``. ``gh act`` runs with
+    ``cwd=repo_root`` and cannot follow that pointer itself, so it fails to
+    find the git metadata (#2344). Returns the resolved absolute gitdir, or
+    None when ``.git`` is a normal directory or the pointer is unreadable.
+    """
+    git_path = repo_root / ".git"
+    if not git_path.is_file():
+        return None
+    try:
+        content = git_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not content.startswith("gitdir:"):
+        return None
+    pointer = content.split(":", 1)[1].strip()
+    if not pointer:
+        return None
+    gitdir = Path(pointer)
+    if not gitdir.is_absolute():
+        gitdir = (repo_root / gitdir).resolve()
+    else:
+        gitdir = gitdir.resolve()
+    return str(gitdir)
+
+
+def _act_env(repo_root: Path) -> dict[str, str]:
+    """Build the subprocess env for gh act, GIT_DIR-aware for linked worktrees."""
+    env = dict(os.environ)
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is not None:
+        env["GIT_DIR"] = gitdir
+    return env
 
 
 def _select_workflow_files(
@@ -173,9 +219,13 @@ def _actionlint_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 
 
 def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    env = _act_env(repo_root)
     for wf in files:
         rc, out, err = _run(
-            ["gh", "act", "-n", "-W", wf], timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root
+            ["gh", "act", "-n", "-W", wf],
+            timeout=_ACT_DRYRUN_TIMEOUT,
+            cwd=repo_root,
+            env=env,
         )
         if rc != 0:
             return StageResult(
@@ -185,9 +235,13 @@ def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    env = _act_env(repo_root)
     for wf in files:
         rc, out, err = _run(
-            ["gh", "act", "-W", wf], timeout=_ACT_FULL_TIMEOUT, cwd=repo_root
+            ["gh", "act", "-W", wf],
+            timeout=_ACT_FULL_TIMEOUT,
+            cwd=repo_root,
+            env=env,
         )
         if rc != 0:
             return StageResult(

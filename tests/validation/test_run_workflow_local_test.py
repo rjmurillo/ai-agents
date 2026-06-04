@@ -264,7 +264,7 @@ def test_actionlint_stage_passes_files(monkeypatch, tmp_path):
 def test_act_dryrun_stage_runs_each_file_and_stops_on_failure(monkeypatch, tmp_path):
     calls = []
 
-    def fake_run(cmd, *, timeout, cwd=None):
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
         calls.append(cmd[-1])
         return (1, "", "bad") if cmd[-1] == "a.yml" else (0, "", "")
 
@@ -272,6 +272,80 @@ def test_act_dryrun_stage_runs_each_file_and_stops_on_failure(monkeypatch, tmp_p
     res = w._act_dryrun_stage(["a.yml", "b.yml"], tmp_path)
     assert res.ok is False
     assert calls == ["a.yml"]  # stopped after first failure
+
+
+# --- linked-worktree GIT_DIR handling (#2344) ----------------------------
+
+
+def test_read_worktree_gitdir_normal_checkout_returns_none(tmp_path):
+    (tmp_path / ".git").mkdir()
+    assert w._read_worktree_gitdir(tmp_path) is None
+
+
+def test_read_worktree_gitdir_missing_returns_none(tmp_path):
+    assert w._read_worktree_gitdir(tmp_path) is None
+
+
+def test_read_worktree_gitdir_absolute_pointer(tmp_path):
+    gitdir = tmp_path / "main" / ".git" / "worktrees" / "feat"
+    gitdir.mkdir(parents=True)
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+    assert w._read_worktree_gitdir(worktree) == str(gitdir.resolve())
+
+
+def test_read_worktree_gitdir_relative_pointer(tmp_path):
+    gitdir = tmp_path / ".git" / "worktrees" / "feat"
+    gitdir.mkdir(parents=True)
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / ".git").write_text(
+        "gitdir: ../.git/worktrees/feat\n", encoding="utf-8"
+    )
+    assert w._read_worktree_gitdir(worktree) == str(gitdir.resolve())
+
+
+def test_read_worktree_gitdir_malformed_returns_none(tmp_path):
+    (tmp_path / ".git").write_text("garbage\n", encoding="utf-8")
+    assert w._read_worktree_gitdir(tmp_path) is None
+
+
+def test_act_env_sets_git_dir_for_linked_worktree(tmp_path):
+    gitdir = tmp_path / ".git" / "worktrees" / "feat"
+    gitdir.mkdir(parents=True)
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+    env = w._act_env(worktree)
+    assert env["GIT_DIR"] == str(gitdir.resolve())
+
+
+def test_act_env_no_git_dir_for_normal_checkout(tmp_path):
+    (tmp_path / ".git").mkdir()
+    env = w._act_env(tmp_path)
+    assert "GIT_DIR" not in env
+
+
+def test_act_dryrun_stage_passes_git_dir_env(monkeypatch, tmp_path):
+    """A linked worktree's GIT_DIR reaches the gh act subprocess (#2344)."""
+    gitdir = tmp_path / ".git" / "worktrees" / "feat"
+    gitdir.mkdir(parents=True)
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+
+    seen: dict[str, dict[str, str] | None] = {}
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        seen["env"] = env
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_dryrun_stage(["a.yml"], worktree)
+    assert res.ok is True
+    assert seen["env"] is not None
+    assert seen["env"]["GIT_DIR"] == str(gitdir.resolve())
 
 
 # --- CLI -----------------------------------------------------------------
