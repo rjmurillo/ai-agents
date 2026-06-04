@@ -59,6 +59,23 @@ def test_no_unfrozen_uv_run_python_remains() -> None:
             )
 
 
+def test_uv_frozen_failure_blocks_system_python_fallback() -> None:
+    # Arrange
+    text = _pre_push_text()
+    set_python_body = text[
+        text.index("set_python_cmd() {") : text.index(
+            "# Determine changed files", text.index("set_python_cmd() {")
+        )
+    ]
+
+    # Assert: stale lock or pyproject errors fail the push instead of silently
+    # running later validators under a different system Python.
+    assert "uv run --frozen python -c 'import sys'" in set_python_body
+    assert "uv is required for this checkout" in set_python_body
+    assert "Refusing system Python fallback in a uv-managed checkout" in set_python_body
+    assert set_python_body.index("return 1") < set_python_body.index("# Try python3")
+
+
 def test_sentinel_written_and_cleaned() -> None:
     # Arrange
     text = _pre_push_text()
