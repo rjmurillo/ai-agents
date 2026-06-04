@@ -57,7 +57,7 @@ MARKER_TRAILER_KEY = "Reviewed-By"
 # more comma-separated stems; it must be non-empty. The SHA is 40 (sha1) or 64
 # (sha256) lowercase hex characters, matching git object-name widths.
 _MARKER_VALUE_RE = re.compile(
-    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on (?P<sha>[0-9a-f]{40}|[0-9a-f]{64})$"
+    r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on (?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
 )
 
 
@@ -81,7 +81,7 @@ def parse_marker(value: str) -> ReviewMarker | None:
     if match is None:
         return None
     axes = tuple(match.group("axes").split(","))
-    return ReviewMarker(axes=axes, sha=match.group("sha"))
+    return ReviewMarker(axes=axes, sha=match.group("sha").lower())
 
 
 def select_marker_for_sha(values: list[str], expected_sha: str) -> ReviewMarker | None:
@@ -307,6 +307,10 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
         return parent_error
     assert parent_shas is not None
 
+    shape_error = validate_marker_commit_shape(ref, head_sha, parent_shas, repo_root)
+    if shape_error is not None:
+        return shape_error
+
     parent_sha = parent_shas[0]
     values = read_marker_values(head_sha, repo_root)
     if values is None:
@@ -337,10 +341,6 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
                 f"new code landed after review). Re-run /review."
             ),
         )
-
-    shape_error = validate_marker_commit_shape(ref, head_sha, parent_shas, repo_root)
-    if shape_error is not None:
-        return shape_error
 
     return ValidationOutcome(
         ok=True,

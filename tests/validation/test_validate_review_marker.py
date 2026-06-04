@@ -129,6 +129,14 @@ def test_parse_sha256_marker() -> None:
     assert marker.sha == sha
 
 
+def test_parse_uppercase_sha_marker_normalizes_to_lowercase() -> None:
+    """A copied uppercase SHA is accepted and normalized."""
+    sha = "A" * 40
+    marker = vrm.parse_marker(f"/review@analyst on {sha}")
+    assert marker is not None
+    assert marker.sha == sha.lower()
+
+
 def test_parse_tolerates_surrounding_whitespace() -> None:
     """Leading and trailing whitespace on the trailer value is stripped."""
     sha = "d" * 40
@@ -231,7 +239,7 @@ def test_validate_ref_fails_when_no_marker(git_repo: Path) -> None:
     outcome = vrm.validate_ref("HEAD", git_repo)
     assert outcome.ok is False
     assert outcome.exit_code == 1
-    assert "no" in outcome.message.lower()
+    assert "empty commit" in outcome.message
 
 
 def test_validate_ref_fails_when_marker_names_stale_sha(git_repo: Path) -> None:
@@ -345,10 +353,10 @@ def test_validate_ref_reports_initial_git_failure(
 
 def test_validate_ref_fails_when_marker_commit_has_multiple_parents(git_repo: Path) -> None:
     """A merge commit cannot serve as the review marker."""
-    reviewed_tip = _git(git_repo, "rev-parse", "HEAD")
     original_branch = _git(git_repo, "branch", "--show-current")
     _git(git_repo, "checkout", "-q", "-b", "side")
     _git(git_repo, "commit", "-q", "--allow-empty", "-m", "feat: side empty")
+    side_tip = _git(git_repo, "rev-parse", "HEAD")
     _git(git_repo, "checkout", "-q", original_branch)
     _git(git_repo, "merge", "-q", "--no-ff", "side", "-m", "review: merge marker")
     _git(
@@ -358,7 +366,7 @@ def test_validate_ref_fails_when_marker_commit_has_multiple_parents(git_repo: Pa
         "--amend",
         "--no-edit",
         "--trailer",
-        f"Reviewed-By: /review@analyst on {reviewed_tip}",
+        f"Reviewed-By: /review@analyst on {side_tip}",
     )
     outcome = vrm.validate_ref("HEAD", git_repo)
     assert outcome.ok is False
