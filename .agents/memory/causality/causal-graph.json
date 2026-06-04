@@ -4630,22 +4630,103 @@
       "created": "2026-06-04T09:03:28.707051+00:00"
     },
     {
-      "id": "96fb73bd7292",
-      "type": "outcome",
-      "label": "Outcome: success - Resolve PR 2353 merge conflicts and finish PR",
-      "episodes": [
-        "episode-2026-06-04-session-2335"
-      ],
-      "created": "2026-06-04T11:45:42.596663+00:00"
-    },
-    {
       "id": "dc164bcda081",
       "type": "outcome",
       "label": "Outcome: success - Autofix and merge PR #2359: sunset session-migration and finish session QA fold.",
       "episodes": [
         "episode-2026-06-04-session-2336"
       ],
-      "created": "2026-06-04T11:57:04.543914+00:00"
+      "created": "2026-06-04T12:03:56.823640+00:00"
+    },
+    {
+      "id": "8d4cd1b0c7ba",
+      "type": "milestone",
+      "label": "milestone: Hardened extract_step0_5_block and extract_step9_block delimiter anchors; added 8 adversarial tests",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100177+00:00"
+    },
+    {
+      "id": "76a15d2efaf1",
+      "type": "test",
+      "label": "test: Hardened extract_step0_5_block and extract_step9_block delimiter anchors; added 8 adversarial tests  Issue 1976 parser hardening   153 passed",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100203+00:00"
+    },
+    {
+      "id": "a078be73c150",
+      "type": "milestone",
+      "label": "milestone: Added PriorArtBlock heading parenthetical contract sentence and entity-alias rule 5 to spec.md plus copilot mirror; created spec-entity-aliases.json; added load_entity_aliases and normalize_topic_with_aliases plus 15 tests",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100222+00:00"
+    },
+    {
+      "id": "bb7345cb39bb",
+      "type": "test",
+      "label": "test: Added PriorArtBlock heading parenthetical contract sentence and entity-alias rule 5 to spec.md plus copilot mirror; created spec-entity-aliases.json; added load_entity_aliases and normalize_topic_with_aliases plus 15 tests  Issues 1977 and 1978 spec contract docs   168 passed",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100240+00:00"
+    },
+    {
+      "id": "e8facdcd4de9",
+      "type": "milestone",
+      "label": "milestone: Added SPDD REASONS Canvas labels to spec-generator SKILL.md; bumped versions; regenerated copilot mirror; added static test",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100258+00:00"
+    },
+    {
+      "id": "7bc95a3e287f",
+      "type": "test",
+      "label": "test: Added SPDD REASONS Canvas labels to spec-generator SKILL.md; bumped versions; regenerated copilot mirror; added static test  Issue 1996 REASONS section headers   210 passed",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100275+00:00"
+    },
+    {
+      "id": "0648d20d4e76",
+      "type": "commit",
+      "label": "commit: Commit: 4a6c9bd9d",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100294+00:00"
+    },
+    {
+      "id": "6afd1617f0e5",
+      "type": "outcome",
+      "label": "Outcome: success - Spec pipeline hardening: issues 1976 1977 1978 1996 on branch fix/spec-pipeline-hardening",
+      "episodes": [
+        "episode-2026-06-04-session-1875"
+      ],
+      "created": "2026-06-04T12:04:40.100312+00:00"
+    },
+    {
+      "id": "96fb73bd7292",
+      "type": "outcome",
+      "label": "Outcome: success - Resolve PR 2353 merge conflicts and finish PR",
+      "episodes": [
+        "episode-2026-06-04-session-2335"
+      ],
+      "created": "2026-06-04T12:04:40.100405+00:00"
+    },
+    {
+      "id": "911679da16b4",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix and merge PR #2363 K1-K4 kill-criteria telemetry after review threads and CI gates pass.",
+      "episodes": [
+        "episode-2026-06-04-session-2363"
+      ],
+      "created": "2026-06-04T12:04:40.100503+00:00"
     }
   ],
   "patterns": [
@@ -4695,7 +4776,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 9,
+      "occurrences": 10,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -4704,7 +4785,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 18,
+      "occurrences": 20,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -4713,7 +4794,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 36,
+      "occurrences": 40,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -4722,7 +4803,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 54,
+      "occurrences": 60,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -4732,7 +4813,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -4740,7 +4821,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -4748,7 +4829,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -4756,7 +4837,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -4764,7 +4845,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -4772,7 +4853,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -4780,7 +4861,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -4788,7 +4869,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -4796,7 +4877,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -4804,7 +4885,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -4812,7 +4893,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -4820,7 +4901,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -4828,7 +4909,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -4836,7 +4917,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -4844,7 +4925,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -4852,7 +4933,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -4860,7 +4941,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -4868,7 +4949,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -4876,7 +4957,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -4884,7 +4965,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -4892,7 +4973,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -4900,7 +4981,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -4908,7 +4989,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -4916,7 +4997,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -4924,7 +5005,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -4932,7 +5013,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -4940,7 +5021,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -4948,7 +5029,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -4956,7 +5037,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -4964,7 +5045,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -4972,7 +5053,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -4980,7 +5061,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -4988,7 +5069,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -4996,7 +5077,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -5004,7 +5085,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -5012,7 +5093,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -5020,7 +5101,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -5028,7 +5109,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -5036,7 +5117,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -5044,7 +5125,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "count": 9,
+      "evidence_count": 10,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
