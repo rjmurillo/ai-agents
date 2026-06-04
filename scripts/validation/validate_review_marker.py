@@ -121,8 +121,15 @@ def _run_git(args: list[str], repo_root: Path) -> tuple[int, str, str]:
     return result.returncode, result.stdout, result.stderr
 
 
+def _is_option_like_ref(ref: str) -> bool:
+    """Return true when ``ref`` would be parsed by git as an option."""
+    return ref.startswith("-")
+
+
 def resolve_sha(ref: str, repo_root: Path) -> str | None:
     """Resolve ``ref`` (e.g. ``HEAD`` or ``HEAD^``) to a full object name, or ``None``."""
+    if _is_option_like_ref(ref):
+        return None
     exit_code, stdout, _ = _run_git(["rev-parse", "--verify", "--quiet", ref], repo_root)
     if exit_code != 0:
         return None
@@ -137,6 +144,8 @@ def read_marker_values(ref: str, repo_root: Path) -> list[str] | None:
     commit's last paragraph), an empty list when the commit carries none, or
     ``None`` when git could not read the commit (bad ref, git failure).
     """
+    if _is_option_like_ref(ref):
+        return None
     exit_code, stdout, _ = _run_git(
         [
             "log",
@@ -151,6 +160,23 @@ def read_marker_values(ref: str, repo_root: Path) -> list[str] | None:
     return [line for line in stdout.splitlines() if line.strip()]
 
 
+def read_parent_shas(commit_sha: str, repo_root: Path) -> list[str] | None:
+    """Read the direct parent SHAs for ``commit_sha``."""
+    exit_code, stdout, _ = _run_git(["show", "-s", "--format=%P", commit_sha], repo_root)
+    if exit_code != 0:
+        return None
+    return stdout.split()
+
+
+def resolve_tree_sha(commit_sha: str, repo_root: Path) -> str | None:
+    """Resolve ``commit_sha`` to the tree SHA it points at."""
+    exit_code, stdout, _ = _run_git(["show", "-s", "--format=%T", commit_sha], repo_root)
+    if exit_code != 0:
+        return None
+    tree_sha = stdout.strip()
+    return tree_sha or None
+
+
 @dataclass(frozen=True, slots=True)
 class ValidationOutcome:
     """The result of checking a ref for a SHA-bound marker."""
@@ -158,6 +184,94 @@ class ValidationOutcome:
     ok: bool
     exit_code: int
     message: str
+
+
+def validate_ref_argument(ref: str) -> ValidationOutcome | None:
+    """Return an error outcome when ``ref`` is not safe to pass to git."""
+    if shutil.which("git") is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message="git not found on PATH",
+        )
+
+    if _is_option_like_ref(ref):
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message=f"invalid ref '{ref}': refs must not start with '-'",
+        )
+
+    return None
+
+
+def validate_parent_shas(
+    ref: str,
+    head_sha: str,
+    parent_shas: list[str] | None,
+) -> ValidationOutcome | None:
+    """Return an error outcome when parent data is missing or invalid."""
+    if parent_shas is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message=f"git could not read parent commits for '{ref}'",
+        )
+
+    if not parent_shas:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"{ref} ({head_sha[:12]}) has no parent commit, so it cannot be a "
+                f"review marker (a marker is an empty commit on top of the reviewed "
+                f"tip). Run /review on this branch."
+            ),
+        )
+
+    return None
+
+
+def validate_marker_commit_shape(
+    ref: str,
+    head_sha: str,
+    parent_shas: list[str],
+    repo_root: Path,
+) -> ValidationOutcome | None:
+    """Return an error outcome when ``ref`` is not an empty single-parent marker."""
+    if len(parent_shas) != 1:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"{ref} ({head_sha[:12]}) has {len(parent_shas)} parents; a review "
+                f"marker must be a single-parent empty commit. Re-run /review on a "
+                f"linear branch tip."
+            ),
+        )
+
+    parent_sha = parent_shas[0]
+    head_tree_sha = resolve_tree_sha(head_sha, repo_root)
+    parent_tree_sha = resolve_tree_sha(parent_sha, repo_root)
+    if head_tree_sha is None or parent_tree_sha is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message=f"git could not compare commit trees for '{ref}'",
+        )
+
+    if head_tree_sha != parent_tree_sha:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=1,
+            message=(
+                f"{ref} ({head_sha[:12]}) changes files; a review marker must be an "
+                f"empty commit whose Reviewed-By trailer names its parent. Re-run "
+                f"/review after the code tip is ready."
+            ),
+        )
+
+    return None
 
 
 def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
@@ -169,6 +283,10 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
     tip, so binding to the parent is the SHA-binding check at the heart of the
     ship gate (a commit cannot name its own SHA; see module docstring).
     """
+    ref_error = validate_ref_argument(ref)
+    if ref_error is not None:
+        return ref_error
+
     head_sha = resolve_sha(ref, repo_root)
     if head_sha is None:
         return ValidationOutcome(
@@ -177,19 +295,14 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
             message=f"could not resolve ref '{ref}' to a commit",
         )
 
-    parent_sha = resolve_sha(f"{ref}^", repo_root)
-    if parent_sha is None:
-        return ValidationOutcome(
-            ok=False,
-            exit_code=1,
-            message=(
-                f"{ref} ({head_sha[:12]}) has no parent commit, so it cannot be a "
-                f"review marker (a marker is an empty commit on top of the reviewed "
-                f"tip). Run /review on this branch."
-            ),
-        )
+    parent_shas = read_parent_shas(head_sha, repo_root)
+    parent_error = validate_parent_shas(ref, head_sha, parent_shas)
+    if parent_error is not None:
+        return parent_error
+    assert parent_shas is not None
 
-    values = read_marker_values(ref, repo_root)
+    parent_sha = parent_shas[0]
+    values = read_marker_values(head_sha, repo_root)
     if values is None:
         return ValidationOutcome(
             ok=False,
@@ -218,6 +331,10 @@ def validate_ref(ref: str, repo_root: Path) -> ValidationOutcome:
                 f"new code landed after review). Re-run /review."
             ),
         )
+
+    shape_error = validate_marker_commit_shape(ref, head_sha, parent_shas, repo_root)
+    if shape_error is not None:
+        return shape_error
 
     return ValidationOutcome(
         ok=True,

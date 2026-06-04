@@ -273,12 +273,82 @@ def test_validate_ref_fails_when_code_lands_after_marker(git_repo: Path) -> None
     assert outcome.exit_code == 1
 
 
+def test_validate_ref_fails_when_code_commit_carries_matching_marker(git_repo: Path) -> None:
+    """A non-empty code commit cannot serve as the review marker."""
+    reviewed_tip = _git(git_repo, "rev-parse", "HEAD")
+    (git_repo / "c.txt").write_text("new code with trailer\n", encoding="utf-8")
+    _git(git_repo, "add", "c.txt")
+    _git(
+        git_repo,
+        "commit",
+        "-q",
+        "-m",
+        "feat: code with forged review marker",
+        "--trailer",
+        f"Reviewed-By: /review@analyst on {reviewed_tip}",
+    )
+    outcome = vrm.validate_ref("HEAD", git_repo)
+    assert outcome.ok is False
+    assert outcome.exit_code == 1
+    assert "empty commit" in outcome.message
+
+
 def test_validate_ref_fails_for_unknown_ref(git_repo: Path) -> None:
     """An unresolvable ref is a config error (exit 2)."""
     outcome = vrm.validate_ref("no-such-ref", git_repo)
     assert outcome.ok is False
     assert outcome.exit_code == 2
     assert "could not resolve" in outcome.message
+
+
+def test_validate_ref_fails_for_option_like_ref(git_repo: Path) -> None:
+    """A ref starting with '-' is rejected before invoking git."""
+    outcome = vrm.validate_ref("--abbrev-ref", git_repo)
+    assert outcome.ok is False
+    assert outcome.exit_code == 2
+    assert "must not start with '-'" in outcome.message
+
+
+def test_resolve_sha_rejects_option_like_ref(git_repo: Path) -> None:
+    """resolve_sha rejects values git would parse as command options."""
+    assert vrm.resolve_sha("--abbrev-ref", git_repo) is None
+
+
+def test_read_marker_values_rejects_option_like_ref(git_repo: Path) -> None:
+    """read_marker_values rejects values git would parse as command options."""
+    assert vrm.read_marker_values("--format=%H", git_repo) is None
+
+
+def test_validate_ref_reports_git_missing(monkeypatch: pytest.MonkeyPatch, git_repo: Path) -> None:
+    """A missing git binary reports an actionable config error."""
+    monkeypatch.setattr(vrm.shutil, "which", lambda _: None)
+    outcome = vrm.validate_ref("HEAD", git_repo)
+    assert outcome.ok is False
+    assert outcome.exit_code == 2
+    assert outcome.message == "git not found on PATH"
+
+
+def test_validate_ref_fails_when_marker_commit_has_multiple_parents(git_repo: Path) -> None:
+    """A merge commit cannot serve as the review marker."""
+    reviewed_tip = _git(git_repo, "rev-parse", "HEAD")
+    original_branch = _git(git_repo, "branch", "--show-current")
+    _git(git_repo, "checkout", "-q", "-b", "side")
+    _git(git_repo, "commit", "-q", "--allow-empty", "-m", "feat: side empty")
+    _git(git_repo, "checkout", "-q", original_branch)
+    _git(git_repo, "merge", "-q", "--no-ff", "side", "-m", "review: merge marker")
+    _git(
+        git_repo,
+        "commit",
+        "-q",
+        "--amend",
+        "--no-edit",
+        "--trailer",
+        f"Reviewed-By: /review@analyst on {reviewed_tip}",
+    )
+    outcome = vrm.validate_ref("HEAD", git_repo)
+    assert outcome.ok is False
+    assert outcome.exit_code == 1
+    assert "single-parent" in outcome.message
 
 
 # --- validate_ref: edge -----------------------------------------------------
