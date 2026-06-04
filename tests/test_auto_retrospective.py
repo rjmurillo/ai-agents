@@ -391,10 +391,13 @@ class TestAutoRetroSuppressionSentinel(unittest.TestCase):
             sessions_dir.mkdir(parents=True)
             today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
             session = sessions_dir / f"{today}-session-01.json"
-            session.write_text(json.dumps({
-                "work": ["Real work that would normally trigger a retro"],
-                "outcomes": ["PR opened"],
-            }))
+            session.write_text(
+                json.dumps({
+                    "work": ["Real work that would normally trigger a retro"],
+                    "outcomes": ["PR opened"],
+                }),
+                encoding="utf-8",
+            )
             self._sentinel(tmp_path)
 
             with patch("sys.stdin", StringIO("")), patch.object(
@@ -416,7 +419,10 @@ class TestAutoRetroSuppressionSentinel(unittest.TestCase):
             sessions_dir.mkdir(parents=True)
             today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
             session = sessions_dir / f"{today}-session-01.json"
-            session.write_text(json.dumps({"work": ["x"], "outcomes": ["y"]}))
+            session.write_text(
+                json.dumps({"work": ["x"], "outcomes": ["y"]}),
+                encoding="utf-8",
+            )
             self._sentinel(tmp_path)
 
             with patch("sys.stdin", StringIO("")), patch.object(
@@ -453,7 +459,10 @@ class TestAutoRetroSuppressionSentinel(unittest.TestCase):
             sessions_dir.mkdir(parents=True)
             today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
             session = sessions_dir / f"{today}-session-01.json"
-            session.write_text(json.dumps({"work": ["real work"], "outcomes": ["done"]}))
+            session.write_text(
+                json.dumps({"work": ["real work"], "outcomes": ["done"]}),
+                encoding="utf-8",
+            )
 
             with patch("sys.stdin", StringIO("")), patch.object(
                 invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
