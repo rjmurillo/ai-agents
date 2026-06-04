@@ -87,6 +87,36 @@ def test_emit_event_returns_written_event(tmp_path: Path) -> None:
     assert returned == _read_events(events_path)[0]
 
 
+def test_append_line_flushes_before_unlock(monkeypatch: pytest.MonkeyPatch) -> None:
+    events: list[str] = []
+
+    class Handle:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            events.append("close")
+
+        def write(self, _line: str) -> None:
+            events.append("write")
+
+        def flush(self) -> None:
+            events.append("flush")
+
+    def lock_file(_handle: object) -> None:
+        events.append("lock")
+
+    def unlock_file(_handle: object) -> None:
+        events.append("unlock")
+
+    monkeypatch.setattr(kill_criteria, "_try_lock_helpers", lambda: (lock_file, unlock_file))
+    monkeypatch.setattr(kill_criteria.Path, "open", lambda *_args, **_kwargs: Handle())
+
+    kill_criteria._append_line(Path("drift-events.jsonl"), "x\n")
+
+    assert events == ["lock", "write", "flush", "unlock", "close"]
+
+
 def test_repo_root_is_anchored_to_module_not_cwd(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

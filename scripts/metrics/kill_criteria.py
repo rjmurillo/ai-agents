@@ -137,6 +137,7 @@ def _append_line(path: Path, line: str) -> None:
             lock_file(handle)
             try:
                 handle.write(line)
+                handle.flush()
             finally:
                 unlock_file(handle)
         else:
