@@ -73,7 +73,7 @@
     "session-migration": [
       {
         "prompt": "We have legacy markdown session logs. How do we migrate to JSON?",
-        "expected": "session-migration skill was SUNSET 2026-06-03 (M2, Issue #1946) after audit confirmed no markdown session log needs migration. New session logs are created as JSON directly by the session-init skill. Historical .md files in .agents/sessions/ are a frozen archive; no validator scans them."
+        "expected": "session-migration skill was SUNSET 2026-06-03 (M2, Issue #1946). New session logs are created as JSON directly by the session-init skill. Legacy .md logs under .agents/sessions/ still exist as archive content; do not modify them expecting auto-conversion, because the conversion path no longer exists."
       },
       {
         "prompt": "What is the JSON schema target for session logs?",
@@ -81,7 +81,7 @@
       },
       {
         "prompt": "Can I run the session-migration skill on a single legacy markdown file?",
-        "expected": "No. session-migration was deleted 2026-06-03 (Issue #1946). Markdown session logs are not produced anymore, so there is nothing to convert. Create new logs as JSON with session-init."
+        "expected": "No. session-migration was deleted 2026-06-03 (Issue #1946). New markdown session logs are not produced anymore, and the legacy conversion path no longer exists. Create new logs as JSON with session-init."
       },
       {
         "prompt": "Why was the session log format changed from markdown to JSON?",
@@ -93,7 +93,7 @@
       },
       {
         "prompt": "How do I convert old markdown session logs in .agents/sessions/ to JSON now?",
-        "expected": "You do not. The M2 audit (Issue #1946) confirmed no markdown session log needs migration; the historical .md files are an archive git already preserves and no validator scans. The session-migration skill that did the conversion was deleted 2026-06-03."
+        "expected": "You do not. Legacy .md session logs remain archive content that git already preserves, and the session-migration skill that converted them was deleted 2026-06-03 (Issue #1946). Create new logs as JSON with session-init; do not edit archived markdown logs expecting conversion."
       }
     ],
     "session-log-fixer": [
