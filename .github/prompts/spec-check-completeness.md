@@ -152,10 +152,10 @@ Degradation (no spurious failures):
   do not lower the verdict for its absence. Requirement-level `## Ontology` sections
   from degraded runs are local evidence only, not a substitute fragment.
 - If the OntologyFragment exists but declares `none (no domain entities)` and the
-  generated requirements also reference no domain entities, entity coverage is
-  vacuously satisfied; do not emit PARTIAL or FAIL for an empty-entity feature. If
-  requirements name domain entities while the fragment declares none, treat that as
-  a critical entity-coverage gap.
+  generated REQ, DESIGN, and TASK artifacts also reference no domain entities,
+  entity coverage is vacuously satisfied; do not emit PARTIAL or FAIL for an
+  empty-entity feature. If any generated spec artifact names domain entities while
+  the fragment declares none, treat that as a critical entity-coverage gap.
 
 Record ontology findings in the Missing Functionality section, not as a separate
 verdict token.

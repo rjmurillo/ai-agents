@@ -456,8 +456,8 @@ def test_empty_entity_vacuous_coverage_requires_no_requirement_entities(
 ) -> None:
     """Empty ontology coverage is vacuous only when REQs name no entities."""
     lowered = " ".join(completeness_text.lower().split())
-    assert "requirements also reference no domain entities" in lowered, (
-        "empty-entity ontology must require generated requirements name no entities"
+    assert "generated req, design, and task artifacts also reference no domain entities" in lowered, (
+        "empty-entity ontology must require generated spec artifacts name no entities"
     )
     assert "critical entity-coverage gap" in lowered, (
         "requirements naming entities against O1=none must fail closed"

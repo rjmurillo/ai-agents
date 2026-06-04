@@ -64,7 +64,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits through f3678dd72f plus this spec schema ontology contract alignment commit."
+        "evidence": "Created commits through 2387fc0655 plus this empty-entity spec-artifact coverage fix commit."
       },
       "validationPassed": {
         "level": "MUST",
