@@ -251,7 +251,9 @@ def _original_main(stdin_bytes):
         (backend-explorer, EXEMPT_AGENTS reviewers, etc.). Those names do not exist
         here. This port REMAPS to this repo's taxonomy (templates/agents/,
         .claude/agents/): the enforced set is the implementation/code-navigation
-        roles only (implementer, context-retrieval). Every other role
+        role only (implementer). The context-retrieval agent was folded into the
+        exploring-knowledge-graph skill (Issue #2103), so it is no longer a
+        delegable subagent and was dropped from the set. Every other role
         (architect, analyst, qa, security, critic, planners, advisors, roadmap,
         devops, reviewers, memory, retrospective, etc.) is EXEMPT. The enforced set
         is intentionally SMALL per the ADR-062 high-false-positive caveat. Unknown
@@ -324,7 +326,7 @@ def _original_main(stdin_bytes):
     # prompts benefit from pre-resolved LSP context. REMAP of the kit taxonomy to
     # this repo (templates/agents/, .claude/agents/). Kept SMALL per the ADR-062
     # high-false-positive caveat. Everything not in this set is EXEMPT.
-    ENFORCED_SUBAGENTS = frozenset({"implementer", "context-retrieval"})
+    ENFORCED_SUBAGENTS = frozenset({"implementer"})
 
     # Prompt-length floor, quoted from kit line 43: prompts under 200 chars carry
     # no real navigation surface; allow them unconditionally.
