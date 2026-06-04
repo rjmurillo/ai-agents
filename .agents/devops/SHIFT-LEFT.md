@@ -149,15 +149,26 @@ go install github.com/rhysd/actionlint/cmd/actionlint@latest
 **Local validation**:
 
 ```bash
-# Validate all workflow files
-actionlint
+# Validate all workflow files (scope to .github/workflows/ explicitly)
+actionlint .github/workflows/
 
 # Validate specific workflow
 actionlint .github/workflows/pester-tests.yml
 
 # JSON output for parsing
-actionlint -format json
+actionlint -format json .github/workflows/
 ```
+
+> **Scope actionlint to `.github/workflows/`.** A bare `actionlint` with no
+> path argument recursively scans every `.yml`/`.yaml` file, including
+> composite action definitions under `.github/actions/*/action.yml`.
+> actionlint validates workflow files only; it parses a composite `action.yml`
+> as if it were a workflow and emits false errors (missing `on:`/`jobs:` keys,
+> unexpected `runs:` and `inputs:`). Composite actions cannot be validated with
+> actionlint. Always pass `.github/workflows/` so the scan never reaches
+> `.github/actions/`. The automated toolchain (`scripts/validation/pre_pr.py`,
+> `run_workflow_local_test.py`) already restricts the scan correctly; this note
+> keeps manual invocations aligned.
 
 **Integration points**:
 
