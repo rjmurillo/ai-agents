@@ -810,6 +810,30 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_orchestrator_citations(repo_root: Path) -> bool:
+    """Verify orchestrator prose path citations resolve to real files.
+
+    Wraps ``scripts/validation/check_orchestrator_citations.py``, which fails
+    when a backtick path citation in ``.claude/commands/pr-quality/all.md``
+    points to a file that no longer exists. A stale citation (e.g. the removed
+    ``AIReviewCommon.psm1`` reference fixed in PR #1934) sends the next reader
+    to a dead pointer. See Issue #1966.
+    """
+    script = repo_root / "scripts" / "validation" / "check_orchestrator_citations.py"
+    if not script.exists():
+        print("[WARNING] check_orchestrator_citations.py not found (skipping)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    if stdout.strip():
+        print(stdout.strip())
+    if stderr.strip():
+        print(stderr.strip(), file=sys.stderr)
+    return exit_code == 0
+
+
 def validate_spec_contradiction(repo_root: Path) -> bool:
     """Advisory check for PR-description vs linked-issue vs code contradictions.
 
@@ -1266,6 +1290,15 @@ def main(argv: list[str] | None = None) -> int:
         "Canonical Citation Check",
         state,
         lambda: validate_canonical_citations(repo_root),
+    )
+
+    # 3.82 Orchestrator Citation Check (Issue #1966). Fails when a backtick
+    # path citation in .claude/commands/pr-quality/all.md points to a file
+    # that no longer exists.
+    run_validation(
+        "Orchestrator Citation Check",
+        state,
+        lambda: validate_orchestrator_citations(repo_root),
     )
 
     # 3.85 Em/en-dash branch-wide check (Issue #1923, REQ-006-AC7)
