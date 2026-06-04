@@ -385,6 +385,20 @@ def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
     assert "worktrees" not in str(found[0])
 
 
+def test_find_manifests_skips_pytest_tmp(tmp_path: Path) -> None:
+    """Issue #2366: fixture manifests written under a repo-root .pytest_tmp
+    directory must not be discovered by manifest validation."""
+    repo_manifest = tmp_path / "a" / ".claude-plugin" / "plugin.json"
+    repo_manifest.parent.mkdir(parents=True)
+    repo_manifest.write_text("{}", encoding="utf-8")
+    fixture_manifest = tmp_path / ".pytest_tmp" / "fix" / ".claude-plugin" / "plugin.json"
+    fixture_manifest.parent.mkdir(parents=True)
+    fixture_manifest.write_text("{}", encoding="utf-8")
+    found = vpm.find_manifests(tmp_path)
+    assert len(found) == 1
+    assert ".pytest_tmp" not in str(found[0])
+
+
 def test_main_returns_zero_when_all_valid(tmp_path: Path, capsys) -> None:
     target = _write(tmp_path, {"name": "p"})
     assert vpm.main(["--manifest", str(target), "--root", str(tmp_path)]) == 0
