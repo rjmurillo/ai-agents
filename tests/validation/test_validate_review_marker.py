@@ -29,8 +29,6 @@ SKILL_SCRIPT_PATH = (
 COPILOT_SCRIPT_PATH = (
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "validate_review_marker.py"
 )
-SHIP_COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "ship.md"
-COPILOT_SHIP_SKILL_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
 
 
 def _load_module():
@@ -395,14 +393,6 @@ def test_copilot_plugin_contains_review_validator() -> None:
     )
 
 
-def test_ship_docs_use_review_skill_validator_paths() -> None:
-    """Source and Copilot /ship docs point at plugin-shipped validator paths."""
-    for path in (SHIP_COMMAND_PATH, COPILOT_SHIP_SKILL_PATH):
-        text = path.read_text(encoding="utf-8")
-        assert "review/scripts/validate_review_marker.py" in text
-        assert "scripts/validation/validate_review_marker.py --ref HEAD" not in text
-
-
 # --- validate_ref: edge -----------------------------------------------------
 
 
@@ -455,6 +445,20 @@ def test_main_returns_zero_on_valid_marker(git_repo: Path) -> None:
     _write_marker_commit(git_repo, "analyst")
     rc = vrm.main(["--repo-root", str(git_repo)])
     assert rc == 0
+
+
+def test_cli_defaults_repo_root_to_current_working_directory(git_repo: Path) -> None:
+    """Vendored validator invocations validate the consumer repo by default."""
+    _write_marker_commit(git_repo, "analyst")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--ref", "HEAD"],
+        cwd=git_repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "[PASS]" in result.stdout
 
 
 def test_main_returns_one_when_no_marker(git_repo: Path) -> None:

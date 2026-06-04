@@ -24,8 +24,7 @@ there is no fixed point. So ``/review`` reviews the tip X, then writes an EMPTY
 marker commit M on top whose trailer names X (``M``'s parent). M adds no code.
 SHA-binding holds: HEAD is M only while the reviewed code (X) is HEAD's parent.
 Land any new code commit and HEAD moves to a commit with no binding marker, so a
-stale review cannot ship. See
-``decision-review-marker-sha-binding-mechanism`` (Serena memory).
+stale review cannot ship.
 
 This validator does not amend or write. It reads the ``Reviewed-By`` trailers on
 a commit (at the git I/O boundary, or passed in for tests) and answers one
@@ -373,8 +372,8 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help=(
-            "Repository root. Defaults to three levels above this script "
-            "(scripts/validation/<script> -> repo root)."
+            "Repository root. Defaults to the current working directory, which "
+            "must be the consumer repository being shipped."
         ),
     )
     return parser
@@ -384,7 +383,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    repo_root = args.repo_root or Path(__file__).resolve().parent.parent.parent
+    repo_root = args.repo_root or Path.cwd()
+    repo_root = repo_root.resolve()
     if not repo_root.is_dir():
         print(f"[FAIL] invalid repo root: {repo_root}", file=sys.stderr)
         return 2
