@@ -9,17 +9,19 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+from hashlib import sha1
 from pathlib import Path
 
 import pytest
 
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 _SCRIPT = _SCRIPT_DIR / "score_atomicity.py"
+_MODULE_NAME = f"retrospective_score_atomicity_{sha1(str(_SCRIPT).encode()).hexdigest()[:12]}"
 
-_spec = importlib.util.spec_from_file_location("score_atomicity", _SCRIPT)
+_spec = importlib.util.spec_from_file_location(_MODULE_NAME, _SCRIPT)
 assert _spec is not None and _spec.loader is not None
 _mod = importlib.util.module_from_spec(_spec)
-sys.modules["score_atomicity"] = _mod
+sys.modules[_MODULE_NAME] = _mod
 _spec.loader.exec_module(_mod)
 
 score_learning = _mod.score_learning
