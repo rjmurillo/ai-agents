@@ -563,6 +563,10 @@ jobs:
             echo "Skipped - no relevant file changes detected"
           fi
 
+      - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
       - name: Check for failed agents
         if: steps.should-run.outputs.skip != 'true'
         id: failed-agents
@@ -578,10 +582,6 @@ jobs:
           AGENT_SAFETY_RESULT: ${{ needs.agent-safety-review.result }}
           DECISION_RIGOR_RESULT: ${{ needs.decision-rigor-review.result }}
         run: python3 scripts/quality_gate/check_failed_agents.py
-
-      - name: Checkout repository
-        if: steps.should-run.outputs.skip != 'true'
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Download all review artifacts
         if: steps.should-run.outputs.skip != 'true'
