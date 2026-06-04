@@ -63,7 +63,7 @@
       "changesCommitted": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, and the final coverage fix commit."
+        "evidence": "Created commits 53e54fa3e3, 79bf409f4e, c4786213d5, ce068ef1a2, bb229c4fd9, and the final verdict wording fix commit."
       },
       "validationPassed": {
         "level": "MUST",

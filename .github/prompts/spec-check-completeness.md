@@ -120,9 +120,10 @@ at `.agents/specs/ontology/<feature-slug>.md` (seven `## O1..O7` sections), and 
 `REQ-NNN-{slug}.md` may render an `## Ontology` body section naming the entities it
 touches. When an ontology is present, fold these two checks into the existing
 PASS/PARTIAL/FAIL verdict. Do NOT introduce a new top-level verdict token: the CI
-extractor in `.github/actions/ai-review/action.yml` anchors on a plain
-`VERDICT: PASS|PARTIAL|FAIL` line, so an `ONTOLOGY-INCOMPLETE` token would not match
-and would silently drop the verdict.
+extractor in `.github/actions/ai-review/action.yml` reads the plain
+`VERDICT: <TOKEN>` line and validates the token against its allowlist. A new
+ontology token would require a coordinated allowlist update; without that change,
+the gate returns `NEEDS_REVIEW` instead of the intended domain verdict.
 
 1. **Entity coverage**: when an OntologyFragment exists, every domain entity
    referenced in a requirement's statement or acceptance criteria must appear in the

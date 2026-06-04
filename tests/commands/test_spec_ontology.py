@@ -15,8 +15,8 @@ boundaries hold:
   ordered Steps 1-9 (which reference each other by number) is forbidden by the
   issue's scope notes.
 - The completeness check folds ontology coverage into PASS/PARTIAL/FAIL and
-  MUST NOT introduce a new top-level verdict token (the CI extractor in
-  `.github/actions/ai-review/action.yml` anchors on PASS|PARTIAL|FAIL only).
+  MUST NOT introduce a new top-level verdict token without a coordinated
+  `.github/actions/ai-review/action.yml` allowlist update.
 - Empty-entity features degrade gracefully with no spurious FAIL.
 
 The Claude canonical sources are tested. The Copilot twins are generated from
@@ -251,14 +251,13 @@ def test_ontology_step_is_not_a_new_top_level_step(spec_text: str) -> None:
 
 def test_completeness_check_no_new_verdict_token(completeness_text: str) -> None:
     """The completeness check folds ontology coverage into PASS/PARTIAL/FAIL;
-    it MUST NOT introduce a new top-level token the CI extractor cannot match."""
-    # The only verdict tokens emitted on a literal `VERDICT:` line are the three
-    # the CI extractor knows. An ONTOLOGY-INCOMPLETE token must not appear as a
-    # verdict line.
+    it MUST NOT introduce a new top-level token without a CI allowlist change."""
+    # ONTOLOGY-INCOMPLETE would need a coordinated action allowlist update. This
+    # prompt keeps ontology coverage inside its existing domain verdicts.
     assert not re.search(r"VERDICT:\s*ONTOLOGY", completeness_text), (
         "completeness check must not emit a new ONTOLOGY-* verdict token"
     )
-    # The three canonical tokens remain the only verdict vocabulary.
+    # The prompt still emits the three domain verdicts it owns.
     for token in ("PASS", "PARTIAL", "FAIL"):
         assert f"VERDICT: {token}" in completeness_text, (
             f"completeness check lost the canonical `VERDICT: {token}` token"
