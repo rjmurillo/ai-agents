@@ -44,7 +44,12 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_WORKSPACE = _SCRIPT_DIR.parents[1]
+try:
+    from .path_utils import REPOSITORY_ROOT
+except ImportError:  # pragma: no cover - script execution path
+    from path_utils import REPOSITORY_ROOT
+
+_WORKSPACE = REPOSITORY_ROOT
 sys.path.insert(0, str(_WORKSPACE))
 
 from scripts.ai_review_common import FAIL_VERDICTS  # noqa: E402

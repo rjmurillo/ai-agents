@@ -36,7 +36,12 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_GITHUB_SCRIPTS = _SCRIPT_DIR.parents[1] / ".github" / "scripts"
+try:
+    from .path_utils import REPOSITORY_ROOT
+except ImportError:  # pragma: no cover - script execution path
+    from path_utils import REPOSITORY_ROOT
+
+_GITHUB_SCRIPTS = REPOSITORY_ROOT / ".github" / "scripts"
 sys.path.insert(0, str(_GITHUB_SCRIPTS))
 
 from quality_gate_agents import (  # noqa: E402
