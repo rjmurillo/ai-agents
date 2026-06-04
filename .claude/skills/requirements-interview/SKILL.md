@@ -107,5 +107,6 @@ Every PRD section reaches the spec-generator unchanged so it does not re-ask que
 
 - Source: <https://www.aihero.dev/my-grill-me-skill-has-gone-viral>
 - Upstream: <https://github.com/mattpocock/skills>
+- [Circle of Competence](references/mental-models-circle-of-competence.md) - Calibrate confidence in a recommended answer by whether the decision sits inside the team's tested knowledge
 - Related skills: `decision-critic`, `pre-mortem`, `cynefin-classifier`
 - Related rules: `.claude/rules/clean-architecture.md`, `.claude/rules/domain-driven-design.md`, `.claude/rules/security.md`

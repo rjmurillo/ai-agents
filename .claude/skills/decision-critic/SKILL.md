@@ -104,6 +104,7 @@ After execution:
 - [Chesterton's Fence](references/mental-models-chestertons-fence.md) - Understand why something exists before removing or changing it
 - [Conway's Law](references/mental-models-conways-law.md) - System structure mirrors org communication structure; apply when a diff crosses a module boundary
 - [Gall's Law](references/mental-models-galls-law.md) - Complex working systems evolved from simple working systems
+- [Fat Tails](references/mental-models-fat-tails.md) - Extreme outcomes dominate fat-tailed domains; distrust averages and Gaussian risk metrics
 - [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope boundaries for incremental improvement decisions
 - [Brandolini's Law](references/critical-thinking-brandolinis-law.md) - Refutation costs more than assertion; allocate review burden by claim asymmetry
 - [Falsifiability](references/critical-thinking-falsifiability.md) - Reject claims with no measurable success criterion
