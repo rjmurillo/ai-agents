@@ -1,8 +1,9 @@
 """Contract tests for the ontology elicitation step in the /spec pipeline.
 
-Pins issue #1925: the /spec pipeline must elicit a domain ontology before
-requirements are written, carry the OntologyFragment into the spec-generator
-PRD contract, and fold an ontology-coverage check into the completeness gate.
+Tests the safe #1925 ontology slice: the /spec pipeline must elicit a domain
+ontology before requirements are written, carry the OntologyFragment into the
+spec-generator PRD contract, and fold an ontology-coverage check into the
+completeness gate without adding a new verdict token.
 
 These tests are structural, not behavioral. The contract is consumed by an
 LLM-driven agent (the /spec command, the spec-generator skill, the

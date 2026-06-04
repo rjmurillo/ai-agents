@@ -11,8 +11,8 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
-    "files_changed": 0
+    "commits": 15,
+    "files_changed": 9
   },
   "lessons": []
 }
