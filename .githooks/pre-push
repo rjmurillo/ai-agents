@@ -678,60 +678,73 @@ fi
 echo_phase "Phase 3: Build Validation"
 
 # 10. Agent generation drift
-GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
+#
+# The PowerShell generator (build/Generate-Agents.ps1) was replaced by the
+# Python generator build/generate_agents.py per ADR-042. The old ps1 path no
+# longer exists, so the prior check recorded a confusing "script not found"
+# SKIP that agents misread as a validation gap even though build_all.py --check
+# (11b) passes cleanly (Issue #2343). Repoint to the Python equivalent and use
+# set_python_cmd (uv-aware) for the same reason as 11b: the generator imports
+# third-party packages typically only present in the project's venv.
+GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/generate_agents.py"
 
 if [ -n "$CHANGED_TEMPLATES" ] || [ -n "$(echo "$CHANGED_FILES" | grep -E '^src/(copilot-cli|vs-code-agents)/' || true)" ]; then
     if [ -L "$GENERATE_AGENTS_SCRIPT" ]; then
         record_warn "Agent generation script is a symlink (skipping)"
     elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             GEN_OUTPUT=$(mktemp)
             TEMP_FILES+=("$GEN_OUTPUT")
-            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" -Validate > "$GEN_OUTPUT" 2>&1; then
+            if "${PYTHON_CMD[@]}" "$GENERATE_AGENTS_SCRIPT" --validate > "$GEN_OUTPUT" 2>&1; then
                 record_pass "Agent generation (templates match generated)"
             else
                 echo_info "  Agent generation output:"
                 head -20 "$GEN_OUTPUT"
                 record_fail "Agent generation drift detected"
-                echo_info "  Fix: pwsh build/Generate-Agents.ps1"
+                echo_info "  Fix: ${PYTHON_CMD[*]} build/generate_agents.py"
                 echo_info "  Then commit the regenerated files."
             fi
             rm -f "$GEN_OUTPUT"
         else
-            record_skip "Agent generation (pwsh not available)"
+            record_skip "Agent generation (no Python available)"
         fi
     else
-        record_skip "Agent generation (script not found)"
+        record_skip "Agent generation (script not found: build/generate_agents.py)"
     fi
 else
     record_skip "Agent generation (no template/agent files changed)"
 fi
 
 # 11. Agent drift detection
-AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/Detect-AgentDrift.ps1"
+#
+# The PowerShell drift detector (build/scripts/Detect-AgentDrift.ps1) was
+# replaced by the Python detector build/scripts/detect_agent_drift.py per
+# ADR-042. Repoint to the Python equivalent and use set_python_cmd, matching
+# check 10 and 11b (Issue #2343).
+AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/detect_agent_drift.py"
 
 if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/|templates/)' || true)" ]; then
     if [ -L "$AGENT_DRIFT_SCRIPT" ]; then
         record_warn "Agent drift script is a symlink (skipping)"
     elif [ -f "$AGENT_DRIFT_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             DRIFT_OUTPUT=$(mktemp)
             TEMP_FILES+=("$DRIFT_OUTPUT")
-            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$AGENT_DRIFT_SCRIPT" > "$DRIFT_OUTPUT" 2>&1; then
+            if "${PYTHON_CMD[@]}" "$AGENT_DRIFT_SCRIPT" > "$DRIFT_OUTPUT" 2>&1; then
                 record_pass "Agent drift detection"
             else
                 echo_info "  Agent drift output:"
                 head -20 "$DRIFT_OUTPUT"
                 record_fail "Agent drift detected"
                 echo_info "  Fix: Sync agent content across platforms."
-                echo_info "  Run: pwsh build/scripts/Detect-AgentDrift.ps1 -Verbose"
+                echo_info "  Run: ${PYTHON_CMD[*]} build/scripts/detect_agent_drift.py"
             fi
             rm -f "$DRIFT_OUTPUT"
         else
-            record_skip "Agent drift detection (pwsh not available)"
+            record_skip "Agent drift detection (no Python available)"
         fi
     else
-        record_skip "Agent drift detection (script not found)"
+        record_skip "Agent drift detection (script not found: build/scripts/detect_agent_drift.py)"
     fi
 else
     record_skip "Agent drift detection (no src/template files changed)"
