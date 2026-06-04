@@ -44,7 +44,7 @@
       "checklistComplete": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Resolved two main merge conflicts, updated PR body, added M2 spec triplet, corrected negative-routing fixtures and spec metadata after review, kept plugin manifests at 0.5.110 after CI baseline advanced, and reran required checks."
+        "evidence": "Resolved two manual main merge conflicts, merged latest main again without conflicts, updated PR body, added M2 spec triplet, corrected negative-routing fixtures and spec metadata after review, bumped plugin manifests to 0.5.111 after CI baseline advanced again, and reran required checks."
       },
       "handoffPreserved": {
         "level": "MUST",

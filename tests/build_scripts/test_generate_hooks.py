@@ -25,7 +25,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -36,21 +35,20 @@ sys.path.insert(0, str(REPO_ROOT / "build"))
 
 import generate_hooks  # noqa: E402
 from generate_hooks import (  # noqa: E402
+    _SHIM_BEGIN,
+    _SHIM_END,
     MATCHER_BARE,
     MATCHER_REGEX,
     MATCHER_TOOL_GLOB,
+    _ensure_exact_case_dir,
+    _matcher_suffix,
     classify_matcher,
     glob_or_match,
     inject_shim,
     is_shimmed,
     normalize_tool_args,
     strip_shim,
-    _matcher_suffix,
-    _ensure_exact_case_dir,
-    _SHIM_BEGIN,
-    _SHIM_END,
 )
-
 
 # Helpers -------------------------------------------------------------------
 
@@ -645,6 +643,22 @@ def test_generator_emits_version_one_wrapper(tmp_path: Path) -> None:
     assert "hooks" in out
 
 
+@pytest.mark.parametrize("yaml_value", ["0", '""', "1.5", "true"])
+def test_generator_fails_2_on_invalid_version_field(
+    tmp_path: Path, yaml_value: str
+) -> None:
+    cfg, _ = _setup_full_fixture(tmp_path)
+    text = cfg.read_text(encoding="utf-8")
+    cfg.write_text(
+        text.replace("    versionField: 1", f"    versionField: {yaml_value}"),
+        encoding="utf-8",
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 2
+
+
 def test_generator_remaps_event_names(tmp_path: Path) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
@@ -678,6 +692,20 @@ def test_generator_emits_python3_and_py3_invocation(tmp_path: Path) -> None:
     assert entry["bash"].startswith("python3 -u")
     assert entry["powershell"].startswith("py -3 -u")
     assert entry["cwd"] == "."
+
+
+@pytest.mark.parametrize("timeout_value", [0, "", 1.5, True])
+def test_generator_fails_2_on_invalid_timeout(
+    tmp_path: Path, timeout_value: object
+) -> None:
+    cfg, _ = _setup_full_fixture(tmp_path)
+    settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    settings["hooks"]["PreToolUse"][0]["hooks"][0]["timeout"] = timeout_value
+    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc == 2
 
 
 def _find_shimmed_alpha(tmp_path: Path) -> Path:
@@ -868,7 +896,7 @@ def test_generator_collision_resistant_filenames(tmp_path: Path) -> None:
 # --- generator config errors (negative) ----------------------------------
 
 
-def test_generator_fails_2_on_missing_eventRemap(tmp_path: Path) -> None:
+def test_generator_fails_2_on_missing_event_remap(tmp_path: Path) -> None:
     cfg = tmp_path / "platform.yaml"
     cfg.write_text(
         """\
@@ -931,6 +959,32 @@ artifacts:
     )
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
     assert rc == 2
+
+
+def test_resolve_script_path_rejects_command_path_traversal(tmp_path: Path) -> None:
+    hooks_src = tmp_path / "hooks_src"
+    _write_script(hooks_src, "PreToolUse", "alpha.py")
+    (tmp_path / "outside.py").write_text("print('outside')\n", encoding="utf-8")
+
+    with pytest.raises(generate_hooks.GenerateHooksError):
+        generate_hooks._resolve_script_path(
+            hooks_src,
+            "python3 -u .claude/hooks/PreToolUse/../../outside.py",
+            "PreToolUse",
+        )
+
+
+def test_resolve_script_path_allows_normalized_internal_path(tmp_path: Path) -> None:
+    hooks_src = tmp_path / "hooks_src"
+    alpha = _write_script(hooks_src, "PreToolUse", "alpha.py")
+
+    resolved = generate_hooks._resolve_script_path(
+        hooks_src,
+        "python3 -u .claude/hooks/PreToolUse/../PreToolUse/alpha.py",
+        "PreToolUse",
+    )
+
+    assert resolved == alpha
 
 
 def test_generator_fails_1_on_missing_settings_file(tmp_path: Path) -> None:
@@ -1098,7 +1152,7 @@ def test_live_corpus_every_matcher_classifies(tmp_path: Path) -> None:
     data = json.loads(settings.read_text())
     hooks = data.get("hooks", {})
     seen_kinds: set[str] = set()
-    for event, groups in hooks.items():
+    for _event, groups in hooks.items():
         for group in groups:
             matcher = group.get("matcher")
             if matcher is None:
