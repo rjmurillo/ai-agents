@@ -90,7 +90,7 @@ jobs:
       # skips loudly when a CLI is unauthenticated; the smoke gate then fails the
       # job, so a missing secret is a red run, never a silent green one.
       ANTHROPIC_API_KEY: ${{ secrets.SMOKE_ANTHROPIC_API_KEY }}
-      COPILOT_CLI_TOKEN: ${{ secrets.SMOKE_COPILOT_CLI_TOKEN }}
+      COPILOT_GITHUB_TOKEN: ${{ secrets.SMOKE_COPILOT_CLI_TOKEN }}
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
