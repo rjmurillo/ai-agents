@@ -799,7 +799,6 @@ jobs:
 
       - name: Check for Critical Failures
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
           SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
@@ -812,72 +811,4 @@ jobs:
           OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
           AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
           DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $finalVerdict = $env:FINAL_VERDICT
-
-          # Use ordered array for deterministic output (PowerShell dictionary Keys property is unordered, which would cause agent order to vary across runs, complicating comparisons)
-          $agentVerdicts = @(
-            @{ Name = '🔒 Security'; Verdict = $env:SECURITY_VERDICT }
-            @{ Name = '🧪 QA'; Verdict = $env:QA_VERDICT }
-            @{ Name = '📊 Analyst'; Verdict = $env:ANALYST_VERDICT }
-            @{ Name = '📐 Architect'; Verdict = $env:ARCHITECT_VERDICT }
-            @{ Name = '⚙️ DevOps'; Verdict = $env:DEVOPS_VERDICT }
-            @{ Name = '🗺️ Roadmap'; Verdict = $env:ROADMAP_VERDICT }
-            @{ Name = '🛡️ Reliability'; Verdict = $env:RELIABILITY_VERDICT }
-            @{ Name = '🔭 Observability'; Verdict = $env:OBSERVABILITY_VERDICT }
-            @{ Name = '🤖 Agent Safety'; Verdict = $env:AGENT_SAFETY_VERDICT }
-            @{ Name = '⚖️ Decision Rigor'; Verdict = $env:DECISION_RIGOR_VERDICT }
-          )
-
-          # Identify agents with blocking verdicts
-          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict (occurs when AI response doesn't match expected verdict format, treating ambiguity as blocking)
-          # UNKNOWN added in #1934: a skill crash or unparseable verdict surfaces as UNKNOWN.
-          # Per REQ-008-05 UNKNOWN must "force explicit attention"; treat it as blocking
-          # so a silent skill failure cannot pass the gate.
-          # NON_COMPLIANT added in PR #1965 (devin BB6): NON_COMPLIANT is in FAIL_VERDICTS
-          # in scripts/ai_review_common/verdict.py; the workflow gate must match so a
-          # NON_COMPLIANT spec-validation verdict actually blocks merge.
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW', 'NON_COMPLIANT', 'UNKNOWN')
-          $failedAgents = @()
-          $missingVerdicts = @()
-
-          foreach ($entry in $agentVerdicts) {
-            if ([string]::IsNullOrWhiteSpace($entry.Verdict)) {
-              $missingVerdicts += $entry.Name
-              Write-Output "::error::$($entry.Name): No verdict received from aggregate step"
-              continue
-            }
-            if ($entry.Verdict -in $blockingVerdicts) {
-              $failedAgents += "$($entry.Name): $($entry.Verdict)"
-              Write-Output "::error::$($entry.Name): $($entry.Verdict)"
-            }
-          }
-
-          if ($missingVerdicts.Count -gt 0) {
-            Write-Output ""
-            Write-Output "❌ Quality gate failed - missing verdicts"
-            Write-Output ""
-            Write-Output "Agents with missing verdicts:"
-            foreach ($missing in $missingVerdicts) {
-              Write-Output "  - $missing"
-            }
-            Write-Output ""
-            Write-Output "This indicates agent review jobs failed or artifacts are incomplete"
-            exit 1
-          }
-
-          if ($finalVerdict -in $blockingVerdicts) {
-            Write-Output ""
-            Write-Output "❌ AI Quality Gate FAILED"
-            Write-Output ""
-            Write-Output "Agents with blocking verdicts:"
-            foreach ($failed in $failedAgents) {
-              Write-Output "  - $failed"
-            }
-            Write-Output ""
-            Write-Output "Click on individual agent jobs above to see detailed findings."
-            exit 1
-          }
-
-          Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
+        run: python3 scripts/quality_gate/check_critical_failures.py
