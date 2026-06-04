@@ -110,6 +110,14 @@ def _scope_since(scope: str) -> str | None:
     return scoped_date.isoformat() if scoped_date else None
 
 
+def _session_log_date(path: Path) -> date | None:
+    """Return the ISO date prefix from a session-log filename when present."""
+    try:
+        return date.fromisoformat(path.name[:10])
+    except ValueError:
+        return None
+
+
 def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Path | None:
     """Return the session log for a target date priority, or None when absent.
 
@@ -126,7 +134,12 @@ def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Pa
         dated = [path for path in candidates if path.name.startswith(prefix)]
         if dated:
             return _newest_session_log(dated)
-    return _newest_session_log(candidates)
+    eligible = [
+        path
+        for path in candidates
+        if (candidate_date := _session_log_date(path)) is None or candidate_date <= today
+    ]
+    return _newest_session_log(eligible) if eligible else None
 
 
 def _format_work_item(item: object) -> str:

@@ -156,6 +156,27 @@ def test_find_recent_session_log_uses_yesterday_when_today_missing(tmp_path):
     assert chosen == yesterday
 
 
+def test_find_recent_session_log_fallback_excludes_future_logs(tmp_path):
+    # Arrange
+    sessions = tmp_path / ".agents" / "sessions"
+    older = _write_session(
+        sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
+    )
+    future = _write_session(
+        sessions, "2026-06-04-session-1-future.json", {"workLog": ["future"]}
+    )
+    import os
+
+    os.utime(older, (1_000_000, 1_000_000))
+    os.utime(future, (2_000_000, 2_000_000))
+
+    # Act
+    chosen = find_recent_session_log(sessions, today=date(2026, 6, 3))
+
+    # Assert
+    assert chosen == older
+
+
 def test_gather_evidence_uses_scope_date_for_session_selection(tmp_path):
     # Arrange: current-day work exists, but the retrospective is scoped earlier.
     sessions = tmp_path / ".agents" / "sessions"
