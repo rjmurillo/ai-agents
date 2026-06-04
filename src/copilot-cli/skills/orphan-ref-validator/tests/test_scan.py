@@ -54,6 +54,8 @@ _spec.loader.exec_module(_scan)
 
 Finding = _scan.Finding
 ScanResult = _scan.ScanResult
+load_baseline = _scan.load_baseline
+BaselineError = _scan.BaselineError
 extract_count_claims = _scan.extract_count_claims
 extract_script_refs = _scan.extract_script_refs
 extract_skill_refs = _scan.extract_skill_refs
@@ -895,3 +897,143 @@ class TestSkillScriptRefs:
         assert list(extract_skill_script_refs("`src/copilot-cli/skills/x/scripts/y.py`")) == [
             (1, "src/copilot-cli/skills/x/scripts/y.py")
         ]
+
+
+class TestBaselineSuppression:
+    """Issue #2371: a default repo-wide scan must not fail on pre-existing
+    findings. A --baseline of known finding keys suppresses those findings so
+    the verdict is PASS/WARN, while a new finding not in the baseline still
+    drives CRITICAL_FAIL."""
+
+    def _orphan(self, fake_repo: Path) -> Finding:
+        target = fake_repo / "docs" / "stale.md"
+        write(target, "Use the `gamma-skill` for things.\n")
+        result = scan([target], fake_repo)
+        critical = [f for f in result.findings if f.severity == "critical"]
+        assert len(critical) == 1
+        return critical[0]
+
+    def test_baselined_critical_finding_yields_pass(self, fake_repo):
+        # Capture the orphan finding's key, then re-scan with it baselined.
+        orphan = self._orphan(fake_repo)
+        target = fake_repo / "docs" / "stale.md"
+        result = scan([target], fake_repo, baseline={orphan.key})
+        assert result.verdict == "PASS"
+        suppressed = [f for f in result.findings if f.suppressed]
+        assert len(suppressed) == 1
+        assert suppressed[0].referenced_entity == "gamma-skill"
+
+    def test_new_finding_not_in_baseline_yields_critical_fail(self, fake_repo):
+        # Baseline an unrelated key; the actual orphan is still active.
+        target = fake_repo / "docs" / "stale.md"
+        write(target, "Use the `gamma-skill` for things.\n")
+        result = scan([target], fake_repo, baseline={"other.md:1:skill_name:zeta-skill"})
+        assert result.verdict == "CRITICAL_FAIL"
+        active = [f for f in result.findings if not f.suppressed]
+        assert any(f.referenced_entity == "gamma-skill" for f in active)
+
+    def test_mixed_baselined_and_new_yields_critical_fail(self, fake_repo):
+        target = fake_repo / "docs" / "stale.md"
+        write(target, "Use `gamma-skill` and `delta-skill` here.\n")
+        full = scan([target], fake_repo)
+        keys = {f.key for f in full.findings if f.referenced_entity == "gamma-skill"}
+        assert keys, "expected gamma-skill orphan finding"
+        result = scan([target], fake_repo, baseline=keys)
+        # gamma-skill suppressed; delta-skill still active and critical.
+        assert result.verdict == "CRITICAL_FAIL"
+        suppressed = {f.referenced_entity for f in result.findings if f.suppressed}
+        active = {f.referenced_entity for f in result.findings if not f.suppressed}
+        assert "gamma-skill" in suppressed
+        assert "delta-skill" in active
+
+    def test_finding_key_format(self):
+        f = Finding(
+            kind="skill_name",
+            severity="critical",
+            target_file="docs/x.md",
+            line=7,
+            referenced_entity="gamma-skill",
+            recommendation="fix it",
+        )
+        assert f.key == "docs/x.md:7:skill_name:gamma-skill"
+
+    def test_load_baseline_plain_text(self, tmp_path):
+        bl = tmp_path / "baseline.txt"
+        bl.write_text(
+            "# pre-existing orphans\n"
+            "docs/a.md:1:skill_name:gamma-skill\n"
+            "\n"
+            "docs/b.md:2:script_path:scripts/old.py\n",
+            encoding="utf-8",
+        )
+        keys = load_baseline(bl)
+        assert keys == {
+            "docs/a.md:1:skill_name:gamma-skill",
+            "docs/b.md:2:script_path:scripts/old.py",
+        }
+
+    def test_load_baseline_json_list(self, tmp_path):
+        bl = tmp_path / "baseline.json"
+        bl.write_text(
+            json.dumps(["docs/a.md:1:skill_name:gamma-skill"]), encoding="utf-8"
+        )
+        assert load_baseline(bl) == {"docs/a.md:1:skill_name:gamma-skill"}
+
+    def test_load_baseline_json_envelope(self, tmp_path):
+        bl = tmp_path / "baseline.json"
+        envelope = {
+            "Data": {
+                "findings": [
+                    {
+                        "kind": "skill_name",
+                        "target_file": "docs/a.md",
+                        "line": 1,
+                        "referenced_entity": "gamma-skill",
+                    }
+                ]
+            }
+        }
+        bl.write_text(json.dumps(envelope), encoding="utf-8")
+        assert load_baseline(bl) == {"docs/a.md:1:skill_name:gamma-skill"}
+
+    def test_load_baseline_missing_file_raises(self, tmp_path):
+        with pytest.raises(BaselineError):
+            load_baseline(tmp_path / "nope.txt")
+
+    def test_load_baseline_bad_json_raises(self, tmp_path):
+        bl = tmp_path / "baseline.json"
+        bl.write_text("{not valid json", encoding="utf-8")
+        with pytest.raises(BaselineError):
+            load_baseline(bl)
+
+    def test_cli_baseline_file_suppresses(self, fake_repo, capsys):
+        target = fake_repo / "docs" / "stale.md"
+        write(target, "Use the `gamma-skill` for things.\n")
+        bl = fake_repo / "baseline.txt"
+        bl.write_text("docs/stale.md:1:skill_name:gamma-skill\n", encoding="utf-8")
+        rc = main(
+            [
+                "--targets",
+                str(target),
+                "--repo-root",
+                str(fake_repo),
+                "--baseline",
+                str(bl),
+            ]
+        )
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "VERDICT: PASS" in out
+
+    def test_cli_bad_baseline_file_is_config_error(self, fake_repo, capsys):
+        rc = main(
+            [
+                "--repo-root",
+                str(fake_repo),
+                "--baseline",
+                str(fake_repo / "missing.txt"),
+            ]
+        )
+        out = capsys.readouterr().out
+        assert rc == 2
+        assert "VERDICT: ERROR" in out
