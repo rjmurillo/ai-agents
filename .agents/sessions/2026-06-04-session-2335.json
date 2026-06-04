@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2335,
+    "date": "2026-06-04",
+    "branch": "autofix-pr-2359",
+    "startingCommit": "7aba39da",
+    "objective": "Autofix and merge PR #2359: sunset session-migration and finish session QA fold."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena initial instructions loaded before code edits."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena instructions manual returned before work."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md lines 1-116 as read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Created .agents/sessions/2026-06-04-session-2335.json during autofix after the pre-commit gate required a session log."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Verified isolated worktree branch autofix-pr-2359 for PR #2359."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Work ran in /home/richard/src/GitHub/rjmurillo/ai-agents-pr-2359, not the primary main worktree."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Resolved merge conflict, updated PR body, added M2 spec triplet, and reran required checks."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": ".agents/HANDOFF.md remained read-only and unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "No durable memory added because findings are specific to PR #2359 and recorded here."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Pre-commit markdownlint ran on staged spec files; markdownlint config excludes .agents specs by policy and reported zero linted files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "This final commit includes the M2 spec triplet and session log after prior merge commit d88098ae."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Targeted pytest: 204 passed. Scoped orphan-ref: PASS. build_all --check, plugin manifests, parity, spec ID uniqueness passed. Full pre_pr has unrelated baseline failures documented in final response."
+      }
+    }
+  }
+}
