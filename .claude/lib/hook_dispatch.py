@@ -15,12 +15,17 @@ Design contract (the security-critical part):
 - **Manifest-driven, not directory-driven.** The shim list is supplied by the
   caller from the generator's registered-entry list (the same source as
   ``hooks.json``). Orphaned ``invoke_*.py`` files on disk are never executed.
-- **Fail-closed (ADR-066).** The first shim that exits non-zero denies the tool;
-  the dispatcher returns that code and stops. A registered shim missing on disk,
-  or an unexpected exception while running a shim, is a denial (exit 2), never a
-  silent allow. A shim's own internal fail-open (its ``main`` returning 0 on its
-  own error) is preserved, because the dispatcher only observes the shim's final
-  exit code.
+- **Gate vs observe mode (ADR-068, #2342).** ``run_dispatch`` takes a
+  ``short_circuit`` flag. In gate mode (``PreToolUse``) the first shim that exits
+  non-zero denies the tool; the dispatcher returns that code and stops
+  (fail-closed, ADR-066). A registered shim missing on disk, or an unexpected
+  exception while running a shim, is a denial (exit 2), never a silent allow. A
+  shim's own internal fail-open (its ``main`` returning 0 on its own error) is
+  preserved, because the dispatcher only observes the shim's final exit code. In
+  observe mode (``PostToolUse``, ``SessionStart``, ``SessionEnd``,
+  ``UserPromptSubmit``) every shim runs regardless of an earlier non-zero exit;
+  failures are logged and the dispatcher returns 0, matching the pre-
+  consolidation host behavior where the host ran all observer entries.
 - **stdin replay.** Each shim reads ``sys.stdin.buffer``; the dispatcher rewinds
   a fresh stream of the original bytes before each shim, so every shim inspects
   exactly the payload the host delivered (no #2290 schema mutation).
@@ -123,14 +128,27 @@ def run_dispatch(
     shim_names: list[str],
     raw_stdin: bytes,
     shim_timeouts: dict[str, float] | None = None,
+    *,
+    short_circuit: bool = True,
 ) -> int:
     """Run each named shim in order, in-process; return the dispatch exit code.
 
-    Returns ``ALLOW_EXIT`` (0) only when every shim allowed. Returns the first
-    non-zero shim exit code otherwise, or ``BLOCK_EXIT`` (2) on a missing shim or
-    an unexpected dispatch error (fail-closed, ADR-066). Short-circuits on the
-    first denial: once a guard blocks, the tool is denied and remaining guards
-    add no information.
+    ``short_circuit`` selects the dispatch mode (ADR-068, #2342):
+
+    - **Gate mode** (``short_circuit=True``, the default; used by ``PreToolUse``).
+      Fail-closed (ADR-066). Returns ``ALLOW_EXIT`` (0) only when every shim
+      allowed. The first shim that exits non-zero denies the tool: the
+      dispatcher returns that code and stops, so later guards do not run. A
+      registered shim missing on disk, or an unexpected dispatch error, is a
+      denial (``BLOCK_EXIT``, 2), never a silent allow.
+    - **Observe mode** (``short_circuit=False``; used by ``PostToolUse``,
+      ``SessionStart``, ``SessionEnd``, ``UserPromptSubmit``). Observational
+      events never gate the host, so EVERY shim runs even when an earlier one
+      signals non-zero. A non-zero shim exit (or a missing shim) is logged to
+      stderr and the run continues; the dispatcher always returns ``ALLOW_EXIT``
+      (0). This matches the per-shim host behavior these events had before
+      consolidation, where the host ran all entries and a single observer's exit
+      code did not stop the others.
     """
     event_dir = Path(event_dir)
     saved_stdin = sys.stdin
@@ -139,19 +157,31 @@ def run_dispatch(
             shim_path = event_dir / name
             if not shim_path.is_file():
                 # A registered guard that is not on disk is a packaging error.
-                # Denying is the only safe response; silently skipping it would
-                # drop a security guard (fail-open).
+                # In gate mode, denying is the only safe response; silently
+                # skipping it would drop a security guard (fail-open). In
+                # observe mode there is nothing to gate, so log and continue
+                # to run the remaining observers.
                 print(
                     f"hook-dispatch: registered shim missing on disk: {name}",
                     file=sys.stderr,
                 )
-                return BLOCK_EXIT
+                if short_circuit:
+                    return BLOCK_EXIT
+                continue
 
             timeout_sec = shim_timeouts.get(name) if shim_timeouts else None
             code = _run_shim_with_timeout(shim_path, name, raw_stdin, timeout_sec)
 
             if code != ALLOW_EXIT:
-                return code
+                if short_circuit:
+                    return code
+                # Observe mode: an observer's non-zero exit must not gate the
+                # host or stop sibling observers. Log and keep going.
+                print(
+                    f"hook-dispatch: observer {name} exited {code}; continuing "
+                    "(observe mode does not gate)",
+                    file=sys.stderr,
+                )
 
         return ALLOW_EXIT
     finally:
