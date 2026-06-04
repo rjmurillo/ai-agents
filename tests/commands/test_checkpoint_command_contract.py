@@ -42,6 +42,7 @@ def test_checkpoint_links_created_file_from_active_session_log(checkpoint_text: 
     assert "equals the current branch" in checkpoint_text
     assert "sort by filename descending" in checkpoint_text
     assert "That file is the active session" in checkpoint_text
+    assert "removing one matching pair of surrounding backticks" in checkpoint_text
     assert "top-level `checkpoints` array" in checkpoint_text
     assert re.search(r"Append an object with `path`, `created`,\s+`label`", checkpoint_text)
 

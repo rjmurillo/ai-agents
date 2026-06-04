@@ -57,9 +57,10 @@ the JSON.
    - Find `.agents/sessions/*.json` files and sort by filename descending. The
     filename order is the canonical "newest" order because session logs are
     named with `YYYY-MM-DD-session-NN`.
-   - Read candidates in that order until you find the first log whose
-    `session.branch` equals the current branch. That file is the active session
-    log.
+   - Read candidates in that order until you find the first log whose normalized
+    `session.branch` equals the current branch. Normalize `session.branch` by
+    trimming whitespace and removing one matching pair of surrounding backticks.
+    That file is the active session log.
    - If `$ARGUMENTS` is empty after trimming, derive the label from the active
     session log's `session.objective`. If no active session log exists, derive
     it from the current branch. If that is empty, use `checkpoint`.
