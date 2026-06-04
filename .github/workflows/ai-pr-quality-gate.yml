@@ -700,66 +700,10 @@ jobs:
       - name: Check for infrastructure failures and add label
         if: steps.should-run.outputs.skip != 'true'
         continue-on-error: true
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          # Check if any agent had infrastructure failure (Issue #328: Add infrastructure-failure label when retry logic exhausted)
-          $infrastructureFailureDetected = $false
-          $retryAttempts = @()
-
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
-
-          foreach ($agent in $agents) {
-            $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
-            $retryFile = "ai-review-results/$agent-retry-count.txt"
-
-            if (Test-Path $infraFile) {
-              $rawInfraFlag = Get-Content $infraFile -Raw
-              $infraFlag = if ($rawInfraFlag) { $rawInfraFlag.Trim() } else { "false" }
-              if ($infraFlag -eq "true") {
-                $infrastructureFailureDetected = $true
-                $retryCount = 0
-                if (Test-Path $retryFile) {
-                  $rawRetry = Get-Content $retryFile -Raw
-                  $retryCount = if ($rawRetry) { [int]$rawRetry.Trim() } else { 0 }
-                }
-                $retryAttempts += "${agent}: $retryCount retries"
-                Write-Output "::notice::Infrastructure failure detected for $agent agent (retries: $retryCount)"
-              }
-            }
-          }
-
-          if ($infrastructureFailureDetected) {
-            Write-Output "::warning::Infrastructure failures detected - adding infrastructure-failure label"
-            Write-Output "Retry attempts: $($retryAttempts -join ', ')"
-
-            try {
-              # Verify gh CLI is authenticated
-              $authStatus = gh auth status 2>&1
-              if ($LASTEXITCODE -ne 0) {
-                Write-Output "::warning::gh CLI authentication failed, cannot add label"
-                exit 0
-              }
-
-              # Add label (best-effort, should not block aggregation)
-              gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
-
-              if ($LASTEXITCODE -ne 0) {
-                Write-Output "::warning::Failed to add infrastructure-failure label (exit code: $LASTEXITCODE)"
-              } else {
-                Write-Output "Successfully added infrastructure-failure label"
-              }
-            }
-            catch {
-              Write-Output "::warning::Failed to add label: $_"
-            }
-          } else {
-            Write-Output "No infrastructure failures detected"
-          }
+        run: python3 scripts/quality_gate/check_infrastructure_failures.py
 
       - name: Post PR Comment
         if: steps.should-run.outputs.skip != 'true'
