@@ -47,10 +47,19 @@ context), and falls back to a plain append otherwise. A single retried
 caller will append twice by design; dedupe, if needed, happens at read
 time on ``(ts, kind, detail)``.
 
+Weekly rollup: the ``report`` subcommand reads the same SoR file and tallies
+events per kind within the trailing ``WINDOW_DAYS`` window, then prints a
+markdown table with each criterion's count, its REQ-008-09 threshold, and a
+status (ok / approaching / fired). A scheduled workflow runs the report so a
+maintainer sees when a kill criterion nears its rollback limit before it fires.
+The report is read-only; it never appends to the metrics file.
+
 Exit Codes (ADR-035), CLI only:
-    0 = event written
+    0 = event written, or report produced with no criterion fired
+    1 = report produced and at least one kill criterion has fired (logic /
+        threshold breach; the caller surfaces it)
     2 = usage / configuration error (bad arguments, unknown kind, unsafe path)
-    3 = external failure (could not write the metrics file)
+    3 = external failure (could not write or read the metrics file)
 """
 
 from __future__ import annotations
@@ -58,8 +67,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Callable
-from datetime import UTC, datetime
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Final, Literal, TextIO
 
@@ -67,10 +77,32 @@ KillCriterion = Literal["K1", "K2", "K3", "K4"]
 
 VALID_KINDS: Final[frozenset[str]] = frozenset({"K1", "K2", "K3", "K4"})
 
+# Order kinds present in the rollup so the report is stable across runs.
+ORDERED_KINDS: Final[tuple[KillCriterion, ...]] = ("K1", "K2", "K3", "K4")
+
 SCHEMA_VERSION: Final[int] = 1
 
 # Path of the events file relative to the repository root.
 EVENTS_RELPATH: Final[str] = ".agents/metrics/drift-events.jsonl"
+
+# Rollover window for the kill-criteria counts, in days. REQ-008-09 phrases
+# every limit as "within 30 days post-merge"; events older than this fall out
+# of the tally.
+WINDOW_DAYS: Final[int] = 30
+
+# Per-criterion rollback thresholds, copied verbatim from REQ-008-09 in
+# .agents/specs/requirements/REQ-008-review-axes-convergence.md (Kill Criteria):
+#   K1: drift hook 3+ false positives in 30 days.
+#   K2: generator-induced CI regressions, 3+ instances.
+#   K3: vendored install breakage, 1+ report (hard fail).
+#   K4: local-vs-CI verdict drift, 3+ times in 30 days.
+# A criterion fires when its trailing-window count reaches the threshold.
+KILL_THRESHOLDS: Final[dict[KillCriterion, int]] = {
+    "K1": 3,
+    "K2": 3,
+    "K3": 1,
+    "K4": 3,
+}
 
 
 def _try_lock_helpers() -> tuple[
@@ -172,20 +204,28 @@ def emit_event(
     return event
 
 
-def _parse_args(argv: list[str]) -> argparse.Namespace:
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser with an emit (default) and a report subcommand.
+
+    The emit form keeps its flat flags (``--kind``/``--detail``) so existing
+    callers, including the drift-detection workflow step, do not change. The
+    report subcommand is opt-in via the ``report`` keyword.
+    """
     parser = argparse.ArgumentParser(
         prog="kill_criteria",
-        description="Emit a REQ-008-09 kill-criteria (K1-K4) telemetry event.",
+        description=(
+            "Emit or summarize REQ-008-09 kill-criteria (K1-K4) telemetry. "
+            "With no subcommand, emit one event from --kind/--detail. "
+            "Use 'report' for the weekly rollup."
+        ),
     )
     parser.add_argument(
         "--kind",
-        required=True,
         choices=sorted(VALID_KINDS),
         help="Kill criterion to record (K1, K2, K3, or K4).",
     )
     parser.add_argument(
         "--detail",
-        required=True,
         help="Free-text description of the trigger (caller-controlled).",
     )
     parser.add_argument(
@@ -193,7 +233,22 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Override for the events JSONL file (default: repo metrics file).",
     )
-    return parser.parse_args(argv)
+
+    subparsers = parser.add_subparsers(dest="command")
+    report = subparsers.add_parser(
+        "report",
+        help="Print a weekly markdown rollup of trailing-window kill-criteria counts.",
+    )
+    report.add_argument(
+        "--events-path",
+        default=None,
+        help="Override for the events JSONL file (default: repo metrics file).",
+    )
+    return parser
+
+
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    return _build_parser().parse_args(argv)
 
 
 def _safe_events_path(raw: str) -> Path:
@@ -235,13 +290,236 @@ def _safe_events_path(raw: str) -> Path:
     return candidate
 
 
-def main(argv: list[str] | None = None) -> int:
-    """CLI entry point. See module docstring for exit codes."""
-    args = _parse_args(sys.argv[1:] if argv is None else argv)
+# --- report (read side) --------------------------------------------------
+
+CriterionStatus = Literal["ok", "approaching", "fired"]
+
+
+@dataclass(frozen=True, slots=True)
+class CriterionRollup:
+    """Trailing-window tally for one kill criterion.
+
+    Args:
+        kind: The kill criterion (``K1``-``K4``).
+        count: Events observed for this kind inside the window.
+        threshold: The REQ-008-09 limit at which the criterion fires.
+        status: ``fired`` when ``count >= threshold``, ``approaching`` when
+            one short of the threshold, ``ok`` otherwise.
+    """
+
+    kind: KillCriterion
+    count: int
+    threshold: int
+    status: CriterionStatus
+
+
+def _classify(count: int, threshold: int) -> CriterionStatus:
+    """Map a count against its threshold to a status label.
+
+    A criterion fires when ``count >= threshold``. It is ``approaching`` only
+    when at least one event is recorded and the count is exactly one short of
+    the threshold. A hard-fail criterion (threshold 1, such as K3) has no
+    approaching band: zero events is ``ok`` and the first event is ``fired``.
+    """
+    if count >= threshold:
+        return "fired"
+    if count > 0 and count == threshold - 1:
+        return "approaching"
+    return "ok"
+
+
+def _parse_event_line(line: str) -> dict[str, object] | None:
+    """Parse one JSONL line into an event dict, or None when unusable.
+
+    A blank line yields None. A line that is not a JSON object, or whose
+    ``kind`` is not a recognized criterion, is skipped so one malformed
+    append cannot poison the whole rollup (the file is append-only and may
+    accrete partial writes on a crashed runner).
+    """
+    stripped = line.strip()
+    if not stripped:
+        return None
     try:
-        events_path = _safe_events_path(args.events_path) if args.events_path else None
-    except ValueError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    if parsed.get("kind") not in VALID_KINDS:
+        return None
+    return parsed
+
+
+def _event_in_window(event: Mapping[str, object], cutoff: datetime) -> bool:
+    """Return True when the event timestamp is at or after the cutoff.
+
+    An event with a missing or unparseable ``ts`` is treated as out of
+    window: the report counts only events it can place in time, and an
+    undated event cannot be attributed to the trailing 30 days.
+    """
+    raw_ts = event.get("ts")
+    if not isinstance(raw_ts, str):
+        return False
+    try:
+        parsed = datetime.fromisoformat(raw_ts)
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed >= cutoff
+
+
+def count_events_in_window(
+    lines: Iterable[str],
+    now: datetime,
+    window_days: int = WINDOW_DAYS,
+) -> dict[KillCriterion, int]:
+    """Tally events per kind within the trailing window.
+
+    Args:
+        lines: Raw JSONL lines from the events file.
+        now: The reference instant the window ends at (UTC).
+        window_days: Width of the trailing window in days.
+
+    Returns:
+        A count per criterion. Every kind in ``ORDERED_KINDS`` is present,
+        defaulting to zero, so the rollup never hides a quiet criterion.
+    """
+    cutoff = now - timedelta(days=window_days)
+    counts: dict[KillCriterion, int] = dict.fromkeys(ORDERED_KINDS, 0)
+    for line in lines:
+        event = _parse_event_line(line)
+        if event is None or not _event_in_window(event, cutoff):
+            continue
+        kind = event["kind"]
+        counts[kind] += 1  # type: ignore[index]  # kind validated in _parse_event_line
+    return counts
+
+
+def build_rollups(counts: dict[KillCriterion, int]) -> list[CriterionRollup]:
+    """Turn per-kind counts into ordered rollups with status."""
+    return [
+        CriterionRollup(
+            kind=kind,
+            count=counts.get(kind, 0),
+            threshold=KILL_THRESHOLDS[kind],
+            status=_classify(counts.get(kind, 0), KILL_THRESHOLDS[kind]),
+        )
+        for kind in ORDERED_KINDS
+    ]
+
+
+_STATUS_LABEL: Final[dict[CriterionStatus, str]] = {
+    "ok": "ok",
+    "approaching": "approaching",
+    "fired": "FIRED",
+}
+
+_CRITERION_DESCRIPTION: Final[dict[KillCriterion, str]] = {
+    "K1": "drift hook false positives",
+    "K2": "generator-induced CI regressions",
+    "K3": "vendored install breakage",
+    "K4": "local-vs-CI verdict drift",
+}
+
+
+def render_report(
+    rollups: Sequence[CriterionRollup],
+    now: datetime,
+    window_days: int = WINDOW_DAYS,
+) -> str:
+    """Render the weekly rollup as a markdown summary.
+
+    The summary leads with the window and a headline (all clear, an
+    approaching warning, or a fired alert), then a table of every criterion.
+    """
+    fired = [r for r in rollups if r.status == "fired"]
+    approaching = [r for r in rollups if r.status == "approaching"]
+    window_end = now.date().isoformat()
+
+    lines = [
+        "## Kill-Criteria Drift Telemetry (REQ-008-09)",
+        "",
+        f"Trailing {window_days}-day window ending {window_end} (UTC).",
+        "",
+    ]
+    if fired:
+        names = ", ".join(r.kind for r in fired)
+        lines.append(f"ALERT: kill criteria fired: {names}. Roll back per REQ-008-09.")
+    elif approaching:
+        names = ", ".join(r.kind for r in approaching)
+        lines.append(f"WARNING: kill criteria approaching the limit: {names}.")
+    else:
+        lines.append("All clear: no kill criterion is within one event of its limit.")
+    lines.extend(
+        [
+            "",
+            "| Kind | Criterion | Count | Threshold | Status |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+    )
+    for rollup in rollups:
+        description = _CRITERION_DESCRIPTION[rollup.kind]
+        status = _STATUS_LABEL[rollup.status]
+        lines.append(
+            f"| {rollup.kind} | {description} | {rollup.count} | {rollup.threshold} | {status} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def report_events(
+    events_path: Path | None = None,
+    now: datetime | None = None,
+    window_days: int = WINDOW_DAYS,
+) -> tuple[str, bool]:
+    """Produce the weekly rollup from the events file.
+
+    Args:
+        events_path: Override for the events file. Defaults to the repo
+            metrics file. Tests pass a temp path here to mock the read
+            boundary.
+        now: Reference instant the window ends at. Defaults to current UTC.
+        window_days: Width of the trailing window in days.
+
+    Returns:
+        ``(markdown, any_fired)``. ``any_fired`` is True when at least one
+        criterion has reached its threshold, so the caller can set a
+        non-zero exit code.
+
+    Raises:
+        OSError: The metrics file exists but could not be read.
+    """
+    target = events_path if events_path is not None else _repo_root() / EVENTS_RELPATH
+    reference = now if now is not None else datetime.now(tz=UTC)
+    lines = target.read_text(encoding="utf-8").splitlines() if target.is_file() else []
+    counts = count_events_in_window(lines, reference, window_days)
+    rollups = build_rollups(counts)
+    markdown = render_report(rollups, reference, window_days)
+    any_fired = any(r.status == "fired" for r in rollups)
+    return markdown, any_fired
+
+
+def _run_report(events_path: Path | None) -> int:
+    """CLI handler for the ``report`` subcommand. See module exit codes."""
+    try:
+        markdown, any_fired = report_events(events_path=events_path)
+    except OSError as exc:
+        print(f"error: could not read metrics file: {exc}", file=sys.stderr)
+        return 3
+    print(markdown)
+    return 1 if any_fired else 0
+
+
+def _resolve_events_path(raw: str | None) -> Path | None:
+    """Validate the CLI events-path override, or None for the default."""
+    return _safe_events_path(raw) if raw else None
+
+
+def _run_emit(args: argparse.Namespace, events_path: Path | None) -> int:
+    """CLI handler for the default emit form. See module exit codes."""
+    if not args.kind or not args.detail:
+        print("error: emit requires --kind and --detail", file=sys.stderr)
         return 2
     try:
         event = emit_event(args.kind, args.detail, events_path=events_path)
@@ -250,6 +528,19 @@ def main(argv: list[str] | None = None) -> int:
         return 3
     print(json.dumps(event, separators=(",", ":")))
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point. See module docstring for exit codes."""
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+    try:
+        events_path = _resolve_events_path(args.events_path)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.command == "report":
+        return _run_report(events_path)
+    return _run_emit(args, events_path)
 
 
 if __name__ == "__main__":

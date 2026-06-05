@@ -222,7 +222,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # Pin to SHA matches rjmurillo-bot.yml.
-      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.136
+      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.137
       #
       # Failure isolation (Issue #2015):
       #   This workflow is async, best-effort, and never blocks merge (see the

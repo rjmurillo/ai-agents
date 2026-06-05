@@ -46,11 +46,16 @@ if _lib_dir not in sys.path:
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     count_unresolved_threads,
-    error_and_exit,
     filter_unresolved_threads,
     gh_graphql,
     resolve_repo_params,
     transform_review_thread,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
 )
 
 # Page size for the reviewThreads connection. GitHub GraphQL caps connection
@@ -124,6 +129,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-comments", action="store_true",
         help="Include all comments in each thread (not just first)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -303,6 +309,7 @@ def _transform_thread(thread: dict, include_comments: bool) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -318,11 +325,32 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeError as exc:
         msg = str(exc)
         if "Could not resolve" in msg:
-            error_and_exit(f"PR #{pr} not found in {owner}/{repo}", 2)
-        error_and_exit(f"Failed to query review threads: {msg}", 3)
+            write_skill_error(
+                f"PR #{pr} not found in {owner}/{repo}",
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="get_pr_review_threads.py",
+            )
+            return 2
+        write_skill_error(
+            f"Failed to query review threads: {msg}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="get_pr_review_threads.py",
+        )
+        return 3
 
     if threads is None:
-        error_and_exit(f"PR #{pr} not found or has no review threads", 2)
+        write_skill_error(
+            f"PR #{pr} not found or has no review threads",
+            2,
+            error_type="NotFound",
+            output_format=fmt,
+            script_name="get_pr_review_threads.py",
+        )
+        return 2
 
     if args.unresolved_only:
         threads = filter_unresolved_threads(threads)
@@ -332,19 +360,18 @@ def main(argv: list[str] | None = None) -> int:
     total = len(threads)
     unresolved = count_unresolved_threads(threads)
 
-    output = {
-        "success": True,
-        "pull_request": pr,
-        "owner": owner,
-        "repo": repo,
-        "total_threads": total,
-        "resolved_count": total - unresolved,
-        "unresolved_count": unresolved,
-        "pagination_truncated": truncated,
-        "threads": transformed,
+    data = {
+        "PullRequest": pr,
+        "Owner": owner,
+        "Repo": repo,
+        "TotalThreads": total,
+        "ResolvedCount": total - unresolved,
+        "UnresolvedCount": unresolved,
+        "PaginationTruncated": truncated,
+        "Threads": transformed,
     }
     # Truncation is signaled to consumers via two channels:
-    # - `pagination_truncated: bool` field in JSON output (machine-readable)
+    # - `Data.PaginationTruncated: bool` field in JSON output (machine-readable)
     # - `warnings.warn` emitted by `_collect_all_threads` (human-readable on
     #   stderr). Python's default warnings filter prints UserWarning to
     #   stderr at most once per call site; CI pipelines reading stderr for
@@ -352,7 +379,15 @@ def main(argv: list[str] | None = None) -> int:
     # No second `print(WARNING ...)` here: duplicate stderr output would
     # confuse callers parsing for a single signal.
 
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=(
+            f"PR #{pr}: {total} thread(s), {unresolved} unresolved"
+        ),
+        status="PASS",
+        script_name="get_pr_review_threads.py",
+    )
     return 0
 
 

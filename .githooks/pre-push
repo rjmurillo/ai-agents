@@ -741,7 +741,7 @@ echo_phase "Phase 3: Build Validation"
 # 11. Agent drift detection (Python port of the retired Detect-AgentDrift.ps1)
 AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/detect_agent_drift.py"
 
-if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/|templates/|\.claude/agents/|\.github/agents/)' || true)" ]; then
+if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+\.md|src/vs-code-agents/.*\.agent\.md|src/copilot-cli/agents/.*\.agent\.md|templates/agents/|\.claude/agents/|\.github/agents/)' || true)" ]; then
     if [ -L "$AGENT_DRIFT_SCRIPT" ]; then
         record_warn "Agent drift script is a symlink (skipping $AGENT_DRIFT_SCRIPT)"
     elif [ -f "$AGENT_DRIFT_SCRIPT" ]; then
@@ -767,7 +767,7 @@ if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/|templates/|\.claude/agents/|\
         record_skip "Agent drift detection (script not found at $AGENT_DRIFT_SCRIPT; non-blocking, build_all.py --check is authoritative)"
     fi
 else
-    record_skip "Agent drift detection (no src/template/agent files changed)"
+    record_skip "Agent drift detection (no agent source/template files changed)"
 fi
 
 # 11b. Build pipeline staleness (build_all.py --check)

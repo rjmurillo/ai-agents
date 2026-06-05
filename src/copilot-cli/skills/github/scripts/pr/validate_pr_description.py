@@ -161,9 +161,20 @@ def main(argv: list[str] | None = None) -> int:
             warnings.append(f"Incomplete template sections: {', '.join(warn_sections)}")
 
     success = len(errors) == 0
+    # Under --fail-on-violation, warnings are treated as fatal: a run with
+    # warnings will exit nonzero even when no errors were detected. The output
+    # must reflect this so humans and automation see a coherent pass/fail signal
+    # (fix for #2369).
+    warnings_are_fatal = bool(args.fail_on_violation) and len(warnings) > 0
+    effective_success = success and not warnings_are_fatal
 
     result = {
         "Success": success,
+        "EffectiveSuccess": effective_success,
+        "FailOnViolation": bool(args.fail_on_violation),
+        "WarningsAreFatal": warnings_are_fatal,
+        "WarningCount": len(warnings),
+        "ErrorCount": len(errors),
         "Validations": {
             "ConventionalCommit": conv,
             "IssueKeywords": keywords,
@@ -182,6 +193,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Conventional Commit: {conv['Status']} - {conv['Message']}", file=sys.stderr)
     print(f"Issue Keywords:      {keywords['Status']} - {keywords['Message']}", file=sys.stderr)
     print(f"Template Compliance: {template['Status']} - {template['Message']}", file=sys.stderr)
+    fatality_policy = (
+        "warnings are fatal (--fail-on-violation)"
+        if args.fail_on_violation
+        else "warnings are advisory (default mode)"
+    )
+    print(f"Policy:              {fatality_policy}", file=sys.stderr)
 
     if warnings:
         print("\nWarnings:", file=sys.stderr)
@@ -193,11 +210,23 @@ def main(argv: list[str] | None = None) -> int:
         for e in errors:
             print(f"  ✗ {e}", file=sys.stderr)
 
-    if success:
+    if effective_success:
         print("\n✓ Validation passed", file=sys.stderr)
+    elif warnings_are_fatal and success:
+        # No hard errors, but warnings are fatal under --fail-on-violation.
+        # Do NOT print "Validation passed" because exit will be nonzero (#2369).
+        print(
+            f"\n✗ Validation failed: {len(warnings)} warning(s) treated as "
+            "violations (--fail-on-violation)",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"\n✗ Validation failed: {len(errors)} error(s), {len(warnings)} warning(s)",
+            file=sys.stderr,
+        )
 
-    has_issues = not success or (args.fail_on_violation and warnings)
-    if has_issues and args.fail_on_violation:
+    if args.fail_on_violation and not effective_success:
         return 1
 
     return 0
