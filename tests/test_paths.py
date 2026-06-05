@@ -273,6 +273,19 @@ def test_artifact_root_env_override_beats_base(
     assert not (base_dir / ".agents" / "sessions").exists()
 
 
+def test_artifact_root_rejects_missing_base(paths, tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="base must be an existing directory"):
+        paths.resolve_artifact_root("sessions", base=tmp_path / "missing")
+
+
+def test_artifact_root_rejects_file_base(paths, tmp_path: Path) -> None:
+    base_file = tmp_path / "repo.txt"
+    base_file.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="base must be an existing directory"):
+        paths.resolve_artifact_root("sessions", base=base_file)
+
+
 def test_artifact_root_env_override(paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     override = tmp_path / "custom_root"
     monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(override))

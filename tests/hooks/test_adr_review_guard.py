@@ -352,6 +352,106 @@ class TestMainSubprocessErrorPaths:
         assert "fail-closed" in captured.err
 
 
+class TestReadGitCommitCommand:
+    """Tests for the _read_git_commit_command input sergeant (#2386)."""
+
+    def test_returns_command_for_git_commit(self, monkeypatch):
+        payload = json.dumps({"tool_input": {"command": "git commit -m 'x'"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        assert (
+            invoke_adr_review_guard._read_git_commit_command()
+            == "git commit -m 'x'"
+        )
+
+    def test_none_for_tty(self, monkeypatch):
+        mock_stdin = io.StringIO("")
+        mock_stdin.isatty = lambda: True
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        assert invoke_adr_review_guard._read_git_commit_command() is None
+
+    def test_none_for_empty_input(self, monkeypatch):
+        monkeypatch.setattr("sys.stdin", io.StringIO(""))
+        assert invoke_adr_review_guard._read_git_commit_command() is None
+
+    def test_none_for_non_dict_tool_input(self, monkeypatch):
+        payload = json.dumps({"tool_input": "string"})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        assert invoke_adr_review_guard._read_git_commit_command() is None
+
+    def test_none_for_missing_command(self, monkeypatch):
+        payload = json.dumps({"tool_input": {"other": "x"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        assert invoke_adr_review_guard._read_git_commit_command() is None
+
+    def test_none_for_non_commit_command(self, monkeypatch):
+        payload = json.dumps({"tool_input": {"command": "git push"}})
+        monkeypatch.setattr("sys.stdin", io.StringIO(payload))
+        assert invoke_adr_review_guard._read_git_commit_command() is None
+
+
+class TestStagedADRChangesOrBlock:
+    """Tests for the _staged_adr_changes_or_block sergeant (#2386)."""
+
+    @patch("invoke_adr_review_guard.get_staged_adr_changes", return_value=["ADR-1.md"])
+    def test_returns_changes_and_no_block(self, mock_changes):
+        changes, block = invoke_adr_review_guard._staged_adr_changes_or_block()
+        assert changes == ["ADR-1.md"]
+        assert block is None
+
+    @patch("invoke_adr_review_guard.get_staged_adr_changes", return_value=[])
+    def test_returns_empty_and_no_block(self, mock_changes):
+        changes, block = invoke_adr_review_guard._staged_adr_changes_or_block()
+        assert changes == []
+        assert block is None
+
+    @patch(
+        "invoke_adr_review_guard.get_staged_adr_changes",
+        side_effect=RuntimeError("git failed"),
+    )
+    def test_blocks_fail_closed_on_git_error(self, mock_changes, capsys):
+        changes, block = invoke_adr_review_guard._staged_adr_changes_or_block()
+        assert changes is None
+        assert block == 2
+        assert "fail-closed" in capsys.readouterr().err
+
+
+class TestEvaluateADRReview:
+    """Tests for the _evaluate_adr_review sergeant (#2386)."""
+
+    @patch("invoke_adr_review_guard.get_today_session_log", return_value=None)
+    @patch("invoke_adr_review_guard.get_project_directory", return_value="/project")
+    def test_blocks_without_session_log(self, mock_proj, mock_session, capsys):
+        result = invoke_adr_review_guard._evaluate_adr_review(["ADR-1.md"], "2026-06-04")
+        assert result == 2
+        assert "BLOCKED" in capsys.readouterr().out
+
+    @patch("invoke_adr_review_guard.check_adr_review_evidence")
+    @patch("invoke_adr_review_guard.get_today_session_log")
+    @patch("invoke_adr_review_guard.get_project_directory", return_value="/project")
+    def test_blocks_without_evidence(
+        self, mock_proj, mock_session, mock_evidence, tmp_path
+    ):
+        session_log = tmp_path / "session.json"
+        session_log.write_text("{}")
+        mock_session.return_value = session_log
+        mock_evidence.return_value = {"complete": False, "reason": "No evidence"}
+        result = invoke_adr_review_guard._evaluate_adr_review(["ADR-1.md"], "2026-06-04")
+        assert result == 2
+
+    @patch("invoke_adr_review_guard.check_adr_review_evidence")
+    @patch("invoke_adr_review_guard.get_today_session_log")
+    @patch("invoke_adr_review_guard.get_project_directory", return_value="/project")
+    def test_allows_with_evidence(
+        self, mock_proj, mock_session, mock_evidence, tmp_path
+    ):
+        session_log = tmp_path / "session.json"
+        session_log.write_text("{}")
+        mock_session.return_value = session_log
+        mock_evidence.return_value = {"complete": True, "evidence": "found"}
+        result = invoke_adr_review_guard._evaluate_adr_review(["ADR-1.md"], "2026-06-04")
+        assert result == 0
+
+
 class TestModuleAsScript:
     """Test that the hook can be executed as a script via __main__."""
 

@@ -177,7 +177,10 @@ def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) ->
     if override and override.strip():
         root = Path(override).expanduser().resolve()
     elif base is not None:
-        root = Path(base).expanduser().resolve() / ".agents"
+        base_root = Path(base).expanduser().resolve()
+        if not base_root.is_dir():
+            raise ValueError(f"base must be an existing directory: {base_root}")
+        root = base_root / ".agents"
     else:
         root = Path.cwd().resolve() / ".agents"
 
