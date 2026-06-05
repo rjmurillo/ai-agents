@@ -58,6 +58,10 @@ ENV/
 # OUTPUT subdirs. New files under build/ track by default.
 /build/dist/
 /build/build/
+/build/lib/
+/build/temp/
+/build/bdist.*/
+/build/audit/
 **/__pycache__/
 
 # Agent PR scratch files
