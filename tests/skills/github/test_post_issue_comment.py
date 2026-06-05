@@ -1,15 +1,11 @@
 """Tests for post_issue_comment.py."""
 
 import json
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from test_helpers import import_skill_script
 from github_core.api import RepoInfo
-from test_helpers import make_completed_process
+from test_helpers import import_skill_script, make_completed_process
 
 
 def _mock_repo():
@@ -64,9 +60,9 @@ class TestPostIssueComment:
             rc = mod.main(["--issue", "1", "--body", "hello"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["comment_id"] == 100
-        assert result["skipped"] is False
+        assert result["Success"] is True
+        assert result["Data"]["comment_id"] == 100
+        assert result["Data"]["skipped"] is False
 
     def test_skip_when_marker_exists(self, _import_module, capsys):
         mod = _import_module
@@ -84,11 +80,10 @@ class TestPostIssueComment:
                 "--marker", "TEST-MARKER",
             ])
         assert rc == 0
-        # Output has text message then JSON
         out = capsys.readouterr().out
-        idx = out.rfind("{")
-        result = json.loads(out[idx:])
-        assert result["skipped"] is True
+        result = json.loads(out.strip().splitlines()[-1])
+        assert result["Success"] is True
+        assert result["Data"]["skipped"] is True
 
     def test_update_when_marker_exists_and_update_flag(self, _import_module, capsys):
         mod = _import_module
@@ -109,9 +104,9 @@ class TestPostIssueComment:
             ])
         assert rc == 0
         out = capsys.readouterr().out
-        idx = out.rfind("{")
-        result = json.loads(out[idx:])
-        assert result["updated"] is True
+        result = json.loads(out.strip().splitlines()[-1])
+        assert result["Success"] is True
+        assert result["Data"]["updated"] is True
 
     def test_permission_denied_exits_4(self, _import_module):
         mod = _import_module
