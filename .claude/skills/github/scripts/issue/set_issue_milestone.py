@@ -15,7 +15,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -40,6 +39,11 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     error_and_exit,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
 )
 
 
@@ -103,11 +107,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Replace existing milestone",
     )
+    add_output_format_arg(parser)
     return parser
+
+
+def _emit(output: dict, fmt: str) -> None:
+    """Emit the canonical envelope for the milestone result payload."""
+    write_skill_output(
+        output,
+        output_format=fmt,
+        human_summary=(
+            f"Issue #{output['issue']} milestone {output['action']}"
+        ),
+        script_name="set_issue_milestone.py",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -119,7 +137,6 @@ def main(argv: list[str] | None = None) -> int:
     current_milestone = _get_current_milestone(owner, repo, args.issue)
 
     output = {
-        "success": False,
         "issue": args.issue,
         "milestone": None,
         "previous_milestone": current_milestone,
@@ -128,9 +145,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.clear:
         if not current_milestone:
-            output["success"] = True
             output["action"] = "no_change"
-            print(json.dumps(output, indent=2))
+            _emit(output, fmt)
             _write_github_output({
                 "success": "true",
                 "issue": str(args.issue),
@@ -151,9 +167,8 @@ def main(argv: list[str] | None = None) -> int:
         if result.returncode != 0:
             error_and_exit("Failed to clear milestone", 3)
 
-        output["success"] = True
         output["action"] = "cleared"
-        print(json.dumps(output, indent=2))
+        _emit(output, fmt)
         _write_github_output({
             "success": "true",
             "issue": str(args.issue),
@@ -170,10 +185,9 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if current_milestone == args.milestone:
-        output["success"] = True
         output["milestone"] = args.milestone
         output["action"] = "no_change"
-        print(json.dumps(output, indent=2))
+        _emit(output, fmt)
         _write_github_output({
             "success": "true",
             "issue": str(args.issue),
@@ -203,10 +217,9 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit("Failed to set milestone", 3)
 
     action = "replaced" if current_milestone else "assigned"
-    output["success"] = True
     output["milestone"] = args.milestone
     output["action"] = action
-    print(json.dumps(output, indent=2))
+    _emit(output, fmt)
 
     gh_outputs: dict[str, str] = {
         "success": "true",
