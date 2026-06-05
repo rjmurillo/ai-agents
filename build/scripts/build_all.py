@@ -659,6 +659,138 @@ def _select_platform_configs(
     return files
 
 
+# --- Owned prefixes: scope shared by --check staleness and snapshot ------
+#
+# These are the directories generators are allowed to own. Two consumers
+# need the exact same scope, kept identical here:
+#   1. The --check staleness diff (filter on `git diff` output).
+#   2. The --check snapshot/restore guard (#2440) that keeps --check
+#      read-only by reverting any generator writes under these prefixes.
+# Keep these in lock-step. If a new generator lands that writes to a
+# different prefix, add it here so both behaviors keep covering it.
+OWNED_PREFIXES: tuple[str, ...] = ("src/", ".github/instructions/")
+
+
+def _snapshot_owned_prefixes(
+    repo_root: Path, prefixes: tuple[str, ...]
+) -> dict[Path, bytes]:
+    """Snapshot every file under ``prefixes`` into an in-memory dict.
+
+    Returns a mapping of absolute Path → raw bytes for every regular file
+    found under each prefix that exists. Directories that do not exist
+    are silently skipped (they may be created by generators).
+
+    Used by --check to make the build orchestrator read-only (#2440).
+    The snapshot is held in process memory because the real owned-prefix
+    tree is ~21MB and a temp-dir copytree adds I/O and cleanup hazards
+    without buying meaningful safety. Symlinks under owned prefixes are
+    not in scope today: generators only emit regular files, and treating
+    them as such matches the existing copytree semantics in
+    :func:`_build_directory_copy`.
+    """
+    snapshot: dict[Path, bytes] = {}
+    for prefix in prefixes:
+        root = repo_root / prefix
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if not path.is_file() or path.is_symlink():
+                continue
+            try:
+                snapshot[path] = path.read_bytes()
+            except OSError:
+                # Unreadable file (permissions, race). Skip — restore will
+                # treat it as not-present which keeps the working tree at
+                # least as clean as it was before the run.
+                continue
+    return snapshot
+
+
+def _restore_owned_prefixes(
+    repo_root: Path,
+    prefixes: tuple[str, ...],
+    snapshot: dict[Path, bytes],
+) -> None:
+    """Restore the working tree to the snapshot state under ``prefixes``.
+
+    Three cases per path:
+      1. In snapshot AND on disk → if content differs, overwrite with
+         snapshot bytes.
+      2. In snapshot AND not on disk → write snapshot bytes back (the
+         file existed before the run, the generator deleted it).
+      3. On disk AND not in snapshot → delete it (the generator created
+         a new path that did not exist pre-run).
+
+    After this returns, every file under ``prefixes`` matches its
+    pre-run state. Pre-existing dirty state (uncommitted edits, untracked
+    files) is preserved exactly because the snapshot captured it.
+    """
+    current = _enumerate_files_under(repo_root, prefixes)
+
+    # Cases 1 & 2: restore every file that was in the snapshot.
+    for path, content in snapshot.items():
+        try:
+            if path.exists() and path.read_bytes() == content:
+                continue  # already matches snapshot
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+        except OSError as exc:
+            # Best-effort restore; surface so CI logs show what was missed.
+            print(
+                f"WARN: failed to restore {path} after --check: {exc}",
+                file=sys.stderr,
+            )
+
+    # Case 3: delete files that exist now but were not in the snapshot.
+    for path in current - set(snapshot):
+        try:
+            path.unlink()
+        except OSError as exc:
+            print(
+                f"WARN: failed to remove generator-created {path} after --check: {exc}",
+                file=sys.stderr,
+            )
+
+    _prune_empty_dirs(repo_root, prefixes)
+
+
+def _enumerate_files_under(
+    repo_root: Path, prefixes: tuple[str, ...]
+) -> set[Path]:
+    """Return every regular non-symlink file under any of ``prefixes``."""
+    found: set[Path] = set()
+    for prefix in prefixes:
+        root = repo_root / prefix
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.is_file() and not path.is_symlink():
+                found.add(path)
+    return found
+
+
+def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
+    """Remove empty directories the generator created under ``prefixes``.
+
+    Walks bottom-up so child dirs go before parents. Never touches the
+    prefix root itself.
+    """
+    for prefix in prefixes:
+        root = repo_root / prefix
+        if not root.is_dir():
+            continue
+        for dirpath in sorted(
+            (p for p in root.rglob("*") if p.is_dir()),
+            key=lambda p: len(p.parts),
+            reverse=True,
+        ):
+            try:
+                if not any(dirpath.iterdir()):
+                    dirpath.rmdir()
+            except OSError:
+                continue
+
+
 def run(
     repo_root: Path,
     *,
@@ -683,6 +815,38 @@ def run(
             rc = max(rc, clean_outputs(repo_root, cfg))
         return rc
 
+    # #2440: --check must be read-only. Snapshot the owned-prefix trees
+    # BEFORE any generator runs so we can revert any writes after the
+    # staleness diff is computed. This makes --check safe to call from
+    # any worktree without dirtying it.
+    snapshot: dict[Path, bytes] | None = None
+    if check:
+        snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
+
+    try:
+        return _run_generators(
+            repo_root, configs, check=check, audit_format=audit_format
+        )
+    finally:
+        # #2440: ALWAYS restore on --check, including on exception paths.
+        # Otherwise a generator crash mid-build leaves partial writes
+        # in the caller's worktree.
+        if snapshot is not None:
+            _restore_owned_prefixes(repo_root, OWNED_PREFIXES, snapshot)
+
+
+def _run_generators(
+    repo_root: Path,
+    configs: list[Path],
+    *,
+    check: bool,
+    audit_format: str,
+) -> int:
+    """Execute the generator pipeline and emit the audit log.
+
+    Split out of :func:`run` so the snapshot/restore wrapping stays
+    legible. Returns the orchestrator exit code.
+    """
     audit = BuildAudit(started_at=time.time())
     started = time.monotonic()
 
@@ -732,10 +896,9 @@ def run(
         # Limit staleness check to paths the generators actually own. Other
         # working-tree drift (e.g. uv.lock) is the user's responsibility,
         # not the build orchestrator's.
-        owned_prefixes = ("src/", ".github/instructions/")
         diff = [
             p for p in _git_diff_paths(repo_root)
-            if any(p.startswith(prefix) for prefix in owned_prefixes)
+            if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
         ]
         if diff:
             print("STALENESS DETECTED — uncommitted regen drift:", file=sys.stderr)

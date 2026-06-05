@@ -539,6 +539,11 @@ def _init_git_repo(repo: Path) -> None:
     subprocess.run(
         ["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True
     )
+    # Mirror the real repo's gitignore policy: build/audit/ is transient
+    # and never committed. Without this, every test that runs build_all.run()
+    # sees `?? build/` in `git status --porcelain` and the #2440 read-only
+    # contract assertions can't tell generator drift from audit-log noise.
+    (repo / ".gitignore").write_text("/build/audit/\n")
 
 
 def test_git_diff_paths_includes_untracked_files(tmp_path: Path) -> None:
@@ -690,4 +695,276 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     )
     assert rc == 0, (
         f"expected exit 0 from non-owned untracked drift, got {rc}"
+    )
+
+
+# Regression: #2440 — --check must be read-only ----------------------------
+#
+# Prior to the fix, `build_all.py --check` ran generators FIRST (which write
+# under owned prefixes like src/copilot-cli/ and .github/instructions/), then
+# diffed the result. That left a previously-clean working tree dirty whenever
+# committed outputs were stale, breaking the agents that called --check on
+# unrelated worktrees. These tests pin the read-only contract: regardless of
+# whether the tree was clean or already dirty, `--check` MUST restore the
+# pre-run state on exit.
+def _git_porcelain(repo: Path) -> str:
+    import subprocess
+
+    # Use -uall so untracked files (not just collapsed dirs) appear; the
+    # #2440 contract is about per-file invariance, so the diff baseline
+    # must enumerate files.
+    proc = subprocess.run(
+        ["git", "-C", str(repo), "status", "--porcelain", "-uall"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return proc.stdout
+
+
+def test_run_check_leaves_clean_tree_unchanged_when_committed_outputs_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2440 contract: --check on a clean tree with stale outputs MUST stay clean.
+
+    Sets up a repo where the committed output (`src/copilot-cli/skills/alpha/
+    SKILL.md`) differs from what the generator would produce, commits that
+    stale state, then runs --check. The pre-fix behavior is the generator
+    overwrites the file, leaving the worktree dirty. The post-fix behavior
+    is exit 2 (staleness detected) with the working tree restored to its
+    pre-run state.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    # Source skill that the generator will copy from.
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")  # content: "# alpha\n"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    # Pre-commit a STALE output (content differs from source). This is the
+    # exact pattern --check is meant to detect.
+    out_dir = repo / "src" / "copilot-cli" / "skills" / "alpha"
+    out_dir.mkdir(parents=True)
+    stale_path = out_dir / "SKILL.md"
+    stale_path.write_text("# stale\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed with stale output"],
+        check=True,
+    )
+    assert _git_porcelain(repo) == ""  # baseline: clean tree
+
+    # Stub _build_agents because the real one needs a templates tree.
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    # Staleness MUST be reported (source has "# alpha\n", committed output
+    # has "# stale\n" so the generator-written content differs from index).
+    assert rc == 2, (
+        f"expected exit 2 (staleness detected), got {rc}. "
+        "If this regresses, --check no longer detects committed-but-stale outputs."
+    )
+    # AND the working tree MUST be unchanged — this is the #2440 contract.
+    porcelain = _git_porcelain(repo)
+    assert porcelain == "", (
+        f"--check left working tree dirty (#2440 regression). "
+        f"git status --porcelain output:\n{porcelain}"
+    )
+    # The stale file content must be preserved on disk too.
+    assert stale_path.read_text() == "# stale\n", (
+        "--check overwrote the committed stale output instead of restoring it"
+    )
+
+
+def test_run_check_leaves_untracked_owned_path_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2440: an untracked file the generator would NOT create must survive.
+
+    A common contributor scenario: while iterating on a generator, they have
+    an untracked scratch file under src/copilot-cli/ that has nothing to do
+    with the build. --check must not delete or modify it.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+    # Untracked contributor scratch file under an owned prefix.
+    scratch = repo / "src" / "copilot-cli" / "scratch_notes.md"
+    scratch.parent.mkdir(parents=True, exist_ok=True)
+    scratch.write_text("WIP notes\n")
+    porcelain_before = _git_porcelain(repo)
+    assert "scratch_notes.md" in porcelain_before  # baseline: dirty (untracked)
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    # The untracked contributor file MUST still exist with its original content.
+    assert scratch.is_file(), "--check deleted an untracked contributor file"
+    assert scratch.read_text() == "WIP notes\n", (
+        "--check modified an untracked contributor file"
+    )
+    # AND the git status must still show exactly the same dirty set.
+    porcelain_after = _git_porcelain(repo)
+    assert porcelain_after == porcelain_before, (
+        f"--check changed git status. before:\n{porcelain_before}\n"
+        f"after:\n{porcelain_after}"
+    )
+
+
+def test_run_check_restores_owned_prefix_after_generator_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2440: a committed file overwritten by a generator MUST be restored.
+
+    Direct test of the snapshot/restore primitive. Pre-commits a file under
+    an owned prefix, then runs --check with a generator that overwrites it.
+    Post-condition: the file is back to its committed content.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    # Pre-commit a tracked file under .github/instructions/ that is committed
+    # at content A, and arrange for the run to (hypothetically) write content B.
+    inst_dir = repo / ".github" / "instructions"
+    inst_dir.mkdir(parents=True)
+    tracked = inst_dir / "rule-x.md"
+    tracked.write_text("committed A\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed instructions"],
+        check=True,
+    )
+
+    def _overwriting_agent(repo_root, cfg, platform):
+        # Simulate what generate_rules does: write under owned prefix.
+        (repo_root / ".github" / "instructions" / "rule-x.md").write_text(
+            "regenerated B\n"
+        )
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", _overwriting_agent)
+
+    build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    # Post-check: file content MUST match the committed snapshot, not the
+    # generator's overwrite.
+    assert tracked.read_text() == "committed A\n", (
+        "--check left generator output in place; expected snapshot restore"
+    )
+    assert _git_porcelain(repo) == "", "--check left working tree dirty"
+
+
+def test_run_check_removes_new_untracked_files_generators_created(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2440: a NEW file the generator created under an owned prefix MUST be removed.
+
+    If the generator output adds a path that didn't exist pre-run, --check
+    must clean it up. Otherwise --check leaks generator output as untracked
+    files into the caller's worktree.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+    assert _git_porcelain(repo) == ""
+
+    new_path = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
+
+    def _creating_agent(repo_root, cfg, platform):
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        new_path.write_text("# alpha\n")
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", _creating_agent)
+
+    build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+    # The new file MUST have been cleaned up by the restore pass.
+    assert not new_path.exists(), (
+        "--check left a generator-created file behind; "
+        "snapshot restore must remove new files under owned prefixes."
+    )
+    assert _git_porcelain(repo) == "", "--check left working tree dirty"
+
+
+def test_run_without_check_does_not_snapshot_or_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without --check, generator writes MUST persist (normal generate mode).
+
+    The snapshot/restore behavior is gated on --check; a plain
+    `build_all.py` (no --check) is a real generation run and must leave
+    its output in place.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+    # The real skills generator wrote src/copilot-cli/skills/alpha/SKILL.md.
+    out = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
+    assert out.is_file(), (
+        "non-check run must leave generator output in place "
+        "(snapshot/restore must be --check-only)"
     )
