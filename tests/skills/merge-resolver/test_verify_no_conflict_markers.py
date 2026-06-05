@@ -38,6 +38,7 @@ from claude_skills_import import import_skill_script  # noqa: E402
 mod = import_skill_script(".claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py")
 verify = mod.verify
 main = mod.main
+_run_git = mod._run_git
 list_unmerged_files = mod.list_unmerged_files
 find_leftover_markers = mod.find_leftover_markers
 
@@ -261,6 +262,22 @@ class TestRealConflictsFlagged:
         )
         assert report["ok"] is True
 
+    def test_whitespace_errors_do_not_count_as_conflict_markers(
+        self,
+        repo_with_intentional_fenced_marker: Path,
+    ) -> None:
+        """Whitespace-only diff check findings do not fail marker validation."""
+        app = repo_with_intentional_fenced_marker / "app.py"
+        app.write_text("def foo():\n    return 1\n")
+        _git(repo_with_intentional_fenced_marker, "add", "app.py")
+        _git(repo_with_intentional_fenced_marker, "commit", "-q", "-m", "seed app.py")
+        app.write_text("def foo():    \n    return 1\n")
+
+        exit_code, report = verify(repo_with_intentional_fenced_marker)
+        assert exit_code == 0
+        assert report["ok"] is True
+        assert find_leftover_markers(repo_with_intentional_fenced_marker) == []
+
 
 # ---------------------------------------------------------------------------
 # Setup / usage error handling
@@ -268,7 +285,12 @@ class TestRealConflictsFlagged:
 
 
 class TestSetupAndUsageErrors:
-    def test_non_git_directory_returns_exit_2(self, tmp_path: Path) -> None:
+    def test_non_git_directory_returns_exit_2(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
         not_a_repo = tmp_path / "not-a-repo"
         not_a_repo.mkdir()
         exit_code, report = verify(not_a_repo)
@@ -317,7 +339,9 @@ class TestCliEntryPoint:
         self,
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
         not_a_repo = tmp_path / "x"
         not_a_repo.mkdir()
         exit_code = main(["--cwd", str(not_a_repo), "--json"])
@@ -325,6 +349,23 @@ class TestCliEntryPoint:
         assert exit_code == 2
         parsed = json.loads(captured.out)
         assert parsed["error"] == "not_in_git_repo"
+
+    def test_main_returns_two_for_os_error_without_traceback(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def raise_os_error(cwd: Path) -> tuple[int, dict[str, object]]:
+            raise OSError("git not found")
+
+        monkeypatch.setattr(mod, "verify", raise_os_error)
+
+        exit_code = main(["--cwd", str(tmp_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 2
+        assert captured.out == ""
+        assert "git command failed: git not found" in captured.err
 
     def test_main_human_format_includes_marker_lines(
         self,
@@ -349,6 +390,34 @@ class TestCliEntryPoint:
 
 
 class TestHelperFunctions:
+    def test_run_git_forces_c_locale(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        seen: dict[str, object] = {}
+
+        def fake_run(
+            command: list[str],
+            cwd: str | None,
+            env: dict[str, str],
+            capture_output: bool,
+            text: bool,
+            check: bool,
+        ) -> subprocess.CompletedProcess[str]:
+            seen["command"] = command
+            seen["cwd"] = cwd
+            seen["env"] = env
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+
+        _run_git(["diff", "HEAD", "--check"], cwd=tmp_path)
+        assert seen["command"] == ["git", "diff", "HEAD", "--check"]
+        assert seen["cwd"] == str(tmp_path)
+        assert isinstance(seen["env"], dict)
+        assert seen["env"]["LC_ALL"] == "C"
+
     def test_list_unmerged_files_empty_for_clean_repo(
         self, repo_with_intentional_fenced_marker: Path
     ) -> None:

@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -57,9 +58,12 @@ def _run_git(args: list[str], cwd: Path | None = None) -> subprocess.CompletedPr
 
     Does not raise on non-zero exit; callers interpret returncode.
     """
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
     return subprocess.run(
         ["git", *args],
         cwd=str(cwd) if cwd else None,
+        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -104,7 +108,11 @@ def find_leftover_markers(cwd: Path) -> list[str]:
     if result.returncode == 0:
         return []
     if result.returncode == 2:
-        return [line for line in result.stdout.splitlines() if line.strip()]
+        return [
+            line
+            for line in result.stdout.splitlines()
+            if line.strip() and "leftover conflict marker" in line
+        ]
 
     raise RuntimeError(
         f"git diff HEAD --check failed (exit {result.returncode}): {result.stderr.strip()}"
@@ -189,7 +197,11 @@ def main(argv: list[str] | None = None) -> int:
 
     cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd()
 
-    exit_code, report = verify(cwd)
+    try:
+        exit_code, report = verify(cwd)
+    except OSError as exc:
+        print(f"[error] git command failed: {exc}", file=sys.stderr)
+        return 2
 
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
