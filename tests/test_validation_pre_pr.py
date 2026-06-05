@@ -408,32 +408,33 @@ class TestMain:
     External tool calls are mocked to avoid requiring actual tools.
     """
 
-    @patch("checks_common._run_subprocess")
-    def test_quick_mode_skips_slow_checks(self, mock_subprocess: Any) -> None:  # noqa: ANN401
-        # After issue #2223 the validators live in sibling ``checks_*`` modules;
-        # the shared subprocess wrapper they all import lives in checks_common.
-        # main() also dispatches to per-module copies, but the tolerant
-        # assertion below does not depend on the mock reaching every call.
-        mock_subprocess.return_value = (0, "", "")
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_quick_mode_skips_slow_checks(
+        self, mock_which: Any, mock_run: Any  # noqa: ANN401
+    ) -> None:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
         result = main(["--quick", "--skip-tests"])
-        # Should not fail since all checks pass or are skipped
-        assert result in (0, 1)  # May fail if scripts don't exist
+        assert result == 0
 
-    @patch("checks_tooling._run_subprocess")
-    @patch("checks_tooling.shutil")
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_all_pass_returns_zero(
-        self, mock_shutil: Any, mock_subprocess: Any  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any  # noqa: ANN401
     ) -> None:
-        # markdownlint/yamllint tool-availability and subprocess calls live in
-        # checks_tooling after issue #2223; patch them there.
-        mock_subprocess.return_value = (0, "", "")
-        mock_shutil.which.return_value = "/usr/bin/npx"
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
 
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
-        assert result in (0, 1)
+        assert result == 0
 
 
 # ---------------------------------------------------------------------------
