@@ -265,19 +265,31 @@ class TestKnownBaselineDrift:
         assert _classify_overall("merge-resolver", 95.0, 80) == "OK"
 
     def test_baselined_at_floor_is_baselined(self) -> None:
-        floor = KNOWN_BASELINE_DRIFT["merge-resolver"]
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
         assert _classify_overall("merge-resolver", floor, 80) == "OK (baselined)"
 
     def test_baselined_above_floor_below_threshold_is_baselined(self) -> None:
-        floor = KNOWN_BASELINE_DRIFT["merge-resolver"]
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
         assert (
             _classify_overall("merge-resolver", floor + 0.9, 80) == "OK (baselined)"
         )
 
     def test_baselined_below_floor_still_drifts(self) -> None:
-        floor = KNOWN_BASELINE_DRIFT["merge-resolver"]
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
         assert (
             _classify_overall("merge-resolver", floor - 0.1, 80) == "DRIFT DETECTED"
+        )
+
+    def test_baseline_does_not_apply_to_other_comparison(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
+        assert (
+            _classify_overall(
+                "merge-resolver",
+                floor + 0.9,
+                80,
+                ".claude/agents vs .github/agents",
+            )
+            == "DRIFT DETECTED"
         )
 
     def test_non_baselined_below_threshold_drifts(self) -> None:
@@ -292,12 +304,13 @@ class TestKnownBaselineDrift:
             "Rich Claude-only mission text that the counterpart does not carry."
         )
         vscode = "---\ndescription: baselined-fixture\n---\n# Title\n\nNo matching section."
-        KNOWN_BASELINE_DRIFT["baselined-fixture"] = 0.0
+        key = ("baselined-fixture", "src-claude vs src-vscode")
+        KNOWN_BASELINE_DRIFT[key] = 0.0
         try:
             result = compare_agent(claude, vscode, "baselined-fixture", 80)
             assert result.status == "OK (baselined)"
         finally:
-            del KNOWN_BASELINE_DRIFT["baselined-fixture"]
+            del KNOWN_BASELINE_DRIFT[key]
 
 
 class TestRunDetection:

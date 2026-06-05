@@ -82,10 +82,12 @@ SECTIONS_TO_COMPARE = (
 # similarity floor so the gate stops failing on a clean checkout while still
 # catching NEW drift.
 #
-# Contract: an agent listed here is reported as "OK (baselined)" and excluded
-# from the failing drift count ONLY while its overall similarity stays at or
-# above the recorded floor. If it drifts further (similarity drops below the
-# floor), it fails again, so the baseline cannot silently hide regressions.
+# Contract: an agent and comparison pair listed here is reported as
+# "OK (baselined)" and excluded from the failing drift count ONLY while its
+# overall similarity stays at or above the recorded floor. If it drifts further
+# (similarity drops below the floor), it fails again, so the baseline cannot
+# silently hide regressions. The comparison label is part of the key so a
+# source-vendored baseline cannot hide install-copy drift.
 #
 # merge-resolver: src/claude/merge-resolver.md is the tier-hierarchy-enriched
 # prompt (PR #1426) with Core Mission / Key Responsibilities / Execution
@@ -95,8 +97,8 @@ SECTIONS_TO_COMPARE = (
 # agent prompt and change agent behavior (architect review, out of scope for a
 # baseline-green fix). Floor is set just below the measured 20.9% so the
 # existing structure is accepted but any worsening still blocks.
-KNOWN_BASELINE_DRIFT: dict[str, float] = {
-    "merge-resolver": 20.0,
+KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
+    ("merge-resolver", "src-claude vs src-vscode"): 20.0,
 }
 
 # MCP syntax normalization patterns (compiled once)
@@ -213,7 +215,12 @@ def calculate_similarity(text1: str, text2: str) -> float:
     return round((len(intersection) / len(union)) * 100, 1)
 
 
-def _classify_overall(agent_name: str, overall: float, threshold: int) -> str:
+def _classify_overall(
+    agent_name: str,
+    overall: float,
+    threshold: int,
+    comparison: str = "src-claude vs src-vscode",
+) -> str:
     """Classify an agent's overall similarity into a status string.
 
     Returns one of:
@@ -225,7 +232,7 @@ def _classify_overall(agent_name: str, overall: float, threshold: int) -> str:
     """
     if overall >= threshold:
         return "OK"
-    floor = KNOWN_BASELINE_DRIFT.get(agent_name)
+    floor = KNOWN_BASELINE_DRIFT.get((agent_name, comparison))
     if floor is not None and overall >= floor:
         return "OK (baselined)"
     return "DRIFT DETECTED"
@@ -276,7 +283,7 @@ def compare_agent(
         compared_count += 1
 
     overall = round(total_similarity / compared_count, 1) if compared_count > 0 else 100.0
-    overall_status = _classify_overall(agent_name, overall, threshold)
+    overall_status = _classify_overall(agent_name, overall, threshold, comparison)
     drifting = [r.section for r in section_results if r.status == "DRIFT"]
 
     return AgentResult(
