@@ -157,10 +157,9 @@ def _session_log_for_validation(
     checked out into the current worktree, ``repo_root/<path>`` does not
     exist on disk, which produced an opaque "Session End validation failed"
     (#2387). Read the content from the branch ref via ``git show`` into a
-    temp file (scratch in ``$TMPDIR`` per AGENTS.md, never the working tree)
-    and yield that path. Fall back to the working-tree copy when the ref read
-    fails but the file is present locally; yield None when neither source has
-    the content, so the caller skips validation rather than fail spuriously.
+    temp file under ignored ``.agents/scratch/session-log-validation`` and yield
+    that path. Yield None when the ref read fails, so stale working-tree files
+    cannot produce a false validation pass.
     """
     show = subprocess.run(
         ["git", "show", f"{head}:{session_log}"],
@@ -171,7 +170,9 @@ def _session_log_for_validation(
         env=_git_env(),
     )
     if show.returncode == 0:
-        scratch_dir = os.path.join(repo_root, ".agents")
+        scratch_dir = os.path.join(
+            repo_root, ".agents", "scratch", "session-log-validation"
+        )
         os.makedirs(scratch_dir, exist_ok=True)
         tmp_name = ""
         try:

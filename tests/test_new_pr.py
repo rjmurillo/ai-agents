@@ -388,8 +388,10 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/not-checked-out")
 
         assert len(validated_paths) == 1
-        # The validated path is scratch under .agents, not the branch worktree path.
-        assert Path(validated_paths[0]).parent == tmp_path / ".agents"
+        # The validated path is ignored repo-local scratch, not the branch log path.
+        assert Path(validated_paths[0]).parent == (
+            tmp_path / ".agents" / "scratch" / "session-log-validation"
+        )
         assert not Path(validated_paths[0]).name.endswith("session-01.json")
 
     def test_session_log_missing_from_head_skips_validation(self, tmp_path, capsys):
