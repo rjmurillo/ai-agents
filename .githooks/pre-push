@@ -310,7 +310,7 @@ CHANGED_PLANNING=$(echo "$CHANGED_FILES" | grep -E '^\.agents/planning/' || true
 CHANGED_ADRS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/architecture/ADR-.*\.md$' || true)
 # Agent drift compares agent prompt copies only. Copilot skill scripts live under
 # src/copilot-cli/skills/ and must not inherit unrelated agent drift blockers.
-CHANGED_AGENT_DRIFT_INPUTS=$(echo "$CHANGED_FILES" | grep -E '^(src/claude/.*\.md$|src/copilot-cli/agents/|src/vs-code-agents/|templates/agents/|\.claude/agents/|\.github/agents/)' || true)
+CHANGED_AGENT_DRIFT_INPUTS=$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+\.md|src/vs-code-agents/.*\.agent\.md|src/copilot-cli/agents/.*\.agent\.md|templates/agents/|\.claude/agents/|\.github/agents/)' || true)
 # Hook-anchoring relevant paths (#2205): generator, both plugin hook files,
 # the project-mode settings source, the anchoring gate, and the e2e itself.
 # A change to any forces the real-CLI e2e (resolution under the live contract).
@@ -770,7 +770,7 @@ if [ -n "$CHANGED_AGENT_DRIFT_INPUTS" ]; then
         record_skip "Agent drift detection (script not found at $AGENT_DRIFT_SCRIPT; non-blocking, build_all.py --check is authoritative)"
     fi
 else
-    record_skip "Agent drift detection (no agent/template files changed)"
+    record_skip "Agent drift detection (no agent source/template files changed)"
 fi
 
 # 11b. Build pipeline staleness (build_all.py --check)

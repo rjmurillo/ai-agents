@@ -107,6 +107,21 @@ def test_build_all_check_remains_authoritative() -> None:
     assert '"$BUILD_ALL_SCRIPT" --check' in text
 
 
+def test_agent_drift_trigger_is_agent_scoped() -> None:
+    """Skill and plugin source edits must not run unrelated agent drift checks."""
+    text = _pre_push_text()
+    drift_block_start = text.index("# 11. Agent drift detection")
+    drift_block_end = text.index("# 11b. Build pipeline staleness")
+    drift_block = text[drift_block_start:drift_block_end]
+
+    assert "CHANGED_AGENT_DRIFT_INPUTS=" in text
+    assert 'if [ -n "$CHANGED_AGENT_DRIFT_INPUTS" ]; then' in drift_block
+    assert "src/claude/[^/]+\\.md" in text
+    assert "src/copilot-cli/agents/" in text
+    assert "src/vs-code-agents/" in text
+    assert "grep -E '^(src/|templates/" not in text
+
+
 def test_drift_missing_message_names_exact_path() -> None:
     """When the drift script is missing, the SKIP message must name the path.
 
