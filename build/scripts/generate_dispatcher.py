@@ -1,18 +1,33 @@
-"""Emit the single-dispatcher artifacts for Copilot CLI hooks (ADR-068, #2295).
+"""Emit the single-dispatcher artifacts for Copilot CLI hooks (ADR-068, #2295, #2342).
 
-GATED / NOT WIRED BY DEFAULT. ``generate_hooks.py`` does not call this module in
-its default path, so default builds remain byte-identical (N hooks.json entries
-per event). The cutover (registering one dispatcher entry per event instead of
-N shim entries) is the reviewed, validated step described in ADR-068; this
-module is the mechanism that step would use.
+Wired via ``generate_hooks_events.py`` when ``artifacts.hooks.dispatcher`` is
+true (only the Copilot CLI platform sets it). EVERY event is consolidated to one
+in-process dispatcher entry, so Copilot spawns one interpreter per event per
+trigger instead of one per shim (#2342: ~75% spawn reduction across a session).
+
+Each consolidated event runs in one of two modes:
+
+- ``gate`` (``PreToolUse``): the dispatcher short-circuits on the first non-zero
+  shim exit and fails closed (ADR-066). Behavior is identical to #2295.
+- ``observe`` (``PostToolUse``, ``SessionStart``, ``SessionEnd``,
+  ``UserPromptSubmit``): the dispatcher runs every shim regardless of an
+  earlier non-zero exit and always returns 0, matching the pre-consolidation
+  host behavior where the host ran every observer entry.
 
 For an event whose registered matcher shims are ``shim_names`` (in hooks.json
 order, the authoritative registered set, NOT a directory listing), it produces:
 
-- ``_manifest.json`` next to the shims: the ordered shim list the dispatcher
-  runs in-process.
+- ``_manifest.json`` next to the shims: the ordered shim list plus the event's
+  ``mode``; the dispatcher runs the shims in-process.
 - ``_dispatch.py`` next to the shims: the thin entrypoint the host invokes once
-  per event; it reads stdin and delegates to ``hook_dispatch.run_dispatch``.
+  per event; it reads stdin and the manifest mode, then delegates to
+  ``hook_dispatch.run_dispatch`` with the matching ``short_circuit`` flag.
+  The entrypoint validates per-shim timeout metadata, but the host owns the
+  cumulative event timeout. In-process timeout threads are intentionally not
+  used because Python cannot kill them safely.
+- ``_bootstrap.py`` next to the shims (copied from the canonical
+  ``.claude/hooks/PreToolUse/_bootstrap.py``): the entrypoint imports
+  ``ensure_plugin_paths`` from it, so every consolidated event dir needs a copy.
 - the single ``hooks.json`` entry (via :func:`dispatcher_entry`) that points the
   host at ``_dispatch.py`` for that event.
 """
@@ -21,13 +36,21 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
-# Mirror contract from build/scripts/generate_hooks.py::_build_copilot_entry:
-# bash='python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/{rel}"',
-# powershell='py -3 -u "$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/{rel}"',
-# cwd=".", timeoutSec=timeout_sec. The dispatcher swaps {rel} to point at the
-# per-event _dispatch.py but keeps root resolution and shell shape identical.
+# Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
+# bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
+# powershell_root = (
+#     "$(if ($env:COPILOT_PLUGIN_ROOT) "
+#     "{$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})"
+# )
+# "bash": f'python3 -u "{bash_root}/{rel}"'
+# "powershell": f'py -3 -u "{powershell_root}/{rel}"'
+# "cwd": "."
+# "timeoutSec": timeout_sec
+# The dispatcher swaps {rel} to point at the per-event _dispatch.py but keeps
+# root resolution and shell shape identical.
 _BASH_TEMPLATE = (
     'python3 -u "${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}/hooks/{event}/_dispatch.py"'
 )
@@ -51,6 +74,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
 _MAX_STDIN_BYTES = 2 * 1024 * 1024
+_GATE_EVENTS = ("PreToolUse", "preToolUse")
 
 
 def _main() -> int:
@@ -60,9 +84,27 @@ def _main() -> int:
 
         event_dir = Path(__file__).resolve().parent
         manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
+        event = manifest.get("event")
+        if not isinstance(event, str):
+            raise TypeError("manifest field 'event' must be a string")
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
+        # mode selects gate (short_circuit, fail-closed) vs observe (run all,
+        # never gate). Default to gate when absent so an older manifest fails
+        # closed (ADR-066) rather than silently dropping a guard.
+        mode = manifest.get("mode", "gate")
+        if mode not in ("gate", "observe"):
+            raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
+        expected_mode = "gate" if event in _GATE_EVENTS else "observe"
+        if mode != expected_mode:
+            raise ValueError(
+                f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
+            )
+        short_circuit = mode == "gate"
+        # Validate timeout metadata so malformed manifests fail closed. Do not
+        # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
+        # timed-out thread, and the host already owns this process timeout.
         timeouts = manifest.get("timeouts", {})
         if not isinstance(timeouts, dict):
             raise TypeError("manifest field 'timeouts' must be a dict when present")
@@ -79,7 +121,7 @@ def _main() -> int:
         raw = sys.stdin.buffer.read(_MAX_STDIN_BYTES + 1)
         if len(raw) > _MAX_STDIN_BYTES:
             raise ValueError(f"stdin exceeds {_MAX_STDIN_BYTES} bytes")
-        return run_dispatch(event_dir, shims, raw, shim_timeouts)
+        return run_dispatch(event_dir, shims, raw, shim_timeouts, short_circuit=short_circuit)
     except Exception as exc:  # noqa: BLE001 - generated entrypoint must fail closed
         print(
             f"hook-dispatch-entrypoint: {type(exc).__name__}: {exc}; denying (fail-closed)",
@@ -108,10 +150,21 @@ def write_manifest(
     event: str,
     shim_names: list[str],
     shim_timeouts: dict[str, int] | None = None,
+    *,
+    mode: str = "gate",
 ) -> Path:
-    """Write the ordered shim manifest next to the shims; return its path."""
+    """Write the ordered shim manifest next to the shims; return its path.
+
+    ``mode`` is ``"gate"`` (short-circuit, fail-closed; ``PreToolUse``) or
+    ``"observe"`` (run every shim, never gate; the other events). The
+    entrypoint reads it to choose ``run_dispatch``'s ``short_circuit`` flag.
+    ``shim_timeouts`` are carried for manifest validation and cumulative host
+    timeout budgeting; they are not enforced inside the dispatcher process.
+    """
+    if mode not in ("gate", "observe"):
+        raise ValueError(f"mode must be 'gate' or 'observe', got {mode!r}")
     manifest_path = event_dir / "_manifest.json"
-    manifest = {"event": event, "shims": list(shim_names)}
+    manifest: dict = {"event": event, "mode": mode, "shims": list(shim_names)}
     if shim_timeouts is not None:
         manifest["timeouts"] = {
             name: int(shim_timeouts[name])
@@ -123,6 +176,27 @@ def write_manifest(
         encoding="utf-8",
     )
     return manifest_path
+
+
+# Canonical _bootstrap.py. The dispatcher entrypoint imports
+# ``ensure_plugin_paths`` from a sibling ``_bootstrap.py``; only the PreToolUse
+# source dir ships one, so every consolidated event dir gets a copy of THIS file
+# (single source of truth: copy, never re-author).
+_CANONICAL_BOOTSTRAP = (
+    Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "PreToolUse" / "_bootstrap.py"
+)
+
+
+def _copy_bootstrap(event_dir: Path) -> Path:
+    """Copy the canonical ``_bootstrap.py`` into ``event_dir``; return its path.
+
+    The entrypoint does ``from _bootstrap import ensure_plugin_paths`` after
+    inserting its own dir on ``sys.path``, so a copy must sit next to every
+    ``_dispatch.py``. Copying from one canonical source avoids N drifting copies.
+    """
+    dest = event_dir / "_bootstrap.py"
+    shutil.copyfile(_CANONICAL_BOOTSTRAP, dest)
+    return dest
 
 
 def write_entrypoint(event_dir: Path) -> Path:
@@ -138,27 +212,34 @@ def emit_dispatcher(
     shim_names: list[str],
     timeout_sec: int,
     shim_timeouts: dict[str, int] | None = None,
+    *,
+    mode: str = "gate",
 ) -> dict:
-    """Write manifest + entrypoint and return the single hooks.json entry.
+    """Write manifest + entrypoint + bootstrap and return the hooks.json entry.
 
     ``timeout_sec`` should be the sum of the per-shim timeouts the dispatcher
     replaces, so the consolidated entry preserves the cumulative budget from
-    the separate host invocations.
+    the separate host invocations. ``mode`` is ``"gate"`` (``PreToolUse``,
+    fail-closed short-circuit) or ``"observe"`` (all shims run, never gate).
     """
-    write_manifest(event_dir, event, shim_names, shim_timeouts)
+    write_manifest(event_dir, event, shim_names, shim_timeouts, mode=mode)
     write_entrypoint(event_dir)
+    _copy_bootstrap(event_dir)
     return dispatcher_entry(event, timeout_sec)
 
 
-# Only the tool-gating event is consolidated: it is the one with the measured
-# spawn-storm timeout (#2295). PreToolUse short-circuits on the first denial,
-# which is correct for tool gating. Observational events (PostToolUse,
-# SessionStart, SessionEnd, UserPromptSubmit) keep per-shim entries; the host
-# runs all of them and a single-process short-circuit would change that. Both
+# Tool-gating events short-circuit on the first denial (fail-closed). Every
+# other event is observational: the host ran all of its entries before
+# consolidation, so the dispatcher must run all shims and never gate. Both
 # casings are handled (Copilot event-name casing differs across generations).
-_CONSOLIDATE_EVENTS = ("PreToolUse", "preToolUse")
+_GATE_EVENTS = ("PreToolUse", "preToolUse")
 _DEFAULT_TIMEOUT_SEC = 5
 _SCRIPT_RE = re.compile(r"/hooks/[^/]+/([^/\"']+\.py)(?!\.\w)")
+
+
+def _mode_for_event(event: str) -> str:
+    """Return ``"gate"`` for tool-gating events, ``"observe"`` for the rest."""
+    return "gate" if event in _GATE_EVENTS else "observe"
 
 
 def _shim_basename(command: str) -> str | None:
@@ -168,20 +249,20 @@ def _shim_basename(command: str) -> str | None:
 
 
 def consolidate(out: dict, hooks_dir: Path) -> dict:
-    """Collapse the tool-gating event's per-shim entries to one dispatcher entry.
+    """Collapse every event's per-shim entries to one dispatcher entry.
 
-    ``out`` is the generator's ``{event: [entry, ...]}`` map. For the gating
-    event this writes ``_manifest.json`` + ``_dispatch.py`` into
+    ``out`` is the generator's ``{event: [entry, ...]}`` map. For each event
+    this writes ``_manifest.json`` + ``_dispatch.py`` + ``_bootstrap.py`` into
     ``hooks_dir/<event>/`` and returns a new map with a single dispatcher entry
-    for that event; all other events pass through unchanged. The shim order is
-    the registered hooks.json order (authoritative) and the consolidated
-    ``timeoutSec`` is the sum of the per-shim timeouts.
+    for that event. Tool-gating events (``PreToolUse``) get ``mode="gate"``
+    (fail-closed short-circuit, unchanged from #2295); all other events get
+    ``mode="observe"`` (all shims run, never gate; #2342). An event whose
+    entries contain no parseable shim path passes through unchanged. The shim
+    order is the registered hooks.json order (authoritative) and the
+    consolidated ``timeoutSec`` is the sum of the per-shim timeouts.
     """
     new_out: dict = {}
     for event, entries in out.items():
-        if event not in _CONSOLIDATE_EVENTS:
-            new_out[event] = entries
-            continue
         shim_entries = [
             (name, int(entry.get("timeoutSec", _DEFAULT_TIMEOUT_SEC)))
             for entry in entries
@@ -195,6 +276,13 @@ def consolidate(out: dict, hooks_dir: Path) -> dict:
         timeout = sum(timeout_sec for _, timeout_sec in shim_entries)
         event_dir = Path(hooks_dir) / event
         new_out[event] = [
-            emit_dispatcher(event_dir, event, shim_names, timeout, shim_timeouts)
+            emit_dispatcher(
+                event_dir,
+                event,
+                shim_names,
+                timeout,
+                shim_timeouts,
+                mode=_mode_for_event(event),
+            )
         ]
     return new_out

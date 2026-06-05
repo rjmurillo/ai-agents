@@ -1,0 +1,16 @@
+{
+  "event": "UserPromptSubmit",
+  "mode": "observe",
+  "shims": [
+    "invoke_serena_reassertion.py",
+    "invoke_autonomous_execution_detector.py",
+    "invoke_research_then_implement.py",
+    "invoke_user_prompt_memory_check.py"
+  ],
+  "timeouts": {
+    "invoke_serena_reassertion.py": 3,
+    "invoke_autonomous_execution_detector.py": 30,
+    "invoke_research_then_implement.py": 3,
+    "invoke_user_prompt_memory_check.py": 30
+  }
+}
