@@ -1,0 +1,45 @@
+{
+  "_comment": "Phase 1 example for eval-skill-overlap.py. The Issue #1932 body named four pairs, but doc-coverage, doc-sync, and session-qa-eligibility were deleted in the M1 catalog prune (commit 5c4729345, #1942). Only live, currently-overlapping pairs are listed here: memory-enhancement/curating-memories (both maintain memory quality) and curating-memories/exploring-knowledge-graph (both touch the memory knowledge graph). Prompts below are illustrative; replace with the per-skill 5-6 native prompts from the triage report before a production run.",
+  "pairs": [
+    ["memory-enhancement", "curating-memories"],
+    ["curating-memories", "exploring-knowledge-graph"]
+  ],
+  "prompts": {
+    "memory-enhancement": [
+      {
+        "prompt": "My memory entries have stale confidence scores after a refactor. How do I reinforce the ones still cited and decay the orphaned ones?",
+        "expected": "Run the reinforcement pass: bump confidence and freshness for entries cited by current artifacts, decay or flag entries whose citations no longer resolve. Operational metadata is its own system of record.",
+        "owner": "memory-enhancement"
+      },
+      {
+        "prompt": "How should citation-validity flags on a memory entry be updated when the source file moves?",
+        "expected": "Re-resolve the citation against the new path, mark the flag valid if the content still matches, invalid if the source is gone. Use an idempotency key so retries do not double-count.",
+        "owner": "memory-enhancement"
+      }
+    ],
+    "curating-memories": [
+      {
+        "prompt": "A memory entry's summary contradicts the ADR it cites. Which one wins and what do I do with the entry?",
+        "expected": "The source ADR wins; the memory summary is a stale projection. Rebuild or invalidate the entry's content from the source. Do not edit the ADR to match the memory.",
+        "owner": "curating-memories"
+      },
+      {
+        "prompt": "When should I merge two near-duplicate memory entries versus keep them separate?",
+        "expected": "Merge when they encode the same knowledge (true duplication). Keep separate when the similarity is coincidental or the distinction is load-bearing. Preserve the higher-confidence observations on merge.",
+        "owner": "curating-memories"
+      }
+    ],
+    "exploring-knowledge-graph": [
+      {
+        "prompt": "I need to find every memory entry related to a decision three hops away from a given symbol. How do I traverse the graph?",
+        "expected": "Use graph traversal from the symbol node, following relation edges up to the hop limit, reading observations at each node. Semantic search seeds the entry point; relations carry the traversal.",
+        "owner": "exploring-knowledge-graph"
+      },
+      {
+        "prompt": "What is the difference between a semantic search over memories and a relation-based graph walk?",
+        "expected": "Semantic search ranks entries by similarity to a query string. A graph walk follows explicit relation edges between entities, preserving causal and structural links that similarity alone misses.",
+        "owner": "exploring-knowledge-graph"
+      }
+    ]
+  }
+}
