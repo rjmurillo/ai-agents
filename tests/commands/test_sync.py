@@ -83,6 +83,20 @@ def test_present_reference_is_not_drift(tmp_path: Path) -> None:
     assert result.refs_checked == 1
 
 
+def test_case_variation_reference_is_not_drift(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    _write_req(repo, "REQ-003B.md", "The code is `SCRIPTS/REAL.py` and exists.\n")
+
+    # Act
+    result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
+
+    # Assert
+    assert result.verdict == "PASS"
+    assert result.findings == []
+    assert result.refs_checked == 1
+
+
 def test_prose_without_path_root_is_ignored(tmp_path: Path) -> None:
     # Arrange: backticked tokens that are not anchored to a code root.
     repo = _make_repo(tmp_path)

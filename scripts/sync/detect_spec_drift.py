@@ -201,10 +201,32 @@ def _is_relative_to_repo(repo_root: Path, candidate: Path) -> bool:
 def _safe_repo_path(repo_root: Path, relative_path: str) -> Path | None:
     if _has_unsafe_path_parts(relative_path):
         return None
-    candidate = (repo_root / relative_path.rstrip("/")).resolve(strict=False)
+    candidate = _resolve_case_insensitive_path(repo_root, relative_path)
+    if candidate is None:
+        return None
     if not _is_relative_to_repo(repo_root, candidate):
         return None
     return candidate
+
+
+def _resolve_case_insensitive_path(repo_root: Path, relative_path: str) -> Path | None:
+    current = repo_root.resolve()
+    fallback = (repo_root / relative_path.rstrip("/")).resolve(strict=False)
+    for part in relative_path.rstrip("/").split("/"):
+        if not current.is_dir():
+            return fallback
+        try:
+            children = list(current.iterdir())
+        except OSError:
+            return None
+        match = next(
+            (child for child in children if child.name.lower() == part.lower()),
+            None,
+        )
+        if match is None:
+            return fallback
+        current = match
+    return current.resolve(strict=False)
 
 
 def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
