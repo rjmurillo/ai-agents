@@ -594,7 +594,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             "repo": repo,
             "has_synthesizable_content": has_content,
             "existing_synthesis_id": existing_synthesis["id"] if existing_synthesis else None,
-            "would_assign": True,
+            "would_assign": not args.skip_assignment,
             "synthesis_body": None,
         }
         if has_content:
@@ -631,7 +631,10 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
                 )
                 return 0
             print("\nNo synthesizable content found, would SKIP synthesis comment")
-        print(f"Would ASSIGN copilot-swe-agent to issue #{issue_number}")
+        if args.skip_assignment:
+            print(f"Would SKIP assignment for issue #{issue_number}")
+        else:
+            print(f"Would ASSIGN copilot-swe-agent to issue #{issue_number}")
         return 0
 
     # Post or update synthesis

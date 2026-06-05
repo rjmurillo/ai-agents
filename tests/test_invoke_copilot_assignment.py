@@ -267,6 +267,30 @@ def test_dry_run_json_outputs_single_envelope(mock_run, capsys):
     assert output["Success"] is True
     assert output["Data"]["action"] == "dry_run"
     assert output["Data"]["has_synthesizable_content"] is False
+    assert output["Data"]["would_assign"] is True
+
+
+@patch("subprocess.run")
+def test_dry_run_json_honors_skip_assignment(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout=_issue_json()),  # issue fetch
+    ]
+
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with patch.object(_mod, "get_issue_comments", return_value=[]):
+            with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
+                rc = main([
+                    "--issue-number", "1", "--dry-run", "--skip-assignment",
+                    "--output-format", "json",
+                ])
+
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is True
+    assert output["Data"]["action"] == "dry_run"
+    assert output["Data"]["would_assign"] is False
 
 
 def _extract_json(text: str) -> dict:
