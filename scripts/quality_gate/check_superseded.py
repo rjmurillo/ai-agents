@@ -130,7 +130,11 @@ def main(argv: list[str] | None = None) -> int:
         print("error: GITHUB_OUTPUT is not set", file=sys.stderr)
         return 2
 
-    write_superseded(Path(github_output), superseded)
+    output_path = Path(github_output).expanduser()
+    if not output_path.is_absolute():
+        output_path = REPOSITORY_ROOT / output_path
+    output_path = output_path.resolve()
+    write_superseded(output_path, superseded)
     return 0
 
 
