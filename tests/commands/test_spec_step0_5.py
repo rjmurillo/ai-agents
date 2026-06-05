@@ -31,9 +31,11 @@ from pathlib import Path
 
 import pytest
 
+import tests.commands.step0_5_parser as step0_5_parser
 from tests.commands.step0_5_parser import (
     GUARD_STRING,
     HALT_BLOCK_FIELDS,
+    STEP_0_5_HEADING,
     VALID_HALT_TRIGGERS,
     adjudicate_entity_scope,
     compute_provisional_tier,
@@ -42,7 +44,9 @@ from tests.commands.step0_5_parser import (
     extract_step0_5_subsection,
     extract_step9_block,
     has_guard_string,
+    load_entity_aliases,
     normalize_topic,
+    normalize_topic_with_aliases,
     parse_halt_block,
     parse_tally_line,
     phases_needed,
@@ -251,6 +255,17 @@ def test_s8_auto_mode_uses_whole_token_equality_not_substring(spec_text: str):
     assert "CWE-863" in body, (
         "rule should cite the access-control weakness it closes"
     )
+
+
+def test_s8_auto_mode_adjudication_applies_rule_5_aliases(spec_text: str):
+    """Auto-mode prose matches parser behavior for entity alias spans."""
+    body = extract_step0_5_subsection(
+        spec_text,
+        "#### Step 0.5 entity adjudication",
+    )
+    assert "applies topic normalization rules 1-5 to the discovered entity" in body
+    assert "every contiguous token span after applying rule 5 alias lookup" in body
+    assert "single-token alias such as `spec`" in body
 
 
 def test_s8_blast_radius_thresholds_2_human_3_auto(spec_text: str):
@@ -821,6 +836,13 @@ def test_adjudicate_matches_against_any_answer_in_the_list():
     assert adjudicate_entity_scope("service-mesh", answers) == "blast-radius"
 
 
+def test_entity_adjudication_applies_aliases_to_entity_and_answer_spans():
+    """Rule 5 aliases apply before whole-token adjudication."""
+    assert entity_matches_answer("spec-pipeline", "the spec command") is True
+    assert entity_matches_answer("spec", "the spec pipeline") is True
+    assert adjudicate_entity_scope("spec-pipeline", ["the spec command"]) == "in-scope"
+
+
 # ---------------------------------------------------------------------------
 # Mirror parity: spec.md and Copilot CLI SKILL.md must agree byte-for-byte
 # on the Step 0.5 block. Same invariant as test_spec_step0.py for Step 0.
@@ -839,3 +861,312 @@ def test_step0_5_block_byte_identical_across_spec_and_skill(
     assert extract_step0_5_block(spec_text) == extract_step0_5_block(
         skill_text
     )
+
+
+# ---------------------------------------------------------------------------
+# Adversarial delimiter hardening (Issue #1976)
+#
+# The Step 0.5 block extractor used to terminate on the first literal
+# `\n---\n`. A horizontal rule inserted inside a fenced example would truncate
+# the block early; a rephrased Step 9 opener would break the Step 9 extractor.
+# These tests pin the hardened behavior with synthetic specs so they stay valid
+# as the real spec.md prose churns.
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_spec(step0_5_body: str) -> str:
+    """Wrap a Step 0.5 body in a minimal spec.md skeleton for parser tests."""
+    return (
+        "### Step 0: First Principles Gate\n\n"
+        "Preamble.\n\n"
+        f"{STEP_0_5_HEADING}\n\n"
+        f"{step0_5_body}\n"
+        "---\n\n"
+        "1. Clarify the problem. Step 1 body.\n"
+    )
+
+
+def test_step0_5_block_ignores_horizontal_rule_inside_fenced_example():
+    """A `---` inside a fenced code block does not terminate the Step 0.5 block.
+
+    Prose churn that adds a horizontal-rule line inside the PriorArtBlock schema
+    example must not truncate the extracted block before its real boundary.
+    """
+    body = (
+        "Some prose before the example.\n\n"
+        "```markdown\n"
+        "## Prior Art / Constraints\n"
+        "\n"
+        "---\n"
+        "\n"
+        "### Direct prior art from memory\n"
+        "```\n\n"
+        "Trailing prose that MUST appear in the extracted block."
+    )
+    block = extract_step0_5_block(_synthetic_spec(body))
+    assert "Trailing prose that MUST appear in the extracted block." in block
+    assert "### Direct prior art from memory" in block
+    # The Step 1 body lives past the closing `---` and must NOT be captured.
+    assert "Clarify the problem" not in block
+
+
+def test_step0_5_block_terminates_on_bare_horizontal_rule_outside_fence():
+    """A bare `---` line outside any fence closes the block (legacy behavior)."""
+    body = "Body line one.\nBody line two."
+    block = extract_step0_5_block(_synthetic_spec(body))
+    assert "Body line two." in block
+    assert "Clarify the problem" not in block
+
+
+def test_step0_5_block_terminates_on_sibling_h3_before_any_rule():
+    """A sibling h3 outside a fence closes the block even with no `---` first.
+
+    The hardened extractor anchors on the next sibling boundary, so a sibling
+    h3 that appears before the closing rule terminates the block instead of
+    over-running to a later `---`.
+    """
+    spec = (
+        "### Step 0: First Principles Gate\n\n"
+        f"{STEP_0_5_HEADING}\n\n"
+        "Step 0.5 body content.\n\n"
+        "### Some Sibling Section\n\n"
+        "Sibling content that is NOT part of Step 0.5.\n"
+        "---\n"
+    )
+    block = extract_step0_5_block(spec)
+    assert "Step 0.5 body content." in block
+    assert "Some Sibling Section" not in block
+    assert "Sibling content" not in block
+
+
+def test_step0_5_block_handles_four_backtick_outer_fence():
+    """A four-backtick outer fence stays open across an inner three-backtick run.
+
+    CommonMark: a closing fence uses the same character and at least as many of
+    them as the opening fence. A `---` between the inner ``` lines must not close
+    the block.
+    """
+    body = (
+        "````markdown\n"
+        "Example halt block:\n"
+        "```step0_5-halt\n"
+        "trigger: H6\n"
+        "```\n"
+        "---\n"
+        "More fenced content.\n"
+        "````\n\n"
+        "Real trailing body."
+    )
+    block = extract_step0_5_block(_synthetic_spec(body))
+    assert "Real trailing body." in block
+    assert "Clarify the problem" not in block
+
+
+def test_step0_5_block_missing_heading_raises():
+    """Absent Step 0.5 heading raises ValueError, not a silent empty block."""
+    with pytest.raises(ValueError, match="Step 0.5 heading not found"):
+        extract_step0_5_block("### Step 0: only\n\nNo gate here.\n")
+
+
+def test_extract_step9_block_matches_rephrased_opener():
+    """Step 9 extraction anchors on `9. ` (any opener), not the critic wording.
+
+    A rephrased Step 9 first sentence must not break extraction.
+    """
+    spec = (
+        "8. Prior step.\n"
+        "9. Skeptical reviewer pass. Rephrased opener with no critic Task call. "
+        "Checks 9a through 9d follow.\n"
+        "   - Check 9d: Prior Art / Constraints elicitation.\n"
+        "## Evaluation Axes\n"
+        "Axes body.\n"
+    )
+    block = extract_step9_block(spec)
+    assert block.startswith("9. Skeptical reviewer pass.")
+    assert "Check 9d" in block
+    assert "Evaluation Axes" not in block
+
+
+def test_extract_step9_block_still_matches_canonical_critic_opener():
+    """The relaxed anchor still matches the canonical Task(critic) opener."""
+    spec = (
+        '9. Task(subagent_type="critic"): skeptical review. 9a-9d follow.\n'
+        "## Evaluation Axes\n"
+    )
+    block = extract_step9_block(spec)
+    assert block.startswith('9. Task(subagent_type="critic")')
+    assert "Evaluation Axes" not in block
+
+
+def test_extract_step9_block_missing_raises():
+    """Absent Step 9 block raises ValueError."""
+    with pytest.raises(ValueError, match="Step 9 block not found"):
+        extract_step9_block("8. only step.\n## Evaluation Axes\n")
+
+
+# ---------------------------------------------------------------------------
+# PriorArtBlock heading parenthetical contract (Issue #1977)
+#
+# The schema section must document that the h2 heading is exactly
+# `## Prior Art / Constraints`, any trailing parenthetical is optional, and
+# check 9d matches by substring. Static assertion on the extracted block.
+# ---------------------------------------------------------------------------
+
+
+def test_s12_prior_art_heading_contract_documented(step0_5_block: str):
+    """The PriorArtBlock schema states the exact-heading + substring-9d rule."""
+    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
+        step0_5_block
+    )
+    assert "any trailing parenthetical" in step0_5_block
+    assert "matches by substring" in step0_5_block
+
+
+def test_s12_prior_art_heading_contract_present_in_skill_mirror(skill_text: str):
+    """The contract sentence is mirrored in the Copilot CLI SKILL.md block.
+
+    The byte-identical parity test covers this implicitly, but a direct
+    assertion fails with a clearer message if the mirror drifts.
+    """
+    skill_block = extract_step0_5_block(skill_text)
+    assert "The h2 heading MUST be exactly `## Prior Art / Constraints`" in (
+        skill_block
+    )
+
+
+# ---------------------------------------------------------------------------
+# Entity-name alias normalization (Issue #1978)
+#
+# Rule 5 of Step 0.5 topic extraction: after rules 1-4, look the normalized
+# string up in .agents/dictionaries/spec-entity-aliases.json and substitute
+# the canonical value on a hit.
+# ---------------------------------------------------------------------------
+
+ALIAS_TABLE_PATH = (
+    PROJECT_ROOT / ".agents" / "dictionaries" / "spec-entity-aliases.json"
+)
+
+
+def test_alias_table_file_exists_and_is_valid_json():
+    """The alias dictionary exists and parses as JSON with an aliases object."""
+    assert ALIAS_TABLE_PATH.is_file()
+    data = json.loads(ALIAS_TABLE_PATH.read_text(encoding="utf-8"))
+    assert isinstance(data.get("aliases"), dict)
+    assert 5 <= len(data["aliases"]) <= 20
+
+
+def test_alias_table_keys_are_already_normalized():
+    """Every alias key is itself the result of rules 1-4 (idempotent).
+
+    Rule 5 looks up the rule-4 output, so a key that is not already normalized
+    could never match and would be dead config.
+    """
+    aliases = load_entity_aliases()
+    for key in aliases:
+        assert normalize_topic(key) == key, (
+            f"alias key {key!r} is not in normalized form"
+        )
+
+
+def test_alias_table_canonical_values_are_normalized():
+    """Every canonical value is also normalized so adjudication is consistent."""
+    aliases = load_entity_aliases()
+    for value in aliases.values():
+        assert normalize_topic(value) == value, (
+            f"canonical value {value!r} is not in normalized form"
+        )
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("spec", "spec-pipeline"),
+        ("SPEC", "spec-pipeline"),
+        ("spec command", "spec-pipeline"),
+        ("memory skill", "memory"),
+        ("memory_search", "memory"),
+        ("knowledge graph", "exploring-knowledge-graph"),
+    ],
+)
+def test_normalize_topic_with_aliases_collapses_synonyms(
+    raw: str, expected: str
+):
+    """Known synonyms collapse to one canonical topic after rule 5."""
+    assert normalize_topic_with_aliases(raw) == expected
+
+
+def test_normalize_topic_with_aliases_passes_through_unknown_topics():
+    """A topic with no alias entry is returned as its rule-4 normalized form."""
+    # `auth service` normalizes to `auth-service`, which is not an alias key.
+    assert normalize_topic_with_aliases("auth service") == "auth-service"
+    assert normalize_topic_with_aliases(
+        ".claude/commands/spec.md"
+    ) == "claude/commands/spec.md"
+
+
+def test_normalize_topic_with_aliases_accepts_injected_table():
+    """An injected alias table avoids the file read and is honored verbatim."""
+    table = {"foo": "bar"}
+    assert normalize_topic_with_aliases("FOO", aliases=table) == "bar"
+    assert normalize_topic_with_aliases("baz", aliases=table) == "baz"
+
+
+def test_load_entity_aliases_missing_file_returns_empty(tmp_path):
+    """A missing alias file degrades to an empty table (pass-through)."""
+    missing = tmp_path / "absent.json"
+    assert load_entity_aliases(missing) == {}
+
+
+def test_load_entity_aliases_null_aliases_returns_empty(tmp_path):
+    """An explicit null aliases key is equivalent to the optional key missing."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": null}', encoding="utf-8")
+
+    assert load_entity_aliases(target) == {}
+
+
+def test_load_entity_aliases_malformed_json_fails_closed(tmp_path):
+    """Malformed alias config raises instead of silently disabling aliases."""
+    target = tmp_path / "aliases.json"
+    target.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(json.JSONDecodeError):
+        load_entity_aliases(target)
+
+
+def test_load_entity_aliases_rejects_non_object_aliases(tmp_path):
+    """Invalid alias shapes raise instead of widening Step 0.5 scope silently."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": []}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="'aliases' must be an object"):
+        load_entity_aliases(target)
+
+
+def test_load_entity_aliases_rejects_non_string_entries(tmp_path):
+    """Alias entries must be strings so config errors fail closed."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": {"spec": 7}}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="string aliases to string canonicals"):
+        load_entity_aliases(target)
+
+
+def test_load_entity_aliases_caches_only_default_path(tmp_path, monkeypatch):
+    """Default alias loading is cached; explicit paths still read the file."""
+    target = tmp_path / "aliases.json"
+    target.write_text('{"aliases": {"spec": "spec-pipeline"}}', encoding="utf-8")
+    monkeypatch.setattr(step0_5_parser, "SPEC_ENTITY_ALIASES_PATH", target)
+    monkeypatch.setattr(step0_5_parser, "_DEFAULT_ENTITY_ALIASES", None)
+
+    assert load_entity_aliases() == {"spec": "spec-pipeline"}
+
+    target.write_text('{"aliases": {"spec": "changed"}}', encoding="utf-8")
+    assert load_entity_aliases() == {"spec": "spec-pipeline"}
+    assert load_entity_aliases(target) == {"spec": "changed"}
+
+
+def test_spec_md_documents_alias_lookup_step(step0_5_block: str):
+    """spec.md normalization block documents rule 5 and the dictionary path."""
+    assert ".agents/dictionaries/spec-entity-aliases.json" in step0_5_block
+    assert "substitute the canonical value" in step0_5_block

@@ -353,6 +353,22 @@ def test_workflow_events_missing_file_returns_empty(tmp_path):
     assert w._workflow_events(tmp_path / "absent.yml") == []
 
 
+def test_workflow_events_returns_empty_when_yaml_missing(monkeypatch, tmp_path):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("No module named yaml")
+        return real_import(name, *args, **kwargs)
+
+    wf = _write_wf(tmp_path, "name: x\non: push\njobs: {}\n")
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert w._workflow_events(wf) == []
+
+
 def test_select_event_returns_none_when_push_present(tmp_path):
     wf = _write_wf(tmp_path, "name: x\non: [push, schedule]\njobs: {}\n")
     assert w._select_act_event(wf) is None

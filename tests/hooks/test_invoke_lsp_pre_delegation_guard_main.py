@@ -240,11 +240,14 @@ class TestMainBlock:
         assert "implementer" in captured.err
 
     def test_exits_2_block_via_task_tool(self, mock_stdin: Callable[[str], None]):
+        # Issue #2103: context-retrieval was folded into a skill and dropped from
+        # ENFORCED_SUBAGENTS. Use the remaining enforced subagent (implementer)
+        # to prove the Task tool path (not just Agent) is still gated.
         mock_stdin(
             _stdin_json(
                 tool_name="Task",
                 tool_input={
-                    "subagent_type": "context-retrieval",
+                    "subagent_type": "implementer",
                     "prompt": LONG_PROMPT_NO_CONTEXT,
                 },
             )
@@ -312,7 +315,7 @@ class TestEmitHelpers:
         assert "blocked delegation" in captured.err
 
     def test_emit_warn_writes_json(self, capsys: pytest.CaptureFixture[str]):
-        guard.emit_warn("context-retrieval")
+        guard.emit_warn("implementer")
         captured = capsys.readouterr()
         payload = json.loads(captured.out)
         assert "systemMessage" in payload["hookSpecificOutput"]

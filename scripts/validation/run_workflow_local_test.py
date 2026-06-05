@@ -218,9 +218,9 @@ def _actionlint_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 # gh act defaults to the ``push`` event. A workflow with no ``push`` trigger
 # (for example schedule-only or workflow_dispatch-only) then makes act error
 # with "Could not find any stages to run", which used to fail this gate for a
-# changed schedule-only workflow even though the workflow is valid (Issue
-# #2374). Pick an event the workflow actually declares so act has a job graph
-# to walk. Preference order keeps the common PR-style events first.
+# changed schedule-only workflow even though the workflow is valid
+# (Issue #2374). Pick an event the workflow actually declares so act has
+# a job graph to walk. Preference order keeps the common PR-style events first.
 _ACT_EVENT_PREFERENCE = (
     "push",
     "pull_request",
@@ -241,7 +241,9 @@ def _workflow_events(wf_path: Path) -> list[str]:
     """
     try:
         import yaml
-
+    except ImportError:
+        return []
+    try:
         data = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
         return []

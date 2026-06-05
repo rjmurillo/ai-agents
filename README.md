@@ -535,6 +535,7 @@ This project uses a **template-based generation system**. To modify agents:
 | [CLAUDE.md](CLAUDE.md) | Claude Code integration |
 | [copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot integration |
 | [docs/workflow-commands.md](docs/workflow-commands.md) | Lifecycle commands (/spec, /plan, /build, /test, /review, /ship) |
+| [docs/when-to-use.md](docs/when-to-use.md) | Fitness guide: which lifecycle phases fit which task shapes, and when the full lifecycle is overkill |
 | [docs/ideation-workflow.md](docs/ideation-workflow.md) | Ideation workflow documentation |
 | [docs/markdown-linting.md](docs/markdown-linting.md) | Markdown standards |
 

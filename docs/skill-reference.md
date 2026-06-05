@@ -68,10 +68,6 @@ Fixes session protocol validation failures in GitHub Actions. Diagnoses and repa
 
 Session management and protocol compliance. Provides session lifecycle operations and investigation-only QA skip eligibility checks per ADR-034. Absorbs the former session-qa-eligibility skill (Issue #1946).
 
-### session-migration
-
-Migrates session logs from markdown to JSON format. Use when processing legacy session logs.
-
 ## Memory and Knowledge
 
 ### memory

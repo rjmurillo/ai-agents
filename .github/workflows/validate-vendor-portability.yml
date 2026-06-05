@@ -1,0 +1,102 @@
+# Validate Vendor Portability (Issue #2050)
+#
+# Fails when a NEW skill script under .claude/skills/ hard-codes an
+# upstream-only path (.agents/ or .claude/lib/) without routing through the
+# portability helper at .claude/lib/paths.py. Pre-existing offenders are
+# tracked in scripts/validation/vendor_portability_baseline.txt and allowed;
+# the ratchet only blocks regressions.
+#
+# Uses dorny/paths-filter: fires on all PRs to satisfy the required-check
+# contract, skips with a passing status when no relevant files changed.
+
+name: Validate Vendor Portability
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'chore/**'
+      - 'copilot/**'
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  check-changes:
+    name: Check for Skill Script Changes
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.skills }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Check path filters
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            skills:
+              - '.claude/skills/**/*.py'
+              - '.claude/lib/paths.py'
+              - 'scripts/validation/check_vendor_portability.py'
+              - 'scripts/validation/vendor_portability_baseline.txt'
+              - '.github/workflows/validate-vendor-portability.yml'
+
+  validate-portability:
+    name: Validate Vendor Portability
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run == 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 3
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Check for new vendor-portability offenders
+        run: python3 scripts/validation/check_vendor_portability.py
+
+      - name: Show remediation on failure
+        if: failure()
+        run: |
+          echo ""
+          echo "=== Vendor Portability Validation Failed ==="
+          echo ""
+          echo "A skill script under .claude/skills/ hard-codes an upstream-only"
+          echo "path (.agents/ or .claude/lib/) without routing through the"
+          echo "portability helper."
+          echo ""
+          echo "To fix, use .claude/lib/paths.py:"
+          echo "  - resolve_artifact_root() for write paths"
+          echo "  - resolve_skill_resource() for read paths"
+          echo ""
+          echo "If the offender is intentional and cannot be made portable, add"
+          echo "it to scripts/validation/vendor_portability_baseline.txt or run:"
+          echo "  python3 scripts/validation/check_vendor_portability.py --update-baseline"
+          echo ""
+          echo "See issue #2050 for context."
+
+  skip-validation:
+    name: Skip Validation (No Skill Changes)
+    needs: check-changes
+    if: needs.check-changes.outputs.should-run != 'true'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 1
+    permissions:
+      contents: read
+    steps:
+      - name: Skip message
+        run: |
+          echo "Vendor portability validation skipped - no skill scripts changed"

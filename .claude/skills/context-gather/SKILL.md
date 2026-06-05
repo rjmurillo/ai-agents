@@ -2,7 +2,7 @@
 name: context-gather
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Gather comprehensive context from Forgetful Memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Delegates to the context-retrieval subagent to search across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
+description: Gather comprehensive context from Forgetful Memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Follows the exploring-knowledge-graph skill to search across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
 license: MIT
 ---
 
@@ -53,17 +53,21 @@ Skip this skill when:
 1. Scan the current conversation for an existing `CONTEXT_LOADED:` marker line.
 2. If a marker exists whose topic matches the current request, report "Context already loaded for <topic>" and stop. Do not re-fetch.
 
-### Phase 2: Delegate to Context-Retrieval Subagent
+### Phase 2: Search Across Knowledge Tiers
 
-1. Invoke the `context-retrieval` subagent with the task description.
-2. The subagent executes the following searches in parallel where possible:
+Follow the [`exploring-knowledge-graph`](../exploring-knowledge-graph/SKILL.md)
+skill for the five-source strategy, the untrusted-content guard, and the
+synthesis and citation discipline (see its
+[references/context-retrieval.md](../exploring-knowledge-graph/references/context-retrieval.md)).
+
+1. Search the following tiers, in parallel where possible:
    - **Forgetful Memory**: Search across ALL projects for relevant patterns, decisions, and code artifacts.
    - **Serena Memory**: Read linked entities, observations, and relations for the topic.
    - **Context7**: Query framework-specific documentation if the topic involves a known library or SDK.
    - **DeepWiki**: Read repository-level documentation for relevant GitHub repos.
    - **Web Search**: Fall back to web sources only when memory and docs are insufficient.
-3. Wait for the subagent to return its findings.
-4. For each tier actually queried, emit a marker line:
+2. Stop early once the queried tiers give sufficient coverage for the request.
+3. For each tier actually queried, emit a marker line:
 
 ```text
 TIER_QUERIED: <tier>
@@ -95,10 +99,11 @@ Where `<topic>` is a short, normalized label for the subject (e.g., `pytest-fixt
 
 ## Tools
 
-This skill delegates to the context-retrieval subagent, which uses:
+This skill searches the knowledge tiers using:
 
+- `mcp__forgetful__execute_forgetful_tool`
 - `mcp__serena__read_memory`, `mcp__serena__list_memories`
-- `mcp__claude_ai_Context7__resolve-library-id`, `mcp__claude_ai_Context7__query-docs`
+- `mcp__context7__resolve-library-id`, `mcp__context7__get-library-docs`
 - `mcp__deepwiki__read_wiki_structure`, `mcp__deepwiki__read_wiki_contents`, `mcp__deepwiki__ask_question`
 - `WebSearch`, `WebFetch`
 

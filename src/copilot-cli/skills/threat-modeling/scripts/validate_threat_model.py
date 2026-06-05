@@ -344,7 +344,7 @@ def main() -> int:
         epilog="""
 Examples:
   python validate_threat_model.py auth-threats.md
-  python validate_threat_model.py .agents/security/threat-models/payment.md
+  python validate_threat_model.py ./threat-models/payment.md
         """,
     )
 

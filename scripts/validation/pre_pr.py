@@ -37,7 +37,22 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+# Frontmatter parsing and DESIGN-REVIEW validation live in sibling modules
+# (issue #2223). Re-exported here so ``_parse_yaml_frontmatter`` and
+# ``validate_design_review_frontmatter`` stay importable from ``pre_pr``.
+from validate_design_review import (  # noqa: E402, F401
+    _BLOCKING_STATUSES,
+    _REQUIRED_FRONTMATTER_FIELDS,
+    _VALID_PRIORITIES,
+    _VALID_STATUSES,
+    validate_design_review_frontmatter,
+)
+from yaml_utils import _parse_yaml_frontmatter  # noqa: E402, F401
 
 
 class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
@@ -226,14 +241,24 @@ def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
 
 
 def validate_markdown_lint(repo_root: Path) -> bool:
-    """Run markdownlint auto-fix and validate."""
+    """Run markdownlint auto-fix and validate branch markdown changes."""
     if not shutil.which("npx"):
         print("[FAIL] npx not found (Node.js required)")
         print("  Install Node.js: https://nodejs.org/")
         return False
 
-    print("Auto-fixing markdown files...")
-    exit_code, _, _ = _run_subprocess(["npx", "markdownlint-cli2", "--fix", "**/*.md"])
+    targets = _markdown_lint_targets(repo_root)
+    if targets == []:
+        print("[PASS] Markdown linting (no markdown files on branch)")
+        return True
+    if targets is None:
+        print("Auto-fixing markdown files...")
+        command = ["npx", "markdownlint-cli2", "--fix", "**/*.md"]
+    else:
+        print(f"Auto-fixing {len(targets)} changed markdown file(s)...")
+        command = ["npx", "markdownlint-cli2", "--fix", *targets]
+
+    exit_code, _, _ = _run_subprocess(command)
 
     if exit_code != 0:
         print("[FAIL] Markdown linting failed (some issues cannot be auto-fixed)")
@@ -244,6 +269,38 @@ def validate_markdown_lint(repo_root: Path) -> bool:
         return False
 
     return True
+
+
+def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
+    """Return changed markdown files, [] for none, or None for full-repo fallback."""
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if base_ref is None:
+        print("[WARNING] Markdown lint target narrowing skipped: no base ref resolved")
+        return None
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMR",
+            f"{base_ref}...HEAD",
+        ],
+        timeout=30,
+    )
+    if exit_code != 0:
+        print(
+            f"[WARNING] Markdown lint target narrowing skipped: git diff failed: {stderr}",
+        )
+        return None
+
+    return [
+        path
+        for path in stdout.splitlines()
+        if path.endswith(".md") and not _is_vendored(path) and (repo_root / path).is_file()
+    ]
 
 
 def _gh_base_ref(repo_root: Path) -> str | None:
@@ -610,141 +667,6 @@ def validate_hook_anchoring(repo_root: Path) -> bool:
     return exit_code == 0
 
 
-def _parse_yaml_frontmatter(text: str) -> dict[str, Any] | None:
-    """Parse YAML frontmatter from markdown text.
-
-    Returns parsed dict or None if no frontmatter found.
-    Uses a minimal parser to avoid external dependencies.
-    """
-    if not text.startswith("---"):
-        return None
-
-    end_index = text.find("\n---", 3)
-    if end_index == -1:
-        return None
-
-    frontmatter_text = text[4:end_index].strip()
-    result: dict[str, Any] = {}
-
-    for line in frontmatter_text.split("\n"):
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        colon_pos = line.find(":")
-        if colon_pos == -1:
-            continue
-
-        key = line[:colon_pos].strip()
-        value = line[colon_pos + 1 :].strip()
-
-        # Strip inline YAML comments (e.g., "APPROVED  # valid values")
-        # Only strip if not inside quotes
-        if value and value[0] not in ('"', "'"):
-            comment_pos = value.find("#")
-            if comment_pos > 0:
-                value = value[:comment_pos].strip()
-
-        # Strip quotes
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-            value = value[1:-1]
-
-        # Parse booleans
-        if value.lower() == "true":
-            result[key] = True
-        elif value.lower() == "false":
-            result[key] = False
-        # Parse integers
-        elif value.isdigit():
-            result[key] = int(value)
-        else:
-            result[key] = value
-
-    return result
-
-
-_REQUIRED_FRONTMATTER_FIELDS = {"status", "priority", "blocking", "reviewer", "date"}
-_VALID_STATUSES = {"APPROVED", "NEEDS_CHANGES", "NEEDS_ADR", "BLOCKED", "REJECTED"}
-_VALID_PRIORITIES = {"P0", "P1", "P2"}
-_BLOCKING_STATUSES = {"NEEDS_ADR", "BLOCKED", "REJECTED"}
-
-
-def validate_design_review_frontmatter(repo_root: Path) -> bool:
-    """Validate YAML frontmatter in DESIGN-REVIEW documents.
-
-    Checks all .agents/architecture/DESIGN-REVIEW-*.md files for:
-    - Presence of YAML frontmatter
-    - Required fields (status, priority, blocking, reviewer, date)
-    - Valid status and priority values
-    - Blocking consistency (blocking=true when status is NEEDS_ADR/BLOCKED/REJECTED)
-
-    Returns True if all files pass or no files exist.
-    """
-    review_dir = repo_root / ".agents" / "architecture"
-    if not review_dir.is_dir():
-        print("[WARNING] No .agents/architecture/ directory found")
-        return True
-
-    review_files = sorted(review_dir.glob("DESIGN-REVIEW-*.md"))
-    if not review_files:
-        print("No DESIGN-REVIEW files found. Nothing to validate.")
-        return True
-
-    print(f"Validating {len(review_files)} DESIGN-REVIEW file(s)...")
-
-    all_passed = True
-    blocking_reviews: list[str] = []
-
-    for filepath in review_files:
-        text = filepath.read_text(encoding="utf-8")
-        frontmatter = _parse_yaml_frontmatter(text)
-
-        if frontmatter is None:
-            print(f"  [FAIL] {filepath.name}: missing YAML frontmatter")
-            all_passed = False
-            continue
-
-        # Check required fields
-        missing = _REQUIRED_FRONTMATTER_FIELDS - set(frontmatter.keys())
-        if missing:
-            print(f"  [FAIL] {filepath.name}: missing fields: {', '.join(sorted(missing))}")
-            all_passed = False
-            continue
-
-        # Validate status value
-        status = str(frontmatter["status"]).strip()
-        if status not in _VALID_STATUSES:
-            print(f"  [FAIL] {filepath.name}: invalid status '{status}'")
-            all_passed = False
-
-        # Validate priority value
-        priority = str(frontmatter["priority"]).strip()
-        if priority not in _VALID_PRIORITIES:
-            print(f"  [FAIL] {filepath.name}: invalid priority '{priority}'")
-            all_passed = False
-
-        # Check blocking consistency
-        blocking = frontmatter.get("blocking", False)
-        if status in _BLOCKING_STATUSES and not blocking:
-            print(
-                f"  [WARNING] {filepath.name}: status '{status}' should have blocking: true"
-            )
-
-        if blocking and status in _BLOCKING_STATUSES:
-            blocking_reviews.append(filepath.name)
-
-        print(f"  [PASS] {filepath.name} (status={status}, blocking={blocking})")
-
-    if blocking_reviews:
-        print()
-        print(f"[WARNING] {len(blocking_reviews)} blocking review(s) detected:")
-        for name in blocking_reviews:
-            print(f"  - {name}")
-        print("  These will block PR merges via synthesis-panel-gate.yml")
-
-    return all_passed
-
-
 def validate_build_gates(repo_root: Path) -> bool:
     """Verify ``.claude/commands/build.md`` still wires the required exit gates.
 
@@ -790,6 +712,29 @@ def validate_spec_id_uniqueness(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_vendor_portability(repo_root: Path) -> bool:
+    """Fail when a new skill script hard-codes an upstream-only path (Issue #2050).
+
+    Wraps ``scripts/validation/check_vendor_portability.py``. The script exits 0
+    when there are no NEW offenders (baseline-listed debt is allowed) or no scan
+    roots are present, 1 when a NEW offender is found, and 2 on a configuration
+    error. Exit 1 and 2 are both hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_vendor_portability.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_vendor_portability.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 
@@ -807,6 +752,35 @@ def validate_sync_registry(repo_root: Path) -> bool:
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
+def validate_agent_catalog(repo_root: Path) -> bool:
+    """Detect drift between docs/agent-catalog.md and templates/agents/.
+
+    Wraps ``scripts/validation/validate_agent_catalog.py``. The wrapped script
+    regenerates the catalog to a buffer and exits 0 when the committed file
+    matches, 1 on drift or a missing catalog, 2 on config error, and 3 on a bad
+    template. Any non-zero exit is a hard failure: a stale catalog is the exact
+    thing this gate exists to catch (Issue #1904).
+
+    Fails closed when the validator is absent rather than raising
+    MissingScriptSkip; a silent skip would defeat the gate.
+    """
+    script = repo_root / "scripts" / "validation" / "validate_agent_catalog.py"
+    if not script.exists():
+        print(
+            "[ERROR] validate_agent_catalog.py absent; the agent-catalog gate "
+            "cannot run. Hard failure: the gate is the point of registering "
+            "this validator.",
+            file=sys.stderr,
+        )
+        return False
+    exit_code, stdout, stderr = _run_subprocess([sys.executable, str(script)])
     output = (stdout or "") + (stderr or "")
     if output.strip():
         for line in output.strip().splitlines()[:40]:
@@ -842,6 +816,30 @@ def validate_canonical_citations(repo_root: Path) -> bool:
     # Default mode is soft-warn; the script already exits 0 unless
     # STRICT_CANONICAL_CHECK=1 is set. Treat any non-zero exit as a fail
     # so CI can opt into strict mode by setting the env var.
+    return exit_code == 0
+
+
+def validate_orchestrator_citations(repo_root: Path) -> bool:
+    """Verify orchestrator prose path citations resolve to real files.
+
+    Wraps ``scripts/validation/check_orchestrator_citations.py``, which fails
+    when a backtick path citation in ``.claude/commands/pr-quality/all.md``
+    points to a file that no longer exists. A stale citation (e.g. the removed
+    ``AIReviewCommon.psm1`` reference fixed in PR #1934) sends the next reader
+    to a dead pointer. See Issue #1966.
+    """
+    script = repo_root / "scripts" / "validation" / "check_orchestrator_citations.py"
+    if not script.exists():
+        print("[WARNING] check_orchestrator_citations.py not found (skipping)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    if stdout.strip():
+        print(stdout.strip())
+    if stderr.strip():
+        print(stderr.strip(), file=sys.stderr)
     return exit_code == 0
 
 
@@ -890,6 +888,13 @@ def validate_agent_drift(repo_root: Path) -> bool:
     Per ADR-042 the legacy Detect-AgentDrift.ps1 was expunged in favor of the
     Python port at build/scripts/detect_agent_drift.py. Invoke the Python
     version directly so the drift gate continues to run after migration.
+
+    The detector runs two comparisons (Issue #2267): the vendored
+    src/claude vs src/vs-code-agents pair (blocking) and the hand-maintained
+    .claude/agents vs .github/agents install pair for shared-template agents
+    (advisory; reported but does not flip the exit code, because the two
+    self-host copies carry large pre-existing structural differences). Only
+    vendored drift blocks this gate.
     """
     python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
     if python_script.exists():
@@ -897,9 +902,11 @@ def validate_agent_drift(repo_root: Path) -> bool:
             [sys.executable, str(python_script)]
         )
         # Surface drift output for visibility (mirrors other Python validators).
+        # Cap at 100 lines: the detector now reports two comparisons (vendored
+        # and install), so 40 truncated the install-pass results (Issue #2267).
         output = (stdout or "") + (stderr or "")
         if output.strip():
-            for line in output.strip().splitlines()[:40]:
+            for line in output.strip().splitlines()[:100]:
                 print(line)
         return exit_code == 0
 
@@ -1023,7 +1030,6 @@ def _is_linked_worktree(repo_root: Path) -> bool:
             "-C",
             str(repo_root),
             "rev-parse",
-            "--path-format=absolute",
             "--git-dir",
             "--git-common-dir",
         ],
@@ -1035,7 +1041,13 @@ def _is_linked_worktree(repo_root: Path) -> bool:
     if len(lines) != 2:
         return False
     git_dir, git_common_dir = lines
-    return Path(git_dir).resolve() != Path(git_common_dir).resolve()
+    git_dir_path = Path(git_dir)
+    git_common_dir_path = Path(git_common_dir)
+    if not git_dir_path.is_absolute():
+        git_dir_path = repo_root / git_dir_path
+    if not git_common_dir_path.is_absolute():
+        git_common_dir_path = repo_root / git_common_dir_path
+    return git_dir_path.resolve() != git_common_dir_path.resolve()
 
 
 def validate_git_hooks_installed(repo_root: Path) -> bool:
@@ -1166,6 +1178,51 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
         )
         return True
     return exit_code == 0
+
+
+def validate_review_marker(repo_root: Path) -> bool:
+    """Advisory check for a SHA-bound ``Reviewed-By: /review@...`` marker on HEAD.
+
+    Wraps ``scripts/validation/validate_review_marker.py`` (Issue #1938). The
+    marker is the ``/ship`` precondition: it proves ``/review`` passed on the
+    exact code being shipped. ``/ship`` itself blocks on a missing marker (AC1);
+    here the check is **advisory** by default, because most pre-PR pushes are
+    mid-development and have not run ``/review`` yet. Blocking every such push
+    would break normal iteration.
+
+    Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (returns False when
+    HEAD has no binding marker). Mirrors the advisory/enforced pattern used by
+    ``validate_command_bundle_coverage`` (``BUNDLE_CHECK_ENFORCED``).
+    """
+    enforced = os.environ.get("REVIEW_MARKER_ENFORCED", "").lower() in ("1", "true")
+
+    script = repo_root / "scripts" / "validation" / "validate_review_marker.py"
+    if not script.exists():
+        if enforced:
+            print("[FAIL] validate_review_marker.py not present")
+            return False
+        print("[WARN] validate_review_marker.py not found (advisory skip)")
+        return True
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:20]:
+            print(line)
+
+    if exit_code == 0:
+        return True
+
+    if enforced:
+        # exit 1 (no/stale marker) and exit 2 (config) both block in enforced mode.
+        return False
+    print(
+        "  Note: advisory only (default). /ship blocks on this; pre_pr does not. "
+        "Set REVIEW_MARKER_ENFORCED=1 to make it BLOCKING here. See Issue #1938."
+    )
+    return True
 
 
 def validate_command_bundle_coverage(repo_root: Path) -> bool:
@@ -1334,11 +1391,25 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_spec_id_uniqueness(repo_root),
     )
 
+    # 3.76 Vendor Portability (no new hard-coded upstream-only paths; Issue #2050)
+    run_validation(
+        "Vendor Portability",
+        state,
+        lambda: validate_vendor_portability(repo_root),
+    )
+
     # 3.77 Sync Registry Provenance (Issue #1909)
     run_validation(
         "Sync Registry Provenance",
         state,
         lambda: validate_sync_registry(repo_root),
+    )
+
+    # 3.78 Agent Catalog Drift (docs/agent-catalog.md vs templates/agents/; #1904)
+    run_validation(
+        "Agent Catalog Drift",
+        state,
+        lambda: validate_agent_catalog(repo_root),
     )
 
     # 3.8 Canonical Citation Check (heuristic; soft warn unless
@@ -1347,6 +1418,15 @@ def main(argv: list[str] | None = None) -> int:
         "Canonical Citation Check",
         state,
         lambda: validate_canonical_citations(repo_root),
+    )
+
+    # 3.82 Orchestrator Citation Check (Issue #1966). Fails when a backtick
+    # path citation in .claude/commands/pr-quality/all.md points to a file
+    # that no longer exists.
+    run_validation(
+        "Orchestrator Citation Check",
+        state,
+        lambda: validate_orchestrator_citations(repo_root),
     )
 
     # 3.85 Em/en-dash branch-wide check (Issue #1923, REQ-006-AC7)
@@ -1439,6 +1519,14 @@ def main(argv: list[str] | None = None) -> int:
         "Command-Skill Bundle Coverage",
         state,
         lambda: validate_command_bundle_coverage(repo_root),
+    )
+
+    # 7b. Review Marker (advisory by default; /ship blocks, Issue #1938).
+    # Reports whether HEAD carries a SHA-bound Reviewed-By: /review@... marker.
+    run_validation(
+        "Review Marker (SHA-bound /review)",
+        state,
+        lambda: validate_review_marker(repo_root),
     )
 
     total_duration = time.monotonic() - start_time
