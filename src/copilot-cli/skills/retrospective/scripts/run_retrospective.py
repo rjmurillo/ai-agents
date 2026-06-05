@@ -73,9 +73,14 @@ except ImportError as exc:  # pragma: no cover - guarded by explicit path check
     raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
 
+def _artifact_root_is_set() -> bool:
+    """Return whether the artifact-root override has a non-blank value."""
+    return bool(os.environ.get("AI_AGENTS_ARTIFACT_ROOT", "").strip())
+
+
 def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     """Resolve an artifact directory while preserving explicit project-dir tests."""
-    if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") or project_dir.resolve() == Path.cwd().resolve():
+    if _artifact_root_is_set() or project_dir.resolve() == Path.cwd().resolve():
         return paths.resolve_artifact_root(subdir)
     return project_dir / ".agents" / subdir
 
@@ -303,16 +308,15 @@ def _resolve_output_path(
 ) -> Path:
     """Resolve where the artifact is written.
 
-    When ``fill`` names an existing skeleton, write a filled file next to it.
-    The filled file replaces the ``-auto-retro`` suffix with ``-retro-filled``
-    so the skeleton stays intact for the caller to remove deliberately.
+    When ``fill`` names an existing skeleton, return that skeleton path so the
+    caller overwrites it with filled content per the SKILL.md contract.
     Otherwise write ``YYYY-MM-DD-[scope].md``.
     """
     if fill:
         skeleton = Path(fill)
         if not skeleton.is_absolute():
-            base_dir = retro_dir if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") else (project_dir or retro_dir)
-            if os.environ.get("AI_AGENTS_ARTIFACT_ROOT"):
+            base_dir = retro_dir if _artifact_root_is_set() else (project_dir or retro_dir)
+            if _artifact_root_is_set():
                 parts = skeleton.parts
                 if len(parts) >= 2 and parts[0] == ".agents" and parts[1] == "retrospective":
                     skeleton = Path(*parts[2:]) if len(parts) > 2 else Path()
@@ -336,7 +340,7 @@ def _require_project_output_path(path: Path, project_dir: Path) -> Path:
 
 def _require_fill_path(path: Path, project_dir: Path | None, retro_dir: Path) -> Path:
     """Return a fill path after validating its allowed root."""
-    root = retro_dir if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") else project_dir
+    root = retro_dir if _artifact_root_is_set() else project_dir
     if root is None:
         return path.resolve()
     resolved_root = root.resolve()

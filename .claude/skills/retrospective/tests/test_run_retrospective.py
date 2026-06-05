@@ -369,6 +369,18 @@ def test_cli_allows_artifact_root_override_outside_project(tmp_path, monkeypatch
     assert written.is_file()
 
 
+def test_blank_artifact_root_override_behaves_unset(tmp_path, monkeypatch):
+    # Arrange
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", "   ")
+
+    # Act
+    rc = main(["--project-dir", str(tmp_path), "--scope", "2026-06-03"])
+
+    # Assert
+    assert rc == 0
+    assert (tmp_path / ("." + "agents") / "retrospective" / "2026-06-03-2026-06-03.md").is_file()
+
+
 def test_fill_mode_artifact_root_accepts_project_style_relative_path(tmp_path, monkeypatch):
     # Arrange
     artifact_root = tmp_path.parent / f"artifact-root-fill-{_MODULE_NAME}"
@@ -476,7 +488,7 @@ def test_resolve_output_path_for_new_artifact(tmp_path):
     assert path.name == "2026-06-03-my-scope-with-slash.md"
 
 
-def test_resolve_output_path_for_fill_strips_auto_retro_suffix(tmp_path):
+def test_resolve_output_path_for_fill_keeps_auto_retro_path(tmp_path):
     # Arrange
     skeleton = tmp_path / "2026-06-03-auto-retro.md"
     skeleton.write_text("# Retrospective\n", encoding="utf-8")
