@@ -104,7 +104,7 @@ SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
 
 # Resolve all threads for a PR
 python3 "$SCRIPTS_DIR/pr/get_pr_review_threads.py" --pull-request [number] --unresolved-only | \
-  jq -r '.Data.Threads[].thread_id' | while read tid; do
+  jq -r '.threads[].thread_id' | while read tid; do
     python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$tid"
   done
 ```

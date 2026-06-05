@@ -36,12 +36,12 @@ For multi-line content, use `--body-file` to avoid escaping issues.
 threads=$(python3 scripts/pr/get_pr_review_threads.py --pull-request 50 --unresolved-only)
 
 # 2. Reply to each thread using thread ID and resolve (recommended)
-echo "$threads" | jq -r '.Data.Threads[].thread_id' | while read -r tid; do
+echo "$threads" | jq -r '.threads[].thread_id' | while read -r tid; do
     python3 scripts/pr/add_pr_review_thread_reply.py --thread-id "$tid" --body "Fixed." --resolve
 done
 
 # 3. Or reply using comment ID (REST API) then batch resolve
-echo "$threads" | jq -r '.Data.Threads[].first_comment_id' | while read -r cid; do
+echo "$threads" | jq -r '.threads[].first_comment_id' | while read -r cid; do
     python3 scripts/pr/post_pr_comment_reply.py --pull-request 50 --comment-id "$cid" --body "Fixed."
 done
 python3 scripts/pr/resolve_pr_review_thread.py --pull-request 50 --all
