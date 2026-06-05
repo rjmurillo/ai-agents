@@ -39,11 +39,18 @@ import re
 import shutil
 from pathlib import Path
 
-# Mirror contract from build/scripts/generate_hooks.py::_build_copilot_entry:
-# bash='python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/{rel}"',
-# powershell uses the same if-else root selection and appends /{rel}.
-# cwd=".", timeoutSec=timeout_sec. The dispatcher swaps {rel} to point at the
-# per-event _dispatch.py but keeps root resolution and shell shape identical.
+# Mirror contract from build/scripts/generate_hooks_emit.py::_build_copilot_entry:
+# bash_root = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}"
+# powershell_root = (
+#     "$(if ($env:COPILOT_PLUGIN_ROOT) "
+#     "{$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})"
+# )
+# "bash": f'python3 -u "{bash_root}/{rel}"'
+# "powershell": f'py -3 -u "{powershell_root}/{rel}"'
+# "cwd": "."
+# "timeoutSec": timeout_sec
+# The dispatcher swaps {rel} to point at the per-event _dispatch.py but keeps
+# root resolution and shell shape identical.
 _BASH_TEMPLATE = (
     'python3 -u "${{COPILOT_PLUGIN_ROOT:-${{CLAUDE_PLUGIN_ROOT}}}}/hooks/{event}/_dispatch.py"'
 )
