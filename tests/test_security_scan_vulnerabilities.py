@@ -523,6 +523,17 @@ def test_cli_exit_vulnerabilities_on_dirty_file(tmp_path: Path) -> None:
     assert "Command Injection" in result.stdout
 
 
+def test_cli_console_exit_line_matches_errors_with_findings(tmp_path: Path) -> None:
+    name = _write(tmp_path, "bad.py", "subprocess.run(cmd, shell=True)\n")
+    result = _run_cli(name, "missing.py", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    assert "Errors:" in result.stdout
+    assert "Error reading missing.py" in result.stdout
+    assert "CWE-78" in result.stdout
+    assert "Exit code: 1 (scan error)" in result.stdout
+
+
 def test_cli_exit_error_when_no_files_given(tmp_path: Path) -> None:
     result = _run_cli(cwd=tmp_path)
     assert result.returncode == scanner.EXIT_ERROR

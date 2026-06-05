@@ -14,14 +14,32 @@ from the shared ``scan_constants`` module for the same reason.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Protocol
 
-from scan_constants import EXIT_VULNERABILITIES
+from scan_constants import EXIT_ERROR, EXIT_VULNERABILITIES
 
 _SEVERITY_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 
 
-def format_console_output(result: Any) -> str:
+class _VulnerabilityLike(Protocol):
+    cwe: str
+    title: str
+    file: str
+    line: int
+    pattern: str
+    code: str
+    severity: str
+    recommendation: str
+
+
+class _ScanResultLike(Protocol):
+    errors: list[str]
+    vulnerabilities: list[_VulnerabilityLike]
+    files_scanned: int
+    suppressed: list[str]
+
+
+def format_console_output(result: _ScanResultLike) -> str:
     """Format scan result for console output."""
     output = ["=== Security Vulnerability Scan ===", ""]
 
@@ -37,7 +55,7 @@ def format_console_output(result: Any) -> str:
     return "\n".join(output)
 
 
-def _append_errors(output: list[str], result: Any) -> None:
+def _append_errors(output: list[str], result: _ScanResultLike) -> None:
     """Append the error block, if any errors were collected."""
     if not result.errors:
         return
@@ -47,7 +65,7 @@ def _append_errors(output: list[str], result: Any) -> None:
     output.append("")
 
 
-def _append_no_vulnerabilities(output: list[str], result: Any) -> None:
+def _append_no_vulnerabilities(output: list[str], result: _ScanResultLike) -> None:
     """Append the clean-scan summary used when no vulnerabilities were found."""
     output.append(f"Files scanned: {result.files_scanned}")
     output.append("No vulnerabilities found.")
@@ -55,9 +73,11 @@ def _append_no_vulnerabilities(output: list[str], result: Any) -> None:
         output.append(f"Suppressed findings: {len(result.suppressed)}")
 
 
-def _append_vulnerability_details(output: list[str], result: Any) -> None:
+def _append_vulnerability_details(
+    output: list[str], result: _ScanResultLike
+) -> None:
     """Append per-vulnerability detail blocks, grouped by severity."""
-    by_severity: dict[str, list[Any]] = {
+    by_severity: dict[str, list[_VulnerabilityLike]] = {
         "CRITICAL": [], "HIGH": [], "MEDIUM": [], "LOW": []
     }
     for vuln in result.vulnerabilities:
@@ -74,7 +94,7 @@ def _append_vulnerability_details(output: list[str], result: Any) -> None:
             output.append("")
 
 
-def _append_summary(output: list[str], result: Any) -> None:
+def _append_summary(output: list[str], result: _ScanResultLike) -> None:
     """Append the summary block with counts and the exit-code line."""
     output.append("=== Summary ===")
     output.append(f"Files scanned: {result.files_scanned}")
@@ -90,4 +110,7 @@ def _append_summary(output: list[str], result: Any) -> None:
         output.append(f"Suppressed findings: {len(result.suppressed)}")
 
     output.append("")
-    output.append(f"Exit code: {EXIT_VULNERABILITIES} (vulnerabilities detected)")
+    if result.errors:
+        output.append(f"Exit code: {EXIT_ERROR} (scan error)")
+    else:
+        output.append(f"Exit code: {EXIT_VULNERABILITIES} (vulnerabilities detected)")
