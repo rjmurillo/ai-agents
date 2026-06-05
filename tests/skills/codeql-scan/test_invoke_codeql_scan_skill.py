@@ -42,13 +42,38 @@ class TestGetRepoRoot:
 
     def test_returns_string_in_git_repo(self, project_root: Path) -> None:
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0, stdout=str(project_root / ".git"))
+            mock_run.return_value = MagicMock(returncode=0, stdout=str(project_root))
             result = get_repo_root()
             assert result == str(project_root)
+
+    def test_returns_worktree_top_not_main_checkout(self) -> None:
+        """In a linked worktree, repo root is the worktree top (#2373).
+
+        --git-common-dir would return the MAIN checkout's shared .git, so the
+        old dirname() logic resolved to the main checkout. --show-toplevel
+        returns this worktree's root. Asserts the resolver passes
+        --show-toplevel and returns its output verbatim.
+        """
+        worktree_top = "/repo/.git/worktrees/feat/checkout"
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=worktree_top + "\n")
+            result = get_repo_root()
+            assert result == worktree_top
+            assert mock_run.call_args.args[0] == [
+                "git",
+                "rev-parse",
+                "--show-toplevel",
+            ]
 
     def test_returns_none_outside_git_repo(self) -> None:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=128, stdout="")
+            result = get_repo_root()
+            assert result is None
+
+    def test_returns_none_on_empty_toplevel(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="   \n")
             result = get_repo_root()
             assert result is None
 
