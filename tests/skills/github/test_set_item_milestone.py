@@ -73,6 +73,25 @@ class TestSetItemMilestone:
         assert result["Data"]["action"] == "skipped"
         assert result["Data"]["milestone"] == "v0.9.0"
 
+    def test_human_skip_outputs_single_summary_line(self, _import_module, capsys):
+        mod = _import_module
+        item_data = {"milestone": {"title": "v0.9.0"}}
+        with (
+            patch("set_item_milestone.assert_gh_authenticated"),
+            patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", return_value=make_completed_process(
+                stdout=json.dumps(item_data)
+            )),
+        ):
+            rc = mod.main([
+                "--item-type", "pr", "--item-number", "1",
+                "--output-format", "human",
+            ])
+        assert rc == 0
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
+        assert len(lines) == 1
+        assert "already has milestone: v0.9.0" in lines[0]
+
     def test_assign_with_explicit_title(self, _import_module, capsys):
         mod = _import_module
         item_data = {"milestone": None}

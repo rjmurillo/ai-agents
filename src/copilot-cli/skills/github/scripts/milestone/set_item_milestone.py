@@ -208,8 +208,6 @@ def main(argv: list[str] | None = None) -> int:
             f"Already has milestone '{existing}'. "
             "No action taken (preserving manual assignments)."
         )
-        if fmt != "json":
-            print(f"{item_type} #{item_number} already has milestone: {existing}")
         write_skill_output(
             {
                 "item_type": item_type,
