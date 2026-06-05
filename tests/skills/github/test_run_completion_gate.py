@@ -18,6 +18,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -593,16 +594,16 @@ class TestPassWhenDslNegativeBranches:
 
 
 class TestPassWhenPythonNegativeBranches:
-    """Cover the eval-rejection paths in _eval_pass_when_python.
+    """Cover the AST-rejection paths in _eval_pass_when_python.
 
-    These branches are security-relevant: they bound the surface that
-    the eval call will accept. AGENTS.md sets the security-critical
+    These branches are security-relevant: they bound the expression surface
+    accepted by the safe AST evaluator. AGENTS.md sets the security-critical
     coverage floor at 100%; missing these branches violates that floor.
     """
 
     def test_non_string_rejected(self):
         with pytest.raises(ValueError, match="must be a string"):
-            _dispatcher._eval_pass_when_python({}, 123)
+            _dispatcher._eval_pass_when_python({}, cast(str, 123))
 
     def test_non_lambda_rejected(self):
         with pytest.raises(ValueError, match="must be a lambda"):
@@ -846,13 +847,13 @@ class TestFormatCommandTypeGuard:
 
     def test_string_pr_number_rejected(self):
         with pytest.raises(TypeError, match="pr_number must be int"):
-            _dispatcher._format_command("echo {pr}", "1; rm -rf /")
+            _dispatcher._format_command("echo {pr}", cast(int, "1; rm -rf /"))
 
     def test_bool_pr_number_rejected(self):
         # bools are int subclasses in Python; the guard rejects them
         # explicitly so a downstream caller cannot smuggle True/False.
         with pytest.raises(TypeError, match="pr_number must be int"):
-            _dispatcher._format_command("echo {pr}", True)
+            _dispatcher._format_command("echo {pr}", cast(int, True))
 
 
 class TestSchemaTypeChecks:
