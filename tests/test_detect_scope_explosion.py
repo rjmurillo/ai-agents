@@ -360,6 +360,48 @@ class TestDetectScope:
             assert result.files == ("pr.py", "tests/test_pr.py")
             mock_get_merge_base.assert_not_called()
 
+    def test_in_progress_merge_counts_against_merge_head_not_base_ref(self) -> None:
+        # Regression for Issue #2376: in a linked-worktree merge where local
+        # origin/main has advanced past MERGE_HEAD, counting the staged index
+        # against base_ref includes every upstream merge file and surfaces a
+        # false scope explosion (observed: 86/50 reported for a 13-file PR).
+        # The detector must compare staged result against MERGE_HEAD itself so
+        # only the PR's real diff is counted.
+        captured_args: list[str] = []
+
+        def fake_index_files(ref: str) -> list[str]:
+            captured_args.append(ref)
+            # Simulate: against MERGE_HEAD only PR files differ (13 files);
+            # against base_ref the upstream merge files leak in (86 files).
+            if ref == "merge_head_sha":
+                return [f"pr_file_{i}.py" for i in range(13)]
+            return [f"upstream_{i}.py" for i in range(86)]
+
+        with patch(
+            "scripts.detect_scope_explosion.get_current_branch",
+            return_value="fix/spec-pipeline-hardening",
+        ), patch(
+            "scripts.detect_scope_explosion.resolve_base_ref", return_value="origin/main"
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_head_commit",
+            return_value="merge_head_sha",
+        ), patch(
+            "scripts.detect_scope_explosion.get_ref_commit",
+            return_value="stale_local_main_sha",
+        ), patch(
+            "scripts.detect_scope_explosion.get_index_files_against_ref",
+            side_effect=fake_index_files,
+        ), patch(
+            "scripts.detect_scope_explosion.get_merge_base"
+        ) as mock_get_merge_base:
+            result = detect_scope()
+            assert result is not None
+            # Must reflect the real PR diff against MERGE_HEAD (13), not the
+            # staged upstream merge (86).
+            assert result.file_count == 13
+            assert "merge_head_sha" in captured_args
+            mock_get_merge_base.assert_not_called()
+
 
 class TestReport:
     """Tests for report function."""
