@@ -13,23 +13,33 @@ Canonical source it mirrors: `build/scripts/detect_agent_drift.py`, function
 reads. The keys, copied verbatim from `format_json`:
 
     {
+        "duration": <float>,
+        "threshold": <int>,
         "summary": {"driftDetected": <int>, ...},
         "results": [
             {
                 "agentName": <str>,
-                "overallSimilarity": <int | None>,
+                "comparison": <str>,
+                "overallSimilarity": <float | None>,
                 "status": <str>,                 # "DRIFT DETECTED" at agent level
                 "driftingSections": [<str>, ...],
                 "sections": [
-                    {"section": <str>, "similarity": <int>, "status": <str>}  # "DRIFT"
+                    {
+                        "section": <str>,
+                        "similarity": <float>,
+                        "claudeHas": <bool>,
+                        "vscodeHas": <bool>,
+                        "status": <str>,
+                    }  # "DRIFT"
                 ],
             }
         ],
     }
 
-Stricter/looser/different than canonical: none. This script reads the shape
-`format_json` writes and reports a missing key as a parse failure (exit 1)
-rather than silently emitting an empty body, which is the bug it fixes.
+Stricter/looser/different than canonical: this script validates only the fields
+needed to render the issue body and agent count. It intentionally ignores
+canonical fields that the issue body does not render (`duration`, `threshold`,
+agent `comparison`, and section `claudeHas`/`vscodeHas`).
 
 EXIT CODES (ADR-035):
   0  - Success: details and count written
@@ -43,52 +53,92 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 _AGENT_DRIFT_STATUS = "DRIFT DETECTED"
 _SECTION_DRIFT_STATUS = "DRIFT"
 
 
-def _format_agent_entry(agent: dict[str, Any]) -> str:
+def _require_mapping(value: object, name: str) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} must be an object")
+    return value
+
+
+def _require_list(value: object, name: str) -> list[object]:
+    if not isinstance(value, list):
+        raise TypeError(f"{name} must be an array")
+    return value
+
+
+def _required_key(mapping: dict[str, object], key: str, owner: str) -> object:
+    if key not in mapping:
+        raise KeyError(f"{owner}.{key}")
+    value = mapping[key]
+    if value is None:
+        raise TypeError(f"{owner}.{key} must not be null")
+    return value
+
+
+def _format_agent_entry(agent: dict[str, object]) -> str:
     """Render one drifting agent as a markdown block.
 
     Raises KeyError if a required key from the canonical JSON shape is absent;
     the caller turns that into an exit-1 parse failure.
     """
-    entry = f"### {agent['agentName']}\n"
-    entry += f"- **Overall similarity**: {agent['overallSimilarity']}%\n"
+    agent_name = _required_key(agent, "agentName", "agent")
+    similarity = _required_key(agent, "overallSimilarity", "agent")
 
-    drifting_sections = agent.get("driftingSections") or []
+    entry = f"### {agent_name}\n"
+    entry += f"- **Overall similarity**: {similarity}%\n"
+
+    drifting_sections_raw = agent.get("driftingSections")
+    drifting_sections = [] if drifting_sections_raw is None else _require_list(
+        drifting_sections_raw,
+        "agent.driftingSections",
+    )
     if drifting_sections:
-        entry += f"- **Drifting sections**: {', '.join(drifting_sections)}\n"
+        entry += f"- **Drifting sections**: {', '.join(str(s) for s in drifting_sections)}\n"
 
-    sections = agent.get("sections") or []
-    drift_sections = [s for s in sections if s.get("status") == _SECTION_DRIFT_STATUS]
+    sections_raw = agent.get("sections")
+    sections = [] if sections_raw is None else _require_list(sections_raw, "agent.sections")
+    drift_sections = []
+    for index, raw_section in enumerate(sections):
+        section = _require_mapping(raw_section, f"agent.sections[{index}]")
+        if section.get("status") == _SECTION_DRIFT_STATUS:
+            drift_sections.append(section)
     if drift_sections:
         entry += "\n**Section Details:**\n"
         for section in drift_sections:
-            entry += f"- {section['section']}: {section['similarity']}% similar\n"
+            section_name = _required_key(section, "section", "section")
+            similarity = _required_key(section, "similarity", "section")
+            entry += f"- {section_name}: {similarity}% similar\n"
 
     return entry
 
 
-def build_drift_details(results: dict[str, Any]) -> tuple[str, int]:
+def build_drift_details(results: object) -> tuple[str, int]:
     """Build the markdown body and the drift-detected count from parsed drift JSON.
 
     Returns (markdown_body, agent_count). Reads the camelCase keys written by
     `build/scripts/detect_agent_drift.py:format_json`.
     """
+    results = _require_mapping(results, "results payload")
+    agents = _require_list(_required_key(results, "results", "payload"), "payload.results")
+
     entries: list[str] = []
-    for agent in results.get("results", []):
+    for index, raw_agent in enumerate(agents):
+        agent = _require_mapping(raw_agent, f"payload.results[{index}]")
         if agent.get("status") == _AGENT_DRIFT_STATUS:
             entries.append(_format_agent_entry(agent))
 
     body = "\n".join(entries)
-    count = int(results.get("summary", {}).get("driftDetected", 0))
+    summary = _require_mapping(_required_key(results, "summary", "payload"), "payload.summary")
+    drift_detected = _required_key(summary, "driftDetected", "summary")
+    count = int(drift_detected)
     return body, count
 
 
-def _read_results(json_path: Path) -> dict[str, Any]:
+def _read_results(json_path: Path) -> object:
     try:
         text = json_path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:

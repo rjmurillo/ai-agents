@@ -23,7 +23,7 @@ _WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "post-pr-retrospective.y
 
 _AGENT_STEP_NAME = "Run retrospective via Claude Code"
 _ACTION_REF = (
-    "anthropics/claude-code-action@70a6e5256e9e2366a1ed5c041904a982ba3a328f"
+    "anthropics/claude-code-action@0b1b62002952733671bde978d429b50b51c51c85"
 )
 _OAUTH_TOKEN_EXPR = "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
 

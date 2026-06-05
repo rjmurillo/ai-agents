@@ -3,7 +3,7 @@
 Covers the bug in issue #2381: the workflow's inline parse read snake_case keys
 (agent_name, overall_similarity) while build/scripts/detect_agent_drift.py emits
 camelCase (agentName, overallSimilarity), so the body came out empty. These tests
-pin the camelCase contract and prove a snake_case-only payload yields no body.
+pin the camelCase contract and prove a snake_case-only payload fails loud.
 """
 
 from __future__ import annotations
@@ -24,22 +24,44 @@ from parse_drift_results import build_drift_details, main  # noqa: E402
 def _drift_payload() -> dict:
     """A camelCase payload shaped like detect_agent_drift.py:format_json output."""
     return {
+        "duration": 1.23,
+        "threshold": 80,
         "summary": {"totalAgents": 2, "ok": 1, "driftDetected": 1, "noCounterpart": 0},
         "results": [
             {
                 "agentName": "implementer",
-                "overallSimilarity": 62,
+                "comparison": "src-claude vs src-vscode",
+                "overallSimilarity": 62.0,
                 "status": "DRIFT DETECTED",
                 "driftingSections": ["Tools", "Workflow"],
                 "sections": [
-                    {"section": "Tools", "similarity": 40, "status": "DRIFT"},
-                    {"section": "Workflow", "similarity": 55, "status": "DRIFT"},
-                    {"section": "Header", "similarity": 99, "status": "OK"},
+                    {
+                        "section": "Tools",
+                        "similarity": 40.0,
+                        "claudeHas": True,
+                        "vscodeHas": True,
+                        "status": "DRIFT",
+                    },
+                    {
+                        "section": "Workflow",
+                        "similarity": 55.0,
+                        "claudeHas": True,
+                        "vscodeHas": True,
+                        "status": "DRIFT",
+                    },
+                    {
+                        "section": "Header",
+                        "similarity": 99.0,
+                        "claudeHas": True,
+                        "vscodeHas": True,
+                        "status": "OK",
+                    },
                 ],
             },
             {
                 "agentName": "architect",
-                "overallSimilarity": 98,
+                "comparison": "src-claude vs src-vscode",
+                "overallSimilarity": 98.0,
                 "status": "OK",
                 "driftingSections": [],
                 "sections": [],
@@ -69,11 +91,11 @@ def test_build_details_renders_similarity_and_sections() -> None:
     body, _ = build_drift_details(results)
 
     # Assert
-    assert "- **Overall similarity**: 62%" in body
+    assert "- **Overall similarity**: 62.0%" in body
     assert "- **Drifting sections**: Tools, Workflow" in body
     assert "**Section Details:**" in body
-    assert "- Tools: 40% similar" in body
-    assert "- Workflow: 55% similar" in body
+    assert "- Tools: 40.0% similar" in body
+    assert "- Workflow: 55.0% similar" in body
     # OK section must not appear in section details.
     assert "Header" not in body
 
@@ -91,6 +113,26 @@ def test_build_details_empty_when_no_drift() -> None:
     # Assert
     assert body == ""
     assert count == 0
+
+
+@pytest.mark.parametrize(
+    ("payload", "_message"),
+    [
+        ({"summary": {"driftDetected": 0}}, "missing results"),
+        ({"summary": {"driftDetected": 0}, "results": None}, "null results"),
+        ({"summary": None, "results": []}, "null summary"),
+        ({"summary": {}, "results": []}, "missing drift count"),
+        ({"summary": {"driftDetected": None}, "results": []}, "null drift count"),
+        ([], "top-level list"),
+    ],
+)
+def test_build_details_rejects_malformed_payloads(
+    payload: object,
+    _message: str,
+) -> None:
+    # Act / Assert
+    with pytest.raises((KeyError, TypeError)):
+        build_drift_details(payload)
 
 
 def test_snake_case_payload_fails_loud_not_silent() -> None:
@@ -186,6 +228,27 @@ def test_main_exits_1_on_missing_key(tmp_path: Path) -> None:
     }
     input_path = tmp_path / "drift-results.json"
     input_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    # Act
+    exit_code = main(
+        [
+            "--input",
+            str(input_path),
+            "--details-out",
+            str(tmp_path / "d.md"),
+            "--count-out",
+            str(tmp_path / "c.txt"),
+        ]
+    )
+
+    # Assert
+    assert exit_code == 1
+
+
+def test_main_exits_1_on_json_null_payload(tmp_path: Path) -> None:
+    # Arrange
+    input_path = tmp_path / "drift-results.json"
+    input_path.write_text("null", encoding="utf-8")
 
     # Act
     exit_code = main(

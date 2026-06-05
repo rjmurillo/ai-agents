@@ -89,7 +89,6 @@ jobs:
           # Set output for agents_count
           AGENTS_COUNT="$(cat drift-count.txt)"
           echo "agents_count=$AGENTS_COUNT" >> "$GITHUB_OUTPUT"
-        continue-on-error: true
 
       - name: Check for existing drift issue
         id: check-issue
