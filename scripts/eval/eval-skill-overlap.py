@@ -467,13 +467,14 @@ def _parse_judge_score(raw: str) -> float:
         match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
         if match:
             text = match.group(1).strip()
-    object_match = re.search(r"\{.*\}", text, re.DOTALL)
-    if object_match:
-        text = object_match.group(0).strip()
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise JudgeScoreError(f"Judge score payload is not valid JSON: {text[:100]}") from exc
+    parsed = _first_json_object(text)
+    if parsed is None:
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise JudgeScoreError(
+                f"Judge score payload is not valid JSON: {text[:100]}"
+            ) from exc
     if not isinstance(parsed, dict):
         raise JudgeScoreError(f"Judge score payload is not an object: {text[:100]}")
     score = parsed.get("score")
@@ -483,6 +484,21 @@ def _parse_judge_score(raw: str) -> float:
         return min(max(float(score), 1.0), 5.0)
     except (TypeError, ValueError) as exc:
         raise JudgeScoreError(f"Judge score is not numeric: {text[:100]}") from exc
+
+
+def _first_json_object(text: str) -> dict[str, Any] | None:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        return None
+    return None
 
 
 # ---------------------------------------------------------------------------

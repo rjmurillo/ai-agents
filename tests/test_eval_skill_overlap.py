@@ -487,6 +487,12 @@ def test_parse_judge_score_extracts_json_object_without_fence():
     assert eso._parse_judge_score(raw) == 3.0
 
 
+def test_parse_judge_score_uses_first_valid_json_object():
+    raw = 'Bad object {not json} then good {"score": 4} and trailing {"note": "ignored"}'
+
+    assert eso._parse_judge_score(raw) == 4.0
+
+
 def test_parse_judge_score_raises_on_garbage():
     # Act / Assert
     with pytest.raises(eso.JudgeScoreError, match="not valid JSON"):
