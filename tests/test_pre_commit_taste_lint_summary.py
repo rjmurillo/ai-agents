@@ -29,6 +29,7 @@ feed it: ``EXIT_STATUS``, ``FILES_FIXED``, ``TASTE_LINTS_ADVISORY``.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -102,14 +103,17 @@ def _run_summary(
     files_fixed: str = "0",
     taste_lints_advisory: str = "0",
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603 - controlled command, no user input
-        ["bash", "-c", _final_summary_fragment()],
-        env={
+    env = os.environ.copy()
+    env.update(
+        {
             "EXIT_STATUS": exit_status,
             "FILES_FIXED": files_fixed,
             "TASTE_LINTS_ADVISORY": taste_lints_advisory,
-            "PATH": "/usr/bin:/bin",
-        },
+        }
+    )
+    return subprocess.run(
+        ["bash", "-c", _final_summary_fragment()],
+        env=env,
         capture_output=True,
         text=True,
         timeout=15,
@@ -279,7 +283,7 @@ def test_pre_commit_hook_drops_unconditional_success_line() -> None:
 
 def test_pre_commit_hook_is_syntactically_valid() -> None:
     """``bash -n`` parses the hook (no syntax regression from the wording edit)."""
-    result = subprocess.run(  # noqa: S603 - controlled command
+    result = subprocess.run(
         ["bash", "-n", str(PRE_COMMIT)],
         capture_output=True,
         text=True,
