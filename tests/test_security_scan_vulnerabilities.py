@@ -759,6 +759,13 @@ def test_get_directory_files_prunes_noisy_directories(tmp_path: Path) -> None:
     node_script = node_bin / "tool"
     node_script.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
 
+    mixed_case = tmp_path / "Node_Modules" / ".bin"
+    mixed_case.mkdir(parents=True)
+    mixed_case_script = mixed_case / "tool"
+    mixed_case_script.write_text(
+        "#!/usr/bin/env bash\neval $payload\n", encoding="utf-8"
+    )
+
     hooks = tmp_path / ".githooks"
     hooks.mkdir()
     hook = hooks / "pre-push"
@@ -769,6 +776,7 @@ def test_get_directory_files_prunes_noisy_directories(tmp_path: Path) -> None:
     assert str(hook) in found
     assert str(git_object) not in found
     assert str(node_script) not in found
+    assert str(mixed_case_script) not in found
 
 
 def test_scan_extensionless_bash_hook_emits_cwe78(tmp_path: Path) -> None:

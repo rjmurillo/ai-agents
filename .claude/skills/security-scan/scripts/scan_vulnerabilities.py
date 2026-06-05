@@ -341,7 +341,7 @@ def get_directory_files(directory: str) -> list[str]:
     for root, dirnames, filenames in os.walk(directory):
         dirnames[:] = [
             dirname for dirname in dirnames
-            if dirname not in _PRUNED_DIRECTORY_NAMES
+            if dirname.lower() not in _PRUNED_DIRECTORY_NAMES
         ]
         for filename in filenames:
             full_path = os.path.join(root, filename)
