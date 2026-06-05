@@ -106,7 +106,7 @@ jobs:
           HAS_CODE_CHANGES: ${{ needs.check-paths.outputs.has-code-changes }}
         run: |
           if [ "$HAS_CODE_CHANGES" != "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Skipped - no code changes detected"
           fi
 
@@ -166,17 +166,19 @@ jobs:
           # Parsing lives in a tested script per ADR-006.
           INCREMENTAL_SCOPE=$(python3 .github/scripts/extract_incremental_scope.py "$PR_TITLE")
 
-          echo "spec_refs=$SPEC_REFS" >> $GITHUB_OUTPUT
-          echo "issue_refs=$ISSUE_REFS" >> $GITHUB_OUTPUT
-          echo "incremental_scope=$INCREMENTAL_SCOPE" >> $GITHUB_OUTPUT
+          {
+            echo "spec_refs=$SPEC_REFS"
+            echo "issue_refs=$ISSUE_REFS"
+            echo "incremental_scope=$INCREMENTAL_SCOPE"
+          } >> "$GITHUB_OUTPUT"
 
           if [ -z "$SPEC_REFS" ] && [ -z "$ISSUE_REFS" ]; then
             echo "No spec references found in PR"
-            echo "has_specs=false" >> $GITHUB_OUTPUT
+            echo "has_specs=false" >> "$GITHUB_OUTPUT"
           else
             echo "Found spec references: $SPEC_REFS"
             echo "Found issue references: $ISSUE_REFS"
-            echo "has_specs=true" >> $GITHUB_OUTPUT
+            echo "has_specs=true" >> "$GITHUB_OUTPUT"
           fi
 
           # Cleanup temp files
@@ -192,6 +194,7 @@ jobs:
           SPEC_CONTENT=""
 
           # Load from spec files
+          # shellcheck disable=SC2086 # SPEC_REFS is a space-delimited ref list.
           for ref in $SPEC_REFS; do
             # If it's a path, load directly
             if [[ "$ref" == *.md ]]; then
@@ -208,6 +211,7 @@ jobs:
           done
 
           # Load from linked issues
+          # shellcheck disable=SC2086 # ISSUE_REFS is a space-delimited ref list.
           for issue in $ISSUE_REFS; do
             # Parse cross-repo format (owner/repo#123) vs simple format (123)
             if [[ "$issue" == *"/"* ]]; then
@@ -234,7 +238,7 @@ jobs:
 
           # Save to file for later steps
           echo "$SPEC_CONTENT" > /tmp/spec-content.md
-          echo "spec_file=/tmp/spec-content.md" >> $GITHUB_OUTPUT
+          echo "spec_file=/tmp/spec-content.md" >> "$GITHUB_OUTPUT"
 
       - name: Prepare Spec Context
         if: steps.should-run.outputs.skip != 'true' && steps.spec-ref.outputs.has_specs == 'true'
@@ -264,9 +268,9 @@ jobs:
                 echo "and must be treated as N/A for this evaluation."
               fi
               echo "EOF_SPEC"
-            } >> $GITHUB_OUTPUT
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "spec_context=No spec content loaded" >> $GITHUB_OUTPUT
+            echo "spec_context=No spec content loaded" >> "$GITHUB_OUTPUT"
           fi
 
       - name: 🔗 Requirements Traceability Check (Analyst Agent)
@@ -324,20 +328,26 @@ jobs:
           if [ -z "$PR_BODY" ] && [ -n "$PR_NUMBER" ]; then
             PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
           fi
-          printf '%s' "$PR_BODY" > /tmp/pr-body-signal.md
+          body_file="${RUNNER_TEMP:-.}/pr-body-signal-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.md"
+          summary_file="${RUNNER_TEMP:-.}/external-gate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          printf '%s' "$PR_BODY" > "$body_file"
           # Capture the observe verdict and surface it in the job summary, so a
           # run records the externally-grounded signal whether or not it blocks.
-          PR_BODY_FILE=/tmp/pr-body-signal.md \
+          set +e
+          PR_BODY_FILE="$body_file" \
             python3 scripts/quality_gate/spec_external_signal_gate.py \
-            | tee /tmp/external-gate.json || true
+            | tee "$summary_file"
+          gate_rc=${PIPESTATUS[0]}
+          set -e
           {
             echo "### External-signal gate (observe)"
             echo ""
             echo '```json'
-            cat /tmp/external-gate.json 2>/dev/null || echo "(no output)"
+            cat "$summary_file" 2>/dev/null || echo "(no output)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          rm -f /tmp/pr-body-signal.md /tmp/external-gate.json
+          rm -f "$body_file" "$summary_file"
+          exit "$gate_rc"
 
       - name: Generate Validation Report
         if: steps.should-run.outputs.skip != 'true'
