@@ -438,6 +438,82 @@ def format_markdown(
 _NON_AGENT_FILENAMES: frozenset[str] = frozenset({"AGENTS", "CLAUDE"})
 
 
+# Agent path roots (Issue #2423). Each entry maps a directory prefix to the
+# filename suffix the agent files in that root use. The path-to-family helper
+# strips the prefix to get the file's relative path, then strips the suffix to
+# get the family (agent) name. Order does not matter; longer prefixes are
+# matched first so ``src/copilot-cli/agents/`` wins over a hypothetical
+# ``src/`` entry.
+_AGENT_PATH_ROOTS: tuple[tuple[str, str], ...] = (
+    (".claude/agents/", ".md"),
+    (".github/agents/", ".agent.md"),
+    ("src/claude/", ".md"),
+    ("src/vs-code-agents/", ".agent.md"),
+    ("src/copilot-cli/agents/", ".agent.md"),
+    ("templates/agents/", ".shared.md"),
+)
+
+
+def _normalize_repo_relative(path: str, repo_root: Path | None) -> str:
+    """Return ``path`` as a forward-slash repo-relative string.
+
+    Accepts absolute paths (only when ``repo_root`` is supplied and the path
+    sits inside it), repo-relative POSIX strings, and Windows-style backslash
+    paths. Paths outside the repo and unparseable inputs return an empty
+    string -- caller treats that as "no family".
+    """
+    if not path:
+        return ""
+    normalized = path.replace("\\", "/")
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    if repo_root is not None:
+        candidate = Path(normalized)
+        if candidate.is_absolute():
+            try:
+                normalized = candidate.resolve().relative_to(repo_root.resolve()).as_posix()
+            except ValueError:
+                return ""
+    return normalized.lstrip("/")
+
+
+def families_from_paths(
+    paths: Sequence[str], repo_root: Path | None = None
+) -> frozenset[str]:
+    """Return the set of agent family names touched by ``paths`` (Issue #2423).
+
+    A "family" is an agent's stem (e.g. ``analyst``, ``critic``), the unit the
+    drift detector compares across platforms. ``paths`` may include any file in
+    the diff -- non-agent paths are ignored. Paths under any of the known agent
+    roots (``.claude/agents/``, ``.github/agents/``, ``src/claude/``,
+    ``src/vs-code-agents/``, ``src/copilot-cli/agents/``, ``templates/agents/``)
+    contribute their family. Directory metadata files (AGENTS.md, CLAUDE.md)
+    and nested subdirectories (e.g. ``.claude/agents/security/foo.md`` -> foo)
+    are handled correctly.
+
+    Used by the pre-push hook to scope drift detection to the agent families
+    actually touched by the push, instead of repo-wide.
+    """
+    families: set[str] = set()
+    for raw in paths:
+        rel = _normalize_repo_relative(raw, repo_root)
+        if not rel:
+            continue
+        for prefix, suffix in _AGENT_PATH_ROOTS:
+            if not rel.startswith(prefix):
+                continue
+            tail = rel[len(prefix):]
+            stem = Path(tail).name
+            if not stem.endswith(suffix):
+                continue
+            family = stem[: -len(suffix)]
+            if not family or family in _NON_AGENT_FILENAMES:
+                continue
+            families.add(family)
+            break
+    return frozenset(families)
+
+
 def shared_template_names(templates_path: Path) -> frozenset[str]:
     """Return the stems of every ``templates/agents/{name}.shared.md`` source.
 
@@ -512,6 +588,7 @@ def run_install_detection(
     claude_install_path: Path,
     github_install_path: Path,
     threshold: int,
+    restrict_to: frozenset[str] | None = None,
 ) -> list[AgentResult]:
     """Compare hand-maintained install copies for shared-template agents.
 
@@ -522,6 +599,11 @@ def run_install_detection(
     similarity. This pass adds that check for shared-template agents: agents
     whose prose comes from ``templates/agents/{name}.shared.md``. Freestanding
     Claude-only or GitHub-only agents are skipped via ``restrict_to``.
+
+    When ``restrict_to`` is supplied (Issue #2423 scoped-mode), the install
+    comparison is further narrowed to the intersection of the changed families
+    and the shared-template set, so a changed-files push cannot accidentally
+    drag in pre-existing drift from an unrelated shared agent.
     """
     if not templates_path.is_dir():
         return []
@@ -532,11 +614,15 @@ def run_install_detection(
     if not shared_names:
         return []
 
+    effective = shared_names if restrict_to is None else shared_names & restrict_to
+    if not effective:
+        return []
+
     return run_detection(
         claude_install_path,
         github_install_path,
         threshold,
-        restrict_to=shared_names,
+        restrict_to=effective,
         comparison=_INSTALL_COMPARISON_LABEL,
     )
 
@@ -614,7 +700,50 @@ def build_parser() -> argparse.ArgumentParser:
             "code."
         ),
     )
+    parser.add_argument(
+        "--changed",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Repeatable. Restrict the comparison to the agent families touched "
+            "by these paths (Issue #2423). Paths outside the known agent roots "
+            "are ignored. When supplied without --all, the gate compares only "
+            "those families, so unrelated pre-existing drift does not block a "
+            "scoped push. If no path resolves to an agent family, the gate "
+            "exits 0 -- nothing to check."
+        ),
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help=(
+            "Force repo-wide audit even when --changed is supplied. Use this "
+            "for the weekly drift-detection workflow, the pre_pr.py audit, and "
+            "any manual whole-repo invocation. With no scoping args, the gate "
+            "already audits repo-wide (cron/manual default)."
+        ),
+    )
     return parser
+
+
+def _resolve_scope(
+    args: argparse.Namespace, repo_root: Path
+) -> tuple[frozenset[str] | None, bool]:
+    """Resolve the family scope and whether the run is a no-op.
+
+    Returns (restrict_to, no_op):
+    - restrict_to=None -> repo-wide audit.
+    - restrict_to=frozenset(...) -> scoped to those families.
+    - no_op=True -> --changed was supplied but no path resolved to an agent
+      family; caller should print a brief skip line and exit 0.
+    """
+    if args.all or not args.changed:
+        return None, False
+    families = families_from_paths(args.changed, repo_root=repo_root)
+    if not families:
+        return frozenset(), True
+    return families, False
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -658,8 +787,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 2
 
+    restrict_to, no_op = _resolve_scope(args, repo_root)
+    if no_op:
+        print(
+            "Agent drift detection: --changed supplied but no path resolved "
+            "to an agent family; skipping.",
+        )
+        return 0
+
     start_time = time.monotonic()
-    results = run_detection(claude_path, vscode_path, args.similarity_threshold)
+    results = run_detection(
+        claude_path, vscode_path, args.similarity_threshold, restrict_to=restrict_to
+    )
     install_results: list[AgentResult] = []
     if not args.skip_install_comparison:
         install_results = run_install_detection(
@@ -667,6 +806,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             claude_install_path,
             github_install_path,
             args.similarity_threshold,
+            restrict_to=restrict_to,
         )
         results.extend(install_results)
     duration = time.monotonic() - start_time
