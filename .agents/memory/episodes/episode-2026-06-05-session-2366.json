@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-05-session-2366",
+  "session": "2026-06-05-session-2366",
+  "timestamp": "2026-06-05T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autofix and merge PR #2426 from an isolated worktree. Resolve conflicts, review threads, generated-file validation, eval edge cases, orphan refs, CI, and merge only when the four-condition gate passes.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
