@@ -17,9 +17,10 @@ an LLM judge. A pair verdict is computed from the per-direction deltas:
   - SUBSUMED: one skill helps on both prompt sets while the other does not.
 
 Phase 1 (Issue #1932): explicit pair list only via `--pairs cluster.json`.
-No cluster shortcuts, no full N-squared sweep. The N-squared cost is
-N^2 * prompts * 3 conditions * judge calls (~36k calls for 70 skills), so
-unbounded mode is deliberately out of scope and gated.
+No cluster shortcuts, no full catalog sweep. The O(N^2) cost is
+N*(N-1)/2 unordered pairs * prompts per pair * 6 calls per prompt. At 70
+skills and 5 prompts per skill, that is about 145k API calls, so unbounded
+mode is deliberately out of scope and gated.
 
 Usage:
     python3 scripts/eval/eval-skill-overlap.py --pairs cluster.json --dry-run
@@ -88,7 +89,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
 REPORTS_DIR = REPO_ROOT / "evals" / "reports"
 
-DEFAULT_MODEL = "claude-sonnet-4-20250514"
+# Aligned with scripts/eval/eval-agent-vs-baseline.py DEFAULT_MODEL and the
+# canonical pricing table in scripts/eval/_eval_common.py
+# (MODEL_PRICING_RATES_USD_PER_1K_TOKENS).
+DEFAULT_MODEL = "claude-sonnet-4-6"
 RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; matches eval-knowledge-integration.py
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -460,13 +464,17 @@ def _parse_judge_score(raw: str) -> float:
     """Extract the score from a judge response or raise on malformed payload."""
     text = raw.strip()
     if "```" in text:
-        match = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
+        match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
         if match:
             text = match.group(1).strip()
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise JudgeScoreError(f"Judge score payload is not valid JSON: {text[:100]}") from exc
+    parsed = _first_json_object(text)
+    if parsed is None:
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise JudgeScoreError(
+                f"Judge score payload is not valid JSON: {text[:100]}"
+            ) from exc
     if not isinstance(parsed, dict):
         raise JudgeScoreError(f"Judge score payload is not an object: {text[:100]}")
     score = parsed.get("score")
@@ -476,6 +484,21 @@ def _parse_judge_score(raw: str) -> float:
         return min(max(float(score), 1.0), 5.0)
     except (TypeError, ValueError) as exc:
         raise JudgeScoreError(f"Judge score is not numeric: {text[:100]}") from exc
+
+
+def _first_json_object(text: str) -> dict[str, Any] | None:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        return None
+    return None
 
 
 # ---------------------------------------------------------------------------

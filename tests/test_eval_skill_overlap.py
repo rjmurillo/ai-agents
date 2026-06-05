@@ -475,10 +475,38 @@ def test_parse_judge_score_extracts_from_code_fence():
     assert eso._parse_judge_score(raw) == 4.0
 
 
+def test_parse_judge_score_extracts_json_with_preamble_and_postamble():
+    raw = 'Here is the score:\n```json {"score": 5} ```\nThanks.'
+
+    assert eso._parse_judge_score(raw) == 5.0
+
+
+def test_parse_judge_score_extracts_json_object_without_fence():
+    raw = 'Score follows: {"score": 3} done.'
+
+    assert eso._parse_judge_score(raw) == 3.0
+
+
+def test_parse_judge_score_uses_first_valid_json_object():
+    raw = 'Bad object {not json} then good {"score": 4} and trailing {"note": "ignored"}'
+
+    assert eso._parse_judge_score(raw) == 4.0
+
+
 def test_parse_judge_score_raises_on_garbage():
     # Act / Assert
     with pytest.raises(eso.JudgeScoreError, match="not valid JSON"):
         eso._parse_judge_score("not json at all")
+
+
+def test_load_pairs_file_raises_on_empty_prompt_text(tmp_path):
+    payload = _valid_pairs_payload()
+    payload["prompts"]["a"] = [{"prompt": "", "expected": "ea"}]
+    f = tmp_path / "c.json"
+    f.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(eso.PairsFileError, match="non-empty 'prompt'"):
+        eso.load_pairs_file(str(f))
 
 
 def test_parse_judge_score_raises_on_non_object_json():
