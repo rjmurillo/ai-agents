@@ -69,8 +69,11 @@ jobs:
       # alert still lands in the step summary. The events file is per-run only
       # (git-ignored), so this rollup reflects this run, not full history; a
       # cross-run weekly total would need artifact aggregation (out of scope).
+      # Runs unconditionally (always()): a zero-drift week still emits an
+      # all-zero rollup, which confirms the report ran and records the all-clear
+      # in the job summary instead of leaving it blank.
       - name: Summarize kill-criteria drift telemetry
-        if: steps.drift.outputs.drift_detected == 'true'
+        if: always()
         run: |
           python3 scripts/metrics/kill_criteria.py report >> "$GITHUB_STEP_SUMMARY"
         continue-on-error: true
