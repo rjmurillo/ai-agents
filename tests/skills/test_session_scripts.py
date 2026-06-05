@@ -13,7 +13,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -51,6 +51,7 @@ class TestNewSessionLogJson:
 
     def _import(self):
         import importlib
+
         import new_session_log_json as mod
         importlib.reload(mod)
         return mod
@@ -232,6 +233,7 @@ class TestCompleteSessionLog:
 
     def _import(self):
         import importlib
+
         import complete_session_log as mod
         importlib.reload(mod)
         return mod
@@ -381,6 +383,7 @@ class TestCompleteSessionLog:
 
     def test_main_no_session_logs_exits_1(self, tmp_path, monkeypatch):
         import importlib
+
         import complete_session_log as mod
         importlib.reload(mod)
 
@@ -414,6 +417,7 @@ class TestGetValidationErrors:
 
     def _import(self):
         import importlib
+
         import get_validation_errors as mod
         importlib.reload(mod)
         return mod
@@ -479,6 +483,7 @@ class TestGetValidationErrors:
 
     def test_main_run_id_no_errors_exits_2(self):
         import importlib
+
         import get_validation_errors as mod
         importlib.reload(mod)
         # Mock the subprocess.run call that fetches log
@@ -489,6 +494,7 @@ class TestGetValidationErrors:
 
     def test_main_run_fetch_failure_exits_1(self):
         import importlib
+
         import get_validation_errors as mod
         importlib.reload(mod)
         log_proc = make_proc(returncode=1, stderr="error")
