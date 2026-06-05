@@ -314,6 +314,8 @@ def _resolve_output_path(
         skeleton = Path(fill)
         if not skeleton.is_absolute():
             skeleton = (project_dir or retro_dir) / skeleton
+        if project_dir is not None:
+            skeleton = _require_project_output_path(skeleton, project_dir)
         if not skeleton.is_file():
             raise ValueError(f"fill skeleton not found: {fill}")
         stem = skeleton.stem.replace("-auto-retro", "")

@@ -405,6 +405,32 @@ def test_cli_rejects_fill_path_outside_project(tmp_path):
     assert not (tmp_path.parent / "2026-06-03-retro-filled.md").exists()
 
 
+def test_resolve_fill_rejects_escape_before_existence_probe(tmp_path, monkeypatch):
+    # Arrange
+    outside = tmp_path.parent / "2026-06-03-auto-retro.md"
+
+    def _fail_is_file(self):
+        if self == outside:
+            raise AssertionError("outside path was probed")
+        return False
+
+    monkeypatch.setattr(Path, "is_file", _fail_is_file)
+
+    # Act / Assert
+    try:
+        _resolve_output_path(
+            tmp_path / ("." + "agents") / "retrospective",
+            "2026-06-03",
+            "2026-06-03",
+            str(outside),
+            tmp_path,
+        )
+    except ValueError as exc:
+        assert "escapes project dir" in str(exc)
+    else:
+        raise AssertionError("expected escaped fill path to be rejected")
+
+
 def test_resolve_output_path_for_new_artifact(tmp_path):
     # Arrange / Act
     path = _resolve_output_path(tmp_path, "my scope/with slash", "2026-06-03", None)

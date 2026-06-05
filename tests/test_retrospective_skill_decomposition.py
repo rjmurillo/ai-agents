@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Structural tests for the retrospective skill decomposition (issue #2080, PR 1 of N).
+"""Structural tests for the retrospective skill decomposition (issue #2080, PR 2 of N).
 
-This PR creates the skill contract only: `.claude/skills/retrospective/SKILL.md`
-plus three `references/` files lifted verbatim from the source agent body. Scripts,
-agent deletion, and template removal are out of scope for this slice.
+This slice adds the script layer for the retrospective skill while keeping agent
+deletion and caller rewiring out of scope.
 
 These tests pin the structural contract that the SkillForge validator, the skill-size
 gate, and the canonical-source-mirror rule depend on:
