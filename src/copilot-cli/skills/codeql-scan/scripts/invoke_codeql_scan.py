@@ -54,12 +54,15 @@ def _get_repo_root() -> Path | None:
     points at the main checkout's `.git` directory even from a linked
     worktree, which breaks worktree isolation (see #2373).
     """
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
     if result.returncode != 0:
         return None
     top = result.stdout.strip()

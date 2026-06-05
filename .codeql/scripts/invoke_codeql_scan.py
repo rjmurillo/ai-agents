@@ -374,10 +374,17 @@ def format_results(results: list[dict], output_format: str) -> None:
 
 def validate_path_containment(repo_path: str) -> None:
     script_dir = Path(__file__).resolve().parent
-    result = subprocess.run(
-        ["git", "-C", str(script_dir), "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, timeout=10, check=False,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(script_dir), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+    except FileNotFoundError:
+        print(
+            "git command not found. Please install git to run CodeQL scanning.",
+            file=sys.stderr,
+        )
+        sys.exit(3)
     if result.returncode != 0:
         print(
             "Failed to determine project root using git.",
