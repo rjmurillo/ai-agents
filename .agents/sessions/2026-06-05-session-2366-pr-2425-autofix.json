@@ -37,14 +37,14 @@
       "notOnMain": {
         "level": "MUST",
         "complete": true,
-        "evidence": "Work ran in /home/richard/src/GitHub/rjmurillo/ai-agents2-pr-2425-worktree, not the shared main checkout."
+        "evidence": "Work ran in an isolated PR worktree for docs/spec-quality-and-subloop, not the shared main checkout."
       }
     },
     "sessionEnd": {
       "checklistComplete": {
-        "level": "MUST",
-        "complete": true,
-        "evidence": "Completion gate ran and reported one unresolved governance thread plus required checks still running."
+        "level": "BLOCKED",
+        "complete": false,
+        "evidence": "Blocked by the unresolved governance review thread on CI-FEEDBACK-SUBLOOP.md and required checks that had not finished when the session ended."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -67,9 +67,9 @@
         "evidence": "Committed main merge, docs fixes, plugin version bumps, causal graph cleanup, and this session log."
       },
       "validationPassed": {
-        "level": "MUST",
-        "complete": true,
-        "evidence": "Local validations passed: dash scan, governance reference scan, Step 0 parity tests, plugin version bump check, markdownlint, pre-push, and completion gate execution."
+        "level": "BLOCKED",
+        "complete": false,
+        "evidence": "Local checks passed, but PR validation was blocked by the unresolved governance thread and required checks that had not finished when the session ended."
       }
     }
   },
@@ -89,6 +89,10 @@
     {
       "time": "2026-06-05T14:11:46Z",
       "entry": "Observed merge process bug: causal graph appeared in PR diff after main merge; restored the file from origin/main."
+    },
+    {
+      "time": "2026-06-05T14:26:00Z",
+      "entry": "Corrected session-end fields to mark merge-readiness validation as blocked while the governance thread and required checks remained open; removed local absolute path evidence."
     }
   ],
   "endingCommit": "",
