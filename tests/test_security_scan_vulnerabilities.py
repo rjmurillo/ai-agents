@@ -792,6 +792,8 @@ def test_main_directory_scan_in_process(
     ("shebang", "expected"),
     [
         ("#!/usr/bin/env bash\n", "bash"),
+        ("#!/usr/bin/env -S bash\n", "bash"),
+        ("#!/usr/bin/env -i sh\n", "bash"),
         ("#!/bin/bash\n", "bash"),
         ("#!/bin/sh\n", "bash"),
         ("#!/usr/bin/env sh\n", "bash"),
@@ -799,6 +801,7 @@ def test_main_directory_scan_in_process(
         ("#!/usr/bin/env dash\n", "bash"),
         ("#!/usr/bin/env ksh\n", "bash"),
         ("#!/usr/bin/env python3\n", None),
+        ("#!/usr/bin/env -S python3\n", None),
         ("#!/usr/bin/env node\n", None),
         ("#!/usr/bin/env pwsh\n", None),
         ("plain text, no shebang\n", None),

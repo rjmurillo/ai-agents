@@ -140,8 +140,11 @@ def _get_shebang_language(file_path: str) -> str | None:
     if not command:
         return None
     executable = Path(command[0]).name
-    if executable == "env" and len(command) > 1:
-        executable = Path(command[1]).name
+    if executable == "env":
+        for arg in command[1:]:
+            if not arg.startswith("-"):
+                executable = Path(arg).name
+                break
     if executable in shell_names:
         return "bash"
     return None
