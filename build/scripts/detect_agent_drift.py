@@ -95,10 +95,10 @@ SECTIONS_TO_COMPARE = (
 # template (templates/agents/merge-resolver.shared.md), and therefore the
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
 # agent prompt and change agent behavior (architect review, out of scope for a
-# baseline-green fix). Floor is set just below the measured 20.9% so the
-# existing structure is accepted but any worsening still blocks.
+# baseline-green fix). Floor is set to the measured 20.9% so the existing
+# structure is accepted but any worsening still blocks.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
-    ("merge-resolver", "src-claude vs src-vscode"): 20.0,
+    ("merge-resolver", "src-claude vs src-vscode"): 20.9,
 }
 
 # MCP syntax normalization patterns (compiled once)
