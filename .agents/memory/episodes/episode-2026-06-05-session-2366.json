@@ -2,8 +2,8 @@
   "id": "episode-2026-06-05-session-2366",
   "session": "2026-06-05-session-2366",
   "timestamp": "2026-06-05T00:00:00+00:00",
-  "outcome": "partial",
-  "task": "Autofix PR #2425 in an isolated worktree, validate markdown and governance references, address review threads, and merge only if four-condition and governance gates pass.",
+  "outcome": "success",
+  "task": "Autofix and merge PR #2426 from an isolated worktree. Resolve conflicts, review threads, generated-file validation, eval edge cases, orphan refs, CI, and merge only when the four-condition gate passes.",
   "decisions": [],
   "events": [],
   "metrics": {

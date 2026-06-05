@@ -748,15 +748,33 @@ if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+\.md|src/vs-code-a
         if set_python_cmd; then
             DRIFT_OUTPUT=$(mktemp)
             TEMP_FILES+=("$DRIFT_OUTPUT")
-            if "${PYTHON_CMD[@]}" "$AGENT_DRIFT_SCRIPT" > "$DRIFT_OUTPUT" 2>&1; then
-                record_pass "Agent drift detection"
+
+            # Issue #2423: scope drift to the agent families this push actually
+            # touches. CHANGED_FILES is computed from the push range above
+            # (per-ref `git diff --name-only` against the merge-base with
+            # origin/main); we reuse it instead of re-diffing because a
+            # force-push leaves the remote sha behind and re-diff misclassifies
+            # files. detect_agent_drift.py maps each path back to its agent
+            # family and only compares those families, so pre-existing drift in
+            # unrelated agents no longer blocks a scoped push. If
+            # CHANGED_FILES is empty (tag push or branch deletion), the outer
+            # `if -n` above already skipped this section; we never reach here
+            # with no paths to pass.
+            DRIFT_ARGS=()
+            while IFS= read -r changed_file; do
+                [ -z "$changed_file" ] && continue
+                DRIFT_ARGS+=("--changed" "$changed_file")
+            done <<< "$CHANGED_FILES"
+
+            if "${PYTHON_CMD[@]}" "$AGENT_DRIFT_SCRIPT" "${DRIFT_ARGS[@]}" > "$DRIFT_OUTPUT" 2>&1; then
+                record_pass "Agent drift detection (scoped to ${#DRIFT_ARGS[@]} changed-file paths)"
             else
                 DRIFT_RC=$?
                 echo_info "  Agent drift output:"
                 head -20 "$DRIFT_OUTPUT"
                 record_fail "Agent drift detected (exit $DRIFT_RC; script=$AGENT_DRIFT_SCRIPT)"
                 echo_info "  Fix: Sync agent content across platforms."
-                echo_info "  Run: ${PYTHON_CMD[*]} build/scripts/detect_agent_drift.py"
+                echo_info "  Run: ${PYTHON_CMD[*]} build/scripts/detect_agent_drift.py --all"
             fi
             rm -f "$DRIFT_OUTPUT"
         else

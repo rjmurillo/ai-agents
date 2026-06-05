@@ -42,7 +42,7 @@ class TestGitHelpers:
         from session_init.git_helpers import get_git_info
 
         fake_results = {
-            ("rev-parse", "--git-common-dir"): "/fake/root/.git",
+            ("rev-parse", "--show-toplevel"): "/fake/root",
             ("branch", "--show-current"): "feat/test",
             ("rev-parse", "--short", "HEAD"): "abc1234",
             ("status", "--short"): "",
@@ -61,11 +61,43 @@ class TestGitHelpers:
         assert info["commit"] == "abc1234"
         assert info["status"] == "clean"
 
+    def test_get_git_info_uses_worktree_toplevel_not_common_dir(self):
+        """In a linked worktree, repo_root is the worktree top, not main checkout.
+
+        Regression for #2375. --git-common-dir returns the MAIN checkout's
+        shared .git in a linked worktree; --show-toplevel returns this
+        worktree's root. get_git_info must use --show-toplevel.
+        """
+        from session_init.git_helpers import get_git_info
+
+        worktree_top = "/repo/.git/worktrees/feat/checkout"
+        main_common_dir = "/repo/.git"
+        fake_results = {
+            # If the code regressed to --git-common-dir, repo_root would be
+            # dirname(main_common_dir) == "/repo", the main checkout.
+            ("rev-parse", "--git-common-dir"): main_common_dir,
+            ("rev-parse", "--show-toplevel"): worktree_top,
+            ("branch", "--show-current"): "feat/linked",
+            ("rev-parse", "--short", "HEAD"): "feed1234",
+            ("status", "--short"): "",
+        }
+
+        def mock_run(cmd, **kwargs):
+            git_args = tuple(cmd[1:])
+            stdout = fake_results.get(git_args, "")
+            return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
+
+        with mock.patch("subprocess.run", side_effect=mock_run):
+            info = get_git_info()
+
+        assert info["repo_root"] == worktree_top
+        assert info["repo_root"] != "/repo"
+
     def test_get_git_info_dirty(self):
         from session_init.git_helpers import get_git_info
 
         fake_results = {
-            ("rev-parse", "--git-common-dir"): "/fake/root/.git",
+            ("rev-parse", "--show-toplevel"): "/fake/root",
             ("branch", "--show-current"): "main",
             ("rev-parse", "--short", "HEAD"): "def5678",
             ("status", "--short"): " M file.py",
@@ -172,7 +204,7 @@ class TestNewSessionLog:
         )
 
         fake_git = {
-            ("rev-parse", "--git-common-dir"): str(tmp_path / ".git"),
+            ("rev-parse", "--show-toplevel"): str(tmp_path),
             ("branch", "--show-current"): "feat/test",
             ("rev-parse", "--short", "HEAD"): "abc1234",
             ("status", "--short"): "",
@@ -230,7 +262,7 @@ class TestNewSessionLogJson:
                 results = {
                     ("branch", "--show-current"): "feat/json-test",
                     ("rev-parse", "--short", "HEAD"): "def5678",
-                    ("rev-parse", "--git-common-dir"): str(tmp_path / ".git"),
+                    ("rev-parse", "--show-toplevel"): str(tmp_path),
                 }
                 stdout = results.get(git_args, "")
                 return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")

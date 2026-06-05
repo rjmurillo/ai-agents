@@ -26,6 +26,7 @@ import re
 import subprocess
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 _WORKSPACE = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -33,6 +34,34 @@ _WORKSPACE = os.environ.get(
 )
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+
+def _resolve_paths_lib_dir() -> str:
+    """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        lib_dir = Path(plugin_root).expanduser().resolve() / "lib"
+        if not lib_dir.is_dir():
+            print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
+            sys.exit(2)
+        return str(lib_dir)
+    candidates: list[Path] = []
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        candidates.append(Path(workspace).expanduser().resolve() / ".claude" / "lib")
+    candidates.append(Path(__file__).resolve().parents[3] / "lib")
+    for lib_dir in candidates:
+        if lib_dir.is_dir():
+            return str(lib_dir)
+    checked = ", ".join(str(candidate) for candidate in candidates)
+    print(f"Plugin lib directory not found. Checked: {checked}", file=sys.stderr)
+    sys.exit(2)
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from paths import resolve_artifact_root  # noqa: E402
 from session_init.git_helpers import get_git_info  # noqa: E402
 from session_init.template_helpers import get_descriptive_keywords  # noqa: E402
 
@@ -56,30 +85,85 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _auto_detect_session_number(sessions_dir: str) -> int:
-    """Auto-increment session number from latest session in directory."""
-    if not os.path.isdir(sessions_dir):
-        return 1
+_SESSION_NUM_RE = re.compile(r"session-(\d+)")
+
+
+def _max_session_in_names(names: list[str]) -> int:
+    """Highest session number among `*.json` file names, or 0 when none."""
     max_num = 0
-    for name in os.listdir(sessions_dir):
-        m = re.search(r"session-(\d+)", name)
+    for name in names:
+        m = _SESSION_NUM_RE.search(name)
         if m and name.endswith(".json"):
             max_num = max(max_num, int(m.group(1)))
-    return max_num + 1 if max_num else 1
+    return max_num
 
 
-def _get_max_existing_session(sessions_dir: str) -> int | None:
-    """Get the maximum existing session number."""
-    if not os.path.isdir(sessions_dir):
-        return None
-    max_num = 0
+def _origin_main_max_session(repo_root: str | None = None) -> int:
+    """Highest session number recorded under origin/main, or 0 when unknown.
+
+    Parallel autofix branches fork from the same main and each scans only its
+    own working tree, so two branches can allocate the same next number
+    (issue #2379). Reading the session files already on origin/main lets every
+    branch see numbers committed by siblings that have already merged.
+
+    origin/main is a local remote-tracking ref, so `git ls-tree` does not hit
+    the network. The call is best-effort: any failure (no origin, no ref,
+    timeout, git missing) returns 0 so allocation falls back to the local scan.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "ls-tree", "--name-only", "origin/main", ".agents/sessions/"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+            cwd=repo_root,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return 0
+    if result.returncode != 0:
+        return 0
+    names = [os.path.basename(line) for line in result.stdout.splitlines() if line.strip()]
+    return _max_session_in_names(names)
+
+
+def _repo_root_for_origin_scan(sessions_dir: str, repo_root: str | None) -> str:
+    return repo_root or os.path.dirname(os.path.dirname(os.path.abspath(sessions_dir)))
+
+
+def _auto_detect_session_number(sessions_dir: str, repo_root: str | None = None) -> int:
+    """Auto-increment session number across the local tree and origin/main.
+
+    Takes the max of the local working-tree scan and the session numbers
+    already on origin/main so parallel branches do not reuse a number a sibling
+    already committed (issue #2379).
+    """
+    local_max = 0
+    if os.path.isdir(sessions_dir):
+        local_max = _max_session_in_names(os.listdir(sessions_dir))
+    scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
+    combined_max = max(local_max, _origin_main_max_session(scan_root))
+    return combined_max + 1 if combined_max else 1
+
+
+def _get_max_existing_session(sessions_dir: str, repo_root: str | None = None) -> int | None:
+    """Get the maximum existing session number across local tree and origin/main.
+
+    Includes origin/main so the DoS ceiling in main() stays consistent with
+    cross-branch allocation: a number derived from a sibling's committed session
+    must not be falsely rejected as a jump (issue #2379).
+    """
+    local_max = 0
     found = False
-    for name in os.listdir(sessions_dir):
-        m = re.search(r"session-(\d+)", name)
-        if m and name.endswith(".json"):
-            max_num = max(max_num, int(m.group(1)))
-            found = True
-    return max_num if found else None
+    if os.path.isdir(sessions_dir):
+        local_max = _max_session_in_names(os.listdir(sessions_dir))
+        found = local_max > 0
+    scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
+    origin_max = _origin_main_max_session(scan_root)
+    if origin_max > 0:
+        found = True
+    combined = max(local_max, origin_max)
+    return combined if found else None
 
 
 def _derive_objective(branch: str) -> str:
@@ -233,17 +317,16 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = git_info["repo_root"]
 
-    sessions_dir = os.path.join(repo_root, ".agents", "sessions")
-    os.makedirs(sessions_dir, exist_ok=True)
+    sessions_dir = str(resolve_artifact_root("sessions", base=repo_root))
     current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     # Resolve session number
     session_number = args.session_number
     if session_number == 0:
-        session_number = _auto_detect_session_number(sessions_dir)
+        session_number = _auto_detect_session_number(sessions_dir, repo_root)
 
     # CWE-400: Reject session number jumps larger than 10 above max existing
-    max_existing = _get_max_existing_session(sessions_dir)
+    max_existing = _get_max_existing_session(sessions_dir, repo_root)
     if max_existing is not None and session_number > max_existing + 10:
         print(
             f"ERROR: Session number {session_number} exceeds ceiling "

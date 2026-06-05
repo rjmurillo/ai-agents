@@ -408,26 +408,33 @@ class TestMain:
     External tool calls are mocked to avoid requiring actual tools.
     """
 
-    @patch("scripts.validation.pre_pr._run_subprocess")
-    def test_quick_mode_skips_slow_checks(self, mock_subprocess: Any) -> None:  # noqa: ANN401
-        mock_subprocess.return_value = (0, "", "")
+    @patch("subprocess.run")
+    @patch("shutil.which")
+    def test_quick_mode_skips_slow_checks(
+        self, mock_which: Any, mock_run: Any  # noqa: ANN401
+    ) -> None:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
         result = main(["--quick", "--skip-tests"])
-        # Should not fail since all checks pass or are skipped
-        assert result in (0, 1)  # May fail if scripts don't exist
+        assert result == 0
 
-    @patch("scripts.validation.pre_pr._run_subprocess")
-    @patch("scripts.validation.pre_pr.shutil")
+    @patch("subprocess.run")
+    @patch("shutil.which")
     def test_all_pass_returns_zero(
-        self, mock_shutil: Any, mock_subprocess: Any  # noqa: ANN401
+        self, mock_which: Any, mock_run: Any  # noqa: ANN401
     ) -> None:
-        mock_subprocess.return_value = (0, "", "")
-        mock_shutil.which.return_value = "/usr/bin/npx"
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = ""
+        mock_run.return_value.stderr = ""
+        mock_which.return_value = "/usr/bin/tool"
 
         # All external tools pass
         result = main(["--quick", "--skip-tests"])
-        assert result in (0, 1)
+        assert result == 0
 
 
 # ---------------------------------------------------------------------------
@@ -578,12 +585,12 @@ class TestValidateMarkdownLint:
     def test_returns_true_when_branch_has_no_markdown(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="npx"):
+        with patch("checks_tooling.shutil.which", return_value="npx"):
             with patch(
-                "scripts.validation.pre_pr._markdown_lint_targets",
+                "checks_tooling._markdown_lint_targets",
                 return_value=[],
             ):
-                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                with patch("checks_tooling._run_subprocess") as mock_run:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_not_called()
@@ -591,12 +598,12 @@ class TestValidateMarkdownLint:
     def test_lints_changed_markdown_only(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="npx"):
+        with patch("checks_tooling.shutil.which", return_value="npx"):
             with patch(
-                "scripts.validation.pre_pr._markdown_lint_targets",
+                "checks_tooling._markdown_lint_targets",
                 return_value=["README.md", "docs/guide.md"],
             ):
-                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
                     assert validate_markdown_lint(tmp_path) is True
 
@@ -610,12 +617,12 @@ class TestValidateMarkdownLint:
     ) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="npx"):
+        with patch("checks_tooling.shutil.which", return_value="npx"):
             with patch(
-                "scripts.validation.pre_pr._markdown_lint_targets",
+                "checks_tooling._markdown_lint_targets",
                 return_value=None,
             ):
-                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (1, "", "markdownlint failed")
                     assert validate_markdown_lint(tmp_path) is False
 
@@ -642,8 +649,8 @@ class TestValidateDashProhibition:
     def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "README.md\n", ""),  # git diff
@@ -658,8 +665,8 @@ class TestValidateDashProhibition:
         # rather than the working tree. Mock the two subprocess calls
         # in order: (1) git diff returns the file list, (2) git show
         # returns the file content as if from HEAD.
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),  # git diff
@@ -670,8 +677,8 @@ class TestValidateDashProhibition:
     def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "range.md\n", ""),
@@ -685,8 +692,8 @@ class TestValidateDashProhibition:
         vendored = tmp_path / "node_modules" / "pkg" / "README.md"
         vendored.parent.mkdir(parents=True)
         vendored.write_text(f"upstream prose with {chr(0x2014)} dash\n", encoding="utf-8")
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
             assert validate_dash_prohibition(tmp_path) is True
@@ -697,8 +704,8 @@ class TestValidateDashProhibition:
         fixture = tmp_path / "tests" / "hooks" / "fixtures" / "dash_violations.md"
         fixture.parent.mkdir(parents=True)
         fixture.write_text(f"intentional {chr(0x2014)}\n", encoding="utf-8")
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
             assert validate_dash_prohibition(tmp_path) is True
@@ -707,8 +714,8 @@ class TestValidateDashProhibition:
         """REQ-006-AC4: .github/instructions/ is NOT excluded."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, ".github/instructions/universal.instructions.md\n", ""),
@@ -720,8 +727,8 @@ class TestValidateDashProhibition:
         """Fail open on git subprocess failure (do not block on infra issues)."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (128, "", "fatal: bad revision")
             assert validate_dash_prohibition(tmp_path) is True
@@ -737,8 +744,8 @@ class TestValidateDashProhibition:
 
         # Working tree clean, but HEAD content (mocked) has em-dash:
         # the function MUST flag it.
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),
@@ -798,7 +805,7 @@ class TestValidateGitHooksInstalled:
         env = {"CI": "false"}
         with patch.dict("os.environ", env, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -822,7 +829,7 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -836,10 +843,10 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "", "core.hooksPath not set")
                 with patch(
-                    "scripts.validation.pre_pr._is_linked_worktree",
+                    "checks_plugin._is_linked_worktree",
                     return_value=False,
                 ):
                     assert validate_git_hooks_installed(tmp_path) is False
@@ -855,10 +862,10 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "", "core.hooksPath not set")
                 with patch(
-                    "scripts.validation.pre_pr._is_linked_worktree",
+                    "checks_plugin._is_linked_worktree",
                     return_value=True,
                 ):
                     assert validate_git_hooks_installed(tmp_path) is True
@@ -876,10 +883,10 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "", "core.hooksPath not set")
                 with patch(
-                    "scripts.validation.pre_pr._is_linked_worktree",
+                    "checks_plugin._is_linked_worktree",
                     return_value=False,
                 ):
                     assert validate_git_hooks_installed(tmp_path) is False
@@ -895,7 +902,7 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -912,8 +919,8 @@ class TestIsLinkedWorktree:
     def test_true_when_git_dir_differs_from_common_dir(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import _is_linked_worktree
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_plugin.shutil.which", return_value="git"):
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (
                     0,
                     "/repo/.git/worktrees/wt\n/repo/.git\n",
@@ -924,30 +931,30 @@ class TestIsLinkedWorktree:
     def test_false_when_git_dir_equals_common_dir(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import _is_linked_worktree
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_plugin.shutil.which", return_value="git"):
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "/repo/.git\n/repo/.git\n", "")
                 assert _is_linked_worktree(tmp_path) is False
 
     def test_false_when_git_missing(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import _is_linked_worktree
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value=None):
+        with patch("checks_plugin.shutil.which", return_value=None):
             assert _is_linked_worktree(tmp_path) is False
 
     def test_false_when_rev_parse_fails(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import _is_linked_worktree
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_plugin.shutil.which", return_value="git"):
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (128, "", "fatal: not a git repository")
                 assert _is_linked_worktree(tmp_path) is False
 
     def test_false_when_output_malformed(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import _is_linked_worktree
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_plugin.shutil.which", return_value="git"):
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "only-one-line\n", "")
                 assert _is_linked_worktree(tmp_path) is False
 
@@ -966,8 +973,8 @@ class TestIsLinkedWorktree:
         (outside / ".git").mkdir()
         monkeypatch.chdir(outside)
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_plugin.shutil.which", return_value="git"):
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, ".git\ncommon\n", "")
                 assert _is_linked_worktree(repo) is False
 
@@ -982,13 +989,13 @@ class TestValidateWorkflowYaml:
         from scripts.validation.pre_pr import validate_workflow_yaml
 
         (tmp_path / ".github" / "workflows").mkdir(parents=True)
-        with patch("scripts.validation.pre_pr.shutil.which", return_value=None):
+        with patch("checks_tooling.shutil.which", return_value=None):
             assert validate_workflow_yaml(tmp_path) is True
 
     def test_returns_true_when_no_workflow_dir(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_workflow_yaml
 
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="actionlint"):
+        with patch("checks_tooling.shutil.which", return_value="actionlint"):
             assert validate_workflow_yaml(tmp_path) is True
 
     def test_passes_shellcheck_severity_warning_env(self, tmp_path: Path) -> None:
@@ -997,8 +1004,8 @@ class TestValidateWorkflowYaml:
         wf_dir = tmp_path / ".github" / "workflows"
         wf_dir.mkdir(parents=True)
         (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="actionlint"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_tooling.shutil.which", return_value="actionlint"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "", "")
                 assert validate_workflow_yaml(tmp_path) is True
 
@@ -1015,9 +1022,9 @@ class TestValidateWorkflowYaml:
         (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
         with patch.dict(os.environ, {"SHELLCHECK_OPTS": "--exclude=SC1091"}, clear=False):
             with patch(
-                "scripts.validation.pre_pr.shutil.which", return_value="actionlint"
+                "checks_tooling.shutil.which", return_value="actionlint"
             ):
-                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
                     assert validate_workflow_yaml(tmp_path) is True
 
@@ -1031,8 +1038,8 @@ class TestValidateWorkflowYaml:
         wf_dir = tmp_path / ".github" / "workflows"
         wf_dir.mkdir(parents=True)
         (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="actionlint"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_tooling.shutil.which", return_value="actionlint"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "ci.yml:1:1: SC2034 ... [shellcheck]", "")
                 assert validate_workflow_yaml(tmp_path) is False
 
@@ -1064,8 +1071,8 @@ class TestValidateWorkflowYamlScope:
 
     def test_does_not_pass_composite_action_paths(self, tmp_path: Path) -> None:
         self._build_tree(tmp_path)
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="/usr/bin/actionlint"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "", "")
                 assert validate_workflow_yaml(tmp_path) is True
 
@@ -1079,8 +1086,8 @@ class TestValidateWorkflowYamlScope:
 
     def test_passes_only_workflow_files(self, tmp_path: Path) -> None:
         self._build_tree(tmp_path)
-        with patch("scripts.validation.pre_pr.shutil.which", return_value="/usr/bin/actionlint"):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch("checks_tooling._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "", "")
                 validate_workflow_yaml(tmp_path)
 
@@ -1092,8 +1099,8 @@ class TestValidateWorkflowYamlScope:
 
     def test_skips_when_actionlint_absent(self, tmp_path: Path) -> None:
         self._build_tree(tmp_path)
-        with patch("scripts.validation.pre_pr.shutil.which", return_value=None):
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_tooling.shutil.which", return_value=None):
+            with patch("checks_tooling._run_subprocess") as mock_run:
                 assert validate_workflow_yaml(tmp_path) is True
         mock_run.assert_not_called()
 
@@ -1117,7 +1124,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (0, "[PASS] No new vendor-portability offenders.\n", "")
             assert validate_vendor_portability(repo) is True
 
@@ -1125,7 +1132,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (1, "[FAIL] 1 new vendor-portability offender(s).\n", "")
             assert validate_vendor_portability(repo) is False
 
@@ -1133,7 +1140,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (2, "", "[FAIL] repo root not found")
             assert validate_vendor_portability(repo) is False
 
@@ -1152,7 +1159,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (0, "", "")
             validate_vendor_portability(repo)
 

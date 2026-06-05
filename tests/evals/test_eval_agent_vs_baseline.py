@@ -1395,6 +1395,24 @@ class TestReportAggregatorFlakiness:
         assert result.flakiness is False
         assert result.flaky_fixtures_excluded == []
 
+    def test_skill_variant_flakiness_does_not_move_v1_metrics(self):
+        records = _build_records(
+            ["F001", "F002"], agent_passed=True, baseline_passed=False
+        )
+        records.extend(
+            [
+                _success_record("F001", "skill", 0, passed=True),
+                _success_record("F001", "skill", 1, passed=False),
+                _success_record("F001", "skill", 2, passed=True),
+            ]
+        )
+
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
+
+        assert result.flakiness is False
+        assert result.agent_recall == 1.0
+        assert result.baseline_recall == 0.0
+
     def test_synthetic_variance_marks_flaky(self):
         # F001 agent variant: pass / fail / pass → variance > 0.
         records = [
@@ -1764,6 +1782,53 @@ class TestRunnerEndToEndReport:
         payload = json.loads(report_json.read_text(encoding="utf-8"))
         assert payload["schemaVersion"] == 1
         assert payload["recommendation"] is None
+
+    def test_e2e_include_skill_writes_form_factor_report(
+        self, tmp_path, monkeypatch
+    ):
+        self._setup(tmp_path, monkeypatch)
+        skills_dir = tmp_path / ".claude" / "skills" / "security-review"
+        skills_dir.mkdir(parents=True)
+        (skills_dir / "SKILL.md").write_text("skill prompt", encoding="utf-8")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-e2e-skill")
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
+
+        adapter = _StubAdapter(
+            [
+                APICallResult(
+                    outcome="success",
+                    raw_response="IDENTIFY: clean",
+                    tokens_in=100,
+                    tokens_out=50,
+                    latency_ms=10.0,
+                    error_category=None,
+                    attempts=1,
+                )
+                for _ in range(9)
+            ]
+        )
+        monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda: adapter)
+        rc = cli_main([
+            "--agent",
+            "security",
+            "--fixtures",
+            str(fixtures_dir),
+            "--n-runs",
+            "3",
+            "--include-skill",
+        ])
+
+        assert rc == 0
+        assert adapter.call_count == 9
+        reports_root = tmp_path / "evals" / "security-spike" / "reports"
+        report_json = next(reports_root.iterdir()) / "report.json"
+        payload = json.loads(report_json.read_text(encoding="utf-8"))
+        assert payload["form_factor"]["agent_baseline_ci_95"]
+        assert payload["form_factor"]["skill_baseline_ci_95"]
+        assert payload["form_factor"]["agent_skill_ci_95"]
+        assert payload["form_factor"]["verdict"]
 
 
 # ===========================================================================

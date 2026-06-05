@@ -28,6 +28,35 @@ _WORKSPACE = os.environ.get(
 )
 
 
+def _resolve_paths_lib_dir() -> str:
+    """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        lib_dir = Path(plugin_root).expanduser().resolve() / "lib"
+        if not lib_dir.is_dir():
+            print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
+            sys.exit(2)
+        return str(lib_dir)
+    candidates: list[Path] = []
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        candidates.append(Path(workspace).expanduser().resolve() / ".claude" / "lib")
+    candidates.append(Path(__file__).resolve().parents[3] / "lib")
+    for lib_dir in candidates:
+        if lib_dir.is_dir():
+            return str(lib_dir)
+    checked = ", ".join(str(candidate) for candidate in candidates)
+    print(f"Plugin lib directory not found. Checked: {checked}", file=sys.stderr)
+    sys.exit(2)
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from paths import resolve_artifact_root  # noqa: E402
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Create a new session log in JSON format.",
@@ -72,8 +101,13 @@ def _get_commit() -> str:
 
 
 def _get_repo_root() -> str:
+    # Use --show-toplevel, not --git-common-dir. In a LINKED worktree the
+    # common dir is the MAIN checkout's shared .git, so dirname(common-dir)
+    # is the main checkout, not this worktree. --show-toplevel returns the
+    # current worktree root in every layout (#2375).
+    # Canonical reference: scripts/github_core/repo.py::get_repo_root.
     result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+        ["git", "rev-parse", "--show-toplevel"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     if result.returncode != 0:
@@ -81,12 +115,12 @@ def _get_repo_root() -> str:
     raw = result.stdout.strip()
     if not raw:
         return _WORKSPACE
-    git_common = Path(raw)
-    if not git_common.is_absolute():
-        git_common = (Path.cwd() / git_common).resolve()
+    toplevel = Path(raw)
+    if not toplevel.is_absolute():
+        toplevel = (Path.cwd() / toplevel).resolve()
     else:
-        git_common = git_common.resolve()
-    return str(git_common.parent)
+        toplevel = toplevel.resolve()
+    return str(toplevel)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -94,8 +128,7 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = _get_repo_root()
 
-    sessions_dir = os.path.join(repo_root, ".agents", "sessions")
-    os.makedirs(sessions_dir, exist_ok=True)
+    sessions_dir = str(resolve_artifact_root("sessions", base=repo_root))
 
     current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
     branch = _get_branch()
