@@ -17,7 +17,6 @@ Exit codes (per ADR-035):
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -40,6 +39,11 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import error_and_exit, resolve_repo_params  # noqa: E402
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
+)
 from github_core.validation import assert_valid_body_file  # noqa: E402
 
 
@@ -62,12 +66,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to file containing new body text",
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     if args.body is None and args.body_file is None:
         error_and_exit("Must provide --body or --body-file", 1)
@@ -131,17 +137,17 @@ def main(argv: list[str] | None = None) -> int:
             error_and_exit(f"Auth error: {error_str}", 4)
         error_and_exit(f"Failed to edit issue: {error_str}", 3)
 
-    # Emit structured JSON to match sibling scripts (new_issue.py,
-    # post_issue_comment.py). PR #1965 cluster R.
-    print(
-        json.dumps(
-            {
-                "issue": args.issue,
-                "status": "updated",
-                "repo": f"{owner}/{repo}",
-            },
-            indent=2,
-        )
+    # Emit the canonical skill output envelope (ADR-056) to match sibling
+    # scripts (new_issue.py, post_issue_comment.py). Issue #2388.
+    write_skill_output(
+        {
+            "issue": args.issue,
+            "status": "updated",
+            "repo": f"{owner}/{repo}",
+        },
+        output_format=fmt,
+        human_summary=f"Updated body of issue #{args.issue} in {owner}/{repo}",
+        script_name="edit_issue_body.py",
     )
     return 0
 

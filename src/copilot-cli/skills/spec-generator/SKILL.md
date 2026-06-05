@@ -1,6 +1,6 @@
 ---
 name: spec-generator
-version: 1.0.0
+version: 1.0.1
 model: claude-sonnet-4-6
 description: >-
   Transform feature descriptions into 3-tier specifications (Requirements,
@@ -112,6 +112,27 @@ When `/spec` Step 6 passes an OntologyFragment (the contents of `.agents/specs/o
 2. **Render an `## Ontology` body section.** Each emitted `REQ-NNN-{slug}.md` includes an `## Ontology` section (body item 3, placed after Context and before Acceptance Criteria) that lists the entities this requirement touches, each by its O2 canonical name, with a one-line note tying it to the requirement. If the requirement also encodes a domain rule, name the O5 decision rule it implements so design and completeness checks can trace it.
 
 When no OntologyFragment is passed (a caller other than `/spec` Step 6, or a degraded run), emit the `## Ontology` section with a single line `No OntologyFragment supplied; entities named inline from the PRD data model.` so the section is never silently absent. A feature with no domain entities (config change, doc fix) renders `## Ontology` with `none (no domain entities)`; this is not an error.
+
+The body sections carry SPDD REASONS Canvas labels for interop with SPDD
+(Spec-Driven Development) tooling. R, E, and A map onto the six sections
+above; S, O, N, and the second S are additive labeled subsections, used only
+when the requirement needs them, that surface structure, operations, norms,
+and safeguards already partially captured in the DESIGN and TASK files. New
+specs SHOULD adopt the labels; existing REQ files are not retrofitted.
+
+- **R (Requirements)**: the Requirement Statement (section 1).
+- **E (Entities)**: named domain entities and data the requirement touches,
+  recorded in Ontology (section 3).
+- **A (Approach)**: the chosen direction and its justification, recorded in
+  Rationale (section 5).
+- **S (Structure)**: additive. Components, modules, or boundaries the
+  requirement implies; cross-references the DESIGN Component Architecture.
+- **O (Operations)**: additive. Runtime behaviors, commands, and workflows;
+  cross-references the TASK Implementation Notes.
+- **N (Norms)**: additive. Standards, conventions, and policy constraints the
+  requirement must honor (coding standards, governance rules, ADRs).
+- **S (Safeguards)**: additive. Security, validation, and failure-mode
+  guarantees; cross-references the DESIGN Security Considerations.
 
 ### Design Structure
 

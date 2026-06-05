@@ -96,8 +96,8 @@ jobs:
 
           if [ -z "$ALL_CHANGED" ]; then
             echo "No session files changed"
-            echo "has_sessions=false" >> $GITHUB_OUTPUT
-            echo "session_files=[]" >> $GITHUB_OUTPUT
+            echo "has_sessions=false" >> "$GITHUB_OUTPUT"
+            echo "session_files=[]" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -139,17 +139,17 @@ jobs:
           if [ -z "$CHANGED_FILES" ]; then
             echo ""
             echo "No validatable session files (all historical)"
-            echo "has_sessions=false" >> $GITHUB_OUTPUT
-            echo "session_files=[]" >> $GITHUB_OUTPUT
+            echo "has_sessions=false" >> "$GITHUB_OUTPUT"
+            echo "session_files=[]" >> "$GITHUB_OUTPUT"
           else
             echo ""
             echo "Session files to validate:"
             echo "$CHANGED_FILES"
-            echo "has_sessions=true" >> $GITHUB_OUTPUT
+            echo "has_sessions=true" >> "$GITHUB_OUTPUT"
 
             # Convert to JSON array for matrix
             JSON_ARRAY=$(echo "$CHANGED_FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
-            echo "session_files=$JSON_ARRAY" >> $GITHUB_OUTPUT
+            echo "session_files=$JSON_ARRAY" >> "$GITHUB_OUTPUT"
           fi
 
 # Validate each session file in parallel using matrix strategy
@@ -209,21 +209,17 @@ jobs:
             $exitCode = $LASTEXITCODE
             $format = 'JSON'
           } else {
-            # Legacy markdown format - migrate to JSON first, then validate
-            Write-Host "Legacy markdown detected - migrating to JSON for validation"
-            $jsonPath = $sessionFile -replace '\.md$', '.json'
-
-            # Migrate
-            & ./scripts/Convert-SessionToJson.ps1 -Path $sessionFile -Force 2>&1 | Out-Null
-
-            if (Test-Path $jsonPath) {
-              $result = & python3 ./scripts/validate_session_json.py $jsonPath 2>&1
-              $exitCode = $LASTEXITCODE
-            } else {
-              $result = @("Migration failed - could not convert markdown to JSON")
-              $exitCode = 1
-            }
-            $format = 'Markdown (legacy)'
+            # Markdown session logs are no longer supported. The session-migration
+            # skill and its PowerShell converter wrapper were sunset in PR #2359
+            # (refs #1946); session-init now emits JSON at creation. Fail fast with
+            # an actionable message instead of running a phantom converter (issue #2384).
+            $result = @(
+              "Markdown session logs are no longer supported.",
+              "session-init now emits JSON; convert this file to JSON or remove it from the PR.",
+              "See PR #2359 and issue #2384 for context."
+            )
+            $exitCode = 1
+            $format = 'Markdown (unsupported)'
           }
           
           # Build markdown output
@@ -320,7 +316,7 @@ jobs:
           HAS_SESSIONS: ${{ needs.detect-changes.outputs.has_sessions }}
         run: |
           if [ "$HAS_SESSIONS" != "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Skipped - no session file changes detected"
           fi
 

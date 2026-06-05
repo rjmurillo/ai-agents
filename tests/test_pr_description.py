@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = str(
     _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "validate_pr_description.py"
@@ -121,6 +123,72 @@ class TestOverall:
         # --fail-on-violation should cause non-zero exit even for warnings
         assert result.returncode == 1
 
+    def test_fail_on_violation_warnings_no_unconditional_pass_message(self):
+        """Regression for #2369: must not print 'Validation passed' while exiting 1.
+
+        Under --fail-on-violation with warnings (and no errors), the validator
+        previously printed '✓ Validation passed' on stderr while exiting 1,
+        producing a contradictory signal. The fix:
+          - Suppresses the success message when warnings are fatal.
+          - Surfaces an explicit failure summary.
+          - Exposes EffectiveSuccess/WarningsAreFatal/FailOnViolation in JSON.
+        """
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        r = json.loads(result.stdout)
+        assert result.returncode == 1
+        assert len(r["Warnings"]) > 0
+        # Hard-fail invariant: never print the unconditional pass banner when
+        # the process exits nonzero.
+        assert "Validation passed" not in result.stderr, (
+            "Validator must not claim 'Validation passed' while exiting nonzero "
+            f"(stderr was:\n{result.stderr})"
+        )
+        # New JSON fields make fatality policy visible to automation.
+        assert r["FailOnViolation"] is True
+        assert r["WarningsAreFatal"] is True
+        assert r["EffectiveSuccess"] is False
+        assert r["Success"] is True  # no hard errors
+        assert r["WarningCount"] == len(r["Warnings"])
+        # Human output must explain WHY this failed.
+        assert "warnings are fatal" in result.stderr.lower()
+
+    def test_default_mode_warnings_still_pass(self):
+        """Without --fail-on-violation, warnings remain advisory and exit is 0."""
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body"],
+            capture_output=True, text=True, timeout=30,
+        )
+        r = json.loads(result.stdout)
+        assert result.returncode == 0
+        assert r["FailOnViolation"] is False
+        assert r["WarningsAreFatal"] is False
+        assert r["EffectiveSuccess"] is True
+        assert "Validation passed" in result.stderr
+        assert "warnings are advisory" in result.stderr.lower()
+
+    def test_fail_on_violation_no_warnings_passes(self):
+        """--fail-on-violation with a fully clean body still exits 0 and reports pass."""
+        body = (
+            "## Summary\n\nAdded auth.\n\n"
+            "| Type | Reference |\n|------|--------|\n| **Issue** | Closes #1 |\n\n"
+            "## Type of Change\n\n- [x] New feature\n\n"
+            "## Changes\n\n- Added OAuth2\n"
+        )
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Auth", "--body", body,
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        r = json.loads(result.stdout)
+        assert result.returncode == 0
+        assert r["EffectiveSuccess"] is True
+        assert r["WarningsAreFatal"] is False
+        assert "Validation passed" in result.stderr
+
     def test_fail_on_violation_with_errors(self):
         """--fail-on-violation returns exit code 1 when errors exist."""
         result = subprocess.run(
@@ -131,6 +199,52 @@ class TestOverall:
         r = json.loads(result.stdout)
         assert r["Success"] is False
         assert result.returncode == 1
+
+
+class TestExitMessageMatchesExitCode:
+    """Regression tests for #2369: the printed summary must agree with the exit code.
+
+    The validator printed 'Validation passed' to stderr whenever no errors
+    existed, even when --fail-on-violation promoted warnings to violations and
+    the process exited 1. The summary and the exit code must never disagree.
+    """
+
+    def test_passed_not_printed_when_warnings_are_fatal(self):
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 1
+        assert "Validation passed" not in result.stderr
+
+    def test_warning_fatal_message_present_when_warnings_are_fatal(self):
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 1
+        assert "Validation failed" in result.stderr
+        assert "treated as violations" in result.stderr
+
+    def test_passed_printed_in_default_mode_with_warnings(self):
+        """Without --fail-on-violation, warnings are non-fatal: exit 0, pass message."""
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "feat: Feature", "--body", "Minimal body"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 0
+        assert "Validation passed" in result.stderr
+
+    def test_passed_not_printed_when_errors_are_fatal(self):
+        result = subprocess.run(
+            [sys.executable, SCRIPT, "--title", "Bad title", "--body", "Closes #123",
+             "--fail-on-violation"],
+            capture_output=True, text=True, timeout=30,
+        )
+        assert result.returncode == 1
+        assert "Validation passed" not in result.stderr
 
 
 class TestInlineCitationStripping:
@@ -217,3 +331,88 @@ class TestInlineCitationStripping:
         extract = self._import_extract()
         body = "See\n`scripts/next_line.py`: updated validator logic."
         assert "scripts/next_line.py" in extract(body)
+
+
+def _import_extract_mentioned_files():
+    """Load extract_mentioned_files from pr_description.py by path."""
+    import importlib.util
+
+    pr_desc_path = str(_REPO_ROOT / "scripts" / "validation" / "pr_description.py")
+    spec = importlib.util.spec_from_file_location("pr_desc_link_mod", pr_desc_path)
+    assert spec is not None
+    assert spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["pr_desc_link_mod"] = mod
+    spec.loader.exec_module(mod)
+    return mod.extract_mentioned_files
+
+
+class TestMarkdownLinkTargetExtraction:
+    """Tests for #2113: markdown link targets [label](path.ext) are extracted.
+
+    Before the fifth FILE_MENTION_PATTERNS entry, only the bracket label
+    ([config.json]) was captured. The inline-link target ([text](path.ext))
+    was dropped, so a PR body that cited a changed file only as a link target
+    escaped the description-vs-diff drift check.
+    """
+
+    @pytest.mark.parametrize(
+        ("body", "expected"),
+        [
+            ("Updated [label](config.json) for the gate.", "config.json"),
+            (
+                "See [the workflow](.github/workflows/ci.yml) for details.",
+                ".github/workflows/ci.yml",
+            ),
+            (
+                "Touched [parser](scripts/validation/pr_description.py) here.",
+                "scripts/validation/pr_description.py",
+            ),
+        ],
+    )
+    def test_link_target_extracted(self, body: str, expected: str):
+        extract = _import_extract_mentioned_files()
+        assert expected in extract(body)
+
+    def test_label_form_still_extracted(self):
+        """The pre-existing [config.json] label form keeps working."""
+        extract = _import_extract_mentioned_files()
+        body = "The `[config.json]` reference still resolves."
+        assert "config.json" in extract(body)
+
+    def test_link_target_respects_double_extension_boundary(self):
+        """_EXT_BOUNDARY rejects a backup suffix on a link target."""
+        extract = _import_extract_mentioned_files()
+        body = "Restored from [backup](path/to/runs.json.bak) earlier."
+        mentioned = extract(body)
+        assert "runs.json" not in mentioned
+        assert "path/to/runs.json.bak" not in mentioned
+
+    def test_link_target_respects_longer_extension_boundary(self):
+        """A jsonl link target must not collapse to json (issue #1874 boundary)."""
+        extract = _import_extract_mentioned_files()
+        body = "Wrote [results](data/runs.jsonl) for analysis."
+        assert "data/runs.json" not in extract(body)
+
+    def test_link_target_last_segment_extension_matches(self):
+        """A genuine multi-dotted filename whose last segment is a known ext matches."""
+        extract = _import_extract_mentioned_files()
+        body = "Generated [config](build/tsconfig.spec.json) output."
+        assert "build/tsconfig.spec.json" in extract(body)
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://github.com/org/repo/blob/main/scripts/validator.py",
+            "http://example.com/config.json",
+            "ftp://example.com/files/workflow.yml",
+            "//example.com/static/app.js",
+            "www.example.com/docs/readme.md",
+        ],
+    )
+    def test_link_target_ignores_external_urls(self, url: str):
+        """External URLs ending in known extensions are not repo file mentions."""
+        extract = _import_extract_mentioned_files()
+        body = f"Check [the linked file]({url}) for details."
+        assert url not in extract(body)
+        assert Path(url).name not in extract(body)

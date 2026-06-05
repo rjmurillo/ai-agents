@@ -145,16 +145,26 @@ pwsh build/Generate-Agents.ps1 -Validate
 
 ---
 
-### Detect-AgentDrift.ps1
+### detect_agent_drift.py
 
-**Role**: Semantic drift detector between Claude and generated agents
+**Role**: Semantic drift detector across agent copies. (The legacy
+`Detect-AgentDrift.ps1` was expunged per ADR-042; this Python port replaces it.)
 
 | Attribute | Value |
 |-----------|-------|
-| **Input** | `src/claude/*.md`, `src/vs-code-agents/*.agent.md` |
+| **Input** | `src/claude/*.md`, `src/vs-code-agents/*.agent.md`, `.claude/agents/*.md`, `.github/agents/*.agent.md`, `templates/agents/*.shared.md` |
 | **Output** | Drift report (Text, JSON, or Markdown) |
-| **Trigger** | Weekly CI, manual |
-| **Dependencies** | PowerShell 7.5.4+ |
+| **Trigger** | `scripts/validation/pre_pr.py` (Agent Drift gate), weekly `drift-detection.yml`, manual |
+| **Dependencies** | Python 3.10+ |
+
+**Two comparisons** (Issue #2267):
+
+1. **Vendored** (blocking): `src/claude/*.md` vs `src/vs-code-agents/*.agent.md`.
+   The Claude self-host source vs the generated VS Code agent.
+2. **Install** (advisory): `.claude/agents/*.md` vs `.github/agents/*.agent.md`,
+   scoped to shared-template agents (those with
+   `templates/agents/{name}.shared.md`). Freestanding Claude-only or
+   GitHub-only agents are skipped.
 
 **What It Compares** (ignoring platform-specific differences):
 
@@ -173,27 +183,65 @@ pwsh build/Generate-Agents.ps1 -Validate
 
 **Invocation**:
 
-```powershell
-# Default check (80% similarity threshold)
-pwsh build/scripts/Detect-AgentDrift.ps1
+```bash
+# Both comparisons, 80% threshold (install drift advisory)
+python3 build/scripts/detect_agent_drift.py
 
-# Strict threshold
-pwsh build/scripts/Detect-AgentDrift.ps1 -SimilarityThreshold 90
+# Vendored comparison only
+python3 build/scripts/detect_agent_drift.py --skip-install-comparison
 
-# JSON output for tooling
-pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat JSON
+# Promote install drift to blocking (after the install copies are reconciled)
+python3 build/scripts/detect_agent_drift.py --fail-on-install-drift
 
-# Markdown report
-pwsh build/scripts/Detect-AgentDrift.ps1 -OutputFormat Markdown
+# Strict threshold, JSON or Markdown output
+python3 build/scripts/detect_agent_drift.py --similarity-threshold 90
+python3 build/scripts/detect_agent_drift.py --output-format json
+python3 build/scripts/detect_agent_drift.py --output-format markdown
 ```
 
-**Exit Codes**:
+**Exit Codes** (per ADR-035):
 
 | Code | Meaning |
 |------|---------|
-| 0 | No significant drift |
-| 1 | Drift detected (below threshold) |
-| 2 | Execution error |
+| 0 | No blocking drift |
+| 1 | Blocking drift detected (vendored, or install when `--fail-on-install-drift`) |
+| 2 | Execution error (a required path is missing) |
+
+The install comparison is advisory by default because the two self-host copies
+carry large pre-existing structural differences. It reports drift but does not
+flip the exit code, so it does not block PRs on day one. Promote it with
+`--fail-on-install-drift` once the install copies are reconciled.
+
+---
+
+## Hand-Maintained Agent Copies
+
+Three agent trees are **hand-maintained**: no generator writes them.
+
+| Tree | Loaded by | Why not generated |
+|------|-----------|-------------------|
+| `.claude/agents/*.md` | Claude Code (this repo's self-host) | REQ-003-010 forbids generators from writing under `.claude/`; `build_all.py` asserts no `.claude/` writes |
+| `.github/agents/*.agent.md` | GitHub Copilot (this repo's self-host) | Hand-maintained self-host copy; not a generator target |
+| `src/claude/*.md` | Vendored Claude install source | Edited directly, then propagated to the generated `src/copilot-cli/` and `src/vs-code-agents/` copies |
+
+Only `src/copilot-cli/agents/*.agent.md` and `src/vs-code-agents/*.agent.md` are
+generated from `templates/agents/*.shared.md` by `build/generate_agents.py`.
+
+Two gates keep the hand-maintained copies honest:
+
+- `build/scripts/validate_install_parity.py` (wired into `pre_pr.py`): when one
+  member of a shared-agent group changes, every other member must change in the
+  same diff. This catches a forgotten copy. It does NOT check content
+  similarity.
+- `build/scripts/detect_agent_drift.py` (above): adds the semantic-similarity
+  check across the `.claude/agents` vs `.github/agents` install copies that
+  parity enforcement omits.
+
+When you edit a shared-template agent, update the template
+(`templates/agents/{name}.shared.md`), regenerate the `src/copilot-cli` and
+`src/vs-code-agents` copies (`python3 build/generate_agents.py`), and hand-edit
+`.claude/agents/{name}.md`, `.github/agents/{name}.agent.md`, and
+`src/claude/{name}.md` to match.
 
 ---
 

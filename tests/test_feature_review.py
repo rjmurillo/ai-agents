@@ -55,6 +55,33 @@ class TestGetFeatureReviewRecommendation:
         output = "RECOMMENDATION: PROCEED\nWe might DECLINE this later"
         assert get_feature_review_recommendation(output) == "PROCEED"
 
+    def test_partial_token_does_not_match(self):
+        """A partial token (PROCEEDING) must not match PROCEED (issue #1983).
+
+        The trailing word boundary on the primary pattern rejects the
+        partial token, and the case-sensitive fallback rule does not match
+        PROCEEDING either, so the result is UNKNOWN.
+        """
+        output = "RECOMMENDATION: PROCEEDING with the rollout"
+        assert get_feature_review_recommendation(output) == "UNKNOWN"
+
+    def test_partial_token_request_evidence_prefix_does_not_match(self):
+        output = "RECOMMENDATION: REQUEST_EVIDENCES are needed"
+        assert get_feature_review_recommendation(output) == "UNKNOWN"
+
+    def test_lowercase_recommendation_normalizes_to_uppercase(self):
+        """Lowercase markers are accepted and normalized (issue #1983)."""
+        output = "RECOMMENDATION: proceed\nRationale: clear value"
+        assert get_feature_review_recommendation(output) == "PROCEED"
+
+    def test_mixed_case_recommendation_normalizes_to_uppercase(self):
+        output = "RECOMMENDATION: Defer\nRationale: later"
+        assert get_feature_review_recommendation(output) == "DEFER"
+
+    def test_lowercase_multiword_recommendation_normalizes(self):
+        output = "RECOMMENDATION: request_evidence\nNeed data first"
+        assert get_feature_review_recommendation(output) == "REQUEST_EVIDENCE"
+
 
 class TestGetFeatureReviewAssignees:
     """Tests for get_feature_review_assignees."""
