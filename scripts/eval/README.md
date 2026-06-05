@@ -24,6 +24,10 @@ python3 scripts/eval/eval-knowledge-integration.py --skill cva-analysis --dry-ru
 # Eval rule activation (does the rule fire when conditions hold?):
 python3 scripts/eval/eval-rule-activation.py \
   --scenarios tests/evals/rule-scenarios/working-with-legacy-code.json --dry-run
+
+# Detect pairwise skill overlap (are two skills redundant with each other?):
+python3 scripts/eval/eval-skill-overlap.py \
+  --pairs scripts/eval/examples/example-overlap-pairs.json --dry-run
 ```
 
 ## Scripts
@@ -34,6 +38,7 @@ python3 scripts/eval/eval-rule-activation.py \
 | `eval-prompt-change.py` | Before/after behavioral comparison for prompt changes. | ADR-057 |
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
+| `eval-skill-overlap.py` | Pairwise skill redundancy detection (DISTINCT / OVERLAP / SUBSUMED) for catalog pruning. | Complementary |
 | `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
@@ -110,6 +115,47 @@ Adding a new rule eval:
 3. Run live (without `--dry-run`) to score. Cost is ~$0.25 per rule (24 calls × ~3500 tokens).
 4. Iterate on the rule's `description` field until the `description` mechanism scores within 0.5 of `full`. That is the signal the rule is activatable from frontmatter alone.
 
+## Skill Overlap Eval
+
+`eval-skill-overlap.py` answers a question `eval-knowledge-integration.py`
+cannot: are two skills redundant with each other? The knowledge-integration
+eval measures a skill against the baseline LLM. The overlap eval measures one
+skill against its sibling, so the catalog prune has the second signal it needs.
+
+For each pair `(A, B)` and each prompt, three conditions run: `baseline`
+(prompt only), `skill_A` (prompt + A's context), and `skill_B` (prompt + B's
+context). An LLM judge scores each response 1-5 against the prompt's expected
+answer. The per-direction deltas drive the verdict:
+
+- **DISTINCT**: each skill helps mainly on its own prompts. Keep both.
+- **OVERLAP**: both skills cover each other's prompts symmetrically. Fold candidate.
+- **SUBSUMED**: one skill covers the other's prompts without reciprocity. Prune candidate.
+
+Phase 1 (Issue #1932) is **explicit pair list only**. No cluster shortcuts, no
+full N-squared sweep. The N-squared cost is `N^2 * prompts * 3 conditions *
+judge` (~36k calls for 70 skills), so unbounded mode is gated out of scope.
+
+Input is a `cluster.json` with a `pairs` list and a `prompts` map. See
+`examples/example-overlap-pairs.json`. The default run cost estimate prints at
+run start (API call count, token total, USD estimate).
+
+Dry-run validates the pair file, referenced skill directories, and `--run-id`
+before printing the cost estimate. `--run-id` accepts 1-128 characters: letters,
+digits, `.`, `_`, and `-`; it must start with a letter or digit and cannot
+contain `..`. Pair entries must reference two different skills. Judge responses
+that are not valid `{"score": <number>}` payloads fail the run with exit code 3
+instead of being averaged into a verdict.
+
+Output lands at `evals/reports/overlap-<RUNID>/`: `matrix.json` (machine
+readable per-pair deltas and verdicts) and `REPORT.md` (prune/fold table).
+
+Note on the Issue #1932 Phase 1 pairs: `doc-coverage`, `doc-sync`, and
+`session-qa-eligibility` were deleted in the M1 catalog prune (commit
+`5c4729345`, #1942). Three of the four named pairs referenced those skills, so
+the example file targets the surviving overlapping pairs only
+(`memory-enhancement`/`curating-memories`,
+`curating-memories`/`exploring-knowledge-graph`).
+
 ## Scenario File Format
 
 See `examples/example-scenarios.json` for a working template.
@@ -152,6 +198,8 @@ All scripts support `--dry-run` (validate inputs, no API calls) and `--output FI
 | `--security-critical` | eval-prompt-change | 5 runs, 100% pass required |
 | `--base-ref REF` | eval-prompt-change, eval-suite | Git ref for comparison (default: main) |
 | `--scope` | eval-suite | Limit to prompts, agents, or skills |
+| `--pairs FILE` | eval-skill-overlap | cluster.json with explicit `[skillA, skillB]` pairs and prompts |
+| `--run-id ID` | eval-skill-overlap | Override the report directory name (`overlap-<ID>`) |
 
 ## Environment
 

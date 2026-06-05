@@ -36,6 +36,7 @@ Refs: ADR-061 (Withdrawn 2026-05-27); .agents/critique/ADR-061-debate-log.md
 
 from __future__ import annotations
 
+import importlib.util
 import io
 import shutil
 import subprocess
@@ -51,6 +52,38 @@ from push_guard_base import emit_fail_open, run_guard  # noqa: E402
 from hook_utilities import get_project_directory  # noqa: E402
 
 GUARD_NAME = "hook-drift"
+
+
+def _emit_k1(detail: str) -> None:
+    """Record a K1 kill-criteria event for this drift-guard block.
+
+    K1 (REQ-008-09) counts drift-hook blocks so a maintainer can tell
+    when the canonical contract is too strict (3+ false positives in 30
+    days rolls back the convergence design). The drift-guard block is the
+    raw K1 signal; classifying a block as a true vs false positive happens
+    later at read time.
+
+    Telemetry must never block a push: any failure to load or call the
+    emitter is swallowed and surfaced as a fail-open EVENT line, never
+    raised. The emitter lives outside the plugin lib
+    (``scripts/metrics/kill_criteria.py``) and is loaded by file path from
+    the project root.
+    """
+    try:
+        project_dir = get_project_directory()
+        emitter_path = Path(project_dir) / "scripts" / "metrics" / "kill_criteria.py"
+        if not emitter_path.is_file():
+            emit_fail_open(GUARD_NAME, "k1_emitter_missing", str(emitter_path))
+            return
+        spec = importlib.util.spec_from_file_location("kill_criteria", emitter_path)
+        if spec is None or spec.loader is None:
+            emit_fail_open(GUARD_NAME, "k1_emitter_unloadable", str(emitter_path))
+            return
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.emit_event("K1", detail)
+    except Exception as exc:  # pragma: no cover - defensive fail-open
+        emit_fail_open(GUARD_NAME, "k1_emit_failed", f"{type(exc).__name__}: {exc}")
 
 # Globs that wake this guard. A push that touches any of these has a
 # non-trivial chance of causing hook-shim drift. The validator itself
@@ -219,6 +252,8 @@ def _validate(_matching: list[str], _all_changed: list[str]) -> list[str]:
     drifted = sorted(post_run - pre_existing)
     if not drifted:
         return []
+
+    _emit_k1(",".join(drifted))
 
     out: list[str] = [
         "Hook-shim drift detected (canonical edited without regenerating shims):",

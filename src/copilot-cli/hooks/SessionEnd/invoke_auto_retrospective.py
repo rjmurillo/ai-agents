@@ -75,6 +75,43 @@ except ImportError:
     _unlock_file = None  # type: ignore
 
 
+# Stable machine-readable marker stamped into every unfilled skeleton (Issue
+# #2079). The SessionStart context loader scans for this exact string to count
+# pending retros; it is the load-bearing contract shared by the writer (this
+# hook) and the reader (.claude/hooks/SessionStart/invoke_context_loader.py).
+# Keep the two in sync: the reader quotes this literal verbatim with a citation
+# back to this file (see canonical-source-mirror rule).
+RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
+
+
+# Sentinel that suppresses skeleton generation while a tree-mutating
+# validation run is in flight (Issue #2327). The pre-push hook
+# (.githooks/pre-push) creates this file under the gitignored
+# .agents/.hook-state/ directory at the start of a run and removes it on
+# exit (trap). If a Claude session ends while a pre-push run is active, this
+# Stop hook honors the sentinel and stays tree-neutral, so a failing pre-push
+# never leaves an untracked auto-retro file or a docs/retros/INDEX.md edit
+# behind.
+AUTO_RETRO_SUPPRESS_SENTINEL = "auto-retrospective.suppress"
+
+
+def _suppress_sentinel_path(project_dir: Path) -> Path:
+    """Path to the auto-retro suppression sentinel under .hook-state/."""
+    return project_dir / ".agents" / ".hook-state" / AUTO_RETRO_SUPPRESS_SENTINEL
+
+
+def is_auto_retro_suppressed(project_dir: Path) -> bool:
+    """Return True when a suppression sentinel is present (Issue #2327).
+
+    Fail-open: any error checking the sentinel returns False so the hook
+    keeps its existing behavior rather than silently disabling itself.
+    """
+    try:
+        return _suppress_sentinel_path(project_dir).is_file()
+    except OSError:
+        return False
+
+
 def has_retro_today(retro_dir: Path, today: str) -> bool:
     """Check if a retrospective already exists for today."""
     if not retro_dir.is_dir():
@@ -314,11 +351,13 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
                     file=sys.stderr,
                 )
 
-    content = f"""# Retrospective: {today}
+    content = f"""{RETRO_STATE_MARKER}
+# Retrospective: {today}
 
 > UNFILLED SKELETON written by invoke_auto_retrospective.py (Stop hook).
 > The sections below are empty placeholders, not a completed retrospective.
-> Run the retrospective agent to populate them, then delete this banner.
+> Run /retro fill {today} (or the retrospective skill) to populate them, then
+> delete this banner and the RETRO-STATE marker above.
 
 ## Session Context
 
@@ -534,6 +573,18 @@ def main() -> int:
 
     project_dir = get_project_directory()
     if not project_dir:
+        return 0
+
+    # Suppress while a tree-mutating validation run is in flight (Issue #2327).
+    # The pre-push hook drops a sentinel for the duration of its run; honoring
+    # it here keeps a failing pre-push from leaving an untracked auto-retro file
+    # or a docs/retros/INDEX.md edit in the worktree.
+    if is_auto_retro_suppressed(project_dir):
+        write_audit_log(
+            project_dir,
+            "skipped",
+            skip_reason="suppress sentinel present",
+        )
         return 0
 
     today = datetime.now(tz=UTC).strftime("%Y-%m-%d")

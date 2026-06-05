@@ -14,8 +14,13 @@ VALID_RECOMMENDATIONS = frozenset(
     }
 )
 
+# Trailing `\b` anchors the alternation to a token boundary so a partial
+# token (`PROCEEDING`) cannot match `PROCEED` (issue #1983). `re.IGNORECASE`
+# plus `.upper()` on the matched group at the call site accepts lowercase
+# markers (`RECOMMENDATION: proceed`) and normalizes to the canonical token.
 _RECOMMENDATION_PATTERN = re.compile(
-    r"RECOMMENDATION:\s*(PROCEED|DEFER|REQUEST_EVIDENCE|NEEDS_RESEARCH|DECLINE)"
+    r"RECOMMENDATION:\s*(PROCEED|DEFER|REQUEST_EVIDENCE|NEEDS_RESEARCH|DECLINE)\b",
+    re.IGNORECASE,
 )
 
 # Fallback rules when no explicit RECOMMENDATION: line is found.
@@ -61,7 +66,7 @@ def get_feature_review_recommendation(output: str) -> str:
 
     match = _RECOMMENDATION_PATTERN.search(output)
     if match:
-        return match.group(1)
+        return match.group(1).upper()
 
     for pattern, recommendation in _KEYWORD_FALLBACK_RULES:
         if pattern.search(output):

@@ -127,3 +127,8 @@ worktree--/
 node_modules/
 bun.lockb
 *.tgz
+
+# Kill-criteria telemetry (REQ-008-09): runtime events are not source of
+# truth and must not land in git. Only the .gitkeep seed is tracked so the
+# directory exists on a fresh clone.
+.agents/metrics/drift-events.jsonl

@@ -221,8 +221,8 @@ jobs:
             echo 'RETRO_EOF'
           } >> "$GITHUB_OUTPUT"
 
-      # Pin to SHA matches claude.yml and rjmurillo-bot.yml.
-      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.133
+      # Pin to SHA matches rjmurillo-bot.yml.
+      # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.135
       #
       # Failure isolation (Issue #2015):
       #   This workflow is async, best-effort, and never blocks merge (see the
@@ -240,7 +240,7 @@ jobs:
       #   maintainer acts on (for example, to rotate the OAuth token).
       - name: Run retrospective via Claude Code
         continue-on-error: true
-        uses: anthropics/claude-code-action@70a6e5256e9e2366a1ed5c041904a982ba3a328f # v1.0.135
+        uses: anthropics/claude-code-action@0b1b62002952733671bde978d429b50b51c51c85 # v1.0.136
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: ${{ steps.prompt.outputs.PROMPT }}
