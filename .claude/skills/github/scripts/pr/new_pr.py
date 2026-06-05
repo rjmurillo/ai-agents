@@ -165,35 +165,35 @@ def _session_log_for_validation(
     show = subprocess.run(
         ["git", "show", f"{head}:{session_log}"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         env=_git_env(),
     )
     if show.returncode == 0:
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            suffix=".json",
-            prefix="session-log-",
-            delete=False,
-        )
+        scratch_dir = os.path.join(repo_root, ".agents")
+        os.makedirs(scratch_dir, exist_ok=True)
+        tmp_name = ""
         try:
-            tmp.write(show.stdout)
-            tmp.close()
-            yield tmp.name
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                suffix=".json",
+                prefix=".session-log-",
+                dir=scratch_dir,
+                delete=False,
+            ) as tmp:
+                tmp.write(show.stdout)
+                tmp_name = tmp.name
+            yield tmp_name
         finally:
             with contextlib.suppress(OSError):
-                os.unlink(tmp.name)
-        return
-
-    worktree_path = os.path.join(repo_root, session_log)
-    if os.path.exists(worktree_path):
-        yield worktree_path
+                os.unlink(tmp_name)
         return
 
     print(
-        f"  WARNING: session log {session_log} not found at {head} or in the "
-        "working tree; skipping Session End validation.",
+        f"  WARNING: session log {session_log} not found at {head}; "
+        "skipping Session End validation.",
         file=sys.stderr,
     )
     yield None

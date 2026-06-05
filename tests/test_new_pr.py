@@ -388,15 +388,19 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/not-checked-out")
 
         assert len(validated_paths) == 1
-        # The validated path is a temp file, NOT under the working tree.
-        assert not validated_paths[0].startswith(str(tmp_path))
+        # The validated path is scratch under .agents, not the branch worktree path.
+        assert Path(validated_paths[0]).parent == tmp_path / ".agents"
+        assert not Path(validated_paths[0]).name.endswith("session-01.json")
 
-    def test_session_log_missing_everywhere_skips_validation(self, tmp_path, capsys):
-        """When neither the ref nor the working tree has the log, skip (#2387)."""
+    def test_session_log_missing_from_head_skips_validation(self, tmp_path, capsys):
+        """When the head ref lacks the log, do not validate a stale worktree copy."""
         changed = ".agents/sessions/2025-01-01-session-01.json\n"
         validate_script = tmp_path / "scripts" / "validate_session_json.py"
         validate_script.parent.mkdir(parents=True)
         validate_script.write_text("# mock")
+        stale = tmp_path / ".agents" / "sessions" / "2025-01-01-session-01.json"
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_text('{"stale": true}\n', encoding="utf-8")
 
         validator_ran = False
 
@@ -415,7 +419,7 @@ class TestRunValidations:
             run_validations(str(tmp_path), "main", "feat/branch")
 
         assert validator_ran is False
-        assert "not found" in capsys.readouterr().err
+        assert "not found at feat/branch" in capsys.readouterr().err
 
     def test_agents_changed_no_session_log_warns(self, tmp_path, capsys):
         changed = ".agents/HANDOFF.md\n"
