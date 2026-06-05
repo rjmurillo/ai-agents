@@ -333,6 +333,33 @@ def test_read_worktree_gitdir_malformed_returns_none(tmp_path):
     assert w._read_worktree_gitdir(tmp_path) is None
 
 
+def test_malformed_linked_worktree_marker_is_exit_3(all_tools, monkeypatch, tmp_path):
+    (tmp_path / ".git").write_text("garbage\n", encoding="utf-8")
+    (tmp_path / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    called = {"act": False}
+
+    def _act(f, r):
+        called["act"] = True
+        return _ok("gh act -n")
+
+    monkeypatch.setattr(w, "_act_dryrun_stage", _act)
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert called["act"] is False
+    assert "unsupported linked git worktree marker" in r.note
+    assert "SKIP_WORKFLOW_LOCAL_TEST" in r.note
+
+
+def test_missing_linked_worktree_gitdir_is_exit_3(all_tools, monkeypatch, tmp_path):
+    (tmp_path / ".git").write_text("gitdir: /missing/worktree/gitdir\n", encoding="utf-8")
+    (tmp_path / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert "linked git worktree gitdir is missing" in r.note
+
+
 def test_act_env_sets_git_dir_for_linked_worktree(tmp_path):
     gitdir = tmp_path / ".git" / "worktrees" / "feat"
     gitdir.mkdir(parents=True)

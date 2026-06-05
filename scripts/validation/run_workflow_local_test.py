@@ -201,6 +201,32 @@ def _read_worktree_gitdir(repo_root: Path) -> str | None:
     return str(gitdir)
 
 
+def _unsupported_worktree_gitdir_error(repo_root: Path) -> str | None:
+    git_path = repo_root / ".git"
+    if not git_path.is_file():
+        return None
+    try:
+        content = git_path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        return (
+            f"linked git worktree marker is unreadable: {git_path} ({exc}). "
+            f"Re-run from the main worktree or set {_BYPASS_ENV}=true to bypass (logged)."
+        )
+    if not content.startswith("gitdir:") or not content.split(":", 1)[1].strip():
+        return (
+            f"unsupported linked git worktree marker at {git_path}; expected "
+            f"'gitdir: <path>'. Re-run from the main worktree or set {_BYPASS_ENV}=true "
+            "to bypass (logged)."
+        )
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is None or not Path(gitdir).is_dir():
+        return (
+            f"linked git worktree gitdir is missing: {gitdir or '<unresolved>'}. "
+            f"Re-run from the main worktree or set {_BYPASS_ENV}=true to bypass (logged)."
+        )
+    return None
+
+
 def _act_env(repo_root: Path) -> dict[str, str]:
     """Build the subprocess env for gh act, GIT_DIR-aware for linked worktrees."""
     env = dict(os.environ)
@@ -411,6 +437,12 @@ def run_local_test(
             "gh act extension not installed. Install it via "
             f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true."
         )
+        return report
+
+    worktree_error = _unsupported_worktree_gitdir_error(repo_root)
+    if worktree_error is not None:
+        report.exit_code = 3
+        report.note = worktree_error
         return report
 
     s2 = _act_dryrun_stage(files, repo_root)
