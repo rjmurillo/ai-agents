@@ -7,9 +7,7 @@ real build outputs under `build/` (e.g. `build/lib/`, `build/dist/`).
 
 from __future__ import annotations
 
-import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -61,12 +59,17 @@ def test_top_level_build_markdown_is_not_ignored():
 def test_build_output_directories_remain_ignored():
     """Real build outputs (build/lib/, build/dist/) must still be ignored."""
     for output in (
-        "build/lib/foo.txt",
         "build/dist/wheel.whl",
+        "build/build/temp.bin",
+        "build/lib/foo.txt",
+        "build/lib.linux-x86_64-cpython-314/foo.py",
+        "build/temp/obj.o",
         "build/temp.linux/obj.o",
+        "build/bdist.linux-x86_64/wheel.whl",
+        "build/audit/report.json",
     ):
         assert _check_ignore(REPO_ROOT, output), (
-            f"{output} should remain gitignored — it's a real build output."
+            f"{output} should remain gitignored; it is a real build output."
         )
 
 
