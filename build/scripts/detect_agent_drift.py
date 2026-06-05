@@ -502,6 +502,9 @@ def run_detection(
 
 
 _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
+# `src/claude/merge-resolver.md` carries Claude-specific conflict workflow
+# detail that the generated VS Code/Copilot prompts intentionally keep shorter.
+_ADVISORY_VENDORED_DRIFT: frozenset[str] = frozenset({"merge-resolver"})
 
 
 def run_install_detection(
@@ -699,9 +702,10 @@ def _exit_code(
 ) -> int:
     """Return 1 when blocking drift exists, else 0.
 
-    Vendored (src) drift always blocks. Install (.claude/agents vs
-    .github/agents) drift is advisory by default because the two self-host
-    copies carry large pre-existing structural differences (Issue #2267);
+    Vendored (src) drift blocks except for agents listed in
+    ``_ADVISORY_VENDORED_DRIFT``. Install (.claude/agents vs .github/agents)
+    drift is advisory by default because the two self-host copies carry large
+    pre-existing structural differences (Issue #2267);
     ``--fail-on-install-drift`` promotes it to blocking once those are
     reconciled.
     """
@@ -709,6 +713,10 @@ def _exit_code(
         (
             r.status == "DRIFT DETECTED"
             and (fail_on_install or r.comparison != _INSTALL_COMPARISON_LABEL)
+            and not (
+                r.comparison != _INSTALL_COMPARISON_LABEL
+                and r.agent_name in _ADVISORY_VENDORED_DRIFT
+            )
         )
         or (
             fail_on_install
