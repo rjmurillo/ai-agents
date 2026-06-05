@@ -24,6 +24,10 @@ python3 scripts/eval/eval-knowledge-integration.py --skill cva-analysis --dry-ru
 # Eval rule activation (does the rule fire when conditions hold?):
 python3 scripts/eval/eval-rule-activation.py \
   --scenarios tests/evals/rule-scenarios/working-with-legacy-code.json --dry-run
+
+# Detect pairwise skill overlap (are two skills redundant with each other?):
+python3 scripts/eval/eval-skill-overlap.py \
+  --pairs scripts/eval/examples/example-overlap-pairs.json --dry-run
 ```
 
 ## Scripts
@@ -34,6 +38,7 @@ python3 scripts/eval/eval-rule-activation.py \
 | `eval-prompt-change.py` | Before/after behavioral comparison for prompt changes. | ADR-057 |
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
+| `eval-skill-overlap.py` | Pairwise skill redundancy detection (DISTINCT / OVERLAP / SUBSUMED) for catalog pruning. | Complementary |
 | `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
