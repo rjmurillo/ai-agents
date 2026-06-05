@@ -447,6 +447,9 @@ def run_detection(
 
 
 _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
+# `src/claude/merge-resolver.md` carries Claude-specific conflict workflow
+# detail that the generated VS Code/Copilot prompts intentionally keep shorter.
+_ADVISORY_VENDORED_DRIFT: frozenset[str] = frozenset({"merge-resolver"})
 
 
 def run_install_detection(
@@ -654,6 +657,10 @@ def _exit_code(
         (
             r.status == "DRIFT DETECTED"
             and (fail_on_install or r.comparison != _INSTALL_COMPARISON_LABEL)
+            and not (
+                r.comparison != _INSTALL_COMPARISON_LABEL
+                and r.agent_name in _ADVISORY_VENDORED_DRIFT
+            )
         )
         or (
             fail_on_install
