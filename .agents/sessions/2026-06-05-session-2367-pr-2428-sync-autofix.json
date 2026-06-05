@@ -1,6 +1,6 @@
 {
   "session": {
-    "number": 2366,
+    "number": 2367,
     "date": "2026-06-05",
     "branch": "autofix/pr-2428",
     "startingCommit": "56937ad26",
@@ -136,12 +136,14 @@
     {
       "step": "ci-fix",
       "evidence": "Upgraded CI runner pip to 26.1.2 before pip-audit to fix PYSEC-2026-196 without hiding future audit findings"
+    },
+    {
+      "step": "session-renumber",
+      "evidence": "Renumbered PR 2428 session from 2366 to 2367 before merging latest main to avoid episode collision"
     }
   ],
-  "endingCommit": "28831c636938",
+  "endingCommit": "0f94f8e1a5",
   "nextSteps": [
-    "Push final PR 2428 fixes",
-    "Wait for CI and thread gates",
-    "Merge PR #2428 when gates pass"
+    "Wait for CI and merge PR #2428 when gates pass"
   ]
 }

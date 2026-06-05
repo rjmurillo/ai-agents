@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-06-05-session-2366",
-  "session": "2026-06-05-session-2366",
+  "id": "episode-2026-06-05-session-2367",
+  "session": "2026-06-05-session-2367",
   "timestamp": "2026-06-05T00:00:00+00:00",
   "outcome": "success",
   "task": "Autofix and merge PR 2428 sync command drift detection",
@@ -57,8 +57,8 @@
     {
       "id": "e007",
       "timestamp": "2026-06-05T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: f34ca3214",
+      "type": "milestone",
+      "content": "ci-fix",
       "caused_by": [],
       "leads_to": []
     },
@@ -66,7 +66,7 @@
       "id": "e008",
       "timestamp": "2026-06-05T00:00:00+00:00",
       "type": "milestone",
-      "content": "ci-fix",
+      "content": "session-renumber",
       "caused_by": [],
       "leads_to": []
     },
@@ -74,7 +74,7 @@
       "id": "e009",
       "timestamp": "2026-06-05T00:00:00+00:00",
       "type": "commit",
-      "content": "Commit: 28831c636938",
+      "content": "Commit: 0f94f8e1a5",
       "caused_by": [],
       "leads_to": []
     }

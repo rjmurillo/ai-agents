@@ -80,7 +80,7 @@ def test_present_reference_is_not_drift(tmp_path: Path) -> None:
     assert result.refs_checked == 1
 
 
-def test_case_variation_reference_is_not_drift(tmp_path: Path) -> None:
+def test_case_variation_reference_is_drift(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
     _write_req(repo, "REQ-003B.md", "The code is `SCRIPTS/REAL.py` and exists.\n")
@@ -89,8 +89,8 @@ def test_case_variation_reference_is_not_drift(tmp_path: Path) -> None:
     result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
 
     # Assert
-    assert result.verdict == "PASS"
-    assert result.findings == []
+    assert result.verdict == "DRIFT"
+    assert result.findings[0].referenced_path == "SCRIPTS/REAL.py"
     assert result.refs_checked == 1
 
 
@@ -213,7 +213,7 @@ def test_wildcard_reference_matches_when_one_exists(tmp_path: Path) -> None:
     assert result.verdict == "PASS"
 
 
-def test_wildcard_reference_matches_with_case_variation(tmp_path: Path) -> None:
+def test_wildcard_reference_with_case_variation_is_drift(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
     (repo / ".claude" / "skills" / "alpha").mkdir(parents=True)
@@ -224,7 +224,8 @@ def test_wildcard_reference_matches_with_case_variation(tmp_path: Path) -> None:
     result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
 
     # Assert
-    assert result.verdict == "PASS"
+    assert result.verdict == "DRIFT"
+    assert result.findings[0].referenced_path == ".CLAUDE/SKILLS/*/SKILL.md"
     assert result.refs_checked == 1
 
 
