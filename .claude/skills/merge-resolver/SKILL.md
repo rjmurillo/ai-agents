@@ -64,7 +64,7 @@ python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
 
 | Step | Action | Verification |
 |------|--------|--------------|
-| 3.1 | Verify no remaining conflict markers | `git grep -n '<<<<<<<' --` returns no matches |
+| 3.1 | Verify no remaining conflict markers and no unmerged files | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 |
 | 3.2 | Run session protocol validator | `validate_session_json.py` exits 0 |
 | 3.3 | Run markdown lint | `npx markdownlint-cli2` exits 0 |
 | 3.4 | Commit merge resolution | Commit SHA recorded |
@@ -157,6 +157,25 @@ When running with `--dry-run`, exit code `0` indicates that conflicts were fully
 
 **Security**: Branch name validation prevents command injection. Worktree path validation prevents path traversal.
 
+### verify_no_conflict_markers.py
+
+Verifies that resolution is complete: no still-unmerged (UU) files and no leftover conflict markers in any in-flight change. Replaces the broad `git grep -n '<<<<<<<' --` check, which false-fails on intentional fenced examples in committed docs and Serena memories (issue #2424).
+
+```bash
+python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py [--cwd PATH] [--json]
+```
+
+Uses `git diff HEAD --check` (catches leftover markers in working tree + index) plus `git diff --name-only --diff-filter=U` (catches files still unmerged). Both inspect in-flight changes only, so committed historical content is intentionally ignored.
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Clean: no unmerged files and no leftover conflict markers |
+| 1 | Resolution incomplete: markers remain or unmerged files exist |
+| 2 | Usage error: not inside a git working tree |
+| 3 | External error: a git command failed unexpectedly |
+
 ## Anti-Patterns
 
 | Anti-Pattern | Why It Fails | Instead |
@@ -177,7 +196,7 @@ When running with `--dry-run`, exit code `0` indicates that conflicts were fully
 | Criterion | Evidence |
 |-----------|----------|
 | All conflicts resolved | `git diff --check` returns empty |
-| No merge markers remain | `git grep -n '<<<<<<<' --` returns no matches |
+| No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (uses `git diff HEAD --check` + `git diff --diff-filter=U`; ignores intentional fenced examples in committed docs -- issue #2424) |
 | Session protocol valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |
 | Push successful | Remote ref updated |
