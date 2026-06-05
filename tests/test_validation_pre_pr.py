@@ -20,6 +20,7 @@ from scripts.validation.pre_pr import (
     run_validation,
     validate_command_bundle_coverage,
     validate_design_review_frontmatter,
+    validate_review_marker,
     validate_session_end,
     validate_workflow_yaml,
 )
@@ -331,6 +332,22 @@ class TestValidateDesignReviewFrontmatter:
         self._write_review(tmp_path, "DESIGN-REVIEW-test.md", content)
         # Blocking reviews still pass validation (they just warn)
         assert validate_design_review_frontmatter(tmp_path) is True
+
+    def test_blocking_null_does_not_count_as_blocking(
+        self, tmp_path: Path, capsys: Any
+    ) -> None:
+        content = (
+            '---\nstatus: "BLOCKED"\npriority: "P0"\n'
+            'blocking: null\nreviewer: "architect"\ndate: "2026-03-07"\n'
+            "---\n# Design Review: Test\n"
+        )
+        self._write_review(tmp_path, "DESIGN-REVIEW-test.md", content)
+
+        assert validate_design_review_frontmatter(tmp_path) is True
+
+        captured = capsys.readouterr()
+        assert "should have blocking: true" in captured.out
+        assert "blocking review(s) detected" not in captured.out
 
     def test_multiple_files_all_valid(self, tmp_path: Path) -> None:
         valid = (
@@ -846,3 +863,186 @@ class TestValidateWorkflowYamlScope:
             with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
                 assert validate_workflow_yaml(tmp_path) is True
         mock_run.assert_not_called()
+
+
+class TestValidateVendorPortability:
+    """The vendor-portability gate wraps check_vendor_portability.py (#2050).
+
+    Exit-code contract mirrored from the wrapped script:
+    0 (no new offenders / no scan roots) -> pass, 1 (new offender) -> fail,
+    2 (config error) -> fail. A missing wrapped script raises MissingScriptSkip.
+    """
+
+    def _make_repo(self, tmp_path: Path) -> Path:
+        (tmp_path / "scripts" / "validation").mkdir(parents=True)
+        (tmp_path / "scripts" / "validation" / "check_vendor_portability.py").write_text(
+            "# stub\n", encoding="utf-8"
+        )
+        return tmp_path
+
+    def test_passes_when_checker_exits_zero(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (0, "[PASS] No new vendor-portability offenders.\n", "")
+            assert validate_vendor_portability(repo) is True
+
+    def test_fails_on_new_offender_exit_one(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (1, "[FAIL] 1 new vendor-portability offender(s).\n", "")
+            assert validate_vendor_portability(repo) is False
+
+    def test_fails_on_config_error_exit_two(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (2, "", "[FAIL] repo root not found")
+            assert validate_vendor_portability(repo) is False
+
+    def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
+        import pytest
+
+        from scripts.validation.pre_pr import (
+            MissingScriptSkip,
+            validate_vendor_portability,
+        )
+
+        with pytest.raises(MissingScriptSkip):
+            validate_vendor_portability(tmp_path)
+
+    def test_passes_repo_root_to_checker(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_vendor_portability
+
+        repo = self._make_repo(tmp_path)
+        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            mock_run.return_value = (0, "", "")
+            validate_vendor_portability(repo)
+
+        mock_run.assert_called_once()
+        command = mock_run.call_args.args[0]
+        repo_root_index = command.index("--repo-root")
+        assert command[repo_root_index + 1] == str(repo)
+
+
+# ---------------------------------------------------------------------------
+# validate_review_marker  (Issue #1938)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateReviewMarker:
+    """Tests for the SHA-bound /review marker advisory check.
+
+    Behavior contract:
+
+    - Script missing, ``REVIEW_MARKER_ENFORCED`` unset / 0: returns ``True``
+      (advisory skip; never blocks pre-PR).
+    - Script missing, ``REVIEW_MARKER_ENFORCED=1``: returns ``False``.
+    - Script present, HEAD has a binding marker: returns ``True`` regardless
+      of enforcement.
+    - Script present, HEAD has no marker, advisory: returns ``True``.
+    - Script present, HEAD has no marker, enforced: returns ``False``.
+    """
+
+    import subprocess as _subprocess
+
+    @staticmethod
+    def _git(repo: Path, *args: str, stdin: str | None = None) -> str:
+        result = TestValidateReviewMarker._subprocess.run(
+            ["git", "-C", str(repo), *args],
+            capture_output=True,
+            text=True,
+            input=stdin,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    def _make_repo(self, tmp_path: Path, with_script: bool) -> Path:
+        """Build a fake repo: real validator script (optionally) + git history."""
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        if with_script:
+            dest = repo / "scripts" / "validation"
+            dest.mkdir(parents=True)
+            real = (
+                Path(__file__).resolve().parent.parent
+                / "scripts"
+                / "validation"
+                / "validate_review_marker.py"
+            )
+            (dest / "validate_review_marker.py").write_text(
+                real.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+        self._git(repo, "init", "-q")
+        self._git(repo, "config", "user.email", "t@example.com")
+        self._git(repo, "config", "user.name", "Tester")
+        self._git(repo, "config", "commit.gpgsign", "false")
+        (repo / "a.txt").write_text("x\n", encoding="utf-8")
+        self._git(repo, "add", "a.txt")
+        self._git(repo, "commit", "-q", "-m", "feat: one")
+        (repo / "b.txt").write_text("y\n", encoding="utf-8")
+        self._git(repo, "add", "b.txt")
+        self._git(repo, "commit", "-q", "-m", "feat: two")
+        return repo
+
+    def _add_marker(self, repo: Path) -> None:
+        """Add an empty /review marker commit binding the current tip."""
+        tip = self._git(repo, "rev-parse", "HEAD")
+        self._git(
+            repo,
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "review: marker",
+            "--trailer",
+            f"Reviewed-By: /review@analyst,security on {tip}",
+        )
+
+    def test_missing_script_advisory_returns_true(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        repo = self._make_repo(tmp_path, with_script=False)
+        monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+        assert validate_review_marker(repo) is True
+
+    def test_missing_script_enforced_returns_false(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        repo = self._make_repo(tmp_path, with_script=False)
+        monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+        assert validate_review_marker(repo) is False
+
+    def test_no_marker_advisory_returns_true(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        repo = self._make_repo(tmp_path, with_script=True)
+        monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+        assert validate_review_marker(repo) is True
+
+    def test_no_marker_enforced_returns_false(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        repo = self._make_repo(tmp_path, with_script=True)
+        monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+        assert validate_review_marker(repo) is False
+
+    def test_valid_marker_passes_advisory(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        repo = self._make_repo(tmp_path, with_script=True)
+        self._add_marker(repo)
+        monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+        assert validate_review_marker(repo) is True
+
+    def test_valid_marker_passes_enforced(
+        self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
+    ) -> None:
+        repo = self._make_repo(tmp_path, with_script=True)
+        self._add_marker(repo)
+        monkeypatch.setenv("REVIEW_MARKER_ENFORCED", "1")
+        assert validate_review_marker(repo) is True

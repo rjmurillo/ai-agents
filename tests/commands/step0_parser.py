@@ -330,9 +330,11 @@ def extract_tier5_bullet(text: str) -> str:
 def extract_step9_block(text: str) -> str:
     """Extract the Step 9 block, anchored on the next H2 heading OR
     end-of-file. Files that end with the Step 9 block (no trailing H2)
-    are also handled."""
+    are also handled. The opener is anchored on `\\n9. ` (any step-9 opening
+    line), not the specific `Task(subagent_type="critic")` wording, so
+    rephrasing the step's first sentence does not break the extractor."""
     match = re.search(
-        r"\n9\. Task\(subagent_type=\"critic\"\).*?(?=\n## |\Z)",
+        r"\n9\. .*?(?=\n## |\Z)",
         text,
         re.DOTALL,
     )

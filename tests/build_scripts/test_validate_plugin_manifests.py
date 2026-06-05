@@ -386,12 +386,25 @@ def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
 
 
 def test_find_manifests_skips_pytest_tmp(tmp_path: Path) -> None:
-    """Issue #2366: fixture manifests written under a repo-root .pytest_tmp
-    directory must not be discovered by manifest validation."""
+    """Regression for #2366: fixture manifests under .pytest_tmp must be ignored.
+
+    Tests that write fixtures under repo-root `.pytest_tmp` (for CWE-22
+    compliance with extract_and_index.py) would otherwise pollute later
+    plugin-manifest validation runs.
+    """
     repo_manifest = tmp_path / "a" / ".claude-plugin" / "plugin.json"
     repo_manifest.parent.mkdir(parents=True)
     repo_manifest.write_text("{}", encoding="utf-8")
-    fixture_manifest = tmp_path / ".pytest_tmp" / "fix" / ".claude-plugin" / "plugin.json"
+    # Simulate the nested pytest temp tree shape from the issue.
+    fixture_manifest = (
+        tmp_path
+        / ".pytest_tmp"
+        / "pytest-of-user"
+        / "pytest-0"
+        / "fixture"
+        / ".claude-plugin"
+        / "plugin.json"
+    )
     fixture_manifest.parent.mkdir(parents=True)
     fixture_manifest.write_text("{}", encoding="utf-8")
     found = vpm.find_manifests(tmp_path)

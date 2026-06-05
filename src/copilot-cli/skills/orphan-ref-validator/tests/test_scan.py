@@ -996,6 +996,40 @@ class TestBaselineSuppression:
         bl.write_text(json.dumps(envelope), encoding="utf-8")
         assert load_baseline(bl) == {"docs/a.md:1:skill_name:gamma-skill"}
 
+    def test_load_baseline_json_envelope_with_verdict_suffix(self, tmp_path):
+        bl = tmp_path / "baseline.json"
+        result = ScanResult(
+            findings=[
+                Finding(
+                    kind="skill_name",
+                    severity="critical",
+                    target_file="docs/a.md",
+                    line=1,
+                    referenced_entity="gamma-skill",
+                    recommendation="Remove stale reference.",
+                )
+            ]
+        )
+        bl.write_text(render_envelope(result, "json"), encoding="utf-8")
+        assert load_baseline(bl) == {"docs/a.md:1:skill_name:gamma-skill"}
+
+    def test_load_baseline_json_envelope_skips_null_key_fields(self, tmp_path):
+        bl = tmp_path / "baseline.json"
+        envelope = {
+            "Data": {
+                "findings": [
+                    {
+                        "kind": "skill_name",
+                        "target_file": "docs/a.md",
+                        "line": None,
+                        "referenced_entity": "gamma-skill",
+                    }
+                ]
+            }
+        }
+        bl.write_text(json.dumps(envelope), encoding="utf-8")
+        assert load_baseline(bl) == set()
+
     def test_load_baseline_missing_file_raises(self, tmp_path):
         with pytest.raises(BaselineError):
             load_baseline(tmp_path / "nope.txt")
@@ -1037,3 +1071,32 @@ class TestBaselineSuppression:
         out = capsys.readouterr().out
         assert rc == 2
         assert "VERDICT: ERROR" in out
+
+    def test_cli_baseline_path_outside_repo_is_config_error(self, fake_repo, capsys):
+        outside = fake_repo.parent / "baseline.txt"
+        outside.write_text("docs/stale.md:1:skill_name:gamma-skill\n", encoding="utf-8")
+        rc = main(
+            [
+                "--repo-root",
+                str(fake_repo),
+                "--baseline",
+                str(outside),
+            ]
+        )
+        out = capsys.readouterr().out
+        assert rc == 2
+        assert "baseline path escapes repository root" in out
+        assert "VERDICT: ERROR" in out
+
+    def test_truncation_keeps_active_findings_before_suppressed(self, fake_repo):
+        target = fake_repo / "docs" / "stale.md"
+        write(target, "Use `gamma-skill` and `delta-skill` here.\n")
+        full = scan([target], fake_repo)
+        gamma_keys = {
+            f.key for f in full.findings if f.referenced_entity == "gamma-skill"
+        }
+        assert gamma_keys, "expected gamma-skill orphan finding"
+        result = scan([target], fake_repo, max_findings=2, baseline=gamma_keys)
+        active = [f for f in result.findings if not f.suppressed]
+        assert result.verdict == "CRITICAL_FAIL"
+        assert any(f.referenced_entity == "delta-skill" for f in active)

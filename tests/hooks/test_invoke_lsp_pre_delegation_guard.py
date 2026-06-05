@@ -77,12 +77,15 @@ class TestIsEnforcedSubagent:
     def test_implementer_enforced(self):
         assert guard.is_enforced_subagent("implementer")
 
-    def test_context_retrieval_enforced(self):
-        assert guard.is_enforced_subagent("context-retrieval")
+    def test_context_retrieval_no_longer_enforced(self):
+        # Issue #2103: the context-retrieval agent was folded into the
+        # exploring-knowledge-graph skill and deleted, so it is no longer a
+        # delegable subagent and is dropped from ENFORCED_SUBAGENTS.
+        assert not guard.is_enforced_subagent("context-retrieval")
 
     def test_case_insensitive(self):
         assert guard.is_enforced_subagent("Implementer")
-        assert guard.is_enforced_subagent("CONTEXT-RETRIEVAL")
+        assert guard.is_enforced_subagent("IMPLEMENTER")
 
     def test_whitespace_trimmed(self):
         assert guard.is_enforced_subagent("  implementer  ")

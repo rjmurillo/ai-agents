@@ -396,28 +396,48 @@ def load_baseline(path: Path) -> set[str]:
 
 
 def _load_baseline_json(stripped: str, path: Path) -> set[str]:
+    json_text = _strip_verdict_suffix(stripped)
     try:
-        data = json.loads(stripped)
+        data = json.loads(json_text)
     except json.JSONDecodeError as exc:
         raise BaselineError(f"baseline file {path} is not valid JSON: {exc}") from exc
     if isinstance(data, list):
         return {str(item) for item in data}
     if isinstance(data, dict):
-        findings = (data.get("Data") or {}).get("findings")
+        data_field = data.get("Data")
+        findings = data_field.get("findings") if isinstance(data_field, dict) else None
         if isinstance(findings, list):
             keys: set[str] = set()
             for f in findings:
                 if not isinstance(f, dict):
                     continue
+                target_file = f.get("target_file")
+                line = f.get("line")
+                kind = f.get("kind")
+                referenced_entity = f.get("referenced_entity")
+                if (
+                    target_file is None
+                    or line is None
+                    or kind is None
+                    or referenced_entity is None
+                ):
+                    continue
                 keys.add(
-                    f"{f.get('target_file')}:{f.get('line')}:"
-                    f"{f.get('kind')}:{f.get('referenced_entity')}"
+                    f"{target_file}:{line}:{kind}:{referenced_entity}"
                 )
             return keys
     raise BaselineError(
         f"baseline file {path} JSON must be a list of keys or a scan "
         "envelope with Data.findings"
     )
+
+
+def _strip_verdict_suffix(stripped: str) -> str:
+    lines = stripped.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("VERDICT:"):
+            return "\n".join(lines[:index]).strip()
+    return stripped
 
 
 def scan(
@@ -487,6 +507,7 @@ def scan(
                 )
                 if baseline:
                     findings = _suppress_baselined(findings, baseline)
+                    findings.sort(key=lambda f: f.suppressed)
                 # Reserve one slot for the synthetic truncation finding so
                 # the returned list never exceeds ``max_findings``.
                 budget = max_findings - 1
@@ -657,7 +678,19 @@ def main(argv: list[str] | None = None) -> int:
     baseline: set[str] | None = None
     if args.baseline:
         try:
-            baseline = load_baseline(Path(args.baseline))
+            baseline_candidate = Path(args.baseline)
+            baseline_path = (
+                baseline_candidate
+                if baseline_candidate.is_absolute()
+                else repo_root / baseline_candidate
+            ).resolve()
+            try:
+                baseline_path.relative_to(repo_root)
+            except ValueError as exc:
+                raise BaselineError(
+                    f"baseline path escapes repository root: {baseline_path}"
+                ) from exc
+            baseline = load_baseline(baseline_path)
         except BaselineError as exc:
             LOGGER.error("%s", exc)
             print(render_error_envelope(str(exc), args.output))

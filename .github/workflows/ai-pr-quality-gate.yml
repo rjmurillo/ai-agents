@@ -117,26 +117,7 @@ jobs:
           GH_ACTOR: ${{ github.actor }}
           GH_EVENT_NAME: ${{ github.event_name }}
           RELEVANT: ${{ steps.filter.outputs.relevant }}
-        run: |
-          # Skip AI review for bot actors but still emit status checks
-          if [ "$GH_ACTOR" = "dependabot[bot]" ] || [ "$GH_ACTOR" = "github-actions[bot]" ]; then
-            echo "should-run=false" >> $GITHUB_OUTPUT
-            echo "Decision: Skip review (bot actor: $GH_ACTOR)"
-          elif [ "$GH_EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "should-run=true" >> $GITHUB_OUTPUT
-            echo "Decision: Run review (manual trigger)"
-          else
-            echo "Relevant files changed: $RELEVANT"
-
-            # Run review if relevant files changed, skip otherwise
-            if [ "$RELEVANT" = "true" ]; then
-              echo "should-run=true" >> $GITHUB_OUTPUT
-              echo "Decision: Run review (relevant files changed)"
-            else
-              echo "should-run=false" >> $GITHUB_OUTPUT
-              echo "Decision: Skip review (no relevant files changed)"
-            fi
-          fi
+        run: python3 scripts/quality_gate/determine_should_run.py
 
 # ==============================================================================
 # Infrastructure Health Check (Issue #153)
@@ -233,6 +214,9 @@ jobs:
 
     outputs:
       test-summary: ${{ steps.summary.outputs.test_summary }}
+      # Issue #2108: surface the deterministic pytest status as an external
+      # signal for the gate aggregator (scripts/external_signals/gate_aggregator.py).
+      pytest-status: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
 
     steps:
       - name: Checkout repository
@@ -248,75 +232,14 @@ jobs:
       - name: Run pytest
         id: pytest
         continue-on-error: true
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $ErrorActionPreference = 'Continue'
-
-          $pythonAvailable = Get-Command python -ErrorAction SilentlyContinue
-          $pyprojectExists = Test-Path "pyproject.toml"
-
-          if ($pythonAvailable -and $pyprojectExists) {
-            try {
-              # Prefer uv (installed by setup-code-env), fall back to python -m pytest
-              $uvAvailable = Get-Command uv -ErrorAction SilentlyContinue
-              if ($uvAvailable) {
-                $output = & uv run pytest --tb=short -q 2>&1 | Out-String
-              } else {
-                $output = & python -m pytest --tb=short -q 2>&1 | Out-String
-              }
-              $exitCode = $LASTEXITCODE
-              Write-Output $output
-
-              # Extract summary line for reporting context
-              $summaryLine = ($output -split "`n" | Where-Object { $_ -match "passed|failed|error" } | Select-Object -Last 1)
-              if (-not $summaryLine) {
-                $summaryLine = "No test summary available"
-              }
-              "pytest_summary=$summaryLine" >> $env:GITHUB_OUTPUT
-
-              # Use exit code as primary signal (not output parsing)
-              if ($exitCode -ne 0) {
-                "pytest_status=FAIL" >> $env:GITHUB_OUTPUT
-              } else {
-                "pytest_status=PASS" >> $env:GITHUB_OUTPUT
-              }
-            }
-            catch {
-              "pytest_status=ERROR" >> $env:GITHUB_OUTPUT
-              "pytest_summary=$($_.Exception.Message -replace "`n",' ')" >> $env:GITHUB_OUTPUT
-            }
-          } else {
-            "pytest_status=SKIPPED" >> $env:GITHUB_OUTPUT
-            "pytest_summary=Python test environment not available" >> $env:GITHUB_OUTPUT
-          }
+        run: python3 scripts/quality_gate/run_pytest.py
 
       - name: Generate test summary
         id: summary
-        shell: python3 {0}
         env:
           PYTEST_STATUS: ${{ steps.pytest.outputs.pytest_status || 'SKIPPED' }}
           PYTEST_SUMMARY: ${{ steps.pytest.outputs.pytest_summary || 'Not executed' }}
-        run: |
-          import os
-          import random
-
-          pytest_status = os.environ.get('PYTEST_STATUS', 'SKIPPED')
-          pytest_summary = os.environ.get('PYTEST_SUMMARY', 'Not executed')
-
-          summary = "## Pre-executed Test Results\n\n"
-          summary += "### pytest (Python)\n"
-          summary += f"- **Status**: {pytest_status}\n"
-          summary += f"- **Summary**: {pytest_summary}\n"
-
-          # Write to GITHUB_OUTPUT using heredoc delimiter
-          delimiter = f"EOF_SUMMARY_{random.randint(1000, 9999)}"
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f"test_summary<<{delimiter}\n")
-              f.write(summary)
-              f.write(f"{delimiter}\n")
-
-          print("Generated test summary:")
-          print(summary)
+        run: python3 scripts/quality_gate/generate_test_summary.py
 
 # ==============================================================================
 # Agent Review Jobs (10 Static Jobs)
@@ -621,10 +544,17 @@ jobs:
     name: Aggregate Results
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
-    needs: [check-changes, infra-check, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review, reliability-review, observability-review, agent-safety-review, decision-rigor-review]
-    # Always run to produce a SUCCESS check (not SKIPPED) for rulesets.
-    # Step-level conditions gate the actual work.
-    if: always()
+    needs: [check-changes, infra-check, run-tests, security-review, qa-review, analyst-review, architect-review, devops-review, roadmap-review, reliability-review, observability-review, agent-safety-review, decision-rigor-review]
+    # Always run to produce a SUCCESS check (not SKIPPED) for rulesets,
+    # EXCEPT when the workflow itself is being cancelled (e.g. by concurrency).
+    # Issue #2347: when concurrency cancels a run, upstream review jobs end
+    # `cancelled` -> artifacts missing -> check_critical_failures exits 1 ->
+    # PR head receives `Aggregate Results: failure`. If the superseding run
+    # also gets cancelled before finishing, the stale failure persists and
+    # blocks merge until a no-op commit refreshes the head SHA. Skipping the
+    # aggregate when the workflow is cancelled prevents the stale failure;
+    # the next non-cancelled run produces the authoritative status.
+    if: always() && !cancelled()
 
     outputs:
       final-verdict: ${{ steps.aggregate.outputs.final_verdict }}
@@ -636,14 +566,17 @@ jobs:
           SHOULD_RUN: ${{ needs.check-changes.outputs.should-run }}
         run: |
           if [ "$SHOULD_RUN" != "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "Skipped - no relevant file changes detected"
           fi
+
+      - name: Checkout repository
+        if: steps.should-run.outputs.skip != 'true'
+        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for failed agents
         if: steps.should-run.outputs.skip != 'true'
         id: failed-agents
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           SECURITY_RESULT: ${{ needs.security-review.result }}
           QA_RESULT: ${{ needs.qa-review.result }}
@@ -655,46 +588,7 @@ jobs:
           OBSERVABILITY_RESULT: ${{ needs.observability-review.result }}
           AGENT_SAFETY_RESULT: ${{ needs.agent-safety-review.result }}
           DECISION_RIGOR_RESULT: ${{ needs.decision-rigor-review.result }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # Check if any agent review jobs failed by examining the needs context
-          # This step runs before downloading artifacts to surface failures early
-          # Note: Specific failed agents are identified later by examining individual verdicts (line 777+ in 'Check for Critical Failures' step)
-          $agentResults = @(
-            @{ Name = 'Security'; Result = $env:SECURITY_RESULT }
-            @{ Name = 'QA'; Result = $env:QA_RESULT }
-            @{ Name = 'Analyst'; Result = $env:ANALYST_RESULT }
-            @{ Name = 'Architect'; Result = $env:ARCHITECT_RESULT }
-            @{ Name = 'DevOps'; Result = $env:DEVOPS_RESULT }
-            @{ Name = 'Roadmap'; Result = $env:ROADMAP_RESULT }
-            @{ Name = 'Reliability'; Result = $env:RELIABILITY_RESULT }
-            @{ Name = 'Observability'; Result = $env:OBSERVABILITY_RESULT }
-            @{ Name = 'Agent Safety'; Result = $env:AGENT_SAFETY_RESULT }
-            @{ Name = 'Decision Rigor'; Result = $env:DECISION_RIGOR_RESULT }
-          )
-
-          Write-Output "Individual review results:"
-          $failedAgents = @()
-
-          foreach ($agent in $agentResults) {
-            Write-Output "  $($agent.Name): $($agent.Result)"
-            if ($agent.Result -in @('failure', 'cancelled')) {
-              $failedAgents += $agent.Name
-              Write-Output "::error::$($agent.Name) agent failed with result: $($agent.Result)"
-            }
-          }
-
-          if ($failedAgents.Count -gt 0) {
-            "has_failures=true" >> $env:GITHUB_OUTPUT
-            Write-Output "::warning::Failed agents: $($failedAgents -join ', ')"
-            Write-Output "::warning::Check individual job logs for details"
-          } else {
-            "has_failures=false" >> $env:GITHUB_OUTPUT
-          }
-
-      - name: Checkout repository
-        if: steps.should-run.outputs.skip != 'true'
-        uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        run: python3 scripts/quality_gate/check_failed_agents.py
 
       - name: Download all review artifacts
         if: steps.should-run.outputs.skip != 'true'
@@ -706,60 +600,12 @@ jobs:
 
       - name: Validate artifact download
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Write-Output "Checking for required verdict files..."
-
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
-          $missingFiles = @()
-
-          foreach ($agent in $agents) {
-            $verdictFile = "ai-review-results/$agent-verdict.txt"
-            if (-not (Test-Path $verdictFile)) {
-              $missingFiles += "$agent-verdict.txt"
-            }
-          }
-
-          if ($missingFiles.Count -gt 0) {
-            Write-Output "::error::Artifact download incomplete - missing files:"
-            foreach ($file in $missingFiles) {
-              Write-Output "::error::  - $file"
-            }
-            Write-Output "::error::This indicates agent review jobs failed or artifacts were not uploaded"
-            exit 1
-          }
-
-          Write-Output "✓ All required verdict files present"
+        run: python3 scripts/quality_gate/validate_artifact_download.py
 
       - name: Load review results
         if: steps.should-run.outputs.skip != 'true'
         id: load-results
-        shell: pwsh -NoProfile -Command "& '{0}'"
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
-
-          Write-Output "Loaded verdicts:"
-
-          foreach ($agent in $agents) {
-            $verdictFile = "ai-review-results/$agent-verdict.txt"
-            $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
-
-            # Read verdict (file existence already validated)
-            $rawVerdict = Get-Content $verdictFile -Raw
-            $verdict = if ($rawVerdict) { $rawVerdict.Trim() } else { "NEEDS_REVIEW" }
-
-            # Read infrastructure flag
-            $rawInfra = if (Test-Path $infraFile) { Get-Content $infraFile -Raw } else { $null }
-            $infra = if ($rawInfra) { $rawInfra.Trim() } else { "false" }
-
-            Write-Output "  ${agent}: $verdict (infra: $infra)"
-
-            # Export to GITHUB_OUTPUT
-            "${agent}_verdict=$verdict" >> $env:GITHUB_OUTPUT
-            "${agent}_infra=$infra" >> $env:GITHUB_OUTPUT
-          }
+        run: python3 scripts/quality_gate/load_review_results.py
 
       - name: Aggregate Verdicts
         if: steps.should-run.outputs.skip != 'true'
@@ -786,6 +632,30 @@ jobs:
           AGENT_SAFETY_INFRA: ${{ steps.load-results.outputs['agent-safety_infra'] }}
           DECISION_RIGOR_INFRA: ${{ steps.load-results.outputs['decision-rigor_infra'] }}
         run: python3 .github/scripts/aggregate_quality_verdicts.py
+
+      # Issue #2108 / #1855: enforce the closed-loop rule (no PASS on LLM
+      # verdicts alone) by feeding the deterministic pytest status plus the ten
+      # agent verdicts into scripts/external_signals/gate_aggregator.py. This
+      # is observable (continue-on-error) and reported below; it does not yet
+      # replace the authoritative gate in check_critical_failures.py. Swapping
+      # the final gate is tracked as a follow-up (see PR description).
+      - name: External-signal gate (observe)
+        if: steps.should-run.outputs.skip != 'true'
+        id: external-gate
+        continue-on-error: true
+        env:
+          PYTEST_STATUS: ${{ needs.run-tests.outputs.pytest-status }}
+          SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
+          QA_VERDICT: ${{ steps.aggregate.outputs.qa_verdict }}
+          ANALYST_VERDICT: ${{ steps.aggregate.outputs.analyst_verdict }}
+          ARCHITECT_VERDICT: ${{ steps.aggregate.outputs.architect_verdict }}
+          DEVOPS_VERDICT: ${{ steps.aggregate.outputs.devops_verdict }}
+          ROADMAP_VERDICT: ${{ steps.aggregate.outputs.roadmap_verdict }}
+          RELIABILITY_VERDICT: ${{ steps.aggregate.outputs.reliability_verdict }}
+          OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
+          AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
+          DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
+        run: python3 scripts/quality_gate/external_signal_gate.py
 
       - name: Generate Report
         if: steps.should-run.outputs.skip != 'true'
@@ -819,71 +689,16 @@ jobs:
           AGENT_SAFETY_CATEGORY: ${{ steps.aggregate.outputs['agent-safety_category'] }}
           DECISION_RIGOR_CATEGORY: ${{ steps.aggregate.outputs['decision-rigor_category'] }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          AI_REVIEW_DIR: ai-review
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
         if: steps.should-run.outputs.skip != 'true'
         continue-on-error: true
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          # Check if any agent had infrastructure failure (Issue #328: Add infrastructure-failure label when retry logic exhausted)
-          $infrastructureFailureDetected = $false
-          $retryAttempts = @()
-
-          $agents = @('security', 'qa', 'analyst', 'architect', 'devops', 'roadmap', 'reliability', 'observability', 'agent-safety', 'decision-rigor')
-
-          foreach ($agent in $agents) {
-            $infraFile = "ai-review-results/$agent-infrastructure-failure.txt"
-            $retryFile = "ai-review-results/$agent-retry-count.txt"
-
-            if (Test-Path $infraFile) {
-              $rawInfraFlag = Get-Content $infraFile -Raw
-              $infraFlag = if ($rawInfraFlag) { $rawInfraFlag.Trim() } else { "false" }
-              if ($infraFlag -eq "true") {
-                $infrastructureFailureDetected = $true
-                $retryCount = 0
-                if (Test-Path $retryFile) {
-                  $rawRetry = Get-Content $retryFile -Raw
-                  $retryCount = if ($rawRetry) { [int]$rawRetry.Trim() } else { 0 }
-                }
-                $retryAttempts += "${agent}: $retryCount retries"
-                Write-Output "::notice::Infrastructure failure detected for $agent agent (retries: $retryCount)"
-              }
-            }
-          }
-
-          if ($infrastructureFailureDetected) {
-            Write-Output "::warning::Infrastructure failures detected - adding infrastructure-failure label"
-            Write-Output "Retry attempts: $($retryAttempts -join ', ')"
-
-            try {
-              # Verify gh CLI is authenticated
-              $authStatus = gh auth status 2>&1
-              if ($LASTEXITCODE -ne 0) {
-                Write-Output "::warning::gh CLI authentication failed, cannot add label"
-                exit 0
-              }
-
-              # Add label (best-effort, should not block aggregation)
-              gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "infrastructure-failure"
-
-              if ($LASTEXITCODE -ne 0) {
-                Write-Output "::warning::Failed to add infrastructure-failure label (exit code: $LASTEXITCODE)"
-              } else {
-                Write-Output "Successfully added infrastructure-failure label"
-              }
-            }
-            catch {
-              Write-Output "::warning::Failed to add label: $_"
-            }
-          } else {
-            Write-Output "No infrastructure failures detected"
-          }
+        run: python3 scripts/quality_gate/check_infrastructure_failures.py
 
       - name: Post PR Comment
         if: steps.should-run.outputs.skip != 'true'
@@ -892,25 +707,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ env.PR_NUMBER }}
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
-        run: |
-          if [ -z "$PR_NUMBER" ]; then
-            echo "::error::PR_NUMBER environment variable is missing"
-            exit 1
-          fi
-          if [ -z "$REPORT_FILE" ]; then
-            echo "::error::REPORT_FILE environment variable is missing"
-            exit 1
-          fi
-          if [ ! -f "$REPORT_FILE" ]; then
-            echo "::error::Report file not found: $REPORT_FILE"
-            exit 1
-          fi
-          python3 .github/scripts/run_with_retry.py -- \
-            python3 .github/scripts/post_issue_comment.py \
-            --issue "$PR_NUMBER" \
-            --body-file "$REPORT_FILE" \
-            --marker "AI-PR-QUALITY-GATE" \
-            --update-if-exists
+        run: python3 scripts/quality_gate/post_pr_comment.py
 
       - name: Set Job Summary
         if: steps.should-run.outputs.skip != 'true'
@@ -923,7 +720,6 @@ jobs:
 
       - name: Check for Critical Failures
         if: steps.should-run.outputs.skip != 'true'
-        shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
           SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
@@ -936,72 +732,4 @@ jobs:
           OBSERVABILITY_VERDICT: ${{ steps.aggregate.outputs.observability_verdict }}
           AGENT_SAFETY_VERDICT: ${{ steps.aggregate.outputs['agent-safety_verdict'] }}
           DECISION_RIGOR_VERDICT: ${{ steps.aggregate.outputs['decision-rigor_verdict'] }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $finalVerdict = $env:FINAL_VERDICT
-
-          # Use ordered array for deterministic output (PowerShell dictionary Keys property is unordered, which would cause agent order to vary across runs, complicating comparisons)
-          $agentVerdicts = @(
-            @{ Name = '🔒 Security'; Verdict = $env:SECURITY_VERDICT }
-            @{ Name = '🧪 QA'; Verdict = $env:QA_VERDICT }
-            @{ Name = '📊 Analyst'; Verdict = $env:ANALYST_VERDICT }
-            @{ Name = '📐 Architect'; Verdict = $env:ARCHITECT_VERDICT }
-            @{ Name = '⚙️ DevOps'; Verdict = $env:DEVOPS_VERDICT }
-            @{ Name = '🗺️ Roadmap'; Verdict = $env:ROADMAP_VERDICT }
-            @{ Name = '🛡️ Reliability'; Verdict = $env:RELIABILITY_VERDICT }
-            @{ Name = '🔭 Observability'; Verdict = $env:OBSERVABILITY_VERDICT }
-            @{ Name = '🤖 Agent Safety'; Verdict = $env:AGENT_SAFETY_VERDICT }
-            @{ Name = '⚖️ Decision Rigor'; Verdict = $env:DECISION_RIGOR_VERDICT }
-          )
-
-          # Identify agents with blocking verdicts
-          # NEEDS_REVIEW added in Issue #470 fix - indicates AI couldn't produce explicit verdict (occurs when AI response doesn't match expected verdict format, treating ambiguity as blocking)
-          # UNKNOWN added in #1934: a skill crash or unparseable verdict surfaces as UNKNOWN.
-          # Per REQ-008-05 UNKNOWN must "force explicit attention"; treat it as blocking
-          # so a silent skill failure cannot pass the gate.
-          # NON_COMPLIANT added in PR #1965 (devin BB6): NON_COMPLIANT is in FAIL_VERDICTS
-          # in scripts/ai_review_common/verdict.py; the workflow gate must match so a
-          # NON_COMPLIANT spec-validation verdict actually blocks merge.
-          $blockingVerdicts = @('CRITICAL_FAIL', 'REJECTED', 'FAIL', 'NEEDS_REVIEW', 'NON_COMPLIANT', 'UNKNOWN')
-          $failedAgents = @()
-          $missingVerdicts = @()
-
-          foreach ($entry in $agentVerdicts) {
-            if ([string]::IsNullOrWhiteSpace($entry.Verdict)) {
-              $missingVerdicts += $entry.Name
-              Write-Output "::error::$($entry.Name): No verdict received from aggregate step"
-              continue
-            }
-            if ($entry.Verdict -in $blockingVerdicts) {
-              $failedAgents += "$($entry.Name): $($entry.Verdict)"
-              Write-Output "::error::$($entry.Name): $($entry.Verdict)"
-            }
-          }
-
-          if ($missingVerdicts.Count -gt 0) {
-            Write-Output ""
-            Write-Output "❌ Quality gate failed - missing verdicts"
-            Write-Output ""
-            Write-Output "Agents with missing verdicts:"
-            foreach ($missing in $missingVerdicts) {
-              Write-Output "  - $missing"
-            }
-            Write-Output ""
-            Write-Output "This indicates agent review jobs failed or artifacts are incomplete"
-            exit 1
-          }
-
-          if ($finalVerdict -in $blockingVerdicts) {
-            Write-Output ""
-            Write-Output "❌ AI Quality Gate FAILED"
-            Write-Output ""
-            Write-Output "Agents with blocking verdicts:"
-            foreach ($failed in $failedAgents) {
-              Write-Output "  - $failed"
-            }
-            Write-Output ""
-            Write-Output "Click on individual agent jobs above to see detailed findings."
-            exit 1
-          }
-
-          Write-Output "✅ AI Quality Gate passed with verdict: $finalVerdict"
+        run: python3 scripts/quality_gate/check_critical_failures.py

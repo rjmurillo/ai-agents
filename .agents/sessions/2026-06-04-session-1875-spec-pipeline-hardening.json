@@ -1,0 +1,137 @@
+{
+  "session": {
+    "number": 1875,
+    "date": "2026-06-04",
+    "branch": "fix/spec-pipeline-hardening",
+    "startingCommit": "1ed640259",
+    "objective": "Spec pipeline hardening: issues 1976 1977 1978 1996 on branch fix/spec-pipeline-hardening"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP available; project ai-agents active per AGENTS.md Serena Init gate"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions manual referenced; LSP-first navigation rule applied"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md left read-only per ADR-014; worktree task brief read instead"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file under worktree .agents/sessions"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "session-init skill invoked; generate_skills.py and generate_rules.py located for mirror regeneration"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first routing followed; session-init used for log creation"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/*.md loaded via CLAUDE.md imports; universal.md no-dash rule and canonical-source-mirror parity applied"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Auto-memory index loaded; worktree-session-init-writes-to-main note applied to place log in worktree"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/spec-pipeline-hardening"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/spec-pipeline-hardening in isolated worktree"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; only spec-pipeline files changed"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "1ed640259"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All Start MUST gates satisfied; work covers issues 1976 1977 1978 1996"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not edited (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new HIGH-confidence cross-session learning beyond existing notes; parser-hardening pattern already covered"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py runs markdown checks over changed spec.md and SKILL.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commits per issue on fix/spec-pipeline-hardening"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/commands: 153 passed; pre_pr.py run before push"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree brief tracked the four issues"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Not a retro session"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Issue 1976 parser hardening",
+      "action": "Hardened extract_step0_5_block and extract_step9_block delimiter anchors; added 8 adversarial tests",
+      "verification": "uv run pytest tests/commands/test_spec_step0_5.py tests/commands/test_spec_step0.py: 153 passed",
+      "result": "153 passed"
+    },
+    {
+      "step": "Issues 1977 and 1978 spec contract docs",
+      "action": "Added PriorArtBlock heading parenthetical contract sentence and entity-alias rule 5 to spec.md plus copilot mirror; created spec-entity-aliases.json; added load_entity_aliases and normalize_topic_with_aliases plus 15 tests",
+      "verification": "uv run pytest tests/commands/test_spec_step0_5.py tests/commands/test_spec_step0.py: 168 passed",
+      "result": "168 passed"
+    },
+    {
+      "step": "Issue 1996 REASONS section headers",
+      "action": "Added SPDD REASONS Canvas labels to spec-generator SKILL.md; bumped versions; regenerated copilot mirror; added static test",
+      "verification": "uv run pytest .claude/skills/spec-generator/tests tests/commands: 210 passed",
+      "result": "210 passed"
+    }
+  ],
+  "endingCommit": "4a6c9bd9d",
+  "nextSteps": []
+}
