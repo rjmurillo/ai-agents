@@ -5,9 +5,9 @@ Extracted from ``scripts/validation/pre_pr.py`` (issue #2223). Groups the
 checks that guard install-copy parity, the plugin.json version bump, hook
 anchoring, local git-hooks installation, and the shift-left workflow local-run.
 
-Behavior-preserving move: each function is identical to its previous definition
-in ``pre_pr.py``. ``pre_pr`` re-exports these names so existing imports keep
-working.
+This began as a behavior-preserving move from ``pre_pr.py``. Later fixes can
+land in this extracted module directly while ``pre_pr`` re-exports these names
+so existing imports keep working.
 """
 
 from __future__ import annotations

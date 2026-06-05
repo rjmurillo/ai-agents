@@ -7,9 +7,9 @@ session-log validation, Pester tests, markdownlint, actionlint, yamllint,
 path normalization, planning artifacts, and agent-drift detection. Also holds
 ``_find_latest_session_log``, the session-log discovery helper.
 
-Behavior-preserving move: each function is identical to its previous definition
-in ``pre_pr.py``. ``pre_pr`` re-exports these names so existing imports keep
-working.
+This began as a behavior-preserving move from ``pre_pr.py``. Later fixes can
+land in this extracted module directly while ``pre_pr`` re-exports these names
+so existing imports keep working.
 """
 
 from __future__ import annotations

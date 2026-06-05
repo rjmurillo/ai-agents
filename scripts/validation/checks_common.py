@@ -7,8 +7,8 @@ runner stays under the file-size limit and the area-specific check modules
 ``checks_coverage``) share one home for the subprocess wrapper, the
 SKIP control-flow signal, and the git base-ref resolution helpers.
 
-This is a behavior-preserving move: the functions are byte-for-byte the same as
-their previous definitions in ``pre_pr.py``. ``pre_pr`` re-exports them so
+This began as a behavior-preserving move from ``pre_pr.py``. Later fixes can
+land in these extracted modules directly while ``pre_pr`` re-exports them so
 ``from scripts.validation.pre_pr import MissingScriptSkip`` and the rest keep
 working for existing callers and tests.
 """
