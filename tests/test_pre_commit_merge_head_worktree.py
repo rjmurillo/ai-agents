@@ -163,7 +163,7 @@ class TestHookPinsFixedShape:
         # prose mention in a comment is fine; an `[ -f ... ]` test or a `cat` of
         # the hardcoded path is the bug. Assert no non-comment line references it.
         code_lines = [
-            line
+            line.split("#", 1)[0]
             for line in hook_text.splitlines()
             if not line.lstrip().startswith("#")
         ]
