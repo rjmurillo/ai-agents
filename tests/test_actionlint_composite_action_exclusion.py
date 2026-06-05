@@ -7,15 +7,14 @@ metadata produces spurious "missing jobs section" / "missing on section"
 errors when fed in.
 
 The validation that protects composite actions is the `grep -E` filter that
-builds `STAGED_WORKFLOW_FILES`. This test exercises that filter directly
-through `subprocess` (the same way the hook does) so that future edits to
-the filter regex cannot silently re-introduce the bug.
+builds `STAGED_WORKFLOW_FILES`. This test exercises that filter regex directly
+through Python's `re` module (matching the hook's POSIX ERE semantics) so that
+future edits to the filter regex cannot silently re-introduce the bug.
 """
 
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -46,18 +45,15 @@ def _filter_regex() -> str:
 
 
 def _grep_matches(regex: str, paths: list[str]) -> list[str]:
-    """Run the hook's filter regex via the same `grep -E` tool the hook uses."""
-    proc = subprocess.run(
-        ["grep", "-E", regex],
-        input="\n".join(paths),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    # grep exits 1 when there are no matches; treat that as empty, not error.
-    if proc.returncode not in (0, 1):
-        pytest.fail(f"grep failed: rc={proc.returncode} stderr={proc.stderr}")
-    return [line for line in proc.stdout.splitlines() if line]
+    """Apply the hook's filter regex via Python's `re` for cross-platform parity.
+
+    The hook itself uses `grep -E` (POSIX ERE). `re.search` provides the same
+    "match anywhere in the line" semantics for these basic patterns without
+    depending on an external `grep` binary, which is absent on many Windows
+    environments.
+    """
+    compiled = re.compile(regex)
+    return [path for path in paths if compiled.search(path)]
 
 
 class TestActionlintCompositeActionExclusion:
