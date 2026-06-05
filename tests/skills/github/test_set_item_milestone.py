@@ -1,15 +1,11 @@
 """Tests for set_item_milestone.py."""
 
 import json
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from test_helpers import import_skill_script
 from github_core.api import RepoInfo
-from test_helpers import make_completed_process
+from test_helpers import import_skill_script, make_completed_process
 
 
 def _mock_repo():
@@ -17,11 +13,18 @@ def _mock_repo():
 
 
 def _extract_json(text: str) -> dict:
-    """Extract the last JSON object from multi-line output."""
-    idx = text.rfind("{")
-    if idx == -1:
-        raise ValueError(f"No JSON found in output: {text!r}")
-    return json.loads(text[idx:])
+    """Extract the last JSON object from multi-line output.
+
+    Walks lines from the bottom; the canonical envelope is one line.
+    """
+    for line in reversed(text.strip().splitlines()):
+        candidate = line.strip()
+        if candidate.startswith("{"):
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+    raise ValueError(f"No JSON found in output: {text!r}")
 
 
 @pytest.fixture
@@ -67,8 +70,8 @@ class TestSetItemMilestone:
             rc = mod.main(["--item-type", "pr", "--item-number", "1"])
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
-        assert result["action"] == "skipped"
-        assert result["milestone"] == "v0.9.0"
+        assert result["Data"]["action"] == "skipped"
+        assert result["Data"]["milestone"] == "v0.9.0"
 
     def test_assign_with_explicit_title(self, _import_module, capsys):
         mod = _import_module
@@ -81,12 +84,17 @@ class TestSetItemMilestone:
                 make_completed_process(),                               # _assign_milestone
             ]),
         ):
-            rc = mod.main(["--item-type", "issue", "--item-number", "42", "--milestone-title", "v1.0.0"])
+            rc = mod.main([
+                "--item-type", "issue", "--item-number", "42",
+                "--milestone-title", "v1.0.0", "--output-format", "json",
+            ])
         assert rc == 0
-        result = _extract_json(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["action"] == "assigned"
-        assert result["milestone"] == "v1.0.0"
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert "Assigning milestone" not in captured.out
+        assert result["Success"] is True
+        assert result["Data"]["action"] == "assigned"
+        assert result["Data"]["milestone"] == "v1.0.0"
 
     def test_api_error_exits_3(self, _import_module):
         mod = _import_module
