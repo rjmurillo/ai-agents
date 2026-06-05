@@ -211,12 +211,13 @@ def _safe_repo_path(repo_root: Path, relative_path: str) -> Path | None:
     return candidate
 
 
-def _path_exists_with_exact_case(path: Path, *, expect_dir: bool = False) -> bool:
-    parts = path.parts
-    if not parts:
+def _path_exists_with_exact_case(repo_root: Path, path: Path, *, expect_dir: bool = False) -> bool:
+    try:
+        parts = path.resolve(strict=False).relative_to(repo_root.resolve()).parts
+    except ValueError:
         return False
-    current = Path(parts[0])
-    for part in parts[1:]:
+    current = repo_root.resolve()
+    for part in parts:
         if not current.is_dir():
             return False
         try:
@@ -269,8 +270,8 @@ def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
     if candidate is None:
         return False
     if _DIR_HINT_RE.search(referenced_path):
-        return _path_exists_with_exact_case(candidate, expect_dir=True)
-    return _path_exists_with_exact_case(candidate)
+        return _path_exists_with_exact_case(repo_root, candidate, expect_dir=True)
+    return _path_exists_with_exact_case(repo_root, candidate)
 
 
 def scan_spec_file(spec_file: Path, repo_root: Path) -> tuple[list[DriftFinding], int]:
