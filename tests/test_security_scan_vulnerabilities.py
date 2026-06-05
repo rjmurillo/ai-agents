@@ -72,7 +72,8 @@ def _descriptions_for(language: str, line: str) -> list[str]:
     return [
         str(info["description"])
         for info in scanner.CWE78_PATTERNS[language]
-        if info["pattern"].search(line)  # type: ignore[attr-defined]
+        if isinstance(info["pattern"], scanner.re.Pattern)
+        and info["pattern"].search(line)
     ]
 
 

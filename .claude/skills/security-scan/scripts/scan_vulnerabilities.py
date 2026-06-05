@@ -369,8 +369,10 @@ def scan_file(
         # Check CWE-78 patterns
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
-                # Mypy type narrowing: pattern_info["pattern"] is re.Pattern at runtime
-                if pattern_info["pattern"].search(line):  # type: ignore[attr-defined]
+                pattern = pattern_info["pattern"]
+                if not isinstance(pattern, re.Pattern):
+                    continue
+                if pattern.search(line):
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:
@@ -458,6 +460,26 @@ def format_json_output(result: ScanResult) -> str:
     CWE-22 detection moved to CodeQL (PR #1851, see
     `.agents/architecture/ADR-054-local-security-scanning.md` amendment).
     """
+    by_cwe: dict[str, int] = {}
+    by_severity: dict[str, int] = {}
+    summary = {
+        "total": len(result.vulnerabilities),
+        "by_cwe": by_cwe,
+        "by_severity": by_severity,
+        # Delegated CWE classes — this scanner does not detect them; the named
+        # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
+        # this scanner means "not detected here", NOT "no findings"; use the
+        # delegated detector's report for authoritative coverage. Each entry
+        # is self-describing: `tool` names the detector, `query` names the
+        # specific rule pack, `workflow` cites where it runs.
+        "delegated_cwes": {
+            "CWE-22": {
+                "tool": "codeql",
+                "query": "python-security-extended.qls",
+                "workflow": ".github/workflows/codeql-analysis.yml",
+            },
+        },
+    }
     output = {
         "schema_version": _JSON_SCHEMA_VERSION,
         "scan_timestamp": result.scan_timestamp,
@@ -477,31 +499,10 @@ def format_json_output(result: ScanResult) -> str:
         ],
         "suppressed": result.suppressed,
         "errors": result.errors,
-        "summary": {
-            "total": len(result.vulnerabilities),
-            "by_cwe": {},
-            "by_severity": {},
-            # Delegated CWE classes — this scanner does not detect them; the named
-            # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
-            # this scanner means "not detected here", NOT "no findings"; use the
-            # delegated detector's report for authoritative coverage. Each entry
-            # is self-describing: `tool` names the detector, `query` names the
-            # specific rule pack, `workflow` cites where it runs.
-            "delegated_cwes": {
-                "CWE-22": {
-                    "tool": "codeql",
-                    "query": "python-security-extended.qls",
-                    "workflow": ".github/workflows/codeql-analysis.yml",
-                },
-            },
-        },
+        "summary": summary,
         "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
     }
 
-    # Mypy type narrowing: output is dict[str, Any] at runtime
-    summary = output["summary"]  # type: ignore[index]
-    by_cwe = summary["by_cwe"]  # type: ignore[index]
-    by_severity = summary["by_severity"]  # type: ignore[index]
     for vuln in result.vulnerabilities:
         by_cwe[vuln.cwe] = by_cwe.get(vuln.cwe, 0) + 1
         by_severity[vuln.severity] = by_severity.get(vuln.severity, 0) + 1
