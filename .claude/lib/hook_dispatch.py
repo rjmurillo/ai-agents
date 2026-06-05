@@ -28,8 +28,8 @@ Design contract (the security-critical part):
   kills the whole dispatcher process if that budget is exhausted. In observe
   mode (``PostToolUse``, ``SessionStart``, ``SessionEnd``,
   ``UserPromptSubmit``) every shim runs regardless of an earlier non-zero exit;
-  failures are logged and the dispatcher returns 0, matching the pre-
-  consolidation host behavior where the host ran all observer entries.
+  failures are logged and the dispatcher returns 0, matching the old host
+  behavior where the host ran all observer entries before consolidation.
 - **stdin replay.** Each shim reads ``sys.stdin.buffer``; the dispatcher rewinds
   a fresh stream of the original bytes before each shim, so every shim inspects
   exactly the payload the host delivered (no #2290 schema mutation).

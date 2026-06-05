@@ -23,6 +23,7 @@ _HOOKS_JSON = _COPILOT / "hooks" / "hooks.json"
 _GATING = "PreToolUse"
 _OBSERVE_EVENTS = ("PostToolUse", "SessionStart", "SessionEnd", "UserPromptSubmit")
 _ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
+_DISPATCH_TEST_TIMEOUT_CAP_SEC = 60
 
 
 def _hooks() -> dict:
@@ -34,12 +35,13 @@ def _run_entry(event: str, payload: dict) -> subprocess.CompletedProcess:
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
     event_timeout_sec = int(_hooks()[event][0]["timeoutSec"])
+    timeout_sec = min(event_timeout_sec + 5, _DISPATCH_TEST_TIMEOUT_CAP_SEC)
     return subprocess.run(
         [sys.executable, "-u", str(_COPILOT / "hooks" / event / "_dispatch.py")],
         input=json.dumps(payload).encode(),
         capture_output=True,
         env=env,
-        timeout=event_timeout_sec + 5,
+        timeout=timeout_sec,
     )
 
 
