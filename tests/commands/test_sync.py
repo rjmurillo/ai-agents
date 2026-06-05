@@ -213,6 +213,21 @@ def test_wildcard_reference_matches_when_one_exists(tmp_path: Path) -> None:
     assert result.verdict == "PASS"
 
 
+def test_wildcard_reference_matches_with_case_variation(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    (repo / ".claude" / "skills" / "alpha").mkdir(parents=True)
+    (repo / ".claude" / "skills" / "alpha" / "SKILL.md").write_text("x", encoding="utf-8")
+    _write_req(repo, "REQ-009B.md", "All at `.CLAUDE/SKILLS/*/SKILL.md` ship.\n")
+
+    # Act
+    result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
+
+    # Assert
+    assert result.verdict == "PASS"
+    assert result.refs_checked == 1
+
+
 def test_wildcard_reference_with_no_match_is_drift(tmp_path: Path) -> None:
     # Arrange: no skills directory at all.
     repo = _make_repo(tmp_path)

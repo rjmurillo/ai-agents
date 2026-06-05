@@ -44,6 +44,7 @@ Exit codes (per ADR-035):
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import logging
 import os
@@ -232,6 +233,40 @@ def _resolve_case_insensitive_path(repo_root: Path, relative_path: str) -> Path 
     return current.resolve(strict=False)
 
 
+def _case_insensitive_glob_exists(repo_root: Path, pattern: str) -> bool:
+    if _has_unsafe_path_parts(pattern):
+        return False
+
+    prefix_parts: list[str] = []
+    for part in pattern.rstrip("/").split("/"):
+        if "*" in part:
+            break
+        prefix_parts.append(part)
+
+    prefix_path = repo_root.resolve()
+    if prefix_parts:
+        resolved_prefix = _safe_repo_path(repo_root, "/".join(prefix_parts))
+        if resolved_prefix is None or not resolved_prefix.is_dir():
+            return False
+        prefix_path = resolved_prefix
+
+    pattern_lower = pattern.rstrip("/").lower()
+    for root, dirs, files in os.walk(prefix_path, followlinks=False):
+        root_path = Path(root)
+        dirs[:] = [
+            d
+            for d in dirs
+            if not (root_path / d).is_symlink() and _is_relative_to_repo(repo_root, root_path / d)
+        ]
+        for name in [*dirs, *files]:
+            candidate = root_path / name
+            if not _is_relative_to_repo(repo_root, candidate):
+                continue
+            if fnmatch.fnmatchcase(_relative(repo_root, candidate).lower(), pattern_lower):
+                return True
+    return False
+
+
 def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
     """Return True when the referenced path resolves to a file or directory.
 
@@ -239,12 +274,7 @@ def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
     when at least one match exists. A trailing-slash reference is a directory.
     """
     if "*" in referenced_path:
-        if _has_unsafe_path_parts(referenced_path):
-            return False
-        return any(
-            _is_relative_to_repo(repo_root, match) and match.exists()
-            for match in repo_root.glob(referenced_path)
-        )
+        return _case_insensitive_glob_exists(repo_root, referenced_path)
     candidate = _safe_repo_path(repo_root, referenced_path)
     if candidate is None:
         return False
