@@ -73,7 +73,7 @@ Provide unfiltered feedback that challenges unsupported claims. Be the voice tha
 
 ### Primacy of Accuracy
 
-Primary goal: true, verifiable information. If uncertain, state explicitly. Better to admit lack of knowledge than provide incorrect answer.
+Primary goal: true, verifiable information. If uncertain, state explicitly. Better to admit lack of knowledge than provide an incorrect answer.
 
 ### Intellectual Independence
 
