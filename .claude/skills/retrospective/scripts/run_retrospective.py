@@ -259,7 +259,13 @@ def render_artifact(
     return artifact, any_below
 
 
-def _resolve_output_path(retro_dir: Path, scope: str, today: str, fill: str | None) -> Path:
+def _resolve_output_path(
+    retro_dir: Path,
+    scope: str,
+    today: str,
+    fill: str | None,
+    project_dir: Path | None = None,
+) -> Path:
     """Resolve where the artifact is written.
 
     When ``fill`` names an existing skeleton, write a filled file next to it.
@@ -270,7 +276,9 @@ def _resolve_output_path(retro_dir: Path, scope: str, today: str, fill: str | No
     if fill:
         skeleton = Path(fill)
         if not skeleton.is_absolute():
-            skeleton = retro_dir / skeleton.name
+            skeleton = (project_dir or retro_dir) / skeleton
+        if not skeleton.is_file():
+            raise ValueError(f"fill skeleton not found: {fill}")
         stem = skeleton.stem.replace("-auto-retro", "")
         if not stem:
             stem = today
@@ -353,14 +361,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
-    if args.output:
-        output_path = Path(args.output)
-        if not output_path.is_absolute():
-            output_path = project_dir / output_path
-    else:
-        output_path = _resolve_output_path(retro_dir, args.scope, today, args.fill)
-
     try:
+        if args.output:
+            output_path = Path(args.output)
+            if not output_path.is_absolute():
+                output_path = project_dir / output_path
+        else:
+            output_path = _resolve_output_path(retro_dir, args.scope, today, args.fill, project_dir)
         output_path = _require_project_output_path(output_path, project_dir)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

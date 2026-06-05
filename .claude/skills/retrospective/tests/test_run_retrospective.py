@@ -220,6 +220,42 @@ def test_fill_mode_writes_alongside_skeleton(tmp_path):
     assert "UNFILLED SKELETON" in skeleton.read_text(encoding="utf-8")
 
 
+def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
+    # Arrange: a relative path to an existing skeleton under the project.
+    retro_dir = tmp_path / ".agents" / "retrospective"
+    retro_dir.mkdir(parents=True)
+    skeleton = retro_dir / "2026-06-03-auto-retro.md"
+    skeleton.write_text("# Retrospective: 2026-06-03\n", encoding="utf-8")
+    (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "2026-06-03",
+        "--fill", ".agents/retrospective/2026-06-03-auto-retro.md",
+    ])
+
+    # Assert
+    assert rc == 0
+    assert (retro_dir / "2026-06-03-retro-filled.md").is_file()
+
+
+def test_fill_mode_rejects_missing_skeleton(tmp_path):
+    # Arrange
+    _write_session(tmp_path, {"workLog": ["work"]})
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "2026-06-03",
+        "--fill", ".agents/retrospective/missing-auto-retro.md",
+    ])
+
+    # Assert
+    assert rc == 2
+    assert not (tmp_path / ".agents" / "retrospective" / "missing-retro-filled.md").exists()
+
+
 def test_integration_subprocess_writes_file(tmp_path):
     # Arrange
     _write_session(tmp_path, {"workLog": ["sub work"]})
@@ -376,6 +412,7 @@ def test_resolve_output_path_for_new_artifact(tmp_path):
 def test_resolve_output_path_for_fill_strips_auto_retro_suffix(tmp_path):
     # Arrange
     skeleton = tmp_path / "2026-06-03-auto-retro.md"
+    skeleton.write_text("# Retrospective\n", encoding="utf-8")
 
     # Act
     path = _resolve_output_path(tmp_path, "2026-06-03", "2026-06-03", str(skeleton))
