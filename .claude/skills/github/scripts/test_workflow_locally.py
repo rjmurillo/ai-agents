@@ -109,6 +109,18 @@ def _act_env(repo_root: str) -> dict[str, str]:
     return env
 
 
+def _unsupported_worktree_gitdir_error(repo_root: str) -> str | None:
+    git_path = Path(repo_root) / ".git"
+    if not git_path.is_file():
+        return None
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is None:
+        return f"unsupported linked git worktree marker at {git_path}"
+    if not Path(gitdir).is_dir():
+        return f"linked git worktree gitdir is missing: {gitdir}"
+    return None
+
+
 def _resolve_act_runner() -> tuple[list[str], str] | None:
     """Resolve which act runtime is available.
 
@@ -254,6 +266,11 @@ def main(argv: list[str] | None = None) -> int:
 
     # Resolve workflow path
     repo_root = _get_repo_root()
+    worktree_error = _unsupported_worktree_gitdir_error(repo_root)
+    if worktree_error is not None:
+        print(f"[ERROR] {worktree_error}")
+        print("Re-run from the main worktree or repair the linked worktree metadata.")
+        return 2
     workflows_dir = os.path.join(repo_root, ".github", "workflows")
 
     workflow_path: str | None = None

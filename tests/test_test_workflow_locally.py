@@ -223,6 +223,14 @@ class TestWorktreeGitDir:
         (tmp_path / ".git").write_text("not a gitdir pointer\n", encoding="utf-8")
         assert _mod._read_worktree_gitdir(str(tmp_path)) is None
 
+    def test_missing_gitdir_reports_error(self, tmp_path):
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        (worktree / ".git").write_text("gitdir: /missing/gitdir\n", encoding="utf-8")
+        assert "gitdir is missing" in _mod._unsupported_worktree_gitdir_error(
+            str(worktree)
+        )
+
 
 class TestActEnv:
     def test_sets_git_dir_for_linked_worktree(self, tmp_path):
@@ -250,3 +258,24 @@ class TestActEnv:
         assert "GIT_WORK_TREE" not in env
         assert "GIT_COMMON_DIR" not in env
         assert "GIT_INDEX_FILE" not in env
+
+
+@patch("subprocess.run")
+@patch.object(_mod, "_resolve_act_runner", return_value=(["gh", "act"], "gh act"))
+@patch.object(_mod, "_check_command_exists", return_value="/usr/bin/docker")
+def test_main_blocks_stale_linked_worktree_gitdir(
+    mock_exists, mock_runner, mock_run, tmp_path, capsys
+):
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    (worktree / ".git").write_text("gitdir: /missing/gitdir\n", encoding="utf-8")
+    mock_run.side_effect = [
+        _completed(stdout="gh act version 0.2.89\n", rc=0),
+        _completed(rc=0),
+    ]
+
+    with patch.object(_mod, "_get_repo_root", return_value=str(worktree)):
+        rc = main(["--workflow", "pester-tests"])
+
+    assert rc == 2
+    assert "gitdir is missing" in capsys.readouterr().out
