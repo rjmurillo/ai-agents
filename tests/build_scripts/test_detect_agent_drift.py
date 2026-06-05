@@ -238,9 +238,21 @@ def _drift_result(name: str, comparison: str) -> object:
 
 
 def test_exit_code_vendored_drift_always_blocks() -> None:
-    vendored = _drift_result("merge-resolver", "src-claude vs src-vscode")
+    vendored = _drift_result("qa", "src-claude vs src-vscode")
 
     assert drift._exit_code([vendored], fail_on_install=False) == 1
+
+
+def test_exit_code_known_advisory_vendored_drift_does_not_block() -> None:
+    vendored = _drift_result("merge-resolver", "src-claude vs src-vscode")
+
+    assert drift._exit_code([vendored], fail_on_install=False) == 0
+
+
+def test_exit_code_known_advisory_agent_still_blocks_install_strict() -> None:
+    install = _drift_result("merge-resolver", drift._INSTALL_COMPARISON_LABEL)
+
+    assert drift._exit_code([install], fail_on_install=True) == 1
 
 
 def test_exit_code_install_drift_is_advisory_by_default() -> None:

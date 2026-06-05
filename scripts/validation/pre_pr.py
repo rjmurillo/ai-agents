@@ -68,6 +68,7 @@ from checks_dash import (  # noqa: E402, F401
     validate_dash_prohibition,
 )
 from checks_plugin import (  # noqa: E402, F401
+    _is_linked_worktree,
     validate_git_hooks_installed,
     validate_hook_anchoring,
     validate_install_parity,
@@ -86,6 +87,7 @@ from checks_spec import (  # noqa: E402, F401
 )
 from checks_tooling import (  # noqa: E402, F401
     _find_latest_session_log,
+    _markdown_lint_targets,
     validate_agent_drift,
     validate_markdown_lint,
     validate_path_normalization,

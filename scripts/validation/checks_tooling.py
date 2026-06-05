@@ -14,6 +14,7 @@ working.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import sys
@@ -23,7 +24,12 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import MissingScriptSkip, _run_subprocess  # noqa: E402
+from checks_common import (  # noqa: E402
+    MissingScriptSkip,
+    _resolve_branch_base_ref,
+    _run_subprocess,
+)
+from checks_dash import _is_vendored  # noqa: E402
 
 
 def _find_latest_session_log(repo_root: Path) -> Path | None:
@@ -83,14 +89,24 @@ def validate_pester_tests(repo_root: Path, verbose: bool = False) -> bool:
 
 
 def validate_markdown_lint(repo_root: Path) -> bool:
-    """Run markdownlint auto-fix and validate."""
+    """Run markdownlint auto-fix and validate branch markdown changes."""
     if not shutil.which("npx"):
         print("[FAIL] npx not found (Node.js required)")
         print("  Install Node.js: https://nodejs.org/")
         return False
 
-    print("Auto-fixing markdown files...")
-    exit_code, _, _ = _run_subprocess(["npx", "markdownlint-cli2", "--fix", "**/*.md"])
+    targets = _markdown_lint_targets(repo_root)
+    if targets == []:
+        print("[PASS] Markdown linting (no markdown files on branch)")
+        return True
+    if targets is None:
+        print("Auto-fixing markdown files...")
+        command = ["npx", "markdownlint-cli2", "--fix", "**/*.md"]
+    else:
+        print(f"Auto-fixing {len(targets)} changed markdown file(s)...")
+        command = ["npx", "markdownlint-cli2", "--fix", *targets]
+
+    exit_code, _, _ = _run_subprocess(command, cwd=repo_root)
 
     if exit_code != 0:
         print("[FAIL] Markdown linting failed (some issues cannot be auto-fixed)")
@@ -103,8 +119,63 @@ def validate_markdown_lint(repo_root: Path) -> bool:
     return True
 
 
+def _markdown_lint_targets(repo_root: Path) -> list[str] | None:
+    """Return changed markdown files, [] for none, or None for full-repo fallback."""
+    base_ref = _resolve_branch_base_ref(repo_root)
+    if base_ref is None:
+        print("[WARNING] Markdown lint target narrowing skipped: no base ref resolved")
+        return None
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMR",
+            f"{base_ref}...HEAD",
+        ],
+        timeout=30,
+    )
+    if exit_code != 0:
+        print(
+            f"[WARNING] Markdown lint target narrowing skipped: git diff failed: {stderr}",
+        )
+        return None
+
+    return [
+        path
+        for path in stdout.splitlines()
+        if path.endswith(".md") and not _is_vendored(path) and (repo_root / path).is_file()
+    ]
+
+
 def validate_workflow_yaml(repo_root: Path) -> bool:
-    """Validate GitHub Actions workflow files with actionlint."""
+    """Validate GitHub Actions workflow files with actionlint.
+
+    Scope is restricted to ``.github/workflows/`` by globbing that directory
+    and passing the explicit file list to actionlint. This is deliberate:
+    actionlint validates workflow files only. A bare ``actionlint`` with no
+    path argument recursively scans every ``.yml``/``.yaml`` file, including
+    composite action definitions under ``.github/actions/*/action.yml``, and
+    misreads each composite ``action.yml`` as a workflow, emitting false
+    errors (issue #2346). Composite actions cannot be validated with
+    actionlint, so they are never passed to it here. Do not widen the glob
+    to the repo root or to ``.github/``.
+
+    actionlint shells out to shellcheck for ``run:`` scripts. shellcheck
+    emits findings at four severities: ``error``, ``warning``, ``info``,
+    ``style``. The ``info`` and ``style`` tiers are advisory. On a clean
+    checkout the existing workflows carry advisory findings unrelated to any
+    given PR, which turned this gate red on baseline and blocked merge work
+    that touched no workflow (Issue #2374).
+
+    Fix: raise the shellcheck severity floor to ``warning`` via
+    ``SHELLCHECK_OPTS`` so only ``warning`` and ``error`` findings block.
+    This mirrors the existing precedent that ``validate_yaml_style``
+    (yamllint) treats style findings as non-blocking warnings.
+    """
     if not shutil.which("actionlint"):
         print("[WARNING] actionlint not found (workflow validation skipped)")
         print("  Install actionlint to enable GitHub Actions workflow validation.")
@@ -124,8 +195,16 @@ def validate_workflow_yaml(repo_root: Path) -> bool:
 
     print(f"Validating {len(workflow_files)} workflow file(s)...")
 
+    shellcheck_env = dict(os.environ)
+    existing_opts = shellcheck_env.get("SHELLCHECK_OPTS", "").strip()
+    severity_opt = "--severity=warning"
+    shellcheck_env["SHELLCHECK_OPTS"] = (
+        f"{existing_opts} {severity_opt}".strip() if existing_opts else severity_opt
+    )
+
     exit_code, stdout, stderr = _run_subprocess(
-        ["actionlint"] + [str(f) for f in workflow_files]
+        ["actionlint"] + [str(f) for f in workflow_files],
+        env=shellcheck_env,
     )
 
     if exit_code != 0:

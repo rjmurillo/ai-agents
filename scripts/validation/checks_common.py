@@ -31,9 +31,17 @@ class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an 
 
 
 def _run_subprocess(
-    args: list[str], timeout: int = 300, cwd: Path | str | None = None
+    args: list[str],
+    timeout: int = 300,
+    cwd: Path | str | None = None,
+    env: dict[str, str] | None = None,
 ) -> tuple[int, str, str]:
-    """Run a subprocess and return (exit_code, stdout, stderr)."""
+    """Run a subprocess and return (exit_code, stdout, stderr).
+
+    When ``env`` is provided it replaces the child environment entirely, so
+    callers that only want to add a variable should merge it with
+    ``os.environ`` themselves before passing it in.
+    """
     try:
         result = subprocess.run(
             args,
@@ -41,6 +49,7 @@ def _run_subprocess(
             text=True,
             timeout=timeout,
             cwd=cwd,
+            env=env,
         )
         return result.returncode, result.stdout, result.stderr
     except FileNotFoundError:
