@@ -7,14 +7,11 @@ Covers:
 
 import json
 import subprocess
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from test_helpers import import_skill_script
 from github_core.api import RepoInfo
+from test_helpers import import_skill_script
 
 
 def make_proc(stdout="", stderr="", returncode=0):
@@ -27,14 +24,19 @@ def _mock_repo():
     return RepoInfo(owner="o", repo="r")
 
 
-def _extract_json(text: str) -> dict:
-    """Extract the last JSON object from multi-line output."""
-    idx = text.rfind("{")
-    if idx == -1:
-        raise ValueError(f"No JSON found in output: {text!r}")
-    return json.loads(text[idx:])
+def _extract_json(text):
+    """Extract the last JSON object from multi-line output.
 
-
+    Walks lines from the bottom; the canonical envelope is one line.
+    """
+    for line in reversed(text.strip().splitlines()):
+        candidate = line.strip()
+        if candidate.startswith("{"):
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                continue
+    raise ValueError("No JSON found in output: " + repr(text))
 # ---------------------------------------------------------------------------
 # get_latest_semantic_milestone
 # ---------------------------------------------------------------------------
@@ -60,9 +62,9 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is True
-        assert result["title"] == "0.2.1"
-        assert result["number"] == 3
+        assert result["Data"]["found"] is True
+        assert result["Data"]["title"] == "0.2.1"
+        assert result["Data"]["number"] == 3
 
     def test_no_milestones(self, capsys):
         mod = self._import()
@@ -74,8 +76,10 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is False
-        assert result["title"] == ""
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
+        assert result["Data"]["found"] is False
+        assert result["Data"]["title"] == ""
 
     def test_no_semantic_milestones(self, capsys):
         mod = self._import()
@@ -91,7 +95,9 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is False
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
+        assert result["Data"]["found"] is False
 
     def test_version_comparison(self, capsys):
         mod = self._import()
@@ -108,7 +114,7 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["title"] == "2.0.0"
+        assert result["Data"]["title"] == "2.0.0"
 
     def test_mixed_milestones_filters_correctly(self, capsys):
         mod = self._import()
@@ -125,8 +131,8 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is True
-        assert result["title"] == "1.0.0"
+        assert result["Data"]["found"] is True
+        assert result["Data"]["title"] == "1.0.0"
 
     def test_main_exits_2_when_not_found(self):
         mod = self._import()
@@ -150,8 +156,8 @@ class TestGetLatestSemanticMilestone:
         assert rc == 0
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
-        assert parsed["found"] is True
-        assert parsed["title"] == "1.2.3"
+        assert parsed["Data"]["found"] is True
+        assert parsed["Data"]["title"] == "1.2.3"
 
     def test_help_does_not_crash(self):
         mod = import_skill_script("get_latest_semantic_milestone", "milestone")
@@ -183,11 +189,14 @@ class TestSetItemMilestone:
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=make_proc(stdout=json.dumps(item_data))),
         ):
-            rc = mod.main(["--item-type", "pr", "--item-number", "10", "--milestone-title", "existing-ms"])
+            rc = mod.main([
+                "--item-type", "pr", "--item-number", "10",
+                "--milestone-title", "existing-ms",
+            ])
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
-        assert result["action"] == "skipped"
-        assert result["milestone"] == "existing-ms"
+        assert result["Data"]["action"] == "skipped"
+        assert result["Data"]["milestone"] == "existing-ms"
 
     def test_assigns_provided_milestone(self, capsys):
         mod = self._import()
@@ -203,8 +212,8 @@ class TestSetItemMilestone:
             rc = mod.main(["--item-type", "pr", "--item-number", "10", "--milestone-title", "v1.0"])
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
-        assert result["action"] == "assigned"
-        assert result["milestone"] == "v1.0"
+        assert result["Data"]["action"] == "assigned"
+        assert result["Data"]["milestone"] == "v1.0"
 
     def test_auto_detects_milestone_and_assigns(self, capsys):
         mod = self._import()
@@ -222,7 +231,7 @@ class TestSetItemMilestone:
             rc = mod.main(["--item-type", "issue", "--item-number", "5"])
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
-        assert result["milestone"] == "0.3.0"
+        assert result["Data"]["milestone"] == "0.3.0"
 
     def test_auto_detect_not_found_exits_2(self):
         mod = self._import()
@@ -252,10 +261,16 @@ class TestSetItemMilestone:
         with (
             patch("set_item_milestone.assert_gh_authenticated"),
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_proc(stderr="connection error", returncode=1)),
+            patch(
+                "subprocess.run",
+                return_value=make_proc(stderr="connection error", returncode=1),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main(["--item-type", "pr", "--item-number", "10", "--milestone-title", "v1.0"])
+                mod.main([
+                    "--item-type", "pr", "--item-number", "10",
+                    "--milestone-title", "v1.0",
+                ])
         assert exc.value.code == 3
 
     def test_help_does_not_crash(self):

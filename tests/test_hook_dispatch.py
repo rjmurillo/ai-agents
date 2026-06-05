@@ -12,8 +12,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 _LIB = Path(__file__).resolve().parents[1] / ".claude" / "lib" / "hook_dispatch.py"
 _spec = importlib.util.spec_from_file_location("hook_dispatch", _LIB)
 hook_dispatch = importlib.util.module_from_spec(_spec)
@@ -126,10 +124,10 @@ class TestRunDispatch:
         rc = run_dispatch(tmp_path, names, b"{}")
         assert rc == 2
 
-    def test_shim_timeout_fails_closed(self, tmp_path):
-        names = [_write_shim(tmp_path, "slow.py", "import time\n" "time.sleep(1)\n")]
+    def test_invalid_shim_timeout_fails_closed(self, tmp_path):
+        names = [_write_shim(tmp_path, "slow.py", "import sys; sys.exit(0)\n")]
 
-        rc = run_dispatch(tmp_path, names, b"{}", {"slow.py": 1e-6})
+        rc = run_dispatch(tmp_path, names, b"{}", {"slow.py": 0})
 
         assert rc == 2
 

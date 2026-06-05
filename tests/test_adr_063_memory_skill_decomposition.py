@@ -12,7 +12,8 @@ depend on:
 - Its status resolves to "proposed" via the adr-review detector contract
   (`status: proposed`), so the BLOCKING adr-review debate gate fires.
 - It cross-references the boundary ADRs the issue requires (ADR-007, ADR-056)
-  and the gate ADR (ADR-062).
+  and the gate ADR (ADR-070, renumbered from the former ADR-062 collision per
+  #2228).
 - It contains no em-dash (U+2014) or en-dash (U+2013) per universal.md.
 
 The status-detection assertion mirrors the canonical detector contract at
@@ -117,14 +118,16 @@ class TestDraftStatusTriggersReview:
 
 
 class TestRequiredCrossReferences:
-    @pytest.mark.parametrize("adr_ref", ["ADR-007", "ADR-056", "ADR-062"])
+    @pytest.mark.parametrize("adr_ref", ["ADR-007", "ADR-056", "ADR-070"])
     def test_boundary_and_gate_adrs_cross_referenced(self, adr_text: str, adr_ref: str) -> None:
         # ADR-007 (memory-first) and ADR-056 (output envelope) are the boundary
-        # constraints the issue requires; ADR-062 is the gate semantics to keep.
+        # constraints the issue requires; ADR-070 is the gate semantics to keep
+        # (renumbered from the former ADR-062 collision per #2228).
         assert adr_ref in adr_text, f"missing required cross-reference: {adr_ref}"
 
-    def test_gate_semantics_reference_uses_full_adr_062_filename(self, adr_text: str) -> None:
-        assert "ADR-062-memory-first-gate-spec-pipeline.md" in adr_text
+    def test_gate_semantics_reference_uses_full_adr_070_filename(self, adr_text: str) -> None:
+        # Gate ADR renumbered 062 -> 070 per #2228 dedup.
+        assert "ADR-070-memory-first-gate-spec-pipeline.md" in adr_text
 
     def test_links_to_implementation_issue_1948(self, adr_text: str) -> None:
         # The ADR records the decision; #1948 implements it. The boundary must

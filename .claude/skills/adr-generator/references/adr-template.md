@@ -102,6 +102,25 @@ depend on the changed file and describe the required updates.]
 - [External references, documentation, or standards]
 ```
 
+## Coded Consequences Convention (Optional)
+
+The Project Canonical format supports coded bullets so multi-item sections can be
+referenced precisely from review threads and other ADRs. Folded from the former
+`adr-generator` agent (Issue #2104). Use a 3-letter code plus a zero-padded
+3-digit number, incrementing within each section. ADR-039 is a live example.
+
+| Section | Code prefix | Example |
+|---------|-------------|---------|
+| Positive consequences | `POS-` | `- **POS-001**: cuts cold start from 4.2s to 0.6s` |
+| Negative consequences | `NEG-` | `- **NEG-001**: adds a second store to operate` |
+| Alternatives | `ALT-` | `- **ALT-001**: **Description**: ... **Rejection Reason**: ...` |
+| Implementation notes | `IMP-` | `- **IMP-001**: migrate readers before dropping the field` |
+| References | `REF-` | `- **REF-001**: ADR-035 exit-code standardization` |
+
+Increment `ALT-` codes across all alternatives, not per alternative. Reserve the
+codes for sections with two or more items; a single-item section does not need
+them.
+
 ## Agent-Specific Fields (Conditional)
 
 Include these additional sections only when the ADR is about an agent:

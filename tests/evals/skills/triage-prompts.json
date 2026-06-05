@@ -73,27 +73,27 @@
     "session-migration": [
       {
         "prompt": "We have legacy markdown session logs. How do we migrate to JSON?",
-        "expected": "Use session-migration skill. Reads .agents/sessions/*.md, converts to JSON schema matching scripts/validate_session_json.py. Idempotent and auditable."
+        "expected": "session-migration skill was SUNSET 2026-06-03 (M2, Issue #1946). New session logs are created as JSON directly by the session-init skill. Legacy .md logs under .agents/sessions/ still exist as archive content; do not modify them expecting auto-conversion, because the conversion path no longer exists."
       },
       {
-        "prompt": "What is the JSON schema target for migrated session logs?",
-        "expected": "Schema enforced by scripts/validate_session_json.py. Required fields include session id, date, branch, gates, evidence, end-of-session validation."
+        "prompt": "What is the JSON schema target for session logs?",
+        "expected": "Schema enforced by scripts/validate_session_json.py. Required fields include session id, date, branch, gates, evidence, end-of-session validation. session-init produces a compliant JSON log; the session-migration skill no longer exists."
       },
       {
-        "prompt": "Can I run the migration on a single legacy file?",
-        "expected": "Yes, skill supports targeted migration with file path argument. Useful when a PR contains a markdown session log that needs conversion."
+        "prompt": "Can I run the session-migration skill on a single legacy markdown file?",
+        "expected": "No. session-migration was deleted 2026-06-03 (Issue #1946). New markdown session logs are not produced anymore, and the legacy conversion path no longer exists. Create new logs as JSON with session-init."
       },
       {
-        "prompt": "Why was session log format changed from markdown to JSON?",
-        "expected": "JSON enables deterministic validation by scripts/validate_session_json.py. Markdown frontmatter parsing is fragile. JSON allows machine-readable gate evidence."
+        "prompt": "Why was the session log format changed from markdown to JSON?",
+        "expected": "JSON enables deterministic validation by scripts/validate_session_json.py. Markdown frontmatter parsing is fragile. JSON allows machine-readable gate evidence. The one-shot session-migration helper was sunset once the protocol mandated JSON at creation."
       },
       {
-        "prompt": "Is the migration destructive?",
-        "expected": "Replaces .md with .json. Original committed history preserved by git. Validate output before deleting source. Run validator after migration."
+        "prompt": "I found references to a session-migration skill. Does it still exist?",
+        "expected": "No. Directory .claude/skills/session-migration/ was deleted 2026-06-03 (M2 prune, Issue #1946). Update any legacy reference: session-init creates JSON logs; no markdown-to-JSON conversion step remains."
       },
       {
-        "prompt": "Migration produced a JSON file that fails validate_session_json.py. Next step?",
-        "expected": "Inspect missing required fields. Common gaps: end evidence, branch, gate verdicts. Hand-edit JSON, rerun validator. Do not regenerate unless source markdown changed."
+        "prompt": "How do I convert old markdown session logs in .agents/sessions/ to JSON now?",
+        "expected": "You do not. Legacy .md session logs remain archive content that git already preserves, and the session-migration skill that converted them was deleted 2026-06-03 (Issue #1946). Create new logs as JSON with session-init; do not edit archived markdown logs expecting conversion."
       }
     ],
     "session-log-fixer": [

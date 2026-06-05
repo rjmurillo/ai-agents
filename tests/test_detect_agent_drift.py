@@ -20,8 +20,10 @@ _BUILD_SCRIPTS = Path(__file__).resolve().parent.parent / "build" / "scripts"
 sys.path.insert(0, str(_BUILD_SCRIPTS))
 
 from detect_agent_drift import (  # noqa: E402
+    KNOWN_BASELINE_DRIFT,
     AgentResult,
     SectionResult,
+    _classify_overall,
     calculate_similarity,
     compare_agent,
     format_json,
@@ -251,6 +253,66 @@ class TestCompareAgent:
                 assert section.similarity == 100.0
 
 
+class TestKnownBaselineDrift:
+    """Tests for the accepted-drift baseline (Issue #2374).
+
+    A baselined agent at or above its recorded floor is "OK (baselined)" and
+    does not fail the gate; the same agent below the floor still fails, so the
+    baseline cannot hide a regression.
+    """
+
+    def test_above_threshold_is_ok(self) -> None:
+        assert _classify_overall("merge-resolver", 95.0, 80) == "OK"
+
+    def test_baselined_at_floor_is_baselined(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
+        assert _classify_overall("merge-resolver", floor, 80) == "OK (baselined)"
+
+    def test_baselined_above_floor_below_threshold_is_baselined(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
+        assert (
+            _classify_overall("merge-resolver", floor + 0.9, 80) == "OK (baselined)"
+        )
+
+    def test_baselined_below_floor_still_drifts(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
+        assert (
+            _classify_overall("merge-resolver", floor - 0.1, 80) == "DRIFT DETECTED"
+        )
+
+    def test_baseline_does_not_apply_to_other_comparison(self) -> None:
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
+        assert (
+            _classify_overall(
+                "merge-resolver",
+                floor + 0.9,
+                80,
+                ".claude/agents vs .github/agents",
+            )
+            == "DRIFT DETECTED"
+        )
+
+    def test_non_baselined_below_threshold_drifts(self) -> None:
+        assert _classify_overall("architect", 50.0, 80) == "DRIFT DETECTED"
+
+    def test_baselined_agent_excluded_from_drift_count(self) -> None:
+        # Claude has the enriched sections; vscode lacks them, driving overall
+        # similarity to 0 for this synthetic pair. The synthetic agent name is
+        # baselined with a floor of 0, so it must report as baselined, not drift.
+        claude = (
+            "---\nname: baselined-fixture\n---\n## Core Mission\n\n"
+            "Rich Claude-only mission text that the counterpart does not carry."
+        )
+        vscode = "---\ndescription: baselined-fixture\n---\n# Title\n\nNo matching section."
+        key = ("baselined-fixture", "src-claude vs src-vscode")
+        KNOWN_BASELINE_DRIFT[key] = 0.0
+        try:
+            result = compare_agent(claude, vscode, "baselined-fixture", 80)
+            assert result.status == "OK (baselined)"
+        finally:
+            del KNOWN_BASELINE_DRIFT[key]
+
+
 class TestRunDetection:
     """Tests for run_detection with filesystem."""
 
@@ -299,6 +361,20 @@ class TestFormatText:
         ]
         output = format_text(results, 80, 0.5, 0, 1, 0)
         assert "No significant drift detected" in output
+        assert "src/claude vs src/vs-code-agents" in output
+        assert "install copies" not in output
+
+    def test_install_comparison_message(self) -> None:
+        results = [
+            AgentResult(
+                agent_name="test",
+                overall_similarity=95.0,
+                status="OK",
+                comparison=".claude/agents vs .github/agents",
+            ),
+        ]
+        output = format_text(results, 80, 0.5, 0, 1, 0)
+        assert "plus shared-template install copies" in output
 
     def test_drift_detected_message(self) -> None:
         results = [
@@ -360,8 +436,8 @@ class TestFormatMarkdown:
         output = format_markdown(results, 80, 0.5, 0, 1, 0)
         assert "# Agent Drift Detection Report" in output
         assert "| Metric | Count |" in output
-        assert "| Agent | Status | Similarity | Drifting Sections |" in output
-        assert "| test | OK | 90.0% | - |" in output
+        assert "| Agent | Comparison | Status | Similarity | Drifting Sections |" in output
+        assert "| test | src-claude vs src-vscode | OK | 90.0% | - |" in output
 
 
 class TestMain:

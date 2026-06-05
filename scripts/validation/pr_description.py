@@ -149,6 +149,10 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
         re.MULTILINE,
     ),  # list items (optionally backtick-wrapped)
     re.compile(rf"\[([^\]]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\]"),  # markdown links
+    re.compile(
+        rf"\]\(((?!(?:https?:|ftp:|//|www\.))[^)]+\.({_EXT_GROUP})){_EXT_BOUNDARY}\)",
+        re.IGNORECASE,
+    ),  # markdown link targets [label](path.ext) (issue #2113)
 ]
 
 # Inline citation-cue pattern for fix #2252.

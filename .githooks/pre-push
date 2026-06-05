@@ -88,10 +88,19 @@ record_skip() {
 
 # Temp file cleanup on exit (handles Ctrl+C, early exit, normal exit)
 TEMP_FILES=()
+# Auto-retro suppression sentinel (Issue #2327). Set once REPO_ROOT is known.
+# The Stop hook (.claude/hooks/Stop/invoke_auto_retrospective.py) skips skeleton
+# generation while this file exists, so a session ending mid-pre-push (including
+# a failing one) does not leave an untracked auto-retro file or a
+# docs/retros/INDEX.md edit behind. Removed on exit by cleanup().
+AUTO_RETRO_SUPPRESS_SENTINEL=""
 cleanup() {
     for f in "${TEMP_FILES[@]}"; do
         rm -f "$f"
     done
+    if [ -n "$AUTO_RETRO_SUPPRESS_SENTINEL" ]; then
+        rm -f "$AUTO_RETRO_SUPPRESS_SENTINEL"
+    fi
 }
 trap cleanup EXIT
 
@@ -106,12 +115,53 @@ if [ ! -d "$REPO_ROOT" ]; then
 fi
 cd "$REPO_ROOT"
 
+# Drop the auto-retro suppression sentinel for the duration of this run
+# (Issue #2327). .agents/.hook-state/ is gitignored, so the sentinel never
+# dirties the tree. Best-effort: a write failure must not block the push.
+if [ -d "$REPO_ROOT/.agents" ]; then
+    if mkdir -p "$REPO_ROOT/.agents/.hook-state" 2>/dev/null; then
+        AUTO_RETRO_SUPPRESS_SENTINEL="$REPO_ROOT/.agents/.hook-state/auto-retrospective.suppress"
+        : > "$AUTO_RETRO_SUPPRESS_SENTINEL" 2>/dev/null || AUTO_RETRO_SUPPRESS_SENTINEL=""
+    fi
+fi
+
 # Python detection (shared pattern with pre-commit)
+PYTHON_ENV_FAILURE_RECORDED=0
+
+record_python_env_failure() {
+    if [ "$PYTHON_ENV_FAILURE_RECORDED" -eq 0 ]; then
+        record_fail "$1"
+        echo_info "  $2"
+        PYTHON_ENV_FAILURE_RECORDED=1
+    fi
+}
+
 set_python_cmd() {
-    # Try uv run python first (handles virtual environments and project dependencies)
+    # Try uv run python first (handles virtual environments and project dependencies).
+    # --frozen pins the lockfile: uv uses uv.lock as-is and never re-resolves or
+    # rewrites it during a pre-push run. Without --frozen, `uv run` can silently
+    # re-resolve dependencies and rewrite uv.lock, leaving the worktree dirty
+    # after validation (Issue #2327). --frozen errors loudly on a stale lock
+    # instead, so drift surfaces rather than dirtying the tree.
+    if [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; then
+        if ! command -v uv &> /dev/null; then
+            record_python_env_failure \
+                "Python environment: uv is required for this checkout" \
+                "Install uv so pre-push can run validators from uv.lock instead of system Python."
+            return 1
+        fi
+        if uv run --frozen python -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(uv run --frozen python)
+            return 0
+        fi
+        record_python_env_failure \
+            "Python environment: uv run --frozen python failed" \
+            "Refusing system Python fallback in a uv-managed checkout; fix uv.lock or pyproject.toml."
+        return 1
+    fi
     if command -v uv &> /dev/null; then
-        if uv run python -c 'import sys' &> /dev/null; then
-            PYTHON_CMD=(uv run python)
+        if uv run --frozen python -c 'import sys' &> /dev/null; then
+            PYTHON_CMD=(uv run --frozen python)
             return 0
         fi
     fi
@@ -360,6 +410,53 @@ if [ -n "$PUSH_RANGE" ]; then
     fi
 else
     record_skip "Total additions (no push range)"
+fi
+
+# 4b. Review marker freshness (Issue #1938 / AC6)
+# /ship enforces marker presence. Pre-push fails closed only when a marker is
+# present but stale, malformed, or unverifiable, so ordinary pre-review pushes
+# still work while marker-bearing release pushes cannot carry a bad trailer.
+REVIEW_MARKER_SCRIPT="$REPO_ROOT/.claude/skills/review/scripts/validate_review_marker.py"
+REVIEW_MARKER_FOUND=0
+REVIEW_MARKER_READY=0
+for pushed_sha in "${PVB_HEADS[@]}"; do
+    REVIEW_MARKER_VALUES=$(git log -1 --format='%(trailers:key=Reviewed-By,valueonly,unfold)' "$pushed_sha" 2>/dev/null)
+    REVIEW_MARKER_READ_RC=$?
+    if [ $REVIEW_MARKER_READ_RC -ne 0 ]; then
+        record_fail "Review marker validation could not inspect pushed ref ${pushed_sha:0:12}"
+        continue
+    fi
+    if ! printf '%s\n' "$REVIEW_MARKER_VALUES" | grep -q '^/review@'; then
+        continue
+    fi
+
+    REVIEW_MARKER_FOUND=1
+    if [ -L "$REVIEW_MARKER_SCRIPT" ]; then
+        record_fail "Review marker validator is a symlink; refusing to trust it"
+    elif [ ! -f "$REVIEW_MARKER_SCRIPT" ]; then
+        record_fail "Review marker validator missing at $REVIEW_MARKER_SCRIPT"
+    elif ! set_python_cmd; then
+        record_fail "Review marker validation requires Python"
+    else
+        REVIEW_MARKER_READY=1
+        REVIEW_MARKER_OUTPUT=$(mktemp)
+        TEMP_FILES+=("$REVIEW_MARKER_OUTPUT")
+        "${PYTHON_CMD[@]}" "$REVIEW_MARKER_SCRIPT" --ref "$pushed_sha" --repo-root "$REPO_ROOT" > "$REVIEW_MARKER_OUTPUT" 2>&1
+        REVIEW_MARKER_RC=$?
+        if [ $REVIEW_MARKER_RC -eq 0 ]; then
+            record_pass "Review marker validation (${pushed_sha:0:12})"
+        else
+            cat "$REVIEW_MARKER_OUTPUT"
+            record_fail "Review marker validation failed for ${pushed_sha:0:12} (exit $REVIEW_MARKER_RC)"
+            echo_info "  Fix: re-run /review so the pushed tip is an empty marker commit binding its parent."
+        fi
+        rm -f "$REVIEW_MARKER_OUTPUT"
+    fi
+done
+if [ $REVIEW_MARKER_FOUND -eq 0 ]; then
+    record_skip "Review marker validation (no marker on pushed refs; /ship enforces presence)"
+elif [ $REVIEW_MARKER_READY -eq 0 ]; then
+    echo_info "  Fix: restore $REVIEW_MARKER_SCRIPT and Python before pushing marker commits."
 fi
 
 # ============================================================================
@@ -628,63 +725,49 @@ fi
 echo_phase "Phase 3: Build Validation"
 
 # 10. Agent generation drift
-GENERATE_AGENTS_SCRIPT="$REPO_ROOT/build/Generate-Agents.ps1"
+#
+# Issue #2343: this check used to invoke build/Generate-Agents.ps1 -Validate,
+# but ADR-042 (commit 7b8347da) expunged that PowerShell script in favor of
+# build/generate_agents.py. The Python port is now invoked transitively by
+# build_all.py --check (Section 11b) via build_all._build_agents, which is
+# the authoritative source of truth per the issue. Section 11b covers agent
+# template-vs-generated drift end-to-end, so a separate Section 10 here
+# would either re-do the same work or, worse (as observed pre-fix), print
+# "SKIP: Agent generation (script not found)" because the .ps1 file is
+# gone -- contradicting a green build_all.py --check. The check stays
+# deleted intentionally; do not re-add a standalone agent-generation gate
+# without first reconciling it against build_all.py --check.
 
-if [ -n "$CHANGED_TEMPLATES" ] || [ -n "$(echo "$CHANGED_FILES" | grep -E '^src/(copilot-cli|vs-code-agents)/' || true)" ]; then
-    if [ -L "$GENERATE_AGENTS_SCRIPT" ]; then
-        record_warn "Agent generation script is a symlink (skipping)"
-    elif [ -f "$GENERATE_AGENTS_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
-            GEN_OUTPUT=$(mktemp)
-            TEMP_FILES+=("$GEN_OUTPUT")
-            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$GENERATE_AGENTS_SCRIPT" -Validate > "$GEN_OUTPUT" 2>&1; then
-                record_pass "Agent generation (templates match generated)"
-            else
-                echo_info "  Agent generation output:"
-                head -20 "$GEN_OUTPUT"
-                record_fail "Agent generation drift detected"
-                echo_info "  Fix: pwsh build/Generate-Agents.ps1"
-                echo_info "  Then commit the regenerated files."
-            fi
-            rm -f "$GEN_OUTPUT"
-        else
-            record_skip "Agent generation (pwsh not available)"
-        fi
-    else
-        record_skip "Agent generation (script not found)"
-    fi
-else
-    record_skip "Agent generation (no template/agent files changed)"
-fi
+# 11. Agent drift detection (Python port of the retired Detect-AgentDrift.ps1)
+AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/detect_agent_drift.py"
 
-# 11. Agent drift detection
-AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/Detect-AgentDrift.ps1"
-
-if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/|templates/)' || true)" ]; then
+if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+\.md|src/vs-code-agents/.*\.agent\.md|src/copilot-cli/agents/.*\.agent\.md|templates/agents/|\.claude/agents/|\.github/agents/)' || true)" ]; then
     if [ -L "$AGENT_DRIFT_SCRIPT" ]; then
-        record_warn "Agent drift script is a symlink (skipping)"
+        record_warn "Agent drift script is a symlink (skipping $AGENT_DRIFT_SCRIPT)"
     elif [ -f "$AGENT_DRIFT_SCRIPT" ]; then
-        if command -v pwsh &> /dev/null; then
+        if set_python_cmd; then
             DRIFT_OUTPUT=$(mktemp)
             TEMP_FILES+=("$DRIFT_OUTPUT")
-            if pwsh -NoProfile -ExecutionPolicy Bypass -File "$AGENT_DRIFT_SCRIPT" > "$DRIFT_OUTPUT" 2>&1; then
+            if "${PYTHON_CMD[@]}" "$AGENT_DRIFT_SCRIPT" > "$DRIFT_OUTPUT" 2>&1; then
                 record_pass "Agent drift detection"
             else
+                DRIFT_RC=$?
                 echo_info "  Agent drift output:"
                 head -20 "$DRIFT_OUTPUT"
-                record_fail "Agent drift detected"
+                record_fail "Agent drift detected (exit $DRIFT_RC; script=$AGENT_DRIFT_SCRIPT)"
                 echo_info "  Fix: Sync agent content across platforms."
-                echo_info "  Run: pwsh build/scripts/Detect-AgentDrift.ps1 -Verbose"
+                echo_info "  Run: ${PYTHON_CMD[*]} build/scripts/detect_agent_drift.py"
             fi
             rm -f "$DRIFT_OUTPUT"
         else
-            record_skip "Agent drift detection (pwsh not available)"
+            record_skip "Agent drift detection (no Python available; non-blocking)"
         fi
     else
-        record_skip "Agent drift detection (script not found)"
+        # Name the exact path so agents don't chase a phantom dependency.
+        record_skip "Agent drift detection (script not found at $AGENT_DRIFT_SCRIPT; non-blocking, build_all.py --check is authoritative)"
     fi
 else
-    record_skip "Agent drift detection (no src/template files changed)"
+    record_skip "Agent drift detection (no agent source/template files changed)"
 fi
 
 # 11b. Build pipeline staleness (build_all.py --check)

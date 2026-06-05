@@ -159,12 +159,23 @@ class TestStructure:
     def test_spec_005_referenced(self, skill_content: str) -> None:
         assert "SPEC-005" in skill_content, "SKILL.md must reference SPEC-005"
 
-    def test_context_retrieval_subagent_exists(self) -> None:
-        """SKILL.md delegates to the context-retrieval subagent; verify the
-        subagent file exists so renaming/deleting it is caught immediately."""
+    def test_routes_to_exploring_knowledge_graph(self, skill_content: str) -> None:
+        """Issue #2103: the context-retrieval agent was folded into the
+        exploring-knowledge-graph skill. SKILL.md now points at that skill for
+        the five-source strategy, not at a deleted subagent."""
+        assert "exploring-knowledge-graph" in skill_content, (
+            "SKILL.md must route context gathering through the "
+            "exploring-knowledge-graph skill"
+        )
+
+    def test_context_retrieval_subagent_removed(self) -> None:
+        """Issue #2103: the context-retrieval agent file was deleted after its
+        guidance was folded into the exploring-knowledge-graph skill. Guard
+        against the orphan agent being reintroduced."""
         subagent = REPO_ROOT / ".claude" / "agents" / "context-retrieval.md"
-        assert subagent.exists(), (
-            f"SKILL.md delegates to context-retrieval subagent but {subagent} is missing"
+        assert not subagent.exists(), (
+            f"context-retrieval agent was folded into exploring-knowledge-graph "
+            f"(Issue #2103) but {subagent} still exists"
         )
 
     def test_trigger_phrase_count_in_range(self, skill_content: str) -> None:
