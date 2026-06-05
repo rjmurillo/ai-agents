@@ -106,8 +106,9 @@ class TestEditIssueBodySuccess:
         assert captured_args[captured_args.index("--body") + 1] == "hello"
         assert "--body-file" not in captured_args
         data = json.loads(capsys.readouterr().out)
-        assert data["status"] == "updated"
-        assert data["issue"] == 42
+        assert data["Success"] is True
+        assert data["Data"]["status"] == "updated"
+        assert data["Data"]["issue"] == 42
 
     def test_body_file_passes_through(self, mock_auth, tmp_path, capsys):
         # Coderabbit eoz/epC: when --body-file is provided, gh should be

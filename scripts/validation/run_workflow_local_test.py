@@ -76,6 +76,32 @@ _ACTIONLINT_TIMEOUT = 60
 _ACT_DRYRUN_TIMEOUT = 120
 _ACT_FULL_TIMEOUT = 600
 
+# actionlint shells out to shellcheck for ``run:`` scripts. The info and style
+# tiers are advisory (SC2086 quoting advice, SC2129 grouped redirects) and are
+# not defects in a given change; on a clean checkout they produced 100+ findings
+# across untouched workflows and turned this gate red on baseline (Issue #2374).
+# Raise the shellcheck severity floor to ``warning`` so only ``warning`` and
+# ``error`` findings block. This keeps the gate consistent with
+# ``scripts/validation/pre_pr.py:validate_workflow_yaml``, which applies the same
+# floor; real bugs (SC2034 unused variable, SC2068 unquoted array) still fail.
+_SHELLCHECK_SEVERITY = "--severity=warning"
+
+
+def _shellcheck_env() -> dict[str, str]:
+    """Child env that raises the shellcheck severity floor to ``warning``.
+
+    Merges with the current ``SHELLCHECK_OPTS`` so an operator-set option (for
+    example ``--exclude=SC1091``) is preserved alongside the severity floor.
+    """
+    env = dict(os.environ)
+    existing = env.get("SHELLCHECK_OPTS", "").strip()
+    env["SHELLCHECK_OPTS"] = (
+        f"{existing} {_SHELLCHECK_SEVERITY}".strip()
+        if existing
+        else _SHELLCHECK_SEVERITY
+    )
+    return env
+
 
 @dataclass
 class StageResult:
@@ -115,12 +141,24 @@ def _gh_act_available() -> bool:
     return rc == 0
 
 
-def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int, str, str]:
-    """Run a command. Returns (exit_code, stdout, stderr); -1 on spawn error."""
+def _run(
+    cmd: list[str],
+    *,
+    timeout: int,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> tuple[int, str, str]:
+    """Run a command. Returns (exit_code, stdout, stderr); -1 on spawn error.
+
+    When ``env`` is provided it replaces the child environment entirely, so a
+    caller that only wants to add a variable should merge it with
+    ``os.environ`` first.
+    """
     try:
         proc = subprocess.run(
             cmd,
             cwd=str(cwd) if cwd else None,
+            env=env,
             capture_output=True,
             text=True,
             check=False,
@@ -131,6 +169,75 @@ def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int,
     except (OSError, subprocess.SubprocessError) as exc:
         return -1, "", f"{type(exc).__name__}: {exc}"
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def _read_worktree_gitdir(repo_root: Path) -> str | None:
+    """Return the absolute GIT_DIR for a LINKED worktree, else None.
+
+    In a linked worktree ``<repo_root>/.git`` is a FILE containing
+    ``gitdir: <path>`` that points at the per-worktree admin directory under
+    the main checkout's ``.git/worktrees/<name>``. ``gh act`` runs with
+    ``cwd=repo_root`` and cannot follow that pointer itself, so it fails to
+    find the git metadata (#2344). Returns the resolved absolute gitdir, or
+    None when ``.git`` is a normal directory or the pointer is unreadable.
+    """
+    git_path = repo_root / ".git"
+    if not git_path.is_file():
+        return None
+    try:
+        content = git_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not content.startswith("gitdir:"):
+        return None
+    pointer = content.split(":", 1)[1].strip()
+    if not pointer:
+        return None
+    gitdir = Path(pointer)
+    if not gitdir.is_absolute():
+        gitdir = (repo_root / gitdir).resolve()
+    else:
+        gitdir = gitdir.resolve()
+    return str(gitdir)
+
+
+def _unsupported_worktree_gitdir_error(repo_root: Path) -> str | None:
+    git_path = repo_root / ".git"
+    if not git_path.is_file():
+        return None
+    try:
+        content = git_path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        return (
+            f"linked git worktree marker is unreadable: {git_path} ({exc}). "
+            f"Re-run from the main worktree or set {_BYPASS_ENV}=true to bypass (logged)."
+        )
+    if not content.startswith("gitdir:") or not content.split(":", 1)[1].strip():
+        return (
+            f"unsupported linked git worktree marker at {git_path}; expected "
+            f"'gitdir: <path>'. Re-run from the main worktree or set {_BYPASS_ENV}=true "
+            "to bypass (logged)."
+        )
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is None or not Path(gitdir).is_dir():
+        return (
+            f"linked git worktree gitdir is missing: {gitdir or '<unresolved>'}. "
+            f"Re-run from the main worktree or set {_BYPASS_ENV}=true to bypass (logged)."
+        )
+    return None
+
+
+def _act_env(repo_root: Path) -> dict[str, str]:
+    """Build the subprocess env for gh act, GIT_DIR-aware for linked worktrees."""
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
+    }
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is not None:
+        env["GIT_DIR"] = gitdir
+    return env
 
 
 def _select_workflow_files(
@@ -166,17 +273,87 @@ def _select_workflow_files(
 
 
 def _actionlint_stage(files: Sequence[str], repo_root: Path) -> StageResult:
-    rc, out, err = _run(["actionlint", *files], timeout=_ACTIONLINT_TIMEOUT, cwd=repo_root)
+    rc, out, err = _run(
+        ["actionlint", *files],
+        timeout=_ACTIONLINT_TIMEOUT,
+        cwd=repo_root,
+        env=_shellcheck_env(),
+    )
     if rc == 0:
         return StageResult("actionlint", True)
     return StageResult("actionlint", False, (out + err).strip()[:4000])
 
 
+# gh act defaults to the ``push`` event. A workflow with no ``push`` trigger
+# (for example schedule-only or workflow_dispatch-only) then makes act error
+# with "Could not find any stages to run", which used to fail this gate for a
+# changed schedule-only workflow even though the workflow is valid
+# (Issue #2374). Pick an event the workflow actually declares so act has
+# a job graph to walk. Preference order keeps the common PR-style events first.
+_ACT_EVENT_PREFERENCE = (
+    "push",
+    "pull_request",
+    "workflow_dispatch",
+    "schedule",
+    "workflow_call",
+)
+
+
+def _workflow_events(wf_path: Path) -> list[str]:
+    """Return the trigger event names declared in a workflow's ``on:`` block.
+
+    Handles the three YAML shapes for ``on``: a scalar (``on: push``), a list
+    (``on: [push, pull_request]``), and a map (``on:\\n  push:`` ...). The YAML
+    1.1 boolean coercion of the bare key ``on`` to ``True`` is handled by
+    checking both ``"on"`` and ``True`` keys. Returns an empty list when the
+    file cannot be read or parsed, so the caller falls back to act's default.
+    """
+    try:
+        import yaml
+    except ImportError:
+        return []
+    try:
+        data = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError):
+        return []
+    if not isinstance(data, dict):
+        return []
+    on = data.get("on", data.get(True))
+    if isinstance(on, str):
+        return [on]
+    if isinstance(on, list):
+        return [str(e) for e in on]
+    if isinstance(on, dict):
+        return [str(k) for k in on]
+    return []
+
+
+def _select_act_event(wf_path: Path) -> str | None:
+    """Choose an event for ``gh act -n`` based on the workflow's triggers.
+
+    Returns None when ``push`` is declared (act's default needs no override) or
+    when no events can be read (let act use its default and report its own
+    error). Otherwise returns the highest-preference declared event so act has
+    a runnable job graph.
+    """
+    events = _workflow_events(wf_path)
+    if not events or "push" in events:
+        return None
+    for candidate in _ACT_EVENT_PREFERENCE:
+        if candidate in events:
+            return candidate
+    return events[0]
+
+
 def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    env = _act_env(repo_root)
     for wf in files:
-        rc, out, err = _run(
-            ["gh", "act", "-n", "-W", wf], timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root
-        )
+        event = _select_act_event(repo_root / wf)
+        cmd = ["gh", "act", "-n"]
+        if event is not None:
+            cmd.append(event)
+        cmd += ["-W", wf]
+        rc, out, err = _run(cmd, timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root, env=env)
         if rc != 0:
             return StageResult(
                 "gh act -n", False, f"{wf}:\n{(out + err).strip()[:4000]}"
@@ -185,10 +362,14 @@ def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    env = _act_env(repo_root)
     for wf in files:
-        rc, out, err = _run(
-            ["gh", "act", "-W", wf], timeout=_ACT_FULL_TIMEOUT, cwd=repo_root
-        )
+        event = _select_act_event(repo_root / wf)
+        cmd = ["gh", "act"]
+        if event is not None:
+            cmd.append(event)
+        cmd += ["-W", wf]
+        rc, out, err = _run(cmd, timeout=_ACT_FULL_TIMEOUT, cwd=repo_root, env=env)
         if rc != 0:
             return StageResult(
                 "gh act (full)", False, f"{wf}:\n{(out + err).strip()[:4000]}"
@@ -260,6 +441,12 @@ def run_local_test(
             "gh act extension not installed. Install it via "
             f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true."
         )
+        return report
+
+    worktree_error = _unsupported_worktree_gitdir_error(repo_root)
+    if worktree_error is not None:
+        report.exit_code = 3
+        report.note = worktree_error
         return report
 
     s2 = _act_dryrun_stage(files, repo_root)

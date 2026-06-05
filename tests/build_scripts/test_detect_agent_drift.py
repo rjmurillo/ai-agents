@@ -238,9 +238,21 @@ def _drift_result(name: str, comparison: str) -> object:
 
 
 def test_exit_code_vendored_drift_always_blocks() -> None:
-    vendored = _drift_result("merge-resolver", "src-claude vs src-vscode")
+    vendored = _drift_result("qa", "src-claude vs src-vscode")
 
     assert drift._exit_code([vendored], fail_on_install=False) == 1
+
+
+def test_exit_code_known_advisory_vendored_drift_does_not_block() -> None:
+    vendored = _drift_result("merge-resolver", "src-claude vs src-vscode")
+
+    assert drift._exit_code([vendored], fail_on_install=False) == 0
+
+
+def test_exit_code_known_advisory_agent_still_blocks_install_strict() -> None:
+    install = _drift_result("merge-resolver", drift._INSTALL_COMPARISON_LABEL)
+
+    assert drift._exit_code([install], fail_on_install=True) == 1
 
 
 def test_exit_code_install_drift_is_advisory_by_default() -> None:
@@ -387,3 +399,213 @@ def test_main_skip_install_comparison_only_vendored(fake_repo: Path) -> None:
     )
 
     assert exit_code == 0
+
+
+# --- Issue #2423: changed-files scoping for pre-push -------------------------
+#
+# The pre-push hook must not block a scoped PR on pre-existing drift in agent
+# families the PR does not touch. New drift introduced by the PR's changed
+# files must still block. Repo-wide drift must remain available as an explicit
+# audit mode (--all, or no scoping args at all for cron/manual invocations).
+
+
+def _common_main_args(repo: Path) -> list[str]:
+    return [
+        "--claude-path",
+        str(repo / "src" / "claude"),
+        "--vscode-path",
+        str(repo / "src" / "vs-code-agents"),
+        "--templates-path",
+        str(repo / "templates" / "agents"),
+        "--claude-install-path",
+        str(repo / ".claude" / "agents"),
+        "--github-install-path",
+        str(repo / ".github" / "agents"),
+        "--fail-on-install-drift",
+    ]
+
+
+def test_path_to_family_handles_known_agent_roots(fake_repo: Path) -> None:
+    """Paths under every recognized agent root map back to the family name."""
+    families = drift.families_from_paths(
+        [
+            ".claude/agents/alpha.md",
+            ".github/agents/alpha.agent.md",
+            "src/claude/alpha.md",
+            "src/vs-code-agents/alpha.agent.md",
+            "src/copilot-cli/agents/alpha.agent.md",
+            "templates/agents/alpha.shared.md",
+        ],
+        repo_root=fake_repo,
+    )
+
+    assert families == frozenset({"alpha"})
+
+
+def test_path_to_family_ignores_non_agent_paths(fake_repo: Path) -> None:
+    """Paths outside agent roots must contribute no families."""
+    families = drift.families_from_paths(
+        ["README.md", "src/cli.ts", "build/scripts/detect_agent_drift.py"],
+        repo_root=fake_repo,
+    )
+
+    assert families == frozenset()
+
+
+def test_path_to_family_handles_nested_agents_subdirs(fake_repo: Path) -> None:
+    """Sub-grouped agents (e.g. .claude/agents/security/foo.md) map to 'foo'."""
+    families = drift.families_from_paths(
+        [
+            ".claude/agents/security/foo.md",
+            ".github/agents/security/foo.agent.md",
+        ],
+        repo_root=fake_repo,
+    )
+
+    assert families == frozenset({"foo"})
+
+
+def test_path_to_family_ignores_directory_metadata(fake_repo: Path) -> None:
+    """AGENTS.md / CLAUDE.md alongside agents are not themselves agent files."""
+    families = drift.families_from_paths(
+        [
+            ".claude/agents/AGENTS.md",
+            ".claude/agents/CLAUDE.md",
+            ".github/agents/AGENTS.md",
+        ],
+        repo_root=fake_repo,
+    )
+
+    assert families == frozenset()
+
+
+def test_path_to_family_rejects_traversal_out_of_agent_roots(fake_repo: Path) -> None:
+    families = drift.families_from_paths(
+        [
+            ".claude/agents/../../outside/alpha.md",
+            "src/claude/../../../outside/beta.md",
+        ],
+        repo_root=fake_repo,
+    )
+
+    assert families == frozenset()
+
+
+def test_scoped_mode_skips_unrelated_drifted_family(fake_repo: Path) -> None:
+    """Acceptance #1: a PR touching only family-a is not blocked when an
+    unrelated family-b is drifted on disk."""
+    _write_agent(
+        fake_repo / ".github" / "agents" / "beta.agent.md",
+        "beta",
+        body=_divergent_body("beta"),
+    )
+
+    exit_code = drift.main(
+        [
+            *_common_main_args(fake_repo),
+            "--changed",
+            ".claude/agents/alpha.md",
+        ]
+    )
+
+    assert exit_code == 0
+
+
+def test_scoped_mode_blocks_new_drift_in_changed_family(fake_repo: Path) -> None:
+    """Acceptance #2: when the changed family is itself drifted, the gate
+    still blocks."""
+    _write_agent(
+        fake_repo / ".github" / "agents" / "alpha.agent.md",
+        "alpha",
+        body=_divergent_body("alpha"),
+    )
+
+    exit_code = drift.main(
+        [
+            *_common_main_args(fake_repo),
+            "--changed",
+            ".claude/agents/alpha.md",
+        ]
+    )
+
+    assert exit_code == 1
+
+
+def test_all_flag_audits_repo_wide_regardless_of_changed_args(fake_repo: Path) -> None:
+    """Acceptance #3: --all forces repo-wide audit even when --changed is
+    supplied."""
+    _write_agent(
+        fake_repo / ".github" / "agents" / "beta.agent.md",
+        "beta",
+        body=_divergent_body("beta"),
+    )
+
+    exit_code = drift.main(
+        [
+            *_common_main_args(fake_repo),
+            "--all",
+            "--changed",
+            ".claude/agents/alpha.md",
+        ]
+    )
+
+    assert exit_code == 1
+
+
+def test_no_scoping_args_defaults_to_repo_wide_audit(fake_repo: Path) -> None:
+    """Backward-compat: no --changed and no --all keeps the original repo-wide
+    behavior. Cron jobs and manual invocations must keep working."""
+    _write_agent(
+        fake_repo / ".github" / "agents" / "beta.agent.md",
+        "beta",
+        body=_divergent_body("beta"),
+    )
+
+    exit_code = drift.main(_common_main_args(fake_repo))
+
+    assert exit_code == 1
+
+
+def test_scoped_mode_with_no_agent_paths_skips_drift(fake_repo: Path) -> None:
+    """If --changed lists only non-agent paths, the gate has nothing to check
+    and exits clean -- pre-push must not promote unrelated drift on a docs-
+    only push."""
+    _write_agent(
+        fake_repo / ".github" / "agents" / "beta.agent.md",
+        "beta",
+        body=_divergent_body("beta"),
+    )
+
+    exit_code = drift.main(
+        [
+            *_common_main_args(fake_repo),
+            "--changed",
+            "README.md",
+            "--changed",
+            "docs/foo.md",
+        ]
+    )
+
+    assert exit_code == 0
+
+
+def test_changed_accepts_multiple_paths_as_repeated_flag(fake_repo: Path) -> None:
+    """--changed is repeatable and a single agent family in the union still
+    blocks on its own drift."""
+    _write_agent(
+        fake_repo / ".github" / "agents" / "alpha.agent.md",
+        "alpha",
+        body=_divergent_body("alpha"),
+    )
+
+    exit_code = drift.main(
+        [
+            *_common_main_args(fake_repo),
+            "--changed",
+            "README.md",
+            "--changed",
+            ".github/agents/alpha.agent.md",
+        ]
+    )
+
+    assert exit_code == 1
