@@ -525,7 +525,7 @@ def _original_main(stdin_bytes):
         locations.
         """
         try:
-            project_root = Path(get_project_directory()).resolve()
+            project_root = Path(_resolve_worktree_root()).resolve()
             path = Path(filepath)
 
             if path.is_absolute():

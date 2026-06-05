@@ -237,11 +237,12 @@ def check_adr_review_evidence(
 def _read_git_commit_command() -> str | None:
     """Read the gated git-commit command from stdin, or None to allow.
 
-    Returns the command string only when stdin carries a parseable hook
-    payload whose ``tool_input.command`` is a git commit. Any non-commit,
-    empty, or malformed payload returns ``None`` so the caller allows the
-    tool through (exit 0). Behavior is unchanged from the inlined version;
-    this only moves the input-parsing branches out of ``main`` (#2386).
+    Returns the command string only when stdin carries a hook payload whose
+    ``tool_input.command`` is a git commit. Non-commit and empty payloads
+    return ``None`` so the caller allows the tool through (exit 0). Malformed
+    JSON raises ``JSONDecodeError`` and is handled by ``main``'s fail-open
+    exception handler. Behavior is unchanged from the inlined version; this
+    only moves the input-parsing branches out of ``main`` (#2386).
     """
     if sys.stdin.isatty():
         return None

@@ -444,6 +444,55 @@ class TestBodyFileFailClosed:
                 invoke_false_completion_gate.main()
             assert exc_info.value.code == 2
 
+    def test_message_file_absolute_path_inside_worktree_is_read(
+        self, tmp_path: Path
+    ) -> None:
+        """Linked-worktree message files are valid inside the current worktree."""
+        main_checkout = tmp_path / "main"
+        worktree = tmp_path / "linked"
+        main_checkout.mkdir()
+        worktree.mkdir()
+        message = worktree / "COMMIT_EDITMSG"
+        message.write_text("feat: parser\n\nfinished the work\n", encoding="utf-8")
+
+        with patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(main_checkout),
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_resolve_worktree_root",
+            return_value=str(worktree),
+        ):
+            assert invoke_false_completion_gate._read_commit_message_file(
+                str(message)
+            ) == "feat: parser\n\nfinished the work\n"
+
+    def test_message_file_relative_path_resolves_from_worktree(
+        self, tmp_path: Path
+    ) -> None:
+        """Relative -F paths bind to the current worktree, not the main checkout."""
+        main_checkout = tmp_path / "main"
+        worktree = tmp_path / "linked"
+        main_checkout.mkdir()
+        worktree.mkdir()
+        (main_checkout / "COMMIT_EDITMSG").write_text("main checkout", encoding="utf-8")
+        (worktree / "COMMIT_EDITMSG").write_text("linked worktree", encoding="utf-8")
+
+        with patch.object(
+            invoke_false_completion_gate,
+            "get_project_directory",
+            return_value=str(main_checkout),
+        ), patch.object(
+            invoke_false_completion_gate,
+            "_resolve_worktree_root",
+            return_value=str(worktree),
+        ):
+            assert (
+                invoke_false_completion_gate._read_commit_message_file("COMMIT_EDITMSG")
+                == "linked worktree"
+            )
+
 
 class TestAllowedTempRoots:
     """_allowed_temp_roots mirrors canonical _candidate_temp_roots semantics."""
