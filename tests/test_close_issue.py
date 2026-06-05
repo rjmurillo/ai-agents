@@ -54,6 +54,10 @@ def _state_closed():
     return _completed(stdout=json.dumps({"state": "CLOSED"}), rc=0)
 
 
+def _comments(*bodies: str):
+    return _completed(stdout=json.dumps({"comments": [{"body": b} for b in bodies]}), rc=0)
+
+
 def _envelope(capsys) -> dict:
     return json.loads(capsys.readouterr().out)
 
@@ -252,6 +256,17 @@ class TestMain:
 
         assert _mod._comment_base_dir() == Path(__file__).resolve().parents[1]
 
+    def test_comment_base_falls_back_to_script_parent(self, tmp_path, monkeypatch):
+        script_dir = tmp_path / "installed" / "scripts"
+        script_dir.mkdir(parents=True)
+        nested = tmp_path / "cwd"
+        nested.mkdir()
+        monkeypatch.chdir(nested)
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        monkeypatch.setattr(_mod, "__file__", str(script_dir / "close_issue.py"))
+
+        assert _mod._comment_base_dir() == script_dir.resolve()
+
     def test_comment_base_expands_workspace(self, tmp_path, monkeypatch):
         workspace = tmp_path / "workspace"
         workspace.mkdir()
@@ -330,6 +345,50 @@ class TestMain:
         assert rc == 0
         assert mock_run.call_count == 2
         assert _envelope(capsys)["Data"]["action"] == "closed"
+
+    def test_already_closed_with_missing_comment_posts_once(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_closed(),
+                _comments(),
+                _completed(stdout="{}", rc=0),
+            ],
+        ) as mock_run:
+            rc = main(["--issue", "18", "--comment", "Closing note"])
+        assert rc == 0
+        assert mock_run.call_count == 3
+        post_args = mock_run.call_args_list[2].args[0]
+        assert post_args[:2] == ["gh", "api"]
+        env = _envelope(capsys)
+        assert env["Data"]["action"] == "already_closed"
+        assert env["Data"]["commented"] is True
+        assert env["Data"]["commentAlreadyPresent"] is False
+
+    def test_already_closed_with_existing_comment_skips_duplicate(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_closed(),
+                _comments("Closing note"),
+            ],
+        ) as mock_run:
+            rc = main(["--issue", "18", "--comment", "Closing note"])
+        assert rc == 0
+        assert mock_run.call_count == 2
+        env = _envelope(capsys)
+        assert env["Data"]["commented"] is False
+        assert env["Data"]["commentAlreadyPresent"] is True
 
     def test_invalid_utf8_comment_file_exits_2(self, tmp_path, capsys, monkeypatch):
         comment_path = tmp_path / "body.md"
@@ -452,7 +511,7 @@ class TestMain:
         assert env["Error"]["Code"] == 4
         assert env["Error"]["Type"] == "AuthError"
 
-    def test_already_closed_skips_comment_and_close(self, capsys):
+    def test_already_closed_posts_missing_comment_without_close(self, capsys):
         with patch(
             "close_issue.assert_gh_authenticated",
         ), patch(
@@ -460,12 +519,18 @@ class TestMain:
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
-            return_value=_state_closed(),
+            side_effect=[
+                _state_closed(),
+                _comments(),
+                _completed(stdout="{}", rc=0),
+            ],
         ) as mock_run:
-            rc = main(["--issue", "16", "--comment", "do not duplicate"])
+            rc = main(["--issue", "16", "--comment", "retry note"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
         assert data["state"] == "closed"
         assert data["action"] == "already_closed"
-        assert data["commented"] is False
-        assert mock_run.call_count == 1
+        assert data["commented"] is True
+        assert data["commentAlreadyPresent"] is False
+        assert mock_run.call_count == 3
+        assert mock_run.call_args_list[2].args[0][:2] == ["gh", "api"]

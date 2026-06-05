@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Close a GitHub Issue with an optional closing comment.
 
-Posts an optional comment (from ``--comment`` or ``--comment-file``) and then
-closes the issue via ``gh issue close --reason``. Emits the standard ADR-056
-skill output envelope ({Success, Data, Error, Metadata}).
+Closes the issue via ``gh issue close --reason`` and posts an optional comment
+from ``--comment`` or ``--comment-file``. On retry, an already-closed issue can
+still receive a missing closing comment without duplicating an existing one.
+Emits the standard ADR-056 skill output envelope ({Success, Data, Error,
+Metadata}).
 
 Exit codes follow ADR-035:
     0 - Success (issue closed, or already closed)
@@ -96,7 +98,7 @@ def _comment_base_dir() -> Path:
     for parent in Path(__file__).resolve().parents:
         if (parent / ".git").exists() or (parent / ".claude").is_dir():
             return parent
-    return Path(os.getcwd()).resolve()
+    return Path(__file__).resolve().parent
 
 
 def _resolve_comment_file(comment_file: str, fmt: str) -> Path:
@@ -247,6 +249,47 @@ def _post_comment(owner: str, repo: str, issue: int, body: str, fmt: str) -> Non
         raise SystemExit(code)
 
 
+def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> bool:
+    result = subprocess.run(
+        [
+            "gh", "issue", "view", str(issue),
+            "--repo", f"{owner}/{repo}",
+            "--json", "comments",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        error_str = result.stderr.strip() or result.stdout.strip()
+        code = _write_subprocess_error(
+            f"Failed to inspect issue #{issue} comments: {error_str}",
+            issue,
+            fmt,
+        )
+        raise SystemExit(code)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        write_skill_error(
+            f"Failed to parse issue #{issue} comments: {exc}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="close_issue.py",
+            extra={"issue": issue},
+        )
+        raise SystemExit(3) from exc
+    comments = payload.get("comments") if isinstance(payload, dict) else None
+    if not isinstance(comments, list):
+        return False
+    for comment in comments:
+        if isinstance(comment, dict) and comment.get("body") == body:
+            return True
+    return False
+
+
 def _close_issue(owner: str, repo: str, issue: int, reason: str) -> subprocess.CompletedProcess[str]:
     """Run gh issue close with the given reason. Returns the completed process."""
     return subprocess.run(
@@ -274,13 +317,21 @@ def main(argv: list[str] | None = None) -> int:
 
     state = _get_issue_state(owner, repo, issue, fmt)
     if state == "closed":
+        commented = False
+        comment_already_present = False
+        if body and body.strip():
+            comment_already_present = _comment_exists(owner, repo, issue, body, fmt)
+            if not comment_already_present:
+                _post_comment(owner, repo, issue, body, fmt)
+                commented = True
         data = {
             "issue": issue,
             "owner": owner,
             "repo": repo,
             "state": "closed",
             "reason": args.reason,
-            "commented": False,
+            "commented": commented,
+            "commentAlreadyPresent": comment_already_present,
             "action": "already_closed",
         }
         write_skill_output(
