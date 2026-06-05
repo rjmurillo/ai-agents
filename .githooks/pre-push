@@ -741,7 +741,7 @@ echo_phase "Phase 3: Build Validation"
 # 11. Agent drift detection (Python port of the retired Detect-AgentDrift.ps1)
 AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/detect_agent_drift.py"
 
-if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/|templates/|\.claude/agents/|\.github/agents/)' || true)" ]; then
+if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/(claude|vs-code-agents|copilot-cli/agents)/|templates/agents/|\.claude/agents/|\.github/agents/)' || true)" ]; then
     if [ -L "$AGENT_DRIFT_SCRIPT" ]; then
         record_warn "Agent drift script is a symlink (skipping $AGENT_DRIFT_SCRIPT)"
     elif [ -f "$AGENT_DRIFT_SCRIPT" ]; then

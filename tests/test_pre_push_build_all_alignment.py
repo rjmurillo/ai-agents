@@ -82,6 +82,20 @@ def test_drift_check_uses_python_port() -> None:
     )
 
 
+def test_drift_check_only_runs_for_agent_paths() -> None:
+    """Non-agent src changes must not trigger whole-repo drift checks.
+
+    PR #2335 changed `src/copilot-cli/skills/review/*`; the old broad `src/`
+    trigger ran global agent drift and blocked on unrelated baseline drift.
+    """
+    text = _pre_push_text()
+    drift_block_start = text.index("# 11. Agent drift detection")
+    drift_block_end = text.index("# 11b. Build pipeline staleness")
+    drift_block = text[drift_block_start:drift_block_end]
+    assert "src/(claude|vs-code-agents|copilot-cli/agents)/" in drift_block
+    assert "'^(src/|templates/" not in drift_block
+
+
 def test_build_all_check_remains_authoritative() -> None:
     """Section 11b's ``build_all.py --check`` invocation must remain intact.
 
