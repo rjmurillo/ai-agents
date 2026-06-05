@@ -21,6 +21,7 @@ _scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
 for _p in (
     str(_lib_dir),
     str(_scripts_dir / "reactions"),
+    str(_scripts_dir / "notifications"),
     str(_scripts_dir / "utils"),
     str(_scripts_dir),
 ):
@@ -38,6 +39,32 @@ def make_proc(stdout="", stderr="", returncode=0):
 
 def _mock_repo():
     return RepoInfo(owner="o", repo="r")
+
+
+# ---------------------------------------------------------------------------
+# get_actionable_items
+# ---------------------------------------------------------------------------
+
+class TestGetActionableItems:
+    """Tests for get_actionable_items.main."""
+
+    def _import(self):
+        import importlib
+
+        import get_actionable_items as mod
+        importlib.reload(mod)
+        return mod
+
+    def test_invalid_limit_emits_error_envelope(self, capsys):
+        mod = self._import()
+
+        rc = mod.main(["--limit", "0", "--output-format", "json"])
+
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 1
+        assert result["Error"]["Type"] == "InvalidParams"
 
 
 # ---------------------------------------------------------------------------

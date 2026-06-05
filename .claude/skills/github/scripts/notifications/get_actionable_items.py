@@ -51,6 +51,7 @@ from github_core.api import (  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -224,7 +225,15 @@ def main(argv: list[str] | None = None) -> int:
     fmt = get_output_format(args.output_format)
 
     if not 1 <= args.limit <= 100:
-        error_and_exit("Limit must be between 1 and 100.", 1)
+        write_skill_error(
+            "Limit must be between 1 and 100.",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_actionable_items.py",
+            extra={"limit": args.limit},
+        )
+        return 1
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
