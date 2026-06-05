@@ -602,7 +602,7 @@ class TestPassWhenPythonNegativeBranches:
 
     def test_non_string_rejected(self):
         with pytest.raises(ValueError, match="must be a string"):
-            _dispatcher._eval_pass_when_python({}, 123)  # type: ignore[arg-type]
+            _dispatcher._eval_pass_when_python({}, 123)
 
     def test_non_lambda_rejected(self):
         with pytest.raises(ValueError, match="must be a lambda"):
@@ -846,13 +846,13 @@ class TestFormatCommandTypeGuard:
 
     def test_string_pr_number_rejected(self):
         with pytest.raises(TypeError, match="pr_number must be int"):
-            _dispatcher._format_command("echo {pr}", "1; rm -rf /")  # type: ignore[arg-type]
+            _dispatcher._format_command("echo {pr}", "1; rm -rf /")
 
     def test_bool_pr_number_rejected(self):
         # bools are int subclasses in Python; the guard rejects them
         # explicitly so a downstream caller cannot smuggle True/False.
         with pytest.raises(TypeError, match="pr_number must be int"):
-            _dispatcher._format_command("echo {pr}", True)  # type: ignore[arg-type]
+            _dispatcher._format_command("echo {pr}", True)
 
 
 class TestSchemaTypeChecks:

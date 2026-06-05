@@ -131,10 +131,11 @@ from scripts.utils.path_validation import validate_safe_path  # noqa: E402
 # already requires PyYAML; matching that is simpler than maintaining a
 # stdlib-only loader and avoids the schema-drift risk of a partial parser.
 try:
-    import yaml  # type: ignore[import-untyped]
+    import yaml as _yaml_module
+    yaml: Any = _yaml_module
     _HAVE_YAML = True
 except ImportError:  # pragma: no cover - exercised when PyYAML missing
-    yaml = None  # type: ignore[assignment]
+    yaml = None
     _HAVE_YAML = False
 
 
@@ -171,8 +172,8 @@ def _load_config(path: Path) -> dict:
     except OSError as exc:
         raise ConfigError(f"Cannot read config {path}: {exc}") from exc
     try:
-        data = yaml.safe_load(text)  # type: ignore[union-attr]
-    except yaml.YAMLError as exc:  # type: ignore[union-attr]
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
         raise ConfigError(f"Cannot parse config {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ConfigError(
