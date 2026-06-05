@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 from collections.abc import Sequence
@@ -161,7 +162,22 @@ def iter_spec_files(repo_root: Path, targets: tuple[str, ...]) -> list[Path]:
         if not target_dir.is_dir():
             LOGGER.info("skipping %s: not present", target)
             continue
-        spec_files.extend(sorted(target_dir.rglob("*.md")))
+        for root, dirs, files in os.walk(target_dir, followlinks=False):
+            root_path = Path(root)
+            dirs[:] = [
+                d
+                for d in dirs
+                if not (root_path / d).is_symlink()
+                and _is_relative_to_repo(repo_root, root_path / d)
+            ]
+            for filename in sorted(files):
+                if not filename.endswith(".md"):
+                    continue
+                candidate = root_path / filename
+                if not _is_relative_to_repo(repo_root, candidate):
+                    rel_candidate = _relative(repo_root, candidate)
+                    raise DriftScanError(f"unsafe spec file path: {rel_candidate}")
+                spec_files.append(candidate)
     return spec_files
 
 

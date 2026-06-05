@@ -156,6 +156,24 @@ def test_missing_target_tier_is_skipped_not_raised(tmp_path: Path) -> None:
     assert result.verdict == "PASS"
 
 
+def test_symlinked_spec_file_escaping_repo_fails_closed(tmp_path: Path) -> None:
+    # Arrange
+    repo_base = tmp_path / "repo"
+    repo_base.mkdir()
+    repo = _make_repo(repo_base)
+    outside = tmp_path / "outside.md"
+    outside.write_text("Uses `scripts/gone.py`.\n", encoding="utf-8")
+    link = repo / ".agents" / "specs" / "requirements" / "outside.md"
+    try:
+        link.symlink_to(outside)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    # Act / Assert
+    with pytest.raises(dsd.DriftScanError, match="unsafe spec file path"):
+        dsd.iter_spec_files(repo, dsd.DEFAULT_SPEC_TARGETS)
+
+
 def test_ignore_directive_suppresses_finding(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
