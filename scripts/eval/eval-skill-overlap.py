@@ -17,9 +17,10 @@ an LLM judge. A pair verdict is computed from the per-direction deltas:
   - SUBSUMED: one skill helps on both prompt sets while the other does not.
 
 Phase 1 (Issue #1932): explicit pair list only via `--pairs cluster.json`.
-No cluster shortcuts, no full N-squared sweep. The N-squared cost is
-N^2 * prompts * 3 conditions * judge calls (~36k calls for 70 skills), so
-unbounded mode is deliberately out of scope and gated.
+No cluster shortcuts, no full catalog sweep. The O(N^2) cost is
+N*(N-1)/2 unordered pairs * prompts per pair * 6 calls per prompt. At 70
+skills and 5 prompts per skill, that is about 145k API calls, so unbounded
+mode is deliberately out of scope and gated.
 
 Usage:
     python3 scripts/eval/eval-skill-overlap.py --pairs cluster.json --dry-run
@@ -463,9 +464,12 @@ def _parse_judge_score(raw: str) -> float:
     """Extract the score from a judge response or raise on malformed payload."""
     text = raw.strip()
     if "```" in text:
-        match = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
+        match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
         if match:
             text = match.group(1).strip()
+    object_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if object_match:
+        text = object_match.group(0).strip()
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError as exc:

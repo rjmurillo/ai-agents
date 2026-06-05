@@ -49,7 +49,7 @@ from _plan_runner import (
     PlanRunner,
     UnsupportedModelError,
 )
-from _report_aggregator import EmptyRunError, ReportAggregator
+from _report_aggregator import EmptyRunError, ReportAggregator, compute_form_factor
 from _report_writer import ReportWriter
 from _run_persistence import (
     DuplicateRunError,
@@ -156,7 +156,13 @@ def _run_id_arg(value: str) -> str:
 def _skill_path_arg(value: str) -> str:
     """argparse `type=` validator for `--skill-path`. Same threat model as
     `_agent_name_arg`: the value is joined to REPO_ROOT to read a SKILL.md."""
-    if ".." in value or not _SKILL_PATH_RE.match(value):
+    has_control_character = any(ord(char) < 32 for char in value)
+    if (
+        has_control_character
+        or Path(value).is_absolute()
+        or ".." in value
+        or not _SKILL_PATH_RE.match(value)
+    ):
         raise argparse.ArgumentTypeError(
             f"--skill-path must match {_SKILL_PATH_RE.pattern} with no '..' "
             f"(got {value!r})"
@@ -905,6 +911,23 @@ def _generate_report(
             file=sys.stderr,
         )
         return EXIT_CONFIG
+    form_factor = None
+    if any(record.variant == "skill" for record in records):
+        try:
+            form_factor = compute_form_factor(records)
+        except (EmptyRunError, ValueError) as exc:
+            print(
+                json.dumps(
+                    {
+                        "level": "error",
+                        "event": "form_factor_invalid",
+                        "message": str(exc),
+                        "run_id": run_id,
+                    }
+                ),
+                file=sys.stderr,
+            )
+            return EXIT_LOGIC
 
     # Halt-due-to-flakiness is a verdict per ADR-058 amendment 3. Emit
     # the report (with `recommendation="halt-due-to-flakiness"`) before
@@ -924,6 +947,7 @@ def _generate_report(
         fixture_set_sha=_fixture_set_sha(fixture_paths),
         wall_clock_seconds=wall_clock_seconds,
         recommendation="halt-due-to-flakiness" if halt else None,
+        form_factor=form_factor,
     )
     if halt:
         print(
@@ -1029,6 +1053,13 @@ def main(argv: list[str] | None = None) -> int:
     except (ValueError, UnsupportedModelError) as exc:
         print(f"plan error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
+
+    if include_skill:
+        try:
+            _read_skill_prompt(args.agent, args.skill_path)
+        except FileNotFoundError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_CONFIG
 
     if args.dry_run:
         _print_plan(PlanRunner.format_plan_lines(plan))

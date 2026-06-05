@@ -48,6 +48,7 @@ FLAKY_HALT_SMALL_N_FLOOR = 5
 # REQ-004 AC-10: a fixture is flaky when its pass rate disagrees on >=2 of
 # 5 contingency reps for the same (prompt_sha, fixture_set_sha).
 CONTINGENCY_PERSISTENT_THRESHOLD = 2
+HEADLINE_VARIANTS = frozenset({"agent", "baseline"})
 
 
 def _flaky_halt_count(fixture_count: int) -> int:
@@ -127,6 +128,42 @@ def _records_by_fixture_variant(
     for record in records:
         grouped.setdefault((record.fixture_id, record.variant), []).append(record)
     return grouped
+
+
+def _filter_records_by_variant(
+    records: Iterable[RunRecord], variants: frozenset[str]
+) -> list[RunRecord]:
+    return [record for record in records if record.variant in variants]
+
+
+def _require_same_fixture_set(
+    grouped: dict[tuple[str, str], list[RunRecord]], variants: set[str]
+) -> list[str]:
+    by_variant = {
+        variant: {fixture_id for fixture_id, record_variant in grouped if record_variant == variant}
+        for variant in variants
+    }
+    missing_variants = sorted(
+        variant for variant, fixture_ids in by_variant.items() if not fixture_ids
+    )
+    if missing_variants:
+        raise ValueError(
+            f"comparison needs records for variants {sorted(variants)}; "
+            f"missing: {missing_variants}"
+        )
+    reference_variant = sorted(variants)[0]
+    reference_ids = by_variant[reference_variant]
+    mismatched = {
+        variant: sorted(fixture_ids.symmetric_difference(reference_ids))
+        for variant, fixture_ids in by_variant.items()
+        if fixture_ids != reference_ids
+    }
+    if mismatched:
+        raise ValueError(
+            "comparison requires the same fixture set for every variant; "
+            f"mismatched fixture ids: {mismatched}"
+        )
+    return sorted(reference_ids)
 
 
 def _per_run_pass_rate(record: RunRecord) -> float:
@@ -345,7 +382,13 @@ class ReportAggregator:
                 "RunRecord. Common cause: every triple was skipped on resume "
                 "with no new work performed."
             )
-        grouped = _records_by_fixture_variant(self._records)
+        headline_records = _filter_records_by_variant(self._records, HEADLINE_VARIANTS)
+        if not headline_records:
+            raise EmptyRunError(
+                "no agent or baseline records to aggregate; v1 metrics require "
+                "at least one headline variant record."
+            )
+        grouped = _records_by_fixture_variant(headline_records)
         per_fixture = _per_fixture_pass_rates(grouped)
         flaky_ids = _detect_flaky_fixtures(per_fixture)
         all_fixture_ids = sorted({fid for fid, _ in grouped.keys()})
@@ -492,6 +535,8 @@ def _form_factor_verdict(
     ci_low, ci_high = agent_skill_ci
     if agent_skill_delta > 0 and ci_low > 0:
         return "prefer-agent-form"
+    if ci_high < 0:
+        return "prefer-skill-form"
     ci_spans_zero = ci_low <= 0 <= ci_high
     if ci_spans_zero and skill_tokens_total < agent_tokens_total:
         return "prefer-skill-form"
@@ -520,7 +565,7 @@ def compute_form_factor(
             f"form-factor comparison needs agent, baseline, and skill "
             f"variants; missing: {sorted(missing)}"
         )
-    fixture_ids = sorted({fid for fid, _ in grouped.keys()})
+    fixture_ids = _require_same_fixture_set(grouped, {"agent", "baseline", "skill"})
 
     agent_recall = _recall_from_grouped(grouped, "agent", fixture_ids=fixture_ids)
     baseline_recall = _recall_from_grouped(
@@ -565,5 +610,4 @@ def compute_form_factor(
         skill_tokens_out=skill_tokens_out,
         verdict=verdict,
     )
-
 

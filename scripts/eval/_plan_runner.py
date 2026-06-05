@@ -24,6 +24,7 @@ VARIANTS: tuple[str, ...] = ("agent", "baseline")
 # report can compute the agent-baseline, skill-baseline, and agent-skill
 # pairwise CIs. Opt in with `--include-skill` on the runner.
 FORM_FACTOR_VARIANTS: tuple[str, ...] = ("agent", "baseline", "skill")
+SUPPORTED_VARIANTS = frozenset(FORM_FACTOR_VARIANTS)
 
 # Token estimation: 70/30 input/output split. Reflects observed v1/v2 spike
 # traces (input ~ system prompt + user message; output ~ short verdict +
@@ -71,6 +72,14 @@ class PlanRunner:
             raise ValueError(f"n_runs must be >= 1, got {n_runs}")
         if not variants:
             raise ValueError("build_plan requires at least one variant")
+        duplicate_variants = sorted(
+            {variant for variant in variants if variants.count(variant) > 1}
+        )
+        if duplicate_variants:
+            raise ValueError(f"duplicate variants are not allowed: {duplicate_variants}")
+        unsupported_variants = sorted(set(variants) - SUPPORTED_VARIANTS)
+        if unsupported_variants:
+            raise ValueError(f"unsupported variant(s): {unsupported_variants}")
 
         planned_calls = len(fixtures) * len(variants) * n_runs
         tokens_in, tokens_out = _estimate_tokens(planned_calls)
