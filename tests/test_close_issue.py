@@ -276,6 +276,24 @@ class TestMain:
         assert env["Error"]["Code"] == 2
         assert env["Error"]["Type"] == "NotFound"
 
+    def test_issue_state_auth_failure_exits_4(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stderr="not logged in", rc=1),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "401"])
+            assert exc.value.code == 4
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Code"] == 4
+        assert env["Error"]["Type"] == "AuthError"
+
     def test_invalid_utf8_comment_file_exits_2(self, tmp_path, capsys, monkeypatch):
         comment_path = tmp_path / "body.md"
         comment_path.write_bytes(b"\xff\xfe")
@@ -335,6 +353,27 @@ class TestMain:
         assert env["Success"] is False
         assert env["Error"]["Code"] == 3
 
+    def test_comment_post_auth_failure_exits_4(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_open(),
+                _completed(stderr="HTTP 401: requires authentication", rc=1),
+            ],
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "14", "--comment", "note"])
+            assert exc.value.code == 4
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Code"] == 4
+        assert env["Error"]["Type"] == "AuthError"
+
     def test_whitespace_only_comment_is_not_posted(self, capsys):
         with patch(
             "close_issue.assert_gh_authenticated",
@@ -350,6 +389,26 @@ class TestMain:
         # No comment POST; only state check and close call.
         assert mock_run.call_count == 2
         assert _envelope(capsys)["Data"]["commented"] is False
+
+    def test_close_auth_failure_returns_4(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_open(),
+                _completed(stderr="Bad credentials", rc=1),
+            ],
+        ):
+            rc = main(["--issue", "17"])
+        assert rc == 4
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Code"] == 4
+        assert env["Error"]["Type"] == "AuthError"
 
     def test_already_closed_skips_comment_and_close(self, capsys):
         with patch(

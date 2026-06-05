@@ -52,6 +52,14 @@ from github_core.output import (  # noqa: E402
 # gh issue close --reason accepts exactly these two values. "not planned" is the
 # spelling gh expects (with a space), so we pass the value through verbatim.
 _VALID_REASONS = ("completed", "not planned")
+_AUTH_ERROR_MARKERS = (
+    "auth",
+    "credential",
+    "not logged in",
+    "bad credentials",
+    "could not authenticate",
+    "requires authentication",
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -142,6 +150,34 @@ def _resolve_comment(comment: str, comment_file: str, fmt: str) -> str:
     return comment
 
 
+def _is_auth_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(marker in lowered for marker in _AUTH_ERROR_MARKERS)
+
+
+def _write_subprocess_error(
+    message: str, issue: int, fmt: str, *, not_found: bool = False
+) -> int:
+    if not_found:
+        code = 2
+        error_type = "NotFound"
+    elif _is_auth_error(message):
+        code = 4
+        error_type = "AuthError"
+    else:
+        code = 3
+        error_type = "ApiError"
+    write_skill_error(
+        message,
+        code,
+        error_type=error_type,
+        output_format=fmt,
+        script_name="close_issue.py",
+        extra={"issue": issue},
+    )
+    return code
+
+
 def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
     """Return the issue state from GitHub, lowercased."""
     result = subprocess.run(
@@ -157,25 +193,16 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
     )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        if "Could not resolve" in error_str or "not found" in error_str.lower():
-            write_skill_error(
-                f"Issue #{issue} not found in {owner}/{repo}: {error_str}",
-                2,
-                error_type="NotFound",
-                output_format=fmt,
-                script_name="close_issue.py",
-                extra={"issue": issue},
-            )
-            raise SystemExit(2)
-        write_skill_error(
+        code = _write_subprocess_error(
             f"Failed to get issue #{issue}: {error_str}",
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name="close_issue.py",
-            extra={"issue": issue},
+            issue,
+            fmt,
+            not_found=(
+                "Could not resolve" in error_str
+                or "not found" in error_str.lower()
+            ),
         )
-        raise SystemExit(3)
+        raise SystemExit(code)
     try:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
@@ -209,15 +236,12 @@ def _post_comment(owner: str, repo: str, issue: int, body: str, fmt: str) -> Non
     )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        write_skill_error(
+        code = _write_subprocess_error(
             f"Failed to post closing comment: {error_str}",
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name="close_issue.py",
-            extra={"issue": issue},
+            issue,
+            fmt,
         )
-        raise SystemExit(3)
+        raise SystemExit(code)
 
 
 def _close_issue(owner: str, repo: str, issue: int, reason: str) -> subprocess.CompletedProcess[str]:
@@ -272,15 +296,12 @@ def main(argv: list[str] | None = None) -> int:
     result = _close_issue(owner, repo, issue, args.reason)
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        write_skill_error(
+        code = _write_subprocess_error(
             f"Failed to close issue #{issue}: {error_str}",
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name="close_issue.py",
-            extra={"issue": issue},
+            issue,
+            fmt,
         )
-        return 3
+        return code
 
     data = {
         "issue": issue,
