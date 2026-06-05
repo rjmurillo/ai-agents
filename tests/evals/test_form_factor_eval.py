@@ -15,6 +15,7 @@ No live API calls. All inputs are constructed RunRecords.
 from __future__ import annotations
 
 import importlib.util
+import json
 import random
 import sys
 from pathlib import Path
@@ -220,6 +221,21 @@ class TestSkillPathArg:
         with pytest.raises(argparse.ArgumentTypeError):
             cli_mod._skill_path_arg("scripts/eval/eval-agent-vs-baseline.py")
 
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "/repo/.claude/skills/security-review/SKILL.md",
+            ".claude/skills/security-review/SKILL.md\x00",
+            ".claude/skills/security-review/SKILL.md\n",
+            ".claude/skills/security-review/SKILL.md\t",
+        ],
+    )
+    def test_hostile_path_inputs_rejected(self, value):
+        import argparse
+
+        with pytest.raises(argparse.ArgumentTypeError):
+            cli_mod._skill_path_arg(value)
+
 
 # ---------------------------------------------------------------------------
 # PlanRunner: three-variant plan
@@ -254,6 +270,22 @@ class TestThreeVariantPlan:
                 fixtures=[_fixture("F001")],
                 model_id="claude-sonnet-4-6",
                 variants=(),
+            )
+
+    def test_duplicate_variants_raise(self):
+        with pytest.raises(ValueError, match="duplicate"):
+            PlanRunner.build_plan(
+                fixtures=[_fixture("F001")],
+                model_id="claude-sonnet-4-6",
+                variants=("agent", "agent"),
+            )
+
+    def test_unknown_variant_raises(self):
+        with pytest.raises(ValueError, match="unsupported variant"):
+            PlanRunner.build_plan(
+                fixtures=[_fixture("F001")],
+                model_id="claude-sonnet-4-6",
+                variants=("agent", "baseline", "bogus"),
             )
 
 
@@ -326,6 +358,21 @@ class TestComputeFormFactor:
         agent_total = result.agent_tokens_in + result.agent_tokens_out
         assert skill_total < agent_total
 
+    def test_prefer_skill_form_when_skill_beats_agent_with_ci_below_zero(self):
+        records = _three_variant_records(
+            ["F001", "F002", "F003"],
+            agent_passed=False,
+            baseline_passed=False,
+            skill_passed=True,
+            agent_tokens=(100, 50),
+            skill_tokens=(150, 75),
+        )
+
+        result = compute_form_factor(records, iterations=200, rng=random.Random(7))
+
+        assert result.verdict == "prefer-skill-form"
+        assert result.agent_skill_ci[1] < 0
+
     def test_inconclusive_when_equal_recall_and_equal_cost(self):
         # Identical recall AND identical cost: no cost reason to prefer either.
         records = _three_variant_records(
@@ -362,6 +409,94 @@ class TestComputeFormFactor:
         with pytest.raises(ValueError, match="missing"):
             compute_form_factor(records)
 
+    def test_missing_variant_for_one_fixture_raises(self):
+        records = [
+            _record("F001", "agent", 0, passed=True),
+            _record("F001", "baseline", 0, passed=False),
+            _record("F001", "skill", 0, passed=True),
+            _record("F002", "agent", 0, passed=True),
+            _record("F002", "baseline", 0, passed=False),
+        ]
+
+        with pytest.raises(ValueError, match="same fixture set"):
+            compute_form_factor(records)
+
     def test_empty_records_raises(self):
         with pytest.raises(EmptyRunError):
             compute_form_factor([])
+
+
+class TestReportWriterFormFactor:
+    def test_write_includes_form_factor_payload_and_markdown(self, tmp_path):
+        records = _three_variant_records(
+            ["F001", "F002", "F003"],
+            agent_passed=True,
+            baseline_passed=False,
+            skill_passed=True,
+            agent_tokens=(200, 100),
+            skill_tokens=(100, 50),
+        )
+        aggregate = aggregator_mod.ReportAggregator(
+            [record for record in records if record.variant != "skill"],
+            model_id="claude-sonnet-4-6",
+            bootstrap_iterations=200,
+        ).aggregate()
+        form_factor = compute_form_factor(records, iterations=200, rng=random.Random(11))
+
+        json_path, md_path = writer_mod.ReportWriter(tmp_path / "reports").write(
+            aggregate=aggregate,
+            run_id="r1",
+            model_id="claude-sonnet-4-6",
+            agent_prompt_sha="a" * 64,
+            baseline_prompt_sha="b" * 64,
+            fixture_set_sha="c" * 64,
+            wall_clock_seconds=10.0,
+            form_factor=form_factor,
+        )
+
+        payload = json.loads(json_path.read_text(encoding="utf-8"))
+        assert payload["form_factor"]["verdict"] == "prefer-skill-form"
+        assert "agent_skill_ci_95" in payload["form_factor"]
+        assert "skill_baseline_ci_95" in payload["form_factor"]
+        assert "## Form-Factor Comparison" in md_path.read_text(encoding="utf-8")
+
+
+class TestDryRunSkillValidation:
+    def test_include_skill_dry_run_checks_skill_file(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        fixtures_dir = tmp_path / "fixtures"
+        fixtures_dir.mkdir()
+        fixture = Fixture(
+            id="F001",
+            input="Review this code.",
+            provenance="synthetic",
+            assertions=[Assertion(kind=AssertionKind.VERDICT, expected_value="IDENTIFY")],
+        )
+        (fixtures_dir / "F001.json").write_text(
+            json.dumps(
+                {
+                    "schemaVersion": fixture.schema_version,
+                    "id": fixture.id,
+                    "input": fixture.input,
+                    "provenance": fixture.provenance,
+                    "assertions": [
+                        {"kind": "verdict", "expected_value": "IDENTIFY"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cli_mod.main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--dry-run",
+                "--include-skill",
+            ]
+        )
+
+        assert rc == cli_mod.EXIT_CONFIG
+        assert "skill prompt not found" in capsys.readouterr().err
