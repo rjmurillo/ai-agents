@@ -240,6 +240,22 @@ def test_artifact_root_base_anchors_under_base_not_cwd(
     assert not (cwd_dir / ".agents" / "sessions").exists()
 
 
+def test_artifact_root_relative_base_anchors_under_resolved_base(
+    paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_dir = tmp_path / "repo"
+    work_dir = tmp_path / "work"
+    repo_dir.mkdir()
+    work_dir.mkdir()
+    monkeypatch.chdir(work_dir)
+
+    result = paths.resolve_artifact_root("sessions", base="../repo")
+
+    assert result == (repo_dir / ".agents" / "sessions").resolve()
+    assert result.is_dir()
+    assert not (work_dir / ".agents" / "sessions").exists()
+
+
 def test_artifact_root_env_override_beats_base(
     paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

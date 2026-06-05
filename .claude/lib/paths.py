@@ -175,11 +175,11 @@ def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) ->
 
     override = os.environ.get("AI_AGENTS_ARTIFACT_ROOT")
     if override and override.strip():
-        root = Path(override).expanduser()
+        root = Path(override).expanduser().resolve()
     elif base is not None:
-        root = Path(base).expanduser() / ".agents"
+        root = Path(base).expanduser().resolve() / ".agents"
     else:
-        root = Path.cwd() / ".agents"
+        root = Path.cwd().resolve() / ".agents"
 
     target = (root / sub).resolve()
     target.mkdir(parents=True, exist_ok=True)
