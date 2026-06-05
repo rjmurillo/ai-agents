@@ -15,10 +15,8 @@ items, learning scores) so the human-or-agent does not start from a blank file.
 Two write modes:
   * New artifact: writes ``.agents/retrospective/YYYY-MM-DD-[scope].md``.
   * Fill skeleton: when ``--fill`` targets an existing
-    ``YYYY-MM-DD-auto-retro.md`` skeleton, the artifact is written next to it as
-    a filled retrospective and the skeleton's UNFILLED banner is the signal it
-    replaces. The script never deletes the skeleton; it writes the filled file
-    and leaves removal to the caller.
+    ``YYYY-MM-DD-auto-retro.md`` skeleton, the artifact overwrites that skeleton
+    and removes the UNFILLED banner by replacement.
 
 System of record: the session log is the SoR; this artifact is a derived record
 of the retrospective. The script only reads evidence and writes one artifact.
@@ -313,15 +311,12 @@ def _resolve_output_path(
     if fill:
         skeleton = Path(fill)
         if not skeleton.is_absolute():
-            skeleton = (project_dir or retro_dir) / skeleton
-        if project_dir is not None:
-            skeleton = _require_project_output_path(skeleton, project_dir)
+            base_dir = retro_dir if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") else (project_dir or retro_dir)
+            skeleton = base_dir / skeleton
+        skeleton = _require_fill_path(skeleton, project_dir, retro_dir)
         if not skeleton.is_file():
             raise ValueError(f"fill skeleton not found: {fill}")
-        stem = skeleton.stem.replace("-auto-retro", "")
-        if not stem:
-            stem = today
-        return skeleton.with_name(f"{stem}-retro-filled.md")
+        return skeleton
     safe_scope = scope.strip().replace(" ", "-").replace("/", "-")
     return retro_dir / f"{today}-{safe_scope}.md"
 
@@ -332,6 +327,18 @@ def _require_project_output_path(path: Path, project_dir: Path) -> Path:
     resolved_path = path.resolve()
     if not resolved_path.is_relative_to(resolved_project):
         raise ValueError(f"output path escapes project dir: {path}")
+    return resolved_path
+
+
+def _require_fill_path(path: Path, project_dir: Path | None, retro_dir: Path) -> Path:
+    """Return a fill path after validating its allowed root."""
+    root = retro_dir if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") else project_dir
+    if root is None:
+        return path.resolve()
+    resolved_root = root.resolve()
+    resolved_path = path.resolve()
+    if not resolved_path.is_relative_to(resolved_root):
+        raise ValueError(f"fill path escapes allowed root: {path}")
     return resolved_path
 
 
@@ -365,7 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--fill",
         default=None,
-        help="Path to an existing auto-retro skeleton to fill (writes alongside it).",
+        help="Path to an existing auto-retro skeleton to overwrite with filled content.",
     )
     parser.add_argument(
         "--output",
@@ -405,9 +412,9 @@ def main(argv: list[str] | None = None) -> int:
             output_path = Path(args.output)
             if not output_path.is_absolute():
                 output_path = project_dir / output_path
+            output_path = _require_project_output_path(output_path, project_dir)
         else:
             output_path = _resolve_output_path(retro_dir, args.scope, today, args.fill, project_dir)
-        output_path = _require_project_output_path(output_path, project_dir)
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

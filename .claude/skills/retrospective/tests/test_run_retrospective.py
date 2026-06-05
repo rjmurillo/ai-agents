@@ -201,7 +201,7 @@ def test_scope_date_controls_artifact_date_and_prefix(tmp_path):
     assert "- **Date**: 2026-06-03" in content
 
 
-def test_fill_mode_writes_alongside_skeleton(tmp_path):
+def test_fill_mode_overwrites_skeleton(tmp_path):
     # Arrange: an existing auto-retro skeleton the Stop hook would have produced.
     retro_dir = tmp_path / ("." + "agents") / "retrospective"
     retro_dir.mkdir(parents=True)
@@ -216,12 +216,13 @@ def test_fill_mode_writes_alongside_skeleton(tmp_path):
         "--fill", str(skeleton),
     ])
 
-    # Assert: filled file written alongside, skeleton untouched.
+    # Assert: filled content replaces the skeleton per SKILL.md.
     assert rc == 0
-    filled = retro_dir / "2026-06-03-retro-filled.md"
-    assert filled.is_file()
-    assert skeleton.is_file()  # never deleted by the script
-    assert "UNFILLED SKELETON" in skeleton.read_text(encoding="utf-8")
+    assert skeleton.is_file()
+    content = skeleton.read_text(encoding="utf-8")
+    assert "UNFILLED SKELETON" not in content
+    assert "## Phase 0: Data Gathering" in content
+    assert not (retro_dir / "2026-06-03-retro-filled.md").exists()
 
 
 def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
@@ -241,7 +242,8 @@ def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
 
     # Assert
     assert rc == 0
-    assert (retro_dir / "2026-06-03-retro-filled.md").is_file()
+    assert skeleton.is_file()
+    assert "## Phase 0: Data Gathering" in skeleton.read_text(encoding="utf-8")
 
 
 def test_fill_mode_rejects_missing_skeleton(tmp_path):
@@ -257,7 +259,7 @@ def test_fill_mode_rejects_missing_skeleton(tmp_path):
 
     # Assert
     assert rc == 2
-    assert not (tmp_path / ("." + "agents") / "retrospective" / "missing-retro-filled.md").exists()
+    assert not (tmp_path / ("." + "agents") / "retrospective" / "missing-auto-retro.md").exists()
 
 
 def test_integration_subprocess_writes_file(tmp_path):
@@ -353,6 +355,20 @@ def test_cli_output_override_writes_to_explicit_path(tmp_path):
     assert target.is_file()
 
 
+def test_cli_allows_artifact_root_override_outside_project(tmp_path, monkeypatch):
+    # Arrange: packaged consumers can redirect generated artifacts outside cwd.
+    artifact_root = tmp_path.parent / "artifact-root"
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
+
+    # Act
+    rc = main(["--project-dir", str(tmp_path), "--scope", "2026-06-03"])
+
+    # Assert
+    assert rc == 0
+    written = artifact_root / "retrospective" / "2026-06-03-2026-06-03.md"
+    assert written.is_file()
+
+
 def test_cli_rejects_output_override_outside_project(tmp_path):
     # Arrange
     _write_session(tmp_path, {"workLog": ["work"]})
@@ -402,7 +418,7 @@ def test_cli_rejects_fill_path_outside_project(tmp_path):
 
     # Assert
     assert rc == 2
-    assert not (tmp_path.parent / "2026-06-03-retro-filled.md").exists()
+    assert outside.read_text(encoding="utf-8") == "# Retrospective\n"
 
 
 def test_resolve_fill_rejects_escape_before_existence_probe(tmp_path, monkeypatch):
@@ -426,7 +442,7 @@ def test_resolve_fill_rejects_escape_before_existence_probe(tmp_path, monkeypatc
             tmp_path,
         )
     except ValueError as exc:
-        assert "escapes project dir" in str(exc)
+        assert "escapes allowed root" in str(exc)
     else:
         raise AssertionError("expected escaped fill path to be rejected")
 
@@ -448,7 +464,7 @@ def test_resolve_output_path_for_fill_strips_auto_retro_suffix(tmp_path):
     path = _resolve_output_path(tmp_path, "2026-06-03", "2026-06-03", str(skeleton))
 
     # Assert
-    assert path.name == "2026-06-03-retro-filled.md"
+    assert path.name == "2026-06-03-auto-retro.md"
 
 
 # --- Guard: the canonical template still has the headings we mirror ---------
