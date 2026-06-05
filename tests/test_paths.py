@@ -222,6 +222,41 @@ def test_artifact_root_creates_nested_subdir(
     assert result.is_dir()
 
 
+def test_artifact_root_base_anchors_under_base_not_cwd(
+    paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # cwd is a different directory; base must win over cwd.
+    cwd_dir = tmp_path / "cwd"
+    base_dir = tmp_path / "repo"
+    cwd_dir.mkdir()
+    base_dir.mkdir()
+    monkeypatch.chdir(cwd_dir)
+
+    result = paths.resolve_artifact_root("sessions", base=base_dir)
+
+    assert result == (base_dir / ".agents" / "sessions").resolve()
+    assert result.is_dir()
+    # The cwd default location must NOT be created when base is supplied.
+    assert not (cwd_dir / ".agents" / "sessions").exists()
+
+
+def test_artifact_root_env_override_beats_base(
+    paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    override = tmp_path / "custom_root"
+    base_dir = tmp_path / "repo"
+    base_dir.mkdir()
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(override))
+    monkeypatch.chdir(tmp_path)
+
+    result = paths.resolve_artifact_root("sessions", base=base_dir)
+
+    assert result == (override / "sessions").resolve()
+    assert result.is_dir()
+    # base location must NOT be used when the override is set.
+    assert not (base_dir / ".agents" / "sessions").exists()
+
+
 def test_artifact_root_env_override(paths, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     override = tmp_path / "custom_root"
     monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(override))
