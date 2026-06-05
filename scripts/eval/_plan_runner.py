@@ -7,16 +7,26 @@ constants from the same owner.
 
 from __future__ import annotations
 
-from _eval_agent_types import ExecutionPlan, Fixture
+from typing import cast
+
+from _eval_agent_types import ExecutionPlan, Fixture, VariantLiteral
 from _eval_common import (
     EST_TOKENS_PER_CALL,
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
     PRICING_RATE_AS_OF,
 )
 
-# Variants are constant for the spike: one agent prompt vs. one baseline
-# prompt. Held in a tuple to make the structure obvious at the call site.
+# Default variants for the v1 spike (ADR-058): one agent prompt vs. one
+# baseline prompt. Held in a tuple to make the structure obvious at the call
+# site. The form-factor v2 spike (Issue #1875) opts into the third `skill`
+# variant via FORM_FACTOR_VARIANTS; the default stays two-wide so the v1
+# cost plan and its locked dry-run output do not move.
 VARIANTS: tuple[str, ...] = ("agent", "baseline")
+# Issue #1875: the v2 form-factor spike compares all three variants so the
+# report can compute the agent-baseline, skill-baseline, and agent-skill
+# pairwise CIs. Opt in with `--include-skill` on the runner.
+FORM_FACTOR_VARIANTS: tuple[str, ...] = ("agent", "baseline", "skill")
+SUPPORTED_VARIANTS = frozenset(FORM_FACTOR_VARIANTS)
 
 # Token estimation: 70/30 input/output split. Reflects observed v1/v2 spike
 # traces (input ~ system prompt + user message; output ~ short verdict +
@@ -56,19 +66,31 @@ class PlanRunner:
         fixtures: list[Fixture],
         model_id: str,
         n_runs: int = 3,
+        variants: tuple[str, ...] = VARIANTS,
     ) -> ExecutionPlan:
         if not fixtures:
             raise ValueError("build_plan requires at least one fixture")
         if n_runs < 1:
             raise ValueError(f"n_runs must be >= 1, got {n_runs}")
+        if not variants:
+            raise ValueError("build_plan requires at least one variant")
+        duplicate_variants = sorted(
+            {variant for variant in variants if variants.count(variant) > 1}
+        )
+        if duplicate_variants:
+            raise ValueError(f"duplicate variants are not allowed: {duplicate_variants}")
+        unsupported_variants = sorted(set(variants) - SUPPORTED_VARIANTS)
+        if unsupported_variants:
+            raise ValueError(f"unsupported variant(s): {unsupported_variants}")
+        validated_variants = tuple(cast(VariantLiteral, variant) for variant in variants)
 
-        planned_calls = len(fixtures) * len(VARIANTS) * n_runs
+        planned_calls = len(fixtures) * len(variants) * n_runs
         tokens_in, tokens_out = _estimate_tokens(planned_calls)
         cost_usd = _estimate_cost_usd(model_id, tokens_in, tokens_out)
 
         return ExecutionPlan(
             fixtures=fixtures,
-            variants=VARIANTS,  # type: ignore[arg-type]
+            variants=validated_variants,
             n_runs=n_runs,
             model_id=model_id,
             planned_calls=planned_calls,

@@ -1,0 +1,97 @@
+{
+  "_comment": "Issue #1949 (M4): pairwise overlap eval on the two INVESTIGATE-tier pairs from the M1 triage. Pair 1: curating-memories x memory-enhancement (both maintain memory quality, content vs metadata facet). Pair 2: exploring-knowledge-graph x memory Tier-1 (both answer 'what do you know about X', graph traversal vs semantic search). Prompts are the per-skill native prompts derived from each SKILL.md. Run live with: python3 scripts/eval/eval-skill-overlap.py --pairs scripts/eval/examples/overlap-pairs-issue-1949.json",
+  "pairs": [
+    ["curating-memories", "memory-enhancement"],
+    ["exploring-knowledge-graph", "memory"]
+  ],
+  "prompts": {
+    "curating-memories": [
+      {
+        "prompt": "A memory entry's summary contradicts the ADR it cites. Which one wins and what do I do with the entry?",
+        "expected": "The source ADR wins; the memory summary is a stale projection. Rebuild or invalidate the entry's content from the source. Do not edit the ADR to match the memory.",
+        "owner": "curating-memories"
+      },
+      {
+        "prompt": "When should I merge two near-duplicate memory entries versus keep them separate?",
+        "expected": "Merge when they encode the same knowledge (true duplication). Keep separate when the similarity is coincidental or the distinction is load-bearing. Preserve the higher-confidence observations on merge.",
+        "owner": "curating-memories"
+      },
+      {
+        "prompt": "New information supersedes an old memory. Should I delete the old entry or mark it obsolete, and how do I link them?",
+        "expected": "Mark the old entry obsolete rather than delete it, then link it to the superseding entry so the graph preserves the supersession trail. Deletion loses the provenance of why the change happened.",
+        "owner": "curating-memories"
+      },
+      {
+        "prompt": "How do I keep the memory knowledge graph connected when I add a new decision entry?",
+        "expected": "Link the new entry to the entities and prior decisions it touches so traversal can reach it. An entry with no relations is an island the graph walk cannot find.",
+        "owner": "curating-memories"
+      }
+    ],
+    "memory-enhancement": [
+      {
+        "prompt": "My memory entries have stale confidence scores after a refactor. How do I reinforce the ones still cited and decay the orphaned ones?",
+        "expected": "Run the reinforcement pass: bump confidence and freshness for entries cited by current artifacts, decay or flag entries whose citations no longer resolve. Operational metadata is its own system of record.",
+        "owner": "memory-enhancement"
+      },
+      {
+        "prompt": "How should citation-validity flags on a memory entry be updated when the source file moves?",
+        "expected": "Re-resolve the citation against the new path, mark the flag valid if the content still matches, invalid if the source is gone. Use an idempotency key so retries do not double-count.",
+        "owner": "memory-enhancement"
+      },
+      {
+        "prompt": "I want to add supporting citations to an existing memory without rewriting its summary. What is the right operation?",
+        "expected": "Attach the citations as new references on the existing entry and update its freshness timestamp. The summary content stays; only the operational metadata and link set grow.",
+        "owner": "memory-enhancement"
+      },
+      {
+        "prompt": "How do reinforcement updates avoid double-counting when the enhancement pass runs twice on the same entry?",
+        "expected": "Each update carries an idempotency key (entry id plus timestamp) so a replayed pass is a no-op. Confidence and link counts are at-least-once signals that must not accumulate on retry.",
+        "owner": "memory-enhancement"
+      }
+    ],
+    "exploring-knowledge-graph": [
+      {
+        "prompt": "I need to find every memory entry related to a decision three hops away from a given symbol. How do I traverse the graph?",
+        "expected": "Use graph traversal from the symbol node, following relation edges up to the hop limit, reading observations at each node. Semantic search seeds the entry point; relations carry the traversal.",
+        "owner": "exploring-knowledge-graph"
+      },
+      {
+        "prompt": "What is the difference between a semantic search over memories and a relation-based graph walk?",
+        "expected": "Semantic search ranks entries by similarity to a query string. A graph walk follows explicit relation edges between entities, preserving causal and structural links that similarity alone misses.",
+        "owner": "exploring-knowledge-graph"
+      },
+      {
+        "prompt": "How are these two concepts connected across the knowledge graph when no single memory mentions both?",
+        "expected": "Traverse from each concept's entity node and look for an intersecting node or a path of relation edges. The connection lives in the edges between entities, not in any one memory's text.",
+        "owner": "exploring-knowledge-graph"
+      },
+      {
+        "prompt": "Give me comprehensive context on a topic before I plan: I want the full multi-hop neighborhood, not just the top hits.",
+        "expected": "Run a deep multi-phase exploration: seed with semantic search, then expand outward along entity relations across several hops, collecting observations at each node to assemble the full neighborhood.",
+        "owner": "exploring-knowledge-graph"
+      }
+    ],
+    "memory": [
+      {
+        "prompt": "What do we know about git hooks? Search memory for the relevant prior context.",
+        "expected": "Run a Tier-1 semantic search over Serena and Forgetful for 'git hooks' and return the ranked matching memory entries. This is a direct similarity lookup, not a graph traversal.",
+        "owner": "memory"
+      },
+      {
+        "prompt": "Recall prior context on the session protocol. Which memory operation should I use?",
+        "expected": "Use the memory skill's Tier-1 semantic search to retrieve entries matching 'session protocol'. For a flat recall query, semantic search is the right tier; deeper traversal is only needed when relations matter.",
+        "owner": "memory"
+      },
+      {
+        "prompt": "How do I check that the memory system is healthy before relying on a search?",
+        "expected": "Run the memory health check script. It verifies the Serena and Forgetful backends are reachable so a later search does not silently return empty due to a down dependency.",
+        "owner": "memory"
+      },
+      {
+        "prompt": "I need to replay what happened in a past session. Which memory tier covers that?",
+        "expected": "Tier 2 (episodic) replay covers session history; Tier 1 semantic search covers 'what do we know about X'. Pick the tier by whether you want a recorded session or a similarity match.",
+        "owner": "memory"
+      }
+    ]
+  }
+}
