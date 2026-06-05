@@ -119,7 +119,23 @@ def get_language(file_path: str) -> str | None:
         ".bash": "bash",
         ".cs": "csharp",
     }
-    return language_map.get(ext)
+    if ext in language_map:
+        return language_map[ext]
+    if ext:
+        return None
+    return _get_shebang_language(file_path)
+
+
+def _get_shebang_language(file_path: str) -> str | None:
+    """Detect supported extensionless scripts from their shebang."""
+    try:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
+            first_line = f.readline().strip().lower()
+    except OSError:
+        return None
+    if first_line.startswith("#!") and "bash" in first_line:
+        return "bash"
+    return None
 
 
 def get_staged_files() -> list[str]:
@@ -146,8 +162,10 @@ def get_directory_files(directory: str) -> list[str]:
     files = []
     for root, _, filenames in os.walk(directory):
         for filename in filenames:
-            if Path(filename).suffix.lower() in supported_extensions:
-                files.append(os.path.join(root, filename))
+            file_path = os.path.join(root, filename)
+            suffix = Path(filename).suffix.lower()
+            if suffix in supported_extensions or get_language(file_path) is not None:
+                files.append(file_path)
     return files
 
 
@@ -250,7 +268,7 @@ def format_json_output(result: ScanResult) -> str:
             "total": len(result.vulnerabilities),
             "by_cwe": by_cwe,
             "by_severity": by_severity,
-            # Delegated CWE classes — this scanner does not detect them; the named
+            # Delegated CWE classes: this scanner does not detect them; the named
             # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
             # this scanner means "not detected here", NOT "no findings"; use the
             # delegated detector's report for authoritative coverage. Each entry
@@ -264,14 +282,23 @@ def format_json_output(result: ScanResult) -> str:
                 },
             },
         },
-        "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
+        "exit_code": _exit_code_for_result(result),
     }
 
     return json.dumps(output, indent=2)
 
 
-def main() -> None:
-    """Main entry point."""
+def _exit_code_for_result(result: ScanResult) -> int:
+    """Return the public CLI exit code for the aggregate scan result."""
+    if result.errors:
+        return EXIT_ERROR
+    if result.vulnerabilities:
+        return EXIT_VULNERABILITIES
+    return EXIT_SUCCESS
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the command-line parser."""
     parser = argparse.ArgumentParser(
         description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
                     "detection is delegated to CodeQL in CI; see module docstring.",
@@ -323,22 +350,15 @@ def main() -> None:
         "-o",
         help="Output file (default: stdout)",
     )
+    return parser
 
-    args = parser.parse_args()
 
-    # Surface a deprecation-style notice when --cwe 22 is requested. The flag is
-    # accepted for backward compatibility with CI invocations but produces no
-    # findings here; CWE-22 detection is delegated to CodeQL. Without this
-    # warning, a caller could mis-read the silent zero-finding result as a
-    # clean bill of health for path traversal.
-    # Validate --cwe values. The scanner only detects CWE-78; CWE-22 is
-    # accepted for backward compatibility (with a stderr warning) and any
-    # other value is a typo that would otherwise produce a misleading
-    # zero-finding result.
+def _validate_cwe_filter(cwe_filter: list[int] | None) -> None:
+    """Validate requested CWE filters and warn for delegated coverage."""
     supported_cwes = {78}
     delegated_cwes = {22}
-    if args.cwe:
-        unsupported = set(args.cwe) - supported_cwes - delegated_cwes
+    if cwe_filter:
+        unsupported = set(cwe_filter) - supported_cwes - delegated_cwes
         if unsupported:
             print(
                 f"ERROR: --cwe {sorted(unsupported)} not supported by this "
@@ -347,7 +367,7 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(EXIT_ERROR)
-        if 22 in args.cwe:
+        if 22 in cwe_filter:
             print(
                 "WARNING: --cwe 22 selected but CWE-22 detection is delegated to "
                 "CodeQL (see python-security-extended.qls in "
@@ -359,38 +379,34 @@ def main() -> None:
                 file=sys.stderr,
             )
 
-    # Validate input paths to prevent path traversal (CWE-22).
-    #
-    # Use Path.resolve() to follow symlinks AND normalize, then
-    # Path.is_relative_to() for componentwise containment. The earlier
-    # implementation used os.path.abspath + str.startswith, which had two
-    # gaps: (a) abspath does not follow symlinks, so a symlink inside the
-    # cwd could point outside; (b) startswith matches by string prefix, so
-    # `/foo/barevil` would falsely satisfy a check against `/foo/bar`.
-    # is_relative_to is path-component aware and Python 3.10+ stdlib (the
-    # project requires 3.10+ per pyproject.toml).
+
+def _validate_path(raw: str, label: str, allowed_base: Path) -> None:
+    """Reject paths outside the current working directory."""
+    candidate = Path(raw).resolve(strict=False)
+    if not candidate.is_relative_to(allowed_base):
+        raise ValueError(
+            f"Path traversal attempt detected in {label}: {raw}"
+        )
+
+
+def _validate_input_paths(args: argparse.Namespace) -> None:
+    """Validate CLI paths before scanning or writing output."""
     try:
         allowed_base = Path(".").resolve(strict=False)
-
-        def _validate_path(raw: str, label: str) -> None:
-            candidate = Path(raw).resolve(strict=False)
-            if not candidate.is_relative_to(allowed_base):
-                raise ValueError(
-                    f"Path traversal attempt detected in {label}: {raw}"
-                )
-
         if args.directory:
-            _validate_path(args.directory, "--directory")
+            _validate_path(args.directory, "--directory", allowed_base)
         if args.output:
-            _validate_path(args.output, "--output")
+            _validate_path(args.output, "--output", allowed_base)
         if args.files:
             for file in args.files:
-                _validate_path(file, "file")
+                _validate_path(file, "file", allowed_base)
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(EXIT_ERROR)
 
-    # Collect files to scan
+
+def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
+    """Collect explicit, staged, and directory files from CLI arguments."""
     files_to_scan = []
 
     if args.git_staged:
@@ -406,51 +422,78 @@ def main() -> None:
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
 
-    # Deduplicate
-    files_to_scan = list(set(files_to_scan))
+    return list(set(files_to_scan))
 
-    # Filter by supported languages
+
+def _filter_supported_files(files_to_scan: list[str]) -> list[str]:
+    """Keep files whose extension or shebang maps to a scanner language."""
     supported_files = [f for f in files_to_scan if get_language(f) is not None]
 
     if not supported_files:
         print("No supported files found (Python, PowerShell, Bash, C#).")
         sys.exit(EXIT_SUCCESS)
+    return supported_files
 
-    # Scan files
+
+def _scan_supported_files(
+    supported_files: list[str], cwe_filter: list[int] | None
+) -> ScanResult:
+    """Scan supported files and aggregate findings."""
     result = ScanResult()
     result.files_scanned = len(supported_files)
 
     for file_path in supported_files:
-        vulns, suppressed = scan_file(file_path, args.cwe)
+        vulns, messages = scan_file(file_path, cwe_filter)
         result.vulnerabilities.extend(vulns)
-        result.suppressed.extend(suppressed)
+        for message in messages:
+            if message.startswith("Error reading "):
+                result.errors.append(message)
+            else:
+                result.suppressed.append(message)
+    return result
 
-    # Format output
-    if args.format == "json":
+
+def _format_output(
+    result: ScanResult, cwe_filter: list[int] | None, output_format: str
+) -> str:
+    """Format scan results for stdout or file output."""
+    if output_format == "json":
         output = format_json_output(result)
     else:
         output = format_console_output(result)
         # Surface CWE-22 delegation in console output too. The JSON envelope
         # carries `summary.delegated_cwes`, but a console caller running
         # `--cwe 22` should see the delegation in stdout, not just stderr.
-        if args.cwe and 22 in args.cwe:
+        if cwe_filter and 22 in cwe_filter:
             output += (
                 "\n\nCWE-22: delegated to CodeQL "
                 "(see .github/workflows/codeql-analysis.yml)"
             )
+    return output
 
-    # Write output
-    if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
+
+def _write_or_print_output(output: str, output_path: str | None) -> None:
+    """Write output to a requested file or print to stdout."""
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(output)
-        print(f"Results written to {args.output}")
+        print(f"Results written to {output_path}")
     else:
         print(output)
 
-    # Exit code
-    if result.vulnerabilities:
-        sys.exit(EXIT_VULNERABILITIES)
-    sys.exit(EXIT_SUCCESS)
+
+def main() -> None:
+    """Main entry point."""
+    parser = _build_parser()
+    args = parser.parse_args()
+    _validate_cwe_filter(args.cwe)
+    _validate_input_paths(args)
+    files_to_scan = _collect_files_to_scan(args)
+    supported_files = _filter_supported_files(files_to_scan)
+    result = _scan_supported_files(supported_files, args.cwe)
+    output = _format_output(result, args.cwe, args.format)
+    _write_or_print_output(output, args.output)
+    sys.exit(_exit_code_for_result(result))
 
 
 if __name__ == "__main__":
