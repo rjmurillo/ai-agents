@@ -20,11 +20,15 @@ Two policies:
   Returns the first candidate that exists, else None. Read-only: it never
   creates anything.
 
-- `resolve_artifact_root(subdir)` is the WRITE path. Skills write artifacts
-  to a consumer-side location, defaulting to `<cwd>/.agents/<subdir>`. The
-  directory is created lazily (parents=True, exist_ok=True). The root is
-  overridable by the `AI_AGENTS_ARTIFACT_ROOT` environment variable so a
-  consumer can redirect every skill's output to one place.
+- `resolve_artifact_root(subdir, base=None)` is the WRITE path. Skills write
+  artifacts to a consumer-side location, defaulting to `<cwd>/.agents/<subdir>`.
+  The directory is created lazily (parents=True, exist_ok=True). A caller that
+  already knows the repository root (for example a session script that resolved
+  it from git) passes it as `base` so the artifact anchors at
+  `<base>/.agents/<subdir>` instead of the current working directory. The root
+  is overridable by the `AI_AGENTS_ARTIFACT_ROOT` environment variable so a
+  consumer can redirect every skill's output to one place; the override wins
+  over both `base` and the cwd default.
 
 Relationship to existing skills:
   The read path uses a three-location fallback like `/review`, but the
@@ -141,17 +145,22 @@ def resolve_skill_resource(skill: str, relpath: str | Path) -> Path | None:
     return None
 
 
-def resolve_artifact_root(subdir: str | Path) -> Path:
+def resolve_artifact_root(subdir: str | Path, base: str | Path | None = None) -> Path:
     """Resolve and create the write directory for a skill artifact.
 
-    The default root is `<cwd>/.agents`, overridable by the
-    `AI_AGENTS_ARTIFACT_ROOT` environment variable. The returned directory
-    (`<root>/<subdir>`) is created lazily with parents.
+    The default root is `<cwd>/.agents`. A caller that already knows the
+    repository root passes it as `base` so the root becomes `<base>/.agents`.
+    Both are overridden by the `AI_AGENTS_ARTIFACT_ROOT` environment variable,
+    which a consumer sets to redirect every skill's output to one place. The
+    returned directory (`<root>/<subdir>`) is created lazily with parents.
 
     Args:
         subdir: Artifact subdirectory under the artifact root (for example
             "analysis" or "metrics"). Must not be absolute or escape the
             root with `..`.
+        base: Optional base directory whose `.agents` subdirectory anchors the
+            artifact root. Defaults to the current working directory. The
+            `AI_AGENTS_ARTIFACT_ROOT` override, when set, takes precedence.
 
     Returns:
         The resolved absolute Path of the created `<root>/<subdir>`.
@@ -167,6 +176,8 @@ def resolve_artifact_root(subdir: str | Path) -> Path:
     override = os.environ.get("AI_AGENTS_ARTIFACT_ROOT")
     if override and override.strip():
         root = Path(override).expanduser()
+    elif base is not None:
+        root = Path(base).expanduser() / ".agents"
     else:
         root = Path.cwd() / ".agents"
 

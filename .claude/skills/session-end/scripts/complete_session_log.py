@@ -21,6 +21,26 @@ import sys
 from datetime import UTC
 from pathlib import Path
 
+
+def _resolve_paths_lib_dir() -> str:
+    """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        return os.path.join(plugin_root, "lib")
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        return os.path.join(workspace, ".claude", "lib")
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
+    )
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from paths import resolve_artifact_root  # noqa: E402
+
 # Sibling-module loader for rework_warning (REQ-010).
 # Loaded lazily inside main() to keep import-time failures from breaking
 # session-end entirely if the sibling is missing or has a syntax error.
@@ -290,8 +310,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = _get_repo_root()
 
-    sessions_dir = os.path.join(repo_root, ".agents", "sessions")
-    os.makedirs(sessions_dir, exist_ok=True)
+    sessions_dir = str(resolve_artifact_root("sessions", base=repo_root))
 
     # Find session log
     session_path = args.session_path
