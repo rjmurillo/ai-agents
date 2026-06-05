@@ -33,6 +33,25 @@ _WORKSPACE = os.environ.get(
 )
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+
+def _resolve_paths_lib_dir() -> str:
+    """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        return os.path.join(plugin_root, "lib")
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        return os.path.join(workspace, ".claude", "lib")
+    return os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
+    )
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from paths import resolve_artifact_root  # noqa: E402
 from session_init.git_helpers import get_git_info  # noqa: E402
 from session_init.template_helpers import get_descriptive_keywords  # noqa: E402
 
@@ -233,8 +252,7 @@ def main(argv: list[str] | None = None) -> int:
 
     repo_root = git_info["repo_root"]
 
-    sessions_dir = os.path.join(repo_root, ".agents", "sessions")
-    os.makedirs(sessions_dir, exist_ok=True)
+    sessions_dir = str(resolve_artifact_root("sessions", base=repo_root))
     current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
 
     # Resolve session number
