@@ -59,7 +59,9 @@ ENV/
 /build/dist/
 /build/build/
 /build/lib/
+/build/lib.*/
 /build/temp/
+/build/temp.*/
 /build/bdist.*/
 /build/audit/
 **/__pycache__/
