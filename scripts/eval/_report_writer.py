@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 
 from _eval_agent_types import SCHEMA_VERSION
-from _report_aggregator import AggregateResult
+from _report_aggregator import AggregateResult, FormFactorComparison
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -67,6 +67,7 @@ def _build_report_json(
     fixture_set_sha: str,
     wall_clock_seconds: float,
     recommendation: str | None = None,
+    form_factor: FormFactorComparison | None = None,
 ) -> dict:
     """Serialize the AggregateResult into the report.json shape.
 
@@ -107,7 +108,38 @@ def _build_report_json(
         "pricing_rate_as_of": aggregate.pricing_rate_as_of,
         "recommendation": recommendation,
     }
+    if form_factor is not None:
+        payload["form_factor"] = _form_factor_payload(form_factor)
     return payload
+
+
+def _form_factor_payload(form_factor: FormFactorComparison) -> dict:
+    return {
+        "schemaVersion": form_factor.schema_version,
+        "agent_recall": round(form_factor.agent_recall, 6),
+        "baseline_recall": round(form_factor.baseline_recall, 6),
+        "skill_recall": round(form_factor.skill_recall, 6),
+        "agent_baseline_delta": round(form_factor.agent_baseline_delta, 6),
+        "skill_baseline_delta": round(form_factor.skill_baseline_delta, 6),
+        "agent_skill_delta": round(form_factor.agent_skill_delta, 6),
+        "agent_baseline_ci_95": [
+            round(form_factor.agent_baseline_ci[0], 6),
+            round(form_factor.agent_baseline_ci[1], 6),
+        ],
+        "skill_baseline_ci_95": [
+            round(form_factor.skill_baseline_ci[0], 6),
+            round(form_factor.skill_baseline_ci[1], 6),
+        ],
+        "agent_skill_ci_95": [
+            round(form_factor.agent_skill_ci[0], 6),
+            round(form_factor.agent_skill_ci[1], 6),
+        ],
+        "agent_tokens_in": form_factor.agent_tokens_in,
+        "agent_tokens_out": form_factor.agent_tokens_out,
+        "skill_tokens_in": form_factor.skill_tokens_in,
+        "skill_tokens_out": form_factor.skill_tokens_out,
+        "verdict": form_factor.verdict,
+    }
 
 
 def _render_summary_table(aggregate: AggregateResult) -> str:
@@ -124,6 +156,26 @@ def _render_summary_table(aggregate: AggregateResult) -> str:
         f"| Recall excluding errors | {_format_pct(aggregate.recall_excluding_errors)} |\n"
         f"| Error count | {aggregate.error_count} |\n"
         f"| Flakiness | {'true' if aggregate.flakiness else 'false'} |\n"
+    )
+
+
+def _render_form_factor_section(form_factor: FormFactorComparison | None) -> str:
+    if form_factor is None:
+        return ""
+    return (
+        "## Form-Factor Comparison\n\n"
+        "| Metric | Value |\n"
+        "|---|---|\n"
+        f"| Agent recall | {_format_pct(form_factor.agent_recall)} |\n"
+        f"| Skill recall | {_format_pct(form_factor.skill_recall)} |\n"
+        f"| Skill - baseline delta | {_format_pp(form_factor.skill_baseline_delta)} |\n"
+        f"| Agent - skill delta | {_format_pp(form_factor.agent_skill_delta)} |\n"
+        f"| Agent - skill 95% bootstrap CI | "
+        f"[{_format_pp(form_factor.agent_skill_ci[0])}, "
+        f"{_format_pp(form_factor.agent_skill_ci[1])}] |\n"
+        f"| Agent tokens | {form_factor.agent_tokens_in + form_factor.agent_tokens_out} |\n"
+        f"| Skill tokens | {form_factor.skill_tokens_in + form_factor.skill_tokens_out} |\n"
+        f"| Verdict | `{form_factor.verdict}` |\n"
     )
 
 
@@ -252,6 +304,7 @@ def _render_markdown(
     fixture_set_sha: str,
     wall_clock_seconds: float,
     recommendation: str | None = None,
+    form_factor: FormFactorComparison | None = None,
 ) -> str:
     """Compose REPORT.md in stepdown order: header → summary → details."""
     header = (
@@ -264,6 +317,7 @@ def _render_markdown(
     sections = [
         header,
         _render_summary_table(aggregate),
+        _render_form_factor_section(form_factor),
         _render_per_fixture_section(aggregate),
         _render_ci_section(aggregate),
         _render_recommendation_section(recommendation),
@@ -290,6 +344,7 @@ class ReportWriter:
         fixture_set_sha: str,
         wall_clock_seconds: float,
         recommendation: str | None = None,
+        form_factor: FormFactorComparison | None = None,
     ) -> tuple[Path, Path]:
         """Render both files. Returns (json_path, markdown_path)."""
         run_reports_dir = self._reports_dir / run_id
@@ -302,6 +357,7 @@ class ReportWriter:
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
+            form_factor=form_factor,
         )
         report_md = _render_markdown(
             aggregate=aggregate,
@@ -312,6 +368,7 @@ class ReportWriter:
             fixture_set_sha=fixture_set_sha,
             wall_clock_seconds=wall_clock_seconds,
             recommendation=recommendation,
+            form_factor=form_factor,
         )
         json_path = run_reports_dir / "report.json"
         md_path = run_reports_dir / "REPORT.md"
