@@ -182,7 +182,7 @@ class TestMain:
     def test_comment_from_file(self, tmp_path, capsys, monkeypatch):
         comment_path = tmp_path / "body.md"
         comment_path.write_text("Closing per triage.", encoding="utf-8")
-        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
         with patch(
             "close_issue.assert_gh_authenticated",
         ), patch(
@@ -225,7 +225,7 @@ class TestMain:
         work.mkdir()
         outside = tmp_path / "outside.md"
         outside.write_text("secret", encoding="utf-8")
-        monkeypatch.chdir(work)
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
         with patch(
             "close_issue.assert_gh_authenticated",
         ), patch(
@@ -242,6 +242,21 @@ class TestMain:
         env = _envelope(capsys)
         assert env["Success"] is False
         assert env["Error"]["Type"] == "InvalidParams"
+
+    def test_comment_base_uses_repo_root_when_workspace_missing(self, tmp_path, monkeypatch):
+        nested = tmp_path / "nested"
+        nested.mkdir()
+        monkeypatch.chdir(nested)
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+
+        assert _mod._comment_base_dir() == Path(__file__).resolve().parents[1]
+
+    def test_comment_base_expands_workspace(self, tmp_path, monkeypatch):
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(workspace))
+
+        assert _mod._comment_base_dir() == workspace.resolve()
 
     def test_issue_not_found_exits_2(self, capsys):
         with patch(
@@ -264,7 +279,7 @@ class TestMain:
     def test_invalid_utf8_comment_file_exits_2(self, tmp_path, capsys, monkeypatch):
         comment_path = tmp_path / "body.md"
         comment_path.write_bytes(b"\xff\xfe")
-        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
         with patch(
             "close_issue.assert_gh_authenticated",
         ), patch(

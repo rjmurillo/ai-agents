@@ -83,7 +83,12 @@ def build_parser() -> argparse.ArgumentParser:
 def _comment_base_dir() -> Path:
     """Return the directory that comment files must stay under."""
     workspace = os.environ.get("GITHUB_WORKSPACE", "").strip()
-    return Path(workspace or os.getcwd()).resolve()
+    if workspace:
+        return Path(workspace).expanduser().resolve()
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".git").exists() or (parent / ".claude").is_dir():
+            return parent
+    return Path(os.getcwd()).resolve()
 
 
 def _resolve_comment_file(comment_file: str, fmt: str) -> Path:
