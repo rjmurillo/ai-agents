@@ -80,6 +80,24 @@ def _ref_exists(ref: str) -> bool:
     return result.returncode == 0 and bool(result.stdout.strip())
 
 
+def get_ref_commit(ref: str) -> str | None:
+    """Return the commit SHA for a resolved ref, or None on failure."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    sha = result.stdout.strip()
+    return sha if result.returncode == 0 and sha else None
+
+
+def get_merge_head_commit() -> str | None:
+    """Return MERGE_HEAD commit SHA while a merge is in progress."""
+    return get_ref_commit("MERGE_HEAD")
+
+
 def resolve_base_ref(base_branch: str) -> str | None:
     """Resolve the most accurate base ref for diff comparison.
 
@@ -178,6 +196,20 @@ def get_staged_new_files(merge_base: str) -> list[str]:
     return [f.strip() for f in result.stdout.splitlines() if f.strip()]
 
 
+def get_index_files_against_ref(base_ref: str) -> list[str]:
+    """Get staged result files that differ from a base ref."""
+    result = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", base_ref],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        return []
+    return [f.strip() for f in result.stdout.splitlines() if f.strip()]
+
+
 def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     """Detect scope explosion on the current branch.
 
@@ -190,6 +222,28 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
     branch = get_current_branch()
     if not branch or branch in TRUNK_BRANCHES:
         return None
+
+    base_ref = resolve_base_ref(base_branch)
+    if base_ref is None:
+        return None
+
+    merge_head = get_merge_head_commit()
+    if merge_head:
+        # During an in-progress merge, the staged index already contains every
+        # file from the upstream branch being merged. Counting that against the
+        # base ref would surface upstream files as if they were PR changes
+        # (Issue #2376 — observed 86 files reported when the real PR diff was
+        # 13). Compare the staged result directly against MERGE_HEAD so we
+        # only count files this PR actually touches relative to what is being
+        # merged in.
+        files = sorted(set(get_index_files_against_ref(merge_head)))
+        base_commit = get_ref_commit(base_ref) or merge_head
+        return ScopeResult(
+            file_count=len(files),
+            merge_base=base_commit[:12],
+            current_branch=branch,
+            files=tuple(files),
+        )
 
     merge_base = get_merge_base(base_branch)
     if not merge_base:

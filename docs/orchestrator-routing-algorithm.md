@@ -240,13 +240,11 @@ AGENT_TIERS = {
     "explainer": "integration",
     "task-decomposer": "integration",
     "retrospective": "integration",
-    "adr-generator": "integration",
     "backlog-generator": "integration",
     "janitor": "integration",
     "merge-resolver": "builder",
     "memory": "integration",
     "skillbook": "integration",
-    "context-retrieval": "integration",
 }
 
 def validate_tier_sequence(agent_sequence):

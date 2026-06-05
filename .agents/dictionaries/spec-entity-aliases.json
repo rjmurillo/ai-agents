@@ -1,0 +1,16 @@
+{
+  "$schema-note": "Spec entity-name alias table for /spec Step 0.5 topic normalization. Keys are aliases (already passed through the four-rule normalization in .claude/commands/spec.md: trimmed, leading dots/separators stripped, lowercased, internal separator runs collapsed to single hyphens). Each value is the canonical normalized topic the alias resolves to. Lookup is exact-match on the normalized alias string; an unmatched topic passes through unchanged. Origin: Issue #1978, REQ-008 deferred.",
+  "version": "1.0.0",
+  "aliases": {
+    "spec": "spec-pipeline",
+    "spec-command": "spec-pipeline",
+    "spec-skill": "spec-pipeline",
+    "chestertons-fence-skill": "chestertons-fence",
+    "chesterton-fence": "chestertons-fence",
+    "memory-skill": "memory",
+    "memory-search": "memory",
+    "knowledge-graph": "exploring-knowledge-graph",
+    "kg-traversal": "exploring-knowledge-graph",
+    "session-protocol": "session-protocol-gate"
+  }
+}

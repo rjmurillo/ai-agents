@@ -299,6 +299,20 @@ class TestFormatText:
         ]
         output = format_text(results, 80, 0.5, 0, 1, 0)
         assert "No significant drift detected" in output
+        assert "src/claude vs src/vs-code-agents" in output
+        assert "install copies" not in output
+
+    def test_install_comparison_message(self) -> None:
+        results = [
+            AgentResult(
+                agent_name="test",
+                overall_similarity=95.0,
+                status="OK",
+                comparison=".claude/agents vs .github/agents",
+            ),
+        ]
+        output = format_text(results, 80, 0.5, 0, 1, 0)
+        assert "plus shared-template install copies" in output
 
     def test_drift_detected_message(self) -> None:
         results = [
@@ -360,8 +374,8 @@ class TestFormatMarkdown:
         output = format_markdown(results, 80, 0.5, 0, 1, 0)
         assert "# Agent Drift Detection Report" in output
         assert "| Metric | Count |" in output
-        assert "| Agent | Status | Similarity | Drifting Sections |" in output
-        assert "| test | OK | 90.0% | - |" in output
+        assert "| Agent | Comparison | Status | Similarity | Drifting Sections |" in output
+        assert "| test | src-claude vs src-vscode | OK | 90.0% | - |" in output
 
 
 class TestMain:

@@ -236,7 +236,7 @@ def main() -> int:
         epilog="""
 Examples:
   python generate_threat_matrix.py --scope "Auth Service" --output auth-threats.md
-  python generate_threat_matrix.py --scope "Payment API" --output .agents/security/threat-models/payment.md
+  python generate_threat_matrix.py --scope "Payment API" --output ./threat-models/payment.md
         """,
     )
 

@@ -97,9 +97,8 @@ moves to Accepted.
    the router (cheapest to reach, but couples the router to gate prose) or in a
    dedicated `memory-gate` sibling (cleaner boundary, one more hop). Either way
    the gate keeps its current BLOCKING semantics from
-   `ADR-062-memory-first-gate-spec-pipeline.md`. The repository currently also
-   contains `ADR-062-conditional-lsp-first-enforcement.md`; full filenames are
-   used here to avoid the existing numbering collision.
+   `ADR-070-memory-first-gate-spec-pipeline.md` (renumbered from the former
+   ADR-062 collision per #2228).
 
 4. **Boundaries from ADR-007, ADR-037, ADR-038, and ADR-056 are preserved.**
    The decomposition is a SKILL-surface change only. Serena remains the
@@ -274,10 +273,9 @@ the adr-review debate gate.
   decomposed siblings inherit unchanged)
 - ADR-056: Skill Output Format Standardization (the output envelope every
   sub-skill must emit)
-- `ADR-062-memory-first-gate-spec-pipeline.md`: Memory-First Gate Is a
+- `ADR-070-memory-first-gate-spec-pipeline.md`: Memory-First Gate Is a
   BLOCKING Step in the Spec Pipeline (the gate semantics the decomposition must
-  keep). This repository also has `ADR-062-conditional-lsp-first-enforcement.md`,
-  so this ADR cites the full filename when it relies on gate semantics.
+  keep). Renumbered from the former ADR-062 collision per #2228.
 
 ## References
 
@@ -286,8 +284,8 @@ the adr-review debate gate.
 - Issue #1948: M3 implementation (the decomposition this ADR authorizes but
   does not perform)
 - Epic #1944: parent epic
-- Issue #2228: follow-up to resolve the pre-existing ADR-058 and ADR-062
-  numbering collisions surfaced during adr-review
+- Issue #2228: resolved the pre-existing ADR-058 and ADR-062 numbering
+  collisions surfaced during adr-review (the gate ADR is now ADR-070)
 - `.agents/analysis/skill-triage-2026-05-09.md`: finding F2 (143.6 KB size,
   +2.83 eval delta) and F4 (memory cluster table), the measurement driver
 - `.agents/plans/active/PLAN-skill-catalog-triage-action-slate.md`: Tier 2

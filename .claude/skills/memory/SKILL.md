@@ -41,11 +41,11 @@ python3 .claude/skills/memory/scripts/update_causal_graph.py
 | Scenario | Use Memory Router? | Alternative |
 |----------|-------------------|-------------|
 | Script needs memory | Yes | - |
-| Agent needs deep context | No | `context-retrieval` agent |
+| Agent needs deep context | No | `exploring-knowledge-graph` skill |
 | Human at CLI | No | `/memory-search` command |
 | Cross-project semantic search | No | Forgetful MCP directly |
 
-See [context-retrieval agent](../../../.claude/agents/context-retrieval.md#memory-interface-decision-matrix) for complete decision tree.
+See the [exploring-knowledge-graph skill](../exploring-knowledge-graph/SKILL.md) for the deep-context decision tree and the five-source strategy (Issue #2103 folded the former context-retrieval agent into it).
 
 ---
 
