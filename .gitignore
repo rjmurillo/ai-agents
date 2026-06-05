@@ -46,12 +46,23 @@ ENV/
 .pytest_cache/
 .pytest_tmp/
 .ruff_cache/
-# Anchored to repo root: the legacy python build/dist outputs live at /build
-# and /dist. An unanchored `build/` rule silently shadowed
+# Legacy python build/dist outputs live at /build and /dist, anchored to repo
+# root. An unanchored `build/` rule silently shadowed
 # `src/copilot-cli/skills/build/` (the M4 generated `/build` slash-command
 # skill), which made local file-counts diverge from CI.
 /dist/
-/build/
+# The generator SOURCE tree (build/scripts, build/*.py, build/*.md) also lives
+# under build/. A blanket `/build/` would re-hide a NEW source file (git does not
+# descend into an excluded directory, so `!build/scripts/` cannot rescue it),
+# forcing `git add -f`. So do NOT exclude the build/ tree; ignore only the real
+# OUTPUT subdirs. New files under build/ track by default.
+/build/dist/
+/build/build/
+/build/lib/
+/build/temp/
+/build/bdist.*/
+/build/audit/
+**/__pycache__/
 
 # Agent PR scratch files
 .agents/pr-comments/
