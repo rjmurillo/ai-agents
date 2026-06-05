@@ -170,6 +170,7 @@ class TestGetRepoRoot:
                 "rev-parse",
                 "--show-toplevel",
             ]
+            assert "GIT_WORK_TREE" not in mock_run.call_args.kwargs["env"]
 
     def test_returns_worktree_top_not_main_checkout(self):
         """In a linked worktree, repo root is the worktree top (#2377)."""
@@ -232,8 +233,20 @@ class TestActEnv:
         (worktree / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
         env = _mod._act_env(str(worktree))
         assert env["GIT_DIR"] == str(gitdir.resolve())
+        assert "GIT_WORK_TREE" not in env
 
     def test_no_git_dir_for_normal_checkout(self, tmp_path):
         (tmp_path / ".git").mkdir()
         env = _mod._act_env(str(tmp_path))
         assert "GIT_DIR" not in env
+
+    def test_strips_inherited_git_hook_environment(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("GIT_DIR", "/wrong/git")
+        monkeypatch.setenv("GIT_WORK_TREE", "/wrong/worktree")
+        monkeypatch.setenv("GIT_COMMON_DIR", "/wrong/common")
+        monkeypatch.setenv("GIT_INDEX_FILE", "/wrong/index")
+        env = _mod._act_env(str(tmp_path))
+        assert "GIT_DIR" not in env
+        assert "GIT_WORK_TREE" not in env
+        assert "GIT_COMMON_DIR" not in env
+        assert "GIT_INDEX_FILE" not in env

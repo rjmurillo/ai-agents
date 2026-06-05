@@ -229,7 +229,11 @@ def _unsupported_worktree_gitdir_error(repo_root: Path) -> str | None:
 
 def _act_env(repo_root: Path) -> dict[str, str]:
     """Build the subprocess env for gh act, GIT_DIR-aware for linked worktrees."""
-    env = dict(os.environ)
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
+    }
     gitdir = _read_worktree_gitdir(repo_root)
     if gitdir is not None:
         env["GIT_DIR"] = gitdir

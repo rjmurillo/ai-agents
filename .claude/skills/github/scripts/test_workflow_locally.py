@@ -44,8 +44,8 @@ def _get_repo_root() -> str:
     --show-toplevel returns the current worktree root in every layout.
     Canonical reference: scripts/github_core/repo.py::get_repo_root.
 
-    Falls back to the four-parents path only when git is unavailable, so the
-    workflow-path resolution below still has a best-effort anchor.
+    Falls back to the four-parents path when git cannot return a worktree root,
+    so workflow-path resolution below still has a best-effort anchor.
     """
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
@@ -53,10 +53,19 @@ def _get_repo_root() -> str:
         text=True,
         timeout=10,
         check=False,
+        env=_git_env(),
     )
     if result.returncode == 0 and result.stdout.strip():
         return str(Path(result.stdout.strip()).resolve())
     return str(Path(__file__).resolve().parent.parent.parent.parent)
+
+
+def _git_env() -> dict[str, str]:
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
+    }
 
 
 def _read_worktree_gitdir(repo_root: str) -> str | None:
@@ -93,7 +102,7 @@ def _read_worktree_gitdir(repo_root: str) -> str | None:
 
 def _act_env(repo_root: str) -> dict[str, str]:
     """Build the subprocess env for act, GIT_DIR-aware for linked worktrees."""
-    env = dict(os.environ)
+    env = _git_env()
     gitdir = _read_worktree_gitdir(repo_root)
     if gitdir is not None:
         env["GIT_DIR"] = gitdir
