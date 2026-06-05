@@ -8,7 +8,7 @@ IS_MERGE=0 the hook skips the branch-specific staged-file filter and counts the
 whole staged upstream merge, producing a false scope explosion (the reported
 `86/50 files`).
 
-The fix resolves MERGE_HEAD with `git rev-parse --git-path MERGE_HEAD`, which
+The hook resolves MERGE_HEAD with `git rev-parse --git-path MERGE_HEAD`, which
 returns the correct path under the active worktree whether `.git` is a directory
 or a file. These tests:
 
@@ -19,6 +19,7 @@ or a file. These tests:
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -163,7 +164,7 @@ class TestHookPinsFixedShape:
         # prose mention in a comment is fine; an `[ -f ... ]` test or a `cat` of
         # the hardcoded path is the bug. Assert no non-comment line references it.
         code_lines = [
-            line.split("#", 1)[0]
+            re.split(r"\s+#", line, maxsplit=1)[0]
             for line in hook_text.splitlines()
             if not line.lstrip().startswith("#")
         ]
