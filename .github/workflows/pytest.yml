@@ -181,10 +181,10 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          # PYSEC-2026-196 is fixed in pip 26.1.2. Upgrade the runner tool
-          # instead of ignoring the finding so pip-audit keeps failing on
-          # unaddressed vulnerabilities.
-          python3 -m pip install --upgrade pip==26.1.2
+          # Keep the audited environment on the first fixed pip release for
+          # PYSEC-2026-196. CI hit pip 26.1.1 after setup-code-env installed
+          # dependencies, and pip-audit reports the fixed version as 26.1.2.
+          python -m pip install --upgrade pip==26.1.2
 
           # Ignored CVEs (re-evaluate when upstream releases a fix):
           #   CVE-2026-4539: pygments 2.19.2, no fix available.
