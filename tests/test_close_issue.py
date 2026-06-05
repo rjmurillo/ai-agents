@@ -58,6 +58,13 @@ def _comments(*bodies: str):
     return _completed(stdout=json.dumps({"comments": [{"body": b} for b in bodies]}), rc=0)
 
 
+def _paginated_comments(*pages: list[str]):
+    return _completed(
+        stdout=json.dumps([[{"body": body} for body in page] for page in pages]),
+        rc=0,
+    )
+
+
 def _envelope(capsys) -> dict:
     return json.loads(capsys.readouterr().out)
 
@@ -386,6 +393,30 @@ class TestMain:
             rc = main(["--issue", "18", "--comment", "Closing note"])
         assert rc == 0
         assert mock_run.call_count == 2
+        env = _envelope(capsys)
+        assert env["Data"]["commented"] is False
+        assert env["Data"]["commentAlreadyPresent"] is True
+
+    def test_already_closed_dedup_checks_all_comment_pages(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_closed(),
+                _paginated_comments(["older note"], ["Closing note"]),
+            ],
+        ) as mock_run:
+            rc = main(["--issue", "18", "--comment", "Closing note"])
+        assert rc == 0
+        assert mock_run.call_count == 2
+        comment_lookup_args = mock_run.call_args_list[1].args[0]
+        assert comment_lookup_args[:2] == ["gh", "api"]
+        assert "--paginate" in comment_lookup_args
+        assert "--slurp" in comment_lookup_args
         env = _envelope(capsys)
         assert env["Data"]["commented"] is False
         assert env["Data"]["commentAlreadyPresent"] is True

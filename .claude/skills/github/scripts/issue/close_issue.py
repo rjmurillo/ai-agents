@@ -249,12 +249,27 @@ def _post_comment(owner: str, repo: str, issue: int, body: str, fmt: str) -> Non
         raise SystemExit(code)
 
 
+def _comment_bodies(payload: object) -> list[str]:
+    if isinstance(payload, dict):
+        return _comment_bodies(payload.get("comments"))
+    if not isinstance(payload, list):
+        return []
+    bodies: list[str] = []
+    for item in payload:
+        if isinstance(item, list):
+            bodies.extend(_comment_bodies(item))
+        elif isinstance(item, dict) and isinstance(item.get("body"), str):
+            bodies.append(item["body"])
+    return bodies
+
+
 def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> bool:
     result = subprocess.run(
         [
-            "gh", "issue", "view", str(issue),
-            "--repo", f"{owner}/{repo}",
-            "--json", "comments",
+            "gh", "api",
+            f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
+            "--paginate",
+            "--slurp",
         ],
         capture_output=True,
         text=True,
@@ -281,13 +296,7 @@ def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> b
             extra={"issue": issue},
         )
         raise SystemExit(3) from exc
-    comments = payload.get("comments") if isinstance(payload, dict) else None
-    if not isinstance(comments, list):
-        return False
-    for comment in comments:
-        if isinstance(comment, dict) and comment.get("body") == body:
-            return True
-    return False
+    return body in _comment_bodies(payload)
 
 
 def _close_issue(owner: str, repo: str, issue: int, reason: str) -> subprocess.CompletedProcess[str]:
