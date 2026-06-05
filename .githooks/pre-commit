@@ -135,11 +135,15 @@ cd "$REPO_ROOT"
 #
 IS_MERGE=0
 MERGE_BASE=""
-if [ -f "$REPO_ROOT/.git/MERGE_HEAD" ]; then
+# Resolve MERGE_HEAD via `git rev-parse --git-path` so the check works in
+# linked worktrees (where `$REPO_ROOT/.git` is a file pointing at
+# `<gitdir>/worktrees/<name>`, not a directory). Issue #2376.
+MERGE_HEAD_PATH=$(git rev-parse --git-path MERGE_HEAD 2>/dev/null || echo "")
+if [ -n "$MERGE_HEAD_PATH" ] && [ -f "$MERGE_HEAD_PATH" ]; then
     IS_MERGE=1
     echo_info "Merge commit detected - validating branch-specific changes only"
     # Get the merge base to identify branch-specific files
-    MERGE_HEAD=$(cat "$REPO_ROOT/.git/MERGE_HEAD")
+    MERGE_HEAD=$(cat "$MERGE_HEAD_PATH")
     MERGE_BASE=$(git merge-base HEAD "$MERGE_HEAD" 2>/dev/null || echo "")
 fi
 
@@ -434,8 +438,15 @@ fi
 # Related: Epic GitHub Actions Local Testing (#848), ADR-005, Skill-CI-001
 #
 
-# Filter for workflow YAML files only
-STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
+# Filter for workflow YAML files only.
+# actionlint understands workflow YAML under .github/workflows/*.yml and
+# .github/workflows/*.yaml. Composite actions under
+# .github/actions/**/action.yml use a different schema
+# (runs:/inputs:/outputs: at the top level, no jobs:/on:) and feeding them to
+# actionlint produces spurious "missing jobs section" errors (#2346). Composite
+# action SHA-pinning and expression-injection checks run later in this hook and
+# in pre-push.
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
 
 # Check for SKIP_ACTIONLINT environment variable (emergency bypass)
 if [ "${SKIP_ACTIONLINT:-}" = "1" ]; then
