@@ -258,7 +258,7 @@ def validate_markdown_lint(repo_root: Path) -> bool:
         print(f"Auto-fixing {len(targets)} changed markdown file(s)...")
         command = ["npx", "markdownlint-cli2", "--fix", *targets]
 
-    exit_code, _, _ = _run_subprocess(command)
+    exit_code, _, _ = _run_subprocess(command, cwd=repo_root)
 
     if exit_code != 0:
         print("[FAIL] Markdown linting failed (some issues cannot be auto-fixed)")

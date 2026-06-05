@@ -600,7 +600,8 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is True
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "--fix", "README.md", "docs/guide.md"]
+            ["npx", "markdownlint-cli2", "--fix", "README.md", "docs/guide.md"],
+            cwd=tmp_path,
         )
 
     def test_falls_back_to_full_repo_when_scope_is_unknown(
@@ -618,7 +619,8 @@ class TestValidateMarkdownLint:
                     assert validate_markdown_lint(tmp_path) is False
 
         mock_run.assert_called_once_with(
-            ["npx", "markdownlint-cli2", "--fix", "**/*.md"]
+            ["npx", "markdownlint-cli2", "--fix", "**/*.md"],
+            cwd=tmp_path,
         )
 
 
