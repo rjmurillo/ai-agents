@@ -14,9 +14,16 @@ from _eval_common import (
     PRICING_RATE_AS_OF,
 )
 
-# Variants are constant for the spike: one agent prompt vs. one baseline
-# prompt. Held in a tuple to make the structure obvious at the call site.
+# Default variants for the v1 spike (ADR-058): one agent prompt vs. one
+# baseline prompt. Held in a tuple to make the structure obvious at the call
+# site. The form-factor v2 spike (Issue #1875) opts into the third `skill`
+# variant via FORM_FACTOR_VARIANTS; the default stays two-wide so the v1
+# cost plan and its locked dry-run output do not move.
 VARIANTS: tuple[str, ...] = ("agent", "baseline")
+# Issue #1875: the v2 form-factor spike compares all three variants so the
+# report can compute the agent-baseline, skill-baseline, and agent-skill
+# pairwise CIs. Opt in with `--include-skill` on the runner.
+FORM_FACTOR_VARIANTS: tuple[str, ...] = ("agent", "baseline", "skill")
 
 # Token estimation: 70/30 input/output split. Reflects observed v1/v2 spike
 # traces (input ~ system prompt + user message; output ~ short verdict +
@@ -56,19 +63,22 @@ class PlanRunner:
         fixtures: list[Fixture],
         model_id: str,
         n_runs: int = 3,
+        variants: tuple[str, ...] = VARIANTS,
     ) -> ExecutionPlan:
         if not fixtures:
             raise ValueError("build_plan requires at least one fixture")
         if n_runs < 1:
             raise ValueError(f"n_runs must be >= 1, got {n_runs}")
+        if not variants:
+            raise ValueError("build_plan requires at least one variant")
 
-        planned_calls = len(fixtures) * len(VARIANTS) * n_runs
+        planned_calls = len(fixtures) * len(variants) * n_runs
         tokens_in, tokens_out = _estimate_tokens(planned_calls)
         cost_usd = _estimate_cost_usd(model_id, tokens_in, tokens_out)
 
         return ExecutionPlan(
             fixtures=fixtures,
-            variants=VARIANTS,  # type: ignore[arg-type]
+            variants=variants,  # type: ignore[arg-type]
             n_runs=n_runs,
             model_id=model_id,
             planned_calls=planned_calls,

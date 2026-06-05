@@ -239,18 +239,22 @@ def _percentile(values: list[float], pct: float) -> float:
     return s[lower] + frac * (s[upper] - s[lower])
 
 
-def _paired_bootstrap_ci(
+def pairwise_bootstrap_ci(
     grouped: dict[tuple[str, str], list[RunRecord]],
     fixture_ids: list[str],
+    variant_a: str,
+    variant_b: str,
     *,
     iterations: int = BOOTSTRAP_ITERATIONS,
     rng: random.Random | None = None,
 ) -> tuple[float, float]:
-    """95% paired bootstrap CI on the signed recall delta.
+    """95% paired bootstrap CI on the signed recall delta (variant_a - variant_b).
 
-    Resamples fixture ids with replacement; computes agent and baseline
-    recall on the resample; takes the delta. Returns the [2.5, 97.5]
-    percentile of the resampled deltas.
+    Resamples fixture ids with replacement; computes recall for both variants
+    on the resample; takes the delta. Returns the [2.5, 97.5] percentile of
+    the resampled deltas. Generalizes the agent-vs-baseline CI to any variant
+    pair so the form-factor v2 spike (Issue #1875) can compute the
+    skill-baseline and agent-skill CIs from the same record set.
     """
     if not fixture_ids:
         return (0.0, 0.0)
@@ -259,14 +263,34 @@ def _paired_bootstrap_ci(
     deltas: list[float] = []
     for _ in range(iterations):
         sample = [fixture_ids[rng.randrange(n)] for _ in range(n)]
-        agent_recall = _recall_from_grouped(grouped, "agent", fixture_ids=sample)
-        baseline_recall = _recall_from_grouped(
-            grouped, "baseline", fixture_ids=sample
-        )
-        deltas.append(agent_recall - baseline_recall)
+        recall_a = _recall_from_grouped(grouped, variant_a, fixture_ids=sample)
+        recall_b = _recall_from_grouped(grouped, variant_b, fixture_ids=sample)
+        deltas.append(recall_a - recall_b)
     return (
         _percentile(deltas, CI_LOWER_PERCENTILE),
         _percentile(deltas, CI_UPPER_PERCENTILE),
+    )
+
+
+def _paired_bootstrap_ci(
+    grouped: dict[tuple[str, str], list[RunRecord]],
+    fixture_ids: list[str],
+    *,
+    iterations: int = BOOTSTRAP_ITERATIONS,
+    rng: random.Random | None = None,
+) -> tuple[float, float]:
+    """95% paired bootstrap CI on the agent-vs-baseline recall delta.
+
+    Thin wrapper over `pairwise_bootstrap_ci` for the v1 (ADR-058) headline
+    metric. Kept so the existing aggregate path and its tests do not move.
+    """
+    return pairwise_bootstrap_ci(
+        grouped,
+        fixture_ids,
+        "agent",
+        "baseline",
+        iterations=iterations,
+        rng=rng,
     )
 
 
@@ -394,5 +418,152 @@ class ReportAggregator:
             tokens_estimated=tokens_estimated,
             flaky_halt_threshold_crossed=threshold_crossed,
         )
+
+
+# ---------------------------------------------------------------------------
+# Form-factor comparison (Issue #1875, follow-on to ADR-058).
+#
+# The v1 aggregator answers "does the agent's specialization beat the naive
+# baseline?" (agent - baseline). The form-factor v2 spike adds the `skill`
+# variant and asks two more questions from the SAME record set:
+#   - skill - baseline: did the content help at all, regardless of form?
+#   - agent - skill:     did the agent FORM add value beyond the content?
+# The verdict picks the cheaper form when the form does not measurably help.
+# ---------------------------------------------------------------------------
+
+FormFactorVerdict = str  # {"prefer-skill-form", "prefer-agent-form", "inconclusive"}
+
+
+@dataclass
+class FormFactorComparison:
+    """Three pairwise recall deltas + CIs and a form-factor verdict.
+
+    `agent_skill_ci` is the load-bearing interval: its relation to zero
+    decides the verdict. `skill_tokens` and `agent_tokens` carry the
+    per-variant token totals so the cost-vs-recall trade-off (REQ from Issue
+    #1875 AC: "cost tracking distinguishes per-variant token usage") is
+    visible to the report consumer.
+    """
+
+    agent_recall: float
+    baseline_recall: float
+    skill_recall: float
+    agent_baseline_delta: float
+    skill_baseline_delta: float
+    agent_skill_delta: float
+    agent_baseline_ci: tuple[float, float]
+    skill_baseline_ci: tuple[float, float]
+    agent_skill_ci: tuple[float, float]
+    agent_tokens_in: int
+    agent_tokens_out: int
+    skill_tokens_in: int
+    skill_tokens_out: int
+    verdict: FormFactorVerdict
+    schema_version: int = 1
+
+
+def _tokens_for_variant(
+    records: list[RunRecord], variant: str
+) -> tuple[int, int]:
+    """Sum (tokens_in, tokens_out) across every record for one variant."""
+    tokens_in = sum(r.tokens_in for r in records if r.variant == variant)
+    tokens_out = sum(r.tokens_out for r in records if r.variant == variant)
+    return tokens_in, tokens_out
+
+
+def _form_factor_verdict(
+    agent_skill_delta: float,
+    agent_skill_ci: tuple[float, float],
+    skill_tokens_total: int,
+    agent_tokens_total: int,
+) -> FormFactorVerdict:
+    """Map the agent-skill delta, its CI, and per-variant cost to a verdict.
+
+    Criteria mirror the Issue #1875 normative table:
+      - prefer-agent-form: delta > 0 AND CI lower bound > 0 (the agent form
+        genuinely helps beyond the content).
+      - prefer-skill-form: the CI spans zero (form does not measurably help)
+        AND the skill variant is cheaper. Default to the cheaper form.
+      - inconclusive: the CI spans zero but the skill is not cheaper, so
+        there is no cost reason to prefer either form.
+    The order matters: a genuine agent-form win wins even when skill is
+    cheaper.
+    """
+    ci_low, ci_high = agent_skill_ci
+    if agent_skill_delta > 0 and ci_low > 0:
+        return "prefer-agent-form"
+    ci_spans_zero = ci_low <= 0 <= ci_high
+    if ci_spans_zero and skill_tokens_total < agent_tokens_total:
+        return "prefer-skill-form"
+    return "inconclusive"
+
+
+def compute_form_factor(
+    records: list[RunRecord],
+    *,
+    iterations: int = BOOTSTRAP_ITERATIONS,
+    rng: random.Random | None = None,
+) -> FormFactorComparison:
+    """Compute the three pairwise CIs and the form-factor verdict.
+
+    Requires records for all three variants (agent, baseline, skill). Raises
+    EmptyRunError on an empty record set and ValueError when the skill
+    variant is absent (the comparison is meaningless without it).
+    """
+    if not records:
+        raise EmptyRunError("compute_form_factor requires at least one record")
+    grouped = _records_by_fixture_variant(records)
+    present = {variant for _, variant in grouped.keys()}
+    missing = {"agent", "baseline", "skill"} - present
+    if missing:
+        raise ValueError(
+            f"form-factor comparison needs agent, baseline, and skill "
+            f"variants; missing: {sorted(missing)}"
+        )
+    fixture_ids = sorted({fid for fid, _ in grouped.keys()})
+
+    agent_recall = _recall_from_grouped(grouped, "agent", fixture_ids=fixture_ids)
+    baseline_recall = _recall_from_grouped(
+        grouped, "baseline", fixture_ids=fixture_ids
+    )
+    skill_recall = _recall_from_grouped(grouped, "skill", fixture_ids=fixture_ids)
+
+    rng = rng or random.Random(42)
+    agent_baseline_ci = pairwise_bootstrap_ci(
+        grouped, fixture_ids, "agent", "baseline", iterations=iterations, rng=rng
+    )
+    skill_baseline_ci = pairwise_bootstrap_ci(
+        grouped, fixture_ids, "skill", "baseline", iterations=iterations, rng=rng
+    )
+    agent_skill_ci = pairwise_bootstrap_ci(
+        grouped, fixture_ids, "agent", "skill", iterations=iterations, rng=rng
+    )
+
+    agent_tokens_in, agent_tokens_out = _tokens_for_variant(records, "agent")
+    skill_tokens_in, skill_tokens_out = _tokens_for_variant(records, "skill")
+
+    verdict = _form_factor_verdict(
+        agent_recall - skill_recall,
+        agent_skill_ci,
+        skill_tokens_in + skill_tokens_out,
+        agent_tokens_in + agent_tokens_out,
+    )
+
+    return FormFactorComparison(
+        agent_recall=agent_recall,
+        baseline_recall=baseline_recall,
+        skill_recall=skill_recall,
+        agent_baseline_delta=agent_recall - baseline_recall,
+        skill_baseline_delta=skill_recall - baseline_recall,
+        agent_skill_delta=agent_recall - skill_recall,
+        agent_baseline_ci=agent_baseline_ci,
+        skill_baseline_ci=skill_baseline_ci,
+        agent_skill_ci=agent_skill_ci,
+        agent_tokens_in=agent_tokens_in,
+        agent_tokens_out=agent_tokens_out,
+        skill_tokens_in=skill_tokens_in,
+        skill_tokens_out=skill_tokens_out,
+        verdict=verdict,
+    )
 
 

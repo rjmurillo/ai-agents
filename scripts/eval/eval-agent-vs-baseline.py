@@ -43,7 +43,12 @@ from _eval_agent_types import (
     SchemaVersionError,
 )
 from _eval_api_adapter import AnthropicAPIAdapter, APICallResult
-from _plan_runner import PlanRunner, UnsupportedModelError
+from _plan_runner import (
+    FORM_FACTOR_VARIANTS,
+    VARIANTS,
+    PlanRunner,
+    UnsupportedModelError,
+)
 from _report_aggregator import EmptyRunError, ReportAggregator
 from _report_writer import ReportWriter
 from _run_persistence import (
@@ -94,6 +99,12 @@ OUTPUT_SHAPE_SUFFIX_REF = "<output-shape-suffix>"
 # computed from the file content (UTF-8, no trailing newline trim).
 AGENT_PROMPT_REF_TEMPLATE = "templates/agents/{agent}.shared.md"
 
+# Issue #1875: the `skill` variant sources its content from a SKILL.md. The
+# default path mirrors the agent name (`security` -> `security-review`); an
+# operator can override with `--skill-path`. The same SHA convention as the
+# agent prompt applies.
+SKILL_PROMPT_REF_TEMPLATE = ".claude/skills/{agent}-review/SKILL.md"
+
 # Error rate cap (REQ-004 AC-3). Above this, the runner exits 1 before
 # generating a report. Expressed as the fraction of successful records.
 MAX_ERROR_RATE = 0.10
@@ -112,6 +123,13 @@ _AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,30}$")
 # the same shape plus a small alphanumeric/underscore extension for
 # operator-supplied identifiers.
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+# `--skill-path` flows into REPO_ROOT / <path>. Restrict to a repo-relative
+# path under `.claude/skills/` ending in `SKILL.md`; the resolved path is
+# re-checked against REPO_ROOT in `_read_skill_prompt`. No `..`, no leading
+# slash, no backslash.
+_SKILL_PATH_RE = re.compile(
+    r"^\.claude/skills/[A-Za-z0-9][A-Za-z0-9._/-]{0,127}/SKILL\.md$"
+)
 
 
 def _agent_name_arg(value: str) -> str:
@@ -131,6 +149,17 @@ def _run_id_arg(value: str) -> str:
     if not _RUN_ID_RE.match(value):
         raise argparse.ArgumentTypeError(
             f"run id must match {_RUN_ID_RE.pattern} (got {value!r})"
+        )
+    return value
+
+
+def _skill_path_arg(value: str) -> str:
+    """argparse `type=` validator for `--skill-path`. Same threat model as
+    `_agent_name_arg`: the value is joined to REPO_ROOT to read a SKILL.md."""
+    if ".." in value or not _SKILL_PATH_RE.match(value):
+        raise argparse.ArgumentTypeError(
+            f"--skill-path must match {_SKILL_PATH_RE.pattern} with no '..' "
+            f"(got {value!r})"
         )
     return value
 
@@ -343,6 +372,28 @@ def _read_agent_prompt(agent: str) -> tuple[str, str]:
     return path.read_text(encoding="utf-8"), rel
 
 
+def _read_skill_prompt(agent: str, skill_rel: str | None) -> tuple[str, str]:
+    """Return (skill_text, skill_ref) for the `skill` variant (Issue #1875).
+
+    `skill_rel`, when given, is the operator-supplied `--skill-path` (already
+    validated against the path allow-list and re-checked under REPO_ROOT
+    here). When None, the default mirrors the agent name
+    (`.claude/skills/<agent>-review/SKILL.md`). Raises FileNotFoundError on
+    miss so the runner exits config (2) rather than ship a skill-variant run
+    with no skill content.
+    """
+    rel = skill_rel if skill_rel is not None else SKILL_PROMPT_REF_TEMPLATE.format(
+        agent=agent
+    )
+    path = _assert_under_repo_root(REPO_ROOT / rel)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"skill prompt not found at {path} (looked for {rel}). The skill "
+            "variant needs a SKILL.md; create it or pass --skill-path."
+        )
+    return path.read_text(encoding="utf-8"), rel
+
+
 def _fixture_sha(path: Path) -> str:
     return _sha256_text(path.read_text(encoding="utf-8"))
 
@@ -413,6 +464,25 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="validate fixtures and print plan; no API calls",
     )
     parser.add_argument(
+        "--include-skill",
+        action="store_true",
+        help=(
+            "Issue #1875: add the `skill` variant (parent-inline SKILL.md) "
+            "alongside agent and baseline so the report computes the three "
+            "pairwise CIs (agent-baseline, skill-baseline, agent-skill)"
+        ),
+    )
+    parser.add_argument(
+        "--skill-path",
+        default=None,
+        type=_skill_path_arg,
+        help=(
+            "repo-relative path to the SKILL.md for the skill variant "
+            "(default: .claude/skills/<agent>-review/SKILL.md). Implies "
+            "--include-skill"
+        ),
+    )
+    parser.add_argument(
         "--run-id",
         default=None,
         type=_run_id_arg,
@@ -433,28 +503,54 @@ def _print_plan(plan_lines: list[str]) -> None:
         print(line)
 
 
-def _build_prompt(variant: str, agent_prompt: str, fixture_input: str) -> tuple[str, str]:
+def _build_prompt(
+    variant: str,
+    agent_prompt: str,
+    fixture_input: str,
+    skill_prompt: str | None = None,
+) -> tuple[str, str]:
     """Compose the (system, user) message pair for a variant.
 
     Agent variant: system = agent prompt; user = fixture input + suffix.
     Baseline variant: system = baseline prompt; user = fixture input + suffix.
-    OUTPUT_SHAPE_SUFFIX is appended to the user message for BOTH variants
-    so the verdict-vocabulary contract is symmetric. Specialization (the
-    system prompt) is the only free variable.
+    Skill variant (Issue #1875): system = SKILL.md content; user = fixture
+    input + suffix. The skill content is the same domain knowledge the agent
+    carries, delivered as a single parent-inline call rather than a subagent
+    dispatch. The system prompt remains the only free variable across all
+    three variants.
+    OUTPUT_SHAPE_SUFFIX is appended to the user message for ALL variants so
+    the verdict-vocabulary contract is symmetric.
     Returns (system, user_prompt) so token estimates split cleanly.
     """
     user_prompt = fixture_input + OUTPUT_SHAPE_SUFFIX
     if variant == "agent":
         return agent_prompt, user_prompt
+    if variant == "skill":
+        if skill_prompt is None:
+            raise ValueError(
+                "skill variant requires skill_prompt; pass --skill-path or "
+                "--include-skill so the runner reads the SKILL.md content"
+            )
+        return skill_prompt, user_prompt
     return BASELINE_PROMPT, user_prompt
 
 
 def _resolve_prompt_metadata(
-    variant: str, agent_prompt: str, agent_prompt_ref: str
+    variant: str,
+    agent_prompt: str,
+    agent_prompt_ref: str,
+    skill_prompt: str | None = None,
+    skill_prompt_ref: str | None = None,
 ) -> tuple[str, str]:
-    """(prompt_sha, prompt_ref) for the variant. Same SHA convention for both."""
+    """(prompt_sha, prompt_ref) for the variant. Same SHA convention for all."""
     if variant == "agent":
         return _sha256_text(agent_prompt), agent_prompt_ref
+    if variant == "skill":
+        if skill_prompt is None or skill_prompt_ref is None:
+            raise ValueError(
+                "skill variant requires skill_prompt and skill_prompt_ref"
+            )
+        return _sha256_text(skill_prompt), skill_prompt_ref
     return _sha256_text(BASELINE_PROMPT), BASELINE_PROMPT_REF
 
 
@@ -469,11 +565,19 @@ def _execute_one(
     agent_prompt_ref: str,
     adapter: AnthropicAPIAdapter,
     scoring_engine,
+    skill_prompt: str | None = None,
+    skill_prompt_ref: str | None = None,
 ) -> RunRecord:
     """Run one (fixture, variant, run_index) call and score the result."""
-    system, user = _build_prompt(variant, agent_prompt, fixture.input)
+    system, user = _build_prompt(
+        variant, agent_prompt, fixture.input, skill_prompt=skill_prompt
+    )
     prompt_sha, prompt_ref = _resolve_prompt_metadata(
-        variant, agent_prompt, agent_prompt_ref
+        variant,
+        agent_prompt,
+        agent_prompt_ref,
+        skill_prompt=skill_prompt,
+        skill_prompt_ref=skill_prompt_ref,
     )
     fixture_sha = _fixture_sha(fixture_path)
 
@@ -543,6 +647,20 @@ def _run_live(
     except FileNotFoundError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
+
+    # Issue #1875: when the plan includes the `skill` variant, read its
+    # SKILL.md content once. A missing skill file is a config error, the same
+    # class as a missing agent prompt.
+    skill_prompt: str | None = None
+    skill_prompt_ref: str | None = None
+    if "skill" in plan.variants:
+        try:
+            skill_prompt, skill_prompt_ref = _read_skill_prompt(
+                args.agent, args.skill_path
+            )
+        except FileNotFoundError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_CONFIG
 
     if args.resume and args.run_id and args.run_id != args.resume:
         print(
@@ -630,6 +748,8 @@ def _run_live(
                         agent_prompt_ref=agent_prompt_ref,
                         adapter=adapter,
                         scoring_engine=engine,
+                        skill_prompt=skill_prompt,
+                        skill_prompt_ref=skill_prompt_ref,
                     )
                 except RuntimeError as exc:
                     # Defense in depth: prior to commit 0df0f324 the
@@ -895,11 +1015,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"fixture validation failed: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
+    # --skill-path implies --include-skill: supplying a path is an explicit
+    # opt-in to the third variant.
+    include_skill = args.include_skill or args.skill_path is not None
+    variants = FORM_FACTOR_VARIANTS if include_skill else VARIANTS
     try:
         plan = PlanRunner.build_plan(
             fixtures=fixtures,
             model_id=args.model,
             n_runs=args.n_runs,
+            variants=variants,
         )
     except (ValueError, UnsupportedModelError) as exc:
         print(f"plan error: {exc}", file=sys.stderr)
