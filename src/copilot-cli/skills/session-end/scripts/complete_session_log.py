@@ -20,23 +20,28 @@ import subprocess
 import sys
 from datetime import UTC
 from pathlib import Path
+from types import ModuleType
 
 
 def _resolve_paths_lib_dir() -> str:
     """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
     plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
-        return os.path.join(plugin_root, "lib")
-    workspace = os.environ.get("GITHUB_WORKSPACE")
-    if workspace:
-        return os.path.join(workspace, ".claude", "lib")
-    return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "lib")
-    )
+        lib_dir = Path(plugin_root).expanduser().resolve() / "lib"
+    else:
+        workspace = os.environ.get("GITHUB_WORKSPACE")
+        if workspace:
+            lib_dir = Path(workspace).expanduser().resolve() / ".claude" / "lib"
+        else:
+            lib_dir = Path(__file__).resolve().parents[3] / "lib"
+    if not lib_dir.is_dir():
+        print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
+        sys.exit(2)
+    return str(lib_dir)
 
 
 _LIB_DIR = _resolve_paths_lib_dir()
-if os.path.isdir(_LIB_DIR) and _LIB_DIR not in sys.path:
+if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
 from paths import resolve_artifact_root  # noqa: E402
@@ -206,7 +211,7 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
 # import is loaded via importlib so it works whether the script is run
 # directly (sys.path[0] is the script dir) or imported by tests via
 # importlib.util.spec_from_file_location (which does NOT add the dir).
-def _load_rework_module():
+def _load_rework_module() -> ModuleType:
     """Load the rework_warning sibling module without depending on sys.path."""
     import importlib.util as _il
     _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rework_warning.py")

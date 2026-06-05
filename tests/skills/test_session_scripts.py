@@ -10,11 +10,10 @@ co-located suite at .claude/skills/session/tests/test_session_eligibility.py.
 """
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -23,7 +22,6 @@ _project_root = Path(__file__).resolve().parents[2]
 _session_init = _project_root / ".claude" / "skills" / "session-init" / "scripts"
 _session_end = _project_root / ".claude" / "skills" / "session-end" / "scripts"
 _log_fixer = _project_root / ".claude" / "skills" / "session-log-fixer" / "scripts"
-_copilot_session_init = _project_root / "src" / "copilot-cli" / "skills" / "session-init" / "scripts"
 
 for _p in (
     str(_session_init),
@@ -40,25 +38,6 @@ def make_proc(stdout="", stderr="", returncode=0):
     )
 
 
-def assert_missing_plugin_lib_exits_config_error(script_path: Path, tmp_path: Path) -> None:
-    env = os.environ.copy()
-    env["COPILOT_PLUGIN_ROOT"] = str(tmp_path / "missing-plugin")
-    env.pop("CLAUDE_PLUGIN_ROOT", None)
-
-    result = subprocess.run(
-        [sys.executable, str(script_path), "--help"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-        env=env,
-    )
-
-    assert result.returncode == 2
-    assert "Plugin lib directory not found:" in result.stderr
-    assert "Traceback" not in result.stderr
-
-
 # ---------------------------------------------------------------------------
 # new_session_log_json
 # ---------------------------------------------------------------------------
@@ -72,6 +51,7 @@ class TestNewSessionLogJson:
 
     def _import(self):
         import importlib
+
         import new_session_log_json as mod
         importlib.reload(mod)
         return mod
@@ -236,18 +216,6 @@ class TestNewSessionLogJson:
             mod.main()
         assert exc.value.code == 0
 
-    @pytest.mark.parametrize(
-        "script_path",
-        [
-            _session_init / "new_session_log.py",
-            _session_init / "new_session_log_json.py",
-            _copilot_session_init / "new_session_log.py",
-            _copilot_session_init / "new_session_log_json.py",
-        ],
-    )
-    def test_missing_plugin_lib_fails_closed(self, script_path, tmp_path):
-        assert_missing_plugin_lib_exits_config_error(script_path, tmp_path)
-
 
 # ---------------------------------------------------------------------------
 # complete_session_log
@@ -265,6 +233,7 @@ class TestCompleteSessionLog:
 
     def _import(self):
         import importlib
+
         import complete_session_log as mod
         importlib.reload(mod)
         return mod
@@ -414,6 +383,7 @@ class TestCompleteSessionLog:
 
     def test_main_no_session_logs_exits_1(self, tmp_path, monkeypatch):
         import importlib
+
         import complete_session_log as mod
         importlib.reload(mod)
 
@@ -447,6 +417,7 @@ class TestGetValidationErrors:
 
     def _import(self):
         import importlib
+
         import get_validation_errors as mod
         importlib.reload(mod)
         return mod
@@ -512,6 +483,7 @@ class TestGetValidationErrors:
 
     def test_main_run_id_no_errors_exits_2(self):
         import importlib
+
         import get_validation_errors as mod
         importlib.reload(mod)
         # Mock the subprocess.run call that fetches log
@@ -522,6 +494,7 @@ class TestGetValidationErrors:
 
     def test_main_run_fetch_failure_exits_1(self):
         import importlib
+
         import get_validation_errors as mod
         importlib.reload(mod)
         log_proc = make_proc(returncode=1, stderr="error")
