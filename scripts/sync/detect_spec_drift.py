@@ -12,11 +12,10 @@ Scope of this slice: detection and reporting only. The detector reports drift;
 it does NOT auto-rewrite specs. Patch proposal via the `spec-generator` agent is
 tracked as a follow-up (see the `/sync` command file and issue #1997).
 
-Output envelope mirrors the ADR-056 four-field shape
-(`Success`, `Data`, `Error`, `Metadata`) used by
-`.claude/skills/orphan-ref-validator/scripts/envelope.py`, followed by a final
-`VERDICT: PASS|DRIFT|ERROR` line. The detector adapts the canonical shape to
-its script-specific metadata:
+Output envelope uses the ADR-056 four-field shape
+(`Success`, `Data`, `Error`, `Metadata`) used by other validators, followed by
+a final `VERDICT: PASS|DRIFT|ERROR` line. This detector owns its
+script-specific metadata:
 
     envelope = {
         "Success": True,
@@ -87,7 +86,7 @@ _REFERENCE_ROOTS = (
 )
 _PATH_BODY = r"[-A-Za-z0-9_./*]+"
 REFERENCE_RE = re.compile(
-    r"(?<![\w/])`(?P<path>(?:" + "|".join(_REFERENCE_ROOTS) + r")/" + _PATH_BODY + r")`(?!\w)",
+    r"(?<![\w/])`(?P<path>/?(?:" + "|".join(_REFERENCE_ROOTS) + r")/" + _PATH_BODY + r")`(?!\w)",
     re.IGNORECASE,
 )
 
@@ -99,6 +98,7 @@ _DIR_HINT_RE = re.compile(r"/$")
 # absent (a planned path, an example) with a trailing HTML comment. Mirrors the
 # orphan-ref-validator file/line ignore convention.
 IGNORE_DIRECTIVE = "sync-drift-ignore"
+IGNORE_COMMENT = f"<!-- {IGNORE_DIRECTIVE} -->"
 
 Verdict = Literal["PASS", "DRIFT"]
 
@@ -240,14 +240,14 @@ def scan_spec_file(spec_file: Path, repo_root: Path) -> tuple[list[DriftFinding]
     """
     try:
         text = spec_file.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         raise DriftScanError(f"unreadable spec file: {spec_file} ({exc})") from exc
 
     rel_spec = _relative(repo_root, spec_file)
     findings: list[DriftFinding] = []
     refs_checked = 0
     for line_number, line in enumerate(text.splitlines(), start=1):
-        if IGNORE_DIRECTIVE in line:
+        if IGNORE_COMMENT in line:
             continue
         for match in REFERENCE_RE.finditer(line):
             referenced_path = match.group("path")
@@ -262,7 +262,7 @@ def scan_spec_file(spec_file: Path, repo_root: Path) -> tuple[list[DriftFinding]
                     recommendation=(
                         f"Spec references `{referenced_path}` which is absent on disk. "
                         "Update the spec to the current path, or restore the code, "
-                        f"or mark the reference intentional with <!-- {IGNORE_DIRECTIVE} -->."
+                        f"or mark the reference intentional with {IGNORE_COMMENT}."
                     ),
                 )
             )

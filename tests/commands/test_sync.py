@@ -107,6 +107,19 @@ def test_prose_without_path_root_is_ignored(tmp_path: Path) -> None:
     assert result.verdict == "PASS"
 
 
+def test_absolute_known_root_reference_is_drift(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    _write_req(repo, "REQ-004A.md", "Bad absolute path `/scripts/real.py`.\n")
+
+    # Act
+    result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
+
+    # Assert
+    assert result.verdict == "DRIFT"
+    assert result.findings[0].referenced_path == "/scripts/real.py"
+
+
 def test_hyphenated_skill_reference_is_checked(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
@@ -199,6 +212,20 @@ def test_ignore_directive_suppresses_finding(tmp_path: Path) -> None:
     assert result.refs_checked == 0
 
 
+def test_ignore_directive_name_in_prose_does_not_suppress(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    body = "Do not write sync-drift-ignore near `scripts/gone.py` in prose.\n"
+    _write_req(repo, "REQ-008B.md", body)
+
+    # Act
+    result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
+
+    # Assert
+    assert result.verdict == "DRIFT"
+    assert result.refs_checked == 1
+
+
 def test_wildcard_reference_matches_when_one_exists(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
@@ -250,6 +277,17 @@ def test_unreadable_file_fails_closed(tmp_path: Path, monkeypatch: pytest.Monkey
         raise OSError("permission denied")
 
     monkeypatch.setattr(Path, "read_text", boom)
+
+    # Act / Assert
+    with pytest.raises(dsd.DriftScanError, match="unreadable spec file"):
+        dsd.scan_spec_file(spec, repo)
+
+
+def test_invalid_utf8_file_fails_closed(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    spec = repo / ".agents" / "specs" / "requirements" / "REQ-011D.md"
+    spec.write_bytes(b"\xff\xfe\x00")
 
     # Act / Assert
     with pytest.raises(dsd.DriftScanError, match="unreadable spec file"):
