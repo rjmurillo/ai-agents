@@ -530,6 +530,7 @@ def test_cli_console_exit_line_matches_errors_with_findings(tmp_path: Path) -> N
     assert result.returncode == scanner.EXIT_ERROR
     assert "Errors:" in result.stdout
     assert "Error reading missing.py" in result.stdout
+    assert "Exit code: 1 (scan error)" in result.stdout
     assert "CWE-78" in result.stdout
     assert "Exit code: 1 (scan error)" in result.stdout
 

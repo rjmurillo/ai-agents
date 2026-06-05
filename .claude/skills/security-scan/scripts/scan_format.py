@@ -72,6 +72,9 @@ def _append_no_vulnerabilities(output: list[str], result: _ScanResultLike) -> No
     output.append("No vulnerabilities found.")
     if result.suppressed:
         output.append(f"Suppressed findings: {len(result.suppressed)}")
+    if result.errors:
+        output.append("")
+        output.append(f"Exit code: {EXIT_ERROR} (scan error)")
 
 
 def _append_vulnerability_details(
