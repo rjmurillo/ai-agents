@@ -132,6 +132,92 @@ class TestDisableAutoMerge:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Tests: enable_auto_merge error paths
+# ---------------------------------------------------------------------------
+
+
+class TestEnableAutoMergeErrors:
+    """Regression tests for issue #2439 and friends.
+
+    Each scenario hits the `enable_auto_merge` GraphQL mutation error branch
+    and asserts the script surfaces an actionable message instead of a generic
+    GraphQL failure.
+    """
+
+    def test_unstable_status_emits_actionable_fallback(self, capsys):
+        """Issue #2439: UNSTABLE merge state must point to direct merge.
+
+        When `mergeStateStatus == UNSTABLE` (e.g. a non-required check is
+        failing), GitHub refuses auto-merge with "Pull request is in
+        unstable status". The script must detect this and instruct the
+        caller to fall back to merge_pr.py.
+        """
+        err = RuntimeError(
+            "GraphQL request failed: gh: Pull request Pull request "
+            "is in unstable status",
+        )
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
+            with pytest.raises(SystemExit) as exc:
+                enable_auto_merge("o", "r", 2431, "PR_abc", "SQUASH", "", "")
+            # Exit 3 per ADR-035 (external/API error).
+            assert exc.value.code == 3
+        stderr = capsys.readouterr().err
+        # Names the state explicitly so operators recognize it.
+        assert "UNSTABLE" in stderr
+        # Points to the documented fallback script.
+        assert "merge_pr.py" in stderr
+        # Includes the PR number so the suggested command is copy-pasteable.
+        assert "2431" in stderr
+        # Does NOT leak the raw GraphQL failure prefix as the only signal.
+        assert "GraphQL request failed" not in stderr
+
+    def test_auto_merge_not_allowed_emits_settings_hint(self, capsys):
+        """Existing branch: 'Auto-merge is not allowed' -> repo settings hint.
+
+        Locks in current behavior so the new UNSTABLE branch does not
+        accidentally swallow it.
+        """
+        err = RuntimeError(
+            "GraphQL request failed: Auto-merge is not allowed for this "
+            "repository",
+        )
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
+            with pytest.raises(SystemExit) as exc:
+                enable_auto_merge("o", "r", 1, "PR_abc", "SQUASH", "", "")
+            assert exc.value.code == 3
+        stderr = capsys.readouterr().err
+        assert "Settings" in stderr or "repository settings" in stderr
+
+    def test_not_mergeable_emits_conflict_hint(self, capsys):
+        """Existing branch: 'not mergeable' -> conflict hint."""
+        err = RuntimeError(
+            "GraphQL request failed: Pull request is not mergeable",
+        )
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
+            with pytest.raises(SystemExit) as exc:
+                enable_auto_merge("o", "r", 1, "PR_abc", "SQUASH", "", "")
+            assert exc.value.code == 3
+        stderr = capsys.readouterr().err
+        assert "not in a mergeable state" in stderr
+
+    def test_generic_graphql_failure_passed_through(self, capsys):
+        """Unrecognized failures still surface the raw error for diagnosis."""
+        err = RuntimeError("GraphQL request failed: something unexpected")
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
+            with pytest.raises(SystemExit) as exc:
+                enable_auto_merge("o", "r", 1, "PR_abc", "SQUASH", "", "")
+            assert exc.value.code == 3
+        stderr = capsys.readouterr().err
+        assert "Failed to enable auto-merge" in stderr
+        assert "something unexpected" in stderr
+
+
+# ---------------------------------------------------------------------------
+# Tests: main
+# ---------------------------------------------------------------------------
+
+
 class TestMain:
     def test_not_authenticated_exits_4(self):
         with patch(
