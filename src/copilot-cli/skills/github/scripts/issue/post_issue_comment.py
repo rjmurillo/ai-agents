@@ -46,6 +46,13 @@ from github_core.api import (  # noqa: E402
     resolve_repo_params,
     update_issue_comment,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
+)
+
+_SCRIPT_NAME = "post_issue_comment.py"
 
 _403_PATTERN = re.compile(
     r"((?<!\d)403(?!\d)|\bforbidden\b|Resource not accessible by integration)",
@@ -156,11 +163,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Update existing comment instead of skipping when marker found",
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of PS1 logic
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -200,16 +209,20 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
             if existing is not None:
                 if args.update_if_exists:
-                    print(f"Comment with marker '{args.marker}' exists. Updating...")
+                    if fmt != "json":
+                        print(f"Comment with marker '{args.marker}' exists. Updating...")
                     body = _prepend_marker(body, marker_html)
                     response = update_issue_comment(owner, repo, existing["id"], body)
-                    print(f"Updated comment on issue #{issue}")
-                    print(json.dumps({
-                        "success": True,
-                        "issue": issue,
-                        "comment_id": response["id"],
-                        "updated": True,
-                    }, indent=2))
+                    write_skill_output(
+                        {
+                            "issue": issue,
+                            "comment_id": response["id"],
+                            "updated": True,
+                        },
+                        output_format=fmt,
+                        human_summary=f"Updated comment on issue #{issue}",
+                        script_name=_SCRIPT_NAME,
+                    )
                     _write_github_output({
                         "success": "true",
                         "skipped": "false",
@@ -222,13 +235,18 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
                     })
                     return 0
 
-                print(f"Comment with marker '{args.marker}' already exists. Skipping.")
-                print(json.dumps({
-                    "success": True,
-                    "issue": issue,
-                    "marker": args.marker,
-                    "skipped": True,
-                }, indent=2))
+                write_skill_output(
+                    {
+                        "issue": issue,
+                        "marker": args.marker,
+                        "skipped": True,
+                    },
+                    output_format=fmt,
+                    human_summary=(
+                        f"Comment with marker '{args.marker}' already exists. Skipping."
+                    ),
+                    script_name=_SCRIPT_NAME,
+                )
                 _write_github_output({
                     "success": "true",
                     "skipped": "true",
@@ -277,6 +295,16 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         response = json.loads(result.stdout)
     except json.JSONDecodeError:
         print(f"Posted comment to issue #{issue} (response parsing failed)", file=sys.stderr)
+        write_skill_output(
+            {
+                "issue": issue,
+                "skipped": False,
+                "parse_error": True,
+            },
+            output_format=fmt,
+            human_summary=f"Posted comment to issue #{issue} (response parsing failed)",
+            script_name=_SCRIPT_NAME,
+        )
         _write_github_output({
             "success": "true",
             "skipped": "false",
@@ -285,13 +313,16 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         })
         return 0
 
-    output = {
-        "success": True,
-        "issue": issue,
-        "comment_id": response["id"],
-        "skipped": False,
-    }
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        {
+            "issue": issue,
+            "comment_id": response["id"],
+            "skipped": False,
+        },
+        output_format=fmt,
+        human_summary=f"Posted comment to issue #{issue}",
+        script_name=_SCRIPT_NAME,
+    )
 
     outputs: dict[str, str] = {
         "success": "true",
