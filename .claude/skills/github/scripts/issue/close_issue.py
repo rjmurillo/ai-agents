@@ -53,11 +53,11 @@ from github_core.output import (  # noqa: E402
 # spelling gh expects (with a space), so we pass the value through verbatim.
 _VALID_REASONS = ("completed", "not planned")
 _AUTH_ERROR_MARKERS = (
-    "auth",
     "credential",
     "not logged in",
     "bad credentials",
     "could not authenticate",
+    "authentication",
     "requires authentication",
 )
 
@@ -215,7 +215,10 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
             extra={"issue": issue},
         )
         raise SystemExit(3) from exc
-    return str(payload.get("state", "")).lower()
+    if not isinstance(payload, dict):
+        return ""
+    state = payload.get("state")
+    return "" if state is None else str(state).lower()
 
 
 def _post_comment(owner: str, repo: str, issue: int, body: str, fmt: str) -> None:
@@ -289,10 +292,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    commented = bool(body and body.strip())
-    if commented:
-        _post_comment(owner, repo, issue, body, fmt)
-
     result = _close_issue(owner, repo, issue, args.reason)
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
@@ -302,6 +301,10 @@ def main(argv: list[str] | None = None) -> int:
             fmt,
         )
         return code
+
+    commented = bool(body and body.strip())
+    if commented:
+        _post_comment(owner, repo, issue, body, fmt)
 
     data = {
         "issue": issue,

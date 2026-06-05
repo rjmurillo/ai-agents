@@ -168,16 +168,17 @@ class TestMain:
         data = _envelope(capsys)["Data"]
         assert data["commented"] is True
 
-        # First call posts the comment, second closes.
+        # State check, close, then comment. Closing first avoids duplicate
+        # comments if the close operation fails and callers retry.
         assert mock_run.call_count == 3
-        post_args = mock_run.call_args_list[1].args[0]
+        close_args = mock_run.call_args_list[1].args[0]
+        assert close_args[:3] == ["gh", "issue", "close"]
+        post_args = mock_run.call_args_list[2].args[0]
         assert post_args[:2] == ["gh", "api"]
         assert "comments" in post_args[2]
         # The comment body is passed as JSON on stdin.
-        post_input = mock_run.call_args_list[1].kwargs["input"]
+        post_input = mock_run.call_args_list[2].kwargs["input"]
         assert json.loads(post_input)["body"] == "Fixed in PR #10"
-        close_args = mock_run.call_args_list[2].args[0]
-        assert close_args[:3] == ["gh", "issue", "close"]
 
     def test_comment_from_file(self, tmp_path, capsys, monkeypatch):
         comment_path = tmp_path / "body.md"
@@ -199,7 +200,7 @@ class TestMain:
             rc = main(["--issue", "11", "--comment-file", comment_path.name])
         assert rc == 0
         assert _envelope(capsys)["Data"]["commented"] is True
-        post_input = mock_run.call_args_list[1].kwargs["input"]
+        post_input = mock_run.call_args_list[2].kwargs["input"]
         assert json.loads(post_input)["body"] == "Closing per triage."
 
     def test_missing_comment_file_exits_2(self, capsys):
@@ -294,6 +295,42 @@ class TestMain:
         assert env["Error"]["Code"] == 4
         assert env["Error"]["Type"] == "AuthError"
 
+    def test_issue_state_author_error_is_api_error(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stderr="author is invalid", rc=1),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "401"])
+            assert exc.value.code == 3
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Code"] == 3
+        assert env["Error"]["Type"] == "ApiError"
+
+    def test_issue_state_non_dict_json_treated_as_open(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _completed(stdout="null", rc=0),
+                _completed(stdout="closed", rc=0),
+            ],
+        ) as mock_run:
+            rc = main(["--issue", "18"])
+        assert rc == 0
+        assert mock_run.call_count == 2
+        assert _envelope(capsys)["Data"]["action"] == "closed"
+
     def test_invalid_utf8_comment_file_exits_2(self, tmp_path, capsys, monkeypatch):
         comment_path = tmp_path / "body.md"
         comment_path.write_bytes(b"\xff\xfe")
@@ -333,8 +370,8 @@ class TestMain:
         assert env["Error"]["Code"] == 3
         assert env["Error"]["Type"] == "ApiError"
 
-    def test_comment_post_failure_exits_3_before_close(self, capsys):
-        """A failed comment POST aborts with code 3; the issue is not closed."""
+    def test_comment_post_failure_exits_3_after_close(self, capsys):
+        """A failed comment POST returns code 3 after a successful close."""
         with patch(
             "close_issue.assert_gh_authenticated",
         ), patch(
@@ -342,13 +379,17 @@ class TestMain:
             return_value=RepoInfo(owner="o", repo="r"),
         ), patch(
             "subprocess.run",
-            side_effect=[_state_open(), _completed(stderr="HTTP 403", rc=1)],
+            side_effect=[
+                _state_open(),
+                _completed(rc=0),
+                _completed(stderr="HTTP 403", rc=1),
+            ],
         ) as mock_run:
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "14", "--comment", "note"])
             assert exc.value.code == 3
-        # State check and comment POST ran; the close call was never reached.
-        assert mock_run.call_count == 2
+        # State check, close, and comment POST ran.
+        assert mock_run.call_count == 3
         env = _envelope(capsys)
         assert env["Success"] is False
         assert env["Error"]["Code"] == 3
@@ -363,6 +404,7 @@ class TestMain:
             "subprocess.run",
             side_effect=[
                 _state_open(),
+                _completed(rc=0),
                 _completed(stderr="HTTP 401: requires authentication", rc=1),
             ],
         ):
