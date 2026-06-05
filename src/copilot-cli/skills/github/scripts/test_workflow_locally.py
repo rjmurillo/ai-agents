@@ -47,15 +47,18 @@ def _get_repo_root() -> str:
     Falls back to the four-parents path when git cannot return a worktree root,
     so workflow-path resolution below still has a best-effort anchor.
     """
-    result = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-        check=False,
-        env=_git_env(),
-    )
-    if result.returncode == 0 and result.stdout.strip():
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+            env=_git_env(),
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        result = None
+    if result is not None and result.returncode == 0 and result.stdout.strip():
         return str(Path(result.stdout.strip()).resolve())
     return str(Path(__file__).resolve().parent.parent.parent.parent)
 

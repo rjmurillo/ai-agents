@@ -189,6 +189,25 @@ class TestGetRepoRoot:
             )
             assert result == expected
 
+    def test_falls_back_to_parents_when_git_missing(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            result = _mod._get_repo_root()
+            expected = str(
+                Path(_mod.__file__).resolve().parent.parent.parent.parent
+            )
+            assert result == expected
+
+    def test_falls_back_to_parents_when_git_times_out(self):
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=10),
+        ):
+            result = _mod._get_repo_root()
+            expected = str(
+                Path(_mod.__file__).resolve().parent.parent.parent.parent
+            )
+            assert result == expected
+
 
 class TestWorktreeGitDir:
     def test_normal_checkout_returns_none(self, tmp_path):
