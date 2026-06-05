@@ -55,7 +55,7 @@ Do not auto-apply edits. Confirm each case with the author of the change before 
 
 ### Step 3: Propose spec patches (follow-up, not in this slice)
 
-Patch proposal via the `spec-generator` agent is tracked as a follow-up to issue #1997. When wired, `/sync` will hand the drift findings to `Task(subagent_type="spec-generator")` to draft REQ/DESIGN/TASK edits and write a record under `.agents/specs/sync-log/` with the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
+Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `Task(subagent_type="spec-generator")` to draft REQ/DESIGN/TASK edits and write a record under `.agents/specs/sync-log/` with the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
 
 ## Principles
 
@@ -74,7 +74,7 @@ Patch proposal via the `spec-generator` agent is tracked as a follow-up to issue
 - [ ] Detector exits `0` only when no drift exists.
 - [ ] Detector exits `1` when stale references exist.
 - [ ] Detector exits `2` for unsafe targets, unreadable specs, or missing custom targets.
-- [ ] Copilot CLI generated skill matches this command source.
+- [ ] Copilot CLI-generated skill matches this command source.
 
 ## Anti-Patterns
 
