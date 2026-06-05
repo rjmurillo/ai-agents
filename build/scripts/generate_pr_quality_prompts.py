@@ -48,13 +48,22 @@ GENERATED_DIR = REPO_ROOT / ".github" / "prompts"
 # Filename regex per REQ-008-02 AC: lowercase + dash, .md extension.
 _FILENAME_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 
-# Static 3-line CI header. No timestamps, no SHAs, no env-dependent tokens.
+# Static 4-line CI header. No timestamps, no SHAs, no env-dependent tokens.
 # {role} is substituted with the axis role name. The static template ensures
 # byte-identical output across runs and machines for the same input.
+#
+# The CONTEXT_MODE line is REQUIRED by AI-REVIEW-MODEL-POLICY.md ("CONTEXT_MODE
+# Header (REQUIRED)"): every prompt must declare the context-mode contract so a
+# reviewer model can refuse PASS when it did not receive the full diff. The line
+# names the static placeholder used in generated prompt files. The ai-review
+# action prepends the resolved CONTEXT_MODE header separately at runtime, so the
+# generated artifact stays static and idempotent. Issue #1981.
 _CI_HEADER_TEMPLATE = (
     "<!-- GENERATED -- DO NOT EDIT -->\n"
     "<!-- Source: .claude/skills/review/references/{role}.md -->\n"
     "<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->\n"
+    "<!-- CONTEXT_MODE: ${{CONTEXT_MODE}} (full|summary|partial); "
+    "PASS forbidden when not full, per AI-REVIEW-MODEL-POLICY.md -->\n"
     "\n"
 )
 

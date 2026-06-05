@@ -44,8 +44,8 @@ def test_single_reaction(mock_run, capsys):
     rc = main(["--comment-id", "123", "--reaction", "eyes"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["succeeded"] == 1
-    assert output["failed"] == 0
+    assert output["Data"]["succeeded"] == 1
+    assert output["Data"]["failed"] == 0
 
 
 @patch("subprocess.run")
@@ -61,8 +61,8 @@ def test_batch_reactions(mock_run, capsys):
     rc = main(["--comment-id", "1", "2", "3", "--reaction", "+1"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["total_count"] == 3
-    assert output["succeeded"] == 3
+    assert output["Data"]["total_count"] == 3
+    assert output["Data"]["succeeded"] == 3
 
 
 @patch("subprocess.run")
@@ -77,8 +77,10 @@ def test_partial_failure(mock_run, capsys):
     rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
-    assert output["succeeded"] == 1
-    assert output["failed"] == 1
+    assert output["Success"] is False
+    assert output["Error"]["Code"] == 3
+    assert output["Data"]["succeeded"] == 1
+    assert output["Data"]["failed"] == 1
 
 
 @patch("subprocess.run")

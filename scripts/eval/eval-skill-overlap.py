@@ -90,9 +90,7 @@ REPORTS_DIR = REPO_ROOT / "evals" / "reports"
 
 # Aligned with scripts/eval/eval-agent-vs-baseline.py DEFAULT_MODEL and the
 # canonical pricing table in scripts/eval/_eval_common.py
-# (MODEL_PRICING_RATES_USD_PER_1K_TOKENS). The branch this script was authored
-# on priced "claude-sonnet-4-20250514"; main collapsed that to
-# "claude-sonnet-4-6", so the default tracks main's priced model.
+# (MODEL_PRICING_RATES_USD_PER_1K_TOKENS).
 DEFAULT_MODEL = "claude-sonnet-4-6"
 RATE_LIMIT_SLEEP_SEC = 1.0  # fixed inter-call delay; matches eval-knowledge-integration.py
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")

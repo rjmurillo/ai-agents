@@ -1,0 +1,20 @@
+{
+  "event": "SessionStart",
+  "mode": "observe",
+  "shims": [
+    "invoke_session_initialization_enforcer.py",
+    "invoke_memory_first_enforcer.py",
+    "invoke_session_start_memory_first.py",
+    "invoke_adr_change_detection.py",
+    "invoke_context_loader.py",
+    "invoke_lsp_session_reset.py"
+  ],
+  "timeouts": {
+    "invoke_session_initialization_enforcer.py": 30,
+    "invoke_memory_first_enforcer.py": 30,
+    "invoke_session_start_memory_first.py": 30,
+    "invoke_adr_change_detection.py": 30,
+    "invoke_context_loader.py": 30,
+    "invoke_lsp_session_reset.py": 5
+  }
+}

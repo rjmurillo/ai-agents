@@ -1,0 +1,22 @@
+{
+  "event": "PostToolUse",
+  "mode": "observe",
+  "shims": [
+    "invoke_markdown_auto_lint__Write_Edit_c39898.py",
+    "invoke_adr_lifecycle_hook__Write_Edit_c39898.py",
+    "invoke_plan_state_sync__Write_Edit_c39898.py",
+    "invoke_adr_lifecycle_hook__Bash_f620ca.py",
+    "invoke_observation_sync__mcp_serena_write_memory_d88228.py",
+    "invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py",
+    "invoke_lsp_read_tracker__Read_852b43.py"
+  ],
+  "timeouts": {
+    "invoke_markdown_auto_lint__Write_Edit_c39898.py": 30,
+    "invoke_adr_lifecycle_hook__Write_Edit_c39898.py": 30,
+    "invoke_plan_state_sync__Write_Edit_c39898.py": 30,
+    "invoke_adr_lifecycle_hook__Bash_f620ca.py": 30,
+    "invoke_observation_sync__mcp_serena_write_memory_d88228.py": 30,
+    "invoke_lsp_usage_tracker__mcp_serena_find_symbol_find_referencing_symbols_34dc50.py": 5,
+    "invoke_lsp_read_tracker__Read_852b43.py": 5
+  }
+}

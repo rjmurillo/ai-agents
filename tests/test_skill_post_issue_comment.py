@@ -52,8 +52,8 @@ def test_post_comment(mock_run, capsys):
     rc = main(["--issue", "1", "--body", "Hello"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["success"] is True
-    assert output["comment_id"] == 100
+    assert output["Success"] is True
+    assert output["Data"]["comment_id"] == 100
 
 
 @patch("subprocess.run")
@@ -93,7 +93,7 @@ def test_marker_skip_existing(mock_run, capsys):
     rc = main(["--issue", "1", "--body", "New content", "--marker", "TEST-MARKER"])
     assert rc == 0
     output = _extract_json(capsys.readouterr().out)
-    assert output["skipped"] is True
+    assert output["Data"]["skipped"] is True
 
 
 @patch("subprocess.run")
@@ -119,7 +119,7 @@ def test_marker_update_existing(mock_run, capsys):
     ])
     assert rc == 0
     output = _extract_json(capsys.readouterr().out)
-    assert output["updated"] is True
+    assert output["Data"]["updated"] is True
 
 
 @patch("subprocess.run")

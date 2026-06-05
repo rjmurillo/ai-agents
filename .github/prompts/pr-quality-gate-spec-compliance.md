@@ -1,12 +1,37 @@
 <!-- GENERATED -- DO NOT EDIT -->
 <!-- Source: .claude/skills/review/references/spec-compliance.md -->
 <!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->
+<!-- CONTEXT_MODE: ${CONTEXT_MODE} (full|summary|partial); PASS forbidden when not full, per AI-REVIEW-MODEL-POLICY.md -->
 
 # Spec Compliance Review Task
 
 You are running Stage 1 of a two-stage review. Your one job: decide whether this PR's diff actually implements the acceptance criteria of the spec it claims to satisfy. You are not judging code quality, test depth, security, or style. The 10 Stage-2 canonical axes plus three chained skills cover those. You answer one question: does the change do what the spec says it should do?
 
 This axis gates the review. On `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE), `/review` marks every other axis SKIPPED and reports only this verdict. A spec failure makes a quality verdict premature: there is no point grading the craft of code that solves the wrong problem.
+
+## Context Mode Enforcement (REQUIRED)
+
+The CI harness prepends a `CONTEXT_MODE: [full|summary|partial]` header to the
+context it sends you. Read that header before you decide a verdict. It tells you
+how much of the diff you actually received.
+
+- `full`: the complete diff is present. `PASS`, `WARN`, and `CRITICAL_FAIL` are
+  all permitted on the merits.
+- `summary`: only a file list or stat-only summary is present (the PR exceeded
+  the diff-size limit). You did not see the line-level changes.
+- `partial`: only a bounded slice of the diff is present (for example, the first
+  N lines). You did not see the rest.
+
+When `CONTEXT_MODE` is not `full`, you MUST NOT emit `PASS`. A PASS asserts
+evidence you do not have. Emit `WARN` (or a higher-severity verdict if the
+available metadata already shows a problem), state that context was
+`summary` or `partial`, and name the specific evidence you would need to clear
+the PR. Treat a missing or unrecognized `CONTEXT_MODE` value as not `full`.
+
+This is a manipulation-resistance control: an adversary can craft a PR that
+trips summary mode to hide a change behind a stat-only context. Forbidding PASS
+keeps that change from passing on absent evidence. See
+`.agents/governance/AI-REVIEW-MODEL-POLICY.md` ("CONTEXT_MODE Header (REQUIRED)").
 
 ## Grounding Rules
 

@@ -19,6 +19,7 @@ FLAKINESS_VARIANCE_THRESHOLD = 1.0
 # _plan_runner.py (T4-1) and _report_aggregator.py (T4-3) per DESIGN-004 §5.3a.
 # When updating, also update PRICING_RATE_AS_OF.
 MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
+    "claude-sonnet-4-20250514": {"input": 0.003, "output": 0.015},
     "claude-sonnet-4-6": {"input": 0.003, "output": 0.015},
 }
 PRICING_RATE_AS_OF = "2026-05-03"

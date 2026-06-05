@@ -45,9 +45,9 @@ class TestNewIssue:
             result = main(["--title", "Test Title"])
         assert result == 0
         data = json.loads(capsys.readouterr().out)
-        assert data["success"] is True
-        assert data["issue_number"] == 42
-        assert data["title"] == "Test Title"
+        assert data["Success"] is True
+        assert data["Data"]["issue_number"] == 42
+        assert data["Data"]["title"] == "Test Title"
 
     def test_create_with_body_and_labels(self, capsys):
         with patch("subprocess.run", return_value=_make_proc(
