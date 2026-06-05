@@ -47,8 +47,10 @@ class TestGetRepoRoot:
 
     @patch("new_session_log_json.subprocess.run")
     def test_returns_repo_root(self, mock_run):
-        mock_run.return_value = MagicMock(returncode=0, stdout="/repo/.git\n")
+        mock_run.return_value = MagicMock(returncode=0, stdout="/repo\n")
         assert new_session_log_json._get_repo_root() == "/repo"
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args[0] == ["git", "rev-parse", "--show-toplevel"]
 
     @patch("new_session_log_json.subprocess.run")
     def test_returns_workspace_on_failure(self, mock_run):

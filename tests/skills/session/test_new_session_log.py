@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -17,18 +18,31 @@ sys.path.insert(0, str(SCRIPT_DIR))
 import new_session_log
 
 
-class TestAutoDetectSessionNumber:
-    """Tests for _auto_detect_session_number function."""
+@pytest.fixture
+def no_origin_sessions():
+    """Isolate local-only tests from the runner's real origin/main history.
 
-    def test_returns_1_when_no_dir(self, tmp_path):
+    `_auto_detect_session_number` / `_get_max_existing_session` now also read
+    origin/main via `_origin_main_max_session`. Stub it to 0 so these tests
+    exercise the local-scan path deterministically regardless of the repo the
+    suite runs in.
+    """
+    with patch.object(new_session_log, "_origin_main_max_session", return_value=0):
+        yield
+
+
+class TestAutoDetectSessionNumber:
+    """Tests for _auto_detect_session_number function (local-scan path)."""
+
+    def test_returns_1_when_no_dir(self, tmp_path, no_origin_sessions):
         result = new_session_log._auto_detect_session_number(str(tmp_path / "missing"))
         assert result == 1
 
-    def test_returns_1_when_no_sessions(self, tmp_path):
+    def test_returns_1_when_no_sessions(self, tmp_path, no_origin_sessions):
         result = new_session_log._auto_detect_session_number(str(tmp_path))
         assert result == 1
 
-    def test_returns_next_number(self, tmp_path):
+    def test_returns_next_number(self, tmp_path, no_origin_sessions):
         (tmp_path / "2026-01-01-session-5-test.json").write_text("{}")
         (tmp_path / "2026-01-02-session-3-test.json").write_text("{}")
         result = new_session_log._auto_detect_session_number(str(tmp_path))
@@ -36,18 +50,105 @@ class TestAutoDetectSessionNumber:
 
 
 class TestGetMaxExisting:
-    """Tests for _get_max_existing_session function."""
+    """Tests for _get_max_existing_session function (local-scan path)."""
 
-    def test_returns_none_when_no_dir(self, tmp_path):
+    def test_returns_none_when_no_dir(self, tmp_path, no_origin_sessions):
         assert new_session_log._get_max_existing_session(str(tmp_path / "missing")) is None
 
-    def test_returns_none_when_empty(self, tmp_path):
+    def test_returns_none_when_empty(self, tmp_path, no_origin_sessions):
         assert new_session_log._get_max_existing_session(str(tmp_path)) is None
 
-    def test_returns_max(self, tmp_path):
+    def test_returns_max(self, tmp_path, no_origin_sessions):
         (tmp_path / "2026-01-01-session-10.json").write_text("{}")
         (tmp_path / "2026-01-02-session-7.json").write_text("{}")
         assert new_session_log._get_max_existing_session(str(tmp_path)) == 10
+
+
+class TestCrossBranchSessionAllocation:
+    """origin/main is consulted so parallel branches do not reuse a number (#2379)."""
+
+    def test_origin_main_max_parses_ls_tree(self):
+        ls_tree = (
+            ".agents/sessions/2026-06-04-session-2335-pr-2353-autofix.json\n"
+            ".agents/sessions/2026-06-04-session-2340-pr-2360-autofix.json\n"
+        )
+        with patch.object(new_session_log.subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=ls_tree)
+            assert new_session_log._origin_main_max_session("/repo") == 2340
+            assert mock_run.call_args.kwargs["cwd"] == "/repo"
+
+    def test_origin_main_max_zero_when_ref_missing(self):
+        with patch.object(new_session_log.subprocess, "run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=128, stdout="")
+            assert new_session_log._origin_main_max_session() == 0
+
+    def test_origin_main_max_zero_on_subprocess_error(self):
+        with patch.object(
+            new_session_log.subprocess, "run", side_effect=OSError("git missing")
+        ):
+            assert new_session_log._origin_main_max_session() == 0
+
+    def test_origin_main_max_zero_on_timeout(self):
+        import subprocess as _sp
+        with patch.object(
+            new_session_log.subprocess,
+            "run",
+            side_effect=_sp.TimeoutExpired(cmd="git", timeout=10),
+        ):
+            assert new_session_log._origin_main_max_session() == 0
+
+    def test_auto_detect_uses_origin_when_higher_than_local(self, tmp_path):
+        # Local branch only knows session 5; a sibling committed 2340 to main.
+        (tmp_path / "2026-01-01-session-5-test.json").write_text("{}")
+        with patch.object(
+            new_session_log, "_origin_main_max_session", return_value=2340
+        ):
+            assert new_session_log._auto_detect_session_number(str(tmp_path)) == 2341
+
+    def test_auto_detect_uses_local_when_higher_than_origin(self, tmp_path):
+        (tmp_path / "2026-01-01-session-99-test.json").write_text("{}")
+        with patch.object(
+            new_session_log, "_origin_main_max_session", return_value=40
+        ):
+            assert new_session_log._auto_detect_session_number(str(tmp_path)) == 100
+
+    def test_auto_detect_origin_only_when_no_local_dir(self, tmp_path):
+        with patch.object(
+            new_session_log, "_origin_main_max_session", return_value=2340
+        ):
+            result = new_session_log._auto_detect_session_number(
+                str(tmp_path / "missing")
+            )
+            assert result == 2341
+
+    def test_auto_detect_uses_explicit_repo_root_for_artifact_root(self, tmp_path):
+        artifact_sessions = tmp_path / "artifact-root" / "sessions"
+        artifact_sessions.mkdir(parents=True)
+        repo_root = str(tmp_path / "repo")
+        with patch.object(
+            new_session_log, "_origin_main_max_session", return_value=2340
+        ) as mock_origin:
+            result = new_session_log._auto_detect_session_number(
+                str(artifact_sessions), repo_root
+            )
+        assert result == 2341
+        mock_origin.assert_called_once_with(repo_root)
+
+    def test_max_existing_includes_origin(self, tmp_path):
+        (tmp_path / "2026-01-01-session-5.json").write_text("{}")
+        with patch.object(
+            new_session_log, "_origin_main_max_session", return_value=2340
+        ):
+            assert new_session_log._get_max_existing_session(str(tmp_path)) == 2340
+
+    def test_max_existing_origin_only(self, tmp_path):
+        with patch.object(
+            new_session_log, "_origin_main_max_session", return_value=2340
+        ):
+            assert (
+                new_session_log._get_max_existing_session(str(tmp_path / "missing"))
+                == 2340
+            )
 
 
 class TestDeriveObjective:
@@ -217,8 +318,9 @@ class TestGetDescriptiveKeywords:
 class TestMain:
     """Tests for main entry point."""
 
+    @patch("new_session_log._origin_main_max_session", return_value=0)
     @patch("new_session_log.get_git_info")
-    def test_main_skip_validation(self, mock_git, tmp_path):
+    def test_main_skip_validation(self, mock_git, _mock_origin, tmp_path):
         mock_git.return_value = {
             "repo_root": str(tmp_path),
             "branch": "feat/test",
@@ -233,3 +335,82 @@ class TestMain:
             "--skip-validation",
         ])
         assert exit_code == 0
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+
+
+def _git_available() -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+@pytest.mark.skipif(
+    not _git_available(),
+    reason="git not available",
+)
+class TestParallelBranchCollisionIntegration:
+    """End-to-end: two branches off the same origin/main do not reuse a number.
+
+    Reproduces the #2379 collision shape with real git refs. origin/main carries
+    session 2335; a parallel branch that scans only its own working tree would
+    re-pick 2335, but reading origin/main forces the next number to 2336.
+    """
+
+    def _make_origin_and_clone(self, tmp_path: Path) -> Path:
+        origin = tmp_path / "origin.git"
+        seed = tmp_path / "seed"
+        seed.mkdir()
+        _git(seed, "init", "-q", "-b", "main")
+        _git(seed, "config", "user.email", "t@e.com")
+        _git(seed, "config", "user.name", "T")
+        sessions = seed / ".agents" / "sessions"
+        sessions.mkdir(parents=True)
+        # origin/main already has session 2335 committed by a sibling.
+        (sessions / "2026-06-04-session-2335-pr-2353-autofix.json").write_text("{}")
+        _git(seed, "add", "-A")
+        _git(seed, "commit", "-q", "-m", "seed with session 2335")
+        _git(seed, "clone", "-q", "--bare", str(seed), str(origin))
+
+        clone = tmp_path / "clone"
+        _git(tmp_path, "clone", "-q", str(origin), str(clone))
+        return clone
+
+    def test_parallel_branch_does_not_reuse_origin_number(self, tmp_path, monkeypatch):
+        clone = self._make_origin_and_clone(tmp_path)
+        # A fresh branch whose working tree has NO local session files yet.
+        _git(clone, "checkout", "-q", "-b", "fix/parallel")
+        local_sessions = clone / ".agents" / "sessions"
+        # Simulate the branch's own tree before it has written any session.
+        for f in local_sessions.glob("*.json"):
+            f.unlink()
+        monkeypatch.chdir(clone)
+
+        # Local scan alone would yield 1 (empty dir); origin/main has 2335, so
+        # the next number must be 2336, not a reuse of 2335.
+        assert new_session_log._origin_main_max_session() == 2335
+        assert (
+            new_session_log._auto_detect_session_number(str(local_sessions)) == 2336
+        )
+
+    def test_origin_max_zero_outside_any_repo(self, tmp_path, monkeypatch):
+        # No git repo at all -> best-effort scan returns 0, allocation falls back.
+        monkeypatch.chdir(tmp_path)
+        assert new_session_log._origin_main_max_session() == 0

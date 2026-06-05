@@ -13,19 +13,48 @@ import extract_session_episode
 
 
 class TestGetSessionIdFromPath:
-    """Tests for get_session_id_from_path function."""
+    """Tests for get_session_id_from_path function.
 
-    def test_full_date_pattern(self):
+    The session ID is preserved with its full descriptive suffix so parallel
+    autofix sessions that share a session number but differ in suffix do not
+    collide on one episode filename (issue #2379).
+    """
+
+    def test_full_date_pattern_preserves_suffix(self):
         result = extract_session_episode.get_session_id_from_path(
             Path("/path/to/2026-01-15-session-42-desc.md")
         )
+        assert result == "2026-01-15-session-42-desc"
+
+    def test_bare_number_no_suffix(self):
+        result = extract_session_episode.get_session_id_from_path(
+            Path("/path/to/2026-01-15-session-42.json")
+        )
         assert result == "2026-01-15-session-42"
+
+    def test_parallel_autofix_sessions_get_distinct_ids(self):
+        # The #2379 collision shape: same number, different PR suffix.
+        a = extract_session_episode.get_session_id_from_path(
+            Path("/p/2026-06-04-session-2335-pr-2353-autofix.json")
+        )
+        b = extract_session_episode.get_session_id_from_path(
+            Path("/p/2026-06-04-session-2335-pr-2359-autofix.json")
+        )
+        assert a == "2026-06-04-session-2335-pr-2353-autofix"
+        assert b == "2026-06-04-session-2335-pr-2359-autofix"
+        assert a != b
 
     def test_session_only_pattern(self):
         result = extract_session_episode.get_session_id_from_path(
             Path("/path/to/session-7.md")
         )
         assert result == "session-7"
+
+    def test_session_only_pattern_preserves_suffix(self):
+        result = extract_session_episode.get_session_id_from_path(
+            Path("/path/to/session-7-hotfix.md")
+        )
+        assert result == "session-7-hotfix"
 
     def test_fallback_to_filename(self):
         result = extract_session_episode.get_session_id_from_path(

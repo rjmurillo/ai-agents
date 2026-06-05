@@ -287,9 +287,39 @@ class TestGetRepoRoot:
     def test_returns_repo_root(self):
         with patch(
             "subprocess.run",
-            return_value=_completed(stdout="/home/user/repo/.git\n", rc=0),
+            return_value=_completed(stdout="/home/user/repo\n", rc=0),
         ):
             assert get_repo_root() == "/home/user/repo"
+
+    def test_uses_show_toplevel(self):
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = _completed(stdout="/home/user/repo\n", rc=0)
+            get_repo_root()
+            assert mock_run.call_args.args[0] == [
+                "git",
+                "rev-parse",
+                "--show-toplevel",
+            ]
+
+    def test_git_env_strips_hook_overrides(self, monkeypatch):
+        monkeypatch.setenv("GIT_DIR", "/wrong/git")
+        monkeypatch.setenv("GIT_WORK_TREE", "/wrong/worktree")
+        monkeypatch.setenv("GIT_COMMON_DIR", "/wrong/common")
+        monkeypatch.setenv("GIT_INDEX_FILE", "/wrong/index")
+        env = _mod._git_env()
+        assert "GIT_DIR" not in env
+        assert "GIT_WORK_TREE" not in env
+        assert "GIT_COMMON_DIR" not in env
+        assert "GIT_INDEX_FILE" not in env
+
+    def test_returns_worktree_top_not_main_checkout(self):
+        """In a linked worktree, repo root is the worktree top (#2387)."""
+        worktree_top = "/repo/.git/worktrees/feat/checkout"
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=worktree_top + "\n", rc=0),
+        ):
+            assert get_repo_root() == worktree_top
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +345,7 @@ class TestRunValidations:
             "subprocess.run",
             side_effect=[
                 _completed(stdout=changed, rc=0),  # git diff
+                _completed(stdout='{"ok": true}\n', rc=0),  # git show <head>:<path>
                 _completed(rc=0),  # python validation
             ],
         ):
@@ -330,12 +361,78 @@ class TestRunValidations:
             "subprocess.run",
             side_effect=[
                 _completed(stdout=changed, rc=0),  # git diff
+                _completed(stdout='{"ok": false}\n', rc=0),  # git show <head>:<path>
                 _completed(rc=1, stderr="validation failed"),  # python validation
             ],
         ):
             with pytest.raises(SystemExit) as exc:
                 run_validations(str(tmp_path), "main", "feat/branch")
             assert exc.value.code == 1
+
+    def test_session_log_read_from_branch_ref_not_working_tree(self, tmp_path):
+        """Session log is validated from head:<path>, not the working tree (#2387).
+
+        The branch is not checked out, so repo_root/<path> is absent. The
+        validator must still run against content read from the ref via
+        git show, not fail with an opaque error.
+        """
+        changed = ".agents/sessions/2025-01-01-session-01.json\n"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("# mock")
+        # Note: no .agents/sessions file is written into tmp_path, so the
+        # working-tree path does not exist; only git show can supply content.
+
+        validated_paths: list[str] = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=0)
+            if cmd[:2] == ["git", "show"]:
+                return _completed(stdout='{"session": 1}\n', rc=0)
+            if cmd[0].endswith("python") or "validate_session_json.py" in " ".join(cmd):
+                validated_paths.append(cmd[-1])
+                return _completed(rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/not-checked-out")
+
+        assert len(validated_paths) == 1
+        # The validated path is ignored repo-local scratch, not the branch log path.
+        assert Path(validated_paths[0]).parent == (
+            tmp_path / ".agents" / "scratch" / "session-log-validation"
+        )
+        assert not Path(validated_paths[0]).name.endswith("session-01.json")
+
+    def test_session_log_missing_from_head_skips_validation(self, tmp_path, capsys):
+        """When the head ref lacks the log, do not validate a stale worktree copy."""
+        changed = ".agents/sessions/2025-01-01-session-01.json\n"
+        validate_script = tmp_path / "scripts" / "validate_session_json.py"
+        validate_script.parent.mkdir(parents=True)
+        validate_script.write_text("# mock")
+        stale = tmp_path / ".agents" / "sessions" / "2025-01-01-session-01.json"
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_text('{"stale": true}\n', encoding="utf-8")
+
+        validator_ran = False
+
+        def fake_run(cmd, **kwargs):
+            nonlocal validator_ran
+            if cmd[:3] == ["git", "diff", "--name-only"]:
+                return _completed(stdout=changed, rc=0)
+            if cmd[:2] == ["git", "show"]:
+                return _completed(rc=128, stderr="path does not exist")
+            if "validate_session_json.py" in " ".join(cmd):
+                validator_ran = True
+                return _completed(rc=0)
+            return _completed(rc=0)
+
+        with patch("subprocess.run", side_effect=fake_run):
+            run_validations(str(tmp_path), "main", "feat/branch")
+
+        assert validator_ran is False
+        assert "not found at feat/branch" in capsys.readouterr().err
 
     def test_agents_changed_no_session_log_warns(self, tmp_path, capsys):
         changed = ".agents/HANDOFF.md\n"

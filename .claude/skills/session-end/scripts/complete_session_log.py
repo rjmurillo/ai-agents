@@ -20,6 +20,36 @@ import subprocess
 import sys
 from datetime import UTC
 from pathlib import Path
+from types import ModuleType
+
+
+def _resolve_paths_lib_dir() -> str:
+    """Resolve the vendor-portable path-helper lib directory (Issue #2050)."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        lib_dir = Path(plugin_root).expanduser().resolve() / "lib"
+        if not lib_dir.is_dir():
+            print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
+            sys.exit(2)
+        return str(lib_dir)
+    candidates: list[Path] = []
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        candidates.append(Path(workspace).expanduser().resolve() / ".claude" / "lib")
+    candidates.append(Path(__file__).resolve().parents[3] / "lib")
+    for lib_dir in candidates:
+        if lib_dir.is_dir():
+            return str(lib_dir)
+    checked = ", ".join(str(candidate) for candidate in candidates)
+    print(f"Plugin lib directory not found. Checked: {checked}", file=sys.stderr)
+    sys.exit(2)
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+
+from paths import resolve_artifact_root  # noqa: E402
 
 # Sibling-module loader for rework_warning (REQ-010).
 # Loaded lazily inside main() to keep import-time failures from breaking
@@ -186,7 +216,7 @@ def _validate_path_containment(session_path: str, sessions_dir: str) -> str | No
 # import is loaded via importlib so it works whether the script is run
 # directly (sys.path[0] is the script dir) or imported by tests via
 # importlib.util.spec_from_file_location (which does NOT add the dir).
-def _load_rework_module():
+def _load_rework_module() -> ModuleType:
     """Load the rework_warning sibling module without depending on sys.path."""
     import importlib.util as _il
     _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rework_warning.py")
@@ -290,8 +320,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = _get_repo_root()
 
-    sessions_dir = os.path.join(repo_root, ".agents", "sessions")
-    os.makedirs(sessions_dir, exist_ok=True)
+    sessions_dir = str(resolve_artifact_root("sessions", base=repo_root))
 
     # Find session log
     session_path = args.session_path

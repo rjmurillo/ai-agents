@@ -194,6 +194,28 @@ def enable_auto_merge(
                 "Enable it in Settings -> General -> Pull Requests.",
                 3,
             )
+        # Issue #2439: GitHub refuses auto-merge when
+        # `mergeStateStatus == UNSTABLE` (e.g. a non-required check is
+        # failing). The pr-autofix contract allows merging UNSTABLE PRs
+        # when the failing checks are documented non-required ones, but
+        # the auto-merge path cannot honor that. Direct the caller to
+        # merge_pr.py, which performs an immediate merge and is the
+        # documented fallback for this state.
+        if "unstable status" in msg.lower():
+            strategy = merge_method.lower()
+            fallback = (
+                f"python3 .claude/skills/github/scripts/pr/merge_pr.py "
+                f"--pull-request {pr_number} --strategy {strategy}"
+            )
+            error_and_exit(
+                "Cannot enable auto-merge: PR is in UNSTABLE merge state "
+                "(non-required checks failing). GitHub blocks auto-merge "
+                "for UNSTABLE PRs.\n"
+                "If the failing checks are documented non-required "
+                "failures, merge directly:\n"
+                f"  {fallback}",
+                3,
+            )
         if "not mergeable" in msg:
             error_and_exit(
                 "PR is not in a mergeable state. "

@@ -92,9 +92,29 @@ python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {
 python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {pr} | \
   python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --pull-request {pr} --checks-input -
 
-# Enable auto-merge
+# Enable auto-merge (CLEAN state only)
 python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --pull-request {pr} --enable --merge-method SQUASH
+
+# Direct merge (UNSTABLE state with documented non-required failures)
+python3 .claude/skills/github/scripts/pr/merge_pr.py --pull-request {pr} --strategy squash
 ```
+
+### Merge path by `mergeStateStatus`
+
+GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439). Pick the path
+that matches the state:
+
+| `mergeStateStatus` | Path | Script |
+|---|---|---|
+| `CLEAN` | Auto-merge (queues for required-check completion) | `set_pr_auto_merge.py --enable` |
+| `UNSTABLE` with documented non-required failures | Direct merge (immediate) | `merge_pr.py --strategy squash` |
+| `BEHIND` | Update branch first, then re-classify | `git merge origin/main --no-edit` + push |
+| `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver if real conflict |
+
+`set_pr_auto_merge.py` detects the `UNSTABLE` rejection from GitHub's
+GraphQL API and emits the direct-merge fallback command in its error
+output (exit 3) so the operator never has to translate the generic
+"GraphQL request failed" message themselves.
 
 ### Merge-check exit codes: `test_pr_merged.py`
 
@@ -146,4 +166,5 @@ Per PR processed:
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).
 - [ ] Branch is up to date with `main` (`mergeStateStatus` not `BEHIND`).
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
-- [ ] Auto-merge enabled only when all four Ready-to-Merge conditions hold (CanMerge=True is insufficient alone).
+- [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN`, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
+- [ ] All four Ready-to-Merge conditions hold before the merge command runs (CanMerge=True is insufficient alone).

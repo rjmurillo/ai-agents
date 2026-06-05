@@ -24,11 +24,11 @@ Skill eval (session-1825) ran `eval-knowledge-integration.py` against 15 suspect
 
 | # | Skill | Action | Evidence | Status |
 |---|-------|--------|----------|--------|
-| 1 | `doc-coverage` | PRUNE | `doc-accuracy/SKILL.md` "Related Skills" table: `**Replaced**: Symbol extraction logic preserved in Phase 1`. Lowest delta (+0.50). | `[ ]` pending |
-| 2 | `doc-sync` | PRUNE | `doc-accuracy/SKILL.md` "Related Skills" table: `**Replaced**: Structural audit absorbed into Phase 6`. | `[ ]` pending |
+| 1 | `doc-coverage` <!-- orphan-ref-ignore --> | PRUNE | `doc-accuracy/SKILL.md` "Related Skills" table: `**Replaced**: Symbol extraction logic preserved in Phase 1`. Lowest delta (+0.50). | `[ ]` pending |
+| 2 | `doc-sync` <!-- orphan-ref-ignore --> | PRUNE | `doc-accuracy/SKILL.md` "Related Skills" table: `**Replaced**: Structural audit absorbed into Phase 6`. | `[ ]` pending |
 | 3 | `workflow` | PRUNE (delete) | DEPRECATED in SKILL.md. No callers in commands/agents/CI. | `[ ]` pending |
-| 4 | `session-qa-eligibility` | FOLD into `session` | Both expose `Test-InvestigationEligibility`. Delta +1.83. | `[ ]` pending |
-| 5 | `session-migration` | SUNSET (audit first) | One-shot md→json work. Verify no remaining .md logs before delete. | `[ ]` pending |
+| 4 | `session-qa-eligibility` <!-- orphan-ref-ignore --> | FOLD into `session` | Both expose `Test-InvestigationEligibility`. Delta +1.83. | `[ ]` pending |
+| 5 | `session-migration` <!-- orphan-ref-ignore --> | SUNSET (audit first) | One-shot md→json work. Verify no remaining .md logs before delete. | `[ ]` pending |
 
 **M1 (doc-coverage + doc-sync + workflow)**: Spec written in session-1825. REQ/DESIGN/TASK TBD (in-progress).
 
@@ -107,6 +107,7 @@ Wave 2 triage → M1-M4 learnings + quarterly CI cron
 | 2026-05-09 | `workflow` action = PRUNE (delete), not KEEP-as-deprecation-guide | Source analysis (`.agents/analysis/skill-triage-2026-05-09.md` F3) recommended keeping `workflow` as a deprecation guide pointing to lifecycle commands. M1 spec reversed this: the SKILL.md was already DEPRECATED with no callers, and a deprecation guide adds catalog noise without surfacing in routing. The migration table in `docs/workflow-commands.md` is preserved and serves as the canonical map (legacy phase → lifecycle slash command). | KEEP as deprecation guide (analysis F3 recommendation); rejected because deprecation guides accumulate as zombie skills; the migration table in `docs/workflow-commands.md` is the documentation surface that survives the prune |
 | 2026-05-09 | M3 memory decomposition requires ADR-first | AGENTS.md "Ask First" gate for architecture changes. 143 KB skill is architectural concern. | Skip ADR; rejected (governance) |
 | 2026-05-09 | Issue #1932 filed for pairwise eval infra | Current eval-knowledge-integration.py cannot answer "are A and B redundant." Separate PR/issue for new evaluator. | Extend existing script; deferred (design needed) |
+| 2026-06-05 | M4 pairwise overlap eval wired and dry-run validated; live verdict pending credentials (Issue #1949) | `eval-skill-overlap.py` landed on main and ran a dry-run over the two M4 pairs (`curating-memories` x `memory-enhancement`, `exploring-knowledge-graph` x `memory` Tier-1): 96 calls, ~$3.02. The live run that produces the per-pair OVERLAP/DISTINCT/SUBSUMED verdict needs `ANTHROPIC_API_KEY`, absent in the build environment. Pairs file and methodology are recorded in `.agents/analysis/skill-overlap-2026-06-05.md`. No FOLD or KEEP decision is final until the live run executes. | Hand-curate verdicts without running the evaluator; rejected (no evidence, violates the evidence-rigor rule the plan adopted on 2026-05-09) |
 
 ## Progress Log
 
@@ -119,14 +120,17 @@ Wave 2 triage → M1-M4 learnings + quarterly CI cron
 
 ## Blockers
 
-1. **Issue #1932** (pairwise overlap eval): Blocks M4. ETA: separate feature cycle.
+1. **Issue #1949** (live overlap eval): Blocks final M4 verdicts until credentials are available.
 2. **ADR: memory decomposition**: Blocks M3. Owner: engineering (needs design discussion).
 
 ## References
 
 - `.agents/analysis/skill-triage-2026-05-09.md` - source triage analysis
+- `.agents/analysis/skill-overlap-2026-06-05.md` - M4 dry-run evidence and pair list
 - `evals/reports/skill-triage-20260509-135851/` - raw eval scores
 - `tests/evals/skills/triage-prompts.json` - eval scenarios
 - `scripts/eval/eval-knowledge-integration.py` - evaluator
+- `scripts/eval/eval-skill-overlap.py` - pairwise overlap evaluator
 - Issue #1932 - pairwise overlap eval feature
+- Issue #1949 - live overlap eval credential blocker
 - Session-1825 log: `.agents/sessions/2026-05-09-session-1825.json`

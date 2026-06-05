@@ -19,11 +19,8 @@
 .claude/skills/orphan-ref-validator/scripts/scan.py
 .claude/skills/quality-grades/scripts/grade_domains.py
 .claude/skills/security-scan/scripts/scan_vulnerabilities.py
-.claude/skills/session-end/scripts/complete_session_log.py
 .claude/skills/session-end/scripts/rework_warning.py
 .claude/skills/session-end/tests/test_complete_session_log.py
-.claude/skills/session-init/scripts/new_session_log.py
-.claude/skills/session-init/scripts/new_session_log_json.py
 .claude/skills/session-init/tests/test_session_init.py
 .claude/skills/session/scripts/test_investigation_eligibility.py
 .claude/skills/session/tests/test_session_eligibility.py

@@ -96,7 +96,7 @@ def _comment_base_dir() -> Path:
     if workspace:
         return Path(workspace).expanduser().resolve()
     for parent in Path(__file__).resolve().parents:
-        if (parent / ".git").exists() or (parent / ".claude").is_dir():
+        if (parent / ".git").exists():
             return parent
     return Path(__file__).resolve().parent
 

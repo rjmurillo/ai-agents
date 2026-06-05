@@ -51,6 +51,41 @@ class TestBuildParser:
             build_parser().parse_args(["--languages", "java"])
 
 
+class TestGetRepoRoot:
+    def test_returns_toplevel_in_git_repo(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="/repo\n")
+            result = _get_repo_root()
+            assert result == Path("/repo")
+            assert mock_run.call_args.args[0] == [
+                "git",
+                "rev-parse",
+                "--show-toplevel",
+            ]
+
+    def test_returns_worktree_top_not_main_checkout(self) -> None:
+        """In a linked worktree, repo root is the worktree top (#2373).
+
+        --git-common-dir would have resolved to the main checkout via
+        dirname(); --show-toplevel returns this worktree's root verbatim.
+        """
+        worktree_top = "/repo/.git/worktrees/feat/checkout"
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=worktree_top + "\n")
+            result = _get_repo_root()
+            assert result == Path(worktree_top)
+
+    def test_returns_none_outside_git_repo(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=128, stdout="")
+            assert _get_repo_root() is None
+
+    def test_returns_none_on_empty_toplevel(self) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="\n")
+            assert _get_repo_root() is None
+
+
 class TestMain:
     @patch("subprocess.run")
     def test_not_in_git_repo(
