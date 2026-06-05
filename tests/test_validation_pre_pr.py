@@ -22,6 +22,7 @@ from scripts.validation.pre_pr import (
     validate_design_review_frontmatter,
     validate_review_marker,
     validate_session_end,
+    validate_workflow_yaml,
 )
 
 # ---------------------------------------------------------------------------
@@ -1034,6 +1035,67 @@ class TestValidateWorkflowYaml:
             with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "ci.yml:1:1: SC2034 ... [shellcheck]", "")
                 assert validate_workflow_yaml(tmp_path) is False
+
+
+# ---------------------------------------------------------------------------
+# validate_workflow_yaml (actionlint scoping, issue #2346)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateWorkflowYamlScope:
+    """actionlint validates workflows only; composite action.yml files under
+    .github/actions/ must never be passed to it (issue #2346)."""
+
+    @staticmethod
+    def _build_tree(root: Path) -> None:
+        workflows = root / ".github" / "workflows"
+        workflows.mkdir(parents=True)
+        (workflows / "ci.yml").write_text(
+            "on: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps: []\n",
+            encoding="utf-8",
+        )
+        actions = root / ".github" / "actions" / "composite"
+        actions.mkdir(parents=True)
+        # A composite action: actionlint would emit false errors if scanned.
+        (actions / "action.yml").write_text(
+            "name: composite\nruns:\n  using: composite\n  steps: []\n",
+            encoding="utf-8",
+        )
+
+    def test_does_not_pass_composite_action_paths(self, tmp_path: Path) -> None:
+        self._build_tree(tmp_path)
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (0, "", "")
+                assert validate_workflow_yaml(tmp_path) is True
+
+        mock_run.assert_called_once()
+        command = mock_run.call_args.args[0]
+        assert command[0] == "actionlint"
+        paths = command[1:]
+        # No composite action path is ever handed to actionlint.
+        assert all(".github/actions" not in p for p in paths)
+        assert not any(p.endswith("action.yml") for p in paths)
+
+    def test_passes_only_workflow_files(self, tmp_path: Path) -> None:
+        self._build_tree(tmp_path)
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="/usr/bin/actionlint"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (0, "", "")
+                validate_workflow_yaml(tmp_path)
+
+        command = mock_run.call_args.args[0]
+        paths = command[1:]
+        assert paths, "expected at least one workflow file to be scanned"
+        workflows_prefix = str(tmp_path / ".github" / "workflows")
+        assert all(p.startswith(workflows_prefix) for p in paths)
+
+    def test_skips_when_actionlint_absent(self, tmp_path: Path) -> None:
+        self._build_tree(tmp_path)
+        with patch("scripts.validation.pre_pr.shutil.which", return_value=None):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                assert validate_workflow_yaml(tmp_path) is True
+        mock_run.assert_not_called()
 
 
 class TestValidateVendorPortability:

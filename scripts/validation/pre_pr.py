@@ -525,6 +525,16 @@ def validate_dash_prohibition(repo_root: Path) -> bool:
 def validate_workflow_yaml(repo_root: Path) -> bool:
     """Validate GitHub Actions workflow files with actionlint.
 
+    Scope is restricted to ``.github/workflows/`` by globbing that directory
+    and passing the explicit file list to actionlint. This is deliberate:
+    actionlint validates workflow files only. A bare ``actionlint`` with no
+    path argument recursively scans every ``.yml``/``.yaml`` file, including
+    composite action definitions under ``.github/actions/*/action.yml``, and
+    misreads each composite ``action.yml`` as a workflow, emitting false
+    errors (issue #2346). Composite actions cannot be validated with
+    actionlint, so they are never passed to it here. Do not widen the glob
+    to the repo root or to ``.github/``.
+
     actionlint shells out to shellcheck for ``run:`` scripts. shellcheck
     emits findings at four severities: ``error``, ``warning``, ``info``,
     ``style``. The ``info`` and ``style`` tiers are advisory (for example
