@@ -8,6 +8,7 @@ reference), plus the CLI argv/exit-code contract and the error envelope.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -178,7 +179,7 @@ def test_wildcard_reference_with_no_match_is_drift(tmp_path: Path) -> None:
     assert result.verdict == "DRIFT"
 
 
-def test_unreadable_file_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unreadable_file_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
     spec = _write_req(repo, "REQ-011.md", "Uses `scripts/gone.py`.\n")
@@ -188,12 +189,44 @@ def test_unreadable_file_is_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(Path, "read_text", boom)
 
+    # Act / Assert
+    with pytest.raises(dsd.DriftScanError, match="unreadable spec file"):
+        dsd.scan_spec_file(spec, repo)
+
+
+def test_parent_traversal_reference_is_reported_as_drift(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    _write_req(repo, "REQ-011B.md", "Uses `scripts/../../outside.py`.\n")
+
     # Act
-    findings, refs = dsd.scan_spec_file(spec, repo)
+    result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
 
     # Assert
-    assert findings == []
-    assert refs == 0
+    assert result.verdict == "DRIFT"
+    assert result.findings[0].referenced_path == "scripts/../../outside.py"
+
+
+def test_symlink_reference_escaping_repo_is_reported_as_drift(tmp_path: Path) -> None:
+    # Arrange
+    repo_base = tmp_path / "repo"
+    repo_base.mkdir()
+    repo = _make_repo(repo_base)
+    outside = tmp_path / "outside.py"
+    outside.write_text("# outside\n", encoding="utf-8")
+    link = repo / "scripts" / "outside.py"
+    try:
+        link.symlink_to(outside)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    _write_req(repo, "REQ-011C.md", "Uses `scripts/outside.py`.\n")
+
+    # Act
+    result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
+
+    # Assert
+    assert result.verdict == "DRIFT"
+    assert result.findings[0].referenced_path == "scripts/outside.py"
 
 
 # --- repo-root discovery ----------------------------------------------------
@@ -211,7 +244,19 @@ def test_find_repo_root_locates_agents_dir(tmp_path: Path) -> None:
     assert found == repo.resolve()
 
 
-def test_find_repo_root_returns_none_without_agents(tmp_path: Path) -> None:
+def test_find_repo_root_returns_none_without_agents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange: project-local temp dirs still have the real repo above them.
+    original_is_dir = Path.is_dir
+
+    def no_agents_dir(path: Path) -> bool:
+        if path.name == ".agents":
+            return False
+        return original_is_dir(path)
+
+    monkeypatch.setattr(Path, "is_dir", no_agents_dir)
+
     # Act
     found = dsd.find_repo_root(tmp_path)
 
@@ -321,11 +366,19 @@ def test_main_exits_zero_on_clean(tmp_path: Path, capsys: pytest.CaptureFixture[
 
 
 def test_main_exits_two_when_repo_root_absent(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Arrange: a directory with no .agents anywhere above it.
     bare = tmp_path / "bare"
     bare.mkdir()
+    original_is_dir = Path.is_dir
+
+    def no_agents_dir(path: Path) -> bool:
+        if path.name == ".agents":
+            return False
+        return original_is_dir(path)
+
+    monkeypatch.setattr(Path, "is_dir", no_agents_dir)
 
     # Act
     code = dsd.main(["--repo-root", str(bare)])
@@ -344,13 +397,69 @@ def test_main_honors_custom_target(tmp_path: Path, capsys: pytest.CaptureFixture
     )
 
     # Act
-    code = dsd.main(
-        ["--repo-root", str(repo), "--target", ".agents/specs/design"]
-    )
+    code = dsd.main(["--repo-root", str(repo), "--target", ".agents/specs/design"])
 
     # Assert
     assert code == 1
     assert "VERDICT: DRIFT" in capsys.readouterr().out
+
+
+def test_main_rejects_unsafe_target(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+
+    # Act
+    code = dsd.main(["--repo-root", str(repo), "--target", "../outside"])
+
+    # Assert
+    assert code == 2
+    assert "unsafe target path" in capsys.readouterr().out
+
+
+def test_main_rejects_absolute_target(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+
+    # Act
+    code = dsd.main(["--repo-root", str(repo), "--target", str(tmp_path)])
+
+    # Assert
+    assert code == 2
+    assert "unsafe target path" in capsys.readouterr().out
+
+
+def test_script_entrypoint_honors_cli_flags(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    (repo / ".agents" / "specs" / "design").mkdir(parents=True)
+    (repo / ".agents" / "specs" / "design" / "DESIGN-001.md").write_text(
+        "Uses `scripts/gone.py`.\n", encoding="utf-8"
+    )
+    script = Path(dsd.__file__).resolve()
+
+    # Act
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(script),
+            "--repo-root",
+            str(repo),
+            "--target",
+            ".agents/specs/design",
+            "--output-format",
+            "human",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+    # Assert
+    assert result.returncode == 1
+    assert result.stdout.startswith("detect_spec_drift")
+    assert "VERDICT: DRIFT" in result.stdout
 
 
 def test_main_human_output_format(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

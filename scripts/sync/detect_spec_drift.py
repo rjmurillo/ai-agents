@@ -44,8 +44,9 @@ import json
 import logging
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -81,7 +82,8 @@ _REFERENCE_ROOTS = (
 )
 _PATH_BODY = r"[A-Za-z0-9_./*-]+"
 REFERENCE_RE = re.compile(
-    r"`(?P<path>(?:" + "|".join(_REFERENCE_ROOTS) + r")/" + _PATH_BODY + r")`"
+    r"(?<![\w/])`(?P<path>(?:" + "|".join(_REFERENCE_ROOTS) + r")/" + _PATH_BODY + r")`(?!\w)",
+    re.IGNORECASE,
 )
 
 # A reference path ending in a directory separator, or with no file extension
@@ -95,6 +97,10 @@ _DIR_HINT_RE = re.compile(r"/$")
 IGNORE_DIRECTIVE = "sync-drift-ignore"
 
 Verdict = Literal["PASS", "DRIFT"]
+
+
+class DriftScanError(Exception):
+    """Configuration or read error that prevents a trustworthy drift result."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,12 +155,40 @@ def iter_spec_files(repo_root: Path, targets: tuple[str, ...]) -> list[Path]:
     """
     spec_files: list[Path] = []
     for target in targets:
-        target_dir = repo_root / target
+        target_dir = _safe_repo_path(repo_root, target)
+        if target_dir is None:
+            raise DriftScanError(f"unsafe target path: {target}")
         if not target_dir.is_dir():
             LOGGER.info("skipping %s: not present", target)
             continue
         spec_files.extend(sorted(target_dir.rglob("*.md")))
     return spec_files
+
+
+def _has_unsafe_path_parts(path_text: str) -> bool:
+    parts = path_text.rstrip("/").split("/")
+    return (
+        path_text.startswith("/")
+        or any(part in ("", ".", "..") for part in parts)
+        or Path(path_text).is_absolute()
+    )
+
+
+def _is_relative_to_repo(repo_root: Path, candidate: Path) -> bool:
+    try:
+        candidate.resolve(strict=False).relative_to(repo_root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
+def _safe_repo_path(repo_root: Path, relative_path: str) -> Path | None:
+    if _has_unsafe_path_parts(relative_path):
+        return None
+    candidate = (repo_root / relative_path.rstrip("/")).resolve(strict=False)
+    if not _is_relative_to_repo(repo_root, candidate):
+        return None
+    return candidate
 
 
 def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
@@ -163,9 +197,16 @@ def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
     Wildcard references (a glob like `.claude/skills/*/SKILL.md`) are accepted
     when at least one match exists. A trailing-slash reference is a directory.
     """
-    candidate = (repo_root / referenced_path.rstrip("/")).resolve()
     if "*" in referenced_path:
-        return any(repo_root.glob(referenced_path))
+        if _has_unsafe_path_parts(referenced_path):
+            return False
+        return any(
+            _is_relative_to_repo(repo_root, match) and match.exists()
+            for match in repo_root.glob(referenced_path)
+        )
+    candidate = _safe_repo_path(repo_root, referenced_path)
+    if candidate is None:
+        return False
     if _DIR_HINT_RE.search(referenced_path):
         return candidate.is_dir()
     return candidate.exists()
@@ -180,8 +221,7 @@ def scan_spec_file(spec_file: Path, repo_root: Path) -> tuple[list[DriftFinding]
     try:
         text = spec_file.read_text(encoding="utf-8")
     except OSError as exc:
-        LOGGER.warning("skipping %s: unreadable (%s)", spec_file, exc)
-        return [], 0
+        raise DriftScanError(f"unreadable spec file: {spec_file} ({exc})") from exc
 
     rel_spec = _relative(repo_root, spec_file)
     findings: list[DriftFinding] = []
@@ -231,7 +271,7 @@ def _metadata() -> dict[str, str]:
     return {
         "Script": SCRIPT,
         "Version": VERSION,
-        "Timestamp": datetime.now(UTC).isoformat(),
+        "Timestamp": datetime.now(timezone.utc).isoformat(),  # noqa: UP017 - Python 3.10
     }
 
 
@@ -259,8 +299,7 @@ def render_envelope(result: DriftResult, output: str) -> str:
 def _render_human(result: DriftResult) -> str:
     lines = [f"detect_spec_drift {VERSION}"]
     lines.append(
-        f"  scanned {result.files_scanned} spec file(s), "
-        f"checked {result.refs_checked} reference(s)"
+        f"  scanned {result.files_scanned} spec file(s), checked {result.refs_checked} reference(s)"
     )
     for finding in result.findings:
         lines.append(
@@ -284,7 +323,7 @@ def render_error_envelope(message: str, output: str) -> str:
     return json.dumps(envelope, indent=2) + "\nVERDICT: ERROR"
 
 
-def _parse_args(argv: list[str]) -> argparse.Namespace:
+def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Detect Spec<->Code drift: spec references to absent code paths."
     )
@@ -310,9 +349,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    args = _parse_args([] if argv is None else argv)
+    args = _parse_args(argv)
 
     start = args.repo_root if args.repo_root is not None else Path.cwd()
     repo_root = find_repo_root(start)
@@ -326,7 +365,19 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     targets = tuple(args.targets) if args.targets else DEFAULT_SPEC_TARGETS
-    result = detect_drift(repo_root, targets)
+    try:
+        result = detect_drift(repo_root, targets)
+    except DriftScanError as exc:
+        print(render_error_envelope(str(exc), args.output_format))
+        return 2
+    if args.targets and result.files_scanned == 0:
+        print(
+            render_error_envelope(
+                f"target(s) matched no spec files: {', '.join(targets)}",
+                args.output_format,
+            )
+        )
+        return 2
     print(render_envelope(result, args.output_format))
     return 1 if result.verdict == "DRIFT" else 0
 
