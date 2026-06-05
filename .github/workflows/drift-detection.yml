@@ -62,6 +62,22 @@ jobs:
             --detail "agent drift detected run=$RUN_ID"
         continue-on-error: true
 
+      # Weekly drift telemetry rollup (REQ-008-09). The summarizer reads the
+      # JSONL written this run and tallies trailing-30-day kill-criteria counts.
+      # A single logic-free CLI call (ADR-006); the report exits 1 when a
+      # criterion has fired, so continue-on-error keeps the job green while the
+      # alert still lands in the step summary. The events file is per-run only
+      # (git-ignored), so this rollup reflects this run, not full history; a
+      # cross-run weekly total would need artifact aggregation (out of scope).
+      # Runs unconditionally (always()): a zero-drift week still emits an
+      # all-zero rollup, which confirms the report ran and records the all-clear
+      # in the job summary instead of leaving it blank.
+      - name: Summarize kill-criteria drift telemetry
+        if: always()
+        run: |
+          python3 scripts/metrics/kill_criteria.py report >> "$GITHUB_STEP_SUMMARY"
+        continue-on-error: true
+
       # The events file is git-ignored, so upload it as an artifact to make
       # the K2 count survive the ephemeral runner.
       - name: Upload kill-criteria events
