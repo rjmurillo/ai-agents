@@ -44,6 +44,11 @@ from github_core.api import (  # noqa: E402
     gh_api_paginated,
     resolve_repo_params,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
+)
 
 _SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
@@ -181,11 +186,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Specific milestone to assign (auto-detects if omitted)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     item_type: str = args.item_type
     item_number: int = args.item_number
@@ -201,16 +208,22 @@ def main(argv: list[str] | None = None) -> int:
             f"Already has milestone '{existing}'. "
             "No action taken (preserving manual assignments)."
         )
-        print(f"{item_type} #{item_number} already has milestone: {existing}")
-        result = {
-            "success": True,
-            "item_type": item_type,
-            "item_number": item_number,
-            "milestone": existing,
-            "action": "skipped",
-            "message": msg,
-        }
-        print(json.dumps(result, indent=2))
+        if fmt != "json":
+            print(f"{item_type} #{item_number} already has milestone: {existing}")
+        write_skill_output(
+            {
+                "item_type": item_type,
+                "item_number": item_number,
+                "milestone": existing,
+                "action": "skipped",
+                "message": msg,
+            },
+            output_format=fmt,
+            human_summary=(
+                f"{item_type} #{item_number} already has milestone: {existing}"
+            ),
+            script_name="set_item_milestone.py",
+        )
         _write_result(True, item_type, item_number, existing, "skipped", msg)
         return 0
 
@@ -229,20 +242,24 @@ def main(argv: list[str] | None = None) -> int:
         milestone_title = str(detection["title"])
 
     # Assign
-    print(f"Assigning milestone '{milestone_title}' to {item_type} #{item_number}")
+    print(f"Assigning milestone '{milestone_title}' to {item_type} #{item_number}", file=sys.stderr)
     _assign_milestone(owner, repo, item_number, milestone_title)
 
     msg = f"Assigned milestone '{milestone_title}'."
-    print(f"Successfully assigned milestone '{milestone_title}' to {item_type} #{item_number}")
-    result = {
-        "success": True,
-        "item_type": item_type,
-        "item_number": item_number,
-        "milestone": milestone_title,
-        "action": "assigned",
-        "message": msg,
-    }
-    print(json.dumps(result, indent=2))
+    write_skill_output(
+        {
+            "item_type": item_type,
+            "item_number": item_number,
+            "milestone": milestone_title,
+            "action": "assigned",
+            "message": msg,
+        },
+        output_format=fmt,
+        human_summary=(
+            f"Assigned milestone '{milestone_title}' to {item_type} #{item_number}"
+        ),
+        script_name="set_item_milestone.py",
+    )
     _write_result(True, item_type, item_number, milestone_title, "assigned", msg)
     return 0
 
