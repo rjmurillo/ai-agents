@@ -31,6 +31,9 @@ def _main() -> int:
         if mode not in ("gate", "observe"):
             raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
         short_circuit = mode == "gate"
+        # Validate timeout metadata so malformed manifests fail closed. Do not
+        # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
+        # timed-out thread, and the host already owns this process timeout.
         timeouts = manifest.get("timeouts", {})
         if not isinstance(timeouts, dict):
             raise TypeError("manifest field 'timeouts' must be a dict when present")

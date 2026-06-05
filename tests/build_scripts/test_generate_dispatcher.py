@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -128,7 +128,8 @@ class TestEmit:
             "import os, sys\n"
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
-            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+            "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
+            "    sys.path.insert(0, str(lib))\n"
         )
         (event_dir / "a.py").write_text("import sys; sys.exit(0)\n")
         gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5)
@@ -158,7 +159,8 @@ class TestEmit:
             "import os, sys\n"
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
-            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+            "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
+            "    sys.path.insert(0, str(lib))\n"
         )
         gd.write_entrypoint(event_dir)
         (event_dir / "_manifest.json").write_text('{"event":"preToolUse"}\n')
@@ -193,7 +195,8 @@ class TestEmit:
             "import os, sys\n"
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
-            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+            "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
+            "    sys.path.insert(0, str(lib))\n"
         )
         gd.write_entrypoint(event_dir)
         gd.write_manifest(event_dir, "preToolUse", [])
@@ -228,7 +231,8 @@ class TestEmit:
             "import os, sys\n"
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
-            "    sys.path.insert(0, str(Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'))\n"
+            "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
+            "    sys.path.insert(0, str(lib))\n"
         )
         gd.write_entrypoint(event_dir)
         gd.write_manifest(event_dir, "preToolUse", ["a.py"], {"a.py": 0})
@@ -352,6 +356,37 @@ class TestObserveMode:
         assert not m_after.is_file(), (
             "gate mode ran a shim after a denial; short-circuit regressed"
         )
+
+    def test_timeout_metadata_does_not_background_observer_work(self, tmp_path):
+        # Regression: enforcing per-shim timeouts with daemon threads made
+        # observe mode return success before a slow observer finished. The host
+        # owns the event timeout; the in-process dispatcher must run the shim
+        # synchronously so no child work survives hook success.
+        root, event_dir = _stage_plugin(tmp_path, "postToolUse")
+        marker = tmp_path / "slow_observer_marker"
+        (event_dir / "slow.py").write_text(
+            "import sys, time\n"
+            "from pathlib import Path\n"
+            "time.sleep(1.2)\n"
+            f"Path(r'{marker}').write_text('ran')\n"
+            "sys.exit(0)\n"
+        )
+        gd.emit_dispatcher(
+            event_dir,
+            "postToolUse",
+            ["slow.py"],
+            3,
+            {"slow.py": 1},
+            mode="observe",
+        )
+
+        started = time.monotonic()
+        proc = _run_dispatch_entry(root, event_dir)
+        elapsed = time.monotonic() - started
+
+        assert proc.returncode == 0, proc.stderr.decode()
+        assert marker.is_file(), "dispatcher returned before the observer finished"
+        assert elapsed >= 1.0, "per-shim timeout metadata was enforced inside dispatcher"
 
 
 class TestShimBasename:

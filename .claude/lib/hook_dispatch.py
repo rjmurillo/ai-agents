@@ -21,8 +21,12 @@ Design contract (the security-critical part):
   (fail-closed, ADR-066). A registered shim missing on disk, or an unexpected
   exception while running a shim, is a denial (exit 2), never a silent allow. A
   shim's own internal fail-open (its ``main`` returning 0 on its own error) is
-  preserved, because the dispatcher only observes the shim's final exit code. In
-  observe mode (``PostToolUse``, ``SessionStart``, ``SessionEnd``,
+  preserved, because the dispatcher only observes the shim's final exit code.
+  Per-shim timeout metadata is validated, but not enforced with daemon threads:
+  a timed-out Python thread cannot be killed and can leave child processes
+  running after hook success. The host owns the cumulative event timeout and
+  kills the whole dispatcher process if that budget is exhausted. In observe
+  mode (``PostToolUse``, ``SessionStart``, ``SessionEnd``,
   ``UserPromptSubmit``) every shim runs regardless of an earlier non-zero exit;
   failures are logged and the dispatcher returns 0, matching the pre-
   consolidation host behavior where the host ran all observer entries.
@@ -38,7 +42,6 @@ from __future__ import annotations
 import io
 import runpy
 import sys
-import threading
 from pathlib import Path
 
 # Hook exit-code convention (Claude/Copilot PreToolUse): 0 allow, 2 block.
@@ -88,15 +91,10 @@ def _run_shim(shim_path: Path, name: str, raw_stdin: bytes) -> int:
         return BLOCK_EXIT
 
 
-def _run_shim_with_timeout(
-    shim_path: Path,
-    name: str,
-    raw_stdin: bytes,
-    timeout_sec: float | None,
-) -> int:
-    """Run one shim, enforcing its prior host timeout when provided."""
+def _validate_timeout(name: str, timeout_sec: float | None) -> int | None:
+    """Validate per-shim timeout metadata without trying to kill in-process code."""
     if timeout_sec is None:
-        return _run_shim(shim_path, name, raw_stdin)
+        return None
     if timeout_sec <= 0:
         print(
             f"hook-dispatch: shim {name} has invalid timeout {timeout_sec}; "
@@ -104,23 +102,7 @@ def _run_shim_with_timeout(
             file=sys.stderr,
         )
         return BLOCK_EXIT
-
-    result = {"code": BLOCK_EXIT}
-
-    def _target() -> None:
-        result["code"] = _run_shim(shim_path, name, raw_stdin)
-
-    thread = threading.Thread(target=_target, daemon=True)
-    thread.start()
-    thread.join(timeout_sec)
-    if thread.is_alive():
-        print(
-            f"hook-dispatch: shim {name} exceeded {timeout_sec}s; "
-            "denying (fail-closed)",
-            file=sys.stderr,
-        )
-        return BLOCK_EXIT
-    return result["code"]
+    return None
 
 
 def run_dispatch(
@@ -170,7 +152,9 @@ def run_dispatch(
                 continue
 
             timeout_sec = shim_timeouts.get(name) if shim_timeouts else None
-            code = _run_shim_with_timeout(shim_path, name, raw_stdin, timeout_sec)
+            code = _validate_timeout(name, timeout_sec)
+            if code is None:
+                code = _run_shim(shim_path, name, raw_stdin)
 
             if code != ALLOW_EXIT:
                 if short_circuit:

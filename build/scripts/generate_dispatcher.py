@@ -22,6 +22,9 @@ order, the authoritative registered set, NOT a directory listing), it produces:
 - ``_dispatch.py`` next to the shims: the thin entrypoint the host invokes once
   per event; it reads stdin and the manifest mode, then delegates to
   ``hook_dispatch.run_dispatch`` with the matching ``short_circuit`` flag.
+  The entrypoint validates per-shim timeout metadata, but the host owns the
+  cumulative event timeout. In-process timeout threads are intentionally not
+  used because Python cannot kill them safely.
 - ``_bootstrap.py`` next to the shims (copied from the canonical
   ``.claude/hooks/PreToolUse/_bootstrap.py``): the entrypoint imports
   ``ensure_plugin_paths`` from it, so every consolidated event dir needs a copy.
@@ -38,7 +41,7 @@ from pathlib import Path
 
 # Mirror contract from build/scripts/generate_hooks.py::_build_copilot_entry:
 # bash='python3 -u "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}/{rel}"',
-# powershell='py -3 -u "$(if ($env:COPILOT_PLUGIN_ROOT) {$env:COPILOT_PLUGIN_ROOT} else {$env:CLAUDE_PLUGIN_ROOT})/{rel}"',
+# powershell uses the same if-else root selection and appends /{rel}.
 # cwd=".", timeoutSec=timeout_sec. The dispatcher swaps {rel} to point at the
 # per-event _dispatch.py but keeps root resolution and shell shape identical.
 _BASH_TEMPLATE = (
@@ -83,6 +86,9 @@ def _main() -> int:
         if mode not in ("gate", "observe"):
             raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
         short_circuit = mode == "gate"
+        # Validate timeout metadata so malformed manifests fail closed. Do not
+        # enforce per-shim timeouts inside the dispatcher: Python cannot kill a
+        # timed-out thread, and the host already owns this process timeout.
         timeouts = manifest.get("timeouts", {})
         if not isinstance(timeouts, dict):
             raise TypeError("manifest field 'timeouts' must be a dict when present")
@@ -136,6 +142,8 @@ def write_manifest(
     ``mode`` is ``"gate"`` (short-circuit, fail-closed; ``PreToolUse``) or
     ``"observe"`` (run every shim, never gate; the other events). The
     entrypoint reads it to choose ``run_dispatch``'s ``short_circuit`` flag.
+    ``shim_timeouts`` are carried for manifest validation and cumulative host
+    timeout budgeting; they are not enforced inside the dispatcher process.
     """
     if mode not in ("gate", "observe"):
         raise ValueError(f"mode must be 'gate' or 'observe', got {mode!r}")
