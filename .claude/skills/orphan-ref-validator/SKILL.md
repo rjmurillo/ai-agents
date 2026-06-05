@@ -41,6 +41,7 @@ python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
     [--targets PATH ...] \
     [--include-adrs] \
     [--include-skill-descriptions] \
+    [--baseline FILE] \
     [--repo-root PATH] \
     [--output {json,human}] \
     [--log-level {DEBUG,INFO,WARNING,ERROR}]
@@ -51,6 +52,7 @@ python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
 | `--targets` | Files or directories to scan | `.agents/specs/`, `tests/evals/`, `.claude/.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json` |
 | `--include-adrs` | Add `.agents/architecture/` and `docs/` to defaults (opt-in) | off |
 | `--include-skill-descriptions` | Add `.claude/skills/*/SKILL.md` to defaults (opt-in until preexisting drift is cleaned) | off |
+| `--baseline` | Path to a file of known pre-existing finding keys (`target_file:line:kind:referenced_entity`). Matching findings are marked `suppressed` and do not fail the scan; new findings still exit `1`. Accepts a JSON list of keys, a saved scan envelope (`Data.findings`), or one key per line (`#` comments allowed). | none |
 | `--repo-root` | Repository root. Walks up from CWD for the nearest `.git` directory; falls back to CWD. Validates that user-supplied paths exist and are directories (returns ADR-035 exit `2` otherwise). | walked from CWD |
 | `--output` | `json` (ADR-056 envelope) or `human` (compact summary) | `json` |
 | `--log-level` | Python logging level | `WARNING` |
@@ -74,7 +76,7 @@ python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
       }
     ],
     "verdict": "CRITICAL_FAIL",
-    "counts": {"files_scanned": 142, "refs_checked": 318, "findings_total": 1}
+    "counts": {"files_scanned": 142, "refs_checked": 318, "findings_total": 1, "findings_suppressed": 0}
   },
   "Error": null,
   "Metadata": {"Script": "scan.py", "Version": "1.0.0", "Timestamp": "..."}
@@ -89,6 +91,7 @@ orphan-ref-validator 1.0.0
   files_scanned: 142
   refs_checked:  318
   findings:      1
+  suppressed:    0
   [critical] docs/old.md:12 skill_name `doc-sync` -- Skill `doc-sync` not present at .claude/skills/. ...
 VERDICT: CRITICAL_FAIL
 ```
@@ -180,11 +183,15 @@ Common kebab-case English phrases (`well-known`, `open-source`, `step-by-step`, 
 
 ### Verdict logic
 
-| Findings | Verdict |
+The verdict considers only active (non-suppressed) findings. A finding whose
+key is in the `--baseline` is marked `suppressed` and is excluded from the
+verdict calculation.
+
+| Active findings | Verdict |
 |---|---|
-| Any finding has `severity=critical` | `CRITICAL_FAIL` |
-| Findings exist, all `severity=warn` | `WARN` |
-| No findings | `PASS` |
+| Any active finding has `severity=critical` | `CRITICAL_FAIL` |
+| Active findings exist, all `severity=warn` | `WARN` |
+| No active findings (none, or all suppressed by baseline) | `PASS` |
 
 ### Vendored install behavior
 
@@ -268,6 +275,49 @@ Coverage target is 80 percent line coverage on `scan.py`. Cases cover positive a
 ### `/build` Mandatory Exit Gate
 
 `.claude/commands/build.md` invokes the skill. Exit `1` blocks the build phase.
+
+### PR exit gate: scope to changed files
+
+A default repo-wide scan (no `--targets`) fails on pre-existing orphan refs that
+predate the gate, so it is not a usable PR gate on a repo that already carries
+debt. Two patterns avoid that:
+
+1. **Scope to the changed files** so the gate judges only what the PR touches:
+
+   ```bash
+   python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
+       --targets $(git diff --name-only origin/main...HEAD)
+   ```
+
+   A PR that introduces no new orphan ref exits `0`; a PR that adds one exits `1`.
+   This is the recommended PR exit-gate form.
+
+2. **Baseline the known debt** so a repo-wide scan suppresses pre-existing
+   findings and fails only on new ones. See "Generating a baseline" below.
+
+### Generating a baseline
+
+Capture the current repo-wide findings once, commit the baseline, and the gate
+then fails only on findings introduced after that snapshot:
+
+```bash
+# Save the current full scan as the baseline (JSON envelope form).
+python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
+    --include-adrs --include-skill-descriptions \
+    --output json > orphan-ref-baseline.json
+
+# Later runs suppress the baselined findings; new ones still fail.
+python3 .claude/skills/orphan-ref-validator/scripts/scan.py \
+    --include-adrs --include-skill-descriptions \
+    --baseline orphan-ref-baseline.json
+```
+
+The baseline file accepts three shapes: a saved JSON envelope (`Data.findings`,
+as produced above), a JSON list of key strings, or a plain-text file with one
+`target_file:line:kind:referenced_entity` key per line (`#` comments allowed).
+Keys are positional: editing a file shifts line numbers, so regenerate the
+baseline after touching a baselined file, or prefer the changed-files form for
+PR gating. Treat the baseline as debt to pay down, not a permanent allowlist.
 
 ### Pre-push hook (optional)
 

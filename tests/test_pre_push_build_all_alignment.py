@@ -92,7 +92,9 @@ def test_drift_check_only_runs_for_agent_paths() -> None:
     drift_block_start = text.index("# 11. Agent drift detection")
     drift_block_end = text.index("# 11b. Build pipeline staleness")
     drift_block = text[drift_block_start:drift_block_end]
-    assert "src/(claude|vs-code-agents|copilot-cli/agents)/" in drift_block
+    assert "src/claude/[^/]+\\.md" in drift_block
+    assert "src/copilot-cli/agents/" in drift_block
+    assert "src/vs-code-agents/" in drift_block
     assert "'^(src/|templates/" not in drift_block
 
 
@@ -106,6 +108,19 @@ def test_build_all_check_remains_authoritative() -> None:
     text = _pre_push_text()
     assert 'BUILD_ALL_SCRIPT="$REPO_ROOT/build/scripts/build_all.py"' in text
     assert '"$BUILD_ALL_SCRIPT" --check' in text
+
+
+def test_agent_drift_trigger_is_agent_scoped() -> None:
+    """Skill and plugin source edits must not run unrelated agent drift checks."""
+    text = _pre_push_text()
+    drift_block_start = text.index("# 11. Agent drift detection")
+    drift_block_end = text.index("# 11b. Build pipeline staleness")
+    drift_block = text[drift_block_start:drift_block_end]
+
+    assert "src/claude/[^/]+\\.md" in drift_block
+    assert "src/copilot-cli/agents/" in drift_block
+    assert "src/vs-code-agents/" in drift_block
+    assert "grep -E '^(src/|templates/" not in drift_block
 
 
 def test_drift_missing_message_names_exact_path() -> None:
