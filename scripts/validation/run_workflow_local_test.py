@@ -158,17 +158,86 @@ def _run(
         proc = subprocess.run(
             cmd,
             cwd=str(cwd) if cwd else None,
+            env=env,
             capture_output=True,
             text=True,
             check=False,
             timeout=timeout,
-            env=env,
         )
     except FileNotFoundError:
         return -1, "", f"command not found: {cmd[0]}"
     except (OSError, subprocess.SubprocessError) as exc:
         return -1, "", f"{type(exc).__name__}: {exc}"
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def _read_worktree_gitdir(repo_root: Path) -> str | None:
+    """Return the absolute GIT_DIR for a LINKED worktree, else None.
+
+    In a linked worktree ``<repo_root>/.git`` is a FILE containing
+    ``gitdir: <path>`` that points at the per-worktree admin directory under
+    the main checkout's ``.git/worktrees/<name>``. ``gh act`` runs with
+    ``cwd=repo_root`` and cannot follow that pointer itself, so it fails to
+    find the git metadata (#2344). Returns the resolved absolute gitdir, or
+    None when ``.git`` is a normal directory or the pointer is unreadable.
+    """
+    git_path = repo_root / ".git"
+    if not git_path.is_file():
+        return None
+    try:
+        content = git_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not content.startswith("gitdir:"):
+        return None
+    pointer = content.split(":", 1)[1].strip()
+    if not pointer:
+        return None
+    gitdir = Path(pointer)
+    if not gitdir.is_absolute():
+        gitdir = (repo_root / gitdir).resolve()
+    else:
+        gitdir = gitdir.resolve()
+    return str(gitdir)
+
+
+def _unsupported_worktree_gitdir_error(repo_root: Path) -> str | None:
+    git_path = repo_root / ".git"
+    if not git_path.is_file():
+        return None
+    try:
+        content = git_path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        return (
+            f"linked git worktree marker is unreadable: {git_path} ({exc}). "
+            f"Re-run from the main worktree or set {_BYPASS_ENV}=true to bypass (logged)."
+        )
+    if not content.startswith("gitdir:") or not content.split(":", 1)[1].strip():
+        return (
+            f"unsupported linked git worktree marker at {git_path}; expected "
+            f"'gitdir: <path>'. Re-run from the main worktree or set {_BYPASS_ENV}=true "
+            "to bypass (logged)."
+        )
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is None or not Path(gitdir).is_dir():
+        return (
+            f"linked git worktree gitdir is missing: {gitdir or '<unresolved>'}. "
+            f"Re-run from the main worktree or set {_BYPASS_ENV}=true to bypass (logged)."
+        )
+    return None
+
+
+def _act_env(repo_root: Path) -> dict[str, str]:
+    """Build the subprocess env for gh act, GIT_DIR-aware for linked worktrees."""
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
+    }
+    gitdir = _read_worktree_gitdir(repo_root)
+    if gitdir is not None:
+        env["GIT_DIR"] = gitdir
+    return env
 
 
 def _select_workflow_files(
@@ -277,13 +346,14 @@ def _select_act_event(wf_path: Path) -> str | None:
 
 
 def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    env = _act_env(repo_root)
     for wf in files:
         event = _select_act_event(repo_root / wf)
         cmd = ["gh", "act", "-n"]
         if event is not None:
             cmd.append(event)
         cmd += ["-W", wf]
-        rc, out, err = _run(cmd, timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root)
+        rc, out, err = _run(cmd, timeout=_ACT_DRYRUN_TIMEOUT, cwd=repo_root, env=env)
         if rc != 0:
             return StageResult(
                 "gh act -n", False, f"{wf}:\n{(out + err).strip()[:4000]}"
@@ -292,13 +362,14 @@ def _act_dryrun_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 
 
 def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
+    env = _act_env(repo_root)
     for wf in files:
         event = _select_act_event(repo_root / wf)
         cmd = ["gh", "act"]
         if event is not None:
             cmd.append(event)
         cmd += ["-W", wf]
-        rc, out, err = _run(cmd, timeout=_ACT_FULL_TIMEOUT, cwd=repo_root)
+        rc, out, err = _run(cmd, timeout=_ACT_FULL_TIMEOUT, cwd=repo_root, env=env)
         if rc != 0:
             return StageResult(
                 "gh act (full)", False, f"{wf}:\n{(out + err).strip()[:4000]}"
@@ -370,6 +441,12 @@ def run_local_test(
             "gh act extension not installed. Install it via "
             f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true."
         )
+        return report
+
+    worktree_error = _unsupported_worktree_gitdir_error(repo_root)
+    if worktree_error is not None:
+        report.exit_code = 3
+        report.note = worktree_error
         return report
 
     s2 = _act_dryrun_stage(files, repo_root)
