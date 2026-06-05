@@ -16,9 +16,10 @@ The blocklist on this page is a published mirror. The single source of truth is
 the Step 0 hedge-phrase table in
 [`.claude/commands/spec.md`](../../.claude/commands/spec.md), between the
 `### Step 0: First Principles Gate` heading and the `<!-- step0:hedge-table-end -->`
-marker. The runtime matcher that consumes the list lives at
+marker. The deterministic test parser that checks the list lives at
 [`tests/commands/step0_parser.py`](../../tests/commands/step0_parser.py)
-(`HEDGE_TECHNICAL_SUFFIXES`).
+(`HEDGE_TECHNICAL_SUFFIXES`). Runtime enforcement comes from the `/spec`
+agent following the Step 0 instructions in `spec.md`.
 
 If this page and `spec.md` disagree, `spec.md` wins. Propose changes to the list
 against `spec.md`, then update this mirror in the same change. Do not edit this
@@ -106,9 +107,41 @@ retrospective named it.
    `HEDGE_TECHNICAL_SUFFIXES` in `tests/commands/step0_parser.py` so the gate does
    not flag the technical use.
 
+## Source attribution
+
+The list comes from the Step 0 gate requirement and its retrospective audit.
+Each phrase below maps to the gate condition it protects and the source artifact
+that introduced the condition.
+
+| Phrase | Gate condition | Source |
+|---|---|---|
+| `would be nice` | Aspirational demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `would be useful` | Aspirational demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `would be helpful` | Aspirational demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `we believe` | Belief without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we expect` | Prediction without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we anticipate` | Prediction without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we predict` | Prediction without observation | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `we hope` | Aspiration without demand | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `we assume` | Unverified premise | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.agents/retrospective/2025-12-26-prd-planning-workflow.md` |
+| `stakeholders want` | Unnamed requester | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `users want` | Unnamed requester | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `customers want` | Unnamed requester | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-04 |
+| `should we` | Self-questioning in place of commitment | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
+| `might be useful` | Speculative value | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `might be needed` | Speculative need | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `could be useful` | Speculative value | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-03 |
+| `probably` | Unverified confidence | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and `.agents/retrospective/2026-01-03-adr-generation-quality.md` |
+| `eventually` | Indefinite future | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
+| `someday` | Indefinite future | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
+| `down the road` | Indefinite future | `.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md` retrospective audit and REQ-016-13 review cadence |
+| `nice to have` | Low-priority aspiration | `.agents/retrospective/2025-12-15-documentation-gap.md` and REQ-016-04 |
+
 ## References
 
 - [`.claude/commands/spec.md`](../../.claude/commands/spec.md). Canonical Step 0
   gate and hedge-phrase table.
 - [`tests/commands/step0_parser.py`](../../tests/commands/step0_parser.py).
-  Runtime matcher and `HEDGE_TECHNICAL_SUFFIXES` exemption table.
+  Deterministic test parser and `HEDGE_TECHNICAL_SUFFIXES` exemption table.
+- [`.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md`](../../.agents/specs/requirements/REQ-016-spec-step0-first-principles-gate.md).
+  Requirement and retrospective audit that introduced Step 0.
