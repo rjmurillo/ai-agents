@@ -199,8 +199,9 @@ def test_gather_evidence_defaults_git_since_from_scope_date(tmp_path, monkeypatc
     _write_session(sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]})
     seen: dict[str, str | None] = {}
 
-    def _fake_git_log(_project_dir, since):
+    def _fake_git_log(_project_dir, since, until=None):
         seen["since"] = since
+        seen["until"] = until
         return True, []
 
     monkeypatch.setattr(_mod, "gather_git_log", _fake_git_log)
@@ -210,6 +211,28 @@ def test_gather_evidence_defaults_git_since_from_scope_date(tmp_path, monkeypatc
 
     # Assert
     assert seen["since"] == "2026-06-03"
+    assert seen["until"] == "2026-06-04"
+
+
+def test_gather_evidence_does_not_infer_until_for_explicit_since(tmp_path, monkeypatch):
+    # Arrange
+    sessions = tmp_path / ".agents" / "sessions"
+    _write_session(sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]})
+    seen: dict[str, str | None] = {}
+
+    def _fake_git_log(_project_dir, since, until=None):
+        seen["since"] = since
+        seen["until"] = until
+        return True, []
+
+    monkeypatch.setattr(_mod, "gather_git_log", _fake_git_log)
+
+    # Act
+    gather_evidence(tmp_path, "2026-06-03", since="2 weeks ago")
+
+    # Assert
+    assert seen["since"] == "2 weeks ago"
+    assert seen["until"] is None
 
 
 # --- Negative: missing sources are marked absent, not crashed ---------------
@@ -351,6 +374,26 @@ def test_gather_git_log_reads_real_repo(tmp_path):
     # Assert
     assert available is True
     assert any("seed commit" in c for c in commits)
+
+
+def test_gather_git_log_passes_until_bound(tmp_path, monkeypatch):
+    # Arrange
+    seen: dict[str, list[str]] = {}
+
+    def _fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(cmd, 0, stdout="abc subject\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    # Act
+    available, commits = gather_git_log(tmp_path, since="2026-06-03", until="2026-06-04")
+
+    # Assert
+    assert available is True
+    assert commits == ["abc subject"]
+    assert "--since=2026-06-03" in seen["cmd"]
+    assert "--until=2026-06-04" in seen["cmd"]
 
 
 def test_gather_git_log_marks_unavailable_outside_repo(tmp_path):

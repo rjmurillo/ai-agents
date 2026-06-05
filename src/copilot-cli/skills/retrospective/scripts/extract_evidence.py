@@ -110,6 +110,12 @@ def _scope_since(scope: str) -> str | None:
     return scoped_date.isoformat() if scoped_date else None
 
 
+def _scope_until(scope: str) -> str | None:
+    """Return an exclusive git --until value from a dated retrospective scope."""
+    scoped_date = _scope_date(scope)
+    return (scoped_date + timedelta(days=1)).isoformat() if scoped_date else None
+
+
 def _session_log_date(path: Path) -> date | None:
     """Return the ISO date prefix from a session-log filename when present."""
     try:
@@ -216,6 +222,7 @@ def parse_session_log(path: Path) -> SessionLogParseResult:
 def gather_git_log(
     project_dir: Path,
     since: str | None,
+    until: str | None = None,
     limit: int = _DEFAULT_COMMIT_LIMIT,
 ) -> tuple[bool, list[str]]:
     """Return git one-line commit summaries over the period.
@@ -227,6 +234,8 @@ def gather_git_log(
     cmd = ["git", "log", f"--max-count={limit}", "--pretty=format:%h %s"]
     if since:
         cmd.append(f"--since={since}")
+    if until:
+        cmd.append(f"--until={until}")
     try:
         result = subprocess.run(
             cmd,
@@ -287,7 +296,8 @@ def gather_evidence(
             session_log_available = True
 
     git_since = since if since is not None else _scope_since(scope)
-    git_available, commits = gather_git_log(project_dir, git_since)
+    git_until = None if since is not None else _scope_until(scope)
+    git_available, commits = gather_git_log(project_dir, git_since, git_until)
     if not git_available:
         notes.append("git history unavailable (not a repo, git missing, or timed out).")
 
