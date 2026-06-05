@@ -527,8 +527,10 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             error_and_exit(f"Issue #{issue_number} not found in {owner}/{repo}", 2)
         error_and_exit(f"Failed to get issue: {error_str}", 3)
 
-    issue = json.loads(issue_result.stdout)
-    print(f"Issue: {issue.get('title', '')}", file=sys.stderr)
+    issue_payload = json.loads(issue_result.stdout)
+    issue = issue_payload if isinstance(issue_payload, dict) else {}
+    title = "" if issue.get("title") is None else str(issue.get("title"))
+    print(f"Issue: {title}", file=sys.stderr)
 
     # Fetch comments
     comments = get_issue_comments(owner, repo, issue_number)
