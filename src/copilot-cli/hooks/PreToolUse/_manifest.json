@@ -1,5 +1,6 @@
 {
   "event": "PreToolUse",
+  "mode": "gate",
   "shims": [
     "invoke_routing_gates__Bash_f620ca.py",
     "invoke_skill_first_guard__Bash_f620ca.py",

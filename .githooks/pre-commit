@@ -438,8 +438,15 @@ fi
 # Related: Epic GitHub Actions Local Testing (#848), ADR-005, Skill-CI-001
 #
 
-# Filter for workflow YAML files only
-STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/(workflows|actions)/.*\.ya?ml$' || true)
+# Filter for workflow YAML files only.
+# actionlint understands workflow YAML under .github/workflows/*.yml and
+# .github/workflows/*.yaml. Composite actions under
+# .github/actions/**/action.yml use a different schema
+# (runs:/inputs:/outputs: at the top level, no jobs:/on:) and feeding them to
+# actionlint produces spurious "missing jobs section" errors (#2346). Composite
+# action SHA-pinning and expression-injection checks run later in this hook and
+# in pre-push.
+STAGED_WORKFLOW_FILES=$(echo "$STAGED_FILES" | grep -E '^\.github/workflows/.*\.ya?ml$' || true)
 
 # Check for SKIP_ACTIONLINT environment variable (emergency bypass)
 if [ "${SKIP_ACTIONLINT:-}" = "1" ]; then

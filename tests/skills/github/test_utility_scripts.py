@@ -21,6 +21,7 @@ _scripts_dir = _project_root / ".claude" / "skills" / "github" / "scripts"
 for _p in (
     str(_lib_dir),
     str(_scripts_dir / "reactions"),
+    str(_scripts_dir / "notifications"),
     str(_scripts_dir / "utils"),
     str(_scripts_dir),
 ):
@@ -38,6 +39,32 @@ def make_proc(stdout="", stderr="", returncode=0):
 
 def _mock_repo():
     return RepoInfo(owner="o", repo="r")
+
+
+# ---------------------------------------------------------------------------
+# get_actionable_items
+# ---------------------------------------------------------------------------
+
+class TestGetActionableItems:
+    """Tests for get_actionable_items.main."""
+
+    def _import(self):
+        import importlib
+
+        import get_actionable_items as mod
+        importlib.reload(mod)
+        return mod
+
+    def test_invalid_limit_emits_error_envelope(self, capsys):
+        mod = self._import()
+
+        rc = mod.main(["--limit", "0", "--output-format", "json"])
+
+        assert rc == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 1
+        assert result["Error"]["Type"] == "InvalidParams"
 
 
 # ---------------------------------------------------------------------------
@@ -65,10 +92,10 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "42", "--reaction", "eyes"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["succeeded"] == 1
-        assert result["failed"] == 0
-        assert result["results"][0]["success"] is True
-        assert result["results"][0]["comment_id"] == 42
+        assert result["Data"]["succeeded"] == 1
+        assert result["Data"]["failed"] == 0
+        assert result["Data"]["results"][0]["success"] is True
+        assert result["Data"]["results"][0]["comment_id"] == 42
 
     def test_happy_path_issue_comment(self, capsys):
         mod = self._import()
@@ -81,7 +108,7 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "10", "--comment-type", "issue", "--reaction", "+1"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["comment_type"] == "issue"
+        assert result["Data"]["comment_type"] == "issue"
 
     def test_batch_all_succeed(self, capsys):
         mod = self._import()
@@ -94,9 +121,9 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "1", "2", "3", "--reaction", "heart"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["total_count"] == 3
-        assert result["succeeded"] == 3
-        assert result["failed"] == 0
+        assert result["Data"]["total_count"] == 3
+        assert result["Data"]["succeeded"] == 3
+        assert result["Data"]["failed"] == 0
 
     def test_already_reacted_counts_as_success(self, capsys):
         mod = self._import()
@@ -109,7 +136,7 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "5", "--reaction", "rocket"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["succeeded"] == 1
+        assert result["Data"]["succeeded"] == 1
 
     def test_api_failure_counted(self, capsys):
         mod = self._import()
@@ -122,8 +149,8 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "9", "--reaction", "eyes"])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
-        assert result["failed"] == 1
-        assert result["results"][0]["success"] is False
+        assert result["Data"]["failed"] == 1
+        assert result["Data"]["results"][0]["success"] is False
 
     def test_partial_batch_failure(self, capsys):
         mod = self._import()
@@ -136,8 +163,8 @@ class TestAddCommentReaction:
             rc = mod.main(["--comment-id", "1", "2", "--reaction", "eyes"])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
-        assert result["succeeded"] == 1
-        assert result["failed"] == 1
+        assert result["Data"]["succeeded"] == 1
+        assert result["Data"]["failed"] == 1
 
     def test_main_exits_3_on_failure(self):
         mod = self._import()
@@ -162,7 +189,7 @@ class TestAddCommentReaction:
         assert rc == 0
         captured = capsys.readouterr()
         parsed = json.loads(captured.out)
-        assert parsed["succeeded"] == 1
+        assert parsed["Data"]["succeeded"] == 1
 
     def test_help_does_not_crash(self):
         import add_comment_reaction as mod
@@ -180,7 +207,10 @@ class TestAddCommentReaction:
 
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
-            patch("add_comment_reaction.resolve_repo_params", return_value=RepoInfo(owner="owner", repo="repo")),
+            patch(
+                "add_comment_reaction.resolve_repo_params",
+                return_value=RepoInfo(owner="owner", repo="repo"),
+            ),
             patch("subprocess.run", side_effect=fake_run),
         ):
             mod.main(["--comment-id", "100", "--reaction", "eyes"])
@@ -199,7 +229,10 @@ class TestAddCommentReaction:
 
         with (
             patch("add_comment_reaction.assert_gh_authenticated"),
-            patch("add_comment_reaction.resolve_repo_params", return_value=RepoInfo(owner="owner", repo="repo")),
+            patch(
+                "add_comment_reaction.resolve_repo_params",
+                return_value=RepoInfo(owner="owner", repo="repo"),
+            ),
             patch("subprocess.run", side_effect=fake_run),
         ):
             mod.main(["--comment-id", "200", "--comment-type", "issue", "--reaction", "eyes"])

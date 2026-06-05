@@ -12,14 +12,11 @@ Covers:
 
 import json
 import subprocess
-import sys
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
-from test_helpers import import_skill_script
 from github_core.api import RepoInfo
+from test_helpers import import_skill_script
 
 
 def make_proc(stdout="", stderr="", returncode=0):
@@ -30,12 +27,20 @@ def make_proc(stdout="", stderr="", returncode=0):
 
 
 def _extract_json(text: str) -> dict:
-    """Extract the last JSON object from output that may contain text before it."""
-    # Find the last '{' that starts a JSON object
-    idx = text.rfind("{")
-    if idx == -1:
-        raise ValueError(f"No JSON found in output: {text!r}")
-    return json.loads(text[idx:])
+    """Extract the last JSON object from output that may contain text before it.
+
+    Walks lines from the bottom and returns the first one that parses as a
+    complete JSON object. The canonical envelope is emitted as a single line.
+    """
+    for line in reversed(text.strip().splitlines()):
+        candidate = line.strip()
+        if not candidate.startswith("{"):
+            continue
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    raise ValueError(f"No JSON found in output: {text!r}")
 
 
 def _mock_repo():
@@ -70,7 +75,10 @@ class TestGetIssueContext:
         proc = make_proc(stdout=json.dumps(issue_data))
         with (
             patch("get_issue_context.assert_gh_authenticated"),
-            patch("get_issue_context.resolve_repo_params", return_value=RepoInfo(owner="owner", repo="repo")),
+            patch(
+                "get_issue_context.resolve_repo_params",
+                return_value=RepoInfo(owner="owner", repo="repo"),
+            ),
             patch("subprocess.run", return_value=proc),
         ):
             rc = mod.main(["--issue", "42"])
@@ -214,9 +222,9 @@ class TestNewIssue:
             rc = mod.main(["--title", "My Title", "--body", "body text", "--labels", "bug"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["issue_number"] == 123
-        assert result["title"] == "My Title"
+        assert result["Success"] is True
+        assert result["Data"]["issue_number"] == 123
+        assert result["Data"]["title"] == "My Title"
 
     def test_empty_body_and_labels_omitted(self):
         mod = self._import()
@@ -326,9 +334,9 @@ class TestPostIssueComment:
             rc = mod.main(["--issue", "1", "--body", "body text"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["comment_id"] == 99
-        assert result["skipped"] is False
+        assert result["Success"] is True
+        assert result["Data"]["comment_id"] == 99
+        assert result["Data"]["skipped"] is False
 
     def test_marker_already_exists_skips(self, capsys):
         mod = self._import()
@@ -345,7 +353,7 @@ class TestPostIssueComment:
             rc = mod.main(["--issue", "1", "--body", "new body", "--marker", marker])
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
-        assert result["skipped"] is True
+        assert result["Data"]["skipped"] is True
 
     def test_marker_exists_update_if_exists(self, capsys):
         mod = self._import()
@@ -367,8 +375,8 @@ class TestPostIssueComment:
             ])
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
-        assert result["updated"] is True
-        assert result["success"] is True
+        assert result["Data"]["updated"] is True
+        assert result["Success"] is True
 
     def test_marker_new_post(self, capsys):
         mod = self._import()
@@ -384,8 +392,8 @@ class TestPostIssueComment:
             rc = mod.main(["--issue", "1", "--body", "body", "--marker", marker])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["skipped"] is False
+        assert result["Success"] is True
+        assert result["Data"]["skipped"] is False
 
     def test_permission_error_exits_4(self):
         mod = self._import()
@@ -662,8 +670,8 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--milestone", "v1.0"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["success"] is True
-        assert result["action"] == "assigned"
+        assert result["Success"] is True
+        assert result["Data"]["action"] == "assigned"
 
     def test_already_same_milestone_no_change(self, capsys):
         mod = self._import()
@@ -678,7 +686,7 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--milestone", "v1.0"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "no_change"
+        assert result["Data"]["action"] == "no_change"
 
     def test_different_milestone_no_force_exits_5(self):
         mod = self._import()
@@ -708,7 +716,7 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--milestone", "new-ms", "--force"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "replaced"
+        assert result["Data"]["action"] == "replaced"
 
     def test_clear_with_existing(self, capsys):
         mod = self._import()
@@ -723,7 +731,7 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--clear"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "cleared"
+        assert result["Data"]["action"] == "cleared"
 
     def test_clear_without_existing(self, capsys):
         mod = self._import()
@@ -735,7 +743,7 @@ class TestSetIssueMilestone:
             rc = mod.main(["--issue", "1", "--clear"])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["action"] == "no_change"
+        assert result["Data"]["action"] == "no_change"
 
     def test_milestone_not_found_exits_2(self):
         mod = self._import()

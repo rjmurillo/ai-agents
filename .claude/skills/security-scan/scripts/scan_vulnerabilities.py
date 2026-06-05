@@ -35,11 +35,44 @@ import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
-# Exit codes (ADR-035 compliant)
-EXIT_SUCCESS = 0
-EXIT_ERROR = 1
-EXIT_VULNERABILITIES = 10
+# Sibling helpers must import when this file is loaded by path in tests.
+# Keep any sys.path change scoped to this import block.
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+_added_to_path = False
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+    _added_to_path = True
+
+try:
+    from scan_constants import (  # noqa: E402
+        EXIT_ERROR,
+        EXIT_SUCCESS,
+        EXIT_VULNERABILITIES,
+    )
+    from scan_format import format_console_output  # noqa: E402
+    from scan_patterns import CWE78_PATTERNS  # noqa: E402
+finally:
+    if _added_to_path:
+        sys.path.remove(_SCRIPT_DIR)
+
+# Re-export the sibling-module symbols so existing callers and tests that read
+# `scan_vulnerabilities.CWE78_PATTERNS`, `.format_console_output`, and the exit
+# codes keep working after the extraction (issue #1848). Exit codes are
+# ADR-035 compliant; their single source of truth is `scan_constants.py`.
+__all__ = [
+    "CWE78_PATTERNS",
+    "EXIT_ERROR",
+    "EXIT_SUCCESS",
+    "EXIT_VULNERABILITIES",
+    "format_console_output",
+    "format_json_output",
+    "get_language",
+    "is_line_suppressed",
+    "main",
+    "scan_file",
+]
 
 # Suppression comment pattern
 SUPPRESSION_PATTERN = re.compile(
@@ -75,162 +108,6 @@ class ScanResult:
     errors: list = field(default_factory=list)
 
 
-# CWE-78: Command Injection patterns by language
-CWE78_PATTERNS = {
-    "python": [
-        {
-            "pattern": re.compile(
-                r'subprocess\.(run|call|Popen|check_output|check_call)\s*\(\s*f["\']',
-            ),
-            "description": "Subprocess with f-string command (potential injection)",
-            "severity": "CRITICAL",
-            "recommendation": "Use list form of command arguments instead of shell string",
-        },
-        {
-            "pattern": re.compile(
-                r"subprocess\.(run|call|Popen|check_output|check_call)\s*\([^)]*shell\s*=\s*True",
-            ),
-            "description": "Subprocess with shell=True",
-            "severity": "HIGH",
-            "recommendation": "Avoid shell=True; use list form of command arguments",
-        },
-        {
-            "pattern": re.compile(
-                r'subprocess\.(run|call|Popen|check_output|check_call)\s*\(\s*["\'][^"\']*\s*\+',
-            ),
-            "description": "Subprocess with string concatenation",
-            "severity": "CRITICAL",
-            "recommendation": "Use list form of command arguments instead of string concatenation",
-        },
-        {
-            "pattern": re.compile(
-                r"eval\s*\(\s*(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "eval() with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Never use eval() with user input",
-        },
-        {
-            "pattern": re.compile(
-                r"exec\s*\(\s*(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "exec() with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Never use exec() with user input",
-        },
-    ],
-    "powershell": [
-        {
-            "pattern": re.compile(
-                r'Invoke-Expression\s+["\'][^"\']*\$(\w+)',
-            ),
-            "description": "Invoke-Expression with variable interpolation",
-            "severity": "CRITICAL",
-            "recommendation": (
-                "Avoid Invoke-Expression; use direct cmdlet calls or & "
-                "operator with validated arguments"
-            ),
-        },
-        {
-            "pattern": re.compile(
-                r"Invoke-Expression\s+\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Invoke-Expression with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Never use Invoke-Expression with user input",
-        },
-        {
-            "pattern": re.compile(
-                r"&\s+\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Call operator with potentially unvalidated command",
-            "severity": "HIGH",
-            "recommendation": "Validate command before execution",
-        },
-        {
-            "pattern": re.compile(
-                r"Start-Process\s+[^-]*-ArgumentList\s+[^|]*\$(\w*(user|input|param|arg|request)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Start-Process with potentially unvalidated arguments",
-            "severity": "HIGH",
-            "recommendation": "Validate all arguments before passing to Start-Process",
-        },
-    ],
-    "bash": [
-        {
-            "pattern": re.compile(
-                r"eval\s+[\"']?\$",
-            ),
-            "description": "eval with variable expansion",
-            "severity": "CRITICAL",
-            "recommendation": "Avoid eval; use direct command execution with proper quoting",
-        },
-        {
-            "pattern": re.compile(
-                r"\$\(\s*\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Command substitution with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Validate input before command substitution",
-        },
-        {
-            "pattern": re.compile(
-                r"`\s*\$(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Backtick command substitution with potentially unvalidated input",
-            "severity": "CRITICAL",
-            "recommendation": "Validate input before command substitution; prefer $() syntax",
-        },
-        {
-            "pattern": re.compile(
-                r"(?<![\"'])\$\w+(?![\"'\w])",
-            ),
-            "description": "Unquoted variable expansion (potential word splitting/injection)",
-            "severity": "MEDIUM",
-            "recommendation": 'Quote all variable expansions: use "$var" instead of $var',
-        },
-    ],
-    "csharp": [
-        {
-            "pattern": re.compile(
-                r"Process\.Start\s*\([^)]*(\w*(user|input|param|arg|request|cmd|command)\w*)",
-                re.IGNORECASE,
-            ),
-            "description": "Process.Start with potentially unvalidated command",
-            "severity": "HIGH",
-            "recommendation": "Validate command and arguments before execution",
-        },
-        {
-            "pattern": re.compile(
-                r'ProcessStartInfo\s*\{[^}]*Arguments\s*=\s*\$"',
-            ),
-            "description": "ProcessStartInfo with interpolated arguments",
-            "severity": "HIGH",
-            "recommendation": (
-                "Validate all arguments; avoid string interpolation in "
-                "command arguments"
-            ),
-        },
-        {
-            "pattern": re.compile(
-                r'new\s+Process\s*\(\s*\)\s*\{[^}]*FileName\s*=\s*(\w*(user|input|param|arg|request|cmd)\w*)',
-                re.IGNORECASE,
-            ),
-            "description": "Process with potentially unvalidated FileName",
-            "severity": "HIGH",
-            "recommendation": "Validate FileName before process creation",
-        },
-    ],
-}
-
-
 def get_language(file_path: str) -> str | None:
     """Detect language from file extension."""
     ext = Path(file_path).suffix.lower()
@@ -242,7 +119,35 @@ def get_language(file_path: str) -> str | None:
         ".bash": "bash",
         ".cs": "csharp",
     }
-    return language_map.get(ext)
+    if ext in language_map:
+        return language_map[ext]
+    if ext:
+        return None
+    return _get_shebang_language(file_path)
+
+
+def _get_shebang_language(file_path: str) -> str | None:
+    """Detect supported extensionless scripts from their shebang."""
+    try:
+        with open(file_path, encoding="utf-8") as f:
+            first_line = f.readline().strip().lower()
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not first_line.startswith("#!"):
+        return None
+    shell_names = {"bash", "dash", "ksh", "sh"}
+    command = first_line[2:].strip().split()
+    if not command:
+        return None
+    executable = Path(command[0]).name
+    if executable == "env":
+        for arg in command[1:]:
+            if not arg.startswith("-"):
+                executable = Path(arg).name
+                break
+    if executable in shell_names:
+        return "bash"
+    return None
 
 
 def get_staged_files() -> list[str]:
@@ -266,11 +171,27 @@ def get_staged_files() -> list[str]:
 def get_directory_files(directory: str) -> list[str]:
     """Get all scannable files from a directory."""
     supported_extensions = {".py", ".ps1", ".psm1", ".sh", ".bash", ".cs"}
+    pruned_directories = {
+        ".git",
+        ".hg",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+    }
     files = []
-    for root, _, filenames in os.walk(directory):
+    for root, dirnames, filenames in os.walk(directory):
+        dirnames[:] = [
+            name for name in dirnames if name.lower() not in pruned_directories
+        ]
         for filename in filenames:
-            if Path(filename).suffix.lower() in supported_extensions:
-                files.append(os.path.join(root, filename))
+            file_path = os.path.join(root, filename)
+            suffix = Path(filename).suffix.lower()
+            if suffix in supported_extensions or get_language(file_path) is not None:
+                files.append(file_path)
     return files
 
 
@@ -309,8 +230,8 @@ def scan_file(
         # Check CWE-78 patterns
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
-                # Mypy type narrowing: pattern_info["pattern"] is re.Pattern at runtime
-                if pattern_info["pattern"].search(line):  # type: ignore[attr-defined]
+                pattern = cast(re.Pattern[str], pattern_info["pattern"])
+                if pattern.search(line):
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:
@@ -331,60 +252,6 @@ def scan_file(
     return vulnerabilities, suppressed
 
 
-def format_console_output(result: ScanResult) -> str:
-    """Format scan result for console output."""
-    output = ["=== Security Vulnerability Scan ===", ""]
-
-    if result.errors:
-        output.append("Errors:")
-        for error in result.errors:
-            output.append(f"  {error}")
-        output.append("")
-
-    if not result.vulnerabilities:
-        output.append(f"Files scanned: {result.files_scanned}")
-        output.append("No vulnerabilities found.")
-        if result.suppressed:
-            output.append(f"Suppressed findings: {len(result.suppressed)}")
-        return "\n".join(output)
-
-    # Group by severity
-    by_severity: dict[str, list[Vulnerability]] = {
-        "CRITICAL": [], "HIGH": [], "MEDIUM": [], "LOW": []
-    }
-    for vuln in result.vulnerabilities:
-        by_severity.get(vuln.severity, by_severity["MEDIUM"]).append(vuln)
-
-    for severity in ["CRITICAL", "HIGH", "MEDIUM", "LOW"]:
-        for vuln in by_severity[severity]:
-            output.append(f"[{vuln.cwe}] {vuln.title}")
-            output.append(f"  File: {vuln.file}:{vuln.line}")
-            output.append(f"  Pattern: {vuln.pattern}")
-            output.append(f"  Code: {vuln.code}")
-            output.append(f"  Severity: {vuln.severity}")
-            output.append(f"  Recommendation: {vuln.recommendation}")
-            output.append("")
-
-    # Summary
-    output.append("=== Summary ===")
-    output.append(f"Files scanned: {result.files_scanned}")
-    output.append(f"Vulnerabilities found: {len(result.vulnerabilities)}")
-
-    cwe_counts: dict[str, int] = {}
-    for vuln in result.vulnerabilities:
-        cwe_counts[vuln.cwe] = cwe_counts.get(vuln.cwe, 0) + 1
-    for cwe, count in sorted(cwe_counts.items()):
-        output.append(f"  {cwe} (Command Injection): {count}")
-
-    if result.suppressed:
-        output.append(f"Suppressed findings: {len(result.suppressed)}")
-
-    output.append("")
-    output.append(f"Exit code: {EXIT_VULNERABILITIES} (vulnerabilities detected)")
-
-    return "\n".join(output)
-
-
 _JSON_SCHEMA_VERSION = 2
 
 
@@ -398,6 +265,12 @@ def format_json_output(result: ScanResult) -> str:
     CWE-22 detection moved to CodeQL (PR #1851, see
     `.agents/architecture/ADR-054-local-security-scanning.md` amendment).
     """
+    by_cwe: dict[str, int] = {}
+    by_severity: dict[str, int] = {}
+    for vuln in result.vulnerabilities:
+        by_cwe[vuln.cwe] = by_cwe.get(vuln.cwe, 0) + 1
+        by_severity[vuln.severity] = by_severity.get(vuln.severity, 0) + 1
+
     output = {
         "schema_version": _JSON_SCHEMA_VERSION,
         "scan_timestamp": result.scan_timestamp,
@@ -419,9 +292,9 @@ def format_json_output(result: ScanResult) -> str:
         "errors": result.errors,
         "summary": {
             "total": len(result.vulnerabilities),
-            "by_cwe": {},
-            "by_severity": {},
-            # Delegated CWE classes — this scanner does not detect them; the named
+            "by_cwe": by_cwe,
+            "by_severity": by_severity,
+            # Delegated CWE classes: this scanner does not detect them; the named
             # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
             # this scanner means "not detected here", NOT "no findings"; use the
             # delegated detector's report for authoritative coverage. Each entry
@@ -435,22 +308,23 @@ def format_json_output(result: ScanResult) -> str:
                 },
             },
         },
-        "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
+        "exit_code": _exit_code_for_result(result),
     }
-
-    # Mypy type narrowing: output is dict[str, Any] at runtime
-    summary = output["summary"]  # type: ignore[index]
-    by_cwe = summary["by_cwe"]  # type: ignore[index]
-    by_severity = summary["by_severity"]  # type: ignore[index]
-    for vuln in result.vulnerabilities:
-        by_cwe[vuln.cwe] = by_cwe.get(vuln.cwe, 0) + 1
-        by_severity[vuln.severity] = by_severity.get(vuln.severity, 0) + 1
 
     return json.dumps(output, indent=2)
 
 
-def main():
-    """Main entry point."""
+def _exit_code_for_result(result: ScanResult) -> int:
+    """Return the public CLI exit code for the aggregate scan result."""
+    if result.errors:
+        return EXIT_ERROR
+    if result.vulnerabilities:
+        return EXIT_VULNERABILITIES
+    return EXIT_SUCCESS
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the command-line parser."""
     parser = argparse.ArgumentParser(
         description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
                     "detection is delegated to CodeQL in CI; see module docstring.",
@@ -502,31 +376,24 @@ def main():
         "-o",
         help="Output file (default: stdout)",
     )
+    return parser
 
-    args = parser.parse_args()
 
-    # Surface a deprecation-style notice when --cwe 22 is requested. The flag is
-    # accepted for backward compatibility with CI invocations but produces no
-    # findings here; CWE-22 detection is delegated to CodeQL. Without this
-    # warning, a caller could mis-read the silent zero-finding result as a
-    # clean bill of health for path traversal.
-    # Validate --cwe values. The scanner only detects CWE-78; CWE-22 is
-    # accepted for backward compatibility (with a stderr warning) and any
-    # other value is a typo that would otherwise produce a misleading
-    # zero-finding result.
-    _SUPPORTED_CWES = {78}
-    _DELEGATED_CWES = {22}
-    if args.cwe:
-        unsupported = set(args.cwe) - _SUPPORTED_CWES - _DELEGATED_CWES
+def _validate_cwe_filter(cwe_filter: list[int] | None) -> None:
+    """Validate requested CWE filters and warn for delegated coverage."""
+    supported_cwes = {78}
+    delegated_cwes = {22}
+    if cwe_filter:
+        unsupported = set(cwe_filter) - supported_cwes - delegated_cwes
         if unsupported:
             print(
                 f"ERROR: --cwe {sorted(unsupported)} not supported by this "
-                f"scanner. Supported: {sorted(_SUPPORTED_CWES)} "
-                f"(delegated to other tools: {sorted(_DELEGATED_CWES)}).",
+                f"scanner. Supported: {sorted(supported_cwes)} "
+                f"(delegated to other tools: {sorted(delegated_cwes)}).",
                 file=sys.stderr,
             )
             sys.exit(EXIT_ERROR)
-        if 22 in args.cwe:
+        if 22 in cwe_filter:
             print(
                 "WARNING: --cwe 22 selected but CWE-22 detection is delegated to "
                 "CodeQL (see python-security-extended.qls in "
@@ -538,38 +405,34 @@ def main():
                 file=sys.stderr,
             )
 
-    # Validate input paths to prevent path traversal (CWE-22).
-    #
-    # Use Path.resolve() to follow symlinks AND normalize, then
-    # Path.is_relative_to() for componentwise containment. The earlier
-    # implementation used os.path.abspath + str.startswith, which had two
-    # gaps: (a) abspath does not follow symlinks, so a symlink inside the
-    # cwd could point outside; (b) startswith matches by string prefix, so
-    # `/foo/barevil` would falsely satisfy a check against `/foo/bar`.
-    # is_relative_to is path-component aware and Python 3.10+ stdlib (the
-    # project requires 3.10+ per pyproject.toml).
+
+def _validate_path(raw: str, label: str, allowed_base: Path) -> None:
+    """Reject paths outside the current working directory."""
+    candidate = Path(raw).resolve(strict=False)
+    if not candidate.is_relative_to(allowed_base):
+        raise ValueError(
+            f"Path traversal attempt detected in {label}: {raw}"
+        )
+
+
+def _validate_input_paths(args: argparse.Namespace) -> None:
+    """Validate CLI paths before scanning or writing output."""
     try:
         allowed_base = Path(".").resolve(strict=False)
-
-        def _validate_path(raw: str, label: str) -> None:
-            candidate = Path(raw).resolve(strict=False)
-            if not candidate.is_relative_to(allowed_base):
-                raise ValueError(
-                    f"Path traversal attempt detected in {label}: {raw}"
-                )
-
         if args.directory:
-            _validate_path(args.directory, "--directory")
+            _validate_path(args.directory, "--directory", allowed_base)
         if args.output:
-            _validate_path(args.output, "--output")
+            _validate_path(args.output, "--output", allowed_base)
         if args.files:
             for file in args.files:
-                _validate_path(file, "file")
+                _validate_path(file, "file", allowed_base)
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(EXIT_ERROR)
 
-    # Collect files to scan
+
+def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
+    """Collect explicit, staged, and directory files from CLI arguments."""
     files_to_scan = []
 
     if args.git_staged:
@@ -585,51 +448,78 @@ def main():
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
 
-    # Deduplicate
-    files_to_scan = list(set(files_to_scan))
+    return list(set(files_to_scan))
 
-    # Filter by supported languages
+
+def _filter_supported_files(files_to_scan: list[str]) -> list[str]:
+    """Keep files whose extension or shebang maps to a scanner language."""
     supported_files = [f for f in files_to_scan if get_language(f) is not None]
 
     if not supported_files:
         print("No supported files found (Python, PowerShell, Bash, C#).")
         sys.exit(EXIT_SUCCESS)
+    return supported_files
 
-    # Scan files
+
+def _scan_supported_files(
+    supported_files: list[str], cwe_filter: list[int] | None
+) -> ScanResult:
+    """Scan supported files and aggregate findings."""
     result = ScanResult()
     result.files_scanned = len(supported_files)
 
     for file_path in supported_files:
-        vulns, suppressed = scan_file(file_path, args.cwe)
+        vulns, messages = scan_file(file_path, cwe_filter)
         result.vulnerabilities.extend(vulns)
-        result.suppressed.extend(suppressed)
+        for message in messages:
+            if message.startswith("Error reading "):
+                result.errors.append(message)
+            else:
+                result.suppressed.append(message)
+    return result
 
-    # Format output
-    if args.format == "json":
+
+def _format_output(
+    result: ScanResult, cwe_filter: list[int] | None, output_format: str
+) -> str:
+    """Format scan results for stdout or file output."""
+    if output_format == "json":
         output = format_json_output(result)
     else:
         output = format_console_output(result)
         # Surface CWE-22 delegation in console output too. The JSON envelope
         # carries `summary.delegated_cwes`, but a console caller running
         # `--cwe 22` should see the delegation in stdout, not just stderr.
-        if args.cwe and 22 in args.cwe:
+        if cwe_filter and 22 in cwe_filter:
             output += (
                 "\n\nCWE-22: delegated to CodeQL "
                 "(see .github/workflows/codeql-analysis.yml)"
             )
+    return output
 
-    # Write output
-    if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
+
+def _write_or_print_output(output: str, output_path: str | None) -> None:
+    """Write output to a requested file or print to stdout."""
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(output)
-        print(f"Results written to {args.output}")
+        print(f"Results written to {output_path}")
     else:
         print(output)
 
-    # Exit code
-    if result.vulnerabilities:
-        sys.exit(EXIT_VULNERABILITIES)
-    sys.exit(EXIT_SUCCESS)
+
+def main() -> None:
+    """Main entry point."""
+    parser = _build_parser()
+    args = parser.parse_args()
+    _validate_cwe_filter(args.cwe)
+    _validate_input_paths(args)
+    files_to_scan = _collect_files_to_scan(args)
+    supported_files = _filter_supported_files(files_to_scan)
+    result = _scan_supported_files(supported_files, args.cwe)
+    output = _format_output(result, args.cwe, args.format)
+    _write_or_print_output(output, args.output)
+    sys.exit(_exit_code_for_result(result))
 
 
 if __name__ == "__main__":

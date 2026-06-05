@@ -46,8 +46,8 @@ def test_create_issue_with_body(mock_run, capsys):
     rc = main(["--title", "Bug: Something broke", "--body", "Steps to reproduce..."])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["success"] is True
-    assert output["issue_number"] == 99
+    assert output["Success"] is True
+    assert output["Data"]["issue_number"] == 99
 
 
 @patch("subprocess.run")
@@ -61,7 +61,7 @@ def test_create_issue_with_labels(mock_run, capsys):
     rc = main(["--title", "Feature", "--labels", "enhancement,P2"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["issue_number"] == 5
+    assert output["Data"]["issue_number"] == 5
 
 
 @patch("subprocess.run")
@@ -103,7 +103,7 @@ def test_body_file(mock_run, capsys, tmp_path):
     rc = main(["--title", "From file", "--body-file", str(body_file)])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["issue_number"] == 7
+    assert output["Data"]["issue_number"] == 7
 
 
 @patch("subprocess.run")
