@@ -231,8 +231,64 @@ CWE78_PATTERNS = {
 }
 
 
+# Shebang interpreters that resolve to bash for this scanner. Matches
+# `#!/bin/sh`, `#!/bin/bash`, `#!/usr/bin/env bash`, `#!/usr/bin/env sh`,
+# etc. POSIX `sh` is included because the CWE-78 patterns this scanner
+# uses (command substitution, eval, unquoted `$VAR` in shell commands)
+# apply equally to POSIX shell scripts.
+_BASH_SHEBANG_RE = re.compile(
+    r"^#!\s*(?:/usr/bin/env\s+)?(?:[\w./-]*/)?(?:ba|da|k|a)?sh\b"
+)
+_PRUNED_DIRECTORY_NAMES = {
+    ".git",
+    ".hg",
+    ".svn",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+}
+
+
+def _detect_shebang_language(file_path: str) -> str | None:
+    """Read the first line of ``file_path`` and classify by shebang.
+
+    Returns the scanner language name (e.g. ``"bash"``) or ``None`` if
+    the file is unreadable, has no shebang, or names an interpreter the
+    scanner doesn't support. Extensionless scripts such as git hooks
+    (``.githooks/pre-push``) rely on this path to be scanned at all.
+    """
+    try:
+        with open(file_path, "rb") as f:
+            # 256 bytes is enough for any realistic shebang line.
+            head = f.read(256)
+    except (FileNotFoundError, PermissionError, IsADirectoryError, OSError):
+        return None
+    if not head.startswith(b"#!"):
+        return None
+    try:
+        first_line = head.split(b"\n", 1)[0].decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if _BASH_SHEBANG_RE.match(first_line):
+        return "bash"
+    return None
+
+
 def get_language(file_path: str) -> str | None:
-    """Detect language from file extension."""
+    """Detect language from file extension, falling back to shebang.
+
+    Extensionless executable scripts (notably git hooks under
+    ``.githooks/``) carry no suffix but advertise their interpreter via
+    a shebang. When the suffix lookup yields nothing, peek at the
+    file's first line so Bash entry points aren't silently skipped.
+    """
     ext = Path(file_path).suffix.lower()
     language_map = {
         ".py": "python",
@@ -242,7 +298,16 @@ def get_language(file_path: str) -> str | None:
         ".bash": "bash",
         ".cs": "csharp",
     }
-    return language_map.get(ext)
+    lang = language_map.get(ext)
+    if lang is not None:
+        return lang
+    # Only consult the shebang for truly extensionless files. Files
+    # with an unknown suffix (e.g. `notes.txt`, `Dockerfile.bak`) are
+    # intentionally rejected so we don't broaden the scanner surface
+    # by accident.
+    if ext == "":
+        return _detect_shebang_language(file_path)
+    return None
 
 
 def get_staged_files() -> list[str]:
@@ -264,13 +329,27 @@ def get_staged_files() -> list[str]:
 
 
 def get_directory_files(directory: str) -> list[str]:
-    """Get all scannable files from a directory."""
+    """Get all scannable files from a directory.
+
+    Files with a known suffix are included by extension. Extensionless
+    files are included only when their shebang resolves to a supported
+    interpreter (currently bash/sh family). This keeps `.githooks/`
+    coverage symmetric with single-file scans of the same paths.
+    """
     supported_extensions = {".py", ".ps1", ".psm1", ".sh", ".bash", ".cs"}
     files = []
-    for root, _, filenames in os.walk(directory):
+    for root, dirnames, filenames in os.walk(directory):
+        dirnames[:] = [
+            dirname for dirname in dirnames
+            if dirname.lower() not in _PRUNED_DIRECTORY_NAMES
+        ]
         for filename in filenames:
-            if Path(filename).suffix.lower() in supported_extensions:
-                files.append(os.path.join(root, filename))
+            full_path = os.path.join(root, filename)
+            ext = Path(filename).suffix.lower()
+            if ext in supported_extensions:
+                files.append(full_path)
+            elif ext == "" and _detect_shebang_language(full_path) is not None:
+                files.append(full_path)
     return files
 
 
@@ -309,8 +388,10 @@ def scan_file(
         # Check CWE-78 patterns
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
-                # Mypy type narrowing: pattern_info["pattern"] is re.Pattern at runtime
-                if pattern_info["pattern"].search(line):  # type: ignore[attr-defined]
+                pattern = pattern_info["pattern"]
+                if not isinstance(pattern, re.Pattern):
+                    continue
+                if pattern.search(line):
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:
@@ -398,6 +479,26 @@ def format_json_output(result: ScanResult) -> str:
     CWE-22 detection moved to CodeQL (PR #1851, see
     `.agents/architecture/ADR-054-local-security-scanning.md` amendment).
     """
+    by_cwe: dict[str, int] = {}
+    by_severity: dict[str, int] = {}
+    summary = {
+        "total": len(result.vulnerabilities),
+        "by_cwe": by_cwe,
+        "by_severity": by_severity,
+        # Delegated CWE classes — this scanner does not detect them; the named
+        # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
+        # this scanner means "not detected here", NOT "no findings"; use the
+        # delegated detector's report for authoritative coverage. Each entry
+        # is self-describing: `tool` names the detector, `query` names the
+        # specific rule pack, `workflow` cites where it runs.
+        "delegated_cwes": {
+            "CWE-22": {
+                "tool": "codeql",
+                "query": "python-security-extended.qls",
+                "workflow": ".github/workflows/codeql-analysis.yml",
+            },
+        },
+    }
     output = {
         "schema_version": _JSON_SCHEMA_VERSION,
         "scan_timestamp": result.scan_timestamp,
@@ -417,31 +518,10 @@ def format_json_output(result: ScanResult) -> str:
         ],
         "suppressed": result.suppressed,
         "errors": result.errors,
-        "summary": {
-            "total": len(result.vulnerabilities),
-            "by_cwe": {},
-            "by_severity": {},
-            # Delegated CWE classes — this scanner does not detect them; the named
-            # detector does. A `summary.by_cwe.get("CWE-22", 0) == 0` reading from
-            # this scanner means "not detected here", NOT "no findings"; use the
-            # delegated detector's report for authoritative coverage. Each entry
-            # is self-describing: `tool` names the detector, `query` names the
-            # specific rule pack, `workflow` cites where it runs.
-            "delegated_cwes": {
-                "CWE-22": {
-                    "tool": "codeql",
-                    "query": "python-security-extended.qls",
-                    "workflow": ".github/workflows/codeql-analysis.yml",
-                },
-            },
-        },
+        "summary": summary,
         "exit_code": EXIT_VULNERABILITIES if result.vulnerabilities else EXIT_SUCCESS,
     }
 
-    # Mypy type narrowing: output is dict[str, Any] at runtime
-    summary = output["summary"]  # type: ignore[index]
-    by_cwe = summary["by_cwe"]  # type: ignore[index]
-    by_severity = summary["by_severity"]  # type: ignore[index]
     for vuln in result.vulnerabilities:
         by_cwe[vuln.cwe] = by_cwe.get(vuln.cwe, 0) + 1
         by_severity[vuln.severity] = by_severity.get(vuln.severity, 0) + 1
