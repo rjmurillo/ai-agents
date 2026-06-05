@@ -7,8 +7,6 @@ from unittest.mock import patch
 
 import pytest
 
-from test_helpers import make_completed_process
-
 # Ensure importability
 _project_root = Path(__file__).resolve().parents[3]
 _lib_dir = _project_root / ".claude" / "lib"
@@ -65,9 +63,9 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is True
-        assert result["title"] == "0.3.0"
-        assert result["number"] == 3
+        assert result["Data"]["found"] is True
+        assert result["Data"]["title"] == "0.3.0"
+        assert result["Data"]["number"] == 3
 
     def test_ignores_non_semantic(self, _import_module, capsys):
         mod = _import_module
@@ -84,8 +82,8 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is True
-        assert result["title"] == "0.2.0"
+        assert result["Data"]["found"] is True
+        assert result["Data"]["title"] == "0.2.0"
 
     def test_no_milestones(self, _import_module, capsys):
         mod = _import_module
@@ -97,8 +95,10 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is False
-        assert result["title"] == ""
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
+        assert result["Data"]["found"] is False
+        assert result["Data"]["title"] == ""
 
     def test_no_semantic_milestones(self, _import_module, capsys):
         mod = _import_module
@@ -114,7 +114,9 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is False
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
+        assert result["Data"]["found"] is False
 
     def test_version_comparison_10_vs_2(self, _import_module, capsys):
         """Ensure 0.10.0 > 0.2.0 (not string comparison)."""
@@ -131,7 +133,7 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["title"] == "0.10.0"
+        assert result["Data"]["title"] == "0.10.0"
 
     def test_single_milestone(self, _import_module, capsys):
         mod = _import_module
@@ -144,5 +146,5 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
-        assert result["found"] is True
-        assert result["title"] == "1.0.0"
+        assert result["Data"]["found"] is True
+        assert result["Data"]["title"] == "1.0.0"

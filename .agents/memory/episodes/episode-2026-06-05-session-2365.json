@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-05-session-2365",
+  "session": "2026-06-05-session-2365",
+  "timestamp": "2026-06-05T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Retry and finish PR #2356 in isolated pr-autofix worktree: resolve review threads, merge current main, validate security-scan behavior, push with SHA lease, and merge only when pr-autofix gates pass.",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

@@ -1050,6 +1050,18 @@ class TestPassWhenPythonAstSafeSubset:
             "lambda d: d.get('a') is True or d.get('b') is True",
         ) is True
 
+    def test_and_short_circuits_false_operand(self):
+        assert _dispatcher._eval_pass_when_python(
+            {"a": False},
+            "lambda d: d.get('a') is True and d['unsupported'] == 1",
+        ) is False
+
+    def test_or_short_circuits_true_operand(self):
+        assert _dispatcher._eval_pass_when_python(
+            {"a": True},
+            "lambda d: d.get('a') is True or d['unsupported'] == 1",
+        ) is True
+
     def test_not_operator(self):
         assert _dispatcher._eval_pass_when_python(
             {"merged": False}, "lambda d: not d.get('merged') is True",
@@ -1113,12 +1125,12 @@ class TestPassWhenPythonAstSafeSubset:
             )
 
 
-class TestMergeReadyFalseFailRegression:
-    """Issue #2303 regression: the completion gate must return success when
-    test_pr_merge_ready.py reports CanMerge=True and fetched_pages_complete,
-    using the production pass_when_python predicate verbatim. Before the fix
-    the gate re-checked ``MergeStateStatus in ('CLEAN', 'UNSTABLE')`` and
-    false-failed a mergeable BLOCKED PR (observed on PR #2283).
+class TestMergeReadyFourConditionGate:
+    """The pr-autofix ready-to-merge gate must preserve all blockers.
+
+    CanMerge is necessary but not sufficient. The completion gate also checks
+    required-check status, review-thread count, merge-state policy, and partial
+    fetch integrity so a verifier regression cannot fail open.
     """
 
     # The exact predicate shipped in .claude/commands/pr-review-config.yaml
@@ -1126,7 +1138,10 @@ class TestMergeReadyFalseFailRegression:
     # exercises the real contract, not a paraphrase.
     _MERGE_READY_PASS_WHEN = (
         "lambda d: d.get('CanMerge') is True "
-        "and d.get('fetched_pages_complete') is True"
+        "and d.get('CIPassing') is True "
+        "and d.get('fetched_pages_complete') is True "
+        "and d.get('UnresolvedThreads') == 0 "
+        "and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
     )
 
     def _merge_ready_config(self, tmp_path: Path) -> Path:
@@ -1143,106 +1158,75 @@ class TestMergeReadyFalseFailRegression:
             ],
         )
 
-    def test_can_merge_true_blocked_state_passes(
-        self, repo_root, tmp_path, capsys,
-    ):
-        # The false-fail case: a BLOCKED-but-mergeable PR. CanMerge=True is
-        # the upstream verdict; the gate must honor it without re-deriving
-        # the MergeStateStatus rule. CIPassing/UnresolvedThreads are present
-        # in real output but are NOT re-checked here by design.
+    def _run_gate(self, tmp_path: Path, capsys, verifier_data: dict) -> tuple[int, dict]:
         config_path = self._merge_ready_config(tmp_path)
-        verifier_out = json.dumps(
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=json.dumps(verifier_data), returncode=0),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        return rc, json.loads(capsys.readouterr().out)
+
+    def test_clean_ready_pr_passes(self, repo_root, tmp_path, capsys):
+        rc, result = self._run_gate(
+            tmp_path,
+            capsys,
             {
                 "CanMerge": True,
                 "CIPassing": True,
                 "UnresolvedThreads": 0,
-                "MergeStateStatus": "BLOCKED",
+                "MergeStateStatus": "CLEAN",
                 "fetched_pages_complete": True,
             },
         )
-        with patch.object(
-            _dispatcher.subprocess, "run",
-            return_value=_make_proc(stdout=verifier_out, returncode=0),
-        ):
-            rc = _dispatcher.main(
-                ["--config", str(config_path), "--pull-request", "2283", "--json"],
-            )
         assert rc == 0
-        result = json.loads(capsys.readouterr().out)
-        assert result["all_passed"] is True
         assert result["criteria"][0]["passed"] is True
 
-    def test_can_merge_true_clean_state_passes(
-        self, repo_root, tmp_path, capsys,
-    ):
-        config_path = self._merge_ready_config(tmp_path)
-        verifier_out = json.dumps(
-            {"CanMerge": True, "MergeStateStatus": "CLEAN",
-             "fetched_pages_complete": True},
+    def test_unstable_ready_pr_passes(self, repo_root, tmp_path, capsys):
+        rc, result = self._run_gate(
+            tmp_path,
+            capsys,
+            {
+                "CanMerge": True,
+                "CIPassing": True,
+                "UnresolvedThreads": 0,
+                "MergeStateStatus": "UNSTABLE",
+                "fetched_pages_complete": True,
+            },
         )
-        with patch.object(
-            _dispatcher.subprocess, "run",
-            return_value=_make_proc(stdout=verifier_out, returncode=0),
-        ):
-            rc = _dispatcher.main(
-                ["--config", str(config_path), "--pull-request", "1", "--json"],
-            )
         assert rc == 0
-        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is True
+        assert result["criteria"][0]["passed"] is True
 
-    def test_can_merge_false_still_fails(self, repo_root, tmp_path, capsys):
-        # Negative control: when the upstream script says CanMerge=False the
-        # gate must still fail. Trusting CanMerge does not weaken the gate.
-        config_path = self._merge_ready_config(tmp_path)
-        verifier_out = json.dumps(
-            {"CanMerge": False, "fetched_pages_complete": True},
-        )
-        with patch.object(
-            _dispatcher.subprocess, "run",
-            return_value=_make_proc(stdout=verifier_out, returncode=0),
-        ):
-            rc = _dispatcher.main(
-                ["--config", str(config_path), "--pull-request", "1", "--json"],
-            )
-        assert rc == 1
-        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is False
-
-    def test_partial_fetch_fails_closed_even_when_can_merge_true(
-        self, repo_root, tmp_path, capsys,
+    @pytest.mark.parametrize(
+        ("override", "reason"),
+        [
+            ({"CanMerge": False}, "CanMerge false"),
+            ({"CIPassing": False}, "required checks failing"),
+            ({"UnresolvedThreads": 1}, "unresolved thread"),
+            ({"MergeStateStatus": "BLOCKED"}, "blocked merge state"),
+            ({"MergeStateStatus": "BEHIND"}, "behind merge state"),
+            ({"fetched_pages_complete": False}, "partial fetch"),
+            ({"CanMerge": None}, "missing CanMerge"),
+        ],
+    )
+    def test_any_missing_condition_fails_closed(
+        self, repo_root, tmp_path, capsys, override, reason,
     ):
-        # Data-integrity guard: a truncated GraphQL page (fetched_pages_
-        # complete=False) can hide a failing required check, so the gate
-        # fails closed regardless of CanMerge.
-        config_path = self._merge_ready_config(tmp_path)
-        verifier_out = json.dumps(
-            {"CanMerge": True, "fetched_pages_complete": False},
-        )
-        with patch.object(
-            _dispatcher.subprocess, "run",
-            return_value=_make_proc(stdout=verifier_out, returncode=0),
-        ):
-            rc = _dispatcher.main(
-                ["--config", str(config_path), "--pull-request", "1", "--json"],
-            )
-        assert rc == 1
-        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is False
+        data = {
+            "CanMerge": True,
+            "CIPassing": True,
+            "UnresolvedThreads": 0,
+            "MergeStateStatus": "CLEAN",
+            "fetched_pages_complete": True,
+        }
+        data.update(override)
 
-    def test_missing_can_merge_field_fails_closed(
-        self, repo_root, tmp_path, capsys,
-    ):
-        # Edge: a verifier that omits CanMerge entirely. ``d.get('CanMerge')``
-        # returns None, ``None is True`` is False, gate fails closed.
-        config_path = self._merge_ready_config(tmp_path)
-        verifier_out = json.dumps({"fetched_pages_complete": True})
-        with patch.object(
-            _dispatcher.subprocess, "run",
-            return_value=_make_proc(stdout=verifier_out, returncode=0),
-        ):
-            rc = _dispatcher.main(
-                ["--config", str(config_path), "--pull-request", "1", "--json"],
-            )
-        assert rc == 1
-        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is False
+        rc, result = self._run_gate(tmp_path, capsys, data)
+
+        assert rc == 1, reason
+        assert result["criteria"][0]["passed"] is False
 
 
 class TestTableModeShowsEvidence:

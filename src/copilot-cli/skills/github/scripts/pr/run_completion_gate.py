@@ -366,11 +366,20 @@ def _eval_node(node: ast.AST, param_name: str, data: dict) -> Any:
     construct fails closed instead of executing.
     """
     if isinstance(node, ast.BoolOp):
-        values = [_eval_node(v, param_name, data) for v in node.values]
         if isinstance(node.op, ast.And):
-            return all(values)
+            result: Any = True
+            for value in node.values:
+                result = _eval_node(value, param_name, data)
+                if not result:
+                    return result
+            return result
         if isinstance(node.op, ast.Or):
-            return any(values)
+            result: Any = False
+            for value in node.values:
+                result = _eval_node(value, param_name, data)
+                if result:
+                    return result
+            return result
         raise _UnsafeExpression(f"unsupported boolean op: {type(node.op).__name__}")
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
         return not _eval_node(node.operand, param_name, data)

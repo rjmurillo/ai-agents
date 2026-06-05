@@ -1,0 +1,14 @@
+{
+  "event": "SessionEnd",
+  "mode": "observe",
+  "shims": [
+    "invoke_skill_learning.py",
+    "invoke_session_validator.py",
+    "invoke_auto_retrospective.py"
+  ],
+  "timeouts": {
+    "invoke_skill_learning.py": 30,
+    "invoke_session_validator.py": 30,
+    "invoke_auto_retrospective.py": 30
+  }
+}
