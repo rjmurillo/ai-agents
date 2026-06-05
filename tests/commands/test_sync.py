@@ -14,10 +14,7 @@ from pathlib import Path
 
 import pytest
 
-_SCRIPT_DIR = Path(__file__).resolve().parents[2] / "scripts" / "sync"
-sys.path.insert(0, str(_SCRIPT_DIR))
-
-import detect_spec_drift as dsd  # noqa: E402
+import scripts.sync.detect_spec_drift as dsd
 
 
 def _make_repo(tmp_path: Path) -> Path:

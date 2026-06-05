@@ -22,7 +22,11 @@ canonical envelope:
         "Success": True,
         "Data": {...},
         "Error": None,
-        "Metadata": {"Script", "Version", "Timestamp"},
+        "Metadata": {
+            "Script": "detect_spec_drift.py",
+            "Version": "1.0.0",
+            "Timestamp": "2026-01-01T00:00:00+00:00",
+        },
     }
 
 Different than canonical: orphan-ref-validator emits the verdict set
@@ -87,9 +91,8 @@ REFERENCE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# A reference path ending in a directory separator, or with no file extension
-# and no recognized package shape, is treated as a directory reference. The
-# detector accepts a directory reference when the directory exists.
+# A reference path ending in a directory separator is treated as a directory
+# reference. The detector accepts it when the directory exists.
 _DIR_HINT_RE = re.compile(r"/$")
 
 # Inline ignore directive: a spec author may mark a reference as intentionally
@@ -178,7 +181,7 @@ def iter_spec_files(repo_root: Path, targets: tuple[str, ...]) -> list[Path]:
                     rel_candidate = _relative(repo_root, candidate)
                     raise DriftScanError(f"unsafe spec file path: {rel_candidate}")
                 spec_files.append(candidate)
-    return spec_files
+    return sorted(spec_files)
 
 
 def _has_unsafe_path_parts(path_text: str) -> bool:
