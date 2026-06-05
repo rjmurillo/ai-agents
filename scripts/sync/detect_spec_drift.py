@@ -80,7 +80,7 @@ _REFERENCE_ROOTS = (
     "src",
     "tests",
 )
-_PATH_BODY = r"[A-Za-z0-9_./*-]+"
+_PATH_BODY = r"[-A-Za-z0-9_./*]+"
 REFERENCE_RE = re.compile(
     r"(?<![\w/])`(?P<path>(?:" + "|".join(_REFERENCE_ROOTS) + r")/" + _PATH_BODY + r")`(?!\w)",
     re.IGNORECASE,
@@ -216,7 +216,8 @@ def scan_spec_file(spec_file: Path, repo_root: Path) -> tuple[list[DriftFinding]
     """Scan one spec file for stale code references.
 
     Returns the findings and the count of references checked. Lines carrying
-    the ignore directive are skipped. Unreadable files are logged and skipped.
+    the ignore directive are skipped. Unreadable files fail closed with
+    ``DriftScanError`` so I/O failures cannot appear as clean scans.
     """
     try:
         text = spec_file.read_text(encoding="utf-8")

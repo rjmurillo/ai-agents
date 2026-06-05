@@ -96,6 +96,23 @@ def test_prose_without_path_root_is_ignored(tmp_path: Path) -> None:
     assert result.verdict == "PASS"
 
 
+def test_hyphenated_skill_reference_is_checked(tmp_path: Path) -> None:
+    # Arrange
+    repo = _make_repo(tmp_path)
+    (repo / ".claude" / "skills" / "session-end").mkdir(parents=True)
+    (repo / ".claude" / "skills" / "session-end" / "SKILL.md").write_text(
+        "# session-end\n", encoding="utf-8"
+    )
+    _write_req(repo, "REQ-004B.md", "Uses `.claude/skills/session-end/SKILL.md`.\n")
+
+    # Act
+    result = dsd.detect_drift(repo, dsd.DEFAULT_SPEC_TARGETS)
+
+    # Assert
+    assert result.refs_checked == 1
+    assert result.verdict == "PASS"
+
+
 def test_directory_reference_present_is_not_drift(tmp_path: Path) -> None:
     # Arrange
     repo = _make_repo(tmp_path)
