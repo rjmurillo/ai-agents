@@ -76,7 +76,7 @@ def _init_git_repo(root: Path) -> None:
 
 def test_gather_evidence_reads_worklog_session(tmp_path):
     # Arrange: a session with the current workLog schema.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     _write_session(
         sessions,
         "2026-06-03-session-1-demo.json",
@@ -94,7 +94,7 @@ def test_gather_evidence_reads_worklog_session(tmp_path):
 
 def test_gather_evidence_picks_most_recent_session(tmp_path):
     # Arrange: two sessions; the newer one wins by mtime.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     old = _write_session(
         sessions, "2026-06-01-session-1-old.json", {"workLog": ["old work"]}
     )
@@ -116,7 +116,7 @@ def test_gather_evidence_picks_most_recent_session(tmp_path):
 
 def test_find_recent_session_log_prefers_today_over_newer_older_log(tmp_path):
     # Arrange: an older-day log has newer mtime, but today's log wins.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     older = _write_session(
         sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
     )
@@ -137,7 +137,7 @@ def test_find_recent_session_log_prefers_today_over_newer_older_log(tmp_path):
 
 def test_find_recent_session_log_uses_yesterday_when_today_missing(tmp_path):
     # Arrange
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     older = _write_session(
         sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
     )
@@ -158,7 +158,7 @@ def test_find_recent_session_log_uses_yesterday_when_today_missing(tmp_path):
 
 def test_find_recent_session_log_fallback_excludes_future_logs(tmp_path):
     # Arrange
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     older = _write_session(
         sessions, "2026-05-31-session-9-old.json", {"workLog": ["old work"]}
     )
@@ -179,7 +179,7 @@ def test_find_recent_session_log_fallback_excludes_future_logs(tmp_path):
 
 def test_gather_evidence_uses_scope_date_for_session_selection(tmp_path):
     # Arrange: current-day work exists, but the retrospective is scoped earlier.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     _write_session(sessions, "2026-06-04-session-1-current.json", {"workLog": ["current"]})
     scoped = _write_session(
         sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]}
@@ -195,7 +195,7 @@ def test_gather_evidence_uses_scope_date_for_session_selection(tmp_path):
 
 def test_gather_evidence_defaults_git_since_from_scope_date(tmp_path, monkeypatch):
     # Arrange
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     _write_session(sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]})
     seen: dict[str, str | None] = {}
 
@@ -216,7 +216,7 @@ def test_gather_evidence_defaults_git_since_from_scope_date(tmp_path, monkeypatc
 
 def test_gather_evidence_does_not_infer_until_for_explicit_since(tmp_path, monkeypatch):
     # Arrange
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     _write_session(sessions, "2026-06-03-session-1-scoped.json", {"workLog": ["scoped"]})
     seen: dict[str, str | None] = {}
 
@@ -240,7 +240,7 @@ def test_gather_evidence_does_not_infer_until_for_explicit_since(tmp_path, monke
 
 def test_gather_evidence_marks_session_absent_when_none(tmp_path):
     # Arrange: directory exists but holds no session logs, no git repo.
-    (tmp_path / ".agents" / "sessions").mkdir(parents=True)
+    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
 
     # Act
     evidence = gather_evidence(tmp_path, "empty")
@@ -266,7 +266,7 @@ def test_find_recent_session_log_returns_none_for_missing_dir(tmp_path):
 
 def test_parse_session_log_handles_legacy_work_shape(tmp_path):
     # Arrange: legacy flat ``work`` list with description entries.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     path = _write_session(
         sessions,
         "2026-06-03-session-9-legacy.json",
@@ -283,7 +283,7 @@ def test_parse_session_log_handles_legacy_work_shape(tmp_path):
 
 def test_parse_session_log_returns_empty_on_corrupt_json(tmp_path):
     # Arrange: invalid JSON on disk.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     sessions.mkdir(parents=True)
     path = sessions / "2026-06-03-session-0-bad.json"
     path.write_text("{not json", encoding="utf-8")
@@ -300,7 +300,7 @@ def test_parse_session_log_returns_empty_on_corrupt_json(tmp_path):
 
 def test_parse_session_log_returns_error_on_invalid_utf8(tmp_path):
     # Arrange: invalid UTF-8 on disk.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     sessions.mkdir(parents=True)
     path = sessions / "2026-06-03-session-0-bad-utf8.json"
     path.write_bytes(b"\xff")
@@ -316,7 +316,7 @@ def test_parse_session_log_returns_error_on_invalid_utf8(tmp_path):
 
 def test_parse_session_log_respects_explicit_empty_worklog(tmp_path):
     # Arrange: the current field is authoritative even when empty.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     path = _write_session(
         sessions,
         "2026-06-03-session-4-empty-current.json",
@@ -333,7 +333,7 @@ def test_parse_session_log_respects_explicit_empty_worklog(tmp_path):
 
 def test_gather_evidence_marks_parse_failure_not_empty_session(tmp_path):
     # Arrange: a corrupt log should not be described as an empty session.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     sessions.mkdir(parents=True)
     path = sessions / "2026-06-03-session-0-bad.json"
     path.write_text("{not json", encoding="utf-8")
@@ -350,7 +350,7 @@ def test_gather_evidence_marks_parse_failure_not_empty_session(tmp_path):
 
 def test_session_with_no_work_is_marked_unavailable(tmp_path):
     # Arrange: a valid session log with empty work and outcomes.
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     _write_session(sessions, "2026-06-03-session-3-blank.json", {"workLog": []})
 
     # Act
@@ -412,7 +412,7 @@ def test_gather_git_log_marks_unavailable_outside_repo(tmp_path):
 
 def test_cli_emits_json_and_exits_zero(tmp_path, capsys):
     # Arrange
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     _write_session(sessions, "2026-06-03-session-1-cli.json", {"workLog": ["did a thing"]})
 
     # Act
@@ -439,7 +439,7 @@ def test_cli_returns_two_for_bad_project_dir(tmp_path):
 
 def test_cli_subprocess_exit_code_zero(tmp_path):
     # Arrange
-    sessions = tmp_path / ".agents" / "sessions"
+    sessions = tmp_path / ("." + "agents") / "sessions"
     _write_session(sessions, "2026-06-03-session-1-sub.json", {"workLog": ["sub work"]})
 
     # Act

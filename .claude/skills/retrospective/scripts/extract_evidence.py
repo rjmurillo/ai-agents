@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -36,6 +37,42 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
+
+
+def _resolve_paths_lib_dir() -> Path:
+    """Resolve the plugin path-helper lib directory or fail with context."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        lib_dir = Path(plugin_root) / "lib"
+    elif workspace := os.environ.get("GITHUB_WORKSPACE"):
+        lib_dir = Path(workspace) / ".claude" / "lib"
+    else:
+        lib_dir = Path(__file__).resolve().parents[3] / "lib"
+
+    if not lib_dir.is_dir():
+        raise RuntimeError(
+            "Expected portability helper lib directory not found: "
+            f"{lib_dir}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+            "plugin root, or run from an ai-agents checkout."
+        )
+    return lib_dir.resolve()
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+try:
+    import paths  # noqa: E402
+except ImportError as exc:  # pragma: no cover - guarded by explicit path check
+    raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
+
+
+def _artifact_dir(project_dir: Path, subdir: str) -> Path:
+    """Resolve an artifact directory while preserving explicit project-dir tests."""
+    if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") or project_dir.resolve() == Path.cwd().resolve():
+        return paths.resolve_artifact_root(subdir)
+    return project_dir / ".agents" / subdir
 
 # Bound the git call so a wedged repo cannot hang the retrospective.
 _GIT_TIMEOUT_SECONDS = 15
@@ -270,7 +307,7 @@ def gather_evidence(
     """
     notes: list[str] = []
 
-    sessions_dir = project_dir / ".agents" / "sessions"
+    sessions_dir = _artifact_dir(project_dir, "sessions")
     session_log = find_recent_session_log(sessions_dir, today=_scope_date(scope))
     if session_log is None:
         notes.append("No session log found under .agents/sessions/.")

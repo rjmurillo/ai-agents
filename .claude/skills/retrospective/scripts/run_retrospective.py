@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +44,42 @@ from typing import Protocol
 UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def _resolve_paths_lib_dir() -> Path:
+    """Resolve the plugin path-helper lib directory or fail with context."""
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        lib_dir = Path(plugin_root) / "lib"
+    elif workspace := os.environ.get("GITHUB_WORKSPACE"):
+        lib_dir = Path(workspace) / ".claude" / "lib"
+    else:
+        lib_dir = Path(__file__).resolve().parents[3] / "lib"
+
+    if not lib_dir.is_dir():
+        raise RuntimeError(
+            "Expected portability helper lib directory not found: "
+            f"{lib_dir}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
+            "plugin root, or run from an ai-agents checkout."
+        )
+    return lib_dir.resolve()
+
+
+_LIB_DIR = _resolve_paths_lib_dir()
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+try:
+    import paths  # noqa: E402
+except ImportError as exc:  # pragma: no cover - guarded by explicit path check
+    raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
+
+
+def _artifact_dir(project_dir: Path, subdir: str) -> Path:
+    """Resolve an artifact directory while preserving explicit project-dir tests."""
+    if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") or project_dir.resolve() == Path.cwd().resolve():
+        return paths.resolve_artifact_root(subdir)
+    return project_dir / ".agents" / subdir
 
 
 class EvidenceLike(Protocol):
@@ -347,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     today = _artifact_date(args.scope)
-    retro_dir = project_dir / ".agents" / "retrospective"
+    retro_dir = _artifact_dir(project_dir, "retrospective")
 
     try:
         evidence = gather_evidence(project_dir, args.scope, args.since)
