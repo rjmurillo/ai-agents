@@ -2,11 +2,6 @@
 name: decision-critic
 version: 1.0.0
 description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality. Do NOT use to surface failure risks pre-launch (use pre-mortem) or to probe why a constraint exists (use chestertons-fence).
-triggers:
-  - "validate my thinking"
-  - "poke holes in this decision"
-  - "stress-test this"
-  - "criticize this approach"
 model: claude-opus-4-6
 license: MIT
 ---
@@ -75,7 +70,7 @@ Use this skill when:
 - Evaluating a plan, ADR, or design before commitment
 - You want structured adversarial feedback, not just a second opinion
 
-Use `independent-thinker` agent instead when:
+Use the independent-thinker agent instead when:
 
 - You need strategic challenge on direction (whether, not how)
 - The question is about project scope or priorities, not technical reasoning
@@ -104,6 +99,7 @@ After execution:
 - [Chesterton's Fence](references/mental-models-chestertons-fence.md) - Understand why something exists before removing or changing it
 - [Conway's Law](references/mental-models-conways-law.md) - System structure mirrors org communication structure; apply when a diff crosses a module boundary
 - [Gall's Law](references/mental-models-galls-law.md) - Complex working systems evolved from simple working systems
+- [Fat Tails](references/mental-models-fat-tails.md) - Extreme outcomes dominate fat-tailed domains; distrust averages and Gaussian risk metrics
 - [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope boundaries for incremental improvement decisions
 - [Brandolini's Law](references/critical-thinking-brandolinis-law.md) - Refutation costs more than assertion; allocate review burden by claim asymmetry
 - [Falsifiability](references/critical-thinking-falsifiability.md) - Reject claims with no measurable success criterion
