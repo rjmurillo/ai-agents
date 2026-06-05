@@ -479,6 +479,18 @@ def test_path_to_family_ignores_directory_metadata(fake_repo: Path) -> None:
     assert families == frozenset()
 
 
+def test_path_to_family_rejects_traversal_out_of_agent_roots(fake_repo: Path) -> None:
+    families = drift.families_from_paths(
+        [
+            ".claude/agents/../../outside/alpha.md",
+            "src/claude/../../../outside/beta.md",
+        ],
+        repo_root=fake_repo,
+    )
+
+    assert families == frozenset()
+
+
 def test_scoped_mode_skips_unrelated_drifted_family(fake_repo: Path) -> None:
     """Acceptance #1: a PR touching only family-a is not blocked when an
     unrelated family-b is drifted on disk."""

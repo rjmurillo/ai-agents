@@ -468,12 +468,14 @@ def _normalize_repo_relative(path: str, repo_root: Path | None) -> str:
     if normalized.startswith("./"):
         normalized = normalized[2:]
     if repo_root is not None:
+        resolved_root = repo_root.resolve()
         candidate = Path(normalized)
-        if candidate.is_absolute():
-            try:
-                normalized = candidate.resolve().relative_to(repo_root.resolve()).as_posix()
-            except ValueError:
-                return ""
+        if not candidate.is_absolute():
+            candidate = resolved_root / candidate
+        try:
+            return candidate.resolve().relative_to(resolved_root).as_posix()
+        except ValueError:
+            return ""
     return normalized.lstrip("/")
 
 
