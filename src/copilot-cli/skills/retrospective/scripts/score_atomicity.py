@@ -26,9 +26,10 @@ agent body at ``.claude/agents/retrospective.md``. Quoted contract:
     | 40-69% | Needs Work | Refine before adding |
     | <40% | Rejected | Too vague |
 
-Stricter/looser/different than canonical: none. The score starts at 100 and the
-deductions clamp to the 0-100 range. The reference does not enumerate the exact
-trigger words for "compound" and "vague"; this module fixes a concrete word list
+Stricter/looser/different than canonical: the trigger word list is explicit.
+The score starts at 100 and the deductions clamp to the 0-100 range. The
+reference does not enumerate the exact trigger words for "compound" and "vague";
+this module fixes a concrete word list
 (``and``, ``also`` for compound; ``generally``, ``sometimes``, ``effective``,
 ``effectively``, ``good``, ``better``, ``well`` for vague) so the score is
 deterministic and testable. The list includes ``effective`` because the canonical
