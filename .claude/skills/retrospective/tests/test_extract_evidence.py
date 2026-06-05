@@ -253,6 +253,19 @@ def test_gather_evidence_marks_session_absent_when_none(tmp_path):
     assert any("git" in note.lower() for note in evidence.notes)
 
 
+def test_gather_evidence_artifact_root_read_does_not_create_sessions(tmp_path, monkeypatch):
+    # Arrange
+    artifact_root = tmp_path.parent / "artifact-root"
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
+
+    # Act
+    evidence = gather_evidence(tmp_path, "empty")
+
+    # Assert
+    assert evidence.session_log_available is False
+    assert not (artifact_root / "sessions").exists()
+
+
 def test_find_recent_session_log_returns_none_for_missing_dir(tmp_path):
     # Arrange: the sessions directory does not exist.
     missing = tmp_path / "nope" / "sessions"

@@ -63,15 +63,16 @@ if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
 try:
-    import paths  # noqa: E402
+    from paths import resolve_artifact_root as _resolve_artifact_root  # noqa: E402,F401
 except ImportError as exc:  # pragma: no cover - guarded by explicit path check
     raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
 
 
 def _artifact_dir(project_dir: Path, subdir: str) -> Path:
-    """Resolve an artifact directory while preserving explicit project-dir tests."""
-    if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") or project_dir.resolve() == Path.cwd().resolve():
-        return paths.resolve_artifact_root(subdir)
+    """Resolve an artifact directory without creating it during evidence reads."""
+    override = os.environ.get("AI_AGENTS_ARTIFACT_ROOT")
+    if override and override.strip():
+        return (Path(override).expanduser() / subdir).resolve()
     return project_dir / ".agents" / subdir
 
 # Bound the git call so a wedged repo cannot hang the retrospective.

@@ -369,6 +369,27 @@ def test_cli_allows_artifact_root_override_outside_project(tmp_path, monkeypatch
     assert written.is_file()
 
 
+def test_fill_mode_artifact_root_accepts_project_style_relative_path(tmp_path, monkeypatch):
+    # Arrange
+    artifact_root = tmp_path.parent / f"artifact-root-fill-{_MODULE_NAME}"
+    monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
+    retro_dir = artifact_root / "retrospective"
+    retro_dir.mkdir(parents=True)
+    skeleton = retro_dir / "2026-06-03-auto-retro.md"
+    skeleton.write_text("# Retrospective\n\n> UNFILLED SKELETON\n", encoding="utf-8")
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "2026-06-03",
+        "--fill", _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
+    ])
+
+    # Assert
+    assert rc == 0
+    assert "UNFILLED SKELETON" not in skeleton.read_text(encoding="utf-8")
+
+
 def test_cli_rejects_output_override_outside_project(tmp_path):
     # Arrange
     _write_session(tmp_path, {"workLog": ["work"]})

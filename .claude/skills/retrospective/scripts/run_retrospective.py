@@ -312,6 +312,10 @@ def _resolve_output_path(
         skeleton = Path(fill)
         if not skeleton.is_absolute():
             base_dir = retro_dir if os.environ.get("AI_AGENTS_ARTIFACT_ROOT") else (project_dir or retro_dir)
+            if os.environ.get("AI_AGENTS_ARTIFACT_ROOT"):
+                parts = skeleton.parts
+                if len(parts) >= 2 and parts[0] == ".agents" and parts[1] == "retrospective":
+                    skeleton = Path(*parts[2:]) if len(parts) > 2 else Path()
             skeleton = base_dir / skeleton
         skeleton = _require_fill_path(skeleton, project_dir, retro_dir)
         if not skeleton.is_file():
