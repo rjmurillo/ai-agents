@@ -2,7 +2,7 @@
 
 When reviewing PowerShell scripts (.ps1, .psm1), verify:
 
-#### Input Validation
+## Input Validation
 
 - [ ] Parameters have `[ValidatePattern]`, `[ValidateSet]`, or `[ValidateScript]` attributes
 - [ ] User input never passed directly to `Invoke-Expression` or `iex`
@@ -10,7 +10,7 @@ When reviewing PowerShell scripts (.ps1, .psm1), verify:
 - [ ] Numeric inputs have `[ValidateRange]` to prevent overflow or negative values
 - [ ] String inputs have length limits via `[ValidateLength]`
 
-#### Command Injection Prevention (CWE-77, CWE-78)
+## Command Injection Prevention (CWE-77, CWE-78)
 
 **WHY**: Unquoted variables in external commands can be exploited when those programs invoke shells or interpret special characters. PowerShell passes unquoted `$Query` as a single argument to npx, but if the external program (or a shell it invokes) interprets metacharacters (`;|&><`), unintended commands execute. Quoting in PowerShell ensures the full string is passed as a single literal argument.
 
@@ -39,7 +39,7 @@ $Args = @("$PluginScript", "$Query", "$OutputFile")
 - [ ] Avoid string concatenation for commands: `& "cmd $UserInput"` is UNSAFE
 - [ ] For commands with 5+ parameters, use array variable with quoted elements
 
-#### Path Traversal Prevention (CWE-22, CWE-23, CWE-36)
+## Path Traversal Prevention (CWE-22, CWE-23, CWE-36)
 
 **WHY**: `StartsWith()` performs string comparison on the raw path string BEFORE filesystem resolution. Attack: Constructed path contains `..` sequences that pass string comparison (because the string DOES start with the base directory), but when the filesystem later resolves `..` sequences, the path escapes to parent directories. `GetFullPath()` resolves `..` sequences BEFORE validation, revealing the true target path.
 
@@ -118,7 +118,7 @@ catch {
 - [ ] Check for symlinks with `$_.Attributes -band [IO.FileAttributes]::ReparsePoint`
 - [ ] Use `Join-Path` instead of string concatenation for path building
 
-#### Secrets and Credentials
+## Secrets and Credentials
 
 - [ ] No hardcoded passwords, API keys, tokens, or connection strings
 - [ ] Use `Read-Host -AsSecureString` for password input
@@ -126,7 +126,7 @@ catch {
 - [ ] Avoid `Write-Host` or logging for sensitive data (check `Write-Verbose`, `Write-Debug`)
 - [ ] Environment variables for secrets use `$env:` prefix, not hardcoded values
 
-#### Error Handling
+## Error Handling
 
 - [ ] `Set-StrictMode -Version Latest` at script top to catch uninitialized variables
 - [ ] `$ErrorActionPreference = 'Stop'` for production scripts (fail-fast)
@@ -134,7 +134,7 @@ catch {
 - [ ] Exit codes checked after external commands: `if ($LASTEXITCODE -ne 0) { throw }`
 - [ ] Error messages do not reveal internal paths, stack traces, or implementation details
 
-#### Code Execution (CWE-94, CWE-95)
+## Code Execution (CWE-94, CWE-95)
 
 **WHY**: `Invoke-Expression` executes strings as PowerShell code. No sanitization. Attack: User input passed directly to interpreter. Solution: Hashtable restricts to predefined commands, user selects KEY not syntax.
 
@@ -168,7 +168,7 @@ if ($AllowedCommands.ContainsKey($Choice)) {
 - [ ] No `.Invoke()` on user-provided script blocks
 - [ ] No dynamic module imports from untrusted paths
 
-#### References
+## References
 
 - [OWASP PowerShell Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/PowerShell_Security_Cheat_Sheet.html)
 - [CWE-77 Command Injection](https://cwe.mitre.org/data/definitions/77.html)

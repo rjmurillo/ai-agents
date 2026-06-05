@@ -568,6 +568,64 @@ class TestValidateCommandBundleCoverage:
 
 
 # ---------------------------------------------------------------------------
+# validate_markdown_lint
+# ---------------------------------------------------------------------------
+
+
+class TestValidateMarkdownLint:
+    """Markdown linting checks branch changes without masking unknown scope."""
+
+    def test_returns_true_when_branch_has_no_markdown(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="npx"):
+            with patch(
+                "scripts.validation.pre_pr._markdown_lint_targets",
+                return_value=[],
+            ):
+                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                    assert validate_markdown_lint(tmp_path) is True
+
+        mock_run.assert_not_called()
+
+    def test_lints_changed_markdown_only(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="npx"):
+            with patch(
+                "scripts.validation.pre_pr._markdown_lint_targets",
+                return_value=["README.md", "docs/guide.md"],
+            ):
+                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "", "")
+                    assert validate_markdown_lint(tmp_path) is True
+
+        mock_run.assert_called_once_with(
+            ["npx", "markdownlint-cli2", "--fix", "README.md", "docs/guide.md"],
+            cwd=tmp_path,
+        )
+
+    def test_falls_back_to_full_repo_when_scope_is_unknown(
+        self, tmp_path: Path
+    ) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="npx"):
+            with patch(
+                "scripts.validation.pre_pr._markdown_lint_targets",
+                return_value=None,
+            ):
+                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                    mock_run.return_value = (1, "", "markdownlint failed")
+                    assert validate_markdown_lint(tmp_path) is False
+
+        mock_run.assert_called_once_with(
+            ["npx", "markdownlint-cli2", "--fix", "**/*.md"],
+            cwd=tmp_path,
+        )
+
+
+# ---------------------------------------------------------------------------
 # validate_dash_prohibition (Issue #1923, REQ-006-AC7, M4)
 # ---------------------------------------------------------------------------
 
@@ -780,7 +838,51 @@ class TestValidateGitHooksInstalled:
             os.environ.pop("CI", None)
             with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "", "core.hooksPath not set")
-                assert validate_git_hooks_installed(tmp_path) is False
+                with patch(
+                    "scripts.validation.pre_pr._is_linked_worktree",
+                    return_value=False,
+                ):
+                    assert validate_git_hooks_installed(tmp_path) is False
+
+    def test_warns_not_fails_in_linked_worktree(self, tmp_path: Path) -> None:
+        """A failed check in a linked worktree downgrades to a warning (#2374)."""
+        import os
+
+        from scripts.validation.pre_pr import validate_git_hooks_installed
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (1, "", "core.hooksPath not set")
+                with patch(
+                    "scripts.validation.pre_pr._is_linked_worktree",
+                    return_value=True,
+                ):
+                    assert validate_git_hooks_installed(tmp_path) is True
+
+    def test_primary_clone_still_fails_when_check_nonzero(
+        self, tmp_path: Path
+    ) -> None:
+        """On the primary clone a failed check is still a hard failure."""
+        import os
+
+        from scripts.validation.pre_pr import validate_git_hooks_installed
+
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "install_git_hooks.py").write_text("# stub\n")
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("GITHUB_ACTIONS", None)
+            os.environ.pop("CI", None)
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (1, "", "core.hooksPath not set")
+                with patch(
+                    "scripts.validation.pre_pr._is_linked_worktree",
+                    return_value=False,
+                ):
+                    assert validate_git_hooks_installed(tmp_path) is False
 
     def test_delegates_to_hook_installer_outside_ci(self, tmp_path: Path) -> None:
         """Outside CI the gate delegates to the hook installer check."""
@@ -802,6 +904,137 @@ class TestValidateGitHooksInstalled:
             repo_root_index = command.index("--repo-root")
             assert "--check" in command
             assert command[repo_root_index + 1] == str(tmp_path)
+
+
+class TestIsLinkedWorktree:
+    """The git-hooks gate downgrades to a warning in a linked worktree (#2374)."""
+
+    def test_true_when_git_dir_differs_from_common_dir(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (
+                    0,
+                    "/repo/.git/worktrees/wt\n/repo/.git\n",
+                    "",
+                )
+                assert _is_linked_worktree(tmp_path) is True
+
+    def test_false_when_git_dir_equals_common_dir(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (0, "/repo/.git\n/repo/.git\n", "")
+                assert _is_linked_worktree(tmp_path) is False
+
+    def test_false_when_git_missing(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value=None):
+            assert _is_linked_worktree(tmp_path) is False
+
+    def test_false_when_rev_parse_fails(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (128, "", "fatal: not a git repository")
+                assert _is_linked_worktree(tmp_path) is False
+
+    def test_false_when_output_malformed(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (0, "only-one-line\n", "")
+                assert _is_linked_worktree(tmp_path) is False
+
+    def test_relative_paths_are_anchored_to_repo_root(
+        self, tmp_path: Path, monkeypatch: Any
+    ) -> None:
+        from scripts.validation.pre_pr import _is_linked_worktree
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        common = repo / "common"
+        common.mkdir()
+        (repo / ".git").symlink_to(common, target_is_directory=True)
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / ".git").mkdir()
+        monkeypatch.chdir(outside)
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="git"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (0, ".git\ncommon\n", "")
+                assert _is_linked_worktree(repo) is False
+
+        command = mock_run.call_args.args[0]
+        assert "--path-format=absolute" not in command
+
+
+class TestValidateWorkflowYaml:
+    """Workflow validation raises the shellcheck severity floor to warning (#2374)."""
+
+    def test_returns_true_when_actionlint_missing(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_workflow_yaml
+
+        (tmp_path / ".github" / "workflows").mkdir(parents=True)
+        with patch("scripts.validation.pre_pr.shutil.which", return_value=None):
+            assert validate_workflow_yaml(tmp_path) is True
+
+    def test_returns_true_when_no_workflow_dir(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_workflow_yaml
+
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="actionlint"):
+            assert validate_workflow_yaml(tmp_path) is True
+
+    def test_passes_shellcheck_severity_warning_env(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_workflow_yaml
+
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="actionlint"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (0, "", "")
+                assert validate_workflow_yaml(tmp_path) is True
+
+            env_kwarg = mock_run.call_args.kwargs["env"]
+            assert "--severity=warning" in env_kwarg["SHELLCHECK_OPTS"]
+
+    def test_preserves_existing_shellcheck_opts(self, tmp_path: Path) -> None:
+        import os
+
+        from scripts.validation.pre_pr import validate_workflow_yaml
+
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
+        with patch.dict(os.environ, {"SHELLCHECK_OPTS": "--exclude=SC1091"}, clear=False):
+            with patch(
+                "scripts.validation.pre_pr.shutil.which", return_value="actionlint"
+            ):
+                with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "", "")
+                    assert validate_workflow_yaml(tmp_path) is True
+
+                opts = mock_run.call_args.kwargs["env"]["SHELLCHECK_OPTS"]
+                assert "--exclude=SC1091" in opts
+                assert "--severity=warning" in opts
+
+    def test_fails_when_actionlint_reports_warning(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_workflow_yaml
+
+        wf_dir = tmp_path / ".github" / "workflows"
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
+        with patch("scripts.validation.pre_pr.shutil.which", return_value="actionlint"):
+            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+                mock_run.return_value = (1, "ci.yml:1:1: SC2034 ... [shellcheck]", "")
+                assert validate_workflow_yaml(tmp_path) is False
 
 
 # ---------------------------------------------------------------------------
