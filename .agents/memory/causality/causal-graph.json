@@ -4736,6 +4736,15 @@
         "episode-2026-06-04-session-2364"
       ],
       "created": "2026-06-04T12:57:17.376624+00:00"
+    },
+    {
+      "id": "4b5e9c022691",
+      "type": "outcome",
+      "label": "Outcome: success - Retry and finish PR #2356 in isolated pr-autofix worktree: resolve review threads, merge current main, validate security-scan behavior, push with SHA lease, and merge only when pr-autofix gates pass.",
+      "episodes": [
+        "episode-2026-06-05-session-2365"
+      ],
+      "created": "2026-06-05T13:58:40.561666+00:00"
     }
   ],
   "patterns": [
@@ -4785,7 +4794,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 11,
+      "occurrences": 12,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -4794,7 +4803,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 22,
+      "occurrences": 24,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -4803,7 +4812,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 44,
+      "occurrences": 48,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -4812,7 +4821,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 66,
+      "occurrences": 72,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -4822,7 +4831,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -4830,7 +4839,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -4838,7 +4847,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -4846,7 +4855,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -4854,7 +4863,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -4862,7 +4871,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -4870,7 +4879,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -4878,7 +4887,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -4886,7 +4895,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -4894,7 +4903,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -4902,7 +4911,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -4910,7 +4919,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -4918,7 +4927,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -4926,7 +4935,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -4934,7 +4943,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -4942,7 +4951,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -4950,7 +4959,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -4958,7 +4967,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -4966,7 +4975,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -4974,7 +4983,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -4982,7 +4991,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -4990,7 +4999,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -4998,7 +5007,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -5006,7 +5015,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -5014,7 +5023,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -5022,7 +5031,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -5030,7 +5039,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -5038,7 +5047,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -5046,7 +5055,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -5054,7 +5063,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -5062,7 +5071,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -5070,7 +5079,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -5078,7 +5087,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -5086,7 +5095,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -5094,7 +5103,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -5102,7 +5111,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -5110,7 +5119,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -5118,7 +5127,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -5126,7 +5135,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -5134,7 +5143,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 11,
+      "evidence_count": 12,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]

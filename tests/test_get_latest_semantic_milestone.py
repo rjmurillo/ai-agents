@@ -49,13 +49,13 @@ def test_finds_latest_milestone(mock_run, capsys):
     rc = main([])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["found"] is True
-    assert output["title"] == "0.10.0"
-    assert output["number"] == 2
+    assert output["Data"]["found"] is True
+    assert output["Data"]["title"] == "0.10.0"
+    assert output["Data"]["number"] == 2
 
 
 @patch("subprocess.run")
-def test_no_milestones(mock_run):
+def test_no_milestones(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),
@@ -64,10 +64,14 @@ def test_no_milestones(mock_run):
 
     rc = main([])
     assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Code"] == 2
+    assert output["Data"]["found"] is False
 
 
 @patch("subprocess.run")
-def test_no_semantic_milestones(mock_run):
+def test_no_semantic_milestones(mock_run, capsys):
     milestones = json.dumps([
         {"title": "Future", "number": 1},
         {"title": "Backlog", "number": 2},
@@ -80,6 +84,10 @@ def test_no_semantic_milestones(mock_run):
 
     rc = main([])
     assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Code"] == 2
+    assert output["Data"]["found"] is False
 
 
 @patch("subprocess.run")
@@ -94,4 +102,4 @@ def test_single_milestone(mock_run, capsys):
     rc = main([])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["title"] == "1.0.0"
+    assert output["Data"]["title"] == "1.0.0"
