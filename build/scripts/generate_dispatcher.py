@@ -67,6 +67,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _bootstrap import ensure_plugin_paths  # noqa: E402
 
 _MAX_STDIN_BYTES = 2 * 1024 * 1024
+_GATE_EVENTS = ("PreToolUse", "preToolUse")
 
 
 def _main() -> int:
@@ -76,6 +77,9 @@ def _main() -> int:
 
         event_dir = Path(__file__).resolve().parent
         manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
+        event = manifest.get("event")
+        if not isinstance(event, str):
+            raise TypeError("manifest field 'event' must be a string")
         shims = manifest["shims"]
         if not isinstance(shims, list):
             raise TypeError("manifest field 'shims' must be a list")
@@ -85,6 +89,11 @@ def _main() -> int:
         mode = manifest.get("mode", "gate")
         if mode not in ("gate", "observe"):
             raise ValueError(f"manifest field 'mode' must be 'gate' or 'observe', got {mode!r}")
+        expected_mode = "gate" if event in _GATE_EVENTS else "observe"
+        if mode != expected_mode:
+            raise ValueError(
+                f"manifest field 'mode' for {event} must be {expected_mode!r}, got {mode!r}"
+            )
         short_circuit = mode == "gate"
         # Validate timeout metadata so malformed manifests fail closed. Do not
         # enforce per-shim timeouts inside the dispatcher: Python cannot kill a

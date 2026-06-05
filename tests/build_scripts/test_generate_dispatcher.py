@@ -80,12 +80,12 @@ class TestEmit:
         # Stage a minimal plugin layout the entrypoint's bootstrap can resolve.
         root = tmp_path / "plugin"
         (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
         # Copy the real dispatcher lib and a minimal bootstrap into the lib/hooks.
         src_lib = _REPO / ".claude" / "lib" / "hook_dispatch.py"
-        (lib / "hook_dispatch.py").write_text(src_lib.read_text())
+        (lib / "hook_dispatch.py").write_text(src_lib.read_text(encoding="utf-8"), encoding="utf-8")
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
         (event_dir / "_bootstrap.py").write_text(
@@ -93,12 +93,13 @@ class TestEmit:
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
             "    root = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve()\n"
-            "    sys.path.insert(0, str(root / 'lib'))\n"
+            "    sys.path.insert(0, str(root / 'lib'))\n",
+            encoding="utf-8",
         )
         allow = "allow.py"
         block = "block.py"
-        (event_dir / allow).write_text("import sys; sys.exit(0)\n")
-        (event_dir / block).write_text("import sys; sys.exit(2)\n")
+        (event_dir / allow).write_text("import sys; sys.exit(0)\n", encoding="utf-8")
+        (event_dir / block).write_text("import sys; sys.exit(2)\n", encoding="utf-8")
         gd.emit_dispatcher(event_dir, "preToolUse", [allow, block], 5)
 
         env = dict(__import__("os").environ)
@@ -116,11 +117,12 @@ class TestEmit:
     def test_generated_entrypoint_allows_when_all_allow(self, tmp_path):
         root = tmp_path / "plugin"
         (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
         (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
+            encoding="utf-8",
         )
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
@@ -129,9 +131,10 @@ class TestEmit:
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
             "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
-            "    sys.path.insert(0, str(lib))\n"
+            "    sys.path.insert(0, str(lib))\n",
+            encoding="utf-8",
         )
-        (event_dir / "a.py").write_text("import sys; sys.exit(0)\n")
+        (event_dir / "a.py").write_text("import sys; sys.exit(0)\n", encoding="utf-8")
         gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5)
         env = dict(__import__("os").environ)
         env["CLAUDE_PLUGIN_ROOT"] = str(root)
@@ -147,11 +150,12 @@ class TestEmit:
     def test_generated_entrypoint_malformed_manifest_fails_closed(self, tmp_path):
         root = tmp_path / "plugin"
         (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
         (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
+            encoding="utf-8",
         )
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
@@ -160,10 +164,11 @@ class TestEmit:
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
             "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
-            "    sys.path.insert(0, str(lib))\n"
+            "    sys.path.insert(0, str(lib))\n",
+            encoding="utf-8",
         )
         gd.write_entrypoint(event_dir)
-        (event_dir / "_manifest.json").write_text('{"event":"preToolUse"}\n')
+        (event_dir / "_manifest.json").write_text('{"event":"preToolUse"}\n', encoding="utf-8")
         env = dict(__import__("os").environ)
         env["CLAUDE_PLUGIN_ROOT"] = str(root)
 
@@ -183,11 +188,12 @@ class TestEmit:
     def test_generated_entrypoint_oversized_stdin_fails_closed(self, tmp_path):
         root = tmp_path / "plugin"
         (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
         (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
+            encoding="utf-8",
         )
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
@@ -196,7 +202,8 @@ class TestEmit:
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
             "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
-            "    sys.path.insert(0, str(lib))\n"
+            "    sys.path.insert(0, str(lib))\n",
+            encoding="utf-8",
         )
         gd.write_entrypoint(event_dir)
         gd.write_manifest(event_dir, "preToolUse", [])
@@ -219,11 +226,12 @@ class TestEmit:
     def test_generated_entrypoint_invalid_timeout_manifest_fails_closed(self, tmp_path):
         root = tmp_path / "plugin"
         (root / ".claude-plugin").mkdir(parents=True)
-        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+        (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
         lib = root / "lib"
         lib.mkdir()
         (lib / "hook_dispatch.py").write_text(
-            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+            (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
+            encoding="utf-8",
         )
         event_dir = root / "hooks" / "preToolUse"
         event_dir.mkdir(parents=True)
@@ -232,7 +240,8 @@ class TestEmit:
             "from pathlib import Path\n"
             "def ensure_plugin_paths():\n"
             "    lib = Path(os.environ['CLAUDE_PLUGIN_ROOT']).resolve() / 'lib'\n"
-            "    sys.path.insert(0, str(lib))\n"
+            "    sys.path.insert(0, str(lib))\n",
+            encoding="utf-8",
         )
         gd.write_entrypoint(event_dir)
         gd.write_manifest(event_dir, "preToolUse", ["a.py"], {"a.py": 0})
@@ -250,6 +259,17 @@ class TestEmit:
         assert proc.returncode == 2
         assert "manifest timeout for a.py must be positive" in proc.stderr.decode()
 
+    def test_generated_pretooluse_observe_manifest_fails_closed(self, tmp_path):
+        root, event_dir = _stage_plugin(tmp_path, "preToolUse")
+        (event_dir / "a.py").write_text("import sys; sys.exit(0)\n", encoding="utf-8")
+        gd.emit_dispatcher(event_dir, "preToolUse", ["a.py"], 5, mode="gate")
+        gd.write_manifest(event_dir, "preToolUse", ["a.py"], mode="observe")
+
+        proc = _run_dispatch_entry(root, event_dir)
+
+        assert proc.returncode == 2
+        assert "must be 'gate'" in proc.stderr.decode()
+
 
 def _stage_plugin(tmp_path, event):
     """Stage a minimal plugin tree the canonical _bootstrap.py can resolve.
@@ -261,11 +281,12 @@ def _stage_plugin(tmp_path, event):
     """
     root = tmp_path / "plugin"
     (root / ".claude-plugin").mkdir(parents=True)
-    (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}')
+    (root / ".claude-plugin" / "plugin.json").write_text('{"name":"t"}', encoding="utf-8")
     lib = root / "lib"
     lib.mkdir()
     (lib / "hook_dispatch.py").write_text(
-        (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text()
+        (_REPO / ".claude" / "lib" / "hook_dispatch.py").read_text(encoding="utf-8"),
+        encoding="utf-8",
     )
     event_dir = root / "hooks" / event
     event_dir.mkdir(parents=True)
@@ -297,7 +318,7 @@ class TestObserveMode:
         return (
             "import sys\n"
             "from pathlib import Path\n"
-            f"Path(r'{marker_path}').write_text('ran')\n"
+            f"Path(r'{marker_path}').write_text('ran', encoding='utf-8')\n"
             f"sys.exit({exit_code})\n"
         )
 
@@ -306,9 +327,11 @@ class TestObserveMode:
         # host ran every observer entry). Dispatcher returns 0 regardless.
         root, event_dir = _stage_plugin(tmp_path, "postToolUse")
         m_a, m_b, m_c = (tmp_path / f"m_{x}" for x in "abc")
-        (event_dir / "a.py").write_text(self._markered_shim(m_a, 0))
-        (event_dir / "b.py").write_text(self._markered_shim(m_b, 7))  # signals
-        (event_dir / "c.py").write_text(self._markered_shim(m_c, 0))
+        (event_dir / "a.py").write_text(self._markered_shim(m_a, 0), encoding="utf-8")
+        (event_dir / "b.py").write_text(
+            self._markered_shim(m_b, 7), encoding="utf-8"
+        )  # signals
+        (event_dir / "c.py").write_text(self._markered_shim(m_c, 0), encoding="utf-8")
         gd.emit_dispatcher(
             event_dir, "postToolUse", ["a.py", "b.py", "c.py"], 15, mode="observe"
         )
@@ -327,7 +350,7 @@ class TestObserveMode:
         # remaining observers, and the dispatcher still returns 0.
         root, event_dir = _stage_plugin(tmp_path, "sessionStart")
         m_b = tmp_path / "m_b"
-        (event_dir / "b.py").write_text(self._markered_shim(m_b, 0))
+        (event_dir / "b.py").write_text(self._markered_shim(m_b, 0), encoding="utf-8")
         # "missing.py" is in the manifest but never written to disk.
         gd.emit_dispatcher(
             event_dir, "sessionStart", ["missing.py", "b.py"], 10, mode="observe"
@@ -344,8 +367,10 @@ class TestObserveMode:
         # AFTER it must NOT run (short-circuit preserved, ADR-066 / #2295).
         root, event_dir = _stage_plugin(tmp_path, "preToolUse")
         m_after = tmp_path / "m_after"
-        (event_dir / "block.py").write_text("import sys; sys.exit(2)\n")
-        (event_dir / "after.py").write_text(self._markered_shim(m_after, 0))
+        (event_dir / "block.py").write_text("import sys; sys.exit(2)\n", encoding="utf-8")
+        (event_dir / "after.py").write_text(
+            self._markered_shim(m_after, 0), encoding="utf-8"
+        )
         gd.emit_dispatcher(
             event_dir, "preToolUse", ["block.py", "after.py"], 5, mode="gate"
         )
@@ -368,8 +393,9 @@ class TestObserveMode:
             "import sys, time\n"
             "from pathlib import Path\n"
             "time.sleep(1.2)\n"
-            f"Path(r'{marker}').write_text('ran')\n"
-            "sys.exit(0)\n"
+            f"Path(r'{marker}').write_text('ran', encoding='utf-8')\n"
+            "sys.exit(0)\n",
+            encoding="utf-8",
         )
         gd.emit_dispatcher(
             event_dir,

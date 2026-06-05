@@ -26,19 +26,20 @@ _ALL_EVENTS = (_GATING, *_OBSERVE_EVENTS)
 
 
 def _hooks() -> dict:
-    return json.loads(_HOOKS_JSON.read_text())["hooks"]
+    return json.loads(_HOOKS_JSON.read_text(encoding="utf-8"))["hooks"]
 
 
 def _run_entry(event: str, payload: dict) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env["CLAUDE_PLUGIN_ROOT"] = str(_COPILOT)
     env["COPILOT_PLUGIN_ROOT"] = str(_COPILOT)
+    event_timeout_sec = int(_hooks()[event][0]["timeoutSec"])
     return subprocess.run(
         [sys.executable, "-u", str(_COPILOT / "hooks" / event / "_dispatch.py")],
         input=json.dumps(payload).encode(),
         capture_output=True,
         env=env,
-        timeout=60,
+        timeout=event_timeout_sec + 5,
     )
 
 
@@ -57,7 +58,7 @@ class TestDispatcherArtifacts:
         # PreToolUse gates (fail-closed); the rest observe (run all, exit 0).
         for event in _ALL_EVENTS:
             manifest = json.loads(
-                (_COPILOT / "hooks" / event / "_manifest.json").read_text()
+                (_COPILOT / "hooks" / event / "_manifest.json").read_text(encoding="utf-8")
             )
             expected = "gate" if event == _GATING else "observe"
             assert manifest["mode"] == expected, f"{event}: mode={manifest['mode']!r}"
@@ -69,7 +70,7 @@ class TestDispatcherArtifacts:
             # The entrypoint imports ensure_plugin_paths from a sibling
             # _bootstrap.py; every consolidated event dir needs its own copy.
             assert (event_dir / "_bootstrap.py").is_file(), f"{event}: no _bootstrap.py"
-            manifest = json.loads((event_dir / "_manifest.json").read_text())
+            manifest = json.loads((event_dir / "_manifest.json").read_text(encoding="utf-8"))
             assert manifest["shims"], f"{event}: empty manifest"
             assert set(manifest["timeouts"]) == set(manifest["shims"])
             assert _hooks()[event][0]["timeoutSec"] == sum(manifest["timeouts"].values())
