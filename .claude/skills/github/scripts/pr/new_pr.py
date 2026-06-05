@@ -61,8 +61,12 @@ _DASH_RE = re.compile("[\u2013\u2014]")
 
 
 def _git_env() -> dict[str, str]:
-    """Return environment with GIT_DIR/GIT_WORK_TREE stripped to avoid hook interference."""
-    return {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE")}
+    """Return environment with git hook override variables stripped."""
+    return {
+        k: v
+        for k, v in os.environ.items()
+        if k not in {"GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"}
+    }
 
 
 def get_repo_root() -> str:

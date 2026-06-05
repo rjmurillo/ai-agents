@@ -301,6 +301,17 @@ class TestGetRepoRoot:
                 "--show-toplevel",
             ]
 
+    def test_git_env_strips_hook_overrides(self, monkeypatch):
+        monkeypatch.setenv("GIT_DIR", "/wrong/git")
+        monkeypatch.setenv("GIT_WORK_TREE", "/wrong/worktree")
+        monkeypatch.setenv("GIT_COMMON_DIR", "/wrong/common")
+        monkeypatch.setenv("GIT_INDEX_FILE", "/wrong/index")
+        env = _mod._git_env()
+        assert "GIT_DIR" not in env
+        assert "GIT_WORK_TREE" not in env
+        assert "GIT_COMMON_DIR" not in env
+        assert "GIT_INDEX_FILE" not in env
+
     def test_returns_worktree_top_not_main_checkout(self):
         """In a linked worktree, repo root is the worktree top (#2387)."""
         worktree_top = "/repo/.git/worktrees/feat/checkout"
