@@ -19,6 +19,18 @@ from tests.mock_fidelity import assert_mock_keys_match
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def force_json_output(monkeypatch):
+    """Force JSON output regardless of how pytest is invoked.
+
+    get_output_format("auto") returns "human" when sys.stdout.isatty() is
+    True (e.g. `pytest -s` in a real terminal), which would make the envelope
+    parsers below fail with json.JSONDecodeError. Setting CI=1 takes the
+    CI branch that always emits JSON.
+    """
+    monkeypatch.setenv("CI", "1")
+
+
 def _parse_envelope(captured_out: str) -> dict:
     """Parse the JSON envelope from captured stdout."""
     out = captured_out.strip()
