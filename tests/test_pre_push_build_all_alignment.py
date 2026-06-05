@@ -82,6 +82,19 @@ def test_drift_check_uses_python_port() -> None:
     )
 
 
+def test_drift_check_ignores_copilot_skill_sources() -> None:
+    """Copilot skill changes must not trigger unrelated agent drift checks."""
+    text = _pre_push_text()
+    drift_block_start = text.index("# 11. Agent drift detection")
+    drift_block_end = text.index("# 11b. Build pipeline staleness")
+    drift_block = text[drift_block_start:drift_block_end]
+
+    assert "CHANGED_AGENT_DRIFT_INPUTS=" in text
+    assert 'if [ -n "$CHANGED_AGENT_DRIFT_INPUTS" ]; then' in drift_block
+    assert "src/copilot-cli/agents/" in text
+    assert "src/copilot-cli/skills/" not in drift_block
+
+
 def test_build_all_check_remains_authoritative() -> None:
     """Section 11b's ``build_all.py --check`` invocation must remain intact.
 
