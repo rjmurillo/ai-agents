@@ -20,16 +20,31 @@ class TestAutoRetrospective(unittest.TestCase):
     """Test Stop auto-retrospective hook."""
 
     def test_tty_stdin_exits_zero(self):
-        with patch("sys.stdin") as mock_stdin:
-            mock_stdin.isatty.return_value = True
-            result = invoke_auto_retrospective.main()
-            self.assertEqual(result, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            with patch("sys.stdin") as mock_stdin:
+                mock_stdin.isatty.return_value = True
+                with patch.object(
+                    invoke_auto_retrospective,
+                    "get_project_directory",
+                    return_value=tmp_path,
+                ):
+                    result = invoke_auto_retrospective.main()
+                    self.assertEqual(result, 0)
 
     def test_bypass_env_var(self):
-        with patch.dict("os.environ", {"SKIP_AUTO_RETRO": "true"}):
-            with patch("sys.stdin", StringIO("")):
-                result = invoke_auto_retrospective.main()
-                self.assertEqual(result, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            with patch.dict("os.environ", {"SKIP_AUTO_RETRO": "true"}):
+                with patch("sys.stdin", StringIO("")):
+                    with patch.object(
+                        invoke_auto_retrospective,
+                        "get_project_directory",
+                        return_value=tmp_path,
+                    ):
+                        result = invoke_auto_retrospective.main()
+                        self.assertEqual(result, 0)
 
     def test_skips_if_retro_exists_today(self):
         """Should not create duplicate retros."""
@@ -284,6 +299,178 @@ class TestRetroSkeletonText(unittest.TestCase):
         doc = invoke_auto_retrospective.__doc__ or ""
         self.assertIn("placeholder retrospective skeleton", doc)
         self.assertNotIn("Auto-generates retrospective on session end", doc)
+
+
+class TestRetroSkeletonMarker(unittest.TestCase):
+    """Issue #2079 AC1: the skeleton carries a stable RETRO-STATE marker."""
+
+    def _generate(self, tmp_path: Path, today: str) -> str:
+        retro_path = invoke_auto_retrospective.generate_retrospective(tmp_path, today)
+        if retro_path is None:
+            self.fail("generate_retrospective returned None")
+        return retro_path.read_text(encoding="utf-8")
+
+    def test_skeleton_contains_marker_constant(self):
+        """Positive: a freshly written skeleton carries the marker verbatim."""
+        with tempfile.TemporaryDirectory() as tmp:
+            content = self._generate(Path(tmp), "2026-04-20")
+
+            self.assertIn(invoke_auto_retrospective.RETRO_STATE_MARKER, content)
+
+    def test_marker_is_the_exact_contract_string(self):
+        """The marker matches the literal the SessionStart reader scans for.
+
+        Canonical contract (Issue #2079 body): ``<!-- RETRO-STATE:
+        skeleton-pending-fill -->``. The reader mirrors this exact string; a
+        drift here silently breaks the pending-retro reminder.
+        """
+        self.assertEqual(
+            invoke_auto_retrospective.RETRO_STATE_MARKER,
+            "<!-- RETRO-STATE: skeleton-pending-fill -->",
+        )
+
+    def test_marker_leads_the_file(self):
+        """Edge: the marker is the first line so a head-only read still finds it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            content = self._generate(Path(tmp), "2026-04-20")
+
+            first_line = content.splitlines()[0]
+            self.assertEqual(first_line, invoke_auto_retrospective.RETRO_STATE_MARKER)
+
+    def test_banner_points_at_retro_fill_command(self):
+        """The banner tells the reader to run /retro fill <date> (Issue #2079)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            content = self._generate(Path(tmp), "2026-04-20")
+
+            self.assertIn("/retro fill 2026-04-20", content)
+
+
+class TestAutoRetroSuppressionSentinel(unittest.TestCase):
+    """Issue #2327: a suppression sentinel makes the Stop hook tree-neutral."""
+
+    def _sentinel(self, project_dir: Path) -> Path:
+        path = (
+            project_dir
+            / ".agents"
+            / ".hook-state"
+            / invoke_auto_retrospective.AUTO_RETRO_SUPPRESS_SENTINEL
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("", encoding="utf-8")
+        return path
+
+    def test_is_suppressed_true_when_sentinel_present(self):
+        """Positive: the predicate reports True when the sentinel exists."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self._sentinel(tmp_path)
+            self.assertTrue(
+                invoke_auto_retrospective.is_auto_retro_suppressed(tmp_path)
+            )
+
+    def test_is_suppressed_false_when_absent(self):
+        """Negative: no sentinel means no suppression."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            self.assertFalse(
+                invoke_auto_retrospective.is_auto_retro_suppressed(tmp_path)
+            )
+
+    def test_suppressed_run_leaves_worktree_clean(self):
+        """Negative path: with the sentinel set, a non-trivial session writes nothing.
+
+        Regression for #2327: no auto-retro file under .agents/retrospective/
+        and no docs/retros/INDEX.md created, even though the session is
+        non-trivial and would normally generate a skeleton.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            session = sessions_dir / f"{today}-session-01.json"
+            session.write_text(
+                json.dumps({
+                    "work": ["Real work that would normally trigger a retro"],
+                    "outcomes": ["PR opened"],
+                }),
+                encoding="utf-8",
+            )
+            self._sentinel(tmp_path)
+
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ):
+                result = invoke_auto_retrospective.main()
+                self.assertEqual(result, 0)
+
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            self.assertEqual(list(retro_dir.glob("*.md")) if retro_dir.exists() else [], [])
+            self.assertFalse((tmp_path / "docs" / "retros" / "INDEX.md").exists())
+
+    def test_suppressed_run_audits_skip_reason(self):
+        """Edge: the suppressed run records a 'skipped' audit citing the sentinel."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            session = sessions_dir / f"{today}-session-01.json"
+            session.write_text(
+                json.dumps({"work": ["x"], "outcomes": ["y"]}),
+                encoding="utf-8",
+            )
+            self._sentinel(tmp_path)
+
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ):
+                invoke_auto_retrospective.main()
+
+            audit_file = (
+                tmp_path
+                / ".agents"
+                / ".hook-state"
+                / "auto-retrospective"
+                / f"{today}.jsonl"
+            )
+            records = [
+                json.loads(line)
+                for line in audit_file.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            self.assertEqual(len(records), 1)
+            self.assertEqual(records[0]["status"], "skipped")
+            self.assertEqual(records[0]["skip_reason"], "suppress sentinel present")
+
+    def test_no_sentinel_still_generates(self):
+        """Positive baseline: without the sentinel, a non-trivial session writes the retro.
+
+        Guards against the suppression guard accidentally disabling the hook on
+        the normal path.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            session = sessions_dir / f"{today}-session-01.json"
+            session.write_text(
+                json.dumps({"work": ["real work"], "outcomes": ["done"]}),
+                encoding="utf-8",
+            )
+
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective, "get_project_directory", return_value=tmp_path
+            ):
+                invoke_auto_retrospective.main()
+
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            self.assertEqual(len(list(retro_dir.glob(f"{today}*.md"))), 1)
 
 
 class TestAutoRetrospectiveAudit(unittest.TestCase):

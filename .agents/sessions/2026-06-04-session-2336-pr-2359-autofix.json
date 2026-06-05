@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2336,
+    "date": "2026-06-04",
+    "branch": "autofix-pr-2359",
+    "startingCommit": "7aba39da",
+    "objective": "Autofix and merge PR #2359: sunset session-migration and finish session QA fold."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena initial instructions loaded before code edits."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena instructions manual returned before work."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md lines 1-116 as read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Created .agents/sessions/2026-06-04-session-2336-pr-2359-autofix.json after main introduced session 2335 in parallel."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Verified isolated worktree branch autofix-pr-2359 for PR #2359."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Work ran in /home/richard/src/GitHub/rjmurillo/ai-agents-pr-2359, not the primary main worktree."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Resolved review threads, merged current main repeatedly, renamed this session log from 2335 to 2336 after a parallel session collision, resolved a causal graph conflict by replaying session 2336 onto main, bumped plugin manifests to 0.5.112, changed PR linkage to Refs #1946 because AC6 remains follow-up, and reran required checks."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": ".agents/HANDOFF.md remained read-only and unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Session evidence was stored through the generated episode and causal graph artifacts for session 2336."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Pre-commit ran the configured markdownlint gate; .agents spec files are excluded by repository markdownlint policy."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Final commits include the M2 spec triplet, fixture fixes, extractor fix, session log, episode, and causal graph updates."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Targeted pytest: 205 passed after extractor and fixture fixes. Scoped orphan-ref: PASS. build_all --check, plugin manifests, parity, plugin-version-bump, and spec ID uniqueness passed. Full pre_pr has unrelated baseline failures documented in final response."
+      }
+    }
+  }
+}

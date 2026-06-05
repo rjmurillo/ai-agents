@@ -32,13 +32,13 @@ The root cause is a per-tool-call process-spawn storm:
    threshold is 2-3 s, which `timeoutSec: 5` in `hooks.json` does not raise:
    the budget is host-controlled, not generator-controlled.
 4. When the budget is exceeded, Copilot reports `hook errored` and fails
-   closed per ADR-063 Decision item 5. The fail-closed policy is correct.
+   closed per ADR-071 Decision item 5. The fail-closed policy is correct.
    The defect is that a HEALTHY hook is killed by our own dispatch overhead,
    manufacturing a false `errored` signal.
 
-This is distinct from #2290 (payload casing, fixed) and from #2205 / ADR-063
+This is distinct from #2290 (payload casing, fixed) and from #2205 / ADR-071
 (launcher cwd, fixed). Both prior fixes corrected correctness defects. This
-ADR addresses a performance defect that turns ADR-063's fail-closed policy
+ADR addresses a performance defect that turns ADR-071's fail-closed policy
 into a denial-of-service against benign tool calls.
 
 ## Decision
@@ -63,13 +63,13 @@ dispatchers execute each matched guard in `__main__` context using
    the dispatcher with the same exit code, surfacing through Copilot's
    existing `hook errored` path. The dispatcher itself fails closed (exit
    2) on malformed stdin, missing `tool_name`, or guard import failure.
-   ADR-063 Decision item 5 (prevention plus loud failure) is unchanged.
+   ADR-071 Decision item 5 (prevention plus loud failure) is unchanged.
 4. **Bounded shared budget.** The dispatcher enforces a per-event
    wall-clock cap (default 1500 ms, configurable via
    `COPILOT_HOOK_DISPATCH_BUDGET_MS`). On budget exhaustion it fails
    closed with a structured `budget_exceeded` reason so the failure is
    distinguishable from a guard rejection.
-5. **No daemon.** The dispatcher is short-lived. ADR-063's host-launcher
+5. **No daemon.** The dispatcher is short-lived. ADR-071's host-launcher
    contract (cwd, exit code semantics) is unchanged. No persistent IPC.
 6. **Regenerated artifacts are authoritative.** Per
    `.claude/rules/generated-artifacts.md` and ADR-061's CI drift gate, the
@@ -119,7 +119,7 @@ dispatchers execute each matched guard in `__main__` context using
   in-process without re-introducing the drift class ADR-061 worried about,
   because there is now ONE dispatcher per event (not N delegates).
 - **What are the risks of change?** A dispatcher bug affects every guard
-  for that event. Mitigation: the runtime-contract test from ADR-063
+  for that event. Mitigation: the runtime-contract test from ADR-071
   already exists; extend it to cover the dispatcher's classify-and-route
   path with the full installed guard set.
 
@@ -131,8 +131,8 @@ dispatchers execute each matched guard in `__main__` context using
 |-------------|------|------|----------------|
 | Raise `timeoutSec` in `hooks.json` | Zero generator change | Copilot ignores it (killed at 2-3s when set to 5s); host-controlled budget | Rejected: ineffective |
 | Speed up each shim body | Minimal architectural change | Python cold start (~200 ms) is a floor; 40 x floor still blows budget | Rejected: insufficient |
-| Persistent hook daemon | Lowest steady-state latency | Process lifecycle, IPC, stale-state, security surface; violates ADR-063 launcher contract | Rejected: disproportionate; revisit only if single-dispatcher is insufficient |
-| Consolidated per-event dispatcher | Collapses N spawns to 1; preserves ADR-063 fail-closed; preserves ADR-061 grammar; no new IPC | One dispatcher bug affects all guards for that event | **Chosen**: smallest change that fits within the host-imposed budget |
+| Persistent hook daemon | Lowest steady-state latency | Process lifecycle, IPC, stale-state, security surface; violates ADR-071 launcher contract | Rejected: disproportionate; revisit only if single-dispatcher is insufficient |
+| Consolidated per-event dispatcher | Collapses N spawns to 1; preserves ADR-071 fail-closed; preserves ADR-061 grammar; no new IPC | One dispatcher bug affects all guards for that event | **Chosen**: smallest change that fits within the host-imposed budget |
 
 ### Trade-offs
 
@@ -143,7 +143,7 @@ unchanged in Claude Code (which DOES honor `matcher` and dispatches one
 guard per entry natively). The dispatcher is a Copilot-side adapter, not
 a replacement for the canonical guard layout.
 
-A dispatcher failure cascades to every guard for that event. ADR-063's
+A dispatcher failure cascades to every guard for that event. ADR-071's
 runtime-contract gate caught the launcher cwd defect that motivated it;
 the same gate must be extended to cover dispatcher classification and
 route correctness against the full installed guard set, not a sample.
@@ -168,7 +168,7 @@ route correctness against the full installed guard set, not a sample.
 ### Negative
 
 - A dispatcher defect (classifier mismatch, import failure) takes down
-  every guard for that event. Mitigation: extend ADR-063's runtime-contract
+  every guard for that event. Mitigation: extend ADR-071's runtime-contract
   test to assert that, for every installed `(event, matcher, payload)`
   triple, the dispatcher routes to the same guard the per-shim layout would
   have invoked.
@@ -196,7 +196,7 @@ route correctness against the full installed guard set, not a sample.
 | `tests/build_scripts/test_generate_hooks.py` | Direct | New parametrized tests covering dispatcher routing, fail-closed on malformed input, budget enforcement, and guard isolation | High (must cover full installed guard set, not samples) |
 | `.agents/governance/GENERATOR-FILES.md` | Indirect | Document dispatcher pattern alongside per-matcher-shim history | Low |
 | Claude Code `.claude/hooks/**` | None | Unchanged | None |
-| ADR-063 runtime-contract test | Direct | Extend to assert dispatcher classification matches per-matcher reference for every installed payload | High |
+| ADR-071 runtime-contract test | Direct | Extend to assert dispatcher classification matches per-matcher reference for every installed payload | High |
 | `.claude/rules/generated-artifacts.md` | Indirect | Add dispatcher runtime-test requirement to the runtime-contract test family | Low |
 
 ## Implementation Notes
@@ -226,12 +226,12 @@ test-first reproduction:
    step in CI catches non-deterministic dispatcher emission. The generator
    must sort guards by `(matcher_kind, matcher_pattern, source_path)`
    before emission.
-6. **Runtime-contract extension.** Extend the ADR-063 runtime-contract test
+6. **Runtime-contract extension.** Extend the ADR-071 runtime-contract test
    to enumerate every installed guard and assert that the dispatcher routes
    each registered matcher to the same guard the per-shim layout would
    have invoked. Use the matcher classification table as the oracle.
 
-The implementer should NOT add a launcher-level fail-open; ADR-063 closed
+The implementer should NOT add a launcher-level fail-open; ADR-071 closed
 that path explicitly. The dispatcher fails closed on all internal errors.
 
 ## Related Decisions
@@ -239,7 +239,7 @@ that path explicitly. The dispatcher fails closed on all internal errors.
 - ADR-061 (withdrawn): Hook matcher shims delegate pattern. Establishes the
   matcher grammar this ADR preserves and the drift-gate discipline this
   ADR inherits.
-- ADR-063: Plugin hook runtime-contract verification. Establishes
+- ADR-071: Plugin hook runtime-contract verification. Establishes
   fail-closed semantics and the runtime-contract test family this ADR
   extends.
 - ADR-035: Exit-code standardization. Governs the dispatcher's exit codes.
@@ -250,7 +250,7 @@ that path explicitly. The dispatcher fails closed on all internal errors.
 - Issue #2295: source defect (this ADR).
 - Issue #2290 / PR #2293: payload casing fix. Distinct defect, verified
   working in the same session that surfaced #2295.
-- Issue #2205: launcher cwd fix (ADR-063).
+- Issue #2205: launcher cwd fix (ADR-071).
 - Issue #2230: launcher-level fail-open proposal, closed
   addressed-by-prevention. Reaffirmed by this ADR's Decision item 3.
 - Issue #2112: ADR-061 follow-up tracking when to revisit shared-body
