@@ -82,6 +82,17 @@ class TestHelpers:
         })
         assert result is None
 
+    def test_get_coderabbit_plan_null_body(self, _import_module):
+        mod = _import_module
+        comments = [{"user": {"login": "coderabbitai[bot]"}, "body": None}]
+        result = mod._get_coderabbit_plan(comments, {
+            "username": "coderabbitai[bot]",
+            "implementation_plan": "## Implementation",
+            "related_issues": "Related Issues",
+            "related_prs": "Related PRs",
+        })
+        assert result == {"implementation": None, "related_issues": [], "related_prs": []}
+
     def test_get_ai_triage_info_table_format(self, _import_module):
         mod = _import_module
         comments = [{

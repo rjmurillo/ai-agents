@@ -77,6 +77,8 @@ def test_partial_failure(mock_run, capsys):
     rc = main(["--comment-id", "1", "2", "--reaction", "heart"])
     assert rc == 3
     output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Code"] == 3
     assert output["Data"]["succeeded"] == 1
     assert output["Data"]["failed"] == 1
 

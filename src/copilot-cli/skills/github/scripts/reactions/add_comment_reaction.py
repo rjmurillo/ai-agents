@@ -41,6 +41,7 @@ from github_core.api import (  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -146,6 +147,20 @@ def main(argv: list[str] | None = None) -> int:
         "results": results,
     }
 
+    if failed > 0:
+        write_skill_error(
+            (
+                f"Applied '{args.reaction}' to {succeeded}/{len(args.comment_id)} "
+                f"comment(s); {failed} failed"
+            ),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="add_comment_reaction.py",
+            extra=summary,
+        )
+        return 3
+
     write_skill_output(
         summary,
         output_format=fmt,
@@ -153,13 +168,8 @@ def main(argv: list[str] | None = None) -> int:
             f"Applied '{args.reaction}' to {succeeded}/{len(args.comment_id)} "
             f"comment(s) ({failed} failed)"
         ),
-        status="PASS" if failed == 0 else "FAIL",
         script_name="add_comment_reaction.py",
     )
-
-    if failed > 0:
-        return 3
-
     return 0
 
 

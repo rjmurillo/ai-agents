@@ -236,7 +236,7 @@ def _get_coderabbit_plan(
     prs_pattern = f"(?:<b>)?{prs_raw}(?:</b>)?"
 
     for comment in rabbit_comments:
-        body = comment.get("body", "")
+        body = comment.get("body") or ""
 
         # nosemgrep: skill-ldap-injection
         m = re.search(f"{impl_pattern}([\\s\\S]*?)(?=##|$)", body)
@@ -587,6 +587,16 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     # Dry-run mode
     if args.dry_run:
+        dry_run_output = {
+            "action": "dry_run",
+            "issue_number": issue_number,
+            "owner": owner,
+            "repo": repo,
+            "has_synthesizable_content": has_content,
+            "existing_synthesis_id": existing_synthesis["id"] if existing_synthesis else None,
+            "would_assign": True,
+            "synthesis_body": None,
+        }
         if has_content:
             synthesis_body = _build_synthesis_comment(
                 config["synthesis"]["marker"],
@@ -594,6 +604,15 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
                 coderabbit_plan,
                 ai_triage,
             )
+            dry_run_output["synthesis_body"] = synthesis_body
+            if fmt == "json":
+                write_skill_output(
+                    dry_run_output,
+                    output_format=fmt,
+                    human_summary=f"Prepared dry-run synthesis for issue #{issue_number}",
+                    script_name="invoke_copilot_assignment.py",
+                )
+                return 0
             print("\n=== SYNTHESIS PREVIEW ===")
             print(synthesis_body)
             print("=== END PREVIEW ===")
@@ -602,6 +621,15 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             else:
                 print("\nWould CREATE new synthesis comment")
         else:
+            if fmt == "json":
+                write_skill_output(
+                    dry_run_output,
+                    output_format=fmt,
+                    human_summary=f"No synthesizable content found for issue #{issue_number}",
+                    status="WARNING",
+                    script_name="invoke_copilot_assignment.py",
+                )
+                return 0
             print("\nNo synthesizable content found, would SKIP synthesis comment")
         print(f"Would ASSIGN copilot-swe-agent to issue #{issue_number}")
         return 0

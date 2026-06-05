@@ -86,10 +86,12 @@ class TestSetItemMilestone:
         ):
             rc = mod.main([
                 "--item-type", "issue", "--item-number", "42",
-                "--milestone-title", "v1.0.0",
+                "--milestone-title", "v1.0.0", "--output-format", "json",
             ])
         assert rc == 0
-        result = _extract_json(capsys.readouterr().out)
+        captured = capsys.readouterr()
+        result = json.loads(captured.out)
+        assert "Assigning milestone" not in captured.out
         assert result["Success"] is True
         assert result["Data"]["action"] == "assigned"
         assert result["Data"]["milestone"] == "v1.0.0"

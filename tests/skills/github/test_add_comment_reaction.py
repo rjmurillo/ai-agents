@@ -86,6 +86,8 @@ class TestAddCommentReaction:
             ])
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 3
         assert result["Data"]["succeeded"] == 2
         assert result["Data"]["failed"] == 1
 

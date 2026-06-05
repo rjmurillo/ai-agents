@@ -95,6 +95,8 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
         assert result["Data"]["found"] is False
         assert result["Data"]["title"] == ""
 
@@ -112,6 +114,8 @@ class TestGetLatestSemanticMilestone:
             rc = mod.main([])
         assert rc == 2
         result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
         assert result["Data"]["found"] is False
 
     def test_version_comparison_10_vs_2(self, _import_module, capsys):

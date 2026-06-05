@@ -242,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         milestone_title = str(detection["title"])
 
     # Assign
-    print(f"Assigning milestone '{milestone_title}' to {item_type} #{item_number}")
+    print(f"Assigning milestone '{milestone_title}' to {item_type} #{item_number}", file=sys.stderr)
     _assign_milestone(owner, repo, item_number, milestone_title)
 
     msg = f"Assigned milestone '{milestone_title}'."

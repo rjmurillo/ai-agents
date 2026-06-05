@@ -43,6 +43,7 @@ from github_core.api import (  # noqa: E402
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -102,12 +103,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if not milestones:
         print(f"No open milestones found in {owner}/{repo}", file=sys.stderr)
-        write_skill_output(
-            {"title": "", "number": 0, "found": False},
+        write_skill_error(
+            f"No open milestones found in {owner}/{repo}",
+            2,
+            error_type="NotFound",
             output_format=fmt,
-            human_summary=f"No open milestones found in {owner}/{repo}",
-            status="WARNING",
             script_name="get_latest_semantic_milestone.py",
+            extra={"title": "", "number": 0, "found": False},
         )
         _write_github_output({
             "milestone_title": "",
@@ -131,12 +133,13 @@ def main(argv: list[str] | None = None) -> int:
             f"No semantic version milestones found. Available: {available}",
             file=sys.stderr,
         )
-        write_skill_output(
-            {"title": "", "number": 0, "found": False},
+        write_skill_error(
+            f"No semantic version milestones found. Available: {available}",
+            2,
+            error_type="NotFound",
             output_format=fmt,
-            human_summary=f"No semantic version milestones found. Available: {available}",
-            status="WARNING",
             script_name="get_latest_semantic_milestone.py",
+            extra={"title": "", "number": 0, "found": False},
         )
         _write_github_output({
             "milestone_title": "",
