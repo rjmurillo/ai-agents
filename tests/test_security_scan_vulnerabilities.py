@@ -72,7 +72,8 @@ def _descriptions_for(language: str, line: str) -> list[str]:
     return [
         str(info["description"])
         for info in scanner.CWE78_PATTERNS[language]
-        if info["pattern"].search(line)  # type: ignore[attr-defined]
+        if isinstance(info["pattern"], scanner.re.Pattern)
+        and info["pattern"].search(line)
     ]
 
 
@@ -670,3 +671,122 @@ def test_main_directory_scan_in_process(
     # reported the CWE-78 finding.
     assert code == scanner.EXIT_VULNERABILITIES
     assert "CWE-78" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Extensionless shebang detection (issue #2367)
+# ---------------------------------------------------------------------------
+# .githooks/pre-push and other extensionless executables advertise their
+# interpreter only via a shebang. The detector must read the first line and
+# treat bash/sh-family shebangs as bash, otherwise high-risk shell entry
+# points are silently skipped under `.githooks/**` per
+# `.github/instructions/security.instructions.md`.
+
+
+@pytest.mark.parametrize(
+    ("shebang", "expected"),
+    [
+        ("#!/usr/bin/env bash\n", "bash"),
+        ("#!/bin/bash\n", "bash"),
+        ("#!/bin/sh\n", "bash"),
+        ("#!/usr/bin/env sh\n", "bash"),
+        ("#! /usr/bin/env bash\n", "bash"),
+        ("#!/usr/bin/env dash\n", "bash"),
+        ("#!/usr/bin/env ksh\n", "bash"),
+        ("#!/usr/bin/env python3\n", None),
+        ("#!/usr/bin/env node\n", None),
+        ("#!/usr/bin/env pwsh\n", None),
+        ("plain text, no shebang\n", None),
+        ("", None),
+    ],
+)
+def test_get_language_shebang_fallback(
+    tmp_path: Path, shebang: str, expected: str | None
+) -> None:
+    """Extensionless files classify by shebang interpreter; non-shell shebangs reject."""
+    f = tmp_path / "pre-push"
+    f.write_text(shebang + "echo hi\n", encoding="utf-8")
+    assert scanner.get_language(str(f)) == expected
+
+
+def test_get_language_extension_wins_over_shebang(tmp_path: Path) -> None:
+    """A known suffix never triggers the shebang path; suffix is authoritative."""
+    f = tmp_path / "thing.txt"
+    f.write_text("#!/usr/bin/env bash\necho hi\n", encoding="utf-8")
+    # .txt is not in the language map; shebang fallback only fires for empty ext.
+    assert scanner.get_language(str(f)) is None
+
+
+def test_get_language_missing_file_returns_none(tmp_path: Path) -> None:
+    """Unreadable extensionless paths don't raise; they classify as unsupported."""
+    assert scanner.get_language(str(tmp_path / "does-not-exist")) is None
+
+
+def test_get_language_invalid_utf8_shebang_returns_none(tmp_path: Path) -> None:
+    """Invalid UTF-8 in a shebang is treated as unsupported, not replaced."""
+    hook = tmp_path / "pre-push"
+    hook.write_bytes(b"#!\xff\xfe\n")
+    assert scanner.get_language(str(hook)) is None
+
+
+def test_get_directory_files_includes_extensionless_bash(tmp_path: Path) -> None:
+    """Directory walk surfaces extensionless bash scripts under `.githooks/`-style layouts."""
+    hooks = tmp_path / ".githooks"
+    hooks.mkdir()
+    bash_hook = hooks / "pre-push"
+    bash_hook.write_text("#!/usr/bin/env bash\necho hi\n", encoding="utf-8")
+    # Negative control: an extensionless non-shell file must NOT be picked up.
+    (hooks / "README").write_text("just docs\n", encoding="utf-8")
+    # Negative control: a python-shebang extensionless file is not bash.
+    py_hook = hooks / "py-hook"
+    py_hook.write_text("#!/usr/bin/env python3\nprint('x')\n", encoding="utf-8")
+
+    found = scanner.get_directory_files(str(tmp_path))
+    assert str(bash_hook) in found
+    assert str(hooks / "README") not in found
+    assert str(py_hook) not in found
+
+
+def test_get_directory_files_prunes_noisy_directories(tmp_path: Path) -> None:
+    """Directory walk skips dependency and metadata trees before shebang reads."""
+    git_objects = tmp_path / ".git" / "objects"
+    git_objects.mkdir(parents=True)
+    git_object = git_objects / "abcdef"
+    git_object.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    node_bin = tmp_path / "node_modules" / ".bin"
+    node_bin.mkdir(parents=True)
+    node_script = node_bin / "tool"
+    node_script.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    hooks = tmp_path / ".githooks"
+    hooks.mkdir()
+    hook = hooks / "pre-push"
+    hook.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    found = scanner.get_directory_files(str(tmp_path))
+
+    assert str(hook) in found
+    assert str(git_object) not in found
+    assert str(node_script) not in found
+
+
+def test_scan_extensionless_bash_hook_emits_cwe78(tmp_path: Path) -> None:
+    """End-to-end: an extensionless bash hook with a CWE-78 pattern is detected.
+
+    Regression for issue #2367. Before the fix, `scan_file` returned an empty
+    finding list for `.githooks/pre-push`-style paths because `get_language`
+    keyed only on suffix.
+    """
+    hook = tmp_path / "pre-push"
+    hook.write_text(
+        "#!/usr/bin/env bash\n"
+        "FILE=$1\n"
+        'echo "running $FILE"\n'
+        "eval $FILE\n",  # classic CWE-78 trigger for the bash patterns
+        encoding="utf-8",
+    )
+    vulns, _suppressed = scanner.scan_file(str(hook))
+    assert any(v.cwe == "CWE-78" for v in vulns), (
+        f"expected at least one CWE-78 finding, got {[v.cwe for v in vulns]}"
+    )
