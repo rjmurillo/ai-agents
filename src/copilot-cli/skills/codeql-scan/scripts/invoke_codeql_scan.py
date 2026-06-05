@@ -46,21 +46,33 @@ def _color_print(message: str, msg_type: str = "info") -> None:
 
 
 def _get_repo_root() -> Path | None:
-    """Get the git repository root."""
+    """Get the current worktree root, or None outside a working tree.
+
+    Uses --show-toplevel, not --git-common-dir. In a LINKED worktree the
+    common dir is the MAIN checkout's shared .git, so dirname(common-dir)
+    is the main checkout, not this worktree (#2373). --show-toplevel returns
+    the current worktree root in every layout and fails (returncode != 0) in
+    a bare repository, where the caller surfaces a clear "not in a git
+    repository" error (exit 3). Canonical reference:
+    scripts/github_core/repo.py::get_repo_root.
+    """
     result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+        ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
         text=True,
         check=False,
     )
     if result.returncode != 0:
         return None
-    git_common = Path(result.stdout.strip())
-    if not git_common.is_absolute():
-        git_common = (Path.cwd() / git_common).resolve()
+    raw = result.stdout.strip()
+    if not raw:
+        return None
+    toplevel = Path(raw)
+    if not toplevel.is_absolute():
+        toplevel = (Path.cwd() / toplevel).resolve()
     else:
-        git_common = git_common.resolve()
-    return git_common.parent
+        toplevel = toplevel.resolve()
+    return toplevel
 
 
 def build_parser() -> argparse.ArgumentParser:
