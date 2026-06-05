@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2363,
+    "date": "2026-06-04",
+    "branch": "feat/k1-k4-telemetry",
+    "startingCommit": "588aeb264f10d5aa25db1d559ee390ff9688b1e4",
+    "objective": "Autofix and merge PR #2363 K1-K4 kill-criteria telemetry after review threads and CI gates pass."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena project context inherited from repository cwd; Serena initial instructions loaded before code edits."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Serena instructions manual returned before PR inspection and code edits."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Read .agents/HANDOFF.md lines 1-116 as read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Created .agents/sessions/2026-06-04-session-2363-pr-2363-autofix.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Verified isolated worktree branch feat/k1-k4-telemetry before commits and pushes."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Work ran on feat/k1-k4-telemetry in .copilot-worktrees/pr-2363."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Autofix checklist executed: review threads read and resolved, targeted tests run, PR description validated, and merge gate polling started."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": ".agents/HANDOFF.md remained read-only and unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Durable memory unchanged because findings were PR-local; outcomes recorded in PR comments and this session log."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "npx markdownlint-cli2 --fix returned 0 during main merge validation for linted Markdown files."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Committed telemetry hardening, plugin bumps, main merge, pre-push fixes, review follow-ups, and causal graph schema fix."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "complete": true,
+        "evidence": "Passed targeted pytest, ruff, mypy, actionlint, plugin-version-bump, PR description validation, and causal graph JSON schema key check."
+      }
+    }
+  }
+}

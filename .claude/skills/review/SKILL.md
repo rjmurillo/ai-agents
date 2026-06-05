@@ -25,7 +25,7 @@ If no argument, review the current branch diff against the base branch. Detect t
 
 ## Convergence contract (REQ-008-04)
 
-`/review` evaluates every canonical axis the project ships, plus three local-only skill axes that CI cannot afford. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` rather than hardcoding a list, so adding a `references/{role}.md` file enrolls the axis with no edit to this skill body. When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline copies the entire skill directory (including `references/`) into vendored plugin installs so the command runs without a CI dependency in any harness that supports plugins.
+`/review` evaluates every canonical axis the project ships, plus three local-only skill axes that CI cannot afford. The canonical axis prompts are authored at `references/{role}.md` co-located with this skill, with the canonical path expressed as `.claude/skills/review/references/{role}.md` in the source repo (the single source of truth). `/review` auto-discovers the axis set from `references/*.md` rather than hardcoding a list, so adding a `references/{role}.md` file enrolls the axis with no edit to this skill body. When CI exists in a project, the project syncs the canonical axes into its own CI prompts via the project's generator and drift checks. The build pipeline copies the entire skill directory (including `references/` and `scripts/`) into vendored plugin installs so the command runs without a CI dependency in any harness that supports plugins.
 
 The canonical set is `spec-compliance` as the Stage-1 gate plus 11 Stage-2 canonical axes (`analyst`, `architect`, `qa`, `security`, `devops`, `roadmap`, `reliability`, `observability`, `agent-safety`, `decision-rigor`, `code-quality`). `spec-compliance` runs first and gates Stage 2: a `CRITICAL_FAIL` or `UNKNOWN` (INCONCLUSIVE) short-circuits the review (see Process step 2). Its CI mirror emits `UNKNOWN` when no linked spec is available; the caller decides how that verdict gates its workflow.
 
@@ -51,17 +51,25 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
 
 The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before reporting an error. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling), do not abort the review.
 
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker that `/ship` requires. | `0` valid marker, `1` missing or stale marker, `2` config error |
+
 ## Process
 
 Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICAL_FAIL`, or `UNKNOWN`) plus structured findings (severity, category, location, recommendation). The final merged verdict comes from `merge_verdicts` (resolve via the "Path resolution" section above).
 
 1. Read the diff with three-dot range syntax (`git diff "origin/$BASE_BRANCH"...HEAD`, where `BASE_BRANCH` is the detected base branch and the remote-tracking ref is used because the local base branch may not exist in fresh clones) so every evaluation step uses the same change set as the diff-scoped gates in step 5.
-2. **Run the Stage-1 spec-compliance gate before the complexity classifier and all Stage-2 axes.** Load the canonical `spec-compliance` axis prompt via the "Path resolution" section above and invoke `Task(subagent_type="general-purpose")` with that prompt as the system instruction and the diff plus any linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria) as input. Extract its verdict with `extract_verdict`.
+   - Build one `CONTEXT_MODE` value before invoking any canonical axis: use `full` only when the complete diff plus any linked REQ/DESIGN/TASK docs or PR-body acceptance criteria are present; use `summary` when only file names or diff stats are present; use `partial` when only a bounded slice is present. If context completeness is unknown, use `partial`.
+   - Every Task input for a canonical axis MUST begin with `CONTEXT_MODE: $CONTEXT_MODE`, followed by a blank line and then the diff and supporting context. This is the local `/review` equivalent of the CI header. A missing or unrecognized value remains not `full`, so the axis prompts cannot emit `PASS` on absent evidence.
+2. **Run the Stage-1 spec-compliance gate before the complexity classifier and all Stage-2 axes.** Load the canonical `spec-compliance` axis prompt via the "Path resolution" section above and invoke `Task(subagent_type="general-purpose")` with that prompt as the system instruction and the CONTEXT_MODE-prefixed diff plus any linked REQ/DESIGN/TASK docs (or PR-body acceptance criteria) as input. Extract its verdict with `extract_verdict`.
    - **CRITICAL_FAIL or UNKNOWN (INCONCLUSIVE)**: short-circuit. Do NOT run the complexity classifier, the 11 Stage-2 canonical axes, or the 3 chained skills. Mark all of them `SKIPPED` in the output table, set the FINAL VERDICT to the Stage-1 verdict, and emit only the Stage-1 findings (plus, for UNKNOWN, the one-line reason no spec was linked). The author links the spec or fixes the unmet criterion, then re-runs `/review`.
    - **PASS or WARN**: record the Stage-1 verdict and continue to step 3. A WARN here does not block Stage 2; it is carried into the merge alongside the other axes.
 
 3. **Classify complexity tier**: Task(subagent_type="analyst"): Read `engineering-complexity-tiers.md` (resolved via the "Path resolution" section above) and the diff. Assess as Tier 1-5. Use this to calibrate axis depth.
-4. **Run every Stage-2 canonical axis**, discovered from `references/*.md` after excluding `spec-compliance` (already run in step 2). Resolve the directory via the "Path resolution" section, then glob `*.md` and sort by stem for a stable order. Do not hardcode the axis list; the directory is the source of truth. For each axis, load the canonical prompt for `{role}` (the file stem), then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register a `{role}` subagent type in its `Task` enum (Copilot CLI today, and any axis with no matching agent such as `reliability`, `observability`, `agent-safety`, `decision-rigor`), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity. The current Stage-2 canonical set (11 axes) is:
+4. **Run every Stage-2 canonical axis**, discovered from `references/*.md` after excluding `spec-compliance` (already run in step 2). Resolve the directory via the "Path resolution" section, then glob `*.md` and sort by stem for a stable order. Do not hardcode the axis list; the directory is the source of truth. For each axis, load the canonical prompt for `{role}` (the file stem), then invoke `Task(subagent_type="{role}")` with that prompt as the system instruction, the same CONTEXT_MODE-prefixed diff as input, and the structured Output Schema from the canonical file as the response contract. If the harness does not register a `{role}` subagent type in its `Task` enum (Copilot CLI today, and any axis with no matching agent such as `reliability`, `observability`, `agent-safety`, `decision-rigor`), fall back to `Task(subagent_type="general-purpose")` with the canonical axis prompt as the system instruction; the prompt drives the review, not the subagent identity. The current Stage-2 canonical set (11 axes) is:
    - axis 1: `analyst`
    - axis 2: `architect`
    - axis 3: `qa`
@@ -83,7 +91,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The skill body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve the verdict library via the "Path resolution" section. The build pipeline copies the entire skill directory (including `references/`) into plugin installs at `src/copilot-cli/skills/review/`, so `${CLAUDE_SKILL_DIR}/references/` resolves in both layouts without a fallback chain, and the axis set is discovered from that directory. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this skill for project maintainers reading the prose, not as runtime dependencies.
+`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The skill body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve the verdict library via the "Path resolution" section. The build pipeline copies the entire skill directory (including `references/` and `scripts/`) into plugin installs at `src/copilot-cli/skills/review/`, so `${CLAUDE_SKILL_DIR}/references/` resolves in both layouts without a fallback chain, and the axis set is discovered from that directory. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this skill for project maintainers reading the prose, not as runtime dependencies.
 
 ## UNKNOWN handling
 
@@ -124,6 +132,39 @@ Followed by per-axis findings in detail. Each finding:
 - **recommendation**: one-sentence fix
 
 Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **Important** if `WARN`, **Suggestion** otherwise.
+
+## Write the SHA-bound PASS marker (Issue #1938)
+
+On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
+SHA-bound marker so `/ship` can prove the shipped code was reviewed at its current
+state without re-running the review. Skip this on `CRITICAL_FAIL`, on a Stage-1
+short-circuit, and on `UNKNOWN`: a non-PASS verdict must not leave a marker.
+
+The marker is a git trailer (vendor-safe: it lives in the commit, travels in every
+clone, needs no `.agents/` access). Its contract, quoted verbatim from the reader
+`.claude/skills/review/scripts/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`),
+is:
+
+```text
+Reviewed-By: /review@<comma-separated-axis-list> on <reviewed-tip-sha>
+```
+
+A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so
+writing the SHA changes the SHA, with no fixed point). So record the reviewed tip,
+then write an **empty marker commit** on top of it:
+
+1. `REVIEWED_TIP=$(git rev-parse HEAD)` (the code that was reviewed).
+2. Build the axis list from the axes that ran (comma-separated stems, e.g.
+   `analyst,architect,qa,security,...`).
+3. `git commit --allow-empty -m "review: /review PASS marker" --trailer "Reviewed-By: /review@<axis-list> on $REVIEWED_TIP"`
+
+The marker commit adds no code. SHA-binding holds: the marker is valid only while
+its parent (the reviewed tip) is HEAD's parent. Land any new code commit and the
+marker no longer sits on HEAD's parent, so the review is correctly treated as stale.
+Issue #1938 records the design.
+
+Re-running `/review` after the verdict is still PASS writes another marker commit;
+that is safe (idempotent in effect: the latest marker binds the current tip).
 
 ## Principles
 

@@ -48,8 +48,8 @@ def test_assign_milestone(mock_run, capsys):
     rc = main(["--issue", "1", "--milestone", "v1.0.0"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["success"] is True
-    assert output["action"] == "assigned"
+    assert output["Success"] is True
+    assert output["Data"]["action"] == "assigned"
 
 
 @patch("subprocess.run")
@@ -64,7 +64,7 @@ def test_already_has_same_milestone(mock_run, capsys):
     rc = main(["--issue", "1", "--milestone", "v1.0.0"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["action"] == "no_change"
+    assert output["Data"]["action"] == "no_change"
 
 
 @patch("subprocess.run")
@@ -94,7 +94,7 @@ def test_force_replace_milestone(mock_run, capsys):
     rc = main(["--issue", "1", "--milestone", "v1.0.0", "--force"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["action"] == "replaced"
+    assert output["Data"]["action"] == "replaced"
 
 
 @patch("subprocess.run")
@@ -109,7 +109,7 @@ def test_clear_milestone(mock_run, capsys):
     rc = main(["--issue", "1", "--clear"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["action"] == "cleared"
+    assert output["Data"]["action"] == "cleared"
 
 
 @patch("subprocess.run")
@@ -123,7 +123,7 @@ def test_clear_no_milestone(mock_run, capsys):
     rc = main(["--issue", "1", "--clear"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
-    assert output["action"] == "no_change"
+    assert output["Data"]["action"] == "no_change"
 
 
 @patch("subprocess.run")

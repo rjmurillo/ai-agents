@@ -15,20 +15,25 @@ Default target is main unless specified. If $ARGUMENTS names a different branch,
 
 ## Pre-flight Checks
 
-Task(subagent_type="devops"): You are a release engineer. Run all 5 pre-flight checks below. Report pass/fail for each with specific evidence. Any failure blocks shipping.
+Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight checks below. Report pass/fail for each with specific evidence. Any failure blocks shipping.
 
 1. **Pipeline health** - Invoke Skill(skill="pipeline-validator"). All CI checks green? No suppressed failures?
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff?
-3. **Review complete** - Has /review been run on this branch? Any unresolved Critical findings? Check review logs.
+3. **Reviewed on this SHA** - The shipped code must carry a SHA-bound `/review` PASS marker (Issue #1938). First confirm `git status --porcelain` is empty. If any file is staged or modified, this check FAILS: commit the change, re-run `/review`, then re-run `/ship`. `/push-pr` must only push the existing marker commit; it must not create a new commit after this check passes. Then run the review-skill validator:
+   - If `CLAUDE_SKILL_DIR` is set: `python3 "$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
+   - If `COPILOT_PLUGIN_ROOT` is set: `python3 "$COPILOT_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
+   - If `CLAUDE_PLUGIN_ROOT` is set: `python3 "$CLAUDE_PLUGIN_ROOT/skills/review/scripts/validate_review_marker.py" --ref HEAD --repo-root "$(pwd)"`
+   - Source checkout fallback: `python3 .claude/skills/review/scripts/validate_review_marker.py --ref HEAD --repo-root "$(pwd)"`
+   - Vendored plugin fallback: `python3 skills/review/scripts/validate_review_marker.py --ref HEAD --repo-root "$(pwd)"`
+
+   The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent). Exit `1` means no marker, a stale marker, or new code landed after review; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped. Because `/review` is the strict superset of CI (Child 1 #1934), a passing marker covers golden-principles, taste-lints, and code-quality too; there is no separate standards check.
 4. **Tests passing** - All tests green? No skipped tests without justification?
-5. **Standards clean** - Invoke Skill(skill="golden-principles") and Skill(skill="taste-lints"), scoped to the PR diff. Both pass? Determine the PR base branch from `gh pr view --json baseRefName -q .baseRefName` (fall back to the ship target from $ARGUMENTS, default `main`, when no PR exists yet), store it in `BASE_BRANCH`, and pass the remote-tracking ref `origin/$BASE_BRANCH` quoted so the gates scan only changed files (the base often exists only as a remote-tracking ref in fresh clones and CI checkouts):
-   - `python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"`
-   - `python3 .claude/skills/taste-lints/scripts/taste_lints.py --diff-scope "origin/$BASE_BRANCH"`
-   This keeps the gate blast radius equal to the diff, not the whole tree, so a pre-existing violation elsewhere does not block this ship.
+
+> `golden-principles` + `taste-lints` + `code-quality` are now part of `/review` (Child 1 #1934), so `/ship` does not invoke them separately. `/pr-quality:all` is likewise no longer a required separate step before `/ship`: a passing `/review` marker (check 3) already runs the same canonical axes locally, and CI runs the same prompts as a backstop.
 
 ## Process
 
-1. Run all 5 pre-flight checks
+1. Run all 4 pre-flight checks
 2. If any check fails: report what failed, why, and how to fix. Stop.
 3. If all pass: run /validate-pr-description to validate PR metadata
 4. Create PR: run /push-pr to commit, push, and open PR
@@ -48,9 +53,8 @@ Ship report:
 PRE-FLIGHT:
   Pipeline:  PASS|FAIL (evidence)
   Security:  PASS|FAIL (evidence)
-  Review:    PASS|FAIL (evidence)
+  Reviewed:  PASS|FAIL (SHA-bound /review marker on HEAD; evidence)
   Tests:     PASS|FAIL (evidence)
-  Standards: PASS|FAIL (evidence)
 
 RESULT: SHIPPED|BLOCKED
 PR: [link if created]

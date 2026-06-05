@@ -27,8 +27,10 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 DEFAULT_TARGETS = (
@@ -348,11 +350,102 @@ def _expand_target(target: Path, repo_root: Path) -> list[Path]:
 MAX_FINDINGS = 500
 
 
+def _suppress_baselined(
+    findings: list[Finding], baseline: set[str]
+) -> list[Finding]:
+    """Return findings with baselined keys marked ``suppressed``.
+
+    A finding whose ``key`` is in the baseline is replaced by a suppressed
+    copy. Non-baselined findings pass through unchanged.
+    """
+    return [
+        replace(f, suppressed=True) if f.key in baseline else f for f in findings
+    ]
+
+
+class BaselineError(ValueError):
+    """Raised when a ``--baseline`` file cannot be read or parsed."""
+
+
+def load_baseline(path: Path) -> set[str]:
+    """Load a set of baseline finding keys from a file.
+
+    Two formats are accepted:
+
+    - JSON: either a list of key strings (``["a:1:skill_name:x", ...]``) or a
+      scan envelope (``{"Data": {"findings": [...]}}``) whose findings are
+      reduced to keys.
+    - Plain text: one ``target_file:line:kind:referenced_entity`` key per
+      line; blank lines and ``#`` comment lines are ignored.
+
+    Raises ``BaselineError`` on a missing file or unparseable content.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise BaselineError(f"cannot read baseline file {path}: {exc}") from exc
+
+    stripped = text.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        return _load_baseline_json(stripped, path)
+    return {
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+
+def _load_baseline_json(stripped: str, path: Path) -> set[str]:
+    json_text = _strip_verdict_suffix(stripped)
+    try:
+        data = json.loads(json_text)
+    except json.JSONDecodeError as exc:
+        raise BaselineError(f"baseline file {path} is not valid JSON: {exc}") from exc
+    if isinstance(data, list):
+        return {str(item) for item in data}
+    if isinstance(data, dict):
+        data_field = data.get("Data")
+        findings = data_field.get("findings") if isinstance(data_field, dict) else None
+        if isinstance(findings, list):
+            keys: set[str] = set()
+            for f in findings:
+                if not isinstance(f, dict):
+                    continue
+                target_file = f.get("target_file")
+                line = f.get("line")
+                kind = f.get("kind")
+                referenced_entity = f.get("referenced_entity")
+                if (
+                    target_file is None
+                    or line is None
+                    or kind is None
+                    or referenced_entity is None
+                ):
+                    continue
+                keys.add(
+                    f"{target_file}:{line}:{kind}:{referenced_entity}"
+                )
+            return keys
+    raise BaselineError(
+        f"baseline file {path} JSON must be a list of keys or a scan "
+        "envelope with Data.findings"
+    )
+
+
+def _strip_verdict_suffix(stripped: str) -> str:
+    lines = stripped.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("VERDICT:"):
+            return "\n".join(lines[:index]).strip()
+    return stripped
+
+
 def scan(
     targets: list[Path],
     repo_root: Path,
     max_findings: int = MAX_FINDINGS,
     enforce_counts: bool = False,
+    baseline: set[str] | None = None,
 ) -> ScanResult:
     """Scan all targets relative to repo_root.
 
@@ -370,6 +463,13 @@ def scan(
     off keeps marketplace.json multi-plugin coverage delegated to the
     canonical ``build/scripts/validate_marketplace_counts.py`` per
     ``.claude/rules/canonical-source-mirror.md``.
+
+    ``baseline`` is a set of known pre-existing finding keys
+    (``target_file:line:kind:referenced_entity``, see ``Finding.key``). A
+    finding whose key is in the baseline is marked ``suppressed`` and does
+    not drive the verdict, so a default repo-wide scan does not fail on debt
+    that predates the gate (issue #2371). A new finding not in the baseline
+    still yields CRITICAL_FAIL.
     """
     reset_count_cache()
     repo_root = repo_root.resolve()
@@ -405,6 +505,9 @@ def scan(
                     enforce_counts=enforce_counts,
                     skill_catalog_present=skill_catalog_present,
                 )
+                if baseline:
+                    findings = _suppress_baselined(findings, baseline)
+                    findings.sort(key=lambda f: f.suppressed)
                 # Reserve one slot for the synthetic truncation finding so
                 # the returned list never exceeds ``max_findings``.
                 budget = max_findings - 1
@@ -475,6 +578,17 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
             "Repository root. Default: walk up from CWD looking for the nearest "
             ".git directory; fall back to CWD. A supplied path must exist and be "
             "a directory or the script exits with ADR-035 code 2."
+        ),
+    )
+    parser.add_argument(
+        "--baseline",
+        default=None,
+        help=(
+            "Path to a baseline file of known pre-existing finding keys "
+            "(target_file:line:kind:referenced_entity). Matching findings are "
+            "marked suppressed and do not fail the scan; new findings not in "
+            "the baseline still exit 1. Accepts a JSON list of keys, a scan "
+            "envelope (Data.findings), or one key per line (# comments allowed)."
         ),
     )
     parser.add_argument(
@@ -561,8 +675,33 @@ def main(argv: list[str] | None = None) -> int:
         if args.include_skill_descriptions:
             target_strs.extend(OPT_IN_SKILL_TARGETS)
     targets = [Path(t) for t in target_strs]
+    baseline: set[str] | None = None
+    if args.baseline:
+        try:
+            baseline_candidate = Path(args.baseline)
+            baseline_path = (
+                baseline_candidate
+                if baseline_candidate.is_absolute()
+                else repo_root / baseline_candidate
+            ).resolve()
+            try:
+                baseline_path.relative_to(repo_root)
+            except ValueError as exc:
+                raise BaselineError(
+                    f"baseline path escapes repository root: {baseline_path}"
+                ) from exc
+            baseline = load_baseline(baseline_path)
+        except BaselineError as exc:
+            LOGGER.error("%s", exc)
+            print(render_error_envelope(str(exc), args.output))
+            return 2
     try:
-        result = scan(targets, repo_root, enforce_counts=args.enforce_counts)
+        result = scan(
+            targets,
+            repo_root,
+            enforce_counts=args.enforce_counts,
+            baseline=baseline,
+        )
         print(render_envelope(result, args.output))
     except Exception as exc:
         # Catch-all so an unexpected runtime crash (filesystem races, encoding

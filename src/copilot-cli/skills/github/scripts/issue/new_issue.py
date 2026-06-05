@@ -14,7 +14,6 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import subprocess
@@ -41,6 +40,11 @@ from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
     error_and_exit,
     resolve_repo_params,
+)
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
 )
 
 
@@ -74,11 +78,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help='Comma-separated list of labels (e.g., "bug,P1,needs-triage")',
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -115,13 +121,16 @@ def main(argv: list[str] | None = None) -> int:
 
     issue_number = int(match.group(1))
 
-    output = {
-        "success": True,
-        "issue_number": issue_number,
-        "url": output_text,
-        "title": args.title,
-    }
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        {
+            "issue_number": issue_number,
+            "url": output_text,
+            "title": args.title,
+        },
+        output_format=fmt,
+        human_summary=f"Created issue #{issue_number}: {args.title}",
+        script_name="new_issue.py",
+    )
 
     _write_github_output({
         "success": "true",

@@ -251,14 +251,36 @@ def test_no_full_skips_execution_stage(all_tools, monkeypatch, tmp_path):
 def test_actionlint_stage_passes_files(monkeypatch, tmp_path):
     seen = {}
 
-    def fake_run(cmd, *, timeout, cwd=None):
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
         seen["cmd"] = cmd
+        seen["env"] = env
         return 0, "", ""
 
     monkeypatch.setattr(w, "_run", fake_run)
     res = w._actionlint_stage([WF, "y.yml"], tmp_path)
     assert res.ok is True
     assert seen["cmd"] == ["actionlint", WF, "y.yml"]
+
+
+def test_actionlint_stage_applies_shellcheck_severity_floor(monkeypatch, tmp_path):
+    """The actionlint stage raises the shellcheck floor to warning (#2374)."""
+    seen = {}
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        seen["env"] = env
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    w._actionlint_stage([WF], tmp_path)
+    assert seen["env"] is not None
+    assert "--severity=warning" in seen["env"]["SHELLCHECK_OPTS"]
+
+
+def test_shellcheck_env_preserves_existing_opts(monkeypatch):
+    monkeypatch.setenv("SHELLCHECK_OPTS", "--exclude=SC1091")
+    opts = w._shellcheck_env()["SHELLCHECK_OPTS"]
+    assert "--exclude=SC1091" in opts
+    assert "--severity=warning" in opts
 
 
 def test_act_dryrun_stage_runs_each_file_and_stops_on_failure(monkeypatch, tmp_path):
@@ -372,3 +394,103 @@ def test_cli_bad_repo_root(capsys):
     rc = w.main(["--files", WF, "--repo-root", "/no/such/xyz"])
     assert rc == 2
     assert "repo root not found" in capsys.readouterr().err
+
+
+# --- act event selection (Issue #2374) -----------------------------------
+
+
+def _write_wf(tmp_path: Path, body: str) -> Path:
+    wf = tmp_path / "wf.yml"
+    wf.write_text(body, encoding="utf-8")
+    return wf
+
+
+def test_workflow_events_scalar_on(tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non: push\njobs: {}\n")
+    assert w._workflow_events(wf) == ["push"]
+
+
+def test_workflow_events_list_on(tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non: [push, pull_request]\njobs: {}\n")
+    assert w._workflow_events(wf) == ["push", "pull_request"]
+
+
+def test_workflow_events_map_on(tmp_path):
+    wf = _write_wf(
+        tmp_path,
+        "name: x\non:\n  schedule:\n    - cron: '0 9 * * 1'\n  workflow_dispatch:\njobs: {}\n",
+    )
+    assert set(w._workflow_events(wf)) == {"schedule", "workflow_dispatch"}
+
+
+def test_workflow_events_missing_file_returns_empty(tmp_path):
+    assert w._workflow_events(tmp_path / "absent.yml") == []
+
+
+def test_workflow_events_returns_empty_when_yaml_missing(monkeypatch, tmp_path):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "yaml":
+            raise ImportError("No module named yaml")
+        return real_import(name, *args, **kwargs)
+
+    wf = _write_wf(tmp_path, "name: x\non: push\njobs: {}\n")
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    assert w._workflow_events(wf) == []
+
+
+def test_select_event_returns_none_when_push_present(tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non: [push, schedule]\njobs: {}\n")
+    assert w._select_act_event(wf) is None
+
+
+def test_select_event_returns_none_when_unreadable(tmp_path):
+    assert w._select_act_event(tmp_path / "absent.yml") is None
+
+
+def test_select_event_prefers_workflow_dispatch_for_schedule_only(tmp_path):
+    wf = _write_wf(
+        tmp_path,
+        "name: x\non:\n  schedule:\n    - cron: '0 9 * * 1'\n  workflow_dispatch:\njobs: {}\n",
+    )
+    assert w._select_act_event(wf) == "workflow_dispatch"
+
+
+def test_select_event_falls_back_to_only_declared_event(tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non:\n  release:\n    types: [published]\njobs: {}\n")
+    assert w._select_act_event(wf) == "release"
+
+
+def test_dryrun_passes_selected_event_to_act(monkeypatch, tmp_path):
+    wf = _write_wf(
+        tmp_path,
+        "name: x\non:\n  workflow_dispatch:\njobs: {}\n",
+    )
+    seen = {}
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        seen["cmd"] = cmd
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_dryrun_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert seen["cmd"] == ["gh", "act", "-n", "workflow_dispatch", "-W", wf.name]
+
+
+def test_dryrun_omits_event_when_push_declared(monkeypatch, tmp_path):
+    wf = _write_wf(tmp_path, "name: x\non: push\njobs: {}\n")
+    seen = {}
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        seen["cmd"] = cmd
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_dryrun_stage([wf.name], tmp_path)
+    assert res.ok is True
+    assert seen["cmd"] == ["gh", "act", "-n", "-W", wf.name]

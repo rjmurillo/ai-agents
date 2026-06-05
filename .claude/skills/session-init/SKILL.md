@@ -73,10 +73,6 @@ Use [session-log-fixer](../session-log-fixer/SKILL.md) instead when:
 - An existing session log has validation errors that need repair
 - CI failed with "Session protocol validation failed"
 
-Use [session-migration](../session-migration/SKILL.md) instead when:
-
-- Converting old markdown session logs to JSON format
-
 ## Why This Skill Exists
 
 **Problem**: Every PR starts with malformed session logs that fail CI validation.
