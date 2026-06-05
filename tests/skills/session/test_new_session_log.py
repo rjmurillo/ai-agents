@@ -74,7 +74,8 @@ class TestCrossBranchSessionAllocation:
         )
         with patch.object(new_session_log.subprocess, "run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout=ls_tree)
-            assert new_session_log._origin_main_max_session() == 2340
+            assert new_session_log._origin_main_max_session("/repo") == 2340
+            assert mock_run.call_args.kwargs["cwd"] == "/repo"
 
     def test_origin_main_max_zero_when_ref_missing(self):
         with patch.object(new_session_log.subprocess, "run") as mock_run:
@@ -333,10 +334,22 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _git_available() -> bool:
+    try:
+        result = subprocess.run(
+            ["git", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
 @pytest.mark.skipif(
-    subprocess.run(
-        ["git", "--version"], capture_output=True
-    ).returncode != 0,
+    not _git_available(),
     reason="git not available",
 )
 class TestParallelBranchCollisionIntegration:

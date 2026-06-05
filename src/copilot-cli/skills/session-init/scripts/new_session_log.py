@@ -69,7 +69,7 @@ def _max_session_in_names(names: list[str]) -> int:
     return max_num
 
 
-def _origin_main_max_session() -> int:
+def _origin_main_max_session(repo_root: str | None = None) -> int:
     """Highest session number recorded under origin/main, or 0 when unknown.
 
     Parallel autofix branches fork from the same main and each scans only its
@@ -88,6 +88,7 @@ def _origin_main_max_session() -> int:
             text=True,
             timeout=10,
             check=False,
+            cwd=repo_root,
         )
     except (subprocess.SubprocessError, OSError):
         return 0
@@ -107,7 +108,8 @@ def _auto_detect_session_number(sessions_dir: str) -> int:
     local_max = 0
     if os.path.isdir(sessions_dir):
         local_max = _max_session_in_names(os.listdir(sessions_dir))
-    combined_max = max(local_max, _origin_main_max_session())
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(sessions_dir)))
+    combined_max = max(local_max, _origin_main_max_session(repo_root))
     return combined_max + 1 if combined_max else 1
 
 
@@ -123,7 +125,8 @@ def _get_max_existing_session(sessions_dir: str) -> int | None:
     if os.path.isdir(sessions_dir):
         local_max = _max_session_in_names(os.listdir(sessions_dir))
         found = local_max > 0
-    origin_max = _origin_main_max_session()
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(sessions_dir)))
+    origin_max = _origin_main_max_session(repo_root)
     if origin_max > 0:
         found = True
     combined = max(local_max, origin_max)
