@@ -30,7 +30,7 @@ import re
 import sys
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from _eval_agent_types import (
     SCHEMA_VERSION,
@@ -39,8 +39,10 @@ from _eval_agent_types import (
     AssertionResult,
     Fixture,
     FixtureValidationError,
+    ProvenanceLiteral,
     RunRecord,
     SchemaVersionError,
+    VariantLiteral,
 )
 from _eval_api_adapter import AnthropicAPIAdapter, APICallResult
 from _plan_runner import (
@@ -259,7 +261,7 @@ class FixtureValidator:
         return value
 
     @staticmethod
-    def _require_provenance(path: Path, data: dict[str, Any]) -> str:
+    def _require_provenance(path: Path, data: dict[str, Any]) -> ProvenanceLiteral:
         provenance = data.get("provenance")
         # `provenance` may be any JSON-decoded type; non-hashable values
         # (list, dict) would raise TypeError on `in frozenset[str]`. Guard
@@ -270,7 +272,7 @@ class FixtureValidator:
                 f"{path.name}: provenance must be one of {sorted(ALLOWED_PROVENANCE)}, "
                 f"got {provenance!r}"
             )
-        return provenance
+        return cast(ProvenanceLiteral, provenance)
 
     @staticmethod
     def _require_assertions(
@@ -510,7 +512,7 @@ def _print_plan(plan_lines: list[str]) -> None:
 
 
 def _build_prompt(
-    variant: str,
+    variant: VariantLiteral,
     agent_prompt: str,
     fixture_input: str,
     skill_prompt: str | None = None,
@@ -607,7 +609,7 @@ def _execute_one(
 
     return RunRecord(
         fixture_id=fixture.id,
-        variant=variant,  # type: ignore[arg-type]
+        variant=variant,
         run_index=run_index,
         model_id=model_id,
         prompt_sha=prompt_sha,

@@ -7,7 +7,9 @@ constants from the same owner.
 
 from __future__ import annotations
 
-from _eval_agent_types import ExecutionPlan, Fixture
+from typing import cast
+
+from _eval_agent_types import ExecutionPlan, Fixture, VariantLiteral
 from _eval_common import (
     EST_TOKENS_PER_CALL,
     MODEL_PRICING_RATES_USD_PER_1K_TOKENS,
@@ -80,6 +82,7 @@ class PlanRunner:
         unsupported_variants = sorted(set(variants) - SUPPORTED_VARIANTS)
         if unsupported_variants:
             raise ValueError(f"unsupported variant(s): {unsupported_variants}")
+        validated_variants = tuple(cast(VariantLiteral, variant) for variant in variants)
 
         planned_calls = len(fixtures) * len(variants) * n_runs
         tokens_in, tokens_out = _estimate_tokens(planned_calls)
@@ -87,7 +90,7 @@ class PlanRunner:
 
         return ExecutionPlan(
             fixtures=fixtures,
-            variants=variants,  # type: ignore[arg-type]
+            variants=validated_variants,
             n_runs=n_runs,
             model_id=model_id,
             planned_calls=planned_calls,
