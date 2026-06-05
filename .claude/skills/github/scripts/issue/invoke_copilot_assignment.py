@@ -52,6 +52,11 @@ from github_core.api import (  # noqa: E402
     resolve_repo_params,
     update_issue_comment,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_output,
+)
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -231,9 +236,10 @@ def _get_coderabbit_plan(
     prs_pattern = f"(?:<b>)?{prs_raw}(?:</b>)?"
 
     for comment in rabbit_comments:
-        body = comment.get("body", "")
+        body = comment.get("body") or ""
 
-        m = re.search(f"{impl_pattern}([\\s\\S]*?)(?=##|$)", body)  # nosemgrep: skill-ldap-injection
+        # nosemgrep: skill-ldap-injection
+        m = re.search(f"{impl_pattern}([\\s\\S]*?)(?=##|$)", body)
         if m:
             plan["implementation"] = m.group(1).strip()
 
@@ -478,6 +484,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Preview synthesis comment without posting or assigning",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -488,13 +495,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of complex PS1
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
     issue_number: int = args.issue_number
 
-    print(f"Processing issue #{issue_number} in {owner}/{repo}")
+    if fmt != "json":
+        print(f"Processing issue #{issue_number} in {owner}/{repo}")
 
     config = _load_synthesis_config(args.config_path)
 
@@ -519,18 +528,18 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         error_and_exit(f"Failed to get issue: {error_str}", 3)
 
     issue = json.loads(issue_result.stdout)
-    print(f"Issue: {issue.get('title', '')}")
+    print(f"Issue: {issue.get('title', '')}", file=sys.stderr)
 
     # Fetch comments
     comments = get_issue_comments(owner, repo, issue_number)
-    print(f"Found {len(comments)} comments")
+    print(f"Found {len(comments)} comments", file=sys.stderr)
 
     trusted_users = (
         config["trusted_sources"]["maintainers"]
         + config["trusted_sources"]["ai_agents"]
     )
     trusted_comments = get_trusted_source_comments(comments, trusted_users)
-    print(f"Found {len(trusted_comments)} comments from trusted sources")
+    print(f"Found {len(trusted_comments)} comments from trusted sources", file=sys.stderr)
 
     # PrepareContextOnly mode
     if args.prepare_context_only:
@@ -545,7 +554,12 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             "owner": owner,
             "repo": repo,
         }
-        print(json.dumps(output, indent=2))
+        write_skill_output(
+            output,
+            output_format=fmt,
+            human_summary=f"Prepared context file for issue #{issue_number}",
+            script_name="invoke_copilot_assignment.py",
+        )
 
         _write_github_output({
             "context_file": context_file,
@@ -573,6 +587,16 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     # Dry-run mode
     if args.dry_run:
+        dry_run_output = {
+            "action": "dry_run",
+            "issue_number": issue_number,
+            "owner": owner,
+            "repo": repo,
+            "has_synthesizable_content": has_content,
+            "existing_synthesis_id": existing_synthesis["id"] if existing_synthesis else None,
+            "would_assign": not args.skip_assignment,
+            "synthesis_body": None,
+        }
         if has_content:
             synthesis_body = _build_synthesis_comment(
                 config["synthesis"]["marker"],
@@ -580,6 +604,15 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
                 coderabbit_plan,
                 ai_triage,
             )
+            dry_run_output["synthesis_body"] = synthesis_body
+            if fmt == "json":
+                write_skill_output(
+                    dry_run_output,
+                    output_format=fmt,
+                    human_summary=f"Prepared dry-run synthesis for issue #{issue_number}",
+                    script_name="invoke_copilot_assignment.py",
+                )
+                return 0
             print("\n=== SYNTHESIS PREVIEW ===")
             print(synthesis_body)
             print("=== END PREVIEW ===")
@@ -588,8 +621,20 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
             else:
                 print("\nWould CREATE new synthesis comment")
         else:
+            if fmt == "json":
+                write_skill_output(
+                    dry_run_output,
+                    output_format=fmt,
+                    human_summary=f"No synthesizable content found for issue #{issue_number}",
+                    status="WARNING",
+                    script_name="invoke_copilot_assignment.py",
+                )
+                return 0
             print("\nNo synthesizable content found, would SKIP synthesis comment")
-        print(f"Would ASSIGN copilot-swe-agent to issue #{issue_number}")
+        if args.skip_assignment:
+            print(f"Would SKIP assignment for issue #{issue_number}")
+        else:
+            print(f"Would ASSIGN copilot-swe-agent to issue #{issue_number}")
         return 0
 
     # Post or update synthesis
@@ -605,29 +650,34 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         )
 
         if existing_synthesis:
-            print(f"Updating existing synthesis comment (ID: {existing_synthesis['id']})")
+            print(
+                f"Updating existing synthesis comment (ID: {existing_synthesis['id']})",
+                file=sys.stderr,
+            )
             response = update_issue_comment(owner, repo, existing_synthesis["id"], synthesis_body)
             action = "Updated"
         else:
-            print("Creating new synthesis comment")
+            print("Creating new synthesis comment", file=sys.stderr)
             response = create_issue_comment(owner, repo, issue_number, synthesis_body)
             action = "Created"
-        print(f"{action} synthesis comment: {response.get('html_url', 'N/A')}")
+        print(f"{action} synthesis comment: {response.get('html_url', 'N/A')}", file=sys.stderr)
     else:
-        print("No synthesizable content found, skipping synthesis comment")
+        print("No synthesizable content found, skipping synthesis comment", file=sys.stderr)
 
     # Assign Copilot
     assigned = False
     if not args.skip_assignment:
-        print("Assigning copilot-swe-agent...")
+        print("Assigning copilot-swe-agent...", file=sys.stderr)
         assigned = _assign_copilot(owner, repo, issue_number)
         if assigned:
-            print(f"Assigned copilot-swe-agent to issue #{issue_number}")
+            print(f"Assigned copilot-swe-agent to issue #{issue_number}", file=sys.stderr)
     else:
-        print("Skipping assignment (handled by workflow with COPILOT_GITHUB_TOKEN)")
+        print(
+            "Skipping assignment (handled by workflow with COPILOT_GITHUB_TOKEN)",
+            file=sys.stderr,
+        )
 
     output = {
-        "success": True,
         "action": action,
         "issue_number": issue_number,
         "comment_id": response["id"] if response else None,
@@ -635,7 +685,12 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         "assigned": assigned,
         "marker": config["synthesis"]["marker"],
     }
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        output,
+        output_format=fmt,
+        human_summary=f"{action} synthesis for issue #{issue_number}",
+        script_name="invoke_copilot_assignment.py",
+    )
     return 0
 
 
