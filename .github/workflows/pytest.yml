@@ -181,6 +181,11 @@ jobs:
 
       - name: Run pip-audit
         run: |
+          # PYSEC-2026-196 is fixed in pip 26.1.2. Upgrade the runner tool
+          # instead of ignoring the finding so pip-audit keeps failing on
+          # unaddressed vulnerabilities.
+          python3 -m pip install --upgrade pip==26.1.2
+
           # Ignored CVEs (re-evaluate when upstream releases a fix):
           #   CVE-2026-4539: pygments 2.19.2, no fix available.
           #   CVE-2026-3219: pip 26.0/26.0.1 mishandles concatenated tar/ZIP
