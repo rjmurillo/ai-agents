@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-06-05-session-2366",
+  "session": "2026-06-05-session-2366",
+  "timestamp": "2026-06-05T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autofix and merge PR 2428 sync command drift detection",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "worktree",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "conflicts",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fixes",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/commands/test_sync.py -q -> 28 passed; pre_pr --quick -> all validations passed",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: f34ca3214",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
