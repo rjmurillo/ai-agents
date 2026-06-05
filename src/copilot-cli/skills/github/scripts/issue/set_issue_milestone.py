@@ -37,12 +37,12 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -123,6 +123,17 @@ def _emit(output: dict, fmt: str) -> None:
     )
 
 
+def _emit_error(message: str, code: int, fmt: str, error_type: str, output: dict) -> None:
+    write_skill_error(
+        message,
+        code,
+        error_type=error_type,
+        output_format=fmt,
+        script_name="set_issue_milestone.py",
+        extra=output,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -132,7 +143,14 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     if not args.clear and not args.milestone:
-        error_and_exit("Must specify --milestone or --clear.", 2)
+        _emit_error(
+            "Must specify --milestone or --clear.",
+            2,
+            fmt,
+            "InvalidParams",
+            {"issue": args.issue, "milestone": None, "action": "failed"},
+        )
+        raise SystemExit(2)
 
     current_milestone = _get_current_milestone(owner, repo, args.issue)
 
@@ -165,7 +183,14 @@ def main(argv: list[str] | None = None) -> int:
             check=False,
         )
         if result.returncode != 0:
-            error_and_exit("Failed to clear milestone", 3)
+            _emit_error(
+                "Failed to clear milestone",
+                3,
+                fmt,
+                "ApiError",
+                output | {"action": "failed"},
+            )
+            raise SystemExit(3)
 
         output["action"] = "cleared"
         _emit(output, fmt)
@@ -179,10 +204,14 @@ def main(argv: list[str] | None = None) -> int:
 
     milestone_titles = _get_milestone_titles(owner, repo)
     if args.milestone not in milestone_titles:
-        error_and_exit(
+        _emit_error(
             f"Milestone '{args.milestone}' does not exist in {owner}/{repo}.",
             2,
+            fmt,
+            "NotFound",
+            output | {"milestone": args.milestone, "action": "failed"},
         )
+        raise SystemExit(2)
 
     if current_milestone == args.milestone:
         output["milestone"] = args.milestone
@@ -197,11 +226,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if current_milestone and not args.force:
-        error_and_exit(
+        _emit_error(
             f"Issue #{args.issue} already has milestone "
             f"'{current_milestone}'. Use --force to override.",
             5,
+            fmt,
+            "General",
+            output | {"milestone": args.milestone, "action": "has_milestone"},
         )
+        raise SystemExit(5)
 
     result = subprocess.run(
         [
@@ -214,7 +247,14 @@ def main(argv: list[str] | None = None) -> int:
         check=False,
     )
     if result.returncode != 0:
-        error_and_exit("Failed to set milestone", 3)
+        _emit_error(
+            "Failed to set milestone",
+            3,
+            fmt,
+            "ApiError",
+            output | {"milestone": args.milestone, "action": "failed"},
+        )
+        raise SystemExit(3)
 
     action = "replaced" if current_milestone else "assigned"
     output["milestone"] = args.milestone

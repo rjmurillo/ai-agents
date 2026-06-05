@@ -112,7 +112,7 @@ class TestSetIssueMilestone:
                 mod.main(["--issue", "1", "--milestone", "v1.0.0"])
         assert exc.value.code == 5
 
-    def test_milestone_not_found_exits_2(self, _import_module):
+    def test_milestone_not_found_exits_2(self, _import_module, capsys):
         mod = _import_module
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
@@ -123,8 +123,51 @@ class TestSetIssueMilestone:
             ]),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main(["--issue", "1", "--milestone", "v1.0.0"])
+                mod.main([
+                    "--issue", "1", "--milestone", "v1.0.0",
+                    "--output-format", "json",
+                ])
         assert exc.value.code == 2
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Type"] == "NotFound"
+
+    def test_missing_milestone_argument_emits_json_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--output-format", "json"])
+        assert exc.value.code == 2
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 2
+        assert result["Error"]["Type"] == "InvalidParams"
+
+    def test_set_milestone_failure_emits_json_error(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("set_issue_milestone.assert_gh_authenticated"),
+            patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(stdout="null"),
+                make_completed_process(stdout="v1.0.0"),
+                make_completed_process(returncode=1, stderr="api failed"),
+            ]),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main([
+                    "--issue", "1", "--milestone", "v1.0.0",
+                    "--output-format", "json",
+                ])
+        assert exc.value.code == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Code"] == 3
+        assert result["Error"]["Type"] == "ApiError"
 
     def test_clear_milestone(self, _import_module, capsys):
         mod = _import_module
