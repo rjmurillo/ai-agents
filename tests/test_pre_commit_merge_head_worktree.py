@@ -167,7 +167,5 @@ class TestHookPinsFixedShape:
             for line in hook_text.splitlines()
             if not line.lstrip().startswith("#")
         ]
-        offenders = [
-            line for line in code_lines if "$REPO_ROOT/.git/MERGE_HEAD" in line
-        ]
+        offenders = [line for line in code_lines if ".git/MERGE_HEAD" in line]
         assert offenders == [], offenders

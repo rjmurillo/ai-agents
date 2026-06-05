@@ -331,6 +331,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         timeout=30,
+        check=True,
     )
 
 
@@ -343,7 +344,7 @@ def _git_available() -> bool:
             timeout=10,
             check=False,
         )
-    except OSError:
+    except (OSError, subprocess.SubprocessError):
         return False
     return result.returncode == 0
 
