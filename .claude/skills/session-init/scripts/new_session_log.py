@@ -127,7 +127,11 @@ def _origin_main_max_session(repo_root: str | None = None) -> int:
     return _max_session_in_names(names)
 
 
-def _auto_detect_session_number(sessions_dir: str) -> int:
+def _repo_root_for_origin_scan(sessions_dir: str, repo_root: str | None) -> str:
+    return repo_root or os.path.dirname(os.path.dirname(os.path.abspath(sessions_dir)))
+
+
+def _auto_detect_session_number(sessions_dir: str, repo_root: str | None = None) -> int:
     """Auto-increment session number across the local tree and origin/main.
 
     Takes the max of the local working-tree scan and the session numbers
@@ -137,12 +141,12 @@ def _auto_detect_session_number(sessions_dir: str) -> int:
     local_max = 0
     if os.path.isdir(sessions_dir):
         local_max = _max_session_in_names(os.listdir(sessions_dir))
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(sessions_dir)))
-    combined_max = max(local_max, _origin_main_max_session(repo_root))
+    scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
+    combined_max = max(local_max, _origin_main_max_session(scan_root))
     return combined_max + 1 if combined_max else 1
 
 
-def _get_max_existing_session(sessions_dir: str) -> int | None:
+def _get_max_existing_session(sessions_dir: str, repo_root: str | None = None) -> int | None:
     """Get the maximum existing session number across local tree and origin/main.
 
     Includes origin/main so the DoS ceiling in main() stays consistent with
@@ -154,8 +158,8 @@ def _get_max_existing_session(sessions_dir: str) -> int | None:
     if os.path.isdir(sessions_dir):
         local_max = _max_session_in_names(os.listdir(sessions_dir))
         found = local_max > 0
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(sessions_dir)))
-    origin_max = _origin_main_max_session(repo_root)
+    scan_root = _repo_root_for_origin_scan(sessions_dir, repo_root)
+    origin_max = _origin_main_max_session(scan_root)
     if origin_max > 0:
         found = True
     combined = max(local_max, origin_max)
@@ -319,10 +323,10 @@ def main(argv: list[str] | None = None) -> int:
     # Resolve session number
     session_number = args.session_number
     if session_number == 0:
-        session_number = _auto_detect_session_number(sessions_dir)
+        session_number = _auto_detect_session_number(sessions_dir, repo_root)
 
     # CWE-400: Reject session number jumps larger than 10 above max existing
-    max_existing = _get_max_existing_session(sessions_dir)
+    max_existing = _get_max_existing_session(sessions_dir, repo_root)
     if max_existing is not None and session_number > max_existing + 10:
         print(
             f"ERROR: Session number {session_number} exceeds ceiling "

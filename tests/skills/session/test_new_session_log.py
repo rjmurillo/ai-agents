@@ -121,6 +121,19 @@ class TestCrossBranchSessionAllocation:
             )
             assert result == 2341
 
+    def test_auto_detect_uses_explicit_repo_root_for_artifact_root(self, tmp_path):
+        artifact_sessions = tmp_path / "artifact-root" / "sessions"
+        artifact_sessions.mkdir(parents=True)
+        repo_root = str(tmp_path / "repo")
+        with patch.object(
+            new_session_log, "_origin_main_max_session", return_value=2340
+        ) as mock_origin:
+            result = new_session_log._auto_detect_session_number(
+                str(artifact_sessions), repo_root
+            )
+        assert result == 2341
+        mock_origin.assert_called_once_with(repo_root)
+
     def test_max_existing_includes_origin(self, tmp_path):
         (tmp_path / "2026-01-01-session-5.json").write_text("{}")
         with patch.object(
