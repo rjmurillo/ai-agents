@@ -61,6 +61,22 @@
       "content": "Commit: f34ca3214",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ci-fix",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-05T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 28831c636938",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "28 sync tests passed; Ruff passed; artifact generation current; security scan passed; pre_pr --quick passed"
+        "Evidence": "28 sync tests passed; Ruff passed; artifact generation current; security scan passed; workflow local dry-run passed; pre_pr --quick passed"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -132,12 +132,16 @@
     {
       "step": "validation",
       "evidence": "uv run pytest tests/commands/test_sync.py -q -> 28 passed; pre_pr --quick -> all validations passed"
+    },
+    {
+      "step": "ci-fix",
+      "evidence": "Upgraded CI runner pip to 26.1.2 before pip-audit to fix PYSEC-2026-196 without hiding future audit findings"
     }
   ],
-  "endingCommit": "f34ca3214",
+  "endingCommit": "28831c636938",
   "nextSteps": [
-    "Push autofix/pr-2428",
-    "Wait for CI and review thread gates",
+    "Push final PR 2428 fixes",
+    "Wait for CI and thread gates",
     "Merge PR #2428 when gates pass"
   ]
 }
