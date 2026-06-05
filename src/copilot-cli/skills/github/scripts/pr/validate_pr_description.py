@@ -193,12 +193,22 @@ def main(argv: list[str] | None = None) -> int:
         for e in errors:
             print(f"  ✗ {e}", file=sys.stderr)
 
-    if success:
-        print("\n✓ Validation passed", file=sys.stderr)
-
     has_issues = not success or (args.fail_on_violation and warnings)
-    if has_issues and args.fail_on_violation:
+    fail = has_issues and args.fail_on_violation
+
+    if fail:
+        if success and warnings:
+            print(
+                f"\n✗ Validation failed: {len(warnings)} warning(s) treated as "
+                "violations (--fail-on-violation)",
+                file=sys.stderr,
+            )
+        else:
+            print("\n✗ Validation failed", file=sys.stderr)
         return 1
+
+    if not has_issues:
+        print("\n✓ Validation passed", file=sys.stderr)
 
     return 0
 
