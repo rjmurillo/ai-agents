@@ -913,11 +913,29 @@ def _generate_report(
             file=sys.stderr,
         )
         return EXIT_CONFIG
+    halt = aggregate.halt_due_to_flakiness
+    writer = ReportWriter(
+        _assert_under_repo_root(REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent))
+    )
     form_factor = None
-    if any(record.variant == "skill" for record in records):
+    has_skill_records = any(record.variant == "skill" for record in records)
+    if has_skill_records:
         try:
-            form_factor = compute_form_factor(records)
+            form_factor = compute_form_factor(
+                records,
+                exclude_fixture_ids=set(aggregate.flaky_fixtures_excluded),
+            )
         except (EmptyRunError, ValueError) as exc:
+            json_path, md_path = writer.write(
+                aggregate=aggregate,
+                run_id=run_id,
+                model_id=model_id,
+                agent_prompt_sha=_sha256_text(agent_prompt),
+                baseline_prompt_sha=_sha256_text(BASELINE_PROMPT),
+                fixture_set_sha=_fixture_set_sha(fixture_paths),
+                wall_clock_seconds=wall_clock_seconds,
+                recommendation="form-factor-invalid",
+            )
             print(
                 json.dumps(
                     {
@@ -925,6 +943,8 @@ def _generate_report(
                         "event": "form_factor_invalid",
                         "message": str(exc),
                         "run_id": run_id,
+                        "report_json": str(json_path),
+                        "report_md": str(md_path),
                     }
                 ),
                 file=sys.stderr,
@@ -936,10 +956,6 @@ def _generate_report(
     # returning EXIT_LOGIC so the audit trail is reproducible from the
     # runner; without this, halt-flakiness produces no committed
     # artifact and the v2 spike report has to be hand-curated.
-    halt = aggregate.halt_due_to_flakiness
-    writer = ReportWriter(
-        _assert_under_repo_root(REPO_ROOT / REPORTS_DIR_TEMPLATE.format(agent=agent))
-    )
     json_path, md_path = writer.write(
         aggregate=aggregate,
         run_id=run_id,

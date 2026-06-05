@@ -548,6 +548,7 @@ def compute_form_factor(
     *,
     iterations: int = BOOTSTRAP_ITERATIONS,
     rng: random.Random | None = None,
+    exclude_fixture_ids: set[str] | None = None,
 ) -> FormFactorComparison:
     """Compute the three pairwise CIs and the form-factor verdict.
 
@@ -566,6 +567,10 @@ def compute_form_factor(
             f"variants; missing: {sorted(missing)}"
         )
     fixture_ids = _require_same_fixture_set(grouped, {"agent", "baseline", "skill"})
+    excluded = exclude_fixture_ids or set()
+    fixture_ids = [fixture_id for fixture_id in fixture_ids if fixture_id not in excluded]
+    if not fixture_ids:
+        raise ValueError("form-factor comparison has no stable fixtures to compare")
 
     agent_recall = _recall_from_grouped(grouped, "agent", fixture_ids=fixture_ids)
     baseline_recall = _recall_from_grouped(
@@ -610,4 +615,3 @@ def compute_form_factor(
         skill_tokens_out=skill_tokens_out,
         verdict=verdict,
     )
-

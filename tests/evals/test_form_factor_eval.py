@@ -421,6 +421,27 @@ class TestComputeFormFactor:
         with pytest.raises(ValueError, match="same fixture set"):
             compute_form_factor(records)
 
+    def test_excluded_flaky_fixtures_are_removed_from_form_factor(self):
+        records = [
+            _record("F001", "agent", 0, passed=True),
+            _record("F001", "baseline", 0, passed=False),
+            _record("F001", "skill", 0, passed=False),
+            _record("F002", "agent", 0, passed=False),
+            _record("F002", "baseline", 0, passed=False),
+            _record("F002", "skill", 0, passed=True),
+        ]
+
+        result = compute_form_factor(
+            records,
+            iterations=200,
+            rng=random.Random(13),
+            exclude_fixture_ids={"F001"},
+        )
+
+        assert result.agent_recall == 0.0
+        assert result.baseline_recall == 0.0
+        assert result.skill_recall == 1.0
+
     def test_empty_records_raises(self):
         with pytest.raises(EmptyRunError):
             compute_form_factor([])
@@ -500,3 +521,53 @@ class TestDryRunSkillValidation:
 
         assert rc == cli_mod.EXIT_CONFIG
         assert "skill prompt not found" in capsys.readouterr().err
+
+
+class _FakePersistence:
+    def written_count(self) -> int:
+        return 3
+
+    def skipped_count(self) -> int:
+        return 0
+
+
+class TestGenerateReportFormFactorFailure:
+    def test_form_factor_failure_still_writes_v1_report(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
+        fixture_path = tmp_path / "F001.json"
+        fixture_path.write_text("{}", encoding="utf-8")
+        records = [
+            _record("F001", "agent", 0, passed=True),
+            _record("F001", "baseline", 0, passed=False),
+            _record("F001", "skill", 0, passed=True),
+            _record("F002", "agent", 0, passed=True),
+            _record("F002", "baseline", 0, passed=False),
+        ]
+
+        rc = cli_mod._generate_report(
+            records=records,
+            run_id="r-form-factor-invalid",
+            model_id="claude-sonnet-4-6",
+            agent="security",
+            agent_prompt="agent prompt",
+            fixture_paths=[fixture_path],
+            wall_clock_seconds=1.0,
+            run_dir=tmp_path / "runs" / "r-form-factor-invalid",
+            persistence=_FakePersistence(),
+            error_count=0,
+        )
+
+        assert rc == cli_mod.EXIT_LOGIC
+        report_json = (
+            tmp_path
+            / "evals"
+            / "security-spike"
+            / "reports"
+            / "r-form-factor-invalid"
+            / "report.json"
+        )
+        payload = json.loads(report_json.read_text(encoding="utf-8"))
+        assert payload["recommendation"] == "form-factor-invalid"
+        assert "form_factor_invalid" in capsys.readouterr().err
