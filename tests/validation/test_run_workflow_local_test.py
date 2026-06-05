@@ -194,6 +194,14 @@ def test_linked_worktree_detected_returns_path(tmp_path):
     assert w._linked_worktree_gitdir(tmp_path) == "/main/.git/worktrees/abc"
 
 
+def test_relative_gitdir_marker_is_resolved_absolute(tmp_path):
+    # git >= 2.48 (--relative-paths) can record a relative gitdir; the helper
+    # must anchor it to repo_root and return an absolute path per its contract.
+    _make_linked_worktree(tmp_path, gitdir_target="../abc/.git/worktrees/x")
+    expected = str((tmp_path / "../abc/.git/worktrees/x").resolve())
+    assert w._linked_worktree_gitdir(tmp_path) == expected
+
+
 def test_main_worktree_with_dotgit_dir_returns_none(tmp_path):
     (tmp_path / ".git").mkdir()
     assert w._linked_worktree_gitdir(tmp_path) is None

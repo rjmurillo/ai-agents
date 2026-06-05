@@ -144,7 +144,7 @@ def _linked_worktree_gitdir(repo_root: Path) -> str | None:
 
     ``act`` / ``gh act`` resolves git metadata via go-git and trips on this
     layout under pr-autofix's bare-clone cache
-    (``$HOME/.cache/pr-autofix/<repo>.git/worktrees/<id>/``) — full execution
+    (``$HOME/.cache/pr-autofix/<repo>.git/worktrees/<id>/``); full execution
     produces what looks like a workflow failure. The caller uses this to
     emit a precise exit-3 environment error before that misdirection occurs.
     See Issue #2344.
@@ -153,13 +153,26 @@ def _linked_worktree_gitdir(repo_root: Path) -> str | None:
     if not dot_git.is_file():
         return None
     try:
-        marker = dot_git.read_text(encoding="utf-8", errors="replace").strip()
+        content = dot_git.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
-    prefix = "gitdir:"
-    if not marker.startswith(prefix):
+    lines = content.splitlines()
+    if not lines:
         return None
-    return marker[len(prefix):].strip() or None
+    prefix = "gitdir:"
+    first_line = lines[0].strip()
+    if not first_line.startswith(prefix):
+        return None
+    path_str = first_line[len(prefix):].strip()
+    if not path_str:
+        return None
+    # git records an absolute path by default; return it verbatim so the
+    # value is not re-mangled by the host platform's path semantics. Only a
+    # relative marker (git >= 2.48 --relative-paths) needs anchoring to
+    # repo_root to honor the documented absolute-path contract (CWE-22).
+    if path_str.startswith("/") or Path(path_str).is_absolute():
+        return path_str
+    return str((repo_root / path_str).resolve())
 
 
 def _run(cmd: list[str], *, timeout: int, cwd: Path | None = None) -> tuple[int, str, str]:
