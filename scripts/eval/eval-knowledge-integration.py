@@ -252,7 +252,27 @@ def apply_kill_gate(results: dict[str, Any]) -> dict[str, Any]:
     - PROCEED: at least 80% of skills show improvement >= 0.5 with no skill regressing
     - CONDITIONAL: 60% of skills improve >= 0.5, proceed only for improving skills
     - STOP: fewer than 60% of skills improve >= 0.5
+    - NO_DATA: no skills were scored (empty results). This is distinct from
+      STOP: STOP means the data shows insufficient improvement, NO_DATA means
+      there is no data to judge. Emitting STOP for an empty run is a false
+      negative that hides a misconfiguration (issue #2345).
     """
+    if not results:
+        return {
+            "passed": False,
+            "verdict": "NO_DATA",
+            "failures": [
+                "No skills produced scores. Nothing was evaluated, so no "
+                "PROCEED/STOP verdict can be reached. Check that the selected "
+                "skill has prompts in PROMPTS or in --prompts-file."
+            ],
+            "summary": {},
+            "total_skills": 0,
+            "proceed_threshold": 0,
+            "conditional_threshold": 0,
+            "skills_passing": 0,
+        }
+
     gate: dict[str, Any] = {"passed": True, "verdict": "PROCEED", "failures": [], "summary": {}}
 
     skills_passing = 0
@@ -472,6 +492,23 @@ def main() -> None:
             skills = list(prompts.keys())
     else:
         prompts = PROMPTS
+
+    # Guard the zero-prompt case before the run. A selected skill with no
+    # prompts produces an empty results dict, which would otherwise reach
+    # apply_kill_gate and emit a misleading STOP. Fail fast with an actionable
+    # message naming the unprompted skill(s) (issue #2345). ADR-035 exit code 2
+    # (configuration error) because the wrong input is a misconfiguration, not
+    # a logic failure in the eval itself.
+    unprompted = [s for s in skills if not prompts.get(s)]
+    if unprompted:
+        source = args.prompts_file if args.prompts_file else "the built-in PROMPTS table"
+        print(
+            f"ERROR: no prompts found for skill(s) {unprompted} in {source}. "
+            "Add prompts for the skill or select a skill that has prompts. "
+            "Nothing was evaluated.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     prompt_count = sum(len(prompts.get(s, [])) for s in skills)
     api_calls = prompt_count * 4 * args.runs if not args.dry_run else 0  # (2 runs + 2 scores) * runs per prompt
