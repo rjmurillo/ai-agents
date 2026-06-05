@@ -730,8 +730,16 @@ def _restore_owned_prefixes(
     # Cases 1 & 2: restore every file that was in the snapshot.
     for path, content in snapshot.items():
         try:
-            if path.exists() and path.read_bytes() == content:
+            if (
+                path.is_file()
+                and not path.is_symlink()
+                and path.read_bytes() == content
+            ):
                 continue  # already matches snapshot
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            elif path.exists() or path.is_symlink():
+                path.unlink()
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
         except OSError as exc:
@@ -799,6 +807,7 @@ def run(
     clean: bool,
     audit_format: str,
 ) -> int:
+    repo_root = repo_root.resolve()
     platforms_dir = repo_root / "templates" / "platforms"
     configs = _select_platform_configs(platforms_dir, platform)
     if not configs:

@@ -886,6 +886,62 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
     assert _git_porcelain(repo) == "", "--check left working tree dirty"
 
 
+def test_restore_replaces_directory_conflicting_with_snapshot_file(tmp_path: Path) -> None:
+    """#2440: restore handles file-to-directory conflicts."""
+    repo = tmp_path / "repo"
+    tracked = repo / ".github" / "instructions" / "rule-x.md"
+    tracked.parent.mkdir(parents=True)
+    tracked.write_text("committed A\n")
+    snapshot = build_all._snapshot_owned_prefixes(repo, build_all.OWNED_PREFIXES)
+
+    tracked.unlink()
+    tracked.mkdir()
+    (tracked / "generated-child.md").write_text("generated B\n")
+
+    build_all._restore_owned_prefixes(repo, build_all.OWNED_PREFIXES, snapshot)
+
+    assert tracked.is_file()
+    assert tracked.read_text() == "committed A\n"
+
+
+def test_run_check_uses_resolved_repo_root_when_generator_changes_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#2440: relative repo roots survive generator CWD changes."""
+    import os
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    out_dir = repo / "src" / "copilot-cli" / "skills" / "alpha"
+    out_dir.mkdir(parents=True)
+    stale_path = out_dir / "SKILL.md"
+    stale_path.write_text("# stale\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
+    porcelain_before = _git_porcelain(repo)
+    monkeypatch.chdir(tmp_path)
+
+    def _changing_cwd_agent(repo_root, cfg, platform):
+        os.chdir(repo_root / ".claude")
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", _changing_cwd_agent)
+
+    rc = build_all.run(
+        Path("repo"), platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert _git_porcelain(repo) == porcelain_before
+    assert stale_path.read_text() == "# stale\n"
+
+
 def test_run_check_removes_new_untracked_files_generators_created(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
