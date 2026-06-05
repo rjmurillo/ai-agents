@@ -66,6 +66,8 @@ _COPILOT_EVENT = "UserPromptSubmit"
 # ~/.copilot/installed-plugins/.../<plugin>/hooks/... is where the anchored
 # script resolves, so a script that ran from the install tree records it.
 _COPILOT_INSTALL_SEGMENT = "installed-plugins"
+_DIAGNOSTIC_MAX_INSTALL_HOOKS = 80
+_DIAGNOSTIC_MAX_FILE_CHARS = 4000
 
 requires_copilot = pytest.mark.skipif(
     not (_RUN and shutil.which("copilot")),
@@ -132,6 +134,15 @@ def _copilot_install_roots() -> list[Path]:
     return roots
 
 
+def _append_text_file_diagnostic(lines: list[str], label: str, path: Path) -> None:
+    try:
+        content = path.read_text(encoding="utf-8")[-_DIAGNOSTIC_MAX_FILE_CHARS:]
+    except (OSError, UnicodeDecodeError) as exc:
+        lines.append(f"{label}_error={exc}")
+        return
+    lines.append(f"{label}={content}")
+
+
 def _copilot_failure_diagnostics(
     probe_name: str,
     plugin: Path,
@@ -140,9 +151,9 @@ def _copilot_failure_diagnostics(
 ) -> str:
     """Build a self-diagnosing message for a Copilot hook marker miss (#2378).
 
-    Surfaces the installed-plugins tree, the authored hooks.json the install was
-    built from, and the CLI output, so a failure says WHY the hook did not run
-    instead of only that it did not.
+    Surfaces the installed hooks.json files, the authored hooks.json the install
+    was built from, and the CLI output, so a failure says WHY the hook did not
+    run instead of only that it did not.
     """
     lines: list[str] = [
         "Copilot hook never wrote its marker.",
@@ -152,17 +163,40 @@ def _copilot_failure_diagnostics(
         f"authored_hooks_json={plugin / 'hooks' / 'hooks.json'}",
     ]
     authored = plugin / "hooks" / "hooks.json"
-    if authored.is_file():
-        lines.append("authored_hooks_json_content=" + authored.read_text(encoding="utf-8"))
+    try:
+        authored_is_file = authored.is_file()
+    except OSError as exc:
+        lines.append(f"authored_hooks_json_error={exc}")
+    else:
+        if authored_is_file:
+            _append_text_file_diagnostic(lines, "authored_hooks_json_content", authored)
     for root in _copilot_install_roots():
-        if not root.is_dir():
+        try:
+            root_is_dir = root.is_dir()
+        except OSError as exc:
+            lines.append(f"install_root_error={root}: {exc}")
+            continue
+        if not root_is_dir:
             lines.append(f"install_root_absent={root}")
             continue
         lines.append(f"install_root={root}")
-        for path in sorted(root.rglob("*")):
-            lines.append(f"  {path}")
-            if path.name == "hooks.json" and path.is_file():
-                lines.append("    content=" + path.read_text(encoding="utf-8"))
+        try:
+            for index, path in enumerate(root.rglob("hooks.json")):
+                if index >= _DIAGNOSTIC_MAX_INSTALL_HOOKS:
+                    lines.append(
+                        f"  install_root_truncated_after={_DIAGNOSTIC_MAX_INSTALL_HOOKS}"
+                    )
+                    break
+                lines.append(f"  {path}")
+                try:
+                    path_is_file = path.is_file()
+                except OSError as exc:
+                    lines.append(f"    file_error={exc}")
+                    continue
+                if path_is_file:
+                    _append_text_file_diagnostic(lines, "    content", path)
+        except OSError as exc:
+            lines.append(f"  rglob_error={exc}")
     lines.append(f"stdout={run.stdout[-600:]!r}")
     lines.append(f"stderr={run.stderr[-600:]!r}")
     return "\n".join(lines)
@@ -314,10 +348,85 @@ def test_copilot_probe_event_fires_in_print_mode() -> None:
     assert _COPILOT_EVENT == "UserPromptSubmit"
 
 
+def test_copilot_failure_diagnostics_stays_best_effort(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Diagnostic failures report partial context instead of masking the marker miss."""
+
+    class BrokenRoot:
+        def __str__(self) -> str:
+            return "broken-root"
+
+        def is_dir(self) -> bool:
+            return True
+
+        def rglob(self, pattern: str):
+            assert pattern == "hooks.json"
+            raise OSError("boom")
+
+    class UnreadableHook:
+        name = "hooks.json"
+
+        def __str__(self) -> str:
+            return "unreadable/hooks.json"
+
+        def is_file(self) -> bool:
+            return True
+
+        def read_text(self, encoding: str) -> str:
+            raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad byte")
+
+    class HookPath:
+        name = "hooks.json"
+
+        def __init__(self, index: int) -> None:
+            self.index = index
+
+        def __str__(self) -> str:
+            return f"hook-{self.index}/hooks.json"
+
+        def is_file(self) -> bool:
+            return True
+
+        def read_text(self, encoding: str) -> str:
+            return f"content-{self.index}"
+
+    class ManyHooksRoot:
+        def __str__(self) -> str:
+            return "many-hooks-root"
+
+        def is_dir(self) -> bool:
+            return True
+
+        def rglob(self, pattern: str):
+            assert pattern == "hooks.json"
+            return iter(
+                [UnreadableHook()]
+                + [HookPath(index) for index in range(_DIAGNOSTIC_MAX_INSTALL_HOOKS + 2)]
+            )
+
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_copilot_install_roots",
+        lambda: [BrokenRoot(), ManyHooksRoot()],
+    )
+    run = subprocess.CompletedProcess(["copilot"], 1, stdout="out", stderr="err")
+
+    diagnostics = _copilot_failure_diagnostics(
+        "probe", tmp_path / "plugin", tmp_path / "userland", run
+    )
+
+    assert "rglob_error=boom" in diagnostics
+    assert "content_error=" in diagnostics
+    assert f"install_root_truncated_after={_DIAGNOSTIC_MAX_INSTALL_HOOKS}" in diagnostics
+    assert f"hook-{_DIAGNOSTIC_MAX_INSTALL_HOOKS}/hooks.json" not in diagnostics
+
+
 def test_copilot_entry_anchors_script_to_plugin_root() -> None:
     """The generated command resolves the probe from the install tree, not cwd.
 
-    The bash command must reference the script via the plugin-root env var with
+    The shell commands must reference the script via the plugin-root env var with
     the COPILOT_PLUGIN_ROOT->CLAUDE_PLUGIN_ROOT fallback, and must NOT use a bare
     relative path (the bug class from issue #2205). This is the contract the
     Copilot e2e proves end to end; pinned here so a generator change that breaks
@@ -325,11 +434,17 @@ def test_copilot_entry_anchors_script_to_plugin_root() -> None:
     """
     entry = generate_hooks._build_copilot_entry(_COPILOT_EVENT, "probe.py")
     bash = entry["bash"]
+    powershell = entry["powershell"]
+
     assert "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}" in bash
     assert f"/hooks/{_COPILOT_EVENT}/probe.py" in bash
+    assert "$env:COPILOT_PLUGIN_ROOT" in powershell
+    assert "$env:CLAUDE_PLUGIN_ROOT" in powershell
+    assert f"/hooks/{_COPILOT_EVENT}/probe.py" in powershell
     # Negative control: a bare relative path is the exact shape that wedged
     # customer environments; the anchored form must not collapse to it.
     assert "./hooks/" not in bash
+    assert "./hooks/" not in powershell
 
 
 def test_probe_script_writes_marker_when_run(tmp_path: Path) -> None:
