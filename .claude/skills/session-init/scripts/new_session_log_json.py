@@ -33,16 +33,21 @@ def _resolve_paths_lib_dir() -> str:
     plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         lib_dir = Path(plugin_root).expanduser().resolve() / "lib"
-    else:
-        workspace = os.environ.get("GITHUB_WORKSPACE")
-        if workspace:
-            lib_dir = Path(workspace).expanduser().resolve() / ".claude" / "lib"
-        else:
-            lib_dir = Path(__file__).resolve().parents[3] / "lib"
-    if not lib_dir.is_dir():
-        print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
-        sys.exit(2)
-    return str(lib_dir)
+        if not lib_dir.is_dir():
+            print(f"Plugin lib directory not found: {lib_dir}", file=sys.stderr)
+            sys.exit(2)
+        return str(lib_dir)
+    candidates: list[Path] = []
+    workspace = os.environ.get("GITHUB_WORKSPACE")
+    if workspace:
+        candidates.append(Path(workspace).expanduser().resolve() / ".claude" / "lib")
+    candidates.append(Path(__file__).resolve().parents[3] / "lib")
+    for lib_dir in candidates:
+        if lib_dir.is_dir():
+            return str(lib_dir)
+    checked = ", ".join(str(candidate) for candidate in candidates)
+    print(f"Plugin lib directory not found. Checked: {checked}", file=sys.stderr)
+    sys.exit(2)
 
 
 _LIB_DIR = _resolve_paths_lib_dir()
