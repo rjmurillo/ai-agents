@@ -48,6 +48,12 @@ from github_core.api import (  # noqa: E402
     error_and_exit,
     resolve_repo_params,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,6 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=20,
         help="Max items per category (1-100, default: 20)",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -215,9 +222,18 @@ def _get_assigned_issues(repo_flag: str, user: str, limit: int) -> list[dict]:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     if not 1 <= args.limit <= 100:
-        error_and_exit("Limit must be between 1 and 100.", 1)
+        write_skill_error(
+            "Limit must be between 1 and 100.",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_actionable_items.py",
+            extra={"limit": args.limit},
+        )
+        return 1
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -236,8 +252,7 @@ def main(argv: list[str] | None = None) -> int:
     authored_prs = _get_authored_prs(repo_flag, user, args.limit)
     assigned_issues = _get_assigned_issues(repo_flag, user, args.limit)
 
-    output = {
-        "success": True,
+    data = {
         "user": user,
         "repo": repo_flag,
         "notifications_api_available": notifications_available,
@@ -253,7 +268,18 @@ def main(argv: list[str] | None = None) -> int:
         },
     }
 
-    print(json.dumps(output, indent=2))
+    total = (
+        data["summary"]["notifications"]
+        + data["summary"]["review_requests"]
+        + data["summary"]["authored_prs"]
+        + data["summary"]["assigned_issues"]
+    )
+    write_skill_output(
+        data,
+        output_format=fmt,
+        human_summary=f"Found {total} actionable item(s) for {user} in {repo_flag}",
+        script_name="get_actionable_items.py",
+    )
     return 0
 
 
