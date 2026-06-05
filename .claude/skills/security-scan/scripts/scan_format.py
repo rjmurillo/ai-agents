@@ -2,8 +2,9 @@
 
 Extracted from ``scan_vulnerabilities.py`` (issue #1848) and decomposed so the
 public ``format_console_output`` sergeant stays under cyclomatic complexity 10.
-The output text is byte-for-byte identical to the original inline implementation;
-this is a behavior-preserving refactor, not a format change.
+The refactor keeps the normal clean-scan and vulnerability-scan output stable.
+When read errors are present, the summary reports the scan-error exit code so
+console output matches the process exit code.
 
 The formatter takes the scan result by duck typing (it reads ``result.errors``,
 ``result.vulnerabilities``, ``result.files_scanned``, ``result.suppressed`` and

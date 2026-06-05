@@ -647,9 +647,10 @@ def _exit_code(
 ) -> int:
     """Return 1 when blocking drift exists, else 0.
 
-    Vendored (src) drift always blocks. Install (.claude/agents vs
-    .github/agents) drift is advisory by default because the two self-host
-    copies carry large pre-existing structural differences (Issue #2267);
+    Vendored (src) drift blocks except for agents listed in
+    ``_ADVISORY_VENDORED_DRIFT``. Install (.claude/agents vs .github/agents)
+    drift is advisory by default because the two self-host copies carry large
+    pre-existing structural differences (Issue #2267);
     ``--fail-on-install-drift`` promotes it to blocking once those are
     reconciled.
     """
