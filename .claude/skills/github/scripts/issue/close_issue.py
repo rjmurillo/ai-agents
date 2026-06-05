@@ -141,6 +141,16 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
     )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
+        if "Could not resolve" in error_str or "not found" in error_str.lower():
+            write_skill_error(
+                f"Issue #{issue} not found in {owner}/{repo}: {error_str}",
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="close_issue.py",
+                extra={"issue": issue},
+            )
+            raise SystemExit(2)
         write_skill_error(
             f"Failed to get issue #{issue}: {error_str}",
             3,
@@ -212,6 +222,7 @@ def _close_issue(owner: str, repo: str, issue: int, reason: str) -> subprocess.C
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
+    body = _resolve_comment(args.comment, args.comment_file, fmt)
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -238,7 +249,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    body = _resolve_comment(args.comment, args.comment_file, fmt)
     commented = bool(body and body.strip())
     if commented:
         _post_comment(owner, repo, issue, body, fmt)

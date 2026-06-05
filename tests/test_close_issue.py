@@ -211,10 +211,11 @@ class TestMain:
         ), patch(
             "subprocess.run",
             return_value=_state_open(),
-        ):
+        ) as mock_run:
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "12", "--comment-file", "missing.md"])
             assert exc.value.code == 2
+        mock_run.assert_not_called()
         env = _envelope(capsys)
         assert env["Success"] is False
         assert env["Error"]["Code"] == 2
@@ -233,13 +234,32 @@ class TestMain:
         ), patch(
             "subprocess.run",
             return_value=_state_open(),
-        ):
+        ) as mock_run:
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "12", "--comment-file", "../outside.md"])
             assert exc.value.code == 2
+        mock_run.assert_not_called()
         env = _envelope(capsys)
         assert env["Success"] is False
         assert env["Error"]["Type"] == "InvalidParams"
+
+    def test_issue_not_found_exits_2(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stderr="Could not resolve to an Issue", rc=1),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "404"])
+            assert exc.value.code == 2
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Code"] == 2
+        assert env["Error"]["Type"] == "NotFound"
 
     def test_close_api_failure_exits_3(self, capsys):
         with patch(
