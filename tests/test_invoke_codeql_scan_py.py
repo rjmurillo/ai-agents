@@ -34,6 +34,7 @@ compute_directory_hash = _mod.compute_directory_hash
 check_database_cache = _mod.check_database_cache
 analyze_database = _mod.analyze_database
 format_results = _mod.format_results
+validate_path_containment = _mod.validate_path_containment
 
 
 class TestBuildParser:
@@ -223,6 +224,28 @@ class TestFormatResults:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert data["TotalFindings"] == 0
+
+
+class TestValidatePathContainment:
+    def test_uses_worktree_toplevel_as_project_root(self, tmp_path: Path) -> None:
+        repo = tmp_path / "linked-worktree"
+        repo.mkdir()
+        inside = repo / "src"
+        inside.mkdir()
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=f"{repo}\n")
+            validate_path_containment(str(inside))
+
+        assert mock_run.call_args.args[0][-1] == "--show-toplevel"
+
+    def test_git_failure_is_external_exit_3(self, tmp_path: Path) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=128, stdout="", stderr="not a tree")
+            with pytest.raises(SystemExit) as exc:
+                validate_path_containment(str(tmp_path))
+
+        assert exc.value.code == 3
 
 
 class TestAnalyzeDatabaseSarifParsing:
