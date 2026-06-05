@@ -66,6 +66,8 @@ Write the answers as a structured block (the `## Step 0 First Principles` block)
 | `nice to have` | low-priority aspiration |
 <!-- step0:hedge-table-end -->
 
+This table is the canonical source for the blocklist. A public, annotated mirror with the RFC 2119 exemptions, the technical-suffix exemption table, and a "how to extend the list" section is published at `docs/spec-quality/hedge-phrases.md`. Edit this table first; mirror the change there in the same commit.
+
 Single words `should`, `might`, `could` are NOT hedges in this list. They conflict with RFC 2119 requirement language and produce false positives.
 
 **Operational test for Q1 "aspirational"** (any one condition makes Q1 aspirational, triggering H3):
