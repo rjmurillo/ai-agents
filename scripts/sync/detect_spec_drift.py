@@ -43,6 +43,7 @@ Exit codes (per ADR-035):
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import logging
 import os
@@ -210,6 +211,52 @@ def _safe_repo_path(repo_root: Path, relative_path: str) -> Path | None:
     return candidate
 
 
+def _path_exists_with_exact_case(path: Path, *, expect_dir: bool = False) -> bool:
+    parts = path.parts
+    if not parts:
+        return False
+    current = Path(parts[0])
+    for part in parts[1:]:
+        if not current.is_dir():
+            return False
+        try:
+            entries = {child.name: child for child in current.iterdir()}
+        except OSError:
+            return False
+        if part not in entries:
+            return False
+        current = entries[part]
+    return current.is_dir() if expect_dir else current.exists()
+
+
+def _glob_exists_with_exact_case(repo_root: Path, pattern: str) -> bool:
+    if _has_unsafe_path_parts(pattern):
+        return False
+    parts = pattern.rstrip("/").split("/")
+    return _glob_parts_exist(repo_root.resolve(), parts, 0, repo_root)
+
+
+def _glob_parts_exist(current: Path, parts: list[str], index: int, repo_root: Path) -> bool:
+    if index == len(parts):
+        return _is_relative_to_repo(repo_root, current) and current.exists()
+    if not current.is_dir():
+        return False
+    try:
+        entries = list(current.iterdir())
+    except OSError:
+        return False
+    part = parts[index]
+    matches = [entry for entry in entries if fnmatch.fnmatchcase(entry.name, part)]
+    for match in matches:
+        if not _is_relative_to_repo(repo_root, match):
+            continue
+        if index < len(parts) - 1 and match.is_symlink():
+            continue
+        if _glob_parts_exist(match, parts, index + 1, repo_root):
+            return True
+    return False
+
+
 def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
     """Return True when the referenced path resolves to a file or directory.
 
@@ -217,18 +264,13 @@ def _reference_exists(repo_root: Path, referenced_path: str) -> bool:
     when at least one match exists. A trailing-slash reference is a directory.
     """
     if "*" in referenced_path:
-        if _has_unsafe_path_parts(referenced_path):
-            return False
-        return any(
-            _is_relative_to_repo(repo_root, match) and match.exists()
-            for match in repo_root.glob(referenced_path)
-        )
+        return _glob_exists_with_exact_case(repo_root, referenced_path)
     candidate = _safe_repo_path(repo_root, referenced_path)
     if candidate is None:
         return False
     if _DIR_HINT_RE.search(referenced_path):
-        return candidate.is_dir()
-    return candidate.exists()
+        return _path_exists_with_exact_case(candidate, expect_dir=True)
+    return _path_exists_with_exact_case(candidate)
 
 
 def scan_spec_file(spec_file: Path, repo_root: Path) -> tuple[list[DriftFinding], int]:

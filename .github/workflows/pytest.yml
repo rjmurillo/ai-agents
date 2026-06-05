@@ -188,9 +188,9 @@ jobs:
           # Ignored CVEs (re-evaluate when upstream releases a fix):
           #   CVE-2026-4539: pygments 2.19.2, no fix available.
           #   CVE-2026-3219: historical pip 26.0/26.0.1 finding for
-          #     concatenated tar/ZIP archives. The runner is upgraded to
-          #     pip 26.1.2 above; keep this ignore only while pip-audit still
-          #     reports stale transitive runner metadata.
+          #     concatenated tar/ZIP archives. The runner is upgraded to pip
+          #     26.1.2 below; keep this ignore only while pip-audit still
+          #     reports stale transitive runner metadata after that upgrade.
           #   CVE-2026-6357: historical pip 26.0.x finding in the same
           #     local-only class as CVE-2026-3219. Remove this ignore when
           #     pip-audit no longer reports it after the pip 26.1.2 upgrade.
