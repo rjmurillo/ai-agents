@@ -39,7 +39,13 @@ def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 
 
 def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return _run(["git", *args], cwd)
+    result = _run(["git", *args], cwd)
+    assert result.returncode == 0, (
+        f"git {' '.join(args)} failed in {cwd}\n"
+        f"stdout={result.stdout}\n"
+        f"stderr={result.stderr}"
+    )
+    return result
 
 
 def _init_repo(path: Path) -> None:
