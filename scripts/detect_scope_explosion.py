@@ -229,15 +229,21 @@ def detect_scope(base_branch: str = "main") -> ScopeResult | None:
 
     merge_head = get_merge_head_commit()
     if merge_head:
-        base_commit = get_ref_commit(base_ref)
-        if base_commit and merge_head == base_commit:
-            files = sorted(set(get_index_files_against_ref(base_ref)))
-            return ScopeResult(
-                file_count=len(files),
-                merge_base=base_commit[:12],
-                current_branch=branch,
-                files=tuple(files),
-            )
+        # During an in-progress merge, the staged index already contains every
+        # file from the upstream branch being merged. Counting that against the
+        # base ref would surface upstream files as if they were PR changes
+        # (Issue #2376 — observed 86 files reported when the real PR diff was
+        # 13). Compare the staged result directly against MERGE_HEAD so we
+        # only count files this PR actually touches relative to what is being
+        # merged in.
+        files = sorted(set(get_index_files_against_ref(merge_head)))
+        base_commit = get_ref_commit(base_ref) or merge_head
+        return ScopeResult(
+            file_count=len(files),
+            merge_base=base_commit[:12],
+            current_branch=branch,
+            files=tuple(files),
+        )
 
     merge_base = get_merge_base(base_branch)
     if not merge_base:

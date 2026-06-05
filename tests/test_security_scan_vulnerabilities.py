@@ -30,10 +30,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import cast
 
 import pytest
 
@@ -62,6 +64,36 @@ def _load_scanner() -> ModuleType:
 scanner = _load_scanner()
 
 
+def test_path_based_import_removes_temporary_sibling_import_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Path-based import must not leave the scanner directory on sys.path."""
+    script_dir = str(SCANNER_PATH.parent)
+    monkeypatch.setattr(
+        sys,
+        "path",
+        [entry for entry in sys.path if entry != script_dir],
+    )
+    for module_name in [
+        "scan_constants",
+        "scan_format",
+        "scan_patterns",
+        "scan_vulnerabilities_path_isolation",
+    ]:
+        monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+    spec = importlib.util.spec_from_file_location(
+        "scan_vulnerabilities_path_isolation",
+        SCANNER_PATH,
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "scan_vulnerabilities_path_isolation", module)
+    spec.loader.exec_module(module)
+
+    assert script_dir not in sys.path
+
+
 def _descriptions_for(language: str, line: str) -> list[str]:
     """Return descriptions of every CWE-78 pattern that matches `line`.
 
@@ -69,11 +101,12 @@ def _descriptions_for(language: str, line: str) -> list[str]:
     checked against the whole pattern set for a language. Used by the
     parametrized positive and negative pattern tests.
     """
-    return [
-        str(info["description"])
-        for info in scanner.CWE78_PATTERNS[language]
-        if info["pattern"].search(line)  # type: ignore[attr-defined]
-    ]
+    descriptions = []
+    for info in scanner.CWE78_PATTERNS[language]:
+        pattern = cast(re.Pattern[str], info["pattern"])
+        if pattern.search(line):
+            descriptions.append(str(info["description"]))
+    return descriptions
 
 
 def _write(tmp_path: Path, name: str, body: str) -> str:
@@ -108,7 +141,21 @@ def _write(tmp_path: Path, name: str, body: str) -> str:
     ],
 )
 def test_get_language_maps_extension(filename: str, expected: str | None) -> None:
-    assert scanner.get_language(filename) == expected
+    assert scanner.get_language(str(Path(__file__).parent / filename)) == expected
+
+
+def test_get_language_detects_extensionless_bash_shebang(tmp_path: Path) -> None:
+    hook = tmp_path / "pre-push"
+    hook.write_text("#!/usr/bin/env bash\nprintf '%s\\n' \"$msg\"\n", encoding="utf-8")
+
+    assert scanner.get_language(str(hook)) == "bash"
+
+
+def test_get_language_ignores_extensionless_non_bash_shebang(tmp_path: Path) -> None:
+    script = tmp_path / "utility"
+    script.write_text("#!/usr/bin/env python3\nprint('ok')\n", encoding="utf-8")
+
+    assert scanner.get_language(str(script)) is None
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +523,18 @@ def test_cli_exit_vulnerabilities_on_dirty_file(tmp_path: Path) -> None:
     assert "Command Injection" in result.stdout
 
 
+def test_cli_console_exit_line_matches_errors_with_findings(tmp_path: Path) -> None:
+    name = _write(tmp_path, "bad.py", "subprocess.run(cmd, shell=True)\n")
+    result = _run_cli(name, "missing.py", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    assert "Errors:" in result.stdout
+    assert "Error reading missing.py" in result.stdout
+    assert "Exit code: 1 (scan error)" in result.stdout
+    assert "CWE-78" in result.stdout
+    assert "Exit code: 1 (scan error)" in result.stdout
+
+
 def test_cli_exit_error_when_no_files_given(tmp_path: Path) -> None:
     result = _run_cli(cwd=tmp_path)
     assert result.returncode == scanner.EXIT_ERROR
@@ -487,6 +546,24 @@ def test_cli_exit_success_when_only_unsupported_files(tmp_path: Path) -> None:
     result = _run_cli(name, cwd=tmp_path)
     assert result.returncode == scanner.EXIT_SUCCESS
     assert "No supported files found" in result.stdout
+
+
+def test_cli_exit_error_when_supported_file_cannot_be_read(tmp_path: Path) -> None:
+    result = _run_cli("missing.py", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    assert "Errors:" in result.stdout
+    assert "Error reading missing.py" in result.stdout
+
+
+def test_cli_json_reports_read_errors_fail_closed(tmp_path: Path) -> None:
+    result = _run_cli("--format", "json", "missing.py", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_ERROR
+    payload = json.loads(result.stdout)
+    assert payload["exit_code"] == scanner.EXIT_ERROR
+    assert len(payload["errors"]) == 1
+    assert payload["errors"][0].startswith("Error reading missing.py:")
 
 
 def test_cli_json_output_reports_findings(tmp_path: Path) -> None:
@@ -525,6 +602,35 @@ def test_cli_directory_scan_finds_nested_file(tmp_path: Path) -> None:
     (nested / "dirty.sh").write_text('eval "$cmd"\n', encoding="utf-8")
     result = _run_cli("--directory", "src", cwd=tmp_path)
     assert result.returncode == scanner.EXIT_VULNERABILITIES
+    assert "CWE-78" in result.stdout
+
+
+def test_cli_directory_scan_finds_extensionless_bash_hook(tmp_path: Path) -> None:
+    hooks = tmp_path / ".githooks"
+    hooks.mkdir()
+    (hooks / "pre-push").write_text(
+        "#!/usr/bin/env bash\neval \"$cmd\"\n",
+        encoding="utf-8",
+    )
+
+    result = _run_cli("--directory", ".githooks", cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_VULNERABILITIES
+    assert "pre-push:2" in result.stdout
+    assert "CWE-78" in result.stdout
+
+
+def test_cli_explicit_extensionless_bash_hook_is_scanned(tmp_path: Path) -> None:
+    name = _write(
+        tmp_path,
+        "pre-commit",
+        "#!/bin/bash\neval \"$cmd\"\n",
+    )
+
+    result = _run_cli(name, cwd=tmp_path)
+
+    assert result.returncode == scanner.EXIT_VULNERABILITIES
+    assert "pre-commit:2" in result.stdout
     assert "CWE-78" in result.stdout
 
 
@@ -670,3 +776,125 @@ def test_main_directory_scan_in_process(
     # reported the CWE-78 finding.
     assert code == scanner.EXIT_VULNERABILITIES
     assert "CWE-78" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# Extensionless shebang detection (issue #2367)
+# ---------------------------------------------------------------------------
+# .githooks/pre-push and other extensionless executables advertise their
+# interpreter only via a shebang. The detector must read the first line and
+# treat bash/sh-family shebangs as bash, otherwise high-risk shell entry
+# points are silently skipped under `.githooks/**` per
+# `.github/instructions/security.instructions.md`.
+
+
+@pytest.mark.parametrize(
+    ("shebang", "expected"),
+    [
+        ("#!/usr/bin/env bash\n", "bash"),
+        ("#!/usr/bin/env -S bash\n", "bash"),
+        ("#!/usr/bin/env -i sh\n", "bash"),
+        ("#!/bin/bash\n", "bash"),
+        ("#!/bin/sh\n", "bash"),
+        ("#!/usr/bin/env sh\n", "bash"),
+        ("#! /usr/bin/env bash\n", "bash"),
+        ("#!/usr/bin/env dash\n", "bash"),
+        ("#!/usr/bin/env ksh\n", "bash"),
+        ("#!/usr/bin/env python3\n", None),
+        ("#!/usr/bin/env -S python3\n", None),
+        ("#!/usr/bin/env node\n", None),
+        ("#!/usr/bin/env pwsh\n", None),
+        ("plain text, no shebang\n", None),
+        ("", None),
+    ],
+)
+def test_get_language_shebang_fallback(
+    tmp_path: Path, shebang: str, expected: str | None
+) -> None:
+    """Extensionless files classify by shebang interpreter; non-shell shebangs reject."""
+    f = tmp_path / "pre-push"
+    f.write_text(shebang + "echo hi\n", encoding="utf-8")
+    assert scanner.get_language(str(f)) == expected
+
+
+def test_get_language_extension_wins_over_shebang(tmp_path: Path) -> None:
+    """A known suffix never triggers the shebang path; suffix is authoritative."""
+    f = tmp_path / "thing.txt"
+    f.write_text("#!/usr/bin/env bash\necho hi\n", encoding="utf-8")
+    assert scanner.get_language(str(f)) is None
+
+
+def test_get_language_missing_file_returns_none(tmp_path: Path) -> None:
+    """Unreadable extensionless paths don't raise; they classify as unsupported."""
+    assert scanner.get_language(str(tmp_path / "does-not-exist")) is None
+
+
+def test_get_language_invalid_utf8_shebang_returns_none(tmp_path: Path) -> None:
+    """Invalid UTF-8 in a shebang is treated as unsupported, not replaced."""
+    hook = tmp_path / "pre-push"
+    hook.write_bytes(b"#!\xff\xfe\n")
+    assert scanner.get_language(str(hook)) is None
+
+
+def test_get_directory_files_includes_extensionless_bash(tmp_path: Path) -> None:
+    """Directory walk surfaces extensionless bash scripts under `.githooks/`-style layouts."""
+    hooks = tmp_path / ".githooks"
+    hooks.mkdir()
+    bash_hook = hooks / "pre-push"
+    bash_hook.write_text("#!/usr/bin/env bash\necho hi\n", encoding="utf-8")
+    (hooks / "README").write_text("just docs\n", encoding="utf-8")
+    py_hook = hooks / "py-hook"
+    py_hook.write_text("#!/usr/bin/env python3\nprint('x')\n", encoding="utf-8")
+
+    found = scanner.get_directory_files(str(tmp_path))
+    assert str(bash_hook) in found
+    assert str(hooks / "README") not in found
+    assert str(py_hook) not in found
+
+
+def test_get_directory_files_prunes_noisy_directories(tmp_path: Path) -> None:
+    """Directory walk skips dependency and metadata trees before shebang reads."""
+    git_objects = tmp_path / ".git" / "objects"
+    git_objects.mkdir(parents=True)
+    git_object = git_objects / "abcdef"
+    git_object.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    node_bin = tmp_path / "node_modules" / ".bin"
+    node_bin.mkdir(parents=True)
+    node_script = node_bin / "tool"
+    node_script.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    mixed_case = tmp_path / "Node_Modules" / ".bin"
+    mixed_case.mkdir(parents=True)
+    mixed_case_script = mixed_case / "tool"
+    mixed_case_script.write_text(
+        "#!/usr/bin/env bash\neval $payload\n", encoding="utf-8"
+    )
+
+    hooks = tmp_path / ".githooks"
+    hooks.mkdir()
+    hook = hooks / "pre-push"
+    hook.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    found = scanner.get_directory_files(str(tmp_path))
+
+    assert str(hook) in found
+    assert str(git_object) not in found
+    assert str(node_script) not in found
+    assert str(mixed_case_script) not in found
+
+
+def test_scan_extensionless_bash_hook_emits_cwe78(tmp_path: Path) -> None:
+    """End-to-end: an extensionless bash hook with a CWE-78 pattern is detected."""
+    hook = tmp_path / "pre-push"
+    hook.write_text(
+        "#!/usr/bin/env bash\n"
+        "FILE=$1\n"
+        'echo "running $FILE"\n'
+        "eval $FILE\n",
+        encoding="utf-8",
+    )
+    vulns, _suppressed = scanner.scan_file(str(hook))
+    assert any(v.cwe == "CWE-78" for v in vulns), (
+        f"expected at least one CWE-78 finding, got {[v.cwe for v in vulns]}"
+    )

@@ -32,6 +32,7 @@ main = _mod.main
 _has_content = _mod._has_synthesizable_content
 _build_comment = _mod._build_synthesis_comment
 _get_guidance = _mod._get_maintainer_guidance
+_get_plan = _mod._get_coderabbit_plan
 _get_triage = _mod._get_ai_triage_info
 _extract_yaml_list = _mod._extract_yaml_list
 
@@ -162,6 +163,21 @@ class TestGetMaintainerGuidance:
         assert result == []
 
 
+class TestGetCodeRabbitPlan:
+    def test_null_body_is_ignored(self):
+        comments = [{"body": None, "user": {"login": "coderabbitai[bot]"}}]
+        patterns = {
+            "username": "coderabbitai[bot]",
+            "implementation_plan": "## Implementation",
+            "related_issues": "Similar Issues",
+            "related_prs": "Related PRs",
+        }
+
+        result = _get_plan(comments, patterns)
+
+        assert result == {"implementation": None, "related_issues": [], "related_prs": []}
+
+
 class TestGetAITriageInfo:
     def test_table_format(self):
         comments = [
@@ -222,11 +238,80 @@ def test_dry_run_no_content(mock_run, capsys):
     with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
         with patch.object(_mod, "get_issue_comments", return_value=[]):
             with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
-                rc = main(["--issue-number", "1", "--dry-run"])
+                rc = main([
+                    "--issue-number", "1", "--dry-run", "--output-format", "human",
+                ])
 
     assert rc == 0
     out = capsys.readouterr().out
     assert "SKIP" in out
+
+
+@patch("subprocess.run")
+def test_dry_run_json_outputs_single_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout=_issue_json()),  # issue fetch
+    ]
+
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with patch.object(_mod, "get_issue_comments", return_value=[]):
+            with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
+                rc = main([
+                    "--issue-number", "1", "--dry-run", "--output-format", "json",
+                ])
+
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is True
+    assert output["Data"]["action"] == "dry_run"
+    assert output["Data"]["has_synthesizable_content"] is False
+    assert output["Data"]["would_assign"] is True
+
+
+@patch("subprocess.run")
+def test_dry_run_json_honors_skip_assignment(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout=_issue_json()),  # issue fetch
+    ]
+
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with patch.object(_mod, "get_issue_comments", return_value=[]):
+            with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
+                rc = main([
+                    "--issue-number", "1", "--dry-run", "--skip-assignment",
+                    "--output-format", "json",
+                ])
+
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is True
+    assert output["Data"]["action"] == "dry_run"
+    assert output["Data"]["would_assign"] is False
+
+
+@patch("subprocess.run")
+def test_issue_json_null_payload_does_not_crash(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="null"),  # issue fetch
+    ]
+
+    with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
+        with patch.object(_mod, "get_issue_comments", return_value=[]):
+            with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
+                rc = main([
+                    "--issue-number", "1", "--dry-run", "--output-format", "json",
+                ])
+
+    assert rc == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is True
+    assert output["Data"]["action"] == "dry_run"
 
 
 def _extract_json(text: str) -> dict:
@@ -254,5 +339,6 @@ def test_prepare_context_only(mock_run, capsys):
 
     assert rc == 0
     output = _extract_json(capsys.readouterr().out)
-    assert "context_file" in output
-    assert output["existing_synthesis_id"] is None
+    assert output["Success"] is True
+    assert "context_file" in output["Data"]
+    assert output["Data"]["existing_synthesis_id"] is None

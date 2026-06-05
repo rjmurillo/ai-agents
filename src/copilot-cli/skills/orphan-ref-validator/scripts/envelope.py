@@ -42,6 +42,17 @@ class Finding:
     recommendation: str
     expected: str | None = None
     actual: str | None = None
+    suppressed: bool = False
+
+    @property
+    def key(self) -> str:
+        """Stable baseline key: ``target_file:line:kind:referenced_entity``.
+
+        Used to match a finding against a baseline of known pre-existing
+        findings so a default repo-wide scan does not fail on debt that
+        predates the gate (issue #2371).
+        """
+        return f"{self.target_file}:{self.line}:{self.kind}:{self.referenced_entity}"
 
     def to_dict(self) -> dict:
         d = {
@@ -56,6 +67,8 @@ class Finding:
             d["expected"] = self.expected
         if self.actual is not None:
             d["actual"] = self.actual
+        if self.suppressed:
+            d["suppressed"] = True
         return d
 
 
@@ -67,9 +80,15 @@ class ScanResult:
 
     @property
     def verdict(self) -> Verdict:
-        if any(f.severity == "critical" for f in self.findings):
+        # Suppressed findings are known pre-existing debt matched against a
+        # baseline (issue #2371). They never drive the verdict: a critical
+        # finding that is suppressed does not fail the scan, and a scan whose
+        # only findings are suppressed is PASS. A non-suppressed critical
+        # (a new orphan ref not in the baseline) still fails.
+        active = [f for f in self.findings if not f.suppressed]
+        if any(f.severity == "critical" for f in active):
             return "CRITICAL_FAIL"
-        if self.findings:
+        if active:
             return "WARN"
         return "PASS"
 
@@ -113,6 +132,7 @@ def render_error_envelope(
 
 def render_envelope(result: ScanResult, output: str) -> str:
     """Render the ADR-056 envelope for a completed scan."""
+    suppressed_total = sum(1 for f in result.findings if f.suppressed)
     envelope = {
         "Success": True,
         "Data": {
@@ -122,6 +142,7 @@ def render_envelope(result: ScanResult, output: str) -> str:
                 "files_scanned": result.files_scanned,
                 "refs_checked": result.refs_checked,
                 "findings_total": len(result.findings),
+                "findings_suppressed": suppressed_total,
             },
         },
         "Error": None,
@@ -137,10 +158,12 @@ def render_envelope(result: ScanResult, output: str) -> str:
             f"  files_scanned: {result.files_scanned}",
             f"  refs_checked:  {result.refs_checked}",
             f"  findings:      {len(result.findings)}",
+            f"  suppressed:    {suppressed_total}",
         ]
         for f in result.findings:
+            tag = f.severity + " (suppressed)" if f.suppressed else f.severity
             lines.append(
-                f"  [{f.severity}] {f.target_file}:{f.line} {f.kind} "
+                f"  [{tag}] {f.target_file}:{f.line} {f.kind} "
                 f"`{f.referenced_entity}` -- {f.recommendation}"
             )
         return "\n".join(lines) + f"\nVERDICT: {result.verdict}"
