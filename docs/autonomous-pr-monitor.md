@@ -58,7 +58,7 @@ A PR is ready to merge ONLY when ALL of the following hold:
 1. **Branch up to date with `main`**. `mergeStateStatus != BEHIND`. If behind, merge `main` into the branch (or rebase) and push before landing. `CanMerge=True` from `test_pr_merge_ready.py` is not sufficient when the GitHub `mergeStateStatus` is `BLOCKED` or `BEHIND`.
 2. **All required checks pass**. Each required check's latest run is `SUCCESS`. The canonical signal is `test_pr_merge_ready.py`'s `CIPassing == true`, which collapses each check name to its latest run state and ignores superseded `CANCELLED` runs when a later `SUCCESS` exists. A `FAILURE` or `PENDING` on the latest run still blocks; a stale `CANCELLED` on an older run does not.
 3. **All conversations addressed end-to-end**. For every currently UNRESOLVED thread, the agent must walk the 5-step lifecycle below (READ, TRIAGE, SOLVE if Blocking, REPLY, RESOLVE). Threads already RESOLVED before the session started require only READ and TRIAGE to confirm the resolution still matches the current diff; SOLVE, REPLY, and RESOLVE do not apply when there is nothing to act on. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
-4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable.
+4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable. **Auto-merge** (`set_pr_auto_merge.py --enable`) only works when state is `CLEAN`; GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439). For documented-`UNSTABLE` PRs use direct merge (`merge_pr.py --strategy squash`) instead.
 
 `CanMerge` from `test_pr_merge_ready.py` is a partial signal. Always cross-check against the four conditions above before enabling auto-merge or merging directly.
 
@@ -177,7 +177,7 @@ Review the list and identify ANY memories that could be even tangentially releva
 
 ### Step 3: Read Relevant Memories
 
-Call `mcp__serena__read_memory` for each potentially relevant memory you identified. Do not hesitate to read multiple memories—your goal is to be as informed as possible.
+Call `mcp__serena__read_memory` for each potentially relevant memory you identified. Do not hesitate to read multiple memories: your goal is to be as informed as possible.
 
 ### Step 4: Synthesize and Incorporate
 
@@ -233,7 +233,7 @@ Commit all changes including files in the `.agents/` directory.
 
 ## Required Analysis Process
 
-Before providing your final response, work through your analysis inside a thinking block in `<session_analysis>` tags. This section can be quite long—thoroughness is more important than brevity. It's OK for this section to be quite long. Structure your analysis with these sections:
+Before providing your final response, work through your analysis inside a thinking block in `<session_analysis>` tags. This section can be quite long: thoroughness is more important than brevity. It's OK for this section to be quite long. Structure your analysis with these sections:
 
 ### 1. Session State Determination
 
@@ -259,7 +259,7 @@ After initialization (or immediately if not a new session), plan the PR review w
 
 ### 3. Memory Inventory
 
-After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long—a comprehensive memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
+After calling `mcp__serena__list_memories`, write down every single memory key that was returned. List them all out, one by one. This section can be quite long: a comprehensive memory inventory may include dozens of keys, and you should list every single one. Do not skip any memory keys.
 
 ### 4. Memory Relevance Evaluation
 
@@ -268,7 +268,7 @@ Go through your list of memories systematically, evaluating each one individuall
 - Explain why it's relevant or not relevant (even a brief explanation)
 - Mark which ones you'll read with `mcp__serena__read_memory`
 
-Work through each memory one by one. Be liberal in your assessment—when in doubt, mark it as worth reading.
+Work through each memory one by one. Be liberal in your assessment: when in doubt, mark it as worth reading.
 
 ### 5. Technical Pattern Analysis (IMPORTANT)
 
@@ -722,10 +722,10 @@ python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner {owner} --
 # Get unresolved review threads
 python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Merge a PR
+# Merge a PR (direct merge: use for UNSTABLE with documented non-required failures, or any CLEAN PR you want merged immediately)
 python3 .claude/skills/github/scripts/pr/merge_pr.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Enable auto-merge
+# Enable auto-merge (CLEAN state only; GitHub refuses UNSTABLE per issue #2439)
 python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --owner {owner} --repo {repo} --pull-request {number}
 
 # Find notifications needing attention
