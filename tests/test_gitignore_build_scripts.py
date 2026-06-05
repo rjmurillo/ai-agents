@@ -19,7 +19,7 @@ def _check_ignore(repo: Path, relpath: str) -> bool:
     """Return True iff git considers `relpath` ignored inside `repo`."""
     # check-ignore exits 0 when the path IS ignored, 1 when NOT ignored.
     result = subprocess.run(
-        ["git", "check-ignore", "-q", "--no-index", relpath],
+        ["git", "check-ignore", "-q", relpath],
         cwd=repo,
         check=False,
     )
