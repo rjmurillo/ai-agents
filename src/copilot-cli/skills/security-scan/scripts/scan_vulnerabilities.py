@@ -239,6 +239,21 @@ CWE78_PATTERNS = {
 _BASH_SHEBANG_RE = re.compile(
     r"^#!\s*(?:/usr/bin/env\s+)?(?:[\w./-]*/)?(?:ba|da|k|a)?sh\b"
 )
+_PRUNED_DIRECTORY_NAMES = {
+    ".git",
+    ".hg",
+    ".svn",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+}
 
 
 def _detect_shebang_language(file_path: str) -> str | None:
@@ -258,7 +273,7 @@ def _detect_shebang_language(file_path: str) -> str | None:
     if not head.startswith(b"#!"):
         return None
     try:
-        first_line = head.split(b"\n", 1)[0].decode("utf-8", errors="replace")
+        first_line = head.split(b"\n", 1)[0].decode("utf-8")
     except UnicodeDecodeError:
         return None
     if _BASH_SHEBANG_RE.match(first_line):
@@ -323,7 +338,11 @@ def get_directory_files(directory: str) -> list[str]:
     """
     supported_extensions = {".py", ".ps1", ".psm1", ".sh", ".bash", ".cs"}
     files = []
-    for root, _, filenames in os.walk(directory):
+    for root, dirnames, filenames in os.walk(directory):
+        dirnames[:] = [
+            dirname for dirname in dirnames
+            if dirname not in _PRUNED_DIRECTORY_NAMES
+        ]
         for filename in filenames:
             full_path = os.path.join(root, filename)
             ext = Path(filename).suffix.lower()

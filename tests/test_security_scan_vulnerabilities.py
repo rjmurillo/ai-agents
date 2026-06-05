@@ -722,6 +722,13 @@ def test_get_language_missing_file_returns_none(tmp_path: Path) -> None:
     assert scanner.get_language(str(tmp_path / "does-not-exist")) is None
 
 
+def test_get_language_invalid_utf8_shebang_returns_none(tmp_path: Path) -> None:
+    """Invalid UTF-8 in a shebang is treated as unsupported, not replaced."""
+    hook = tmp_path / "pre-push"
+    hook.write_bytes(b"#!\xff\xfe\n")
+    assert scanner.get_language(str(hook)) is None
+
+
 def test_get_directory_files_includes_extensionless_bash(tmp_path: Path) -> None:
     """Directory walk surfaces extensionless bash scripts under `.githooks/`-style layouts."""
     hooks = tmp_path / ".githooks"
@@ -738,6 +745,30 @@ def test_get_directory_files_includes_extensionless_bash(tmp_path: Path) -> None
     assert str(bash_hook) in found
     assert str(hooks / "README") not in found
     assert str(py_hook) not in found
+
+
+def test_get_directory_files_prunes_noisy_directories(tmp_path: Path) -> None:
+    """Directory walk skips dependency and metadata trees before shebang reads."""
+    git_objects = tmp_path / ".git" / "objects"
+    git_objects.mkdir(parents=True)
+    git_object = git_objects / "abcdef"
+    git_object.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    node_bin = tmp_path / "node_modules" / ".bin"
+    node_bin.mkdir(parents=True)
+    node_script = node_bin / "tool"
+    node_script.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    hooks = tmp_path / ".githooks"
+    hooks.mkdir()
+    hook = hooks / "pre-push"
+    hook.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
+
+    found = scanner.get_directory_files(str(tmp_path))
+
+    assert str(hook) in found
+    assert str(git_object) not in found
+    assert str(node_script) not in found
 
 
 def test_scan_extensionless_bash_hook_emits_cwe78(tmp_path: Path) -> None:
