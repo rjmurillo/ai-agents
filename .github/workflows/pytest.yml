@@ -198,6 +198,7 @@ jobs:
           #     CVE-2026-3219 above: local-only attack surface that does not
           #     apply to CI's uv-lockfile install path). Drop this ignore in
           #     the same upgrade as CVE-2026-3219.
+          python -m pip install --upgrade "pip==26.1.2"
           pip-audit \
             --ignore-vuln CVE-2026-4539 \
             --ignore-vuln CVE-2026-3219 \
