@@ -1,5 +1,5 @@
 ---
-description: "DEPRECATED: Use context-retrieval agent instead. Deep exploration of Forgetful knowledge graph with entity traversal."
+description: "DEPRECATED: Use the exploring-knowledge-graph skill instead. Deep exploration of Forgetful knowledge graph with entity traversal."
 argument-hint: <starting-query>
 allowed-tools:
   - mcp__forgetful__*
@@ -8,7 +8,7 @@ model: opus
 
 # Memory Explore
 
-> **Deprecated**: Use `Task(subagent_type="context-retrieval")` for deep exploration. See [Memory Interface Decision Matrix](../../../CLAUDE.md#memory-interface-decision-matrix).
+> **Deprecated**: Use the `exploring-knowledge-graph` skill for deep exploration (Issue #2103 folded the former context-retrieval agent into it). See [Memory Interface Decision Matrix](../../../CLAUDE.md#memory-interface-decision-matrix).
 
 Perform deep knowledge graph traversal using a lightweight subagent.
 

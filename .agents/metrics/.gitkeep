@@ -1,0 +1,7 @@
+# Kill-criteria telemetry (REQ-008-09).
+#
+# Runtime events are written by scripts/metrics/kill_criteria.py to
+# drift-events.jsonl in this directory. That file is git-ignored; this
+# .gitkeep seed keeps the directory present on a fresh clone so the
+# emitter never has to create a tracked path. See
+# .agents/specs/requirements/REQ-008-review-axes-convergence.md (K1-K4).

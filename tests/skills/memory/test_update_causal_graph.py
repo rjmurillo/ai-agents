@@ -4,8 +4,6 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -56,6 +54,8 @@ class TestAddCausalEdge:
         assert edge is not None
         assert edge["source"] == "n001"
         assert edge["weight"] == 0.8
+        assert edge["evidence_count"] == 1
+        assert "count" not in edge
         assert len(graph["edges"]) == 1
 
     def test_updates_existing_edge(self):
@@ -63,7 +63,29 @@ class TestAddCausalEdge:
         update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.8)
         edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6)
         assert len(graph["edges"]) == 1
-        assert edge["count"] == 2
+        assert edge["evidence_count"] == 2
+        assert edge["weight"] == 0.7
+        assert "count" not in edge
+
+    def test_migrates_legacy_count_key(self):
+        graph = {
+            "nodes": [],
+            "edges": [
+                {
+                    "source": "n001",
+                    "target": "n002",
+                    "type": "causes",
+                    "weight": 0.8,
+                    "count": 9,
+                }
+            ],
+            "patterns": [],
+        }
+        edge = update_causal_graph.add_causal_edge(graph, "n001", "n002", "causes", 0.6)
+
+        assert edge["evidence_count"] == 10
+        assert edge["weight"] == 0.78
+        assert "count" not in edge
 
 
 class TestAddPattern:
