@@ -614,26 +614,21 @@ class TestPassWhenPythonNegativeBranches:
                 {}, "lambda d: d\n.get('x')",
             )
 
-    def test_non_callable_result_rejected(self):
-        # A lambda that yields a non-callable value (defensive guard for
-        # a future expression form that does not produce a function).
-        # `lambda d: 1` is callable, so we exercise the guard via the
-        # boolean coercion: the function must be a callable in the
-        # is-checked sense. We force the result to a non-callable by
-        # supplying a degenerate expression that startswith "lambda" but
-        # whose body is parsed as something other than a function.
-        # Python forbids that at parse-time, so this branch is reached
-        # only via the ``isinstance(expr, str)`` + ``startswith`` path.
-        # The only way to exercise the ``not callable(func)`` line is to
-        # call _eval_pass_when_python with an expression that compiles
-        # but produces a non-callable. None such exists for ``lambda``,
-        # so we confirm the guard via direct unit-style exercise: feed
-        # a value that bypasses the startswith check by patching it.
-        with patch.object(
-            _dispatcher, "eval", return_value=42, create=True,
-        ):
-            with pytest.raises(ValueError, match="did not yield a callable"):
-                _dispatcher._eval_pass_when_python({}, "lambda d: True")
+    def test_not_a_lambda_body_rejected(self):
+        # A bare expression (no lambda) is rejected before any AST walk.
+        with pytest.raises(ValueError, match="must be a lambda"):
+            _dispatcher._eval_pass_when_python({}, "d.get('x') is True")
+
+    def test_invalid_python_syntax_rejected(self):
+        with pytest.raises(ValueError, match="not valid Python"):
+            _dispatcher._eval_pass_when_python({}, "lambda d: d.get(")
+
+    def test_multi_argument_lambda_rejected(self):
+        # A second parameter is outside the one-positional-arg contract.
+        with pytest.raises(ValueError, match="exactly one positional argument"):
+            _dispatcher._eval_pass_when_python(
+                {}, "lambda d, e: d.get('x') is True",
+            )
 
 
 class TestDispatcherCriterionRejectionPaths:
@@ -1021,6 +1016,233 @@ class TestPassWhenPythonBroadException:
         assert rc == 1
         result = json.loads(capsys.readouterr().out)
         assert "fails closed" in result["criteria"][0]["reason"]
+
+
+class TestPassWhenPythonAstSafeSubset:
+    """The pass_when_python evaluator walks a whitelisted AST subset and
+    never calls ``eval`` (issue #2303 hardening). These tests pin the
+    accepted operators and prove the rejected ones fail closed.
+    """
+
+    def test_is_true_comparison(self):
+        assert _dispatcher._eval_pass_when_python(
+            {"CanMerge": True}, "lambda d: d.get('CanMerge') is True",
+        ) is True
+
+    def test_is_true_comparison_false_when_value_not_true(self):
+        # ``is True`` must be identity-strict: a truthy non-True value
+        # (e.g. the string "yes") does NOT satisfy ``is True``.
+        assert _dispatcher._eval_pass_when_python(
+            {"CanMerge": "yes"}, "lambda d: d.get('CanMerge') is True",
+        ) is False
+
+    def test_and_composition(self):
+        data = {"CanMerge": True, "fetched_pages_complete": True}
+        assert _dispatcher._eval_pass_when_python(
+            data,
+            "lambda d: d.get('CanMerge') is True "
+            "and d.get('fetched_pages_complete') is True",
+        ) is True
+
+    def test_or_composition(self):
+        assert _dispatcher._eval_pass_when_python(
+            {"a": False, "b": True},
+            "lambda d: d.get('a') is True or d.get('b') is True",
+        ) is True
+
+    def test_not_operator(self):
+        assert _dispatcher._eval_pass_when_python(
+            {"merged": False}, "lambda d: not d.get('merged') is True",
+        ) is True
+
+    def test_get_with_default(self):
+        assert _dispatcher._eval_pass_when_python(
+            {}, "lambda d: d.get('missing', 0) == 0",
+        ) is True
+
+    def test_in_membership_against_tuple(self):
+        assert _dispatcher._eval_pass_when_python(
+            {"state": "CLEAN"},
+            "lambda d: d.get('state') in ('CLEAN', 'UNSTABLE')",
+        ) is True
+
+    def test_numeric_comparison(self):
+        assert _dispatcher._eval_pass_when_python(
+            {"x": 7}, "lambda d: d.get('x', 0) > 0",
+        ) is True
+
+    def test_attribute_call_other_than_get_rejected(self):
+        # ``d.keys()`` is a method call but not the permitted ``get``.
+        with pytest.raises(ValueError, match="get"):
+            _dispatcher._eval_pass_when_python(
+                {"x": 1}, "lambda d: d.keys() is not None",
+            )
+
+    def test_arbitrary_name_rejected(self):
+        # A free name (not the lambda param) must not resolve.
+        with pytest.raises(ValueError, match="unknown name"):
+            _dispatcher._eval_pass_when_python(
+                {}, "lambda d: __import__ is None",
+            )
+
+    def test_subscript_rejected_fails_closed(self):
+        # ``d['k']`` uses ast.Subscript, outside the whitelist; the
+        # evaluator raises rather than executing it.
+        with pytest.raises(ValueError, match="unsupported expression node"):
+            _dispatcher._eval_pass_when_python(
+                {"k": 1}, "lambda d: d['k'] == 1",
+            )
+
+    def test_binop_rejected_before_evaluation(self):
+        # ``1 / 0`` is an ast.BinOp; rejected by the node whitelist before
+        # any ZeroDivisionError can occur. Proves no arithmetic runs.
+        with pytest.raises(ValueError, match="unsupported expression node"):
+            _dispatcher._eval_pass_when_python({}, "lambda d: 1 / 0 == 0")
+
+    def test_call_to_builtin_rejected(self):
+        # A bare builtin call (len) is not <param>.get(...); rejected.
+        with pytest.raises(ValueError):
+            _dispatcher._eval_pass_when_python(
+                {"x": [1]}, "lambda d: len(d.get('x')) == 1",
+            )
+
+    def test_get_with_too_many_args_rejected(self):
+        with pytest.raises(ValueError, match="one or two positional"):
+            _dispatcher._eval_pass_when_python(
+                {}, "lambda d: d.get('a', 0, 9) == 0",
+            )
+
+
+class TestMergeReadyFalseFailRegression:
+    """Issue #2303 regression: the completion gate must return success when
+    test_pr_merge_ready.py reports CanMerge=True and fetched_pages_complete,
+    using the production pass_when_python predicate verbatim. Before the fix
+    the gate re-checked ``MergeStateStatus in ('CLEAN', 'UNSTABLE')`` and
+    false-failed a mergeable BLOCKED PR (observed on PR #2283).
+    """
+
+    # The exact predicate shipped in .claude/commands/pr-review-config.yaml
+    # for the "PR is ready to merge" criterion. Kept verbatim so this test
+    # exercises the real contract, not a paraphrase.
+    _MERGE_READY_PASS_WHEN = (
+        "lambda d: d.get('CanMerge') is True "
+        "and d.get('fetched_pages_complete') is True"
+    )
+
+    def _merge_ready_config(self, tmp_path: Path) -> Path:
+        return _write_config(
+            tmp_path,
+            [
+                {
+                    "name": "PR is ready to merge (CI green, no conflicts)",
+                    "verification": "command",
+                    "command": "echo ignored",
+                    "pass_when_python": self._MERGE_READY_PASS_WHEN,
+                    "fail_open": False,
+                },
+            ],
+        )
+
+    def test_can_merge_true_blocked_state_passes(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # The false-fail case: a BLOCKED-but-mergeable PR. CanMerge=True is
+        # the upstream verdict; the gate must honor it without re-deriving
+        # the MergeStateStatus rule. CIPassing/UnresolvedThreads are present
+        # in real output but are NOT re-checked here by design.
+        config_path = self._merge_ready_config(tmp_path)
+        verifier_out = json.dumps(
+            {
+                "CanMerge": True,
+                "CIPassing": True,
+                "UnresolvedThreads": 0,
+                "MergeStateStatus": "BLOCKED",
+                "fetched_pages_complete": True,
+            },
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=verifier_out, returncode=0),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "2283", "--json"],
+            )
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["all_passed"] is True
+        assert result["criteria"][0]["passed"] is True
+
+    def test_can_merge_true_clean_state_passes(
+        self, repo_root, tmp_path, capsys,
+    ):
+        config_path = self._merge_ready_config(tmp_path)
+        verifier_out = json.dumps(
+            {"CanMerge": True, "MergeStateStatus": "CLEAN",
+             "fetched_pages_complete": True},
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=verifier_out, returncode=0),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is True
+
+    def test_can_merge_false_still_fails(self, repo_root, tmp_path, capsys):
+        # Negative control: when the upstream script says CanMerge=False the
+        # gate must still fail. Trusting CanMerge does not weaken the gate.
+        config_path = self._merge_ready_config(tmp_path)
+        verifier_out = json.dumps(
+            {"CanMerge": False, "fetched_pages_complete": True},
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=verifier_out, returncode=0),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is False
+
+    def test_partial_fetch_fails_closed_even_when_can_merge_true(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Data-integrity guard: a truncated GraphQL page (fetched_pages_
+        # complete=False) can hide a failing required check, so the gate
+        # fails closed regardless of CanMerge.
+        config_path = self._merge_ready_config(tmp_path)
+        verifier_out = json.dumps(
+            {"CanMerge": True, "fetched_pages_complete": False},
+        )
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=verifier_out, returncode=0),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is False
+
+    def test_missing_can_merge_field_fails_closed(
+        self, repo_root, tmp_path, capsys,
+    ):
+        # Edge: a verifier that omits CanMerge entirely. ``d.get('CanMerge')``
+        # returns None, ``None is True`` is False, gate fails closed.
+        config_path = self._merge_ready_config(tmp_path)
+        verifier_out = json.dumps({"fetched_pages_complete": True})
+        with patch.object(
+            _dispatcher.subprocess, "run",
+            return_value=_make_proc(stdout=verifier_out, returncode=0),
+        ):
+            rc = _dispatcher.main(
+                ["--config", str(config_path), "--pull-request", "1", "--json"],
+            )
+        assert rc == 1
+        assert json.loads(capsys.readouterr().out)["criteria"][0]["passed"] is False
 
 
 class TestTableModeShowsEvidence:

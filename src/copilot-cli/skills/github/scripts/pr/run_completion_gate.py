@@ -32,25 +32,26 @@ having verified.
 
 If the DSL is insufficient, a criterion may instead specify
 ``pass_when_python: "lambda d: <expr>"``. The expression receives the
-parsed stdout-json dict and must return a truthy/falsy value. This is
-provided as an escape hatch when a criterion's logic does not fit the
-DSL; prefer ``pass_when`` where possible.
+parsed stdout-json dict and must return a truthy/falsy value. The
+lambda is parsed with ``ast`` and evaluated through a safe subset
+(boolean composition, comparisons, constants, and ``d.get(...)``
+lookups); arbitrary Python does NOT run. Prefer ``pass_when`` where
+possible.
 
 Trust model
 -----------
 
-This dispatcher executes ``command`` strings and ``pass_when_python``
-lambdas read from the YAML config. The config path MUST be controlled
-by the repository, never user-supplied beyond the validated default.
-Path traversal protection: ``--config`` is canonicalised and rejected
-unless it lives under the repository root via
+This dispatcher executes ``command`` strings read from the YAML config.
+The config path MUST be controlled by the repository, never
+user-supplied beyond the validated default. Path traversal protection:
+``--config`` is canonicalised and rejected unless it lives under the
+repository root via
 ``scripts.utils.path_validation.validate_safe_path``. The
-``pass_when_python`` evaluator runs ``eval`` with an empty
-``__builtins__`` dict; this is NOT a sandbox (Python's class hierarchy
-remains reachable) and is only acceptable because the config is
-in-repo, in-tree, and reviewed alongside this script. Do not extend
-this dispatcher to load config from network input or user-supplied
-absolute paths.
+``pass_when_python`` evaluator no longer calls ``eval``: it parses the
+lambda with ``ast`` and walks a whitelisted node set, so a config
+expression cannot reach Python's class hierarchy or any builtin. This
+closes the arbitrary-code-execution surface the prior ``eval``-based
+evaluator carried on PR-branch configs (see below).
 
 PR-branch trust boundary
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,10 +59,12 @@ PR-branch trust boundary
 When the dispatcher is invoked by ``/pr-review`` after checking out a
 PR branch (via ``gh pr checkout``), the config it reads is the PR
 branch's copy of ``pr-review-config.yaml`` -- NOT the trusted version
-on ``main``. A malicious PR can edit ``completion_criteria.command``
-or ``pass_when_python`` to execute arbitrary code on the reviewer's
-machine. ``validate_safe_path`` keeps the file inside the repo; it
-does NOT make the file trusted.
+on ``main``. A malicious PR can still edit ``completion_criteria.command``
+to execute arbitrary code on the reviewer's machine via the dispatched
+subprocess. ``validate_safe_path`` keeps the file inside the repo; it
+does NOT make the file trusted. The ``pass_when_python`` path is no
+longer part of that surface now that it runs through the AST evaluator
+rather than ``eval``.
 
 This is the same trust the reviewer extends by running tests or
 linters on a PR branch, but the surface here is more direct: the
@@ -94,6 +97,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import shlex
 import subprocess
@@ -295,32 +299,154 @@ def _eval_pass_when(data: dict, expr: str) -> bool:
     return bool(result)
 
 
-def _eval_pass_when_python(data: dict, expr: str) -> bool:
-    """Evaluate a pass_when_python expression. Escape hatch only.
+# Comparison-operator AST node -> Python operation. Only these
+# comparison forms are permitted in a pass_when_python lambda.
+_COMPARE_OPS: dict[type[ast.cmpop], Any] = {
+    ast.Eq: lambda a, b: a == b,
+    ast.NotEq: lambda a, b: a != b,
+    ast.Is: lambda a, b: a is b,
+    ast.IsNot: lambda a, b: a is not b,
+    ast.Lt: lambda a, b: a < b,
+    ast.LtE: lambda a, b: a <= b,
+    ast.Gt: lambda a, b: a > b,
+    ast.GtE: lambda a, b: a >= b,
+    ast.In: lambda a, b: a in b,
+    ast.NotIn: lambda a, b: a not in b,
+}
 
-    The expression must be a single ``lambda d: ...`` form. The lambda
-    receives the parsed stdout-json dict.
 
-    Security: this function calls ``eval``. The empty ``__builtins__``
-    dict does NOT sandbox the expression (Python's class hierarchy is
-    still reachable). The trust model lives in the module docstring:
-    the config that supplies ``expr`` MUST be repo-controlled. Reject
-    obviously malformed expressions before eval to keep the surface
-    visible to maintainers.
+class _UnsafeExpression(ValueError):
+    """A pass_when_python lambda used a construct outside the safe subset."""
+
+
+def _parse_pass_when_python(expr: str) -> ast.Lambda:
+    """Parse and structurally validate a pass_when_python lambda.
+
+    Returns the ``ast.Lambda`` node for a single ``lambda <param>: <body>``
+    form. Raises ``ValueError`` on any malformed or non-lambda input so the
+    caller fails closed.
     """
     if not isinstance(expr, str):
         raise ValueError("pass_when_python must be a string")
     expr = expr.strip()
     if not expr.startswith("lambda"):
-        raise ValueError(
-            "pass_when_python must be a lambda expression"
-        )
+        raise ValueError("pass_when_python must be a lambda expression")
     if "\n" in expr or "\r" in expr:
         raise ValueError("pass_when_python must be a single line")
-    func = eval(expr, {"__builtins__": {}}, {})  # noqa: S307
-    if not callable(func):
-        raise ValueError("pass_when_python did not yield a callable")
-    return bool(func(data))
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"pass_when_python is not valid Python: {exc}") from exc
+    node = tree.body
+    if not isinstance(node, ast.Lambda):
+        raise ValueError("pass_when_python must be a lambda expression")
+    args = node.args
+    if (
+        len(args.args) != 1
+        or args.vararg is not None
+        or args.kwarg is not None
+        or args.kwonlyargs
+        or args.posonlyargs
+        or args.defaults
+    ):
+        raise ValueError(
+            "pass_when_python lambda must take exactly one positional argument",
+        )
+    return node
+
+
+def _eval_node(node: ast.AST, param_name: str, data: dict) -> Any:
+    """Evaluate one whitelisted AST node against the bound ``data`` dict.
+
+    Supports the closed set a completion criterion needs: boolean
+    composition (``and``/``or``), ``not``, comparisons (including ``is`` and
+    ``in``), constants, tuple/list membership operands, the single lambda
+    parameter (which resolves to ``data``), and ``<param>.get(key[, default])``
+    lookups. Any other node raises ``_UnsafeExpression`` so an unexpected
+    construct fails closed instead of executing.
+    """
+    if isinstance(node, ast.BoolOp):
+        values = [_eval_node(v, param_name, data) for v in node.values]
+        if isinstance(node.op, ast.And):
+            return all(values)
+        if isinstance(node.op, ast.Or):
+            return any(values)
+        raise _UnsafeExpression(f"unsupported boolean op: {type(node.op).__name__}")
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return not _eval_node(node.operand, param_name, data)
+    if isinstance(node, ast.Compare):
+        return _eval_compare(node, param_name, data)
+    if isinstance(node, ast.Constant):
+        return node.value
+    if isinstance(node, ast.Name):
+        if node.id != param_name:
+            raise _UnsafeExpression(f"unknown name: {node.id}")
+        return data
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return [_eval_node(elt, param_name, data) for elt in node.elts]
+    if isinstance(node, ast.Call):
+        return _eval_call(node, param_name, data)
+    raise _UnsafeExpression(f"unsupported expression node: {type(node).__name__}")
+
+
+def _eval_compare(node: ast.Compare, param_name: str, data: dict) -> bool:
+    """Evaluate a (possibly chained) comparison against the safe op table."""
+    left = _eval_node(node.left, param_name, data)
+    result = True
+    for op, comparator in zip(node.ops, node.comparators):
+        op_fn = _COMPARE_OPS.get(type(op))
+        if op_fn is None:
+            raise _UnsafeExpression(
+                f"unsupported comparison op: {type(op).__name__}",
+            )
+        right = _eval_node(comparator, param_name, data)
+        if not op_fn(left, right):
+            return False
+        left = right
+    return result
+
+
+def _eval_call(node: ast.Call, param_name: str, data: dict) -> Any:
+    """Evaluate the only permitted call form: ``<param>.get(key[, default])``."""
+    func = node.func
+    if not (
+        isinstance(func, ast.Attribute)
+        and func.attr == "get"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == param_name
+    ):
+        raise _UnsafeExpression(
+            "only <param>.get(...) calls are allowed in pass_when_python",
+        )
+    if node.keywords or not 1 <= len(node.args) <= 2:
+        raise _UnsafeExpression(
+            "<param>.get(...) takes one or two positional arguments",
+        )
+    key = _eval_node(node.args[0], param_name, data)
+    default = (
+        _eval_node(node.args[1], param_name, data)
+        if len(node.args) == 2
+        else None
+    )
+    if not isinstance(data, dict):
+        return default
+    return data.get(key, default)
+
+
+def _eval_pass_when_python(data: dict, expr: str) -> bool:
+    """Evaluate a pass_when_python expression via a safe AST walk.
+
+    The expression must be a single ``lambda d: ...`` form. The lambda
+    receives the parsed stdout-json dict and is evaluated through
+    ``_eval_node``, which accepts only a whitelisted node set (boolean
+    composition, comparisons, constants, membership operands, the single
+    parameter, and ``<param>.get(...)`` lookups). ``eval`` is never called,
+    so a config expression cannot reach builtins or the class hierarchy.
+    Any out-of-subset construct raises and the caller fails closed.
+    """
+    node = _parse_pass_when_python(expr)
+    param_name = node.args.args[0].arg
+    return bool(_eval_node(node.body, param_name, data))
 
 
 # ---------------------------------------------------------------------------
