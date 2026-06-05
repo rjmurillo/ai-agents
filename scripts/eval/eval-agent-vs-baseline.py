@@ -237,7 +237,7 @@ class FixtureValidator:
         return Fixture(
             id=fixture_id,
             input=fixture_input,
-            provenance=provenance,  # type: ignore[arg-type]
+            provenance=provenance,
             assertions=assertions,
             tags=tags,
             schema_version=SCHEMA_VERSION,
