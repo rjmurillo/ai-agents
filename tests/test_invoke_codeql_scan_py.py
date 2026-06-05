@@ -247,6 +247,14 @@ class TestValidatePathContainment:
 
         assert exc.value.code == 3
 
+    def test_empty_toplevel_is_external_exit_3(self, tmp_path: Path) -> None:
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=" \n", stderr="")
+            with pytest.raises(SystemExit) as exc:
+                validate_path_containment(str(tmp_path))
+
+        assert exc.value.code == 3
+
 
 class TestAnalyzeDatabaseSarifParsing:
     """Tests for SARIF parse failure behavior in analyze_database (Issue #1160)."""

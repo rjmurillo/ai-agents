@@ -386,7 +386,11 @@ def validate_path_containment(repo_path: str) -> None:
         print("Failed to determine project root using git.", file=sys.stderr)
         sys.exit(3)
 
-    top = Path(result.stdout.strip())
+    raw = result.stdout.strip()
+    if not raw:
+        print("Failed to determine project root using git.", file=sys.stderr)
+        sys.exit(3)
+    top = Path(raw)
     if not top.is_absolute():
         top = (script_dir / top).resolve()
     else:
