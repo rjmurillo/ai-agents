@@ -47,7 +47,7 @@ Format:
 fix(subloop): <axis> cluster <id>
 ```
 
-- `<axis>` is the reviewer axis the cluster addresses (`architect`, `security`, `qa`, `devops`, `roadmap`, `reliability`, or `docs`).
+- `<axis>` is the reviewer axis the cluster addresses. Use one of the canonical review axes defined by `CANONICAL_ROLES` in `tests/lib/test_axis_schema.py` (for example `architect`, `security`, `qa`, `code-quality`). That tuple is the single source of truth; this doc does not restate the full list, so the allowlist cannot drift out of sync with it.
 - `<id>` is the cluster identifier from the sub-spec phase (a short letter or slug).
 
 Example: `fix(subloop): architect cluster B`.
