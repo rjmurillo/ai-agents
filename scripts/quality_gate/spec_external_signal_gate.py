@@ -105,9 +105,13 @@ def agent_signal(agent: str, verdict: str) -> str:
 def _read_body(path_str: str) -> str:
     """Read the PR body from ``path_str``; return '' on any miss.
 
-    A missing or unreadable body file yields an empty string, which maps to an
-    UNKNOWN acceptance-criteria signal (no deterministic result available)
-    rather than crashing the observe step.
+    A missing, unreadable, or non-UTF-8 body file yields an empty string, which
+    maps to an UNKNOWN acceptance-criteria signal (no deterministic result
+    available) rather than crashing the observe step. ``UnicodeDecodeError`` is
+    treated as a miss alongside ``OSError`` because a body that is not valid
+    UTF-8 carries no parseable acceptance criteria; the empty result forces
+    NEEDS_REVIEW under the closed-loop rule, so the degradation is visible, not
+    silent.
     """
 
     if not path_str:
@@ -115,7 +119,7 @@ def _read_body(path_str: str) -> str:
     path = Path(path_str)
     try:
         return path.read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return ""
 
 

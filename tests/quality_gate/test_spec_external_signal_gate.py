@@ -150,6 +150,19 @@ class TestBuildSignals:
         signals = build_signals({"TRACE_VERDICT": "PASS"})
         assert signals[0] == "external:acceptance-criteria=UNKNOWN"
 
+    def test_non_utf8_body_file_is_unknown(self, tmp_path) -> None:
+        # A body file that is not valid UTF-8 must degrade to UNKNOWN, not crash
+        # the observe step with UnicodeDecodeError.
+        body_file = tmp_path / "body.md"
+        body_file.write_bytes(b"\xff\xfe acceptance criteria \x80\x81")
+        env = {
+            "PR_BODY_FILE": str(body_file),
+            "TRACE_VERDICT": "PASS",
+            "COMPLETENESS_VERDICT": "PASS",
+        }
+        signals = build_signals(env)
+        assert signals[0] == "external:acceptance-criteria=UNKNOWN"
+
 
 # ---------------------------------------------------------------------------
 # main: end-to-end through gate_aggregator

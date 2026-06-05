@@ -319,9 +319,25 @@ jobs:
         run: |
           # PR body passed via env and written to a file to avoid shell
           # injection from special characters; the adapter reads PR_BODY_FILE.
+          # On workflow_dispatch the event body is empty, so fall back to the
+          # body fetched via gh (mirrors the Extract Spec References step).
+          if [ -z "$PR_BODY" ] && [ -n "$PR_NUMBER" ]; then
+            PR_BODY=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null || true)
+          fi
           printf '%s' "$PR_BODY" > /tmp/pr-body-signal.md
+          # Capture the observe verdict and surface it in the job summary, so a
+          # run records the externally-grounded signal whether or not it blocks.
           PR_BODY_FILE=/tmp/pr-body-signal.md \
-            python3 scripts/quality_gate/spec_external_signal_gate.py
+            python3 scripts/quality_gate/spec_external_signal_gate.py \
+            | tee /tmp/external-gate.json || true
+          {
+            echo "### External-signal gate (observe)"
+            echo ""
+            echo '```json'
+            cat /tmp/external-gate.json 2>/dev/null || echo "(no output)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f /tmp/pr-body-signal.md /tmp/external-gate.json
 
       - name: Generate Validation Report
         if: steps.should-run.outputs.skip != 'true'
