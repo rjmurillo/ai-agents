@@ -407,8 +407,12 @@ class TestMain:
     External tool calls are mocked to avoid requiring actual tools.
     """
 
-    @patch("scripts.validation.pre_pr._run_subprocess")
+    @patch("checks_common._run_subprocess")
     def test_quick_mode_skips_slow_checks(self, mock_subprocess: Any) -> None:  # noqa: ANN401
+        # After issue #2223 the validators live in sibling ``checks_*`` modules;
+        # the shared subprocess wrapper they all import lives in checks_common.
+        # main() also dispatches to per-module copies, but the tolerant
+        # assertion below does not depend on the mock reaching every call.
         mock_subprocess.return_value = (0, "", "")
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
@@ -416,11 +420,13 @@ class TestMain:
         # Should not fail since all checks pass or are skipped
         assert result in (0, 1)  # May fail if scripts don't exist
 
-    @patch("scripts.validation.pre_pr._run_subprocess")
-    @patch("scripts.validation.pre_pr.shutil")
+    @patch("checks_tooling._run_subprocess")
+    @patch("checks_tooling.shutil")
     def test_all_pass_returns_zero(
         self, mock_shutil: Any, mock_subprocess: Any  # noqa: ANN401
     ) -> None:
+        # markdownlint/yamllint tool-availability and subprocess calls live in
+        # checks_tooling after issue #2223; patch them there.
         mock_subprocess.return_value = (0, "", "")
         mock_shutil.which.return_value = "/usr/bin/npx"
 
@@ -583,8 +589,8 @@ class TestValidateDashProhibition:
     def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "README.md\n", ""),  # git diff
@@ -599,8 +605,8 @@ class TestValidateDashProhibition:
         # rather than the working tree. Mock the two subprocess calls
         # in order: (1) git diff returns the file list, (2) git show
         # returns the file content as if from HEAD.
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),  # git diff
@@ -611,8 +617,8 @@ class TestValidateDashProhibition:
     def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "range.md\n", ""),
@@ -626,8 +632,8 @@ class TestValidateDashProhibition:
         vendored = tmp_path / "node_modules" / "pkg" / "README.md"
         vendored.parent.mkdir(parents=True)
         vendored.write_text(f"upstream prose with {chr(0x2014)} dash\n", encoding="utf-8")
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
             assert validate_dash_prohibition(tmp_path) is True
@@ -638,8 +644,8 @@ class TestValidateDashProhibition:
         fixture = tmp_path / "tests" / "hooks" / "fixtures" / "dash_violations.md"
         fixture.parent.mkdir(parents=True)
         fixture.write_text(f"intentional {chr(0x2014)}\n", encoding="utf-8")
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
             assert validate_dash_prohibition(tmp_path) is True
@@ -648,8 +654,8 @@ class TestValidateDashProhibition:
         """REQ-006-AC4: .github/instructions/ is NOT excluded."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, ".github/instructions/universal.instructions.md\n", ""),
@@ -661,8 +667,8 @@ class TestValidateDashProhibition:
         """Fail open on git subprocess failure (do not block on infra issues)."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (128, "", "fatal: bad revision")
             assert validate_dash_prohibition(tmp_path) is True
@@ -678,8 +684,8 @@ class TestValidateDashProhibition:
 
         # Working tree clean, but HEAD content (mocked) has em-dash:
         # the function MUST flag it.
-        with patch("scripts.validation.pre_pr._resolve_branch_base_ref") as mock_ref, \
-             patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
+             patch("checks_dash._run_subprocess") as mock_run:
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),
@@ -739,7 +745,7 @@ class TestValidateGitHooksInstalled:
         env = {"CI": "false"}
         with patch.dict("os.environ", env, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -763,7 +769,7 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -777,7 +783,7 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "", "core.hooksPath not set")
                 assert validate_git_hooks_installed(tmp_path) is False
 
@@ -792,7 +798,7 @@ class TestValidateGitHooksInstalled:
         with patch.dict("os.environ", {}, clear=False):
             os.environ.pop("GITHUB_ACTIONS", None)
             os.environ.pop("CI", None)
-            with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+            with patch("checks_plugin._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "OK", "")
                 assert validate_git_hooks_installed(tmp_path) is True
 
@@ -822,7 +828,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (0, "[PASS] No new vendor-portability offenders.\n", "")
             assert validate_vendor_portability(repo) is True
 
@@ -830,7 +836,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (1, "[FAIL] 1 new vendor-portability offender(s).\n", "")
             assert validate_vendor_portability(repo) is False
 
@@ -838,7 +844,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (2, "", "[FAIL] repo root not found")
             assert validate_vendor_portability(repo) is False
 
@@ -857,7 +863,7 @@ class TestValidateVendorPortability:
         from scripts.validation.pre_pr import validate_vendor_portability
 
         repo = self._make_repo(tmp_path)
-        with patch("scripts.validation.pre_pr._run_subprocess") as mock_run:
+        with patch("checks_spec._run_subprocess") as mock_run:
             mock_run.return_value = (0, "", "")
             validate_vendor_portability(repo)
 
