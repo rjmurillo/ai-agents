@@ -129,11 +129,20 @@ def get_language(file_path: str) -> str | None:
 def _get_shebang_language(file_path: str) -> str | None:
     """Detect supported extensionless scripts from their shebang."""
     try:
-        with open(file_path, encoding="utf-8", errors="ignore") as f:
+        with open(file_path, encoding="utf-8") as f:
             first_line = f.readline().strip().lower()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return None
-    if first_line.startswith("#!") and "bash" in first_line:
+    if not first_line.startswith("#!"):
+        return None
+    shell_names = {"bash", "dash", "ksh", "sh"}
+    command = first_line[2:].strip().split()
+    if not command:
+        return None
+    executable = Path(command[0]).name
+    if executable == "env" and len(command) > 1:
+        executable = Path(command[1]).name
+    if executable in shell_names:
         return "bash"
     return None
 
@@ -159,8 +168,22 @@ def get_staged_files() -> list[str]:
 def get_directory_files(directory: str) -> list[str]:
     """Get all scannable files from a directory."""
     supported_extensions = {".py", ".ps1", ".psm1", ".sh", ".bash", ".cs"}
+    pruned_directories = {
+        ".git",
+        ".hg",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "__pycache__",
+        "node_modules",
+    }
     files = []
-    for root, _, filenames in os.walk(directory):
+    for root, dirnames, filenames in os.walk(directory):
+        dirnames[:] = [
+            name for name in dirnames if name.lower() not in pruned_directories
+        ]
         for filename in filenames:
             file_path = os.path.join(root, filename)
             suffix = Path(filename).suffix.lower()
