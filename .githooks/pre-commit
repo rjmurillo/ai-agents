@@ -104,6 +104,12 @@ fi
 # Track if any files were auto-fixed
 FILES_FIXED=0
 
+# Track whether the non-blocking taste-lints advisory check reported errors.
+# Set to 1 inside the taste-lints branch when TASTE_EXIT == 10. Consumed by
+# the final-summary block to distinguish "blocking checks passed cleanly"
+# from "blocking checks passed but advisory lints found errors". See #2436.
+TASTE_LINTS_ADVISORY=0
+
 # Auto-fix mode (default: enabled)
 AUTOFIX=1
 if [ "${SKIP_AUTOFIX:-}" = "1" ]; then
@@ -1961,7 +1967,11 @@ if [ -n "$STAGED_LINT_FILES" ]; then
                 echo_warning "Taste lint violations detected (non-blocking):"
                 echo "$TASTE_OUTPUT"
                 echo_info "  Consider fixing these issues for cleaner code."
-                # Non-blocking: just warn, don't fail the commit
+                # Non-blocking: just warn, don't fail the commit.
+                # Flag the advisory finding so the final-summary block can
+                # distinguish "blocking pass + advisory clean" from
+                # "blocking pass + advisory errors" (#2436).
+                TASTE_LINTS_ADVISORY=1
             elif [ $TASTE_EXIT -eq 0 ]; then
                 echo_success "Taste lints passed."
             else
@@ -1990,8 +2000,19 @@ if [ $EXIT_STATUS -ne 0 ]; then
     exit 2
 fi
 
+# Final-summary branches, ordered loudest-first (#2436):
+#   1. Auto-fix: working tree was modified, the commit now contains different
+#      bytes than the user staged. This is the strongest user-facing signal.
+#   2. Advisory taste-lints: blocking gates passed (exit 0) but non-blocking
+#      taste-lints reported errors. Pre-fix this was hidden by the
+#      unconditional success line below; agents and humans then missed the
+#      [ERROR] findings printed earlier in the transcript.
+#   3. Clean: every gate (blocking and advisory) was happy.
 if [ "$FILES_FIXED" = "1" ]; then
     echo_success "All checks passed. Some files were auto-fixed and re-staged."
+elif [ "$TASTE_LINTS_ADVISORY" = "1" ]; then
+    echo_success "Blocking pre-commit checks passed; non-blocking taste-lints reported errors."
+    echo_info "  Review the [ERROR] lines above; taste lints are advisory (exit 0)."
 else
     echo_success "All pre-commit checks passed."
 fi
