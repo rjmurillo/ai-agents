@@ -15,8 +15,8 @@ tracked as a follow-up (see the `/sync` command file and issue #1997).
 Output envelope mirrors the ADR-056 four-field shape
 (`Success`, `Data`, `Error`, `Metadata`) used by
 `.claude/skills/orphan-ref-validator/scripts/envelope.py`, followed by a final
-`VERDICT: PASS|DRIFT|ERROR` line. The contract, copied verbatim from that
-canonical envelope:
+`VERDICT: PASS|DRIFT|ERROR` line. The detector adapts the canonical shape to
+its script-specific metadata:
 
     envelope = {
         "Success": True,

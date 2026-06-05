@@ -536,3 +536,4 @@ def test_main_human_output_format(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert code == 0
     out = capsys.readouterr().out
     assert out.startswith("detect_spec_drift")
+    assert out.rstrip().endswith("VERDICT: PASS")
