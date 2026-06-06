@@ -39,6 +39,8 @@ def _run_bash(snippet: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c", wrapped],
         capture_output=True,
+        encoding="utf-8",
+        errors="replace",
         text=True,
         timeout=10,
     )
@@ -62,9 +64,8 @@ count_nonempty_lines() {
         printf '0'
         return 0
     fi
-    # grep -c . prints the match count and exits 1 when there are no
-    # matches. With set -e we must swallow that; we feed grep through a
-    # pipeline so its exit status is irrelevant to the helper's own status.
+    # awk's final printf returns one normalized integer for the hook's
+    # arithmetic, regardless of whether any non-empty lines were seen.
     printf '%s' "$input" | awk 'NF{c++} END{printf "%d", c+0}'
 }
 """
@@ -85,7 +86,7 @@ class TestBuggyIdiomReproducesIssue:
         snippet = (
             'INPUT=""\n'
             'COUNT=$(echo "$INPUT" | grep -c . || echo 0)\n'
-            'SKIPPED=$(( COUNT - 0 ))\n'
+            "SKIPPED=$(( COUNT - 0 ))\n"
             'echo "SKIPPED=$SKIPPED"\n'
         )
         result = _run_bash(snippet)
@@ -111,9 +112,7 @@ class TestHelperHandlesAllShapes:
 
     def _count(self, input_value: str) -> str:
         snippet = (
-            _HELPER
-            + f'INPUT={_bash_quote(input_value)}\n'
-            + 'count_nonempty_lines "$INPUT"\n'
+            _HELPER + f"INPUT={_bash_quote(input_value)}\n" + 'count_nonempty_lines "$INPUT"\n'
         )
         result = _run_bash(snippet)
         assert result.returncode == 0, result.stderr
@@ -147,7 +146,7 @@ class TestHelperHandlesAllShapes:
             + 'FILT=""\n'
             + 'ORIGINAL_COUNT=$(count_nonempty_lines "$ORIG")\n'
             + 'FILTERED_COUNT=$(count_nonempty_lines "$FILT")\n'
-            + 'SKIPPED_COUNT=$(( ORIGINAL_COUNT - FILTERED_COUNT ))\n'
+            + "SKIPPED_COUNT=$(( ORIGINAL_COUNT - FILTERED_COUNT ))\n"
             + 'echo "SKIPPED=$SKIPPED_COUNT"\n'
         )
         result = _run_bash(snippet)
@@ -159,11 +158,13 @@ class TestHelperHandlesAllShapes:
     def test_arithmetic_on_helper_output_succeeds_nonzero_difference(self) -> None:
         snippet = (
             _HELPER
-            + r'ORIG=$(printf "a\nb\nc\n")' + "\n"
-            + r'FILT=$(printf "a\n")' + "\n"
+            + r'ORIG=$(printf "a\nb\nc\n")'
+            + "\n"
+            + r'FILT=$(printf "a\n")'
+            + "\n"
             + 'ORIGINAL_COUNT=$(count_nonempty_lines "$ORIG")\n'
             + 'FILTERED_COUNT=$(count_nonempty_lines "$FILT")\n'
-            + 'SKIPPED_COUNT=$(( ORIGINAL_COUNT - FILTERED_COUNT ))\n'
+            + "SKIPPED_COUNT=$(( ORIGINAL_COUNT - FILTERED_COUNT ))\n"
             + 'echo "SKIPPED=$SKIPPED_COUNT"\n'
         )
         result = _run_bash(snippet)
@@ -189,12 +190,10 @@ class TestHookPinsFixedShape:
             if not line.lstrip().startswith("#")
         ]
         offenders = [
-            line for line in code_lines
-            if re.search(r"grep\s+-c\s+\.\s*\|\|\s*echo\s+0", line)
+            line for line in code_lines if re.search(r"grep\s+-c\s+\.\s*\|\|\s*echo\s+0", line)
         ]
         assert offenders == [], (
-            "buggy 'grep -c . || echo 0' idiom must not be reintroduced; "
-            f"offenders={offenders}"
+            f"buggy 'grep -c . || echo 0' idiom must not be reintroduced; offenders={offenders}"
         )
 
     def test_hook_uses_helper_for_both_counts(self) -> None:
