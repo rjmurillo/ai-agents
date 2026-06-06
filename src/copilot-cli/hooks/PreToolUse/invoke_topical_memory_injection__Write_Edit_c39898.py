@@ -214,10 +214,11 @@ def _original_main(stdin_bytes):
     import re
     import sys
     import time
+    from collections.abc import Callable
     from pathlib import Path
 
     # Bootstrap: find lib directory via env var or manifest walk-up (mirrors
-    # invoke_correction_applier.py so the hook works in both the source tree and
+    # .claude/hooks/PreToolUse/invoke_correction_applier.py so the hook works in both
     # the deeper src/<provider>/hooks/<event>/ copy).
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if _plugin_root:
@@ -267,7 +268,7 @@ def _original_main(stdin_bytes):
     # Table-driven topic keying: first match wins. Each rule maps a path prefix to
     # a topic; a callable receives the regex match so per-skill names can be
     # extracted. Order matters (most specific first).
-    _TOPIC_RULES: list[tuple[re.Pattern[str], object]] = [
+    _TOPIC_RULES: list[tuple[re.Pattern[str], Callable[[re.Match[str]], str]]] = [
         (re.compile(r"^\.claude/skills/([^/]+)/"), lambda m: m.group(1)),
         (re.compile(r"^\.claude/hooks/"), lambda m: "hooks"),
         (re.compile(r"^\.claude/commands/"), lambda m: "commands"),
@@ -332,7 +333,7 @@ def _original_main(stdin_bytes):
         for pattern, resolver in _TOPIC_RULES:
             match = pattern.match(rel_path)
             if match:
-                topic = resolver(match)  # type: ignore[operator]
+                topic = resolver(match)
                 return _SAFE_TOPIC_RE.sub("", topic.lower()) or None
         # Fallback: first non-dot path segment.
         for segment in rel_path.split("/"):
@@ -455,7 +456,20 @@ def _original_main(stdin_bytes):
                 return 0
 
             advisory = render_advisory(topic, memories)
-            print(json.dumps({"decision": "allow", "reason": advisory}))
+            # Advisory only: inject as model-visible context via
+            # hookSpecificOutput.additionalContext. {"decision": "allow"} is invalid
+            # (top-level `decision` accepts only "approve"/"block"); see
+            # .claude/hooks/PreToolUse/invoke_correction_applier.py for the full rationale.
+            print(
+                json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": "PreToolUse",
+                            "additionalContext": advisory,
+                        }
+                    }
+                )
+            )
             print(advisory, file=sys.stderr)
         except Exception as exc:  # noqa: BLE001 - advisory hook fails open
             print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)

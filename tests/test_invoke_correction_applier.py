@@ -251,10 +251,19 @@ class TestMainOutputPath:
             result = main()
             assert result == 0
             captured = capsys.readouterr()
-            # Advisory text now goes to stderr (commit 92df3875: stdout
-            # must be valid JSON or empty for hook payloads).
+            # Advisory text is mirrored to stderr for human visibility in logs.
             assert "Self-Improving Agent" in captured.err
             assert "pnpm" in captured.err
+            # stdout MUST be the valid PreToolUse advisory envelope. Regression
+            # guard for the {"decision": "allow"} schema bug, which failed
+            # "(root): Invalid input" validation and silently dropped the
+            # advisory (the prior test only checked stderr, so it passed green).
+            payload = json.loads(captured.out)
+            assert "decision" not in payload
+            hso = payload["hookSpecificOutput"]
+            assert hso["hookEventName"] == "PreToolUse"
+            assert "Self-Improving Agent" in hso["additionalContext"]
+            assert "pnpm" in hso["additionalContext"]
 
     @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch(
