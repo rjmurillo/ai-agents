@@ -315,15 +315,14 @@ def _resolve_output_path(
     if fill:
         skeleton = Path(fill)
         if not skeleton.is_absolute():
-            base_dir = retro_dir if _artifact_root_is_set() else (project_dir or retro_dir)
-            if _artifact_root_is_set():
-                parts = skeleton.parts
-                if len(parts) >= 2 and parts[0] == ".agents" and parts[1] == "retrospective":
-                    skeleton = Path(*parts[2:]) if len(parts) > 2 else Path()
-            skeleton = base_dir / skeleton
+            parts = skeleton.parts
+            if len(parts) >= 2 and parts[0] == ".agents" and parts[1] == "retrospective":
+                skeleton = Path(*parts[2:]) if len(parts) > 2 else Path()
+            skeleton = retro_dir / skeleton
         skeleton = _require_fill_path(skeleton, project_dir, retro_dir)
         if not skeleton.is_file():
             raise ValueError(f"fill skeleton not found: {fill}")
+        _require_unfilled_skeleton(skeleton)
         return skeleton
     safe_scope = scope.strip().replace(" ", "-").replace("/", "-")
     return retro_dir / f"{today}-{safe_scope}.md"
@@ -345,6 +344,13 @@ def _require_fill_path(path: Path, project_dir: Path | None, retro_dir: Path) ->
     if not resolved_path.is_relative_to(resolved_root):
         raise ValueError(f"fill path escapes allowed root: {path}")
     return resolved_path
+
+
+def _require_unfilled_skeleton(path: Path) -> None:
+    """Reject fill targets that no longer carry an unfilled-skeleton marker."""
+    content = path.read_text(encoding="utf-8")
+    if "UNFILLED SKELETON" not in content and "RETRO-STATE" not in content:
+        raise ValueError(f"fill target is not an unfilled skeleton: {path}")
 
 
 def build_parser() -> argparse.ArgumentParser:
