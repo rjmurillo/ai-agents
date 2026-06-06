@@ -76,6 +76,35 @@ Use `test_pr_merge_ready.py` to collect merge readiness data for each PR. Then a
 | T4 | Both CI failures and unresolved threads | Fix CI first, then walk Thread Severity lifecycle for every thread |
 | T5 | Bot PR with validation failures | See Renovate PR Handling section |
 
+### Per-PR Live-State Re-Triage (BLOCKING, issue #2455)
+
+The triage above produces a session-start snapshot. In a repo with heavy merge automation, that snapshot decays fast: PRs merge or close mid-walk; sibling consolidated PRs land the same diff on `main`, making queued rows redundant. Acting on a stale row wastes work and risks pushing duplicate or conflicting logic.
+
+Before any per-tier action on each PR (arming auto-merge, pushing a CI fix, posting a thread reply), call the live-state gate and branch on the JSON `action` field:
+
+```bash
+# One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
+git fetch --quiet origin main
+
+# Per PR, immediately before the tier's planned action:
+LIVE=$(python3 .claude/skills/github/scripts/pr/check_pr_live_state.py \
+    --pull-request "$PR" --skip-fetch)
+ACTION=$(echo "$LIVE" | jq -r '.action')
+if [ "$ACTION" = "SKIP" ]; then
+    echo "Skipping #$PR: $(echo "$LIVE" | jq -r '.reason')"
+    # If superseded_by_base.fully_superseded == true, recommend close
+    # via the queue's close-handling path; do NOT push or merge.
+    continue
+fi
+```
+
+The gate checks two failure modes:
+
+1. **Live state drift.** The PR is now MERGED, CLOSED, or a DRAFT. Anything other than OPEN means do not act.
+2. **Superseded by base.** `git cherry origin/<base> origin/<head>` reports every commit on the PR branch as already on `origin/<base>` (patch-id match). This is the "diff already landed via a sibling PR" case (PR #2394 vs PRs #2409/#2412 on 2026-06-05; #2409 was auto-merge-armed before redundancy was caught).
+
+SKIP verdicts are binding: do NOT push commits, do NOT arm auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP. The verdict's `reason` field names the cause for the autofix log. An `ACT` verdict only proves the PR is still actionable; the four-condition Ready-to-Merge gate above still applies before any merge.
+
 If `mergeStateStatus == BEHIND`, the PR's branch must be updated against `main` BEFORE landing, regardless of tier. Update via merge or rebase; do not rely on auto-merge to handle the update.
 
 Process tiers in order: T1, T2, T3, T4, T5.

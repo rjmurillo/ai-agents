@@ -32,6 +32,28 @@ Run `test_pr_merge_ready.py` for every open PR. Classify each into a tier (T1-T5
 
 Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads), then T5 (bot).
 
+**Per-PR live-state gate (BLOCKING, issue #2455).** Before any action runs on a PR (any tier: arming auto-merge, pushing a CI fix, posting a thread reply), call `check_pr_live_state.py` and branch on the JSON `action` field. The session-start triage snapshot is stale by the time the walk reaches each row in a repo with heavy merge automation, and the consequences of acting on a stale row are concrete: armed auto-merge on a redundant PR, conflict merges into a closed branch, duplicate logic landed twice.
+
+```bash
+# One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
+git fetch --quiet origin main
+
+# Per PR, immediately before any per-tier action:
+LIVE=$(python3 .claude/skills/github/scripts/pr/check_pr_live_state.py \
+    --pull-request "$PR" --skip-fetch)
+ACTION=$(echo "$LIVE" | jq -r '.action')
+if [ "$ACTION" = "SKIP" ]; then
+    REASON=$(echo "$LIVE" | jq -r '.reason')
+    echo "Skipping #$PR: $REASON"
+    # If superseded_by_base.fully_superseded == true, recommend close
+    # via the queue's close-handling path; do NOT push or merge.
+    continue
+fi
+# ACTION == "ACT": proceed with the tier's planned action set.
+```
+
+SKIP verdicts are binding: do NOT push commits, do NOT arm auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP. The verdict's `reason` field names the cause (merged, closed, draft, fully superseded by base) for the autofix log. An ACT verdict only proves the PR is still actionable; the four-condition Ready-to-Merge gate still applies before any merge.
+
 ### Phase 3: Verify and gate
 
 After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable auto-merge only when all four conditions hold.
@@ -40,7 +62,8 @@ After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable a
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
 2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
-3. For each PR: address review threads, fix CI failures using known patterns, enable auto-merge.
+3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
+4. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, enable auto-merge.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
@@ -89,6 +112,11 @@ Quote every variable expansion. The shell does not treat `:` specially in a refs
 ```bash
 # Check merge readiness
 python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}
+
+# Per-PR live-state gate (BLOCKING per Phase 2; issue #2455). Returns
+# exit 0 + action=ACT when safe to proceed, exit 1 + action=SKIP when
+# the PR is merged/closed/draft or fully superseded by base.
+python3 .claude/skills/github/scripts/pr/check_pr_live_state.py --pull-request {pr} --skip-fetch
 
 # Get CI check logs
 python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {pr} | \
@@ -163,6 +191,7 @@ python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
 Per PR processed:
 
 - [ ] Tier classification recorded (T1-T5).
+- [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch`. Verdict `action=ACT` recorded; `action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).
