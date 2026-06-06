@@ -216,6 +216,28 @@ def enable_auto_merge(
                 f"  {fallback}",
                 3,
             )
+        # Issue #2450: GitHub refuses auto-merge when
+        # `mergeStateStatus == CLEAN` ("Pull request is in clean status").
+        # CLEAN means every required check has passed, every required
+        # review is approved, and there are no conflicts, so auto-merge
+        # has nothing to wait on and is rejected. The correct action is
+        # a direct merge via merge_pr.py. Surface the actionable fallback
+        # instead of leaking the raw GraphQL prefix.
+        if "clean status" in msg.lower():
+            strategy = merge_method.lower()
+            fallback = (
+                f"python3 .claude/skills/github/scripts/pr/merge_pr.py "
+                f"--pull-request {pr_number} --strategy {strategy}"
+            )
+            error_and_exit(
+                "Cannot enable auto-merge: PR is in CLEAN merge state "
+                "(all required checks pass, no pending reviews, no "
+                "conflicts). GitHub blocks auto-merge for CLEAN PRs "
+                "because there is nothing to wait on.\n"
+                "Merge directly:\n"
+                f"  {fallback}",
+                3,
+            )
         if "not mergeable" in msg:
             error_and_exit(
                 "PR is not in a mergeable state. "

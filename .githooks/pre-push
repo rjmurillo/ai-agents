@@ -874,6 +874,30 @@ if [ -L "$PLUGIN_VERSION_SCRIPT" ]; then
     record_warn "Plugin version bump script is a symlink (skipping)"
 elif [ -f "$PLUGIN_VERSION_SCRIPT" ] && [ ${#PVB_BASES[@]} -gt 0 ]; then
     if set_python_cmd; then
+        # Issue #2453: refresh origin/<branch> bases before validating so a stale
+        # local ref does not false-PASS a bump that is actually insufficient
+        # against the real remote. Best-effort; failure does not block.
+        PVB_FETCHED=()
+        for pvb_base in "${PVB_BASES[@]}"; do
+            case "$pvb_base" in
+                origin/*)
+                    branch="${pvb_base#origin/}"
+                    case "$branch" in ""|*/*) continue;; esac
+                    already_fetched=0
+                    for f in "${PVB_FETCHED[@]}"; do
+                        if [ "$f" = "$branch" ]; then already_fetched=1; break; fi
+                    done
+                    if [ $already_fetched -eq 0 ]; then
+                        if ! env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
+                            LC_ALL=C git fetch --no-tags --quiet origin "$branch" 2>/dev/null; then
+                            echo_info "  [WARN] could not refresh origin/$branch; continuing with stale local ref (#2453)"
+                        fi
+                        PVB_FETCHED+=("$branch")
+                    fi
+                    ;;
+            esac
+        done
+
         PVB_ALL_PASSED=1
         PVB_ANY_CONFIG_ERROR=0
         for i in "${!PVB_BASES[@]}"; do
