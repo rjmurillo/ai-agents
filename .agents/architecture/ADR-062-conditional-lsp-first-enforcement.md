@@ -160,6 +160,19 @@ normalized and matched only against the resolved repo root, with an
 always-bypassed allowlist (TMPDIR/mktemp scratch, out-of-repo paths, dotfiles)
 (CWE-22 safe). Out-of-repo targets are never gated.
 
+The always-bypass set also covers files that the LSP cannot meaningfully parse
+during conflict resolution (issue #2454): when `.git/MERGE_HEAD`,
+`.git/rebase-merge`, or `.git/rebase-apply` exists at the repo root, or when
+the target file's leading window starts a line with a conflict marker
+(`<<<<<<<`, `=======`, `>>>>>>>`). The merge-state check is pure `Path.exists`
+on the three sentinel paths git itself writes (no shell-out, CWE-78 safe). The
+conflict-marker scan is a bounded read (256 KB cap) anchored to column 0 so
+prose, regex patterns, and string literals containing the marker characters do
+not false-positive. The dotfile bypass already excluded the intentional fenced
+examples in `.claude/skills/merge-resolver/` and `.serena/memories/`, so the
+content scan only ever runs against plain in-repo source. Both new branches
+fail open: any filesystem error degrades to "not gated" rather than blocking.
+
 ### 8. Performance
 
 Availability is a pure configuration check (read `.serena/project.yml` plus MCP
