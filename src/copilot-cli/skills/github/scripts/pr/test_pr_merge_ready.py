@@ -42,6 +42,7 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -836,6 +837,30 @@ def _emit_merge_ready_log(
     )
 
 
+def _script_commit() -> str:
+    """Return the short git SHA of this script's last commit (issue #2443).
+
+    Stamps the readiness verdict with the version of the readiness logic that
+    produced it, so a saved CanMerge result can be audited against the exact
+    script revision. Returns "unknown" when git is unavailable or the script is
+    untracked, for example a shared checkout running an uncommitted copy.
+    """
+
+    script = os.path.abspath(__file__)
+    try:
+        result = subprocess.run(
+            ["git", "-C", os.path.dirname(script),
+             "log", "-1", "--format=%h", "--", script],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
 def check_merge_readiness(
     owner: str,
     repo: str,
@@ -870,6 +895,7 @@ def check_merge_readiness(
     )
     return {
         "Success": True,
+        "ScriptCommit": _script_commit(),
         "CanMerge": can_merge,
         "PullRequest": pr_number,
         "Owner": owner,
