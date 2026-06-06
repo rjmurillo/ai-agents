@@ -124,7 +124,7 @@
     },
     {
       "step": "conflicts",
-      "evidence": "Merged origin/main and resolved plugin manifest updates to version 0.5.142"
+      "evidence": "Merged origin/main and resolved plugin manifest updates to version 0.5.143"
     },
     {
       "step": "threads",
@@ -135,7 +135,7 @@
       "evidence": "Retrospective tests passed: 63 passed in local Python 3.14 venv"
     }
   ],
-  "endingCommit": "6a3fdc5ee636c6b6eedcf984301960f0eb0e0ad1",
+  "endingCommit": "c5ae51df9cde23ec5cf18fea45cc9b94e84c0715",
   "nextSteps": [
     "Push branch after safety check, poll CI, merge PR 2337 when clean"
   ]
