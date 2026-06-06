@@ -284,7 +284,12 @@ def gather_evidence(
     sessions_dir = _artifact_dir(project_dir, "sessions")
     session_log = find_recent_session_log(sessions_dir, today=_scope_date(scope))
     if session_log is None:
-        notes.append("No session log found under .agents/sessions/.")
+        session_location = (
+            "configured sessions artifact directory"
+            if _artifact_root_is_set()
+            else ".agents/sessions/"
+        )
+        notes.append(f"No session log found under {session_location}.")
         work_items: list[str] = []
         outcomes: list[str] = []
         session_log_available = False
