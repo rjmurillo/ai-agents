@@ -265,7 +265,20 @@ def main() -> int:
             return 0
 
         advisory = render_advisory(topic, memories)
-        print(json.dumps({"decision": "allow", "reason": advisory}))
+        # Advisory only: inject as model-visible context via
+        # hookSpecificOutput.additionalContext. {"decision": "allow"} is invalid
+        # (top-level `decision` accepts only "approve"/"block"); see
+        # invoke_correction_applier.py for the full rationale.
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "additionalContext": advisory,
+                    }
+                }
+            )
+        )
         print(advisory, file=sys.stderr)
     except Exception as exc:  # noqa: BLE001 - advisory hook fails open
         print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
