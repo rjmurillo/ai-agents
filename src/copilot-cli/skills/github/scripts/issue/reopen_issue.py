@@ -95,10 +95,7 @@ def _comment_base_dir() -> Path:
     workspace = os.environ.get("GITHUB_WORKSPACE", "").strip()
     if workspace:
         return Path(workspace).expanduser().resolve()
-    for parent in Path(__file__).resolve().parents:
-        if (parent / ".git").exists():
-            return parent
-    return Path(__file__).resolve().parent
+    return Path.cwd().resolve()
 
 
 def _resolve_comment_file(comment_file: str, fmt: str) -> Path:

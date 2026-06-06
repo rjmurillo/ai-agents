@@ -66,6 +66,14 @@ class TestBuildParser:
             build_parser().parse_args(["--issue", "5", "--comment", "x", "--comment-file", "f.txt"])
 
 
+class TestCommentBaseDir:
+    def test_defaults_to_current_working_directory_without_github_workspace(self, monkeypatch):
+        expected = Path("workspace-repo")
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        with patch("reopen_issue.Path.cwd", return_value=expected):
+            assert _mod._comment_base_dir() == expected.resolve()
+
+
 class TestMain:
     def test_not_authenticated_exits_4(self):
         with patch("reopen_issue.assert_gh_authenticated", side_effect=SystemExit(4)):
