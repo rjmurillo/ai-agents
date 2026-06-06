@@ -58,6 +58,7 @@ from github_core.output import (  # noqa: E402
     write_skill_error,
     write_skill_output,
 )
+from github_core.placeholder_identity import filter_coauthor_trailers  # noqa: E402
 
 _SCRIPT_NAME = "merge_pr.py"
 
@@ -234,7 +235,15 @@ def _build_merge_args(args: argparse.Namespace, pr: int, repo_flag: str) -> list
     if args.subject:
         merge_args.extend(["--subject", args.subject])
     if args.body:
-        merge_args.extend(["--body", args.body])
+        # Issue #2466: strip any placeholder Co-authored-by trailers before
+        # passing the body to gh. The worktree-bootstrap reset (worktree_identity.py)
+        # and pre-push guard (check_placeholder_identity.py) are the primary
+        # defences; this sanitizer is a final backstop for the --body path.
+        # When --body is empty, gh auto-assembles the squash message from commit
+        # subjects; those commits are protected by the pre-push guard and the
+        # worktree-bootstrap reset instead.
+        sanitized_body = filter_coauthor_trailers(args.body)
+        merge_args.extend(["--body", sanitized_body])
     return merge_args
 
 

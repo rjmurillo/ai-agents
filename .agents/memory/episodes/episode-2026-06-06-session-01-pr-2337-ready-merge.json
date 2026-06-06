@@ -1,0 +1,107 @@
+{
+  "id": "episode-2026-06-06-session-01-pr-2337-ready-merge",
+  "session": "2026-06-06-session-01-pr-2337-ready-merge",
+  "timestamp": "2026-06-06T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR 2337 to Ready-to-Merge and merge when clean",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "worktree",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "conflicts",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "threads",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "test",
+      "content": "Retrospective tests passed: 63 passed in local Python 3.14 venv",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9b53fd6f0f7e35ccd0bcbfd6ced3d589d3469dc6",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6a3fdc5ee636c6b6eedcf984301960f0eb0e0ad1",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: c5ae51df9cde23ec5cf18fea45cc9b94e84c0715",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 8f615117d14a3381aee72fe60b71359291932ca9",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ed410f687928eee1b2c64c2bc409be009d802c74",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
