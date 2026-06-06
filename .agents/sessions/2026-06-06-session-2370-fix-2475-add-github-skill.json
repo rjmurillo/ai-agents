@@ -1,0 +1,123 @@
+{
+  "session": {
+    "number": 2370,
+    "date": "2026-06-06",
+    "branch": "fix/2475-github-skill-comments-reopen",
+    "startingCommit": "e6031e99c",
+    "objective": "Fix #2475: add github skill get_issue_comments.py and reopen_issue.py for discourse-aware triage"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active (initial_instructions, project ai-agents)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github/session-init skills used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "usage-mandatory read; github skill scripts used"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/* + ADR-035/042/056 + close_issue.py canonical"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "triage-001, usage-mandatory; discourse comments reviewed"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2475-github-skill-comments-reopen"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2475-github-skill-comments-reopen"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "branched from origin/main"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e6031e99c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "start gates complete; checkpoint"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "not modified (ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "issue-triage-31-batch memory updated"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr Markdown Linting PASS"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts+tests+mirrors+bump committed"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py all pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-06",
+      "entry": "Discourse review of 31 issues surfaced 3 wrong closes (reopened #1622/#1784/#2050) + 1 wrong claim (#2099 corrected). Filed #2475 (github skill cannot read comments or reopen). Fixed #2475: added get_issue_comments.py (paginated, envelope) + reopen_issue.py (mirrors close_issue.py, idempotent); 20 tests; SKILL.md updated; copilot mirrors generated; plugin 0.5.136. ruff/mypy/security-scan clean; live-verified against #2099."
+    }
+  ],
+  "endingCommit": "e6031e99c3f984cd6872256ea7dee5f85040f00c",
+  "nextSteps": []
+}
