@@ -160,15 +160,26 @@ def _normalize(item: dict[str, object]) -> dict[str, object]:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
+    issue: int = args.issue
+
+    if args.limit < 0:
+        write_skill_error(
+            "--limit must be 0 or greater",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name=_SCRIPT,
+            extra={"issue": issue, "limit": args.limit},
+        )
+        return 1
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
-    issue: int = args.issue
 
     raw = _fetch_comments(owner, repo, issue, fmt)
     comments = [_normalize(c) for c in raw]
-    if args.limit and args.limit > 0:
+    if args.limit > 0:
         comments = comments[-args.limit :]
 
     data = {

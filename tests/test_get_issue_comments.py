@@ -162,6 +162,17 @@ class TestMain:
         assert data["count"] == 1
         assert data["comments"][0]["body"] == "new"
 
+    def test_negative_limit_returns_invalid_params(self, capsys):
+        with patch("subprocess.run") as mock_run:
+            rc = main(["--issue", "1", "--limit", "-1"])
+
+        assert rc == 1
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Type"] == "InvalidParams"
+        assert env["Data"] == {"issue": 1, "limit": -1}
+        mock_run.assert_not_called()
+
     def test_empty_thread(self, capsys):
         with (
             patch("get_issue_comments.assert_gh_authenticated"),
