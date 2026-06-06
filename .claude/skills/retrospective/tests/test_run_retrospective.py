@@ -454,6 +454,24 @@ def test_cli_rejects_fill_path_outside_project(tmp_path):
     assert outside.read_text(encoding="utf-8") == "# Retrospective\n"
 
 
+def test_cli_rejects_fill_path_inside_project_but_outside_retrospective(tmp_path):
+    # Arrange
+    _write_session(tmp_path, {"workLog": ["work"]})
+    target = tmp_path / "README.md"
+    target.write_text("# Existing project file\n", encoding="utf-8")
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "escape",
+        "--fill", "README.md",
+    ])
+
+    # Assert
+    assert rc == 2
+    assert target.read_text(encoding="utf-8") == "# Existing project file\n"
+
+
 def test_resolve_fill_rejects_escape_before_existence_probe(tmp_path, monkeypatch):
     # Arrange
     outside = tmp_path.parent / "2026-06-03-auto-retro.md"

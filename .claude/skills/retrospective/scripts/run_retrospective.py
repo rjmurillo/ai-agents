@@ -340,10 +340,7 @@ def _require_project_output_path(path: Path, project_dir: Path) -> Path:
 
 def _require_fill_path(path: Path, project_dir: Path | None, retro_dir: Path) -> Path:
     """Return a fill path after validating its allowed root."""
-    root = retro_dir if _artifact_root_is_set() else project_dir
-    if root is None:
-        return path.resolve()
-    resolved_root = root.resolve()
+    resolved_root = retro_dir.resolve()
     resolved_path = path.resolve()
     if not resolved_path.is_relative_to(resolved_root):
         raise ValueError(f"fill path escapes allowed root: {path}")
