@@ -21,6 +21,16 @@ import tempfile
 from pathlib import Path
 from typing import NamedTuple
 
+# ---------------------------------------------------------------------------
+# Ensure repo root is on sys.path so scripts.github_core is importable
+# whether this script is invoked via pre-push hook or directly.
+# ---------------------------------------------------------------------------
+_script_path = Path(__file__).resolve()
+# scripts/validation/check_placeholder_identity.py -> repo root is grandparent
+_repo_root_candidate = _script_path.parent.parent.parent
+if str(_repo_root_candidate) not in sys.path:
+    sys.path.insert(0, str(_repo_root_candidate))
+
 
 def _is_pytest_tmp(repo_root: Path) -> bool:
     """Return True when repo_root is inside pytest's ephemeral tmp_path tree.
