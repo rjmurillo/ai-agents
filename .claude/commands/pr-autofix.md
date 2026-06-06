@@ -30,7 +30,7 @@ Run `test_pr_merge_ready.py` for every open PR. Classify each into a tier (T1-T5
 
 Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready), then T2 (CI fix), then T3/T4 (threads), then T5 (bot).
 
-**Per-PR live-state gate (BLOCKING, issue #2455).** Before any action runs on a PR (any tier: arming auto-merge, pushing a CI fix, posting a thread reply), call `check_pr_live_state.py` and branch on the JSON `action` field. The session-start triage snapshot is stale by the time the walk reaches each row in a repo with heavy merge automation, and the consequences of acting on a stale row are concrete: armed auto-merge on a redundant PR, conflict merges into a closed branch, duplicate logic landed twice.
+**Per-PR live-state gate (BLOCKING, issue #2455).** Before any action runs on a PR (any tier: arming auto-merge, pushing a CI fix, posting a thread reply), call `check_pr_live_state.py` and branch on the JSON envelope `Data.action` field. The session-start triage snapshot is stale by the time the walk reaches each row in a repo with heavy merge automation, and the consequences of acting on a stale row are concrete: armed auto-merge on a redundant PR, conflict merges into a closed branch, duplicate logic landed twice.
 
 ```bash
 # One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
@@ -38,12 +38,12 @@ git fetch --quiet origin main
 
 # Per PR, immediately before any per-tier action:
 LIVE=$(python3 .claude/skills/github/scripts/pr/check_pr_live_state.py \
-    --pull-request "$PR" --skip-fetch)
-ACTION=$(echo "$LIVE" | jq -r '.action')
+    --pull-request "$PR" --skip-fetch --output-format json)
+ACTION=$(echo "$LIVE" | jq -r '.Data.action')
 if [ "$ACTION" = "SKIP" ]; then
-    REASON=$(echo "$LIVE" | jq -r '.reason')
+    REASON=$(echo "$LIVE" | jq -r '.Data.reason')
     echo "Skipping #$PR: $REASON"
-    # If superseded_by_base.fully_superseded == true, recommend close
+    # If Data.superseded_by_base.fully_superseded == true, recommend close
     # via the queue's close-handling path; do NOT push or merge.
     continue
 fi
@@ -60,8 +60,8 @@ After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable a
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
 2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
-3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
-4. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, enable auto-merge.
+3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
+4. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
@@ -76,7 +76,7 @@ After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable a
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Enable auto-merge |
+| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Use the CLEAN merge path after the four-condition gate |
 | T2 | CI failures only, branch up to date | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
@@ -112,37 +112,34 @@ Quote every variable expansion. The shell does not treat `:` specially in a refs
 python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}
 
 # Per-PR live-state gate (BLOCKING per Phase 2; issue #2455). Returns
-# exit 0 + action=ACT when safe to proceed, exit 1 + action=SKIP when
+# exit 0 + Data.action=ACT when safe to proceed, exit 1 + Data.action=SKIP when
 # the PR is merged/closed/draft or fully superseded by base.
-python3 .claude/skills/github/scripts/pr/check_pr_live_state.py --pull-request {pr} --skip-fetch
+python3 .claude/skills/github/scripts/pr/check_pr_live_state.py --pull-request {pr} --skip-fetch --output-format json
 
 # Get CI check logs
 python3 .claude/skills/github/scripts/pr/get_pr_checks.py --pull-request {pr} | \
   python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --pull-request {pr} --checks-input -
 
-# Enable auto-merge (CLEAN state only)
+# CLEAN path: try auto-merge only when there is pending branch-protection work to wait on.
+# If GitHub rejects an already-CLEAN PR with "clean status", use the printed direct-merge fallback.
 python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --pull-request {pr} --enable --merge-method SQUASH
 
-# Direct merge (UNSTABLE state with documented non-required failures)
+# Direct merge: already-CLEAN fallback or UNSTABLE state with documented non-required failures.
 python3 .claude/skills/github/scripts/pr/merge_pr.py --pull-request {pr} --strategy squash
 ```
 
 ### Merge path by `mergeStateStatus`
 
-GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439). Pick the path
-that matches the state:
+GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject an already-`CLEAN` PR because there is nothing left to wait on (issue #2450). Pick the path that matches the state:
 
 | `mergeStateStatus` | Path | Script |
 |---|---|---|
-| `CLEAN` | Auto-merge (queues for required-check completion) | `set_pr_auto_merge.py --enable` |
+| `CLEAN` | Auto-merge when waiting is useful; direct merge if GitHub returns the already-clean rejection | `set_pr_auto_merge.py --enable`, then `merge_pr.py --strategy squash` fallback |
 | `UNSTABLE` with documented non-required failures | Direct merge (immediate) | `merge_pr.py --strategy squash` |
 | `BEHIND` | Update branch first, then re-classify | `git merge origin/main --no-edit` + push |
 | `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver if real conflict |
 
-`set_pr_auto_merge.py` detects the `UNSTABLE` rejection from GitHub's
-GraphQL API and emits the direct-merge fallback command in its error
-output (exit 3) so the operator never has to translate the generic
-"GraphQL request failed" message themselves.
+`set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
 
 ### Merge-check exit codes: `test_pr_merged.py`
 
@@ -189,7 +186,7 @@ python3 .claude/skills/github/scripts/pr/run_completion_gate.py \
 Per PR processed:
 
 - [ ] Tier classification recorded (T1-T5).
-- [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch`. Verdict `action=ACT` recorded; `action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
+- [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).
