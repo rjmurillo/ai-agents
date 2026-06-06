@@ -67,10 +67,23 @@ class TestBuildParser:
 
 
 class TestCommentBaseDir:
-    def test_defaults_to_current_working_directory_without_github_workspace(self, monkeypatch):
+    def test_uses_git_root_from_current_working_directory(self, monkeypatch):
+        repo = Path("workspace-repo").resolve()
+        nested = repo / "nested"
+        monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
+        with (
+            patch("reopen_issue.Path.cwd", return_value=nested),
+            patch("reopen_issue._find_git_root", return_value=repo),
+        ):
+            assert _mod._comment_base_dir() == repo
+
+    def test_defaults_to_current_working_directory_without_git_root(self, monkeypatch):
         expected = Path("workspace-repo")
         monkeypatch.delenv("GITHUB_WORKSPACE", raising=False)
-        with patch("reopen_issue.Path.cwd", return_value=expected):
+        with (
+            patch("reopen_issue.Path.cwd", return_value=expected),
+            patch("reopen_issue._find_git_root", return_value=None),
+        ):
             assert _mod._comment_base_dir() == expected.resolve()
 
 

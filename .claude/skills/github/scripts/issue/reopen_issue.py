@@ -90,12 +90,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _find_git_root(start: Path) -> Path | None:
+    for candidate in (start, *start.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
 def _comment_base_dir() -> Path:
     """Return the directory that comment files must stay under (CWE-22 guard)."""
     workspace = os.environ.get("GITHUB_WORKSPACE", "").strip()
     if workspace:
         return Path(workspace).expanduser().resolve()
-    return Path.cwd().resolve()
+    cwd = Path.cwd().resolve()
+    return _find_git_root(cwd) or cwd
 
 
 def _resolve_comment_file(comment_file: str, fmt: str) -> Path:
