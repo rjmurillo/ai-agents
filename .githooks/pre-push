@@ -192,6 +192,7 @@ set_python_cmd() {
 ZERO="0000000000000000000000000000000000000000"
 CHANGED_FILES=""
 PUSH_RANGE=""
+PUSH_BRANCH=""
 REFS_PROCESSED=0
 # Store each ref's base and head for per-ref validation (plugin version bump)
 PVB_BASES=()
@@ -232,8 +233,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         fi
     fi
 
-    # Keep last ref range for commit count and additions checks
+    # Keep last ref range and branch for commit count and additions checks
     PUSH_RANGE="$ref_range"
+    case "$local_ref" in
+        refs/heads/*)
+            PUSH_BRANCH="${local_ref#refs/heads/}"
+            ;;
+    esac
 
     # Store base and head for per-ref plugin version validation
     if [ -n "$ref_range" ]; then
@@ -368,7 +374,8 @@ if [ -n "$PUSH_RANGE" ]; then
         # leaves the limit enforced.
         if set_python_cmd; then
             BYPASS_STATUS=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
-                "${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" 2>/dev/null)
+                "${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" \
+                --branch "${PUSH_BRANCH:-$current_branch}" 2>/dev/null)
             BYPASS_EXIT=$?
         else
             BYPASS_STATUS="python unavailable; cannot check bypass label"
