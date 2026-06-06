@@ -302,9 +302,9 @@ class TestInternals:
 class TestMergeInProgressHelper:
     """Direct unit tests for ``_merge_in_progress`` (Issue #2454).
 
-    The helper checks for sentinel paths under ``<project_dir>/.git``: any
-    filesystem error degrades to ``False`` (fail-open: do not synthesize a
-    bypass when the state cannot be observed).
+    The helper checks for sentinel paths under the active git admin directory:
+    any filesystem error degrades to ``False`` so the helper does not synthesize
+    a bypass when the state cannot be observed.
     """
 
     def test_returns_false_with_no_marker(self, tmp_path):
@@ -330,6 +330,30 @@ class TestMergeInProgressHelper:
         (repo / ".git" / "rebase-apply").mkdir()
         assert lsp_gate_state._merge_in_progress(str(repo)) is True
 
+    def test_returns_true_for_linked_worktree_gitdir_file(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        gitdir = tmp_path / "main.git" / "worktrees" / "repo"
+        gitdir.mkdir(parents=True)
+        (repo / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+        (gitdir / "MERGE_HEAD").write_text("sha", encoding="utf-8")
+        assert lsp_gate_state._merge_in_progress(str(repo)) is True
+
+    def test_returns_true_for_relative_linked_worktree_gitdir_file(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        gitdir = tmp_path / "main.git" / "worktrees" / "repo"
+        gitdir.mkdir(parents=True)
+        (repo / ".git").write_text("gitdir: ../main.git/worktrees/repo\n", encoding="utf-8")
+        (gitdir / "rebase-merge").mkdir()
+        assert lsp_gate_state._merge_in_progress(str(repo)) is True
+
+    def test_returns_false_for_malformed_gitdir_file(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / ".git").write_text("not a gitdir pointer\n", encoding="utf-8")
+        assert lsp_gate_state._merge_in_progress(str(repo)) is False
+
     def test_returns_false_for_empty_project_dir(self):
         assert lsp_gate_state._merge_in_progress("") is False
 
@@ -339,8 +363,8 @@ class TestMergeInProgressHelper:
         repo.mkdir()
         assert lsp_gate_state._merge_in_progress(str(repo)) is False
 
-    def test_fails_open_on_oserror(self, tmp_path, monkeypatch):
-        # If ``Path.exists`` raises, the helper must NOT raise (fail-open).
+    def test_does_not_bypass_on_oserror(self, tmp_path, monkeypatch):
+        # If ``Path.exists`` raises, the helper must not raise or bypass.
         repo = tmp_path / "repo"
         (repo / ".git").mkdir(parents=True)
 
@@ -400,7 +424,7 @@ class TestHasConflictMarkersHelper:
     def test_binary_file_returns_false(self, tmp_path):
         target = tmp_path / "bin.bin"
         target.write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe\xfd<<<<<<<")
-        # Invalid UTF-8 -> fail-open to False (do not synthesize a bypass).
+        # Invalid UTF-8 returns False, so the helper does not synthesize a bypass.
         assert lsp_gate_state._has_conflict_markers(str(target)) is False
 
     def test_missing_file_returns_false(self, tmp_path):

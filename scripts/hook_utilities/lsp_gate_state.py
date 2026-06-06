@@ -237,26 +237,56 @@ def record_nav(cwd: str) -> dict:
 _CONFLICT_MARKER_SCAN_BYTES = 256 * 1024
 
 
-def _merge_in_progress(project_dir: str) -> bool:
-    """True if a merge, rebase, or cherry-pick/revert is in progress.
-
-    Detected via the sentinel paths git itself creates under ``.git``:
-    ``MERGE_HEAD`` (``git merge``, ``git cherry-pick``, ``git revert``),
-    ``rebase-merge`` (interactive rebase / ``git rebase -i``), and
-    ``rebase-apply`` (plain ``git rebase``). ADR-062 Section 7 extends the
-    always-bypass set with this signal: while one of these markers exists, files
-    on disk may legitimately contain ``<<<<<<<``/``=======``/``>>>>>>>`` and no
-    LSP can parse them, so the gate's warmup precondition is unsatisfiable for
-    the window (issue #2454).
-
-    Pure stat-only check; no shell-out to ``git`` (CWE-78 safe). Any filesystem
-    error degrades to ``False`` (fail-open: do not synthesize a bypass when the
-    state cannot be observed).
-    """
+def _resolve_git_dir(project_dir: str) -> Path | None:
+    """Return the git admin directory for normal and linked worktrees."""
     if not project_dir:
+        return None
+    try:
+        git_path = Path(project_dir) / ".git"
+        if git_path.is_dir():
+            return git_path
+        if not git_path.is_file():
+            return None
+        content = git_path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError, ValueError):
+        return None
+
+    if not content.startswith("gitdir:"):
+        return None
+    pointer = content.split(":", 1)[1].strip()
+    if not pointer:
+        return None
+
+    git_dir = Path(pointer)
+    if not git_dir.is_absolute():
+        git_dir = git_path.parent / git_dir
+    try:
+        return git_dir.resolve()
+    except (OSError, ValueError):
+        return None
+
+
+def _merge_in_progress(project_dir: str) -> bool:
+    """True if a merge or rebase is in progress.
+
+    Detected via sentinel paths git creates under the active git admin
+    directory: ``MERGE_HEAD`` (``git merge``), ``rebase-merge`` (interactive
+    rebase), and ``rebase-apply`` (plain rebase). Normal worktrees store this
+    directory at ``<project_dir>/.git``. Linked worktrees store a ``.git`` file
+    with a ``gitdir: <path>`` pointer, so resolve the pointer before checking
+    markers. ADR-062 Section 7 extends the always-bypass set with this signal:
+    while one of these markers exists, files on disk may legitimately contain
+    ``<<<<<<<``/``=======``/``>>>>>>>`` and no LSP can parse them, so the gate's
+    warmup precondition is unsatisfiable for the window (issue #2454).
+
+    Pure filesystem check; no shell-out to ``git`` (CWE-78 safe). Any filesystem
+    error degrades to ``False`` so the function does not synthesize a bypass
+    when the state cannot be observed.
+    """
+    git_dir = _resolve_git_dir(project_dir)
+    if git_dir is None:
         return False
     try:
-        git_dir = Path(project_dir) / ".git"
         for marker in ("MERGE_HEAD", "rebase-merge", "rebase-apply"):
             if (git_dir / marker).exists():
                 return True
@@ -276,8 +306,8 @@ def _has_conflict_markers(file_path: str) -> bool:
     (issue #2454).
 
     Binary files (``UnicodeDecodeError``) and any filesystem error degrade to
-    ``False`` (fail-open: do not synthesize a bypass when the file cannot be
-    read).
+    ``False`` so the function does not synthesize a bypass when the file cannot
+    be read.
     """
     if not file_path:
         return False

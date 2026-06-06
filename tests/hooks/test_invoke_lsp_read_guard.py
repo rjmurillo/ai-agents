@@ -146,7 +146,7 @@ class TestMergeInProgressBypass:
     The guard relies on ``is_gated_target``. While a merge or rebase is in
     flight, files on disk may carry conflict markers and no LSP can parse them.
     Blocking the Read would force a sed/awk workaround on a core resolution
-    workflow, so the helper degrades to ``not gated`` (fail-open: allow).
+    workflow, so the helper applies the explicit ``not gated`` bypass.
     """
 
     def _make_repo(self, tmp_path):
@@ -170,6 +170,17 @@ class TestMergeInProgressBypass:
     def test_rebase_apply_marker_bypasses_gate(self, tmp_path):
         repo, target = self._make_repo(tmp_path)
         (repo / ".git" / "rebase-apply").mkdir()
+        assert guard.is_gated_target(str(target), str(repo)) is False
+
+    def test_linked_worktree_merge_head_marker_bypasses_gate(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        gitdir = tmp_path / "main.git" / "worktrees" / "repo"
+        gitdir.mkdir(parents=True)
+        (repo / ".git").write_text(f"gitdir: {gitdir}\n", encoding="utf-8")
+        (gitdir / "MERGE_HEAD").write_text("abc123\n", encoding="utf-8")
+        target = repo / "sample.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
         assert guard.is_gated_target(str(target), str(repo)) is False
 
     def test_no_merge_marker_does_not_bypass(self, tmp_path):
