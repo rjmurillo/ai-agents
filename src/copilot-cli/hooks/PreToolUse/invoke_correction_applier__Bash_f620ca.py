@@ -405,13 +405,21 @@ def _original_main(stdin_bytes):
             for source, text in shown:
                 lines.append(f"- [{source}] {text}")
 
-            # Match the {decision, reason} envelope used by every other
-            # PreToolUse hook in this repo (invoke_branch_protection_guard,
-            # invoke_branch_context_guard, invoke_false_completion_gate,
-            # invoke_security_commit_gate, invoke_prompt_eval_gate). Claude
-            # Code surfaces the `reason` field; `message` was silently dropped.
+            # PreToolUse ADVISORY output: inject context through
+            # hookSpecificOutput.additionalContext. The top-level `decision` field
+            # accepts only "approve"/"block" (the blocking guards correctly use
+            # "block"); "allow" is invalid there, so Claude Code rejected the whole
+            # envelope and silently dropped the advisory (Issue #2468). The
+            # allow/deny/ask values belong under
+            # hookSpecificOutput.permissionDecision, which is a permission verdict,
+            # not the context-injection an advisory needs.
             advisory = "\n".join(lines)
-            output = {"decision": "allow", "reason": advisory}
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "additionalContext": advisory,
+                }
+            }
             print(json.dumps(output))
             # Mirror advisory text to stderr for human visibility in logs
             # (stdout must remain valid JSON for the hook protocol).

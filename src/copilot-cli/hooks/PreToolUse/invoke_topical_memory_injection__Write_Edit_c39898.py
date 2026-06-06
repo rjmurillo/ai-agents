@@ -455,7 +455,20 @@ def _original_main(stdin_bytes):
                 return 0
 
             advisory = render_advisory(topic, memories)
-            print(json.dumps({"decision": "allow", "reason": advisory}))
+            # PreToolUse advisory: inject context via
+            # hookSpecificOutput.additionalContext. Top-level `decision` accepts
+            # only "approve"/"block"; "allow" is invalid and made Claude Code reject
+            # the envelope, silently dropping the advisory (Issue #2468).
+            print(
+                json.dumps(
+                    {
+                        "hookSpecificOutput": {
+                            "hookEventName": "PreToolUse",
+                            "additionalContext": advisory,
+                        }
+                    }
+                )
+            )
             print(advisory, file=sys.stderr)
         except Exception as exc:  # noqa: BLE001 - advisory hook fails open
             print(f"[{hook_name}] Error (fail-open): {exc}", file=sys.stderr)
