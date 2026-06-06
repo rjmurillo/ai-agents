@@ -89,6 +89,19 @@ def test_vague_term_costs_twenty_percent():
     assert base_score - vague_score == 20
 
 
+def test_hyphenated_compounds_do_not_count_as_vague_terms():
+    # Arrange
+    learning = "Use cost-effective 30s retries for well-known transient API failures"
+
+    # Act
+    result = score_learning(learning)
+
+    # Assert
+    assert "effective" not in result.vague_terms
+    assert "well" not in result.vague_terms
+    assert "vague" not in result.breakdown
+
+
 def test_compound_statement_costs_fifteen_percent_each():
     # Arrange: a learning with two compound markers.
     learning = "Add a null check at 47 and redirect to login and also log the event"

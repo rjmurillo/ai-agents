@@ -106,13 +106,12 @@ class AtomicityScore:
 def _count_word_occurrences(text_lower: str, words: tuple[str, ...]) -> list[str]:
     """Return the markers from ``words`` present in ``text_lower``, with repeats.
 
-    Whole-word matching avoids counting ``and`` inside ``standard`` or
-    ``sometimes`` inside an unrelated token.
+    Whole-token matching avoids counting ``and`` inside ``standard`` or vague
+    markers inside hyphenated compounds like ``cost-effective``.
     """
     found: list[str] = []
     for word in words:
-        # Count whole-word, case-insensitive occurrences.
-        matches = re.findall(rf"\b{re.escape(word)}\b", text_lower)
+        matches = re.findall(rf"(?<![\w-]){re.escape(word)}(?![\w-])", text_lower)
         found.extend(matches)
     return found
 
