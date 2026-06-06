@@ -4760,7 +4760,8 @@
       "type": "milestone",
       "label": "milestone: context",
       "episodes": [
-        "episode-2026-06-05-session-2367"
+        "episode-2026-06-05-session-2367",
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
       ],
       "created": "2026-06-06T20:17:10.474613+00:00"
     },
@@ -4769,7 +4770,8 @@
       "type": "milestone",
       "label": "milestone: worktree",
       "episodes": [
-        "episode-2026-06-05-session-2367"
+        "episode-2026-06-05-session-2367",
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
       ],
       "created": "2026-06-06T20:17:10.474632+00:00"
     },
@@ -4778,7 +4780,8 @@
       "type": "milestone",
       "label": "milestone: conflicts",
       "episodes": [
-        "episode-2026-06-05-session-2367"
+        "episode-2026-06-05-session-2367",
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
       ],
       "created": "2026-06-06T20:17:10.474650+00:00"
     },
@@ -4796,7 +4799,8 @@
       "type": "milestone",
       "label": "milestone: validation",
       "episodes": [
-        "episode-2026-06-05-session-2367"
+        "episode-2026-06-05-session-2367",
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
       ],
       "created": "2026-06-06T20:17:10.474685+00:00"
     },
@@ -4907,6 +4911,204 @@
         "episode-2026-06-06-session-2371-pr-2476-ready-merge"
       ],
       "created": "2026-06-06T20:17:10.474973+00:00"
+    },
+    {
+      "id": "b96913ec11ff",
+      "type": "milestone",
+      "label": "milestone: threads",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811189+00:00"
+    },
+    {
+      "id": "36588aa5c845",
+      "type": "test",
+      "label": "test: Retrospective tests passed: 63 passed in local Python 3.14 venv",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811231+00:00"
+    },
+    {
+      "id": "24f546dd2796",
+      "type": "commit",
+      "label": "commit: Commit: 9b53fd6f0f7e35ccd0bcbfd6ced3d589d3469dc6",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811250+00:00"
+    },
+    {
+      "id": "8319d71fec66",
+      "type": "commit",
+      "label": "commit: Commit: 6a3fdc5ee636c6b6eedcf984301960f0eb0e0ad1",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811268+00:00"
+    },
+    {
+      "id": "ae888852d399",
+      "type": "commit",
+      "label": "commit: Commit: c5ae51df9cde23ec5cf18fea45cc9b94e84c0715",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811287+00:00"
+    },
+    {
+      "id": "9392b1da9a21",
+      "type": "commit",
+      "label": "commit: Commit: 8f615117d14a3381aee72fe60b71359291932ca9",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811305+00:00"
+    },
+    {
+      "id": "9b9e3c517886",
+      "type": "commit",
+      "label": "commit: Commit: ed410f687928eee1b2c64c2bc409be009d802c74",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811323+00:00"
+    },
+    {
+      "id": "adb16a4dad01",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR 2337 to Ready-to-Merge and merge when clean",
+      "episodes": [
+        "episode-2026-06-06-session-01-pr-2337-ready-merge"
+      ],
+      "created": "2026-06-06T23:42:35.811341+00:00"
+    },
+    {
+      "id": "e77c799fca7f",
+      "type": "milestone",
+      "label": "milestone: diagnose",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811398+00:00"
+    },
+    {
+      "id": "d1fc96bf3c0b",
+      "type": "milestone",
+      "label": "milestone: confirm-schema",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811418+00:00"
+    },
+    {
+      "id": "3a31e53fa897",
+      "type": "milestone",
+      "label": "milestone: fix-hooks",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811436+00:00"
+    },
+    {
+      "id": "249abc609553",
+      "type": "milestone",
+      "label": "milestone: tests",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811457+00:00"
+    },
+    {
+      "id": "0b23d929ebcb",
+      "type": "test",
+      "label": "test: Ran: uv run python -m pytest tests/test_invoke_correction_applier.py tests/hooks/test_topical_memory_injection.py -> 54 passed (exit code 0). Added stdout-JSON regression guards; the prior tests only checked stderr or substring-matched stdout, so the bad envelope passed green",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811475+00:00"
+    },
+    {
+      "id": "2bb7b60dcb75",
+      "type": "milestone",
+      "label": "milestone: regenerate-mirror",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811493+00:00"
+    },
+    {
+      "id": "e5f67f6a45b4",
+      "type": "milestone",
+      "label": "milestone: plugin-bump",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811512+00:00"
+    },
+    {
+      "id": "e062dab95015",
+      "type": "milestone",
+      "label": "milestone: stopgap",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811530+00:00"
+    },
+    {
+      "id": "4c018dccd437",
+      "type": "commit",
+      "label": "commit: Commit: ee35428b3",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811548+00:00"
+    },
+    {
+      "id": "c2076e284f4a",
+      "type": "outcome",
+      "label": "Outcome: success - Fix PreToolUse advisory hooks emitting invalid decision:allow JSON; switch to hookSpecificOutput.additionalContext envelope, regenerate copilot shims, add stdout-JSON regression tests, bump plugin.json to 0.5.135",
+      "episodes": [
+        "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting"
+      ],
+      "created": "2026-06-06T23:42:35.811567+00:00"
+    },
+    {
+      "id": "d9746d221868",
+      "type": "commit",
+      "label": "commit: Commit: 33f48901d28e855d30a4cd5c778bbc440b599012",
+      "episodes": [
+        "episode-2026-06-06-session-2368-triage-disposition-open-issues-close"
+      ],
+      "created": "2026-06-06T23:42:35.811619+00:00"
+    },
+    {
+      "id": "fd703a72006e",
+      "type": "outcome",
+      "label": "Outcome: success - Triage and disposition 31 open issues: close resolved, fix merited bugs (#2456 commit-limit-bypass), keep-open active roadmap epics",
+      "episodes": [
+        "episode-2026-06-06-session-2368-triage-disposition-open-issues-close"
+      ],
+      "created": "2026-06-06T23:42:35.811639+00:00"
+    },
+    {
+      "id": "fc8440018bbd",
+      "type": "commit",
+      "label": "commit: Commit: 36adee34e",
+      "episodes": [
+        "episode-2026-06-06-session-2372-triage-resolve-open-github-issues"
+      ],
+      "created": "2026-06-06T23:42:35.811854+00:00"
+    },
+    {
+      "id": "9610410e5529",
+      "type": "outcome",
+      "label": "Outcome: success - Triage and resolve all 32 open GitHub issues: evaluate still-valid, priority, merit; close stale with justification; fix merited via PRs; workflow-orchestrated",
+      "episodes": [
+        "episode-2026-06-06-session-2372-triage-resolve-open-github-issues"
+      ],
+      "created": "2026-06-06T23:42:35.811874+00:00"
     }
   ],
   "patterns": [
@@ -4956,7 +5158,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 12,
+      "occurrences": 13,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -4965,7 +5167,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 24,
+      "occurrences": 26,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -4974,7 +5176,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 48,
+      "occurrences": 52,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -4983,7 +5185,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 72,
+      "occurrences": 78,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -4993,7 +5195,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -5001,7 +5203,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -5009,7 +5211,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -5017,7 +5219,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -5025,7 +5227,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -5033,7 +5235,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -5041,7 +5243,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -5049,7 +5251,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -5057,7 +5259,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -5065,7 +5267,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -5073,7 +5275,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -5081,7 +5283,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -5089,7 +5291,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -5097,7 +5299,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -5105,7 +5307,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -5113,7 +5315,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -5121,7 +5323,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -5129,7 +5331,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -5137,7 +5339,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -5145,7 +5347,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -5153,7 +5355,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -5161,7 +5363,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -5169,7 +5371,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -5177,7 +5379,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -5185,7 +5387,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -5193,7 +5395,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -5201,7 +5403,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -5209,7 +5411,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -5217,7 +5419,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -5225,7 +5427,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -5233,7 +5435,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -5241,7 +5443,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -5249,7 +5451,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -5257,7 +5459,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -5265,7 +5467,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -5273,7 +5475,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -5281,7 +5483,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -5289,7 +5491,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -5297,7 +5499,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -5305,7 +5507,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 12,
+      "evidence_count": 13,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
