@@ -2,6 +2,7 @@
 
 > **Purpose**: Name and define the lifecycle primitive that runs when CI review returns findings on a pushed branch. Replace ad-hoc "read the comment, edit the file, push" with a laddered sub-pass.
 > **Source**: Issue #2014 (CI-feedback sub-loop is an unnamed primitive). Parent epic #1933 (lifecycle-gate convergence).
+> **Status**: Non-normative proposal. This document names the pattern for review and reuse. It does not change governance expectations, branch policy, required commit formats, or CI behavior until an ADR, consensus record, and human maintainer approval promote it.
 
 ## The primitive
 
@@ -9,9 +10,9 @@ The initial lifecycle is well-defined: `/spec` to `/plan` to `/build` to `/test`
 
 What happens after a reviewer (Architect, Security, QA, DevOps, Roadmap, Reliability, or a bot like Copilot or CodeRabbit, or a human) flags a finding on a pushed branch has been implicit. The observed default is ad-hoc: read the comment, edit the file, push. That default produced PR #1965 (58 commits, 18 rounds) and PR #1979 (30 commits, 18 rounds).
 
-The **CI-Feedback Sub-Loop** is the named response primitive for that situation. It has the same status as the initial lifecycle, but its scope is one cluster of related findings, not the whole change. Each cluster gets its own laddered pass: a sub-spec, a sub-build, a sub-test, a sub-review, and a sub-ship. The mental model: **when operating on change requests from CI review, the build to test to review to ship sub-process repeats, scoped to one cluster at a time.**
+The **CI-Feedback Sub-Loop** is the proposed name for that situation. It is scoped to one cluster of related findings, not the whole change. Each cluster gets its own laddered pass: a sub-spec, a sub-build, a sub-test, a sub-review, and a sub-ship. The mental model: **when operating on change requests from CI review, the build to test to review to ship sub-process repeats, scoped to one cluster at a time.**
 
-This document is the bounded naming and documentation slice. The session-log schema extension and the CI workflow scope-reduction are named as follow-ups at the end; they are out of scope for this document.
+This document is the bounded naming and documentation slice. It is a proposal, not a new gate. The session-log schema extension, the CI workflow scope-reduction, and any governance promotion are named as follow-ups at the end; they are out of scope for this document.
 
 ## Trigger
 
@@ -37,9 +38,9 @@ A sub-loop pass exits when:
 
 The branch is done with the sub-loop when every open cluster has exited. A new finding on a fix is itself a new cluster and starts its own pass; it does not reopen a closed cluster.
 
-## Commit-prefix convention
+## Draft commit-prefix convention
 
-Sub-loop fix commits use the prefix `fix(subloop):` so the commit log and, later, CI can detect a sub-loop turn unambiguously.
+Sub-loop fix commits can use the prefix `fix(subloop):` so the commit log and, later, CI can detect a sub-loop turn unambiguously. This is a proposed convention, not a required commit format.
 
 Format:
 
@@ -52,9 +53,9 @@ fix(subloop): <axis> cluster <id>
 
 Example: `fix(subloop): architect cluster B`.
 
-This standardizes on `fix(subloop):` rather than the ad-hoc `fix(roundN):` used in PR #1965. `fix(roundN):` records a manual round; `fix(subloop):` records a structured sub-loop turn. The distinction lets the CI side (follow-up below) reduce reviewer scope only for structured turns, and lets a retrospective separate manual churn from laddered passes.
+This proposes `fix(subloop):` rather than the ad-hoc `fix(roundN):` used in PR #1965. `fix(roundN):` records a manual round; `fix(subloop):` records a structured sub-loop turn. The distinction would let the CI side (follow-up below) reduce reviewer scope only for structured turns, and would let a retrospective separate manual churn from laddered passes.
 
-`fix(subloop):` is a `fix` type under the conventional-commit contract in `.claude/rules/universal.md`, so it satisfies branch-discipline and commit-format gates without a change to the commit-type allowlist.
+`fix(subloop):` is a `fix` type under the conventional-commit contract in `.claude/rules/universal.md`, so the proposed form fits existing branch-discipline and commit-format gates without a change to the commit-type allowlist.
 
 ## Why this matters
 
@@ -62,10 +63,11 @@ The #1933 epic fixes the structural question (CI as backstop, `/review` as prima
 
 ## Out of scope for this document (named follow-ups)
 
-This document delivers the naming and the procedure. Two pieces of issue #2014 remain and should land as separate changes:
+This document delivers the proposed naming and procedure. Three pieces of issue #2014 remain and should land as separate changes:
 
-1. **Session-log schema extension**: add a `sub_loop_turns` array to the session log, each entry recording `{cluster_id, axes_run, verdicts, sha}`. This makes "Round 7 of N" a structured artifact instead of a commit-message convention. The validator at `scripts/validate_session_json.py` does not reject unknown top-level fields today, so the field is additive; the schema change is the validation and the documentation of the field shape, plus tests. Tracked under #2014.
-2. **CI workflow scope-reduction**: when the head SHA is a `fix(subloop):` push, CI should skip axes the cluster does not claim to address and compare verdict-per-axis against the prior push so regressions surface explicitly. This is the larger slice and depends on the commit-prefix convention defined here. Tracked under #2014.
+1. **Governance promotion**: write the ADR and consensus record required by `.claude/rules/governance.md`, then get human maintainer approval before treating the sub-loop or `fix(subloop):` form as normative policy. Tracked under #2014.
+2. **Session-log schema extension**: add a `sub_loop_turns` array to the session log, each entry recording `{cluster_id, axes_run, verdicts, sha}`. This makes "Round 7 of N" a structured artifact instead of a commit-message convention. The validator at `scripts/validate_session_json.py` does not reject unknown top-level fields today, so the field is additive; the schema change is the validation and the documentation of the field shape, plus tests. Tracked under #2014.
+3. **CI workflow scope-reduction**: when the head SHA is a `fix(subloop):` push, CI should skip axes the cluster does not claim to address and compare verdict-per-axis against the prior push so regressions surface explicitly. This is the larger slice and depends on the draft commit-prefix convention defined here. Tracked under #2014.
 
 A worked example in `.agents/retrospective/` applying the sub-loop to a real CI-feedback cluster is also a follow-up, deferred until the first PR runs the procedure end to end.
 
