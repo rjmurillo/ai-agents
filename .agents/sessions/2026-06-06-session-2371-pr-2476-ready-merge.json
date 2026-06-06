@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "date": "2026-06-06",
+    "number": 2371,
+    "description": "pr-2476-ready-merge",
+    "branch": "fix/2475-github-skill-comments-reopen",
+    "pr": 2476,
+    "issue": 2475,
+    "status": "in_progress",
+    "startingCommit": "4b8e821be20781b3b067120c7b791932a3234d3d",
+    "objective": "Drive PR #2476 to Ready-to-Merge by resolving review threads, validating checks, and squash-merging when clean."
+  },
+  "protocol": {
+    "serena_initial_instructions": true,
+    "handoff_read": true,
+    "session_log_created": true,
+    "git_branch_verified": true,
+    "worktree": ".worktrees/pr-2476"
+  },
+  "tasks": [
+    {
+      "id": "read-threads",
+      "status": "done"
+    },
+    {
+      "id": "fix-review-feedback",
+      "status": "done"
+    },
+    {
+      "id": "validate-and-push",
+      "status": "pending"
+    },
+    {
+      "id": "merge-pr",
+      "status": "pending"
+    }
+  ],
+  "events": [
+    {
+      "type": "threads_read",
+      "count": 14
+    },
+    {
+      "type": "commit",
+      "sha": "9ca7b3f311",
+      "summary": "fixed issue comment output format and UTF-8 subprocess decoding"
+    },
+    {
+      "type": "commit",
+      "sha": "5696660201",
+      "summary": "fixed reopen subprocess UTF-8 decoding"
+    },
+    {
+      "type": "validation",
+      "command": "uv run pytest tests/test_get_issue_comments.py tests/test_reopen_issue.py -q",
+      "result": "23 passed"
+    }
+  ],
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Serena tools were present; initial instructions loaded before code edits."
+      },
+      "serenaInstructions": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Called serena initial instructions at session start."
+      },
+      "handoffRead": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Read .agents/HANDOFF.md lines 1-116 as read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Created .agents/sessions/2026-06-06-session-2371-pr-2476-ready-merge.json."
+      },
+      "branchVerified": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Verified branch fix/2475-github-skill-comments-reopen in the PR worktree."
+      },
+      "notOnMain": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Worktree branch is fix/2475-github-skill-comments-reopen, not main."
+      },
+      "memorySearched": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "Attempted pr-comment-responder-skills memory; memory was absent."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session checklist populated before committing session artifacts."
+      },
+      "handoffPreserved": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": ".agents/HANDOFF.md remained read only and unmodified."
+      },
+      "serenaMemoryUpdated": {
+        "complete": true,
+        "level": "SHOULD",
+        "evidence": "No new durable repository memory met storage criteria; session evidence is in this log."
+      },
+      "markdownLintRun": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Markdownlint scope was empty because this change authored JSON and Python files only."
+      },
+      "changesCommitted": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "Session artifacts are included in the session commit."
+      },
+      "validationPassed": {
+        "complete": true,
+        "level": "MUST",
+        "evidence": "python3 scripts/validate_session_json.py returned PASS for this file."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read review threads",
+      "result": "Fetched 14 unresolved review threads for PR #2476."
+    },
+    {
+      "action": "Fixed get_issue_comments.py",
+      "result": "Added ADR-035 exit code 2 doc, UTF-8 subprocess decoding, and caller output-format propagation."
+    },
+    {
+      "action": "Fixed reopen_issue.py",
+      "result": "Added UTF-8 subprocess decoding on all gh subprocess calls."
+    },
+    {
+      "action": "Validated targeted tests",
+      "result": "uv run pytest tests/test_get_issue_comments.py tests/test_reopen_issue.py -q passed 23 tests."
+    }
+  ]
+}
