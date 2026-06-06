@@ -38,6 +38,24 @@ check_merge_readiness = _mod.check_merge_readiness
 stale_dirty_suspected = _mod.stale_dirty_suspected
 
 
+class TestScriptCommit:
+    """Issue #2443: the readiness verdict carries the producing script's commit."""
+
+    def test_returns_nonempty_string(self):
+        sha = _mod._script_commit()
+        assert isinstance(sha, str)
+        assert sha
+
+    def test_unknown_when_git_unavailable(self):
+        with patch.object(_mod.subprocess, "run", side_effect=OSError("no git")):
+            assert _mod._script_commit() == "unknown"
+
+    def test_unknown_when_output_blank(self):
+        completed = _mod.subprocess.CompletedProcess(["git"], 0, stdout="\n", stderr="")
+        with patch.object(_mod.subprocess, "run", return_value=completed):
+            assert _mod._script_commit() == "unknown"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

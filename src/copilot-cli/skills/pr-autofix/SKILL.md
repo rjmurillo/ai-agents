@@ -74,6 +74,8 @@ After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable a
 
 `CanMerge=True` from `test_pr_merge_ready.py` alone is insufficient. Cross-check all four conditions.
 
+**Checkout ownership for the readiness helper (issue #2443)**: when a PR modifies files under `.claude/skills/github/scripts/pr/`, run `test_pr_merge_ready.py` from that PR's own worktree, not from a shared checkout. A shared checkout runs whatever helper version is on its disk, which may predate the branch's fix and yield a stale `CanMerge` verdict. The readiness output records a `ScriptCommit` field with the helper revision that produced the verdict; if it does not match the PR branch's helper commit, re-run from the PR worktree before trusting the result.
+
 ## Tier Definitions
 
 | Tier | Criteria | Action |
