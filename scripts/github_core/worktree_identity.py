@@ -19,6 +19,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -32,10 +33,14 @@ def _run_git_config(
     *,
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
     return subprocess.run(
         ["git", "-C", str(cwd), "config", *args],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
         check=check,
     )
 

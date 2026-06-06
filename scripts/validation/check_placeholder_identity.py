@@ -15,6 +15,7 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import tempfile
@@ -68,6 +69,10 @@ class _CommitIdentity(NamedTuple):
 
 def _list_commits(push_range: str, repo_root: Path) -> list[_CommitIdentity]:
     """Return commit identities for the push range via git log."""
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
     result = subprocess.run(
         [
             "git", "log",
@@ -76,7 +81,9 @@ def _list_commits(push_range: str, repo_root: Path) -> list[_CommitIdentity]:
         ],
         cwd=repo_root,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
     )
     if result.returncode != 0:
         print(

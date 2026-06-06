@@ -16,6 +16,7 @@ See: issue #2466, commit a2cc80e7, PR #2458.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -28,11 +29,15 @@ import pytest
 
 
 def _git(args: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
         check=check,
     )
 
@@ -331,6 +336,14 @@ class TestSquashBodySanitizer:
         result = filter_coauthor_trailers(body)
         assert "test@test.com" not in result
         assert "Copilot" in result
+
+    def test_removes_bare_test_name_with_test_tld_trailer(self) -> None:
+        """Name-based placeholder trailers must be stripped."""
+        from scripts.github_core.placeholder_identity import filter_coauthor_trailers
+
+        body = "Co-authored-by: Test <fixture@example.test>\n"
+        result = filter_coauthor_trailers(body)
+        assert "fixture@example.test" not in result
 
     def test_preserves_copilot_trailer(self) -> None:
         """Copilot co-author must be preserved."""
