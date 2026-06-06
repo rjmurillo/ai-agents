@@ -14,8 +14,7 @@ import pytest
 from scripts.github_core.api import RepoInfo
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -69,9 +68,7 @@ class TestBuildParser:
 
 class TestMain:
     def test_not_authenticated_exits_4(self):
-        with patch(
-            "get_issue_comments.assert_gh_authenticated", side_effect=SystemExit(4)
-        ):
+        with patch("get_issue_comments.assert_gh_authenticated", side_effect=SystemExit(4)):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1"])
             assert exc.value.code == 4
@@ -81,10 +78,14 @@ class TestMain:
             _api_comment("coderabbitai[bot]", "auto plan"),
             _api_comment("rjmurillo", "keep open P3"),
         ]
-        with patch("get_issue_comments.assert_gh_authenticated"), patch(
-            "get_issue_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", side_effect=[_slurped(page)]):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped(page)]),
+        ):
             rc = main(["--issue", "2099"])
         assert rc == 0
         env = _envelope(capsys)
@@ -98,18 +99,37 @@ class TestMain:
         assert data["comments"][1]["body"] == "keep open P3"
         assert "createdAt" in data["comments"][0]
 
+    def test_subprocess_reads_utf8(self, capsys):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([])]) as mock_run,
+        ):
+            rc = main(["--issue", "1"])
+
+        assert rc == 0
+        _envelope(capsys)
+        assert mock_run.call_args.kwargs["encoding"] == "utf-8"
+
     def test_flattens_multiple_pages(self, capsys):
-        with patch("get_issue_comments.assert_gh_authenticated"), patch(
-            "get_issue_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _slurped(
-                    [_api_comment("a", "1"), _api_comment("b", "2")],
-                    [_api_comment("c", "3")],
-                )
-            ],
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _slurped(
+                        [_api_comment("a", "1"), _api_comment("b", "2")],
+                        [_api_comment("c", "3")],
+                    )
+                ],
+            ),
         ):
             rc = main(["--issue", "1"])
         assert rc == 0
@@ -117,16 +137,24 @@ class TestMain:
         assert data["count"] == 3
 
     def test_limit_keeps_most_recent(self, capsys):
-        with patch("get_issue_comments.assert_gh_authenticated"), patch(
-            "get_issue_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _slurped(
-                    [_api_comment("a", "old"), _api_comment("b", "mid"), _api_comment("c", "new")]
-                )
-            ],
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _slurped(
+                        [
+                            _api_comment("a", "old"),
+                            _api_comment("b", "mid"),
+                            _api_comment("c", "new"),
+                        ]
+                    )
+                ],
+            ),
         ):
             rc = main(["--issue", "1", "--limit", "1"])
         assert rc == 0
@@ -135,10 +163,14 @@ class TestMain:
         assert data["comments"][0]["body"] == "new"
 
     def test_empty_thread(self, capsys):
-        with patch("get_issue_comments.assert_gh_authenticated"), patch(
-            "get_issue_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", side_effect=[_completed(stdout="[]", rc=0)]):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_completed(stdout="[]", rc=0)]),
+        ):
             rc = main(["--issue", "1"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -146,23 +178,48 @@ class TestMain:
         assert data["comments"] == []
 
     def test_api_failure_exits_3(self, capsys):
-        with patch("get_issue_comments.assert_gh_authenticated"), patch(
-            "get_issue_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", side_effect=[_completed(stderr="server 500", rc=1)]):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_completed(stderr="server 500", rc=1)]),
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1"])
             assert exc.value.code == 3
         env = _envelope(capsys)
         assert env["Success"] is False
 
+    def test_api_failure_respects_human_output_format(self, capsys):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_completed(stderr="server 500", rc=1)]),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--issue", "1", "--output-format", "human"])
+            assert exc.value.code == 3
+
+        assert "[FAIL] Failed to fetch comments for issue #1: server 500" in (
+            capsys.readouterr().out
+        )
+
     def test_not_found_exits_2(self, capsys):
-        with patch("get_issue_comments.assert_gh_authenticated"), patch(
-            "get_issue_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_completed(stderr="Could not resolve to a Repository", rc=1)],
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_completed(stderr="Could not resolve to a Repository", rc=1)],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1"])
@@ -170,10 +227,14 @@ class TestMain:
 
     def test_missing_user_login_is_none(self, capsys):
         bad = {"created_at": "2026-06-06T00:00:00Z", "body": "ghost"}
-        with patch("get_issue_comments.assert_gh_authenticated"), patch(
-            "get_issue_comments.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", side_effect=[_slurped([bad])]):
+        with (
+            patch("get_issue_comments.assert_gh_authenticated"),
+            patch(
+                "get_issue_comments.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_slurped([bad])]),
+        ):
             rc = main(["--issue", "1"])
         assert rc == 0
         data = _envelope(capsys)["Data"]

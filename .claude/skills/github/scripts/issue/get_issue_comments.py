@@ -12,6 +12,7 @@ envelope with ``Data.comments`` as a list of
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
+    2 - File not found / config error
     3 - External error (API failure)
     4 - Auth error (not authenticated)
 """
@@ -92,31 +93,31 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
     return 3, "ApiError"
 
 
-def _fetch_comments(owner: str, repo: str, issue: int) -> list[dict[str, object]]:
+def _fetch_comments(owner: str, repo: str, issue: int, fmt: str) -> list[dict[str, object]]:
     """Page through the issue's comments via gh api. Raises SystemExit on error."""
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
             "--paginate",
             "--slurp",
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=60,
         check=False,
     )
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        not_found = (
-            "Could not resolve" in error_str or "not found" in error_str.lower()
-        )
+        not_found = "Could not resolve" in error_str or "not found" in error_str.lower()
         code, error_type = _exit_code_for(error_str, not_found=not_found)
         write_skill_error(
             f"Failed to fetch comments for issue #{issue}: {error_str}",
             code,
             error_type=error_type,
-            output_format="json",
+            output_format=fmt,
             script_name=_SCRIPT,
             extra={"issue": issue},
         )
@@ -128,7 +129,7 @@ def _fetch_comments(owner: str, repo: str, issue: int) -> list[dict[str, object]
             f"Failed to parse comments for issue #{issue}: {exc}",
             3,
             error_type="ApiError",
-            output_format="json",
+            output_format=fmt,
             script_name=_SCRIPT,
             extra={"issue": issue},
         )
@@ -165,7 +166,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
     issue: int = args.issue
 
-    raw = _fetch_comments(owner, repo, issue)
+    raw = _fetch_comments(owner, repo, issue, fmt)
     comments = [_normalize(c) for c in raw]
     if args.limit and args.limit > 0:
         comments = comments[-args.limit :]
