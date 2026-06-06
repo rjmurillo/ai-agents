@@ -230,7 +230,7 @@ def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
     retro_dir = tmp_path / ("." + "agents") / "retrospective"
     retro_dir.mkdir(parents=True)
     skeleton = retro_dir / "2026-06-03-auto-retro.md"
-    skeleton.write_text("# Retrospective: 2026-06-03\n", encoding="utf-8")
+    skeleton.write_text("# Retrospective: 2026-06-03\n\n> UNFILLED SKELETON\n", encoding="utf-8")
     (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
 
     # Act
@@ -244,6 +244,47 @@ def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
     assert rc == 0
     assert skeleton.is_file()
     assert "## Phase 0: Data Gathering" in skeleton.read_text(encoding="utf-8")
+
+
+def test_fill_mode_resolves_basename_from_retrospective_dir(tmp_path):
+    # Arrange: a basename should target the retrospective artifact directory.
+    retro_dir = tmp_path / ("." + "agents") / "retrospective"
+    retro_dir.mkdir(parents=True)
+    skeleton = retro_dir / "2026-06-03-auto-retro.md"
+    skeleton.write_text("# Retrospective: 2026-06-03\n\n> UNFILLED SKELETON\n", encoding="utf-8")
+    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "2026-06-03",
+        "--fill", "2026-06-03-auto-retro.md",
+    ])
+
+    # Assert
+    assert rc == 0
+    assert "## Phase 0: Data Gathering" in skeleton.read_text(encoding="utf-8")
+
+
+def test_fill_mode_rejects_filled_retrospective(tmp_path):
+    # Arrange: a filled artifact has no unfilled marker and must not be overwritten.
+    retro_dir = tmp_path / ("." + "agents") / "retrospective"
+    retro_dir.mkdir(parents=True)
+    filled = retro_dir / "2026-06-03-auto-retro.md"
+    original = "# Retrospective: 2026-06-03\n\n## Phase 0: Data Gathering\nManual notes\n"
+    filled.write_text(original, encoding="utf-8")
+    (tmp_path / ("." + "agents") / "sessions").mkdir(parents=True)
+
+    # Act
+    rc = main([
+        "--project-dir", str(tmp_path),
+        "--scope", "2026-06-03",
+        "--fill", _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
+    ])
+
+    # Assert
+    assert rc == 2
+    assert filled.read_text(encoding="utf-8") == original
 
 
 def test_fill_mode_rejects_missing_skeleton(tmp_path):
@@ -509,7 +550,7 @@ def test_resolve_output_path_for_new_artifact(tmp_path):
 def test_resolve_output_path_for_fill_keeps_auto_retro_path(tmp_path):
     # Arrange
     skeleton = tmp_path / "2026-06-03-auto-retro.md"
-    skeleton.write_text("# Retrospective\n", encoding="utf-8")
+    skeleton.write_text("# Retrospective\n\n> UNFILLED SKELETON\n", encoding="utf-8")
 
     # Act
     path = _resolve_output_path(tmp_path, "2026-06-03", "2026-06-03", str(skeleton))
