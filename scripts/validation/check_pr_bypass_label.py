@@ -5,7 +5,7 @@ Mirrors the canonical commit-limit-bypass gate in
 ``.github/workflows/pr-validation.yml`` ("Enforce Blocking Issues" step), which
 fetches the PR labels with::
 
-    gh pr view <number> --json labels --jq '.labels[].name'
+gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
 
 and allows the over-limit push when that label list contains
 ``commit-limit-bypass``. The pre-push hook calls this helper so a local repair
@@ -63,9 +63,10 @@ def _run_gh_pr_view(branch: str | None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         cmd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=GH_TIMEOUT_SECONDS,
-        check=False,
+        check=True,
     )
 
 
@@ -81,6 +82,12 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
         return EXIT_EXTERNAL, "gh CLI not found; cannot check bypass label"
     except subprocess.TimeoutExpired:
         return EXIT_EXTERNAL, f"gh pr view timed out after {GH_TIMEOUT_SECONDS}s"
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").lower()
+        if "no pull request" in stderr or "no open pull request" in stderr:
+            target = branch or "current branch"
+            return EXIT_ABSENT, f"no open PR for {target}"
+        return EXIT_EXTERNAL, f"gh pr view failed (exit {exc.returncode})"
 
     if proc.returncode != 0:
         stderr = (proc.stderr or "").lower()
@@ -99,6 +106,11 @@ def check_bypass_label(label: str, branch: str | None) -> tuple[int, str]:
         return EXIT_EXTERNAL, "gh pr view returned unparseable JSON"
 
     number = payload.get("number")
+    state = payload.get("state")
+    if state != "OPEN":
+        target = branch or "current branch"
+        return EXIT_ABSENT, f"no open PR for {target}"
+
     labels_field = payload.get("labels")
     # Collapse only explicit null (python.md): a present-but-null labels field
     # means "no labels", not an error.

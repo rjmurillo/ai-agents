@@ -77,6 +77,19 @@ def test_returns_absent_when_no_pr_for_branch(monkeypatch):
     assert "no open PR for feat/foo" in status
 
 
+def test_returns_absent_when_pr_is_not_open(monkeypatch):
+    payload = (
+        '{"number": 2337, "labels": [{"name": "commit-limit-bypass"}], '
+        '"state": "CLOSED"}'
+    )
+    monkeypatch.setattr(mod, "_run_gh_pr_view", lambda branch: _proc(0, payload))
+
+    code, status = mod.check_bypass_label("commit-limit-bypass", "feat/foo")
+
+    assert code == mod.EXIT_ABSENT
+    assert "no open PR for feat/foo" in status
+
+
 def test_returns_external_when_gh_fails(monkeypatch):
     monkeypatch.setattr(
         mod,

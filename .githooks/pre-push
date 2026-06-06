@@ -366,8 +366,14 @@ if [ -n "$PUSH_RANGE" ]; then
         # Mirrors the CI gate in .github/workflows/pr-validation.yml
         # ("Enforce Blocking Issues"). The helper fails closed: any gh error
         # leaves the limit enforced.
-        BYPASS_STATUS=$("${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" 2>/dev/null)
-        BYPASS_EXIT=$?
+        if set_python_cmd; then
+            BYPASS_STATUS=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
+                "${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" 2>/dev/null)
+            BYPASS_EXIT=$?
+        else
+            BYPASS_STATUS="python unavailable; cannot check bypass label"
+            BYPASS_EXIT=3
+        fi
         if [ "$BYPASS_EXIT" -eq 0 ]; then
             record_warn "Commit count ($COMMIT_COUNT > $COMMIT_LIMIT) bypassed: $BYPASS_STATUS"
         else
