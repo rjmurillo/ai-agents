@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Structural tests for the retrospective skill decomposition (issue #2080, PR 1 of N).
+"""Structural tests for the retrospective skill decomposition (issue #2080, PR 2 of N).
 
-This PR creates the skill contract only: `.claude/skills/retrospective/SKILL.md`
-plus three `references/` files lifted verbatim from the source agent body. Scripts,
-agent deletion, and template removal are out of scope for this slice.
+This slice adds the script layer for the retrospective skill while keeping agent
+deletion and caller rewiring out of scope.
 
 These tests pin the structural contract that the SkillForge validator, the skill-size
 gate, and the canonical-source-mirror rule depend on:
@@ -19,7 +18,7 @@ gate, and the canonical-source-mirror rule depend on:
 - The rubrics in the references are byte-faithful to the source agent body
   (`.claude/agents/retrospective.md`), per the canonical-source-mirror rule.
 - No file carries an em-dash (U+2014) or en-dash (U+2013) per universal.md.
-- This slice ships no `scripts/` directory (scope boundary; scripts are PR 2).
+- The `scripts/` directory ships the PR 2 atomicity/evidence/orchestration scripts.
 """
 
 from __future__ import annotations
@@ -75,11 +74,12 @@ class TestExistenceAndLayout:
     def test_reference_file_exists(self, ref_path: Path) -> None:
         assert ref_path.is_file(), f"missing reference file: {ref_path.name}"
 
-    def test_slice_ships_no_scripts_directory(self) -> None:
-        # Scope boundary: PR 1 sets up the contract; scripts arrive in PR 2.
-        assert not (SKILL_DIR / "scripts").exists(), (
-            "scripts/ is out of scope for this slice (PR 2 adds scripts)"
-        )
+    def test_slice_ships_scripts_directory(self) -> None:
+        # PR 2 adds the script layer; the PR 1 forward-guard is now satisfied.
+        scripts_dir = SKILL_DIR / "scripts"
+        assert scripts_dir.is_dir(), "PR 2 ships the scripts/ directory"
+        for script in ("score_atomicity.py", "extract_evidence.py", "run_retrospective.py"):
+            assert (scripts_dir / script).is_file(), f"PR 2 ships scripts/{script}"
 
 
 class TestFrontmatter:

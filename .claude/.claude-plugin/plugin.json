@@ -1,7 +1,7 @@
 {
   "name": "project-toolkit",
-  "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and reusable skills for Claude Code workflows",
-  "version": "0.5.135",
+  "description": "Specialized agent definitions, reusable skills, and lifecycle hooks for GitHub Copilot CLI, generated from Claude canonical sources",
+  "version": "0.5.146",
   "author": {
     "name": "rjmurillo"
   }
