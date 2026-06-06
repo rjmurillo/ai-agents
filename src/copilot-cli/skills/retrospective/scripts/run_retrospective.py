@@ -299,6 +299,12 @@ def render_artifact(
     return artifact, any_below
 
 
+def _safe_scope_filename(scope: str) -> str:
+    """Return a cross-platform filename segment for a retrospective scope."""
+    replacements = str.maketrans({" ": "-", "/": "-", "\\": "-", ":": "-"})
+    return scope.strip().translate(replacements)
+
+
 def _resolve_output_path(
     retro_dir: Path,
     scope: str,
@@ -324,7 +330,7 @@ def _resolve_output_path(
             raise ValueError(f"fill skeleton not found: {fill}")
         _require_unfilled_skeleton(skeleton)
         return skeleton
-    safe_scope = scope.strip().replace(" ", "-").replace("/", "-")
+    safe_scope = _safe_scope_filename(scope)
     return retro_dir / f"{today}-{safe_scope}.md"
 
 

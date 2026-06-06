@@ -541,10 +541,10 @@ def test_resolve_fill_rejects_escape_before_existence_probe(tmp_path, monkeypatc
 
 def test_resolve_output_path_for_new_artifact(tmp_path):
     # Arrange / Act
-    path = _resolve_output_path(tmp_path, "my scope/with slash", "2026-06-03", None)
+    path = _resolve_output_path(tmp_path, r"my scope/with\slash:colon", "2026-06-03", None)
 
-    # Assert: spaces and slashes are normalized in the filename.
-    assert path.name == "2026-06-03-my-scope-with-slash.md"
+    # Assert: filename separators and Windows-invalid colon are normalized.
+    assert path.name == "2026-06-03-my-scope-with-slash-colon.md"
 
 
 def test_resolve_output_path_for_fill_keeps_auto_retro_path(tmp_path):
