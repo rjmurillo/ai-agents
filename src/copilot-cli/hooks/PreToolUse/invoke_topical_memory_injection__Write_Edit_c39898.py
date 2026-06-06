@@ -218,7 +218,7 @@ def _original_main(stdin_bytes):
     from pathlib import Path
 
     # Bootstrap: find lib directory via env var or manifest walk-up (mirrors
-    # invoke_correction_applier.py so the hook works in both the source tree and
+    # .claude/hooks/PreToolUse/invoke_correction_applier.py so the hook works in both
     # the deeper src/<provider>/hooks/<event>/ copy).
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if _plugin_root:
@@ -459,7 +459,7 @@ def _original_main(stdin_bytes):
             # Advisory only: inject as model-visible context via
             # hookSpecificOutput.additionalContext. {"decision": "allow"} is invalid
             # (top-level `decision` accepts only "approve"/"block"); see
-            # invoke_correction_applier.py for the full rationale.
+            # .claude/hooks/PreToolUse/invoke_correction_applier.py for the full rationale.
             print(
                 json.dumps(
                     {
