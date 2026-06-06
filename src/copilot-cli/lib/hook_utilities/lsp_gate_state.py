@@ -231,6 +231,101 @@ def record_nav(cwd: str) -> dict:
     return state
 
 
+# Bounded read budget for conflict-marker scanning. Conflict markers, when
+# present, appear at column 0 of their own lines, so scanning a leading window
+# of the file is sufficient and bounds worst-case I/O on huge files.
+_CONFLICT_MARKER_SCAN_BYTES = 256 * 1024
+
+
+def _resolve_git_dir(project_dir: str) -> Path | None:
+    """Return the git admin directory for normal and linked worktrees."""
+    if not project_dir:
+        return None
+    try:
+        git_path = Path(project_dir) / ".git"
+        if git_path.is_dir():
+            return git_path
+        if not git_path.is_file():
+            return None
+        content = git_path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError, ValueError):
+        return None
+
+    if not content.startswith("gitdir:"):
+        return None
+    pointer = content.split(":", 1)[1].strip()
+    if not pointer:
+        return None
+
+    git_dir = Path(pointer)
+    if not git_dir.is_absolute():
+        git_dir = git_path.parent / git_dir
+    try:
+        return git_dir.resolve()
+    except (OSError, ValueError):
+        return None
+
+
+def _merge_in_progress(project_dir: str) -> bool:
+    """True if a merge or rebase is in progress.
+
+    Detected via sentinel paths git creates under the active git admin
+    directory: ``MERGE_HEAD`` (``git merge``), ``rebase-merge`` (interactive
+    rebase), and ``rebase-apply`` (plain rebase). Normal worktrees store this
+    directory at ``<project_dir>/.git``. Linked worktrees store a ``.git`` file
+    with a ``gitdir: <path>`` pointer, so resolve the pointer before checking
+    markers. ADR-062 Section 7 extends the always-bypass set with this signal:
+    while one of these markers exists, files on disk may legitimately contain
+    ``<<<<<<<``/``=======``/``>>>>>>>`` and no LSP can parse them, so the gate's
+    warmup precondition is unsatisfiable for the window (issue #2454).
+
+    Pure filesystem check; no shell-out to ``git`` (CWE-78 safe). Any filesystem
+    error degrades to ``False`` so the function does not synthesize a bypass
+    when the state cannot be observed.
+    """
+    git_dir = _resolve_git_dir(project_dir)
+    if git_dir is None:
+        return False
+    try:
+        for marker in ("MERGE_HEAD", "rebase-merge", "rebase-apply"):
+            if (git_dir / marker).exists():
+                return True
+    except (OSError, ValueError):
+        return False
+    return False
+
+
+def _has_conflict_markers(file_path: str) -> bool:
+    """True if the file's leading window starts a line with a conflict marker.
+
+    Reads up to ``_CONFLICT_MARKER_SCAN_BYTES`` (bounded I/O, never the whole
+    file) and looks for any line that begins with ``<<<<<<<``, ``=======``, or
+    ``>>>>>>>``. These line-start anchors are what ``git merge`` writes; checks
+    that match them mid-line would false-positive on prose and on this codebase's
+    own merge-resolver tooling, so only ``re.MULTILINE`` ``^`` anchors are used
+    (issue #2454).
+
+    Binary files (``UnicodeDecodeError``) and any filesystem error degrade to
+    ``False`` so the function does not synthesize a bypass when the file cannot
+    be read.
+    """
+    if not file_path:
+        return False
+    try:
+        with open(file_path, "rb") as fh:
+            raw = fh.read(_CONFLICT_MARKER_SCAN_BYTES)
+    except (OSError, ValueError):
+        return False
+    try:
+        text = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        return False
+    for line in text.splitlines():
+        if line.startswith("<<<<<<<") or line.startswith("=======") or line.startswith(">>>>>>>"):
+            return True
+    return False
+
+
 def is_gated_target(file_path: str, project_dir: str) -> bool:
     """True if ``file_path`` is an in-repo, non-dotfile, non-scratch target.
 
@@ -238,6 +333,13 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
     TMPDIR/scratch are never gated. Paths are resolved before comparison so
     ``..`` traversal cannot escape the bypass (CWE-22 safe). A path that cannot
     be resolved or compared degrades to NOT gated (fail-open: allow).
+
+    The bypass set also covers files that LSP cannot meaningfully parse: any
+    file during a merge/rebase/cherry-pick (``.git/MERGE_HEAD``,
+    ``.git/rebase-merge``, ``.git/rebase-apply``), and any file whose leading
+    window contains a line starting with a conflict marker. During conflict
+    resolution the gate's warmup precondition is unsatisfiable, so blocking the
+    Read would only force a sed/grep workaround (issue #2454).
     """
     if not file_path:
         return False
@@ -272,6 +374,16 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
     except ValueError:
         return False
     if any(part.startswith(".") for part in relative.parts):
+        return False
+
+    # Merge/rebase/cherry-pick in progress: files on disk may contain conflict
+    # markers and no LSP can parse them. The dotfile bypass above already
+    # excluded the merge-resolver skill's intentional fenced examples in
+    # ``.claude/`` and ``.serena/``, so this content scan only ever runs on
+    # plain in-repo source. (issue #2454, ADR-062 Section 7.)
+    if _merge_in_progress(str(root)):
+        return False
+    if _has_conflict_markers(str(resolved)):
         return False
     return True
 
