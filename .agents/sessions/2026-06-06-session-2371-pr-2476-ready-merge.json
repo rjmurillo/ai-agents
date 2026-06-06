@@ -60,6 +60,11 @@
       "type": "commit",
       "sha": "d1051d4801",
       "summary": "rejected negative issue comment limits and bumped plugin manifests to 0.5.148"
+    },
+    {
+      "type": "commit",
+      "sha": "99f590c318",
+      "summary": "resolved comment files from current workspace and bumped plugin manifests to 0.5.149"
     }
   ],
   "protocolCompliance": {
@@ -148,7 +153,7 @@
     },
     {
       "action": "Validated targeted tests",
-      "result": "uv run pytest tests/test_get_issue_comments.py tests/test_reopen_issue.py -q passed 24 tests."
+      "result": "uv run pytest tests/test_get_issue_comments.py tests/test_reopen_issue.py -q passed 25 tests."
     }
   ]
 }
