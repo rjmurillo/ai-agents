@@ -39,6 +39,11 @@ from pathlib import Path
 UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 
+def _artifact_root_is_set() -> bool:
+    """Return whether the artifact-root override has a non-blank value."""
+    return bool(os.environ.get("AI_AGENTS_ARTIFACT_ROOT", "").strip())
+
+
 def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     """Resolve an artifact directory without creating it during evidence reads."""
     override = os.environ.get("AI_AGENTS_ARTIFACT_ROOT")

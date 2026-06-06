@@ -280,6 +280,7 @@ def test_gather_evidence_artifact_root_read_does_not_create_sessions(tmp_path, m
     # Assert
     assert evidence.session_log_available is False
     assert not (artifact_root / "sessions").exists()
+    assert any("configured sessions artifact directory" in note for note in evidence.notes)
 
 
 def test_find_recent_session_log_returns_none_for_missing_dir(tmp_path):
