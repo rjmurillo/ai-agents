@@ -1,0 +1,91 @@
+{
+  "id": "episode-2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting",
+  "session": "2026-06-06-session-2368-fix-pretooluse-advisory-hooks-emitting",
+  "timestamp": "2026-06-06T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix PreToolUse advisory hooks emitting invalid decision:allow JSON; switch to hookSpecificOutput.additionalContext envelope, regenerate copilot shims, add stdout-JSON regression tests, bump plugin.json to 0.5.135",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "diagnose",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "confirm-schema",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix-hooks",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "tests",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran: uv run python -m pytest tests/test_invoke_correction_applier.py tests/hooks/test_topical_memory_injection.py -> 54 passed (exit code 0). Added stdout-JSON regression guards; the prior tests only checked stderr or substring-matched stdout, so the bad envelope passed green",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "regenerate-mirror",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "plugin-bump",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "stopgap",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: ee35428b3",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
