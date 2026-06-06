@@ -331,6 +331,33 @@ fi
 
 record_pass "Branch guard ($current_branch)"
 
+# 1b. Placeholder identity guard (issue #2466)
+# Rejects commits whose author/committer is Test <test@test.com>.
+# That identity leaks from pytest fixtures writing git config with wrong cwd.
+if [ -n "$PUSH_RANGE" ]; then
+    if set_python_cmd; then
+        PLACEHOLDER_GUARD_SCRIPT="$REPO_ROOT/scripts/validation/check_placeholder_identity.py"
+        if [ -f "$PLACEHOLDER_GUARD_SCRIPT" ]; then
+            if ! "${PYTHON_CMD[@]}" "$PLACEHOLDER_GUARD_SCRIPT" \
+                    --push-range "$PUSH_RANGE" \
+                    --repo-root "$REPO_ROOT"; then
+                record_fail "Placeholder identity check: placeholder identity detected in push range"
+                echo_info "  See stderr above for offending commits."
+                echo_info "  Fix: ensure pytest fixtures don't modify git config outside tmp_path."
+                echo_info "  Ref: issue #2466, scripts/github_core/placeholder_identity.py"
+            else
+                record_pass "Placeholder identity check (no placeholder identities in range)"
+            fi
+        else
+            record_skip "Placeholder identity check (script not found: $PLACEHOLDER_GUARD_SCRIPT)"
+        fi
+    else
+        record_skip "Placeholder identity check (Python not available)"
+    fi
+else
+    record_skip "Placeholder identity check (no push range)"
+fi
+
 # Detect merge commits from main in the push range. Merges from upstream
 # naturally inflate commit/file counts with already-reviewed changes, so
 # limits are relaxed to avoid blocking legitimate merge-and-push workflows.
