@@ -292,3 +292,138 @@ class TestInternals:
 
     def test_cwd_key_length(self):
         assert len(lsp_gate_state._cwd_key(_CWD)) == 16
+
+
+# ---------------------------------------------------------------------------
+# is_gated_target — merge/rebase + conflict-marker bypass (Issue #2454)
+# ---------------------------------------------------------------------------
+
+
+class TestMergeInProgressHelper:
+    """Direct unit tests for ``_merge_in_progress`` (Issue #2454).
+
+    The helper checks for sentinel paths under ``<project_dir>/.git``: any
+    filesystem error degrades to ``False`` (fail-open: do not synthesize a
+    bypass when the state cannot be observed).
+    """
+
+    def test_returns_false_with_no_marker(self, tmp_path):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        assert lsp_gate_state._merge_in_progress(str(repo)) is False
+
+    def test_returns_true_for_merge_head(self, tmp_path):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        (repo / ".git" / "MERGE_HEAD").write_text("sha", encoding="utf-8")
+        assert lsp_gate_state._merge_in_progress(str(repo)) is True
+
+    def test_returns_true_for_rebase_merge_dir(self, tmp_path):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        (repo / ".git" / "rebase-merge").mkdir()
+        assert lsp_gate_state._merge_in_progress(str(repo)) is True
+
+    def test_returns_true_for_rebase_apply_dir(self, tmp_path):
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        (repo / ".git" / "rebase-apply").mkdir()
+        assert lsp_gate_state._merge_in_progress(str(repo)) is True
+
+    def test_returns_false_for_empty_project_dir(self):
+        assert lsp_gate_state._merge_in_progress("") is False
+
+    def test_returns_false_when_git_dir_missing(self, tmp_path):
+        # No ``.git`` at all (e.g. a bare directory not under version control).
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        assert lsp_gate_state._merge_in_progress(str(repo)) is False
+
+    def test_fails_open_on_oserror(self, tmp_path, monkeypatch):
+        # If ``Path.exists`` raises, the helper must NOT raise (fail-open).
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+
+        def fake_exists(self):
+            raise OSError("simulated stat failure")
+
+        monkeypatch.setattr(lsp_gate_state.Path, "exists", fake_exists)
+        assert lsp_gate_state._merge_in_progress(str(repo)) is False
+
+
+class TestHasConflictMarkersHelper:
+    """Direct unit tests for ``_has_conflict_markers`` (Issue #2454).
+
+    Detects only line-start anchored markers (``^<<<<<<<``, ``^=======``,
+    ``^>>>>>>>``). Binary files and read errors degrade to ``False``.
+    """
+
+    def test_detects_open_marker(self, tmp_path):
+        target = tmp_path / "f.py"
+        target.write_text("<<<<<<< HEAD\nfoo\n", encoding="utf-8")
+        assert lsp_gate_state._has_conflict_markers(str(target)) is True
+
+    def test_detects_separator_marker(self, tmp_path):
+        target = tmp_path / "f.py"
+        target.write_text("foo\n=======\nbar\n", encoding="utf-8")
+        assert lsp_gate_state._has_conflict_markers(str(target)) is True
+
+    def test_detects_close_marker(self, tmp_path):
+        target = tmp_path / "f.py"
+        target.write_text("bar\n>>>>>>> origin/main\n", encoding="utf-8")
+        assert lsp_gate_state._has_conflict_markers(str(target)) is True
+
+    def test_clean_file_returns_false(self, tmp_path):
+        target = tmp_path / "f.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
+        assert lsp_gate_state._has_conflict_markers(str(target)) is False
+
+    def test_marker_chars_mid_line_return_false(self, tmp_path):
+        # Regression: ``<<<<<<< HEAD`` embedded inside a string literal must
+        # NOT trigger the bypass. Conflict markers anchor at column 0.
+        target = tmp_path / "f.py"
+        target.write_text(
+            'PATTERN = "<<<<<<< HEAD"  # docstring example\n'
+            "VALUE = 1  # =====  marker chars in comment, no anchor\n",
+            encoding="utf-8",
+        )
+        assert lsp_gate_state._has_conflict_markers(str(target)) is False
+
+    def test_empty_file_returns_false(self, tmp_path):
+        target = tmp_path / "f.py"
+        target.write_text("", encoding="utf-8")
+        assert lsp_gate_state._has_conflict_markers(str(target)) is False
+
+    def test_empty_path_returns_false(self):
+        assert lsp_gate_state._has_conflict_markers("") is False
+
+    def test_binary_file_returns_false(self, tmp_path):
+        target = tmp_path / "bin.bin"
+        target.write_bytes(b"\x89PNG\r\n\x1a\n\xff\xfe\xfd<<<<<<<")
+        # Invalid UTF-8 -> fail-open to False (do not synthesize a bypass).
+        assert lsp_gate_state._has_conflict_markers(str(target)) is False
+
+    def test_missing_file_returns_false(self, tmp_path):
+        assert lsp_gate_state._has_conflict_markers(str(tmp_path / "missing.py")) is False
+
+    def test_only_scans_leading_window(self, tmp_path, monkeypatch):
+        # Bound the scan window to a small size, then write a file whose conflict
+        # marker lives past that window. The helper must NOT detect it (proving
+        # bounded I/O on huge files).
+        monkeypatch.setattr(lsp_gate_state, "_CONFLICT_MARKER_SCAN_BYTES", 64)
+        target = tmp_path / "f.py"
+        target.write_text(
+            ("x = 1\n" * 100)  # well past 64 bytes
+            + "<<<<<<< HEAD\n",
+            encoding="utf-8",
+        )
+        assert lsp_gate_state._has_conflict_markers(str(target)) is False
+
+    def test_marker_inside_scan_window_is_detected(self, tmp_path, monkeypatch):
+        # Pair with the previous test: prove the helper DOES detect markers
+        # that land inside the bounded window.
+        monkeypatch.setattr(lsp_gate_state, "_CONFLICT_MARKER_SCAN_BYTES", 4096)
+        target = tmp_path / "f.py"
+        target.write_text("<<<<<<< HEAD\n" + ("x = 1\n" * 100), encoding="utf-8")
+        assert lsp_gate_state._has_conflict_markers(str(target)) is True
+

@@ -140,6 +140,127 @@ class TestIsGatedTarget:
         guard.Path.relative_to = real_relative_to
 
 
+class TestMergeInProgressBypass:
+    """Issue #2454: merge/rebase markers under .git bypass the read gate.
+
+    The guard relies on ``is_gated_target``. While a merge or rebase is in
+    flight, files on disk may carry conflict markers and no LSP can parse them.
+    Blocking the Read would force a sed/awk workaround on a core resolution
+    workflow, so the helper degrades to ``not gated`` (fail-open: allow).
+    """
+
+    def _make_repo(self, tmp_path):
+        """Build a minimal in-tree repo at tmp_path/repo with a .py target."""
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        target = repo / "sample.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
+        return repo, target
+
+    def test_merge_head_marker_bypasses_gate(self, tmp_path):
+        repo, target = self._make_repo(tmp_path)
+        (repo / ".git" / "MERGE_HEAD").write_text("abc123\n", encoding="utf-8")
+        assert guard.is_gated_target(str(target), str(repo)) is False
+
+    def test_rebase_merge_marker_bypasses_gate(self, tmp_path):
+        repo, target = self._make_repo(tmp_path)
+        (repo / ".git" / "rebase-merge").mkdir()
+        assert guard.is_gated_target(str(target), str(repo)) is False
+
+    def test_rebase_apply_marker_bypasses_gate(self, tmp_path):
+        repo, target = self._make_repo(tmp_path)
+        (repo / ".git" / "rebase-apply").mkdir()
+        assert guard.is_gated_target(str(target), str(repo)) is False
+
+    def test_no_merge_marker_does_not_bypass(self, tmp_path):
+        # Regression guard: the bypass is conditional, not unconditional.
+        repo, target = self._make_repo(tmp_path)
+        # No marker files present.
+        assert guard.is_gated_target(str(target), str(repo)) is True
+
+
+class TestConflictMarkerBypass:
+    """Issue #2454: files whose leading window starts a line with conflict
+    markers bypass the read gate. The dotfile bypass already excludes
+    ``.claude/`` and ``.serena/`` documentation that fences ``<<<<<<<`` examples,
+    so this scan only runs against plain in-repo source.
+    """
+
+    def _make_repo(self, tmp_path):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        return repo
+
+    def test_file_with_conflict_markers_is_not_gated(self, tmp_path):
+        repo = self._make_repo(tmp_path)
+        target = repo / "conflicted.py"
+        target.write_text(
+            "def foo():\n"
+            "<<<<<<< HEAD\n"
+            "    return 1\n"
+            "=======\n"
+            "    return 2\n"
+            ">>>>>>> origin/main\n",
+            encoding="utf-8",
+        )
+        assert guard.is_gated_target(str(target), str(repo)) is False
+
+    def test_clean_file_is_gated(self, tmp_path):
+        repo = self._make_repo(tmp_path)
+        target = repo / "clean.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
+        assert guard.is_gated_target(str(target), str(repo)) is True
+
+    def test_conflict_marker_mid_line_does_not_bypass(self, tmp_path):
+        # Regression: marker characters embedded in prose / regex / data must
+        # NOT trigger the bypass. Conflict markers always anchor at column 0.
+        repo = self._make_repo(tmp_path)
+        target = repo / "prose.py"
+        target.write_text(
+            'PATTERN = r"<<<<<<< HEAD"  # legitimate string literal\n'
+            "# divider follows: =======================\n"
+            "x = 1\n",
+            encoding="utf-8",
+        )
+        assert guard.is_gated_target(str(target), str(repo)) is True
+
+    def test_only_open_marker_triggers_bypass(self, tmp_path):
+        # ``git merge`` writes the full <<<<<<< / ======= / >>>>>>> trio, but the
+        # bypass is the safer default: any single marker line is enough.
+        repo = self._make_repo(tmp_path)
+        target = repo / "partial.py"
+        target.write_text("<<<<<<< HEAD\nfoo\n", encoding="utf-8")
+        assert guard.is_gated_target(str(target), str(repo)) is False
+
+    def test_binary_file_does_not_crash(self, tmp_path):
+        # PNG header bytes are invalid UTF-8; the conflict-marker scan must
+        # degrade to ``no markers found`` without raising.
+        repo = self._make_repo(tmp_path)
+        target = repo / "image.py"  # extension keeps the file otherwise gated
+        target.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\xff\xfe\xfd")
+        # No exception; file stays gated (no markers detected).
+        assert guard.is_gated_target(str(target), str(repo)) is True
+
+    def test_unreadable_file_fails_open(self, tmp_path, monkeypatch):
+        # If the file cannot be opened, the conflict-marker scan must fail
+        # closed (no bypass) so the rest of the gate applies. The dotfile /
+        # out-of-repo checks already ran; this just verifies no exception.
+        repo = self._make_repo(tmp_path)
+        target = repo / "blocked.py"
+        target.write_text("clean\n", encoding="utf-8")
+
+        real_open = open
+
+        def fake_open(path, *args, **kwargs):
+            if str(path) == str(target):
+                raise PermissionError("simulated EACCES")
+            return real_open(path, *args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", fake_open)
+        # No exception; file stays gated (scan degraded to False).
+        assert guard.is_gated_target(str(target), str(repo)) is True
+
+
 # ---------------------------------------------------------------------------
 # Message builders
 # ---------------------------------------------------------------------------
@@ -317,6 +438,44 @@ class TestEvaluateTiers:
         assert msg is None
         payload = json.loads(capsys.readouterr().out.strip().splitlines()[0])
         assert "Surgical mode required" in payload["systemMessage"]
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_merge_in_progress_bypasses_hard_block(self, mock_state, _mock_providers, tmp_path):
+        # Issue #2454 integration: even a state that would otherwise hard-block
+        # (warmup done, 0 nav, 3 prior reads, so next is read 4) must allow
+        # when a merge is in progress, because is_gated_target returns False.
+        repo = tmp_path / "repo"
+        (repo / ".git").mkdir(parents=True)
+        (repo / ".git" / "MERGE_HEAD").write_text("abc123\n", encoding="utf-8")
+        target = repo / "conflicted.py"
+        target.write_text("def foo():\n    return 1\n", encoding="utf-8")
+        mock_state.return_value = _state(
+            warmup_done=True, nav_count=0, read_files=["a.py", "b.py", "c.py"]
+        )
+        code, msg = guard.evaluate(str(target), str(repo))
+        assert code == 0
+        assert msg is None
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_conflict_markers_bypass_hard_block(self, mock_state, _mock_providers, tmp_path):
+        # Issue #2454 integration: a file with active conflict markers bypasses
+        # the gate even with no merge state recorded, because the file content
+        # itself signals LSP cannot parse it.
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        target = repo / "conflicted.py"
+        target.write_text(
+            "<<<<<<< HEAD\nfoo\n=======\nbar\n>>>>>>> origin/main\n",
+            encoding="utf-8",
+        )
+        mock_state.return_value = _state(
+            warmup_done=True, nav_count=0, read_files=["a.py", "b.py", "c.py"]
+        )
+        code, msg = guard.evaluate(str(target), str(repo))
+        assert code == 0
+        assert msg is None
 
 
 # ---------------------------------------------------------------------------
