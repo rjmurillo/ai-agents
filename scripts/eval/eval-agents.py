@@ -678,6 +678,59 @@ def _aggregate_multi_run_scores(run_scores: list[dict[str, Any]]) -> dict[str, A
     return result
 
 
+def decide_dry_run_exit(output: dict[str, Any]) -> tuple[int, str]:
+    """Decide exit code for a completed assessment, with dry-run semantics.
+
+    A dry-run validates configuration and planned work without producing real
+    scored evaluations. The weak-spot gate (overall < 3.5) is only meaningful
+    on real scores; applying it to dry-run placeholder zeros yields a false
+    "FAIL" verdict for every agent (issue #2441).
+
+    Decision matrix:
+        - dry_run=True, agents_assessed=[]:   exit 1 with config-error reason
+          (nothing to dry-run means something is misconfigured upstream)
+        - dry_run=True, agents_assessed=[..]: exit 0 with dry-run-ok reason
+          (placeholder zeros are expected, not weak spots)
+        - dry_run=False, weak agents present: exit 1 with weak-spots reason
+          (real low scores are a real failure)
+        - dry_run=False, no weak agents:      exit 0 with all-pass reason
+
+    Mirrors the NO_DATA verdict pattern from eval-knowledge-integration.py
+    (issue #2345). Returning (code, reason) keeps the policy testable in
+    isolation and forces the caller to surface an actionable message.
+    """
+    dry_run = bool(output.get("dry_run"))
+    agents_assessed = output.get("agents_assessed", []) or []
+    results = output.get("results", {}) or {}
+
+    if dry_run:
+        if not agents_assessed:
+            return (
+                1,
+                "Dry-run config error: agents_assessed is empty. Nothing to "
+                "preflight. Check that the requested agent has a definition "
+                "file under .claude/agents/ and prompts in PROMPTS.",
+            )
+        return (
+            0,
+            f"Dry-run preflight OK: classified {len(agents_assessed)} agent(s) "
+            f"({', '.join(agents_assessed)}). No API calls made; placeholder "
+            "zero scores are expected and not evaluated against the weak-spot "
+            "threshold.",
+        )
+
+    weak = [
+        name for name, data in results.items()
+        if isinstance(data, dict) and data.get("overall", 0) < 3.5
+    ]
+    if weak:
+        return (
+            1,
+            f"Weak agents below 3.5 threshold: {', '.join(weak)}.",
+        )
+    return (0, f"All {len(results)} agent(s) above 3.5 threshold.")
+
+
 def run_assessment(
     api_key: str,
     agents: list[str],
@@ -855,6 +908,7 @@ def main() -> None:
         "agents_assessed": agents,
         "total_prompts": prompt_count,
         "dimensions": DIMENSIONS,
+        "dry_run": bool(args.dry_run),
         "results": {},
     }
 
@@ -878,6 +932,15 @@ def main() -> None:
         print(f"Results written to {args.output}", file=sys.stderr)
     else:
         print(json_output)
+
+    # Skip the weak-spot table entirely in dry-run mode: every row would be
+    # zeros and would mislead operators into thinking real agents had failed
+    # (issue #2441). Decide the exit code via the dry-run-aware policy.
+    if args.dry_run:
+        exit_code, reason = decide_dry_run_exit(output)
+        verdict = "DRY-RUN OK" if exit_code == 0 else "DRY-RUN CONFIG ERROR"
+        print(f"\n  {verdict}: {reason}", file=sys.stderr)
+        sys.exit(exit_code)
 
     # Print summary table
     print(f"\n{'='*92}", file=sys.stderr)
@@ -931,7 +994,13 @@ def main() -> None:
             for name, idx, var in flaky_scenarios:
                 print(f"    {name} scenario {idx}: variance={var:.2f}", file=sys.stderr)
 
-    sys.exit(1 if weak else 0)
+    # Real-data exit: route through the same policy helper so dry-run and
+    # full-run paths share one decision point. decide_dry_run_exit handles
+    # the weak-spot threshold for non-dry-run output as well.
+    exit_code, reason = decide_dry_run_exit(output)
+    if exit_code != 0:
+        print(f"\n  {reason}", file=sys.stderr)
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
