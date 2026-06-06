@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-06-06-session-2369-fix-2468-pretooluse-advisory-hooks",
+  "session": "2026-06-06-session-2369-fix-2468-pretooluse-advisory-hooks",
+  "timestamp": "2026-06-06T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix #2468: PreToolUse advisory hooks emit invalid decision:allow JSON, dropping correction and topical-memory advisories",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e6031e99c3f984cd6872256ea7dee5f85040f00c",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
