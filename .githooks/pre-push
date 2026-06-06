@@ -361,9 +361,21 @@ fi
 if [ -n "$PUSH_RANGE" ]; then
     COMMIT_COUNT=$(git rev-list --count "$PUSH_RANGE" 2>/dev/null || echo "0")
     if [ "$COMMIT_COUNT" -gt "$COMMIT_LIMIT" ]; then
-        record_fail "Commit count ($COMMIT_COUNT) exceeds limit of $COMMIT_LIMIT"
-        echo_info "  Consider squashing commits or splitting the PR."
-        echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
+        # Honor the commit-limit-bypass label so a repair push to an
+        # already-over-limit PR does not require --no-verify (Issue #2456).
+        # Mirrors the CI gate in .github/workflows/pr-validation.yml
+        # ("Enforce Blocking Issues"). The helper fails closed: any gh error
+        # leaves the limit enforced.
+        BYPASS_STATUS=$("${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" 2>/dev/null)
+        BYPASS_EXIT=$?
+        if [ "$BYPASS_EXIT" -eq 0 ]; then
+            record_warn "Commit count ($COMMIT_COUNT > $COMMIT_LIMIT) bypassed: $BYPASS_STATUS"
+        else
+            record_fail "Commit count ($COMMIT_COUNT) exceeds limit of $COMMIT_LIMIT ($BYPASS_STATUS)"
+            echo_info "  Consider squashing commits or splitting the PR."
+            echo_info "  Or add the 'commit-limit-bypass' label to the PR for repair pushes."
+            echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
+        fi
     elif [ "$COMMIT_COUNT" -gt "$COMMIT_WARN" ]; then
         record_warn "Commit count ($COMMIT_COUNT) approaching limit of $COMMIT_LIMIT"
     else
