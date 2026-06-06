@@ -43,6 +43,7 @@ Knowledge → passive context (@imports). Actions → skills.
 |Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect
 |Lifecycle: /spec, /plan, /build, /test, /review, /ship
+|CI-feedback sub-loop (findings on a pushed branch): cluster, then ladder build->test->review->ship per cluster. Commit `fix(subloop): <axis> cluster <id>`. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
 |New capability (Context/module/scanner/validator/pipeline): run buy-vs-build-framework Quick tier BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability, approved extensions
 
 ### ADR Review (BLOCKING)
