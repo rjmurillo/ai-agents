@@ -113,7 +113,8 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
             "--jq", "{allow_merge_commit, allow_squash_merge, allow_rebase_merge}",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -205,7 +206,8 @@ def _fetch_pr_state(pr: int, repo_flag: str, output_format: str) -> dict:
             "--json", "state,mergeable,mergeStateStatus,headRefName",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -313,7 +315,12 @@ def main(argv: list[str] | None = None) -> int:
 
     merge_args = _build_merge_args(args, pr, repo_flag)
     merge_result = subprocess.run(
-        merge_args, capture_output=True, text=True, timeout=60, check=False,
+        merge_args,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
     )
     if merge_result.returncode != 0:
         _handle_merge_failure(merge_result, pr, args.auto, output_format)
