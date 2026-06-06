@@ -189,18 +189,20 @@ def find_recent_session_log(sessions_dir: Path, today: date | None = None) -> Pa
 def _format_work_item(item: object) -> str:
     """Format a single work-log entry into one readable line.
 
-    Supports the current ``{step, action, outcome}`` schema and the legacy
-    ``{description}`` / ``{task}`` shapes, plus bare strings.
+    Supports the current ``{step, action, outcome}`` schema, session
+    ``{step, evidence}`` entries, and the legacy ``{description}`` /
+    ``{task}`` shapes, plus bare strings.
     """
     if isinstance(item, str):
         return item
     if not isinstance(item, dict):
         return str(item)
-    if "action" in item:
+    content_key = "action" if "action" in item else "evidence" if "evidence" in item else None
+    if content_key:
         parts: list[str] = []
         if "step" in item:
             parts.append(f"Step {item['step']}:")
-        parts.append(str(item["action"]))
+        parts.append(str(item[content_key]))
         outcome = item.get("outcome")
         if outcome:
             parts.append(f"-> {outcome}")

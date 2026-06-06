@@ -92,6 +92,22 @@ def test_gather_evidence_reads_worklog_session(tmp_path):
     assert evidence.scope == "demo"
 
 
+def test_gather_evidence_formats_step_evidence_worklog_entries(tmp_path):
+    # Arrange: session logs commonly use step plus evidence entries.
+    sessions = tmp_path / ("." + "agents") / "sessions"
+    _write_session(
+        sessions,
+        "2026-06-03-session-1-demo.json",
+        {"workLog": [{"step": "validation", "evidence": "63 tests passed"}]},
+    )
+
+    # Act
+    evidence = gather_evidence(tmp_path, "demo")
+
+    # Assert
+    assert evidence.work_items == ["Step validation: 63 tests passed"]
+
+
 def test_gather_evidence_picks_most_recent_session(tmp_path):
     # Arrange: two sessions; the newer one wins by mtime.
     sessions = tmp_path / ("." + "agents") / "sessions"
