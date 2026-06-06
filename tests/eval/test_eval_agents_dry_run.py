@@ -35,6 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 AGENTS_SCRIPT = EVAL_DIR / "eval-agents.py"
 SUITE_SCRIPT = EVAL_DIR / "eval-suite.py"
+GIT_ENV_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
 
 # eval-agents.py imports sibling modules (_anthropic_api, _eval_common) via
 # plain `from X import Y`, so EVAL_DIR must be on sys.path while the module
@@ -52,32 +53,36 @@ finally:
         sys.path.remove(str(EVAL_DIR))
 
 
+def _clean_subprocess_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.pop("ANTHROPIC_API_KEY", None)
+    for var in GIT_ENV_VARS:
+        env.pop(var, None)
+    return env
+
+
 def _run_agents(*args: str) -> subprocess.CompletedProcess[str]:
     """Run eval-agents.py with a stripped env to keep dry-run hermetic."""
-    env = os.environ.copy()
-    # Strip any real key so accidental non-dry paths fail loudly rather than
-    # spending the user's quota.
-    env.pop("ANTHROPIC_API_KEY", None)
     return subprocess.run(
         [sys.executable, str(AGENTS_SCRIPT), *args],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=60,
         cwd=str(REPO_ROOT),
-        env=env,
+        env=_clean_subprocess_env(),
     )
 
 
 def _run_suite(*args: str) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
-    env.pop("ANTHROPIC_API_KEY", None)
     return subprocess.run(
         [sys.executable, str(SUITE_SCRIPT), *args],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=120,
         cwd=str(REPO_ROOT),
-        env=env,
+        env=_clean_subprocess_env(),
     )
 
 
@@ -127,6 +132,17 @@ class TestDecideDryRunExit:
         exit_code, reason = eval_agents.decide_dry_run_exit(output)
         assert exit_code == 1
         assert reason
+
+    def test_real_run_null_overall_exits_one(self):
+        """Real-data null overall scores are treated as weak scores."""
+        output = {
+            "dry_run": False,
+            "agents_assessed": ["null-score"],
+            "results": {"null-score": {"overall": None}},
+        }
+        exit_code, reason = eval_agents.decide_dry_run_exit(output)
+        assert exit_code == 1
+        assert "null-score" in reason
 
     def test_dry_run_no_agents_assessed_exits_one_with_config_reason(self):
         """Empty agent list in dry-run is a config error, not silent pass."""
