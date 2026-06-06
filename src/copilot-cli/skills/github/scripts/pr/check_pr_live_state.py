@@ -205,8 +205,9 @@ def is_superseded_by_base(
     can pass --skip-fetch on the per-PR call after running one outer
     fetch to keep the loop cheap.
 
-    The cherry call uses ``origin/<base>`` as the reference so a stale
-    or missing local <base> in the worktree cannot produce a false
+    The fetch writes ``refs/remotes/origin/<base>`` explicitly, then the
+    cherry call uses ``origin/<base>`` as the reference so a stale or
+    missing local <base> in the worktree cannot produce a false
     "no supersession" result.
 
     On any subprocess failure the result reports ``fully_superseded=False``
@@ -217,9 +218,16 @@ def is_superseded_by_base(
     requirement.)
     """
     if not skip_fetch:
+        remote_base_ref = f"refs/remotes/origin/{base_branch}"
         try:
             subprocess.run(
-                ["git", "fetch", "--quiet", "origin", base_branch],
+                [
+                    "git",
+                    "fetch",
+                    "--quiet",
+                    "origin",
+                    f"+refs/heads/{base_branch}:{remote_base_ref}",
+                ],
                 capture_output=True,
                 encoding="utf-8",
                 errors="replace",

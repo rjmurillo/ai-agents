@@ -272,8 +272,9 @@ class TestIsSupersededByBase:
             )
         fetch_calls = [c for c in calls if c[:2] == ["git", "fetch"]]
         assert len(fetch_calls) == 1
-        # The first positional arg AFTER the standard prefix is the remote.
+        # Fetch must populate origin/<base>; `git fetch origin main` only updates FETCH_HEAD.
         assert "origin" in fetch_calls[0]
+        assert "+refs/heads/main:refs/remotes/origin/main" in fetch_calls[0]
 
     def test_git_cherry_failure_surfaces_as_unknown(self):
         # If git cherry exits non-zero, we cannot prove supersession; the
