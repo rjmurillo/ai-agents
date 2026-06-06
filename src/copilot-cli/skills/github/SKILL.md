@@ -119,8 +119,11 @@ Need GitHub data?
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
-| `get_issue_context.py` | Issue metadata | `--issue` |
+| `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
+| `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
 | `new_issue.py` | Create new issue | `--title`, `--body`, `--labels` |
+| `close_issue.py` | Close with optional comment | `--issue`, `--reason`, `--comment` |
+| `reopen_issue.py` | Reopen with optional comment | `--issue`, `--comment` |
 | `set_issue_labels.py` | Apply labels (auto-create) | `--issue`, `--labels`, `--priority` |
 | `set_issue_milestone.py` | Assign milestone | `--issue`, `--milestone` |
 | `post_issue_comment.py` | Comments with idempotency | `--issue`, `--body`, `--marker` |
