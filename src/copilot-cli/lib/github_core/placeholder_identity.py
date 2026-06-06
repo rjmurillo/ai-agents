@@ -51,7 +51,7 @@ PLACEHOLDER_NAMES: frozenset[str] = frozenset({"test"})
 
 # Regex matching a Co-authored-by trailer line (case-insensitive per git spec).
 _CO_AUTHOR_RE = re.compile(
-    r"^Co-authored-by:\s+[^<]*<([^>]+)>\s*$",
+    r"^Co-authored-by:\s+([^<]*)<([^>]+)>\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -111,11 +111,9 @@ def filter_coauthor_trailers(body: str) -> str:
     for line in body.splitlines(keepends=True):
         match = _CO_AUTHOR_RE.match(line.rstrip("\n"))
         if match:
-            email = match.group(1).strip()
-            # Reconstruct a minimal (name="", email=email) check.
-            # We do not parse the name from the trailer to avoid splitting
-            # on names that contain "<" characters.
-            if is_placeholder_identity("", email):
+            name = match.group(1).strip()
+            email = match.group(2).strip()
+            if is_placeholder_identity(name, email):
                 continue
         filtered_lines.append(line)
     return "".join(filtered_lines)
