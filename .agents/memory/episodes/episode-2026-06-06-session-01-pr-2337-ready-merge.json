@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-06-06-session-01-pr-2337-ready-merge",
+  "session": "2026-06-06-session-01-pr-2337-ready-merge",
+  "timestamp": "2026-06-06T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR 2337 to Ready-to-Merge and merge when clean",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "worktree",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "conflicts",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "threads",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "test",
+      "content": "Retrospective tests passed: 63 passed in local Python 3.14 venv",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 9b53fd6f0f7e35ccd0bcbfd6ced3d589d3469dc6",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

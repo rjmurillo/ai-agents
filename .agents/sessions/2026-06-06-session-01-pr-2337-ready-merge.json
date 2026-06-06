@@ -120,7 +120,7 @@
     },
     {
       "step": "worktree",
-      "evidence": "Used existing non-temp worktree at /home/richard/src/GitHub/rjmurillo/ai-agents-pr-2337-carryover because temp paths are forbidden"
+      "evidence": "Used the existing PR 2337 worktree because temp paths are forbidden"
     },
     {
       "step": "conflicts",
@@ -135,7 +135,7 @@
       "evidence": "Retrospective tests passed: 63 passed in local Python 3.14 venv"
     }
   ],
-  "endingCommit": "to-be-updated-before-final-push",
+  "endingCommit": "9b53fd6f0f7e35ccd0bcbfd6ced3d589d3469dc6",
   "nextSteps": [
     "Push branch after safety check, poll CI, merge PR 2337 when clean"
   ]
