@@ -115,7 +115,7 @@
   "workLog": [
     {
       "timestamp": "2026-06-06",
-      "entry": "Discourse review of 31 issues surfaced 3 wrong closes (reopened #1622/#1784/#2050) + 1 wrong claim (#2099 corrected). Filed #2475 (github skill cannot read comments or reopen). Fixed #2475: added get_issue_comments.py (paginated, envelope) + reopen_issue.py (mirrors close_issue.py, idempotent); 20 tests; SKILL.md updated; copilot mirrors generated; plugin 0.5.136. ruff/mypy/security-scan clean; live-verified against #2099."
+      "entry": "Discourse review of 31 issues surfaced 3 wrong closes (reopened #1622/#1784/#2050) + 1 wrong claim (#2099 corrected). Filed #2475 (github skill cannot read comments or reopen). Fixed #2475: added get_issue_comments.py (paginated, envelope) + reopen_issue.py (mirrors close_issue.py, idempotent); 24 tests; SKILL.md updated; copilot mirrors generated; plugin 0.5.148. ruff/mypy/security-scan clean; live-verified against #2099."
     }
   ],
   "endingCommit": "e6031e99c3f984cd6872256ea7dee5f85040f00c",
