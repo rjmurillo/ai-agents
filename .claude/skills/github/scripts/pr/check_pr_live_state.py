@@ -49,7 +49,6 @@ auto-merge-armed before the redundancy was caught.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import subprocess
@@ -83,11 +82,44 @@ if _lib_dir not in sys.path:
 from github_core.api import (  # noqa: E402
     RepoInfo,  # re-exported so tests can reach it via _mod.RepoInfo
     assert_gh_authenticated,
-    error_and_exit,
     gh_graphql,
     resolve_repo_params,
     safe_log_str,
 )
+from github_core.output import (  # noqa: E402
+    add_output_format_arg,
+    write_skill_error,
+    write_skill_output,
+)
+
+_SCRIPT_NAME = "check_pr_live_state.py"
+
+
+def _git_locale_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["LC_ALL"] = "C"
+    return env
+
+
+def _emit_error(
+    message: str,
+    code: int,
+    error_type: str,
+    output_format: str,
+    pr_number: int,
+    owner: str,
+    repo: str,
+) -> None:
+    write_skill_error(
+        message,
+        code,
+        error_type=error_type,
+        output_format=output_format,
+        script_name=_SCRIPT_NAME,
+        extra={"pull_request": pr_number, "owner": owner, "repo": repo},
+    )
+    raise SystemExit(code)
+
 
 __all__ = [
     "RepoInfo",
@@ -189,7 +221,9 @@ def is_superseded_by_base(
             subprocess.run(
                 ["git", "fetch", "--quiet", "origin", base_branch],
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=_git_locale_env(),
                 timeout=60,
                 check=False,
             )
@@ -209,7 +243,9 @@ def is_superseded_by_base(
         result = subprocess.run(
             cherry_cmd,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=_git_locale_env(),
             timeout=60,
             check=False,
         )
@@ -317,11 +353,13 @@ def build_parser() -> argparse.ArgumentParser:
             "round-trip. Default: fetch."
         ),
     )
+    add_output_format_arg(parser)
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    output_format = args.output_format
     assert_gh_authenticated()
 
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -342,15 +380,29 @@ def main(argv: list[str] | None = None) -> int:
                 "reason=pr_not_found duration_ms=%d",
                 args.pull_request, owner, repo, duration_ms,
             )
-            error_and_exit(
-                f"PR #{args.pull_request} not found in {owner}/{repo}", 2,
+            _emit_error(
+                f"PR #{args.pull_request} not found in {owner}/{repo}",
+                2,
+                "NotFound",
+                output_format,
+                args.pull_request,
+                owner,
+                repo,
             )
         logger.warning(
             "op=live_state_failed pr=%d owner=%s repo=%s "
             "reason=graphql_error duration_ms=%d error=%s",
             args.pull_request, owner, repo, duration_ms, safe_log_str(msg),
         )
-        error_and_exit(f"Failed to query PR live state: {msg}", 3)
+        _emit_error(
+            f"Failed to query PR live state: {msg}",
+            3,
+            "ApiError",
+            output_format,
+            args.pull_request,
+            owner,
+            repo,
+        )
 
     pr = (data.get("repository") or {}).get("pullRequest")
     if pr is None:
@@ -360,8 +412,14 @@ def main(argv: list[str] | None = None) -> int:
             "reason=pr_not_found duration_ms=%d",
             args.pull_request, owner, repo, duration_ms,
         )
-        error_and_exit(
-            f"PR #{args.pull_request} not found in {owner}/{repo}", 2,
+        _emit_error(
+            f"PR #{args.pull_request} not found in {owner}/{repo}",
+            2,
+            "NotFound",
+            output_format,
+            args.pull_request,
+            owner,
+            repo,
         )
 
     # Only run the supersession probe when the PR is still OPEN; for a
@@ -370,9 +428,9 @@ def main(argv: list[str] | None = None) -> int:
     supersession: dict | None = None
     pr_open = (
         pr.get("state") == "OPEN"
-        and not pr.get("merged")
-        and not pr.get("closed")
-        and not pr.get("isDraft")
+        and pr.get("merged") is not True
+        and pr.get("closed") is not True
+        and pr.get("isDraft") is not True
     )
     if pr_open:
         supersession = is_superseded_by_base(
@@ -389,9 +447,9 @@ def main(argv: list[str] | None = None) -> int:
         "owner": owner,
         "repo": repo,
         "state": pr.get("state"),
-        "merged": pr.get("merged", False),
-        "is_draft": pr.get("isDraft", False),
-        "closed": pr.get("closed", False),
+        "merged": pr.get("merged") is True,
+        "is_draft": pr.get("isDraft") is True,
+        "closed": pr.get("closed") is True,
         "head_ref": pr.get("headRefName"),
         "base_ref": pr.get("baseRefName"),
         "superseded_by_base": supersession or {
@@ -411,7 +469,16 @@ def main(argv: list[str] | None = None) -> int:
         (supersession or {}).get("fully_superseded"), duration_ms,
     )
 
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        output,
+        output_format=output_format,
+        human_summary=(
+            f"PR #{args.pull_request} live-state: "
+            f"{verdict['action']} ({verdict['reason']})"
+        ),
+        status="PASS" if verdict["action"] == "ACT" else "WARNING",
+        script_name=_SCRIPT_NAME,
+    )
 
     return 0 if verdict["action"] == "ACT" else 1
 

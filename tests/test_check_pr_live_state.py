@@ -371,7 +371,9 @@ class TestMain:
             rc = main(["--pull-request", "2409", "--skip-fetch"])
         assert rc == 0
         out = capsys.readouterr().out
-        payload = json.loads(out)
+        envelope = json.loads(out)
+        assert envelope["Success"] is True
+        payload = envelope["Data"]
         assert payload["action"] == "ACT"
         assert payload["pull_request"] == 2409
         assert payload["state"] == "OPEN"
@@ -399,7 +401,9 @@ class TestMain:
             rc = main(["--pull-request", "2412", "--skip-fetch"])
         assert rc == 1
         out = capsys.readouterr().out
-        payload = json.loads(out)
+        envelope = json.loads(out)
+        assert envelope["Success"] is True
+        payload = envelope["Data"]
         assert payload["action"] == "SKIP"
         assert payload["state"] == "MERGED"
 
@@ -429,7 +433,9 @@ class TestMain:
             rc = main(["--pull-request", "2409", "--skip-fetch"])
         assert rc == 1
         out = capsys.readouterr().out
-        payload = json.loads(out)
+        envelope = json.loads(out)
+        assert envelope["Success"] is True
+        payload = envelope["Data"]
         assert payload["action"] == "SKIP"
         assert payload["state"] == "OPEN"
         assert payload["superseded_by_base"]["fully_superseded"] is True
