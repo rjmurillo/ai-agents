@@ -14,8 +14,7 @@ import pytest
 from scripts.github_core.api import RepoInfo
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -64,9 +63,7 @@ class TestBuildParser:
 
     def test_comment_and_comment_file_mutually_exclusive(self):
         with pytest.raises(SystemExit):
-            build_parser().parse_args(
-                ["--issue", "5", "--comment", "x", "--comment-file", "f.txt"]
-            )
+            build_parser().parse_args(["--issue", "5", "--comment", "x", "--comment-file", "f.txt"])
 
 
 class TestMain:
@@ -77,13 +74,17 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_reopen_success_no_comment(self, capsys):
-        with patch("reopen_issue.assert_gh_authenticated"), patch(
-            "reopen_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_closed(), _completed(stdout="reopened", rc=0)],
-        ) as mock_run:
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_closed(), _completed(stdout="reopened", rc=0)],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "50"])
         assert rc == 0
         env = _envelope(capsys)
@@ -99,11 +100,33 @@ class TestMain:
         reopen_args = mock_run.call_args_list[1].args[0]
         assert reopen_args[:3] == ["gh", "issue", "reopen"]
 
+    def test_subprocesses_read_utf8(self, capsys):
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _paginated_comments(["old"]), _completed()],
+            ) as mock_run,
+        ):
+            rc = main(["--issue", "7", "--comment", "new"])
+
+        assert rc == 0
+        _envelope(capsys)
+        assert all(call.kwargs.get("encoding") == "utf-8" for call in mock_run.call_args_list)
+
     def test_already_open_is_noop(self, capsys):
-        with patch("reopen_issue.assert_gh_authenticated"), patch(
-            "reopen_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", side_effect=[_state_open()]) as mock_run:
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", side_effect=[_state_open()]) as mock_run,
+        ):
             rc = main(["--issue", "7"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -113,17 +136,21 @@ class TestMain:
         assert mock_run.call_count == 1
 
     def test_reopen_with_comment_reopens_then_comments(self, capsys):
-        with patch("reopen_issue.assert_gh_authenticated"), patch(
-            "reopen_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_closed(),
-                _completed(stdout="reopened", rc=0),
-                _completed(stdout="{}", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_closed(),
+                    _completed(stdout="reopened", rc=0),
+                    _completed(stdout="{}", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "9", "--comment", "Reopened: maintainer kept open"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -131,17 +158,21 @@ class TestMain:
         assert mock_run.call_count == 3
 
     def test_already_open_posts_missing_comment(self, capsys):
-        with patch("reopen_issue.assert_gh_authenticated"), patch(
-            "reopen_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _paginated_comments(["unrelated"]),
-                _completed(stdout="{}", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _paginated_comments(["unrelated"]),
+                    _completed(stdout="{}", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "9", "--comment", "new note"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -150,13 +181,17 @@ class TestMain:
         assert mock_run.call_count == 3
 
     def test_already_open_skips_duplicate_comment(self, capsys):
-        with patch("reopen_issue.assert_gh_authenticated"), patch(
-            "reopen_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open(), _paginated_comments(["dup"])],
-        ) as mock_run:
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _paginated_comments(["dup"])],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "9", "--comment", "dup"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -166,12 +201,16 @@ class TestMain:
         assert mock_run.call_count == 2
 
     def test_reopen_api_failure_returns_3(self, capsys):
-        with patch("reopen_issue.assert_gh_authenticated"), patch(
-            "reopen_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_closed(), _completed(stderr="server error", rc=1)],
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_closed(), _completed(stderr="server error", rc=1)],
+            ),
         ):
             rc = main(["--issue", "9"])
         assert rc == 3
@@ -179,12 +218,16 @@ class TestMain:
         assert env["Success"] is False
 
     def test_not_found_returns_2(self, capsys):
-        with patch("reopen_issue.assert_gh_authenticated"), patch(
-            "reopen_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_completed(stderr="Could not resolve to an Issue", rc=1)],
+        with (
+            patch("reopen_issue.assert_gh_authenticated"),
+            patch(
+                "reopen_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_completed(stderr="Could not resolve to an Issue", rc=1)],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "999"])

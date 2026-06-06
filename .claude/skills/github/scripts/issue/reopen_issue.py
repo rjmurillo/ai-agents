@@ -76,10 +76,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     comment_group = parser.add_mutually_exclusive_group()
     comment_group.add_argument(
-        "--comment", default="", help="Comment body text to post on reopen",
+        "--comment",
+        default="",
+        help="Comment body text to post on reopen",
     )
     comment_group.add_argument(
-        "--comment-file", default="", help="Path to a file containing the comment body",
+        "--comment-file",
+        default="",
+        help="Path to a file containing the comment body",
     )
 
     add_output_format_arg(parser)
@@ -149,9 +153,7 @@ def _is_auth_error(message: str) -> bool:
     return any(marker in lowered for marker in _AUTH_ERROR_MARKERS)
 
 
-def _write_subprocess_error(
-    message: str, issue: int, fmt: str, *, not_found: bool = False
-) -> int:
+def _write_subprocess_error(message: str, issue: int, fmt: str, *, not_found: bool = False) -> int:
     if not_found:
         code = 2
         error_type = "NotFound"
@@ -176,12 +178,18 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
     """Return the issue state from GitHub, lowercased."""
     result = subprocess.run(
         [
-            "gh", "issue", "view", str(issue),
-            "--repo", f"{owner}/{repo}",
-            "--json", "state",
+            "gh",
+            "issue",
+            "view",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            "state",
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )
@@ -191,10 +199,7 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
             f"Failed to get issue #{issue}: {error_str}",
             issue,
             fmt,
-            not_found=(
-                "Could not resolve" in error_str
-                or "not found" in error_str.lower()
-            ),
+            not_found=("Could not resolve" in error_str or "not found" in error_str.lower()),
         )
         raise SystemExit(code)
     try:
@@ -220,14 +225,18 @@ def _post_comment(owner: str, repo: str, issue: int, body: str, fmt: str) -> Non
     payload = json.dumps({"body": body})
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/{issue}/comments",
-            "-X", "POST",
-            "--input", "-",
+            "-X",
+            "POST",
+            "--input",
+            "-",
         ],
         input=payload,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )
@@ -258,13 +267,15 @@ def _comment_bodies(payload: object) -> list[str]:
 def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> bool:
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
             "--paginate",
             "--slurp",
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )
@@ -295,11 +306,16 @@ def _reopen_issue(owner: str, repo: str, issue: int) -> subprocess.CompletedProc
     """Run gh issue reopen. Returns the completed process."""
     return subprocess.run(
         [
-            "gh", "issue", "reopen", str(issue),
-            "--repo", f"{owner}/{repo}",
+            "gh",
+            "issue",
+            "reopen",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
         ],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )
