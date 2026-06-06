@@ -43,6 +43,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+# Allow standalone invocation (python3 scripts/triage_batch_apply.py) to resolve
+# sibling packages: put the repo root, not just scripts/, on sys.path. Idempotent
+# and a no-op under pytest, where the root is already importable.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.validation.verify_issue_close import unverified_claims  # noqa: E402
+
 # Action categories mirror scripts/triage_recommendation_report.py.
 ACTION_CLOSE = "close"
 ACTION_RELABEL = "relabel"
@@ -133,6 +142,10 @@ class GitHubGateway(Protocol):
     def close_issue(self, issue: int) -> bool: ...
 
     def add_labels(self, issue: int, labels: Sequence[str]) -> bool: ...
+
+    def commit_exists(self, sha: str) -> bool: ...
+
+    def pr_is_merged(self, pr: int) -> bool: ...
 
 
 def _positive_int(value: object) -> int | None:
@@ -230,6 +243,26 @@ def _apply_close(
     if state.state.upper() == "CLOSED":
         return ActionOutcome(
             action.issue, action.category, OUTCOME_SKIPPED, "already closed",
+        )
+    # Epic guard (#2481): a narrowly-scoped automated close must never take down
+    # an epic. Closing an epic stays a human decision regardless of mutate mode.
+    if "epic" in state.labels:
+        return ActionOutcome(
+            action.issue, action.category, OUTCOME_SKIPPED,
+            "epic close requires human review",
+        )
+    # Citation-truth gate (#2481): if the rationale claims "resolved by commit X"
+    # or "via PR #N", that commit must exist and that PR must be merged, or the
+    # close is aborted. A rationale that cites neither (stale, superseded) passes.
+    unverified = unverified_claims(
+        action.rationale,
+        commit_exists=gateway.commit_exists,
+        pr_is_merged=gateway.pr_is_merged,
+    )
+    if unverified:
+        return ActionOutcome(
+            action.issue, action.category, OUTCOME_FAILED,
+            f"close aborted: unverified {', '.join(unverified)}",
         )
     if not mutate:
         return ActionOutcome(
@@ -368,6 +401,23 @@ class CliGitHubGateway:
         result = self._run(command)
         return result is not None and result.returncode == 0
 
+    def commit_exists(self, sha: str) -> bool:
+        result = self._run(["git", "cat-file", "-e", f"{sha}^{{commit}}"])
+        return result is not None and result.returncode == 0
+
+    def pr_is_merged(self, pr: int) -> bool:
+        result = self._run(
+            ["gh", "pr", "view", str(pr), "--repo", self._repo,
+             "--json", "state"],
+        )
+        if result is None or result.returncode != 0:
+            return False
+        try:
+            data = json.loads(result.stdout)
+        except (json.JSONDecodeError, ValueError):
+            return False
+        return str(data.get("state", "")).upper() == "MERGED"
+
     def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
         try:
             return subprocess.run(
@@ -482,6 +532,12 @@ class _OfflineGateway:
 
     def add_labels(self, issue: int, labels: Sequence[str]) -> bool:  # pragma: no cover
         raise RuntimeError("offline gateway must not mutate")
+
+    def commit_exists(self, sha: str) -> bool:  # pragma: no cover - state is None first
+        return False
+
+    def pr_is_merged(self, pr: int) -> bool:  # pragma: no cover - state is None first
+        return False
 
 
 if __name__ == "__main__":

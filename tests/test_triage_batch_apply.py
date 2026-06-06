@@ -43,10 +43,14 @@ class FakeGateway:
         *,
         close_ok: bool = True,
         label_ok: bool = True,
+        known_commits: frozenset[str] | None = None,
+        merged_prs: frozenset[int] | None = None,
     ) -> None:
         self._states = states or {}
         self._close_ok = close_ok
         self._label_ok = label_ok
+        self._known_commits = known_commits or frozenset()
+        self._merged_prs = merged_prs or frozenset()
         self.closed: list[int] = []
         self.labeled: list[tuple[int, tuple[str, ...]]] = []
 
@@ -60,6 +64,12 @@ class FakeGateway:
     def add_labels(self, issue: int, labels: Sequence[str]) -> bool:
         self.labeled.append((issue, tuple(labels)))
         return self._label_ok
+
+    def commit_exists(self, sha: str) -> bool:
+        return sha.lower() in self._known_commits
+
+    def pr_is_merged(self, pr: int) -> bool:
+        return pr in self._merged_prs
 
 
 def _open(issue: int, labels: tuple[str, ...] = ()) -> IssueState:
@@ -204,6 +214,63 @@ class TestPartialFailure:
         assert outcomes[0].outcome == OUTCOME_FAILED
         assert outcomes[1].outcome == OUTCOME_APPLIED
         assert gw.labeled == [(2, ("agent-qa",))]
+
+
+class TestCloseVerificationGate:
+    """Issue #2481: gate auto-close on epic label and on cited commit/PR truth."""
+
+    def test_epic_label_blocks_close(self):
+        gw = FakeGateway({9: _open(9, labels=("epic", "enhancement"))})
+        action = ManifestAction(issue=9, category=ACTION_CLOSE, rationale="superseded")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "epic" in outcome.detail
+        assert gw.closed == []
+
+    def test_close_with_no_citation_proceeds(self):
+        gw = FakeGateway({5: _open(5)})
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="stale, no longer relevant")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_cited_existing_commit_proceeds(self):
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit abc1234")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_cited_missing_commit_aborts_close(self):
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit 61c56cbe")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_FAILED
+        assert "unverified" in outcome.detail
+        assert "61c56cbe" in outcome.detail
+        assert gw.closed == []
+
+    def test_cited_merged_pr_proceeds(self):
+        gw = FakeGateway({5: _open(5)}, merged_prs=frozenset({1024}))
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_cited_unmerged_pr_aborts_close(self):
+        gw = FakeGateway({5: _open(5)}, merged_prs=frozenset())
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_FAILED
+        assert "PR #1024" in outcome.detail
+        assert gw.closed == []
+
+    def test_gate_applies_in_dry_run(self):
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit deadbeef")
+        outcome = apply_action(action, gw, mutate=False)
+        assert outcome.outcome == OUTCOME_FAILED
+        assert "unverified" in outcome.detail
 
 
 class TestParseActions:
