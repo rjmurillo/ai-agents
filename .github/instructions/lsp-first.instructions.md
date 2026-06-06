@@ -58,13 +58,14 @@ re-activate it: `mcp__serena__activate_project` then
 an advisory. The guards fail open: when no LSP is reachable they allow the raw
 tool rather than block.
 
-During a merge, rebase, cherry-pick, or revert the read gate is bypassed
-automatically (issue #2454). Either of these conditions skips the gate for the
-in-flight file: (a) `.git/MERGE_HEAD`, `.git/rebase-merge`, or
-`.git/rebase-apply` exists at the repo root, or (b) the file's leading window
-starts a line with a conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`). Files
-under dot-directories (`.claude/`, `.serena/`, etc.) were already bypassed, so
-intentional fenced examples in skill documentation are unaffected.
+During a merge or rebase, the read gate bypasses automatically for issue #2454.
+Either of these conditions skips the gate for the in-flight file: (a)
+`MERGE_HEAD`, `rebase-merge`, or `rebase-apply` exists in the active git admin
+directory, including the directory named by a linked worktree `.git` file's
+`gitdir:` pointer, or (b) the file's leading window starts a line with a
+conflict marker (`<<<<<<<`, `=======`, `>>>>>>>`). Files under dot-directories
+(`.claude/`, `.serena/`, etc.) were already bypassed, so intentional fenced
+examples in skill documentation are unaffected.
 
 ## References
 
