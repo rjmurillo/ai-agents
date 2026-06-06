@@ -84,7 +84,7 @@ Before any per-tier action on each PR (arming auto-merge, pushing a CI fix, post
 
 ```bash
 # One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
-git fetch --quiet origin main
+git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
 
 # Per PR, immediately before the tier's planned action:
 LIVE=$(python3 .claude/skills/github/scripts/pr/check_pr_live_state.py \

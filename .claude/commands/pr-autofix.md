@@ -34,7 +34,7 @@ Walk the queue. For each PR, apply the tier's action set. T1 first (land-ready),
 
 ```bash
 # One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
-git fetch --quiet origin main
+git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
 
 # Per PR, immediately before any per-tier action:
 LIVE=$(python3 .claude/skills/github/scripts/pr/check_pr_live_state.py \
