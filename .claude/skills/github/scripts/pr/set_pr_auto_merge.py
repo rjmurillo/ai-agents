@@ -44,6 +44,7 @@ from github_core.api import (  # noqa: E402
     gh_graphql,
     resolve_repo_params,
 )
+from github_core.placeholder_identity import filter_coauthor_trailers  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # GraphQL queries and mutations
@@ -177,11 +178,17 @@ def enable_auto_merge(
     commit_body: str,
 ) -> int:
     """Enable auto-merge. Returns exit code."""
+    # Issue #2466: strip placeholder Co-authored-by trailers from commit_body
+    # before passing to GitHub. Primary defences are the worktree-bootstrap
+    # reset and pre-push guard; this is the final backstop for the body path.
+    # When commit_body is empty, GitHub auto-assembles from commit subjects,
+    # which are protected by the pre-push guard and worktree-bootstrap reset.
+    sanitized_body = filter_coauthor_trailers(commit_body) if commit_body else ""
     variables: dict = {
         "pullRequestId": pr_id,
         "mergeMethod": merge_method,
         "commitHeadline": commit_headline or "",
-        "commitBody": commit_body or "",
+        "commitBody": sanitized_body,
     }
 
     try:
