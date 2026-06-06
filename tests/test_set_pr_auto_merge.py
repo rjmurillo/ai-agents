@@ -212,6 +212,85 @@ class TestEnableAutoMergeErrors:
         assert "Failed to enable auto-merge" in stderr
         assert "something unexpected" in stderr
 
+    def test_clean_status_emits_actionable_fallback(self, capsys):
+        """Issue #2450: CLEAN merge state must point to direct merge.
+
+        When ``mergeStateStatus == CLEAN`` (all required checks pass,
+        no unresolved reviews, no conflicts), GitHub refuses auto-merge
+        with "Pull request is in clean status" because there is nothing
+        for auto-merge to wait on. The script must detect this and
+        instruct the caller to fall back to merge_pr.py instead of
+        leaking the raw GraphQL prefix.
+        """
+        err = RuntimeError(
+            "GraphQL request failed: gh: Pull request Pull request "
+            "is in clean status",
+        )
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
+            with pytest.raises(SystemExit) as exc:
+                enable_auto_merge("o", "r", 2446, "PR_abc", "SQUASH", "", "")
+            # Exit 3 per ADR-035 (external/API error).
+            assert exc.value.code == 3
+        stderr = capsys.readouterr().err
+        # Names the state explicitly so operators recognize it.
+        assert "CLEAN" in stderr
+        # Points to the documented fallback script.
+        assert "merge_pr.py" in stderr
+        # Includes the PR number so the suggested command is copy-pasteable.
+        assert "2446" in stderr
+        # Does NOT leak the raw GraphQL failure prefix as the only signal.
+        assert "GraphQL request failed" not in stderr
+
+    def test_clean_status_fallback_propagates_merge_method(self, capsys):
+        """CLEAN fallback must use the requested merge method, lowercased.
+
+        Regression guard so a future refactor does not hard-code 'squash'
+        in the suggested command when the caller passed MERGE or REBASE.
+        """
+        err = RuntimeError(
+            "GraphQL request failed: gh: Pull request is in clean status",
+        )
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
+            with pytest.raises(SystemExit):
+                enable_auto_merge("o", "r", 99, "PR_abc", "REBASE", "", "")
+        stderr = capsys.readouterr().err
+        assert "--strategy rebase" in stderr
+
+    def test_blocked_status_does_not_trigger_clean_or_unstable_fallback(
+        self, capsys,
+    ):
+        """BLOCKED PRs (required reviews/checks pending) are auto-merge's
+        intended use case. GitHub accepts ``enablePullRequestAutoMerge``
+        for BLOCKED, so the success path must run with no CLEAN/UNSTABLE
+        fallback ever triggering.
+
+        This locks in that the CLEAN and UNSTABLE substring matchers do
+        not over-match a BLOCKED state's accept path.
+        """
+        # Simulate a successful enable-auto-merge mutation on a BLOCKED PR.
+        enable_data = {
+            "enablePullRequestAutoMerge": {
+                "pullRequest": {
+                    "autoMergeRequest": {
+                        "enabledAt": "2026-06-05T18:00:00Z",
+                        "mergeMethod": "SQUASH",
+                    },
+                },
+            },
+        }
+        with patch(
+            "set_pr_auto_merge.gh_graphql",
+            return_value=enable_data,
+        ):
+            rc = enable_auto_merge("o", "r", 2450, "PR_blk", "SQUASH", "", "")
+        assert rc == 0
+        captured = capsys.readouterr()
+        # Must not have routed through either fallback message.
+        assert "UNSTABLE merge state" not in captured.err
+        assert "CLEAN merge state" not in captured.err
+        # Confirms the normal enabled-summary printed.
+        assert "Auto-merge enabled" in captured.out
+
 
 # ---------------------------------------------------------------------------
 # Tests: main

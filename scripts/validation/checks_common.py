@@ -15,6 +15,7 @@ working for existing callers and tests.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -46,7 +47,7 @@ def _run_subprocess(
         result = subprocess.run(
             args,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             timeout=timeout,
             cwd=cwd,
             env=env,
@@ -136,6 +137,57 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     return None
 
 
+def _refresh_remote_base(base_ref: str, repo_root: Path) -> str | None:
+    """Best-effort fetch of ``origin/<branch>`` to keep the base ref fresh (#2453).
+
+    The wrapper invokes a base-ref-using validator with the local
+    ``origin/<branch>`` ref. When the local ref is stale (the developer has
+    not fetched in a while), the validator compares against an old version
+    and false-PASSes a bump that is actually insufficient against the real
+    remote. Refreshing here, in the wrapper, keeps the validator itself pure
+    and offline-safe.
+
+    Returns:
+        ``None`` when no fetch was attempted (non-``origin/<branch>`` ref, or
+        running under CI where the CI runner already fetched). A short error
+        string when the fetch was attempted and failed; the caller emits a
+        WARNING and proceeds. Empty string on a successful fetch.
+    """
+    if not base_ref.startswith("origin/"):
+        return None
+    if os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get(
+        "GITHUB_ACTIONS", ""
+    ).lower() in ("true", "1"):
+        return None
+    branch = base_ref[len("origin/") :]
+    if not branch or "/" in branch:
+        # Refuse pathological inputs ("origin/", "origin/foo/bar/..."); a
+        # straight branch name is the only safe target for a refresh.
+        return None
+    clean_env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        clean_env.pop(var, None)
+    clean_env["LC_ALL"] = "C"
+
+    exit_code, _, stderr = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "fetch",
+            "--no-tags",
+            "--quiet",
+            "origin",
+            branch,
+        ],
+        env=clean_env,
+        timeout=15,
+    )
+    if exit_code == 0:
+        return ""
+    return stderr.strip() or f"git fetch exit {exit_code}"
+
+
 def _run_build_script_gate(
     repo_root: Path,
     script_name: str,
@@ -175,6 +227,18 @@ def _run_build_script_gate(
             file=sys.stderr,
         )
         return False
+
+    # Issue #2453: refresh origin/<branch> bases before validating so a stale
+    # local ref does not false-PASS a bump that is actually insufficient
+    # against the real remote. Best-effort; failure does not block.
+    fetch_result = _refresh_remote_base(base_ref, repo_root)
+    if fetch_result is not None and fetch_result != "":
+        print(
+            f"[WARN] {gate_label}: could not refresh {base_ref} "
+            f"({fetch_result}); continuing with the local ref.",
+            file=sys.stderr,
+        )
+
     cmd = [sys.executable, str(script), "--base", base_ref]
     exit_code, stdout, stderr = _run_subprocess(cmd)
     output = (stdout or "") + (stderr or "")

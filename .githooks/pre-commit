@@ -56,6 +56,25 @@ echo_action() {
     echo -e "${CYAN}FIXING:${NC} $1"
 }
 
+# Print the number of non-empty lines in $1 on stdout, as a single integer
+# with no trailing whitespace. Always exits 0; never emits more than one
+# line. Empty input prints 0.
+#
+# Replaces the bug-prone idiom `echo "$VAR" | grep -c . || echo 0`, which on
+# empty input produced `"0\n0"` (grep -c printed 0 and exited 1, then the
+# fallback appended another 0). Command substitution then yielded a two-line
+# value that broke arithmetic with `syntax error in expression`. See #2442.
+count_nonempty_lines() {
+    local input="$1"
+    if [ -z "$input" ]; then
+        printf '0'
+        return 0
+    fi
+    # awk's NF counts non-empty fields; per-line NF>0 filters blank lines.
+    # printf "%d" forces a single integer with no trailing newline.
+    printf '%s' "$input" | awk 'NF{c++} END{printf "%d", c+0}'
+}
+
 # Track overall exit status
 EXIT_STATUS=0
 
@@ -174,9 +193,10 @@ if [ "$IS_MERGE" = "1" ] && [ -n "$MERGE_BASE" ]; then
             fi
         done <<< "$STAGED_FILES"
 
-        # Count files filtered out
-        ORIGINAL_COUNT=$(echo "$STAGED_FILES" | grep -c . || echo 0)
-        FILTERED_COUNT=$(echo "$FILTERED_STAGED" | grep -c . || echo 0)
+        # Count files filtered out (#2442: use helper to avoid `grep -c .
+        # || echo 0` producing "0\n0" on empty input and breaking $(( ))).
+        ORIGINAL_COUNT=$(count_nonempty_lines "$STAGED_FILES")
+        FILTERED_COUNT=$(count_nonempty_lines "$FILTERED_STAGED")
         SKIPPED_COUNT=$((ORIGINAL_COUNT - FILTERED_COUNT))
 
         if [ "$SKIPPED_COUNT" -gt 0 ]; then
