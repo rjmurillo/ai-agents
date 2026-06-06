@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-06-session-2371-pr-2476-ready-merge",
+  "session": "2026-06-06-session-2371-pr-2476-ready-merge",
+  "timestamp": "2026-06-06T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR #2476 to Ready-to-Merge by resolving review threads, validating checks, and squash-merging when clean.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read review threads",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed get_issue_comments.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed reopen_issue.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated targeted tests",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 0
+  },
+  "lessons": []
+}
