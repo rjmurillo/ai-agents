@@ -7,6 +7,7 @@ wrapper, base ref resolution, and the remote-refresh helper added for issue #245
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -120,19 +121,25 @@ class TestRefreshRemoteBase:
         ) as mock_run:
             result = _refresh_remote_base("origin/main", tmp_path)
             assert result == ""
-            mock_run.assert_called_once_with(
-                [
-                    "git",
-                    "-C",
-                    str(tmp_path),
-                    "fetch",
-                    "--no-tags",
-                    "--quiet",
-                    "origin",
-                    "main",
-                ],
-                timeout=15,
-            )
+            mock_run.assert_called_once()
+            args, kwargs = mock_run.call_args
+            assert args[0] == [
+                "git",
+                "-C",
+                str(tmp_path),
+                "fetch",
+                "--no-tags",
+                "--quiet",
+                "origin",
+                "main",
+            ]
+            assert kwargs["timeout"] == 15
+            clean_env = kwargs["env"]
+            assert clean_env["LC_ALL"] == "C"
+            assert "GIT_DIR" not in clean_env
+            assert "GIT_WORK_TREE" not in clean_env
+            assert "GIT_COMMON_DIR" not in clean_env
+            assert "GIT_INDEX_FILE" not in clean_env
 
     def test_returns_error_string_on_failed_fetch(
         self, tmp_path: Path, monkeypatch: Any  # noqa: ANN401
@@ -426,7 +433,8 @@ else:
             ["git", "show", "origin/main:.claude-plugin/plugin.json"],
             cwd=local_repo,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            env={**os.environ, "LC_ALL": "C"},
             check=True,
         )
         stale_version = json.loads(result.stdout)["version"]
@@ -455,7 +463,8 @@ else:
             ["git", "show", "origin/main:.claude-plugin/plugin.json"],
             cwd=local_repo,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            env={**os.environ, "LC_ALL": "C"},
             check=True,
         )
         refreshed_version = json.loads(result.stdout)["version"]

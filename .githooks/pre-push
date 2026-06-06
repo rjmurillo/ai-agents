@@ -885,7 +885,8 @@ elif [ -f "$PLUGIN_VERSION_SCRIPT" ] && [ ${#PVB_BASES[@]} -gt 0 ]; then
                         if [ "$f" = "$branch" ]; then already_fetched=1; break; fi
                     done
                     if [ $already_fetched -eq 0 ]; then
-                        if ! git fetch --no-tags --quiet origin "$branch" 2>/dev/null; then
+                        if ! env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
+                            LC_ALL=C git fetch --no-tags --quiet origin "$branch" 2>/dev/null; then
                             echo_info "  [WARN] could not refresh origin/$branch; continuing with stale local ref (#2453)"
                         fi
                         PVB_FETCHED+=("$branch")

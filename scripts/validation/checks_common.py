@@ -47,7 +47,7 @@ def _run_subprocess(
         result = subprocess.run(
             args,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             timeout=timeout,
             cwd=cwd,
             env=env,
@@ -164,6 +164,11 @@ def _refresh_remote_base(base_ref: str, repo_root: Path) -> str | None:
         # Refuse pathological inputs ("origin/", "origin/foo/bar/..."); a
         # straight branch name is the only safe target for a refresh.
         return None
+    clean_env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        clean_env.pop(var, None)
+    clean_env["LC_ALL"] = "C"
+
     exit_code, _, stderr = _run_subprocess(
         [
             "git",
@@ -175,6 +180,7 @@ def _refresh_remote_base(base_ref: str, repo_root: Path) -> str | None:
             "origin",
             branch,
         ],
+        env=clean_env,
         timeout=15,
     )
     if exit_code == 0:
