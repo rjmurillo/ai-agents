@@ -175,6 +175,16 @@ class TestMain:
         rc, cap = self._run(tmp_path, stdin, monkeypatch, capsys)
         assert rc == 0
         assert "Topical memory (github)" in cap.out
+        # Regression #2468: stdout MUST be the valid PreToolUse advisory
+        # envelope (hookSpecificOutput.additionalContext), not a top-level
+        # decision:"allow", which Claude Code rejects and silently drops.
+        payload = json.loads(cap.out)
+        assert "decision" not in payload
+        assert payload["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+        assert (
+            "Topical memory (github)"
+            in payload["hookSpecificOutput"]["additionalContext"]
+        )
 
     def test_silent_when_no_match(self, tmp_path, monkeypatch, capsys):
         _seed_memories(tmp_path, {"powershell/x.md": "# x\n"})

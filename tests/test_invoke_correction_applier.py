@@ -255,6 +255,18 @@ class TestMainOutputPath:
             # must be valid JSON or empty for hook payloads).
             assert "Self-Improving Agent" in captured.err
             assert "pnpm" in captured.err
+            # Regression #2468: stdout MUST be the valid PreToolUse advisory
+            # envelope. The top-level `decision` field accepts only
+            # approve/block; "allow" there is rejected by Claude Code, which
+            # silently drops the advisory. Advisories inject context via
+            # hookSpecificOutput.additionalContext.
+            payload = json.loads(captured.out)
+            assert "decision" not in payload
+            assert payload["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+            assert (
+                "Self-Improving Agent"
+                in payload["hookSpecificOutput"]["additionalContext"]
+            )
 
     @patch("invoke_correction_applier.skip_if_consumer_repo", return_value=False)
     @patch(
