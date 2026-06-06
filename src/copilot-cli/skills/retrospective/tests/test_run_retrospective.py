@@ -398,7 +398,7 @@ def test_cli_output_override_writes_to_explicit_path(tmp_path):
 
 def test_cli_allows_artifact_root_override_outside_project(tmp_path, monkeypatch):
     # Arrange: packaged consumers can redirect generated artifacts outside cwd.
-    artifact_root = tmp_path.parent / "artifact-root"
+    artifact_root = tmp_path.parent / f"artifact-root-{tmp_path.name}"
     monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
 
     # Act

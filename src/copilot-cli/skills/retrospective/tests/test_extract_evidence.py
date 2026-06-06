@@ -271,7 +271,7 @@ def test_gather_evidence_marks_session_absent_when_none(tmp_path):
 
 def test_gather_evidence_artifact_root_read_does_not_create_sessions(tmp_path, monkeypatch):
     # Arrange
-    artifact_root = tmp_path.parent / "artifact-root"
+    artifact_root = tmp_path.parent / f"artifact-root-{tmp_path.name}"
     monkeypatch.setenv("AI_AGENTS_ARTIFACT_ROOT", str(artifact_root))
 
     # Act
