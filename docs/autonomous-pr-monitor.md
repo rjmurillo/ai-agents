@@ -58,7 +58,7 @@ A PR is ready to merge ONLY when ALL of the following hold:
 1. **Branch up to date with `main`**. `mergeStateStatus != BEHIND`. If behind, merge `main` into the branch (or rebase) and push before landing. `CanMerge=True` from `test_pr_merge_ready.py` is not sufficient when the GitHub `mergeStateStatus` is `BLOCKED` or `BEHIND`.
 2. **All required checks pass**. Each required check's latest run is `SUCCESS`. The canonical signal is `test_pr_merge_ready.py`'s `CIPassing == true`, which collapses each check name to its latest run state and ignores superseded `CANCELLED` runs when a later `SUCCESS` exists. A `FAILURE` or `PENDING` on the latest run still blocks; a stale `CANCELLED` on an older run does not.
 3. **All conversations addressed end-to-end**. For every currently UNRESOLVED thread, the agent must walk the 5-step lifecycle below (READ, TRIAGE, SOLVE if Blocking, REPLY, RESOLVE). Threads already RESOLVED before the session started require only READ and TRIAGE to confirm the resolution still matches the current diff; SOLVE, REPLY, and RESOLVE do not apply when there is nothing to act on. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
-4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable. **Auto-merge** (`set_pr_auto_merge.py --enable`) only works when state is `CLEAN`; GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439). For documented-`UNSTABLE` PRs use direct merge (`merge_pr.py --strategy squash`) instead.
+4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable. **Auto-merge** (`set_pr_auto_merge.py --enable`) is only appropriate when GitHub still has branch-protection work to wait on. GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may reject an already-`CLEAN` PR because there is nothing left to wait on (issue #2450). For documented-`UNSTABLE` PRs, or an already-`CLEAN` rejection, use direct merge (`merge_pr.py --strategy squash`) after all four conditions pass.
 
 `CanMerge` from `test_pr_merge_ready.py` is a partial signal. Always cross-check against the four conditions above before enabling auto-merge or merging directly.
 
@@ -70,11 +70,40 @@ Use `test_pr_merge_ready.py` to collect merge readiness data for each PR. Then a
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no unresolved threads, `CLEAN` merge state | Land immediately (enable auto-merge) |
+| T1 | Branch up to date, no CI failures, no unresolved threads, `CLEAN` merge state | Land through the CLEAN merge path after the four-condition gate |
 | T2 | CI failures only (no threads), branch up to date | Fix CI, verify all required checks pass, then land |
 | T3 | Threads only (CI passing) | Triage every thread, solve blockers, reply with course of action, resolve all threads, then land |
 | T4 | Both CI failures and unresolved threads | Fix CI first, then walk Thread Severity lifecycle for every thread |
 | T5 | Bot PR with validation failures | See Renovate PR Handling section |
+
+### Per-PR Live-State Re-Triage (BLOCKING, issue #2455)
+
+The triage above produces a session-start snapshot. In a repo with heavy merge automation, that snapshot decays fast: PRs merge or close mid-walk; sibling consolidated PRs land the same diff on `main`, making queued rows redundant. Acting on a stale row wastes work and risks pushing duplicate or conflicting logic.
+
+Before any per-tier action on each PR (arming auto-merge, pushing a CI fix, posting a thread reply), call the live-state gate and branch on the JSON envelope `Data.action` field:
+
+```bash
+# One outer fetch covers all per-PR calls; --skip-fetch keeps the loop cheap.
+git fetch --quiet origin "+refs/heads/main:refs/remotes/origin/main"
+
+# Per PR, immediately before the tier's planned action:
+LIVE=$(python3 .claude/skills/github/scripts/pr/check_pr_live_state.py \
+    --pull-request "$PR" --skip-fetch --output-format json)
+ACTION=$(echo "$LIVE" | jq -r '.Data.action')
+if [ "$ACTION" = "SKIP" ]; then
+    echo "Skipping #$PR: $(echo "$LIVE" | jq -r '.Data.reason')"
+    # If Data.superseded_by_base.fully_superseded == true, recommend close
+    # via the queue's close-handling path; do NOT push or merge.
+    continue
+fi
+```
+
+The gate checks two failure modes:
+
+1. **Live state drift.** The PR is now MERGED, CLOSED, or a DRAFT. Anything other than OPEN means do not act.
+2. **Superseded by base.** `git cherry origin/<base> origin/<head>` reports every commit on the PR branch as already on `origin/<base>` (patch-id match). This is the "diff already landed via a sibling PR" case (PR #2394 vs PRs #2409/#2412 on 2026-06-05; #2409 was auto-merge-armed before redundancy was caught).
+
+SKIP verdicts are binding: do NOT push commits, do NOT arm auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP. The verdict's `reason` field names the cause for the autofix log. An `ACT` verdict only proves the PR is still actionable; the four-condition Ready-to-Merge gate above still applies before any merge.
 
 If `mergeStateStatus == BEHIND`, the PR's branch must be updated against `main` BEFORE landing, regardless of tier. Update via merge or rebase; do not rely on auto-merge to handle the update.
 
