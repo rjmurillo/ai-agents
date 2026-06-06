@@ -25,10 +25,10 @@ Read first, reason second. Pre-training last resort.
 
 ## Boundaries
 
-**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits (≤5 files)|Scoped lint|Pin Actions to SHA|Run changed workflows pre-push|Bump `plugin.json` (semver) on plugin source change
+**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits ≤5 files|Scoped lint|Pin Actions to SHA|Run changed workflows pre-push|Bump `plugin.json` semver on plugin-source change
 **Ask First**: Architecture changes|New ADRs|Breaking changes|Security-sensitive
-**Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in working tree (`$TMPDIR`/`mktemp`)|Resolve security threads without fixing the vulnerability (CWE/OWASP/CVE) in code|Ship gen'd artifact unrun in target runtime
+**Autonomy**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
+**Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in working tree (`$TMPDIR`/`mktemp`)|Resolve security threads w/o fixing the vuln (CWE/OWASP/CVE) in code|Ship gen'd artifact unrun in target runtime
 
 ## Context Type Decision
 
@@ -43,8 +43,8 @@ Knowledge → passive context (@imports). Actions → skills.
 |Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
 |Security: security-detection|Quality: analyze|Learn: reflect
 |Lifecycle: /spec, /plan, /build, /test, /review, /ship
-|CI-feedback sub-loop (findings on a pushed branch): cluster, then ladder build->test->review->ship per cluster. Commit `fix(subloop): <axis> cluster <id>`. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
-|New capability (Context/module/scanner/validator/pipeline): run buy-vs-build-framework Quick tier BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability, approved extensions
+|CI-feedback sub-loop: see `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
+|New capability: run buy-vs-build-framework Quick tier BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability, approved exts
 
 ### ADR Review (BLOCKING)
 
