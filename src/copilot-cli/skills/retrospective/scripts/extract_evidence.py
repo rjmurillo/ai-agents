@@ -39,35 +39,6 @@ from pathlib import Path
 UTC = timezone.utc  # noqa: UP017 - Python 3.10 compatibility
 
 
-def _resolve_paths_lib_dir() -> Path:
-    """Resolve the plugin path-helper lib directory or fail with context."""
-    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-    if plugin_root:
-        lib_dir = Path(plugin_root) / "lib"
-    elif workspace := os.environ.get("GITHUB_WORKSPACE"):
-        lib_dir = Path(workspace) / ".claude" / "lib"
-    else:
-        lib_dir = Path(__file__).resolve().parents[3] / "lib"
-
-    if not lib_dir.is_dir():
-        raise RuntimeError(
-            "Expected portability helper lib directory not found: "
-            f"{lib_dir}. Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT to the "
-            "plugin root, or run from an ai-agents checkout."
-        )
-    return lib_dir.resolve()
-
-
-_LIB_DIR = _resolve_paths_lib_dir()
-if str(_LIB_DIR) not in sys.path:
-    sys.path.insert(0, str(_LIB_DIR))
-
-try:
-    from paths import resolve_artifact_root as _resolve_artifact_root  # noqa: E402,F401
-except ImportError as exc:  # pragma: no cover - guarded by explicit path check
-    raise RuntimeError(f"Failed to import portability helper paths.py from {_LIB_DIR}") from exc
-
-
 def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     """Resolve an artifact directory without creating it during evidence reads."""
     override = os.environ.get("AI_AGENTS_ARTIFACT_ROOT")
