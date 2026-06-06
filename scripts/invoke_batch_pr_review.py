@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.github_core.repo import get_repo_root
+from scripts.github_core.worktree_identity import reset_worktree_identity
 
 
 def run_git(*args: str, cwd: str | Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -53,7 +54,7 @@ def get_pr_branch(pr_number: int) -> str | None:
         return None
 
 
-def create_worktree(pr_number: int, worktree_root: Path) -> bool:
+def create_worktree(pr_number: int, worktree_root: Path, operator: str = "rjmurillo-bot") -> bool:
     branch = get_pr_branch(pr_number)
     if not branch:
         return False
@@ -73,6 +74,12 @@ def create_worktree(pr_number: int, worktree_root: Path) -> bool:
         if result.returncode != 0:
             print(f"WARNING: Failed to create worktree for PR #{pr_number}.")
             return False
+
+    # Issue #2466: pin operator identity immediately after worktree creation.
+    # Pytest fixtures can leak test@test.com into worktree local .git/config
+    # when they call `git config` with the wrong cwd. This reset clobbers any
+    # such leak before any commit is made in this worktree.
+    reset_worktree_identity(worktree_path, operator=operator)
 
     print(f"Created: {worktree_path}")
     return True
@@ -204,6 +211,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--worktree-root", type=Path, help="Root directory for worktrees")
     parser.add_argument("--force", action="store_true", help="Force cleanup of dirty worktrees")
+    parser.add_argument(
+        "--operator-identity",
+        default="rjmurillo-bot",
+        choices=["rjmurillo-bot", "rjmurillo"],
+        help=(
+            "Git identity to pin in new worktrees. "
+            "'rjmurillo-bot' (default) sets bot name/email; "
+            "'rjmurillo' unsets local config so global ~/.gitconfig flows through."
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not args.worktree_root:
@@ -219,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
         pr_list = ", ".join(str(p) for p in args.pr_numbers)
         print(f"\n=== Setting up worktrees for PRs: {pr_list} ===")
         for pr in args.pr_numbers:
-            create_worktree(pr, args.worktree_root)
+            create_worktree(pr, args.worktree_root, operator=args.operator_identity)
 
     if op in ("status", "all"):
         print("\n=== Worktree Status ===")
