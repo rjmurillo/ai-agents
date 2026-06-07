@@ -77,6 +77,14 @@
       "content": "Resolved merge conflicts with origin/main",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed dorny paths-filter boolean-string review threads",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

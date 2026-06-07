@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed after merge conflict resolution; pre_pr.py passed with documented workflow-local bypass"
+        "Evidence": "validate_session_json.py passed after filter boolean-string fix; pre_pr.py passed with documented workflow-local bypass before this fix"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -157,6 +157,11 @@
       "time": "2026-06-07T03:05:00Z",
       "action": "Resolved merge conflicts with origin/main",
       "evidence": "Accepted origin/main versions of session 2372 session and episode audit records per merge-resolver session file rule."
+    },
+    {
+      "time": "2026-06-07T03:20:00Z",
+      "action": "Fixed dorny paths-filter boolean-string review threads",
+      "evidence": "Added scripts/workflows/determine_should_run_from_filters.py and routed memory-health, passive-context-budget, and skill-passive-compliance through it so filter strings are compared to true in Python rather than OR-ed in YAML."
     }
   ],
   "endingCommit": "",
