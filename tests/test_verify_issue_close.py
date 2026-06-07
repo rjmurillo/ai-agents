@@ -120,7 +120,9 @@ class TestVerifyCommitExists:
         assert "env" not in kwargs
 
     def test_repo_context_missing_commit_is_false(self):
-        runner = lambda *a, **k: _proc(1)
+        def runner(*a, **k):
+            return _proc(1)
+
         assert v.verify_commit_exists("deadbeef", repo="o/r", runner=runner) is False
 
     def test_absent_commit(self):
@@ -135,7 +137,9 @@ class TestVerifyCommitExists:
 
 class TestVerifyPrMerged:
     def test_merged(self):
-        runner = lambda *a, **k: _proc(0, stdout='{"state": "MERGED"}')
+        def runner(*a, **k):
+            return _proc(0, stdout='{"state": "MERGED"}')
+
         assert v.verify_pr_merged(5, "o/r", runner=runner) is True
 
     def test_gh_runner_uses_utf8_encoding(self):
@@ -152,22 +156,30 @@ class TestVerifyPrMerged:
         assert kwargs["errors"] == "replace"
 
     def test_closed_unmerged(self):
-        runner = lambda *a, **k: _proc(0, stdout='{"state": "CLOSED"}')
+        def runner(*a, **k):
+            return _proc(0, stdout='{"state": "CLOSED"}')
+
         assert v.verify_pr_merged(5, "o/r", runner=runner) is False
 
     def test_null_state_is_unmerged(self):
-        runner = lambda *a, **k: _proc(0, stdout='{"state": null}')
+        def runner(*a, **k):
+            return _proc(0, stdout='{"state": null}')
+
         assert v.verify_pr_merged(5, "o/r", runner=runner) is False
 
     def test_non_object_payload_is_unmerged(self):
-        runner = lambda *a, **k: _proc(0, stdout='["MERGED"]')
+        def runner(*a, **k):
+            return _proc(0, stdout='["MERGED"]')
+
         assert v.verify_pr_merged(5, "o/r", runner=runner) is False
 
     def test_non_zero_returncode(self):
         assert v.verify_pr_merged(5, "o/r", runner=lambda *a, **k: _proc(1)) is False
 
     def test_bad_json(self):
-        runner = lambda *a, **k: _proc(0, stdout="{not json")
+        def runner(*a, **k):
+            return _proc(0, stdout="{not json")
+
         assert v.verify_pr_merged(5, "o/r", runner=runner) is False
 
     def test_runner_error_is_false(self):

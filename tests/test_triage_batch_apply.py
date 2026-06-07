@@ -229,21 +229,33 @@ class TestCloseVerificationGate:
 
     def test_close_with_no_citation_proceeds(self):
         gw = FakeGateway({5: _open(5)})
-        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="stale, no longer relevant")
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="stale, no longer relevant",
+        )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_APPLIED
         assert gw.closed == [5]
 
     def test_cited_existing_commit_proceeds(self):
         gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
-        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit abc1234")
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit abc1234",
+        )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_APPLIED
         assert gw.closed == [5]
 
     def test_cited_missing_commit_aborts_close(self):
         gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
-        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit 61c56cbe")
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit 61c56cbe",
+        )
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_SKIPPED
         assert "unverified" in outcome.detail
@@ -267,7 +279,11 @@ class TestCloseVerificationGate:
 
     def test_gate_applies_in_dry_run(self):
         gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
-        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit deadbeef")
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit deadbeef",
+        )
         outcome = apply_action(action, gw, mutate=False)
         assert outcome.outcome == OUTCOME_SKIPPED
         assert "unverified" in outcome.detail
