@@ -69,6 +69,7 @@ from checks_dash import (  # noqa: E402, F401
 )
 from checks_plugin import (  # noqa: E402, F401
     _is_linked_worktree,
+    validate_copilot_agent_frontmatter,
     validate_git_hooks_installed,
     validate_hook_anchoring,
     validate_install_parity,
@@ -415,6 +416,14 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_hook_anchoring(repo_root),
     )
 
+    # 6c3. Copilot agent frontmatter must parse as YAML (#2491-#2496): an unquoted
+    # description embedding colon-bearing examples makes Copilot fail to load the agent.
+    run_validation(
+        "Copilot Agent Frontmatter",
+        state,
+        lambda: validate_copilot_agent_frontmatter(repo_root),
+    )
+
     # 6d. Git Hooks Installed (local clone must run the canonical .githooks;
     # a desynced hooksPath bypasses the pre-push guards). Skipped under CI.
     run_validation(
@@ -423,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_git_hooks_installed(repo_root),
     )
 
-    # 6d. Workflow Local Run (actionlint + gh act dry-run for changed workflows)
+    # 6e. Workflow Local Run (actionlint + gh act dry-run for changed workflows)
     run_validation(
         "Workflow Local Run",
         state,

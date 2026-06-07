@@ -54,6 +54,35 @@ def validate_hook_anchoring(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
+    """Every .github/agents/*.agent.md must have parseable YAML frontmatter (#2491-#2496).
+
+    An unquoted description that embeds colon-bearing example text makes Copilot
+    fail to load the agent ("mapping values are not allowed in this context").
+    This gate parses each file's frontmatter exactly as a YAML loader would and
+    blocks a regression of that class.
+    """
+    script = (
+        repo_root / "scripts" / "validation" / "validate_copilot_agent_frontmatter.py"
+    )
+    if not script.exists():
+        raise MissingScriptSkip("validate_copilot_agent_frontmatter.py not present")
+
+    exit_code, stdout, stderr = _run_subprocess(
+        [
+            sys.executable,
+            str(script),
+            "--agents-dir",
+            str(repo_root / ".github" / "agents"),
+        ]
+    )
+    if exit_code != 0:
+        detail = stdout.rstrip() or stderr.rstrip()
+        if detail:
+            print(detail)
+    return exit_code == 0
+
+
 def validate_install_parity(repo_root: Path) -> bool:
     """Detect install-copy drift across SHARED_AGENT and RULE parity groups.
 

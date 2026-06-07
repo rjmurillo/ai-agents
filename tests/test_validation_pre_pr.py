@@ -262,6 +262,14 @@ class TestParseYamlFrontmatter:
         assert result is not None
         assert result["value"] == "has # in it"
 
+    def test_returns_none_for_malformed_yaml(self) -> None:
+        text = (
+            "---\n"
+            "description: Agent examples: Context: user asks\n"
+            "---\n"
+        )
+        assert _parse_yaml_frontmatter(text) is None
+
 
 # ---------------------------------------------------------------------------
 # validate_design_review_frontmatter
