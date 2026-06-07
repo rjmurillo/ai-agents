@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     outputs:
-      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.memories || steps.filter.outputs.code }}
+      should-run-memory-health: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.memories || steps.filter.outputs.code }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -55,7 +55,7 @@ jobs:
   health-check:
     name: Memory health check
     needs: check-paths
-    if: needs.check-paths.outputs.should-run == 'true'
+    if: needs.check-paths.outputs.should-run-memory-health == 'true'
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
@@ -102,11 +102,13 @@ jobs:
             exempt=$(jq '.summary.exempt' health-report.json)
             errors=$(jq '.summary.errors' health-report.json)
 
-            echo "total=$total" >> "$GITHUB_OUTPUT"
-            echo "healthy=$healthy" >> "$GITHUB_OUTPUT"
-            echo "stale=$stale" >> "$GITHUB_OUTPUT"
-            echo "exempt=$exempt" >> "$GITHUB_OUTPUT"
-            echo "errors=$errors" >> "$GITHUB_OUTPUT"
+            {
+              echo "total=$total"
+              echo "healthy=$healthy"
+              echo "stale=$stale"
+              echo "exempt=$exempt"
+              echo "errors=$errors"
+            } >> "$GITHUB_OUTPUT"
 
             if [ "$stale" -gt 0 ]; then
               echo "has_stale=true" >> "$GITHUB_OUTPUT"
@@ -197,7 +199,7 @@ jobs:
   skip-health-check:
     name: Skip health check (no changes)
     needs: check-paths
-    if: needs.check-paths.outputs.should-run != 'true'
+    if: needs.check-paths.outputs.should-run-memory-health != 'true'
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 1

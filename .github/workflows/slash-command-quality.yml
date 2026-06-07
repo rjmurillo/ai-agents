@@ -15,7 +15,7 @@ jobs:
     permissions:
       pull-requests: read
     outputs:
-      should-run: ${{ steps.filter.outputs.commands == 'true' || steps.filter.outputs.validator == 'true' || steps.filter.outputs.spec_evals == 'true' }}
+      should-run-commands: ${{ steps.filter.outputs.commands == 'true' || steps.filter.outputs.validator == 'true' || steps.filter.outputs.spec_evals == 'true' }}
       spec_evals_changed: ${{ steps.filter.outputs.spec_command == 'true' || steps.filter.outputs.spec_evals == 'true' }}
     steps:
       - name: Checkout code
@@ -42,7 +42,7 @@ jobs:
   validate-slash-commands:
     runs-on: ubuntu-24.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.should-run == 'true'
+    if: needs.check-paths.outputs.should-run-commands == 'true'
     permissions:
       contents: read
 
@@ -76,7 +76,7 @@ jobs:
   skip-validation:
     runs-on: ubuntu-24.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.should-run != 'true'
+    if: needs.check-paths.outputs.should-run-commands != 'true'
     permissions: {}
     steps:
       - name: Skip validation
