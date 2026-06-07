@@ -21,10 +21,11 @@ _SCRIPTS_DIR = (
 
 
 def _import(name: str):
-    spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
+    module_name = f"issue_coordination_{name}"
+    spec = importlib.util.spec_from_file_location(module_name, _SCRIPTS_DIR / f"{name}.py")
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
+    sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
     return mod
 
