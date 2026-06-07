@@ -179,6 +179,16 @@ jobs:
           echo "Validating GitHub Actions SHA pinning..."
           python3 scripts/validation/sha_pinning.py --ci
 
+      - name: Validate Copilot agent frontmatter (issues #2491-#2497, #2500)
+        if: steps.should-run.outputs.skip != 'true'
+        # Parse every .github/agents/*.agent.md frontmatter as a YAML loader
+        # would. An unquoted plain-scalar description that embeds colon-bearing
+        # examples makes Copilot fail to load the agent; this gate blocks that
+        # class in CI (not only the local pre_pr gate). Exit 1 on malformed.
+        run: |
+          echo "Validating Copilot agent frontmatter..."
+          python3 scripts/validation/validate_copilot_agent_frontmatter.py
+
       - name: Show diff on failure
         if: failure() && steps.should-run.outputs.skip != 'true'
         run: |

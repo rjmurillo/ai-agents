@@ -87,6 +87,26 @@ class TestFindMalformed:
         _write(tmp_path, "x.agent.md", "just a body, no fences\n")
         assert len(v.find_malformed(tmp_path)) == 1
 
+    def test_parser_error_in_message(self, tmp_path):
+        # #2500 AC: the failure message carries the YAML parser error.
+        _write(tmp_path, "code-reviewer.agent.md", _MALFORMED)
+        _, message = v.find_malformed(tmp_path)[0]
+        assert "invalid YAML frontmatter" in message
+
+    def test_missing_description_flagged(self, tmp_path):
+        _write(tmp_path, "x.agent.md", "---\nname: x\ntier: builder\n---\nbody\n")
+        offenders = v.find_malformed(tmp_path)
+        assert offenders and "description" in offenders[0][1]
+
+    def test_non_string_tier_flagged(self, tmp_path):
+        _write(tmp_path, "x.agent.md", "---\nname: x\ndescription: ok\ntier:\n  - a\n---\nb\n")
+        assert [p.name for p, _ in v.find_malformed(tmp_path)] == ["x.agent.md"]
+
+    def test_non_mapping_frontmatter_flagged(self, tmp_path):
+        _write(tmp_path, "x.agent.md", "---\njust a scalar\n---\nbody\n")
+        offenders = v.find_malformed(tmp_path)
+        assert offenders and "not a YAML mapping" in offenders[0][1]
+
 
 class TestRealRepoArtifacts:
     def test_all_committed_agent_files_parse(self):

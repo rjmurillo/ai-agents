@@ -24,6 +24,15 @@ import argparse
 import sys
 from pathlib import Path
 
+import yaml
+
+# Fields a Copilot custom agent file must declare as non-empty strings: Copilot
+# needs name/description to register and select the agent (issue #2500). ``tier``
+# is checked only when present (see find_malformed), per the issue's "if the
+# repository requires it" qualifier.
+_REQUIRED_STRING_FIELDS = ("name", "description")
+_OPTIONAL_STRING_FIELDS = ("tier",)
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parents[1]
 for _path in (_REPO_ROOT, _SCRIPT_DIR):
@@ -43,21 +52,68 @@ def parse_frontmatter(text: str) -> dict[str, object] | None:
 
 
 def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
-    """Return (path, error) for each agent file whose frontmatter does not parse.
+    """Return (path, error) for each agent file whose frontmatter is invalid.
 
-    A file with no frontmatter is reported as malformed: a Copilot agent without a
-    frontmatter block cannot declare its name/description and will not load.
+    Catches (issues #2491-#2497, #2500):
+    1. No frontmatter block, or YAML that does not parse. The message carries the
+       YAML parser error so the offending line is actionable.
+    2. Frontmatter that is not a mapping.
+    3. A missing or non-string ``name``/``description`` (Copilot needs both to
+       register and select the agent); a non-string ``tier`` when present.
+
+    A colon-bearing description authored as an unquoted plain scalar fails class 1
+    here exactly as it does in Copilot, which is the regression these issues fix.
     """
 
     offenders: list[tuple[Path, str]] = []
     for path in sorted(agents_dir.glob("*.agent.md")):
         text = path.read_text(encoding="utf-8")
-        parsed = parse_frontmatter(text)
-        if not isinstance(parsed, dict) or not parsed.get("name"):
+        block = _raw_frontmatter(text)
+        if block is None:
+            offenders.append((path, "no YAML frontmatter block found"))
+            continue
+        try:
+            parsed = yaml.safe_load(block)
+        except yaml.YAMLError as exc:
+            detail = str(exc).replace("\n", " ").strip()
+            offenders.append((path, f"invalid YAML frontmatter: {detail}"))
+            continue
+        if not isinstance(parsed, dict):
+            offenders.append((path, "frontmatter is not a YAML mapping"))
+            continue
+        missing = [
+            field
+            for field in _REQUIRED_STRING_FIELDS
+            if not isinstance(parsed.get(field), str) or not parsed[field].strip()
+        ]
+        if missing:
             offenders.append(
-                (path, "frontmatter is malformed or missing required 'name' field")
+                (path, f"missing or non-string field(s): {', '.join(missing)}")
             )
+            continue
+        bad_optional = [
+            field
+            for field in _OPTIONAL_STRING_FIELDS
+            if field in parsed and not isinstance(parsed[field], str)
+        ]
+        if bad_optional:
+            offenders.append((path, f"non-string field(s): {', '.join(bad_optional)}"))
     return offenders
+
+
+
+
+
+def _raw_frontmatter(text: str) -> str | None:
+    """Return the raw text between the first two ``---`` fences, or None."""
+
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "\n".join(lines[1:i])
+    return None
 
 
 def build_parser() -> argparse.ArgumentParser:
