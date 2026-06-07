@@ -123,6 +123,15 @@ def write_already_claimed(
     )
 
 
+def remove_self_assignment(owner: str, repo: str, issue: int) -> None:
+    result = _run(
+        ["gh", "issue", "edit", str(issue), "--repo", f"{owner}/{repo}",
+         "--remove-assignee", "@me"],
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "gh issue edit remove-assignee failed")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Self-assign an issue, refusing if already claimed by another login.",
@@ -195,6 +204,14 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(3) from err
     others_after_claim = [a for a in assignees_after_claim if a != me]
     if others_after_claim:
+        try:
+            remove_self_assignment(owner, repo, args.issue)
+        except RuntimeError as err:
+            write_skill_error(
+                str(err), 3, error_type="ApiError",
+                output_format=fmt, script_name="claim_issue.py",
+            )
+            raise SystemExit(3) from err
         write_already_claimed(args.issue, assignees_after_claim, others_after_claim, fmt)
         raise SystemExit(1)
 
