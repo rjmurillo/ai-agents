@@ -245,7 +245,7 @@ class TestCloseVerificationGate:
         gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
         action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit 61c56cbe")
         outcome = apply_action(action, gw, mutate=True)
-        assert outcome.outcome == OUTCOME_FAILED
+        assert outcome.outcome == OUTCOME_SKIPPED
         assert "unverified" in outcome.detail
         assert "61c56cbe" in outcome.detail
         assert gw.closed == []
@@ -261,7 +261,7 @@ class TestCloseVerificationGate:
         gw = FakeGateway({5: _open(5)}, merged_prs=frozenset())
         action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024")
         outcome = apply_action(action, gw, mutate=True)
-        assert outcome.outcome == OUTCOME_FAILED
+        assert outcome.outcome == OUTCOME_SKIPPED
         assert "PR #1024" in outcome.detail
         assert gw.closed == []
 
@@ -269,7 +269,7 @@ class TestCloseVerificationGate:
         gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
         action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="resolved by commit deadbeef")
         outcome = apply_action(action, gw, mutate=False)
-        assert outcome.outcome == OUTCOME_FAILED
+        assert outcome.outcome == OUTCOME_SKIPPED
         assert "unverified" in outcome.detail
 
 
@@ -343,6 +343,41 @@ class TestCliGitHubGateway:
         state = gateway.get_issue_state(7)
 
         assert state == IssueState(number=7, state="OPEN", labels=frozenset({"bug", ""}))
+
+    def test_pr_is_merged_rejects_null_state(self):
+        result = subprocess.CompletedProcess(
+            ["gh"], 0,
+            stdout=json.dumps({"state": None}),
+            stderr="",
+        )
+        gateway = self.StubGateway(result)
+
+        assert gateway.pr_is_merged(5) is False
+
+    def test_pr_is_merged_rejects_non_object_payload(self):
+        result = subprocess.CompletedProcess(["gh"], 0, stdout=json.dumps(["MERGED"]), stderr="")
+        gateway = self.StubGateway(result)
+
+        assert gateway.pr_is_merged(5) is False
+
+    def test_run_uses_utf8_encoding_and_c_locale(self, monkeypatch):
+        captured: dict[str, object] = {}
+
+        def fake_run(command: list[str], **kwargs):
+            captured["command"] = command
+            captured["kwargs"] = kwargs
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        gateway = CliGitHubGateway("owner", "repo")
+
+        result = gateway._run(["git", "status"])
+
+        assert result is not None
+        kwargs = captured["kwargs"]
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        assert kwargs["env"]["LC_ALL"] == "C"
 
 
 class TestMain:

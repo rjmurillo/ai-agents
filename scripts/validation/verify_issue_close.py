@@ -23,13 +23,13 @@ Exit codes follow ADR-035:
     0 - Success (all cited commits/PRs verified, or none cited)
     1 - Logic error (one or more cited commits/PRs could not be verified)
     2 - Config error (bad arguments)
-    3 - External error (git or gh invocation failed unexpectedly)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -132,7 +132,9 @@ def verify_commit_exists(
         result = runner(
             ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=dict(os.environ, LC_ALL="C"),
             check=False,
             timeout=_TIMEOUT,
         )
@@ -157,7 +159,8 @@ def verify_pr_merged(
         result = runner(
             ["gh", "pr", "view", str(pr), "--repo", repo, "--json", "state"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=_TIMEOUT,
         )
@@ -169,7 +172,11 @@ def verify_pr_merged(
         data = json.loads(result.stdout)
     except (json.JSONDecodeError, ValueError):
         return False
-    return str(data.get("state", "")).upper() == "MERGED"
+    if not isinstance(data, dict):
+        return False
+    raw_state = data.get("state")
+    state = "" if raw_state is None else str(raw_state)
+    return state.upper() == "MERGED"
 
 
 def _cli_unverified(rationale: str, repo: str) -> list[str]:

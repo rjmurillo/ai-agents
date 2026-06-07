@@ -90,6 +90,20 @@ class TestVerifyCommitExists:
     def test_present_commit(self):
         assert v.verify_commit_exists("abc1234", runner=lambda *a, **k: _proc(0)) is True
 
+    def test_git_runner_uses_utf8_encoding_and_c_locale(self):
+        captured: dict[str, object] = {}
+
+        def runner(*args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return _proc(0)
+
+        assert v.verify_commit_exists("abc1234", runner=runner) is True
+        kwargs = captured["kwargs"]
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        assert kwargs["env"]["LC_ALL"] == "C"
+
     def test_absent_commit(self):
         assert v.verify_commit_exists("deadbeef", runner=lambda *a, **k: _proc(1)) is False
 
@@ -105,8 +119,29 @@ class TestVerifyPrMerged:
         runner = lambda *a, **k: _proc(0, stdout='{"state": "MERGED"}')
         assert v.verify_pr_merged(5, "o/r", runner=runner) is True
 
+    def test_gh_runner_uses_utf8_encoding(self):
+        captured: dict[str, object] = {}
+
+        def runner(*args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return _proc(0, stdout='{"state": "MERGED"}')
+
+        assert v.verify_pr_merged(5, "o/r", runner=runner) is True
+        kwargs = captured["kwargs"]
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+
     def test_closed_unmerged(self):
         runner = lambda *a, **k: _proc(0, stdout='{"state": "CLOSED"}')
+        assert v.verify_pr_merged(5, "o/r", runner=runner) is False
+
+    def test_null_state_is_unmerged(self):
+        runner = lambda *a, **k: _proc(0, stdout='{"state": null}')
+        assert v.verify_pr_merged(5, "o/r", runner=runner) is False
+
+    def test_non_object_payload_is_unmerged(self):
+        runner = lambda *a, **k: _proc(0, stdout='["MERGED"]')
         assert v.verify_pr_merged(5, "o/r", runner=runner) is False
 
     def test_non_zero_returncode(self):

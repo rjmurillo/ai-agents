@@ -261,7 +261,7 @@ def _apply_close(
     )
     if unverified:
         return ActionOutcome(
-            action.issue, action.category, OUTCOME_FAILED,
+            action.issue, action.category, OUTCOME_SKIPPED,
             f"close aborted: unverified {', '.join(unverified)}",
         )
     if not mutate:
@@ -416,14 +416,20 @@ class CliGitHubGateway:
             data = json.loads(result.stdout)
         except (json.JSONDecodeError, ValueError):
             return False
-        return str(data.get("state", "")).upper() == "MERGED"
+        if not isinstance(data, dict):
+            return False
+        raw_state = data.get("state")
+        state = "" if raw_state is None else str(raw_state)
+        return state.upper() == "MERGED"
 
     def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
         try:
             return subprocess.run(
                 command,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=dict(os.environ, LC_ALL="C"),
                 check=False,
                 timeout=self._timeout,
             )
