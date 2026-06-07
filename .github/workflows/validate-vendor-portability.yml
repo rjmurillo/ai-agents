@@ -34,7 +34,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.skills }}
+      should-run-vendor: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.skills }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -55,7 +55,7 @@ jobs:
   validate-portability:
     name: Validate Vendor Portability
     needs: check-changes
-    if: needs.check-changes.outputs.should-run == 'true'
+    if: needs.check-changes.outputs.should-run-vendor == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 3
     permissions:
@@ -91,7 +91,7 @@ jobs:
   skip-validation:
     name: Skip Validation (No Skill Changes)
     needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
+    if: needs.check-changes.outputs.should-run-vendor != 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 1
     permissions:

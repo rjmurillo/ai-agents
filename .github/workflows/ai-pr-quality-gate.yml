@@ -88,7 +88,7 @@ jobs:
 
     outputs:
       # For workflow_dispatch, always run review (manual trigger assumes user intent regardless of files changed); otherwise use paths-filter result
-      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run }}
+      should-run-review: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run-review }}
 
     steps:
       - name: Checkout repository
@@ -131,7 +131,7 @@ jobs:
     name: Infrastructure Check
     runs-on: ubuntu-24.04-arm
     needs: check-changes
-    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run-review == 'true'
     timeout-minutes: 2
     permissions:
       contents: read
@@ -176,7 +176,7 @@ jobs:
     name: Review-axes drift check
     runs-on: ubuntu-24.04-arm
     needs: check-changes
-    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run-review == 'true'
     timeout-minutes: 2
     permissions:
       contents: read
@@ -207,7 +207,7 @@ jobs:
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     needs: check-changes
-    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run == 'true'
+    if: always() && needs.check-changes.result == 'success' && needs.check-changes.outputs.should-run-review == 'true'
     timeout-minutes: 10
     permissions:
       contents: read
@@ -278,7 +278,7 @@ jobs:
           agent: security
           emoji: 🔒
           prompt-file: .github/prompts/pr-quality-gate-security.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -305,7 +305,7 @@ jobs:
           agent: qa
           emoji: 🧪
           prompt-file: .github/prompts/pr-quality-gate-qa.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -333,7 +333,7 @@ jobs:
           agent: analyst
           emoji: 📊
           prompt-file: .github/prompts/pr-quality-gate-analyst.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -360,7 +360,7 @@ jobs:
           agent: architect
           emoji: 📐
           prompt-file: .github/prompts/pr-quality-gate-architect.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -387,7 +387,7 @@ jobs:
           agent: devops
           emoji: ⚙️
           prompt-file: .github/prompts/pr-quality-gate-devops.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -414,7 +414,7 @@ jobs:
           agent: roadmap
           emoji: 🗺️
           prompt-file: .github/prompts/pr-quality-gate-roadmap.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -442,7 +442,7 @@ jobs:
           review-agent: analyst
           emoji: 🛡️
           prompt-file: .github/prompts/pr-quality-gate-reliability.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -470,7 +470,7 @@ jobs:
           review-agent: analyst
           emoji: 🔭
           prompt-file: .github/prompts/pr-quality-gate-observability.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -498,7 +498,7 @@ jobs:
           review-agent: analyst
           emoji: 🤖
           prompt-file: .github/prompts/pr-quality-gate-agent-safety.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -526,7 +526,7 @@ jobs:
           review-agent: analyst
           emoji: ⚖️
           prompt-file: .github/prompts/pr-quality-gate-decision-rigor.md
-          should-run: ${{ needs.check-changes.outputs.should-run == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
+          should-run: ${{ needs.check-changes.outputs.should-run-review == 'true' && needs.infra-check.outputs.copilot-available == 'true' }}
           pr-number: ${{ env.PR_NUMBER }}
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
@@ -561,9 +561,9 @@ jobs:
 
     steps:
       - name: Check if aggregation needed
-        id: should-run
+        id: should-run-review
         env:
-          SHOULD_RUN: ${{ needs.check-changes.outputs.should-run }}
+          SHOULD_RUN: ${{ needs.check-changes.outputs.should-run-review }}
         run: |
           if [ "$SHOULD_RUN" != "true" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -571,11 +571,11 @@ jobs:
           fi
 
       - name: Checkout repository
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Check for failed agents
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         id: failed-agents
         env:
           SECURITY_RESULT: ${{ needs.security-review.result }}
@@ -591,7 +591,7 @@ jobs:
         run: python3 scripts/quality_gate/check_failed_agents.py
 
       - name: Download all review artifacts
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           pattern: review-*
@@ -599,16 +599,16 @@ jobs:
           merge-multiple: true
 
       - name: Validate artifact download
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         run: python3 scripts/quality_gate/validate_artifact_download.py
 
       - name: Load review results
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         id: load-results
         run: python3 scripts/quality_gate/load_review_results.py
 
       - name: Aggregate Verdicts
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         id: aggregate
         env:
           SECURITY_VERDICT: ${{ steps.load-results.outputs.security_verdict }}
@@ -640,7 +640,7 @@ jobs:
       # replace the authoritative gate in check_critical_failures.py. Swapping
       # the final gate is tracked as a follow-up (see PR description).
       - name: External-signal gate (observe)
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         id: external-gate
         continue-on-error: true
         env:
@@ -658,7 +658,7 @@ jobs:
         run: python3 scripts/quality_gate/external_signal_gate.py
 
       - name: Generate Report
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         id: report
         env:
           RUN_ID: ${{ github.run_id }}
@@ -693,7 +693,7 @@ jobs:
         run: python3 .github/scripts/generate_quality_report.py
 
       - name: Check for infrastructure failures and add label
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -701,7 +701,7 @@ jobs:
         run: python3 scripts/quality_gate/check_infrastructure_failures.py
 
       - name: Post PR Comment
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -710,7 +710,7 @@ jobs:
         run: python3 scripts/quality_gate/post_pr_comment.py
 
       - name: Set Job Summary
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
@@ -719,7 +719,7 @@ jobs:
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Check for Critical Failures
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-review.outputs.skip != 'true'
         env:
           FINAL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
           SECURITY_VERDICT: ${{ steps.aggregate.outputs.security_verdict }}
