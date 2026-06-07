@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
+  "session": "2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
+  "timestamp": "2026-06-07T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Add paths frontmatter to .claude/rules for Claude Code conditional loading (generator patch + 13 rule conversions); correct study record",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed (29 existing + 2 new). Regenerated mirrors: git diff .github/instructions src/copilot-cli/instructions = EMPTY (byte-identical, Copilot-neutral). All 13 rule frontmatters YAML-validate (paths is a list, applyTo absent). python3 scripts/validation/pre_pr.py = All validations passed (exit 0); Plugin Version Bump PASS (no bump), Install Parity PASS, Em/en-dash PASS.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

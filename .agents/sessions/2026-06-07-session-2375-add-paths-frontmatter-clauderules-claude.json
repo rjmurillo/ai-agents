@@ -1,0 +1,137 @@
+{
+  "session": {
+    "number": 2375,
+    "date": "2026-06-07",
+    "branch": "feat/claude-rules-paths-conditional-load",
+    "startingCommit": "e26a46815",
+    "objective": "Add paths frontmatter to .claude/rules for Claude Code conditional loading (generator patch + 13 rule conversions); correct study record"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; get_symbols_overview/find_symbol used on generate_rules.py and generate_agents_common.py this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial_instructions read this session (re-asserted via UserPromptSubmit hook)"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md + latest retrospective injected by context-loader at session start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "available-skills list provided in session context; session-init + llm-wiki invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/rules in session context; generated-artifacts.md + canonical-source-mirror.md consulted for this generator change"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, .claude/rules, GENERATOR-FILES.md, templates/platforms/copilot-cli.yaml read; generator contract verified before edits"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md index + recalled memories injected at session start"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/claude-rules-paths-conditional-load (off origin/main)"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/claude-rules-paths-conditional-load"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified; only intended files staged per commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e26a46815"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PR1 complete: generate_rules patch + 13 rule applyTo->paths conversions + 2 generator tests + corrected study record (Serena memory + eval report). Wiki corrected separately."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/instruction-context-efficiency-not-quality.md corrected (paths key-mismatch framing; added per-harness key table)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 ran in pre-commit on each commit (0 errors); pre_pr Markdown Linting PASS"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 2e96c56ac (generator+tests), b97bb2f89/b9a5ad4bb/183bdab12 (13 rules), d2aac959e (study record) on feat/claude-rules-paths-conditional-load"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed; python3 scripts/validation/pre_pr.py = All validations passed (exit 0)"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "context",
+      "evidence": "Verified per-harness rule frontmatter against official docs (Claude Code memory 'Path-specific rules' = paths; Copilot = applyTo; Cursor = globs). Read generate_rules.py + generate_agents_common.py + templates/platforms/copilot-cli.yaml (frontmatterRemap: paths->applyTo). Corrected wiki + PR #2499 body + Serena memory + eval report (withdrew ADR-070 framing)."
+    },
+    {
+      "step": "implement",
+      "evidence": "Patched generate_rules.py::_remap_frontmatter to flatten a paths block-list (inline-array string) to an applyTo comma-string before internal-glob filtering. Converted 13 path-scoped rules from applyTo to paths YAML lists. Added 2 generator tests (block-list flatten + internal-glob filter on block list). Corrected .serena memory + eval report."
+    },
+    {
+      "step": "verify",
+      "evidence": "uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed (29 existing + 2 new). Regenerated mirrors: git diff .github/instructions src/copilot-cli/instructions = EMPTY (byte-identical, Copilot-neutral). All 13 rule frontmatters YAML-validate (paths is a list, applyTo absent). python3 scripts/validation/pre_pr.py = All validations passed (exit 0); Plugin Version Bump PASS (no bump), Install Parity PASS, Em/en-dash PASS."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Patch generate_rules.py to flatten paths-list to applyTo comma-string for Copilot + filter internal globs on list items; add generator test",
+    "Convert 13 path-scoped rules applyTo->paths (YAML list)",
+    "Regenerate instruction mirrors via build_all.py; bump plugin.json",
+    "Commit corrected memory + eval report; pre_pr.py; push; open PR1",
+    "PR2: SE-book rule triage (prune refactoring; shrink description-suffices rules)"
+  ]
+}
