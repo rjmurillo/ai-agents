@@ -98,6 +98,12 @@ class TestFindMalformed:
         offenders = v.find_malformed(tmp_path)
         assert offenders and "description" in offenders[0][1]
 
+    def test_empty_description_flagged(self, tmp_path):
+        # The .strip() branch: a whitespace-only description is not a usable string.
+        _write(tmp_path, "x.agent.md", "---\nname: x\ndescription: '  '\n---\nbody\n")
+        offenders = v.find_malformed(tmp_path)
+        assert offenders and "description" in offenders[0][1]
+
     def test_non_string_tier_flagged(self, tmp_path):
         _write(tmp_path, "x.agent.md", "---\nname: x\ndescription: ok\ntier:\n  - a\n---\nb\n")
         assert [p.name for p, _ in v.find_malformed(tmp_path)] == ["x.agent.md"]

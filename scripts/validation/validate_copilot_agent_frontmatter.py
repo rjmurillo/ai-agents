@@ -41,10 +41,12 @@ for _path in (_REPO_ROOT, _SCRIPT_DIR):
 
 
 def parse_frontmatter(text: str) -> dict[str, object] | None:
-    """Return parsed frontmatter using the canonical validation parser.
+    """Return parsed frontmatter via the canonical ``yaml_utils`` parser, or None.
 
-    ``pre_pr`` re-exports this helper for compatibility, but importing the
-    source module avoids loading the full pre-PR runner here.
+    A thin convenience wrapper that returns None on malformed YAML (it does not
+    surface the parser error). ``find_malformed`` deliberately does NOT use this:
+    it parses the raw block itself so it can report the YAML parser error, which
+    this helper discards. Kept for callers and tests that only need a parsed dict.
     """
     from scripts.validation.yaml_utils import _parse_yaml_frontmatter
 
@@ -72,6 +74,9 @@ def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
         if block is None:
             offenders.append((path, "no YAML frontmatter block found"))
             continue
+        # Parse the raw block directly rather than via parse_frontmatter /
+        # yaml_utils._parse_yaml_frontmatter: that helper swallows the error to
+        # None, but issue #2500 requires the YAML parser error in the message.
         try:
             parsed = yaml.safe_load(block)
         except yaml.YAMLError as exc:
@@ -99,9 +104,6 @@ def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
         if bad_optional:
             offenders.append((path, f"non-string field(s): {', '.join(bad_optional)}"))
     return offenders
-
-
-
 
 
 def _raw_frontmatter(text: str) -> str | None:
