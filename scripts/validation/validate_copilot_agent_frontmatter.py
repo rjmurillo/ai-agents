@@ -96,15 +96,29 @@ def _frontmatter_error(text: str) -> str | None:
     return None
 
 
-def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
+def _resolve_agents_dir(agents_dir: Path, repo_root: Path = _REPO_ROOT) -> Path:
+    """Resolve an agents directory under the repository root."""
+
+    resolved_base = repo_root.resolve()
+    candidate = agents_dir if agents_dir.is_absolute() else resolved_base / agents_dir
+    resolved_dir = candidate.resolve()
+    try:
+        resolved_dir.relative_to(resolved_base)
+    except ValueError as exc:
+        raise ValueError("agents directory escapes repository root") from exc
+    return resolved_dir
+
+
+def find_malformed(agents_dir: Path, *, repo_root: Path = _REPO_ROOT) -> list[tuple[Path, str]]:
     """Return (path, error) for each agent file whose frontmatter is invalid.
 
     Per-file validation lives in ``_frontmatter_error``; this is the directory
     sweep over ``*.agent.md``.
     """
 
+    resolved_dir = _resolve_agents_dir(agents_dir, repo_root)
     offenders: list[tuple[Path, str]] = []
-    for path in sorted(agents_dir.glob("*.agent.md")):
+    for path in sorted(resolved_dir.glob("*.agent.md")):
         error = _frontmatter_error(path.read_text(encoding="utf-8"))
         if error is not None:
             offenders.append((path, error))
@@ -115,10 +129,10 @@ def _raw_frontmatter(text: str) -> str | None:
     """Return the raw text between the first two ``---`` fences, or None."""
 
     lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
+    if not lines or lines[0] != "---":
         return None
     for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
+        if lines[i] == "---":
             return "\n".join(lines[1:i])
     return None
 
@@ -137,7 +151,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    agents_dir = Path(args.agents_dir)
+    try:
+        agents_dir = _resolve_agents_dir(Path(args.agents_dir))
+    except ValueError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        return 2
     if not agents_dir.is_dir():
         print(f"[FAIL] agents directory not found: {agents_dir}", file=sys.stderr)
         return 2
@@ -145,7 +163,10 @@ def main(argv: list[str] | None = None) -> int:
     offenders = find_malformed(agents_dir)
     total = len(sorted(agents_dir.glob("*.agent.md")))
     if offenders:
-        print(f"[FAIL] {len(offenders)} of {total} Copilot agent file(s) have malformed frontmatter:")
+        print(
+            f"[FAIL] {len(offenders)} of {total} Copilot agent file(s) "
+            "have malformed frontmatter:"
+        )
         for path, err in offenders:
             print(f"  - {path}: {err}")
         print(
