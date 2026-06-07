@@ -41,6 +41,26 @@ class TestReferencesIssue:
     def test_fixes_keyword(self):
         assert _check.references_issue("Fixes #2477 in this PR", 2477) is True
 
+    def test_qualified_fixes_keyword_for_same_repo(self):
+        assert (
+            _check.references_issue(
+                "Fixes rjmurillo/ai-agents#2477",
+                2477,
+                repo_slug="rjmurillo/ai-agents",
+            )
+            is True
+        )
+
+    def test_qualified_fixes_keyword_for_other_repo_not_matched(self):
+        assert (
+            _check.references_issue(
+                "Fixes other/repo#2477",
+                2477,
+                repo_slug="rjmurillo/ai-agents",
+            )
+            is False
+        )
+
     def test_closes_resolves_refs(self):
         assert _check.references_issue("Closes #5", 5) is True
         assert _check.references_issue("Resolves #5", 5) is True
@@ -125,6 +145,26 @@ class TestFindOpenPrsForIssue:
                 current_user_login="alice",
             )
         assert [m["number"] for m in out] == [11]
+
+    def test_skips_own_pr_when_branch_context_missing(self):
+        prs = [
+            {
+                "number": 10,
+                "title": "feat",
+                "body": "Fixes #2477",
+                "html_url": "u",
+                "head": {"ref": "work"},
+                "user": {"login": "alice"},
+            }
+        ]
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
+            out = _check.find_open_prs_for_issue(
+                "o",
+                "r",
+                2477,
+                current_user_login="alice",
+            )
+        assert out == []
 
     def test_same_branch_from_different_author_still_blocks(self):
         prs = [
@@ -219,6 +259,59 @@ class TestCurrentLogin:
                 raised = False
             except RuntimeError:
                 raised = True
+        assert raised
+
+
+class TestClaimMain:
+    def test_duplicate_pr_exits_without_invalid_error_type(self):
+        prs = [
+            {
+                "number": 10,
+                "title": "feat",
+                "body": "Fixes #5",
+                "html_url": "u",
+                "head": {"ref": "other"},
+                "user": {"login": "bob"},
+            }
+        ]
+        calls = [
+            _proc(0, "alice\n"),
+            _proc(0, json.dumps([prs])),
+        ]
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None),
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value="work"),
+            patch.object(_check.subprocess, "run", side_effect=calls),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                _check.main(["--issue", "5", "--output-format", "json"])
+                raised = False
+            except SystemExit as exc:
+                raised = exc.code == 1
+        assert raised
+
+    def test_detects_competing_assignment_after_claim(self):
+        calls = [
+            _proc(0, "alice\n"),
+            _proc(0, json.dumps({"assignees": []})),
+            _proc(0, ""),
+            _proc(0, json.dumps({"assignees": [{"login": "alice"}, {"login": "bob"}]})),
+        ]
+        with (
+            patch.object(_claim, "assert_gh_authenticated", return_value=None),
+            patch.object(_claim, "resolve_repo_params") as resolve,
+            patch.object(_claim.subprocess, "run", side_effect=calls),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                _claim.main(["--issue", "5", "--output-format", "json"])
+                raised = False
+            except SystemExit as exc:
+                raised = exc.code == 1
         assert raised
 
     def test_failure_raises(self):

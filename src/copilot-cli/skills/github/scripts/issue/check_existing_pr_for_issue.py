@@ -13,6 +13,7 @@ non-closing Refs), rather than a fragile free-text search.
 Exit codes follow ADR-035:
     0 - No open PR references the issue (safe to proceed)
     1 - One or more open PRs already reference the issue (do not open a duplicate)
+    2 - Config error (plugin lib path missing)
     3 - External error (gh/API failure)
     4 - Auth error (not authenticated)
 """
@@ -61,12 +62,15 @@ _GH_TIMEOUT_SECONDS = 30
 _GIT_TIMEOUT_SECONDS = 10
 
 
-def references_issue(text: str, issue: int) -> bool:
+def references_issue(text: str, issue: int, repo_slug: str = "") -> bool:
     """Return True if ``text`` links to ``issue`` via a closing/refs keyword."""
 
     if not text:
         return False
-    pattern = re.compile(rf"(?i)\b(?:{_KEYWORDS})\b[\s:]*#{issue}\b")
+    issue_ref = rf"#{issue}\b"
+    if repo_slug:
+        issue_ref = rf"(?:{re.escape(repo_slug)}#|#){issue}\b"
+    pattern = re.compile(rf"(?i)\b(?:{_KEYWORDS})\b[\s:]*{issue_ref}")
     return bool(pattern.search(text))
 
 
@@ -165,22 +169,19 @@ def find_open_prs_for_issue(
     for pr in _iter_pull_requests(prs):
         head_ref = _head_ref(pr)
         author_login = _author_login(pr)
-        if (
-            current_branch_name
-            and current_user_login
-            and head_ref == current_branch_name
-            and author_login == current_user_login
-        ):
-            continue
         text = f"{_as_text(pr.get('title'))}\n{_as_text(pr.get('body'))}"
-        if references_issue(text, issue):
-            matches.append({
-                "number": pr.get("number"),
-                "title": _as_text(pr.get("title")),
-                "url": _as_text(pr.get("html_url") or pr.get("url")),
-                "head": head_ref,
-                "author": author_login,
-            })
+        if not references_issue(text, issue, repo_slug=f"{owner}/{repo}"):
+            continue
+        if current_user_login and author_login == current_user_login:
+            if not current_branch_name or head_ref == current_branch_name:
+                continue
+        matches.append({
+            "number": pr.get("number"),
+            "title": _as_text(pr.get("title")),
+            "url": _as_text(pr.get("html_url") or pr.get("url")),
+            "head": head_ref,
+            "author": author_login,
+        })
     return matches
 
 
@@ -227,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
         write_skill_error(
             f"Issue #{args.issue} already has open PR(s): {summary}. "
             "Do not open a duplicate; coordinate on the existing PR.",
-            1, error_type="DuplicateWork",
+            1, error_type="General",
             output_format=fmt, script_name="check_existing_pr_for_issue.py",
             extra=data,
         )

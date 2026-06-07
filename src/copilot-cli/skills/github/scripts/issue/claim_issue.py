@@ -8,6 +8,7 @@ claim is refused so two workers do not develop the same issue in parallel.
 Exit codes follow ADR-035:
     0 - Claimed (now assigned to the current user) or already held by current user
     1 - Already claimed by a different login (do not start; coordinate)
+    2 - Config error (plugin lib path missing)
     3 - External error (gh/API failure)
     4 - Auth error (not authenticated)
 """
@@ -107,6 +108,21 @@ def issue_assignees(owner: str, repo: str, issue: int) -> list[str]:
     ]
 
 
+def write_already_claimed(
+    issue: int,
+    assignees: list[str],
+    others: list[str],
+    fmt: str,
+) -> None:
+    write_skill_error(
+        f"Issue #{issue} already claimed by {', '.join(others)}. "
+        "Do not start in parallel; coordinate with the assignee.",
+        1, error_type="General",
+        output_format=fmt, script_name="claim_issue.py",
+        extra={"issue": issue, "assignees": assignees},
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Self-assign an issue, refusing if already claimed by another login.",
@@ -137,13 +153,7 @@ def main(argv: list[str] | None = None) -> int:
 
     others = [a for a in assignees if a != me]
     if others:
-        write_skill_error(
-            f"Issue #{args.issue} already claimed by {', '.join(others)}. "
-            "Do not start in parallel; coordinate with the assignee.",
-            1, error_type="AlreadyClaimed",
-            output_format=fmt, script_name="claim_issue.py",
-            extra={"issue": args.issue, "assignees": assignees},
-        )
+        write_already_claimed(args.issue, assignees, others, fmt)
         raise SystemExit(1)
 
     if me and me in assignees:
@@ -174,6 +184,19 @@ def main(argv: list[str] | None = None) -> int:
             output_format=fmt, script_name="claim_issue.py",
         )
         raise SystemExit(3)
+
+    try:
+        assignees_after_claim = issue_assignees(owner, repo, args.issue)
+    except RuntimeError as err:
+        write_skill_error(
+            str(err), 3, error_type="ApiError",
+            output_format=fmt, script_name="claim_issue.py",
+        )
+        raise SystemExit(3) from err
+    others_after_claim = [a for a in assignees_after_claim if a != me]
+    if others_after_claim:
+        write_already_claimed(args.issue, assignees_after_claim, others_after_claim, fmt)
+        raise SystemExit(1)
 
     write_skill_output(
         {"issue": args.issue, "claimed": me or "@me"},
