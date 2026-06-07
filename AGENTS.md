@@ -1,52 +1,45 @@
-# AGENTS.md
+# AGENTS
 
 ## Serena Init (BLOCKING)
 
-1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`
+1. `mcp__serena__activate_project`|2. `mcp__serena__initial_instructions`|fallback: `.serena/memories/<name>.md`|Post-compaction: re-run 1+2
 
-## Retrieval-Led Reasoning
+## Retrieval
 
-Read first, reason second. Pre-training last resort.
+Read first.
 
-|APIs: Context7, DeepWiki, WebSearch
-|Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
-|Memory: `memory` skill, not `list_memories`
-|ADRs: `.agents/architecture/ADR-*.md`
-|Protocol: `.agents/SESSION-PROTOCOL.md`
-|Skills: `.claude/skills/{name}/SKILL.md`
-|Generators (edit source): `.agents/governance/GENERATOR-FILES.md`
+|APIs: Context7, DeepWiki, WebSearch|Memory: `memory` skill
+|Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/ADR-*.md`
+|Protocol: `.agents/SESSION-PROTOCOL.md`|Skills: `.claude/skills/{name}/SKILL.md`
+|Rules: read `.claude/rules/*.md` by `applyTo` first|Generators: `.agents/governance/GENERATOR-FILES.md`
 
-## Session Gates
+## Gates
 
-**Start**: Init Serena|Read HANDOFF.md + latest issue handoff + Verify-on-Resume|Session log|Search memories|Verify git
-**Mid**: `Commit X/20 (ADR-008)`|Warn at 15+
-**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style: `.gemini/styleguide.md`
-**End**: Complete log|Preserve HANDOFF.md|Issue handoff if open|Update Serena|Lint|Commit|Validate JSON
+**Start**: Init Serena|Read HANDOFF.md + latest issue handoff + resume verify|Session log|Search memories|Verify git
+**Mid**: `git rev-list --count HEAD ^origin/main` <=20, warn >15 (ADR-008)
+**Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
+**End**: Complete log|Preserve HANDOFF.md|Issue handoff if open|Update Serena|Lint|Commit|Validate
 
 ## Boundaries
 
-**Always**: Python new scripts (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits ≤5 files|Scoped lint|Pin Actions to SHA|Run changed workflows pre-push|Bump `plugin.json` semver on plugin-source change
-**Ask First**: Architecture changes|New ADRs|Breaking changes|Security
-**Autonomy Guardrail**: Internal+reversible (read,edit,memory): act|External/Irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Update HANDOFF.md|Use bash|Skip validation|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in working tree (`$TMPDIR`/`mktemp`)|Resolve security threads without vuln fix (CWE/OWASP/CVE) in code|Ship gen'd artifact unrun in target runtime
+**BLOCKING verify**: unrun gen'd artifact -> runtime test|security thread -> code fix or owner|skip validation -> `pre_pr.py`
+**Always**: Python (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|Bump `plugin.json` on plugin-source change
+**Ask First**: Architecture|New ADRs|Breaking|Security
+**Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
+**Never**: Commit secrets|Update HANDOFF.md|Use bash|Logic in YAML (ADR-006)|Raw gh when skills exist|Force push|Skip hooks|Internal refs in src/|Scratch in tree|Resolve security threads without vuln fix|Ship unrun gen'd artifact
 
-## Context Type Decision
+## Context
 
-Knowledge → passive context (@imports). Actions → skills.
-
-|Passive: ref every turn, outside training, <8KB
-|Skills: tool access, workflows, user-triggered, file mutation
+Knowledge -> passive context (@imports, every turn, outside training, <8KB). Actions -> skills (tools, workflows, mutation).
 
 ## Skill-First
 
-|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver
-|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
-|Security: security-detection|Quality: analyze|Learn: reflect
-|Lifecycle: /spec, /plan, /build, /test, /review, /ship
-|CI-feedback sub-loop: see `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
-|New capability: run buy-vs-build-framework Quick tier BEFORE spec-generator|Skip: bug fixes, doc-only, refactors w/o new capability, approved extensions
+|PRs: GitHub|Reviews: pr-comment-responder|Conflicts: merge-resolver|Session: session-init, session-end|CI fix: session-log-fixer|Push: /push-pr
+|Security: security-detection|Quality: analyze|Learn: reflect|Lifecycle: /spec /plan /build /test /review /ship
+|CI-feedback sub-loop: cluster, ladder build->test->review->ship. See `.agents/governance/CI-FEEDBACK-SUBLOOP.md`
+|New capability (Context/module/scanner/validator/pipeline): buy-vs-build Quick tier BEFORE spec-generator + baseline; >13wk no baseline = prune. Skip: bug, doc, refactor, approved extension
 
-### ADR Review (BLOCKING)
+### ADR Review
 
 Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review.
 
@@ -55,8 +48,8 @@ Any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit fires adr-review.
 Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
 Exit codes: 0=ok|1=logic|2=config|3=external|4=auth
 Coverage: 100% security|80% business|60% docs
-Tests: `tests/`|`.claude/skills/<name>/tests/`|`.agents/security/benchmarks/`
-Tests (BLOCKING): pos+neg+edge|every branch|mock I/O|CLI argv exits. See `.agents/governance/TESTING-RIGOR.md`
+Tests: `uv run pytest tests/ -x`|`uv run ruff check .`|`tests/`|`.claude/skills/<name>/tests/`
+Tests (BLOCKING): pos+neg+edge|branches|mock I/O|CLI exits. See `.agents/governance/TESTING-RIGOR.md`
 
 ## Stack
 
