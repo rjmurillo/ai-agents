@@ -53,8 +53,8 @@ def parse_frontmatter(text: str) -> dict[str, object] | None:
     return _parse_yaml_frontmatter(text)
 
 
-def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
-    """Return (path, error) for each agent file whose frontmatter is invalid.
+def _frontmatter_error(text: str) -> str | None:
+    """Return a one-line reason the agent frontmatter is invalid, or None if valid.
 
     Catches (issues #2491-#2497, #2500):
     1. No frontmatter block, or YAML that does not parse. The message carries the
@@ -67,42 +67,47 @@ def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
     here exactly as it does in Copilot, which is the regression these issues fix.
     """
 
+    block = _raw_frontmatter(text)
+    if block is None:
+        return "no YAML frontmatter block found"
+    # Parse the raw block directly rather than via parse_frontmatter /
+    # yaml_utils._parse_yaml_frontmatter: that helper swallows the error to None,
+    # but issue #2500 requires the YAML parser error in the message.
+    try:
+        parsed = yaml.safe_load(block)
+    except yaml.YAMLError as exc:
+        return f"invalid YAML frontmatter: {str(exc).replace(chr(10), ' ').strip()}"
+    if not isinstance(parsed, dict):
+        return "frontmatter is not a YAML mapping"
+    missing = [
+        field
+        for field in _REQUIRED_STRING_FIELDS
+        if not isinstance(parsed.get(field), str) or not parsed[field].strip()
+    ]
+    if missing:
+        return f"missing or non-string field(s): {', '.join(missing)}"
+    bad_optional = [
+        field
+        for field in _OPTIONAL_STRING_FIELDS
+        if field in parsed and not isinstance(parsed[field], str)
+    ]
+    if bad_optional:
+        return f"non-string field(s): {', '.join(bad_optional)}"
+    return None
+
+
+def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
+    """Return (path, error) for each agent file whose frontmatter is invalid.
+
+    Per-file validation lives in ``_frontmatter_error``; this is the directory
+    sweep over ``*.agent.md``.
+    """
+
     offenders: list[tuple[Path, str]] = []
     for path in sorted(agents_dir.glob("*.agent.md")):
-        text = path.read_text(encoding="utf-8")
-        block = _raw_frontmatter(text)
-        if block is None:
-            offenders.append((path, "no YAML frontmatter block found"))
-            continue
-        # Parse the raw block directly rather than via parse_frontmatter /
-        # yaml_utils._parse_yaml_frontmatter: that helper swallows the error to
-        # None, but issue #2500 requires the YAML parser error in the message.
-        try:
-            parsed = yaml.safe_load(block)
-        except yaml.YAMLError as exc:
-            detail = str(exc).replace("\n", " ").strip()
-            offenders.append((path, f"invalid YAML frontmatter: {detail}"))
-            continue
-        if not isinstance(parsed, dict):
-            offenders.append((path, "frontmatter is not a YAML mapping"))
-            continue
-        missing = [
-            field
-            for field in _REQUIRED_STRING_FIELDS
-            if not isinstance(parsed.get(field), str) or not parsed[field].strip()
-        ]
-        if missing:
-            offenders.append(
-                (path, f"missing or non-string field(s): {', '.join(missing)}")
-            )
-            continue
-        bad_optional = [
-            field
-            for field in _OPTIONAL_STRING_FIELDS
-            if field in parsed and not isinstance(parsed[field], str)
-        ]
-        if bad_optional:
-            offenders.append((path, f"non-string field(s): {', '.join(bad_optional)}"))
+        error = _frontmatter_error(path.read_text(encoding="utf-8"))
+        if error is not None:
+            offenders.append((path, error))
     return offenders
 
 
