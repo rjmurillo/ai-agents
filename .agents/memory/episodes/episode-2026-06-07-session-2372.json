@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-07-session-2372",
+  "session": "2026-06-07-session-2372",
+  "timestamp": "2026-06-07T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR 2482 to ready to merge gate",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

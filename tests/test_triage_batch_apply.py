@@ -43,10 +43,14 @@ class FakeGateway:
         *,
         close_ok: bool = True,
         label_ok: bool = True,
+        known_commits: frozenset[str] | None = None,
+        merged_prs: frozenset[int] | None = None,
     ) -> None:
         self._states = states or {}
         self._close_ok = close_ok
         self._label_ok = label_ok
+        self._known_commits = known_commits or frozenset()
+        self._merged_prs = merged_prs or frozenset()
         self.closed: list[int] = []
         self.labeled: list[tuple[int, tuple[str, ...]]] = []
 
@@ -60,6 +64,12 @@ class FakeGateway:
     def add_labels(self, issue: int, labels: Sequence[str]) -> bool:
         self.labeled.append((issue, tuple(labels)))
         return self._label_ok
+
+    def commit_exists(self, sha: str) -> bool:
+        return sha.lower() in self._known_commits
+
+    def pr_is_merged(self, pr: int) -> bool:
+        return pr in self._merged_prs
 
 
 def _open(issue: int, labels: tuple[str, ...] = ()) -> IssueState:
@@ -206,6 +216,79 @@ class TestPartialFailure:
         assert gw.labeled == [(2, ("agent-qa",))]
 
 
+class TestCloseVerificationGate:
+    """Issue #2481: gate auto-close on epic label and on cited commit/PR truth."""
+
+    def test_epic_label_blocks_close_case_insensitively(self):
+        gw = FakeGateway({9: _open(9, labels=("Epic", "enhancement"))})
+        action = ManifestAction(issue=9, category=ACTION_CLOSE, rationale="superseded")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "epic" in outcome.detail
+        assert gw.closed == []
+
+    def test_close_with_no_citation_proceeds(self):
+        gw = FakeGateway({5: _open(5)})
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="stale, no longer relevant",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_cited_existing_commit_proceeds(self):
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset({"abc1234"}))
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit abc1234",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_cited_missing_commit_aborts_close(self):
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit 61c56cbe",
+        )
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "unverified" in outcome.detail
+        assert "61c56cbe" in outcome.detail
+        assert gw.closed == []
+
+    def test_cited_merged_pr_proceeds(self):
+        gw = FakeGateway({5: _open(5)}, merged_prs=frozenset({1024}))
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_APPLIED
+        assert gw.closed == [5]
+
+    def test_cited_unmerged_pr_aborts_close(self):
+        gw = FakeGateway({5: _open(5)}, merged_prs=frozenset())
+        action = ManifestAction(issue=5, category=ACTION_CLOSE, rationale="closed via PR #1024")
+        outcome = apply_action(action, gw, mutate=True)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "PR #1024" in outcome.detail
+        assert gw.closed == []
+
+    def test_gate_applies_in_dry_run(self):
+        gw = FakeGateway({5: _open(5)}, known_commits=frozenset())
+        action = ManifestAction(
+            issue=5,
+            category=ACTION_CLOSE,
+            rationale="resolved by commit deadbeef",
+        )
+        outcome = apply_action(action, gw, mutate=False)
+        assert outcome.outcome == OUTCOME_SKIPPED
+        assert "unverified" in outcome.detail
+
+
 class TestParseActions:
     def test_drops_invalid_entries(self):
         manifest = {
@@ -245,8 +328,10 @@ class TestCliGitHubGateway:
         def __init__(self, result: subprocess.CompletedProcess[str]) -> None:
             super().__init__("owner", "repo")
             self._result = result
+            self.commands: list[list[str]] = []
 
         def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
+            self.commands.append(command)
             return self._result
 
     def test_null_payload_fields_fall_back_to_safe_values(self):
@@ -276,6 +361,54 @@ class TestCliGitHubGateway:
         state = gateway.get_issue_state(7)
 
         assert state == IssueState(number=7, state="OPEN", labels=frozenset({"bug", ""}))
+
+    def test_pr_is_merged_rejects_null_state(self):
+        result = subprocess.CompletedProcess(
+            ["gh"], 0,
+            stdout=json.dumps({"state": None}),
+            stderr="",
+        )
+        gateway = self.StubGateway(result)
+
+        assert gateway.pr_is_merged(5) is False
+
+    def test_pr_is_merged_rejects_non_object_payload(self):
+        result = subprocess.CompletedProcess(["gh"], 0, stdout=json.dumps(["MERGED"]), stderr="")
+        gateway = self.StubGateway(result)
+
+        assert gateway.pr_is_merged(5) is False
+
+    def test_commit_exists_uses_remote_api(self):
+        result = subprocess.CompletedProcess(["gh"], 0, stdout="", stderr="")
+        gateway = self.StubGateway(result)
+
+        assert gateway.commit_exists("abc1234") is True
+        assert gateway.commands == [["gh", "api", "repos/owner/repo/commits/abc1234"]]
+
+    def test_commit_exists_rejects_missing_remote_commit(self):
+        result = subprocess.CompletedProcess(["gh"], 1, stdout="", stderr="")
+        gateway = self.StubGateway(result)
+
+        assert gateway.commit_exists("deadbeef") is False
+
+    def test_run_uses_utf8_encoding_and_c_locale(self, monkeypatch):
+        captured: dict[str, object] = {}
+
+        def fake_run(command: list[str], **kwargs):
+            captured["command"] = command
+            captured["kwargs"] = kwargs
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
+        gateway = CliGitHubGateway("owner", "repo")
+
+        result = gateway._run(["git", "status"])
+
+        assert result is not None
+        kwargs = captured["kwargs"]
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        assert kwargs["env"]["LC_ALL"] == "C"
 
 
 class TestMain:
