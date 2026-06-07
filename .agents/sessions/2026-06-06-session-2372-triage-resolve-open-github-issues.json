@@ -74,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "All MUST session-end items are complete after PR review fixes"
+        "Evidence": "All MUST session-end items are complete after review fixes"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ".serena/memories/ has changes"
+        "Evidence": "Session memory artifacts updated under .agents/memory/episodes and .agents/memory/causality"
       },
       "markdownLintRun": {
         "level": "MUST",
