@@ -69,6 +69,7 @@ from checks_dash import (  # noqa: E402, F401
 )
 from checks_plugin import (  # noqa: E402, F401
     _is_linked_worktree,
+    validate_copilot_agent_frontmatter,
     validate_git_hooks_installed,
     validate_hook_anchoring,
     validate_install_parity,
@@ -413,6 +414,14 @@ def main(argv: list[str] | None = None) -> int:
         "Hook Anchoring (Claude + Copilot)",
         state,
         lambda: validate_hook_anchoring(repo_root),
+    )
+
+    # 6c2. Copilot agent frontmatter must parse as YAML (#2491-#2496): an unquoted
+    # description embedding colon-bearing examples makes Copilot fail to load the agent.
+    run_validation(
+        "Copilot Agent Frontmatter",
+        state,
+        lambda: validate_copilot_agent_frontmatter(repo_root),
     )
 
     # 6d. Git Hooks Installed (local clone must run the canonical .githooks;
