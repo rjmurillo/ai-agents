@@ -4,9 +4,10 @@
 The auto-close pipeline closed issues with "resolved by commit X" or "via PR #N"
 claims that were false on ``main`` (audit 2026-06-06 confirmed #134, #139, #702,
 #907). This module gates a close on the truth of any commit or PR it cites: a
-cited commit must exist in the local history, and a cited PR must be MERGED. A
-close whose rationale cites neither is allowed (the close reason is not a
-resolution claim, for example "stale" or "superseded").
+cited commit must exist on GitHub when repo context is available (local git is
+the fallback), and a cited PR must be MERGED. A close whose rationale cites
+neither is allowed (the close reason is not a resolution claim, for example
+"stale" or "superseded").
 
 Scope: this is the citation-truth gate. It does NOT assert that a named
 deliverable is present on ``main`` (that case is fuzzier and tracked separately).
