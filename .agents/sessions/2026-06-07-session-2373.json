@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed for this session log; pre_pr.py passed with documented workflow-local bypass"
+        "Evidence": "validate_session_json.py passed after governance thread fix; pre_pr.py passed with documented workflow-local bypass"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -147,6 +147,11 @@
       "time": "2026-06-07T00:35:00Z",
       "action": "Ran pre-PR gate",
       "evidence": "SKIP_WORKFLOW_LOCAL_TEST=true python3 scripts/validation/pre_pr.py passed 21 checks, skipped 4, failed 0; workflow local run was bypassed for act dynamic-matrix limitation."
+    },
+    {
+      "time": "2026-06-07T02:58:00Z",
+      "action": "Fixed new Copilot governance thread PRRT_kwDOQoWRls6HnywH",
+      "evidence": ".agents/governance/naming-conventions.md no longer cites missing pester-tests.yml precedent; it cites existing codeql-analysis.yml should-run-analysis precedent."
     }
   ],
   "endingCommit": "",

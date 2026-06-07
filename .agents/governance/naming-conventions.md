@@ -271,8 +271,8 @@ See `.agents/utilities/validate-naming.ps1` (to be created if needed)
 GitHub Actions workflows that gate jobs with the `dorny/paths-filter` pattern
 expose a job-level output that downstream jobs read to decide whether to run.
 Standardize that output name on the **descriptive suffix** form (Issue #139,
-Option A), matching the established precedent in `pester-tests.yml`
-(`should-run-tests`) and `codeql-analysis.yml` (`should-run-analysis`):
+Option A), matching the established precedent in `codeql-analysis.yml`
+(`should-run-analysis`):
 
 - Pattern: `should-run-<scope>` (for example `should-run-review`,
   `should-run-validation`, `should-run-drift`, `should-run-manifests`).
