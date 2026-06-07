@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.environ.get("COPILOT_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root:
     _lib_dir = os.path.join(_plugin_root, "lib")
@@ -48,15 +48,37 @@ from github_core.output import (  # noqa: E402
 )
 
 
+_GH_TIMEOUT_SECONDS = 30
+
+
 def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, capture_output=True, text=True, check=False)
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise RuntimeError(
+            f"{cmd[0]} timed out after {_GH_TIMEOUT_SECONDS} seconds"
+        ) from err
+    except OSError as err:
+        raise RuntimeError(f"failed to run {cmd[0]}: {err}") from err
 
 
 def current_login() -> str:
-    """Return the authenticated gh user login, or empty string on failure."""
+    """Return the authenticated gh user login."""
 
     result = _run(["gh", "api", "user", "--jq", ".login"])
-    return result.stdout.strip() if result.returncode == 0 else ""
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "gh api user failed")
+    login = result.stdout.strip()
+    if not login:
+        raise RuntimeError("gh api user returned empty login")
+    return login
 
 
 def issue_assignees(owner: str, repo: str, issue: int) -> list[str]:
@@ -72,7 +94,17 @@ def issue_assignees(owner: str, repo: str, issue: int) -> list[str]:
         data = json.loads(result.stdout)
     except (json.JSONDecodeError, ValueError) as err:
         raise RuntimeError("could not parse gh issue view output") from err
-    return [a.get("login", "") for a in data.get("assignees", []) if a.get("login")]
+    assignees_value = data.get("assignees")
+    assignees = [] if assignees_value is None else assignees_value
+    if not isinstance(assignees, list):
+        raise RuntimeError("gh issue view returned invalid assignees")
+    return [
+        login
+        for assignee in assignees
+        if isinstance(assignee, dict)
+        for login in [assignee.get("login")]
+        if isinstance(login, str) and login
+    ]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -93,8 +125,8 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
     fmt = get_output_format(args.output_format)
 
-    me = current_login()
     try:
+        me = current_login()
         assignees = issue_assignees(owner, repo, args.issue)
     except RuntimeError as err:
         write_skill_error(
@@ -123,10 +155,18 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
-    assign = _run(
-        ["gh", "issue", "edit", str(args.issue), "--repo", f"{owner}/{repo}",
-         "--add-assignee", "@me"],
-    )
+    try:
+        assign = _run(
+            ["gh", "issue", "edit", str(args.issue), "--repo", f"{owner}/{repo}",
+             "--add-assignee", "@me"],
+        )
+    except RuntimeError as err:
+        write_skill_error(
+            str(err),
+            3, error_type="ApiError",
+            output_format=fmt, script_name="claim_issue.py",
+        )
+        raise SystemExit(3) from err
     if assign.returncode != 0:
         write_skill_error(
             assign.stderr.strip() or "gh issue edit failed",

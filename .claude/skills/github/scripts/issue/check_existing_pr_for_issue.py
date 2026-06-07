@@ -26,7 +26,7 @@ import re
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.environ.get("COPILOT_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root:
     _lib_dir = os.path.join(_plugin_root, "lib")
@@ -57,6 +57,8 @@ from github_core.output import (  # noqa: E402
 # issue number, case-insensitively, requiring the "#" form so a bare number in
 # prose does not produce a false positive.
 _KEYWORDS = "close[sd]?|fix(e[sd])?|resolve[sd]?|ref[s]?"
+_GH_TIMEOUT_SECONDS = 30
+_GIT_TIMEOUT_SECONDS = 10
 
 
 def references_issue(text: str, issue: int) -> bool:
@@ -68,31 +70,85 @@ def references_issue(text: str, issue: int) -> bool:
     return bool(pattern.search(text))
 
 
-def find_open_prs_for_issue(owner: str, repo: str, issue: int) -> list[dict]:
+def _run(cmd: list[str], *, timeout: int = _GH_TIMEOUT_SECONDS) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise RuntimeError(f"{cmd[0]} timed out after {timeout} seconds") from err
+    except OSError as err:
+        raise RuntimeError(f"failed to run {cmd[0]}: {err}") from err
+
+
+def current_branch() -> str:
+    """Return the active branch name when available."""
+
+    head_ref = os.environ.get("GITHUB_HEAD_REF")
+    if head_ref:
+        return head_ref
+    try:
+        result = _run(["git", "branch", "--show-current"], timeout=_GIT_TIMEOUT_SECONDS)
+    except RuntimeError:
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _as_text(value: object) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _iter_pull_requests(payload: object) -> list[dict]:
+    if not isinstance(payload, list):
+        return []
+    prs: list[dict] = []
+    for item in payload:
+        if isinstance(item, dict):
+            prs.append(item)
+        elif isinstance(item, list):
+            prs.extend(pr for pr in item if isinstance(pr, dict))
+    return prs
+
+
+def _head_ref(pr: dict) -> str:
+    head = pr.get("head")
+    if isinstance(head, dict):
+        return _as_text(head.get("ref"))
+    return _as_text(pr.get("headRefName"))
+
+
+def find_open_prs_for_issue(
+    owner: str, repo: str, issue: int, *, current_branch_name: str = ""
+) -> list[dict]:
     """Return open PRs whose title or body references ``issue``."""
 
-    result = subprocess.run(
-        ["gh", "pr", "list", "--repo", f"{owner}/{repo}", "--state", "open",
-         "--limit", "200", "--json", "number,title,body,url,headRefName"],
-        capture_output=True,
-        text=True,
-        check=False,
+    result = _run(
+        ["gh", "api", f"repos/{owner}/{repo}/pulls?state=open&per_page=100",
+         "--paginate", "--slurp"],
     )
     if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "gh pr list failed")
+        raise RuntimeError(result.stderr.strip() or "gh api pulls failed")
     try:
         prs = json.loads(result.stdout)
     except (json.JSONDecodeError, ValueError) as err:
-        raise RuntimeError("could not parse gh pr list output") from err
+        raise RuntimeError("could not parse gh api pulls output") from err
     matches = []
-    for pr in prs if isinstance(prs, list) else []:
-        text = f"{pr.get('title', '')}\n{pr.get('body', '') or ''}"
+    for pr in _iter_pull_requests(prs):
+        head_ref = _head_ref(pr)
+        if current_branch_name and head_ref == current_branch_name:
+            continue
+        text = f"{_as_text(pr.get('title'))}\n{_as_text(pr.get('body'))}"
         if references_issue(text, issue):
             matches.append({
                 "number": pr.get("number"),
-                "title": pr.get("title", ""),
-                "url": pr.get("url", ""),
-                "head": pr.get("headRefName", ""),
+                "title": _as_text(pr.get("title")),
+                "url": _as_text(pr.get("html_url") or pr.get("url")),
+                "head": head_ref,
             })
     return matches
 
@@ -116,7 +172,9 @@ def main(argv: list[str] | None = None) -> int:
     fmt = get_output_format(args.output_format)
 
     try:
-        matches = find_open_prs_for_issue(owner, repo, args.issue)
+        matches = find_open_prs_for_issue(
+            owner, repo, args.issue, current_branch_name=current_branch()
+        )
     except RuntimeError as err:
         write_skill_error(
             str(err), 3, error_type="ApiError",

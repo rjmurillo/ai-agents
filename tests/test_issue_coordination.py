@@ -33,8 +33,8 @@ _check = _import("check_existing_pr_for_issue")
 _claim = _import("claim_issue")
 
 
-def _proc(rc: int, stdout: str = "") -> subprocess.CompletedProcess[str]:
-    return subprocess.CompletedProcess(["gh"], rc, stdout=stdout, stderr="")
+def _proc(rc: int, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(["gh"], rc, stdout=stdout, stderr=stderr)
 
 
 class TestReferencesIssue:
@@ -62,20 +62,84 @@ class TestReferencesIssue:
 class TestFindOpenPrsForIssue:
     def test_match_in_body(self):
         prs = [
-            {"number": 10, "title": "feat", "body": "Closes #2477", "url": "u", "headRefName": "b"},
-            {"number": 11, "title": "other", "body": "unrelated", "url": "u2", "headRefName": "b2"},
+            {
+                "number": 10,
+                "title": "feat",
+                "body": "Closes #2477",
+                "html_url": "u",
+                "head": {"ref": "b"},
+            },
+            {
+                "number": 11,
+                "title": "other",
+                "body": "unrelated",
+                "html_url": "u2",
+                "head": {"ref": "b2"},
+            },
         ]
-        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps(prs))):
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
             out = _check.find_open_prs_for_issue("o", "r", 2477)
         assert [m["number"] for m in out] == [10]
 
     def test_no_match(self):
-        prs = [{"number": 11, "title": "x", "body": "y", "url": "u", "headRefName": "b"}]
-        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps(prs))):
+        prs = [
+            {
+                "number": 11,
+                "title": "x",
+                "body": "y",
+                "html_url": "u",
+                "head": {"ref": "b"},
+            }
+        ]
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
+            assert _check.find_open_prs_for_issue("o", "r", 2477) == []
+
+    def test_skips_current_branch_pr(self):
+        prs = [
+            {
+                "number": 10,
+                "title": "feat",
+                "body": "Fixes #2477",
+                "html_url": "u",
+                "head": {"ref": "work"},
+            },
+            {
+                "number": 11,
+                "title": "feat",
+                "body": "Fixes #2477",
+                "html_url": "u2",
+                "head": {"ref": "other"},
+            },
+        ]
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
+            out = _check.find_open_prs_for_issue("o", "r", 2477, current_branch_name="work")
+        assert [m["number"] for m in out] == [11]
+
+    def test_handles_null_title_and_body(self):
+        prs = [
+            {
+                "number": 10,
+                "title": None,
+                "body": None,
+                "html_url": "u",
+                "head": {"ref": "b"},
+            }
+        ]
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
             assert _check.find_open_prs_for_issue("o", "r", 2477) == []
 
     def test_api_failure_raises(self):
         with patch.object(_check.subprocess, "run", return_value=_proc(1)):
+            try:
+                _check.find_open_prs_for_issue("o", "r", 1)
+                raised = False
+            except RuntimeError:
+                raised = True
+        assert raised
+
+    def test_timeout_raises_runtime_error(self):
+        timeout = subprocess.TimeoutExpired(["gh"], 30)
+        with patch.object(_check.subprocess, "run", side_effect=timeout):
             try:
                 _check.find_open_prs_for_issue("o", "r", 1)
                 raised = False
@@ -91,13 +155,43 @@ class TestClaimIssueAssignees:
             assert _claim.issue_assignees("o", "r", 5) == ["alice", "bob"]
 
     def test_empty_assignees(self):
-        with patch.object(_claim.subprocess, "run", return_value=_proc(0, json.dumps({"assignees": []}))):
+        payload = json.dumps({"assignees": []})
+        with patch.object(_claim.subprocess, "run", return_value=_proc(0, payload)):
+            assert _claim.issue_assignees("o", "r", 5) == []
+
+    def test_null_assignees_treated_as_empty(self):
+        payload = json.dumps({"assignees": None})
+        with patch.object(_claim.subprocess, "run", return_value=_proc(0, payload)):
             assert _claim.issue_assignees("o", "r", 5) == []
 
     def test_view_failure_raises(self):
         with patch.object(_claim.subprocess, "run", return_value=_proc(1)):
             try:
                 _claim.issue_assignees("o", "r", 5)
+                raised = False
+            except RuntimeError:
+                raised = True
+        assert raised
+
+
+class TestCurrentLogin:
+    def test_returns_login(self):
+        with patch.object(_claim.subprocess, "run", return_value=_proc(0, "alice\n")):
+            assert _claim.current_login() == "alice"
+
+    def test_empty_login_raises(self):
+        with patch.object(_claim.subprocess, "run", return_value=_proc(0, "\n")):
+            try:
+                _claim.current_login()
+                raised = False
+            except RuntimeError:
+                raised = True
+        assert raised
+
+    def test_failure_raises(self):
+        with patch.object(_claim.subprocess, "run", return_value=_proc(1, stderr="no auth")):
+            try:
+                _claim.current_login()
                 raised = False
             except RuntimeError:
                 raised = True
