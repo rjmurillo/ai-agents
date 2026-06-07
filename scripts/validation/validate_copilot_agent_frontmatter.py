@@ -32,12 +32,12 @@ for _path in (_REPO_ROOT, _SCRIPT_DIR):
 
 
 def parse_frontmatter(text: str) -> dict[str, object] | None:
-    """Return parsed frontmatter using the canonical pre-PR parser.
+    """Return parsed frontmatter using the canonical validation parser.
 
-    Importing lazily avoids a cycle when ``pre_pr`` imports the plugin checks that
-    run this validator as a subprocess.
+    ``pre_pr`` re-exports this helper for compatibility, but importing the
+    source module avoids loading the full pre-PR runner here.
     """
-    from scripts.validation.pre_pr import _parse_yaml_frontmatter
+    from scripts.validation.yaml_utils import _parse_yaml_frontmatter
 
     return _parse_yaml_frontmatter(text)
 
