@@ -104,6 +104,25 @@ class TestVerifyCommitExists:
         assert kwargs["errors"] == "replace"
         assert kwargs["env"]["LC_ALL"] == "C"
 
+    def test_repo_context_verifies_commit_with_github_api(self):
+        captured: dict[str, object] = {}
+
+        def runner(*args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+            return _proc(0)
+
+        assert v.verify_commit_exists("abc1234", repo="o/r", runner=runner) is True
+        assert captured["args"][0] == ["gh", "api", "repos/o/r/commits/abc1234"]
+        kwargs = captured["kwargs"]
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        assert "env" not in kwargs
+
+    def test_repo_context_missing_commit_is_false(self):
+        runner = lambda *a, **k: _proc(1)
+        assert v.verify_commit_exists("deadbeef", repo="o/r", runner=runner) is False
+
     def test_absent_commit(self):
         assert v.verify_commit_exists("deadbeef", runner=lambda *a, **k: _proc(1)) is False
 

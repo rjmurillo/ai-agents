@@ -119,14 +119,29 @@ def unverified_claims(
 def verify_commit_exists(
     sha: str,
     *,
+    repo: str = "",
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> bool:
-    """Return True if ``sha`` resolves to an object in the local git history.
+    """Return True if ``sha`` resolves to a commit.
 
-    Uses ``git cat-file -e <sha>^{commit}`` so only commit objects count. Any
-    git failure (missing object, not a repo) yields False rather than raising,
-    because an unverifiable claim must not be treated as verified.
+    When repo context is available, verifies against GitHub's commit API so a
+    shallow CI checkout does not reject valid commits that are not local. Without
+    repo context, falls back to ``git cat-file -e <sha>^{commit}``.
     """
+
+    if repo:
+        try:
+            result = runner(
+                ["gh", "api", f"repos/{repo}/commits/{sha}"],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=_TIMEOUT,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+        return result.returncode == 0
 
     try:
         result = runner(
@@ -184,7 +199,7 @@ def _cli_unverified(rationale: str, repo: str) -> list[str]:
 
     return unverified_claims(
         rationale,
-        commit_exists=verify_commit_exists,
+        commit_exists=lambda sha: verify_commit_exists(sha, repo=repo),
         pr_is_merged=lambda pr: verify_pr_merged(pr, repo),
     )
 
@@ -199,7 +214,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--repo", default="",
-        help="owner/repo for PR verification (required only if the rationale cites a PR).",
+        help=(
+            "owner/repo for PR and remote commit verification "
+            "(required only if the rationale cites a PR)."
+        ),
     )
     return parser
 

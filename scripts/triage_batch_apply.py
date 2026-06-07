@@ -402,7 +402,7 @@ class CliGitHubGateway:
         return result is not None and result.returncode == 0
 
     def commit_exists(self, sha: str) -> bool:
-        result = self._run(["git", "cat-file", "-e", f"{sha}^{{commit}}"])
+        result = self._run(["gh", "api", f"repos/{self._repo}/commits/{sha}"])
         return result is not None and result.returncode == 0
 
     def pr_is_merged(self, pr: int) -> bool:

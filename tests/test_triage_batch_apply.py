@@ -312,8 +312,10 @@ class TestCliGitHubGateway:
         def __init__(self, result: subprocess.CompletedProcess[str]) -> None:
             super().__init__("owner", "repo")
             self._result = result
+            self.commands: list[list[str]] = []
 
         def _run(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
+            self.commands.append(command)
             return self._result
 
     def test_null_payload_fields_fall_back_to_safe_values(self):
@@ -359,6 +361,19 @@ class TestCliGitHubGateway:
         gateway = self.StubGateway(result)
 
         assert gateway.pr_is_merged(5) is False
+
+    def test_commit_exists_uses_remote_api(self):
+        result = subprocess.CompletedProcess(["gh"], 0, stdout="", stderr="")
+        gateway = self.StubGateway(result)
+
+        assert gateway.commit_exists("abc1234") is True
+        assert gateway.commands == [["gh", "api", "repos/owner/repo/commits/abc1234"]]
+
+    def test_commit_exists_rejects_missing_remote_commit(self):
+        result = subprocess.CompletedProcess(["gh"], 1, stdout="", stderr="")
+        gateway = self.StubGateway(result)
+
+        assert gateway.commit_exists("deadbeef") is False
 
     def test_run_uses_utf8_encoding_and_c_locale(self, monkeypatch):
         captured: dict[str, object] = {}
