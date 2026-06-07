@@ -38,6 +38,71 @@ check_merge_readiness = _mod.check_merge_readiness
 stale_dirty_suspected = _mod.stale_dirty_suspected
 
 
+class TestScriptCommit:
+    """Issue #2443: the readiness verdict carries the producing script's commit."""
+
+    def test_returns_git_sha_from_relative_pathspec(self):
+        script_path = "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py"
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="abc1234\n", stderr=""),
+        ]
+
+        with (
+            patch.object(_mod, "__file__", script_path),
+            patch.object(_mod.subprocess, "run", side_effect=completed) as run,
+        ):
+            assert _mod._script_commit() == "abc1234"
+
+        log_call = run.call_args_list[2]
+        assert log_call.args[0][-1] == ".claude/skills/github/scripts/pr/test_pr_merge_ready.py"
+        assert not Path(log_call.args[0][-1]).is_absolute()
+        assert log_call.kwargs["encoding"] == "utf-8"
+        assert log_call.kwargs["errors"] == "replace"
+        assert log_call.kwargs["env"]["LC_ALL"] == "C"
+
+    def test_unknown_when_script_has_uncommitted_changes(self):
+        script_path = "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py"
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(
+                ["git"],
+                0,
+                stdout=" M .claude/skills/github/scripts/pr/test_pr_merge_ready.py\n",
+                stderr="",
+            ),
+        ]
+
+        with (
+            patch.object(_mod, "__file__", script_path),
+            patch.object(_mod.subprocess, "run", side_effect=completed) as run,
+        ):
+            assert _mod._script_commit() == "unknown"
+
+        assert len(run.call_args_list) == 2
+
+    def test_unknown_when_git_unavailable(self):
+        with patch.object(_mod.subprocess, "run", side_effect=OSError("no git")):
+            assert _mod._script_commit() == "unknown"
+
+    def test_unknown_when_output_blank(self):
+        completed = [
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="/repo\n", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="", stderr=""),
+            _mod.subprocess.CompletedProcess(["git"], 0, stdout="\n", stderr=""),
+        ]
+
+        with (
+            patch.object(
+                _mod, "__file__",
+                "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
+            ),
+            patch.object(_mod.subprocess, "run", side_effect=completed),
+        ):
+            assert _mod._script_commit() == "unknown"
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
