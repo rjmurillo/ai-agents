@@ -85,6 +85,14 @@
       "content": "Fixed dorny paths-filter boolean-string review threads",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added schemaVersion and merged latest main",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

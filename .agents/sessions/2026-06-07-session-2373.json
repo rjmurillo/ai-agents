@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 2373,
     "date": "2026-06-07",
@@ -98,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py passed after filter boolean-string fix; pre_pr.py passed with documented workflow-local bypass before this fix"
+        "Evidence": "validate_session_json.py passed after schemaVersion fix and latest main merge"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -162,6 +163,11 @@
       "time": "2026-06-07T03:20:00Z",
       "action": "Fixed dorny paths-filter boolean-string review threads",
       "evidence": "Added scripts/workflows/determine_should_run_from_filters.py and routed memory-health, passive-context-budget, and skill-passive-compliance through it so filter strings are compared to true in Python rather than OR-ed in YAML."
+    },
+    {
+      "time": "2026-06-07T03:50:00Z",
+      "action": "Added schemaVersion and merged latest main",
+      "evidence": "Added schemaVersion 1.0 to satisfy session schema review; accepted origin/main causal graph during latest main merge."
     }
   ],
   "endingCommit": "",
