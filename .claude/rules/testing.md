@@ -1,5 +1,11 @@
 ---
-applyTo: "tests/**,**/*.Tests.ps1,**/tests/**,.claude/skills/**/tests/**,.agents/security/benchmarks/**,.claude/rules/testing.md"
+paths:
+  - "tests/**"
+  - "**/*.Tests.ps1"
+  - "**/tests/**"
+  - ".claude/skills/**/tests/**"
+  - ".agents/security/benchmarks/**"
+  - ".claude/rules/testing.md"
 priority: high
 ---
 
