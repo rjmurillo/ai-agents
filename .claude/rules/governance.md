@@ -1,5 +1,6 @@
 ---
-applyTo: ".agents/governance/**"
+paths:
+  - ".agents/governance/**"
 priority: high
 ---
 

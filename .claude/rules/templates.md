@@ -1,5 +1,6 @@
 ---
-applyTo: "templates/**"
+paths:
+  - "templates/**"
 priority: high
 ---
 

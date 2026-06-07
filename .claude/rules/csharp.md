@@ -1,5 +1,10 @@
 ---
-applyTo: "**/*.cs,**/*.csproj,**/Directory.Build.*,**/*.cshtml,**/*.razor"
+paths:
+  - "**/*.cs"
+  - "**/*.csproj"
+  - "**/Directory.Build.*"
+  - "**/*.cshtml"
+  - "**/*.razor"
 description: C# and .NET idioms, performance, and conventions. Applies when editing C#, project, or Razor files.
 ---
 
