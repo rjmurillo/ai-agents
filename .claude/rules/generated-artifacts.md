@@ -1,5 +1,13 @@
 ---
-applyTo: "build/scripts/**,templates/**,src/copilot-cli/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,tests/build_scripts/**,tests/e2e/**"
+paths:
+  - "build/scripts/**"
+  - "templates/**"
+  - "src/copilot-cli/**"
+  - ".github/instructions/**"
+  - ".claude/hooks/**"
+  - ".claude/rules/**"
+  - "tests/build_scripts/**"
+  - "tests/e2e/**"
 priority: high
 ---
 
