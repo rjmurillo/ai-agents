@@ -202,6 +202,14 @@ def main(argv: list[str] | None = None) -> int:
             output_format=fmt, script_name="claim_issue.py",
         )
         raise SystemExit(3) from err
+    if me not in assignees_after_claim:
+        write_skill_error(
+            f"Issue #{args.issue} assignment could not be confirmed for {me}.",
+            3, error_type="ApiError",
+            output_format=fmt, script_name="claim_issue.py",
+            extra={"issue": args.issue, "assignees": assignees_after_claim},
+        )
+        raise SystemExit(3)
     others_after_claim = [a for a in assignees_after_claim if a != me]
     if others_after_claim:
         try:

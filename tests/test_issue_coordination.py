@@ -337,6 +337,27 @@ class TestClaimMain:
                 raised = exc.code == 3
         assert raised
 
+    def test_missing_self_after_claim_exits_external_error(self):
+        calls = [
+            _proc(0, "alice\n"),
+            _proc(0, json.dumps({"assignees": []})),
+            _proc(0, ""),
+            _proc(0, json.dumps({"assignees": []})),
+        ]
+        with (
+            patch.object(_claim, "assert_gh_authenticated", return_value=None),
+            patch.object(_claim, "resolve_repo_params") as resolve,
+            patch.object(_claim.subprocess, "run", side_effect=calls),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            try:
+                _claim.main(["--issue", "5", "--output-format", "json"])
+                raised = False
+            except SystemExit as exc:
+                raised = exc.code == 3
+        assert raised
+
     def test_failure_raises(self):
         with patch.object(_claim.subprocess, "run", return_value=_proc(1, stderr="no auth")):
             try:
