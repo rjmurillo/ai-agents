@@ -1,0 +1,179 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2373,
+    "date": "2026-06-07",
+    "branch": "fix/139-workflow-output-naming",
+    "startingCommit": "389a842640",
+    "objective": "Drive PR 2485 to ready to merge gate"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded for active worktree context"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned instruction manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md lines 1-116 read as read-only dashboard"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "github, pr-comment-responder, session-init, and memory skills loaded"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub and PR comment responder skill instructions loaded before GitHub operations"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and matching .github instructions read for workflow, scripts, security, and tests paths"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory search for PR 2485 workflow output naming returned 4 Serena results"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/139-workflow-output-naming"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/139-workflow-output-naming"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "worktree clean after checkout before PR fixes"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "389a842640"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session end checklist completed before final validation"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md remained unchanged"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory pr-2485-merge-gate written"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 .agents/governance/naming-conventions.md exited 0 under repo config"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Final commit includes PR fixes and session log update"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py passed after schemaVersion fix and latest main merge"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo pr-2485 marked in_progress at session start"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-07T00:00:00Z",
+      "action": "Started PR 2485 merge-gate drive",
+      "evidence": "Prepared .worktrees/pr-2485 on fix/139-workflow-output-naming at 389a842640; fetched PR context, failing Validate PR logs, and 2 unresolved threads."
+    },
+    {
+      "time": "2026-06-07T00:10:00Z",
+      "action": "Fixed review thread PRRT_kwDOQoWRls6HnWrm",
+      "evidence": "scripts/quality_gate/determine_should_run.py now writes should-run-review=true|false, matching ai-pr-quality-gate.yml job output consumer."
+    },
+    {
+      "time": "2026-06-07T00:15:00Z",
+      "action": "Fixed review thread PRRT_kwDOQoWRls6HnXcG",
+      "evidence": ".agents/sessions/2026-06-06-session-2372-triage-resolve-open-github-issues.json validation evidence now records validate_session_json.py passed locally."
+    },
+    {
+      "time": "2026-06-07T00:20:00Z",
+      "action": "Updated PR description",
+      "evidence": "Removed phantom pester-tests.yml and codeql-analysis.yml change claims, retained Fixes #139, and PR description validator returned rc=0 with warnings only."
+    },
+    {
+      "time": "2026-06-07T00:25:00Z",
+      "action": "Ran local verification",
+      "evidence": "uv run pytest tests/quality_gate/test_determine_should_run.py -q passed 16 tests; actionlint passed for changed workflows; determine_should_run.py wrote should-run-review=true."
+    },
+    {
+      "time": "2026-06-07T00:30:00Z",
+      "action": "Ran security review",
+      "evidence": "security-detection reported CRITICAL workflow files; security agent review approved with zero high or critical findings."
+    },
+    {
+      "time": "2026-06-07T00:35:00Z",
+      "action": "Ran pre-PR gate",
+      "evidence": "SKIP_WORKFLOW_LOCAL_TEST=true python3 scripts/validation/pre_pr.py passed 21 checks, skipped 4, failed 0; workflow local run was bypassed for act dynamic-matrix limitation."
+    },
+    {
+      "time": "2026-06-07T02:58:00Z",
+      "action": "Fixed new Copilot governance thread PRRT_kwDOQoWRls6HnywH",
+      "evidence": ".agents/governance/naming-conventions.md no longer cites missing pester-tests.yml precedent; it cites existing codeql-analysis.yml should-run-analysis precedent."
+    },
+    {
+      "time": "2026-06-07T03:05:00Z",
+      "action": "Resolved merge conflicts with origin/main",
+      "evidence": "Accepted origin/main versions of session 2372 session and episode audit records per merge-resolver session file rule."
+    },
+    {
+      "time": "2026-06-07T03:20:00Z",
+      "action": "Fixed dorny paths-filter boolean-string review threads",
+      "evidence": "Added scripts/workflows/determine_should_run_from_filters.py and routed memory-health, passive-context-budget, and skill-passive-compliance through it so filter strings are compared to true in Python rather than OR-ed in YAML."
+    },
+    {
+      "time": "2026-06-07T03:50:00Z",
+      "action": "Added schemaVersion and merged latest main",
+      "evidence": "Added schemaVersion 1.0 to satisfy session schema review; accepted origin/main causal graph during latest main merge."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push branch after local gates pass",
+    "Reply to and resolve two review threads",
+    "Merge only when all required checks pass and mergeStateStatus is CLEAN"
+  ]
+}

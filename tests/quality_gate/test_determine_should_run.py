@@ -13,7 +13,7 @@ import pytest
 from scripts.quality_gate.determine_should_run import (
     decide,
     main,
-    write_should_run,
+    write_should_run_review,
 )
 
 
@@ -56,28 +56,31 @@ class TestDecide:
 
 
 # ---------------------------------------------------------------------------
-# write_should_run
+# write_should_run_review
 # ---------------------------------------------------------------------------
 
 
-class TestWriteShouldRun:
+class TestWriteShouldRunReview:
     def test_writes_true(self, tmp_path: Path) -> None:
         output = tmp_path / "out"
         output.touch()
-        write_should_run(output, True)
-        assert output.read_text(encoding="utf-8") == "should-run=true\n"
+        write_should_run_review(output, True)
+        assert output.read_text(encoding="utf-8") == "should-run-review=true\n"
 
     def test_writes_false(self, tmp_path: Path) -> None:
         output = tmp_path / "out"
         output.touch()
-        write_should_run(output, False)
-        assert output.read_text(encoding="utf-8") == "should-run=false\n"
+        write_should_run_review(output, False)
+        assert output.read_text(encoding="utf-8") == "should-run-review=false\n"
 
     def test_appends(self, tmp_path: Path) -> None:
         output = tmp_path / "out"
         output.write_text("existing=1\n", encoding="utf-8")
-        write_should_run(output, True)
-        assert output.read_text(encoding="utf-8") == "existing=1\nshould-run=true\n"
+        write_should_run_review(output, True)
+        assert (
+            output.read_text(encoding="utf-8")
+            == "existing=1\nshould-run-review=true\n"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -94,7 +97,7 @@ class TestMain:
             ["--gh-actor", "alice", "--gh-event-name", "pull_request", "--relevant", "true"]
         )
         assert rc == 0
-        assert "should-run=true" in output.read_text(encoding="utf-8")
+        assert "should-run-review=true" in output.read_text(encoding="utf-8")
 
     def test_bot_writes_false(self, tmp_path, monkeypatch) -> None:
         output = tmp_path / "gh_output"
@@ -111,7 +114,7 @@ class TestMain:
             ]
         )
         assert rc == 0
-        assert "should-run=false" in output.read_text(encoding="utf-8")
+        assert "should-run-review=false" in output.read_text(encoding="utf-8")
 
     def test_reads_from_env(self, tmp_path, monkeypatch) -> None:
         output = tmp_path / "gh_output"
@@ -122,7 +125,7 @@ class TestMain:
         monkeypatch.setenv("RELEVANT", "false")
         rc = main([])
         assert rc == 0
-        assert "should-run=true" in output.read_text(encoding="utf-8")
+        assert "should-run-review=true" in output.read_text(encoding="utf-8")
 
     def test_missing_github_output_returns_two(self, monkeypatch) -> None:
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)

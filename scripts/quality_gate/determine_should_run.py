@@ -11,7 +11,7 @@ Decision rules (reproduced verbatim from the original bash block):
 3. Otherwise run only when the paths-filter reported relevant changes
    (``RELEVANT == 'true'``).
 
-The script writes ``should-run=true|false`` to ``GITHUB_OUTPUT`` and prints a
+The script writes ``should-run-review=true|false`` to ``GITHUB_OUTPUT`` and prints a
 human-readable ``Decision:`` line, exactly as the original step did.
 
 Input env vars:
@@ -47,12 +47,12 @@ def decide(gh_actor: str, gh_event_name: str, relevant: str) -> tuple[bool, str]
     return False, "Decision: Skip review (no relevant files changed)"
 
 
-def write_should_run(output_path: Path, should_run: bool) -> None:
-    """Append ``should-run=true|false`` to the GitHub output file."""
+def write_should_run_review(output_path: Path, should_run: bool) -> None:
+    """Append ``should-run-review=true|false`` to the GitHub output file."""
 
     value = "true" if should_run else "false"
     with output_path.open("a", encoding="utf-8") as handle:
-        handle.write(f"should-run={value}\n")
+        handle.write(f"should-run-review={value}\n")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         print("error: GITHUB_OUTPUT is not set", file=sys.stderr)
         return 2
 
-    write_should_run(Path(github_output), should_run)
+    write_should_run_review(Path(github_output), should_run)
     return 0
 
 
