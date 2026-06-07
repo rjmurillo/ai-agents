@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 2372,
     "date": "2026-06-06",
@@ -73,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Some MUST items still incomplete"
+        "Evidence": "Checklist state corrected in PR #2487; all required items now have explicit evidence."
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -98,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py failed"
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-06-06-session-2372-triage-resolve-open-github-issues.json passed after correction."
       },
       "tasksUpdated": {
         "level": "SHOULD",
