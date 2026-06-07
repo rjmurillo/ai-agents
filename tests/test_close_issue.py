@@ -690,6 +690,23 @@ class TestVerifyClaims:
         assert probe_args[:2] == ["gh", "api"]
         assert probe_args[2] == "repos/o/r/commits/abc1234"
 
+    def test_github_probes_decode_utf8_with_replacement(self):
+        with patch(
+            "subprocess.run",
+            side_effect=[_commit_found(), _pr_merged()],
+        ) as mock_run:
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("abc1234",), prs=(1024,)),
+                owner="o",
+                repo="r",
+            )
+
+        assert result.failures == ()
+        for call in mock_run.call_args_list:
+            assert call.kwargs["encoding"] == "utf-8"
+            assert call.kwargs["errors"] == "replace"
+            assert "text" not in call.kwargs
+
     def test_missing_commit_fails(self):
         with patch("subprocess.run", side_effect=[_commit_missing()]):
             result = _mod.verify_claims(

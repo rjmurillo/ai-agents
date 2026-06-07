@@ -183,7 +183,8 @@ def _commit_exists(owner: str, repo: str, sha: str) -> bool:
             f"repos/{owner}/{repo}/commits/{sha}",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -198,7 +199,8 @@ def _pr_is_merged(owner: str, repo: str, number: int) -> bool:
             f"repos/{owner}/{repo}/pulls/{number}",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -208,7 +210,7 @@ def _pr_is_merged(owner: str, repo: str, number: int) -> bool:
         payload = json.loads(result.stdout)
     except json.JSONDecodeError:
         return False
-    return bool(isinstance(payload, dict) and payload.get("merged"))
+    return isinstance(payload, dict) and payload.get("merged") is True
 
 
 def verify_claims(claims: Claims, *, owner: str, repo: str) -> VerificationResult:
@@ -332,7 +334,8 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
             "--json", "state",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -378,7 +381,8 @@ def _post_comment(owner: str, repo: str, issue: int, body: str, fmt: str) -> Non
         ],
         input=payload,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -415,7 +419,8 @@ def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> b
             "--slurp",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -451,7 +456,8 @@ def _close_issue(owner: str, repo: str, issue: int, reason: str) -> subprocess.C
             "--reason", reason,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
