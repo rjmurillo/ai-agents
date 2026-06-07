@@ -24,6 +24,12 @@ import argparse
 import sys
 from pathlib import Path
 
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+for _path in (_REPO_ROOT, _SCRIPT_DIR):
+    if str(_path) not in sys.path:
+        sys.path.insert(0, str(_path))
+
 
 def parse_frontmatter(text: str) -> dict[str, object] | None:
     """Return parsed frontmatter using the canonical pre-PR parser.
@@ -31,7 +37,7 @@ def parse_frontmatter(text: str) -> dict[str, object] | None:
     Importing lazily avoids a cycle when ``pre_pr`` imports the plugin checks that
     run this validator as a subprocess.
     """
-    from pre_pr import _parse_yaml_frontmatter
+    from scripts.validation.pre_pr import _parse_yaml_frontmatter
 
     return _parse_yaml_frontmatter(text)
 

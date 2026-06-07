@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scripts.validation import validate_copilot_agent_frontmatter
 from scripts.validation import validate_copilot_agent_frontmatter as v
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +58,10 @@ class TestParseFrontmatter:
 
     def test_none_when_no_fence(self):
         assert v.parse_frontmatter("no frontmatter here\n") is None
+
+    def test_package_import_path_works(self):
+        parsed = validate_copilot_agent_frontmatter.parse_frontmatter(_VALID_QUOTED)
+        assert (parsed or {}).get("name") == "analyst"
 
 
 class TestFindMalformed:
