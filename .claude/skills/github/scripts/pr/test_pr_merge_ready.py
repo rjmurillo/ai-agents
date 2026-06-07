@@ -42,6 +42,7 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -836,6 +837,63 @@ def _emit_merge_ready_log(
     )
 
 
+def _script_commit() -> str:
+    """Return the short git SHA of this script's last commit (issue #2443).
+
+    Stamps the readiness verdict with the version of the readiness logic that
+    produced it, so a saved CanMerge result can be audited against the exact
+    script revision. Returns "unknown" when git is unavailable or the script is
+    untracked, for example a shared checkout running an uncommitted copy.
+    """
+
+    script = os.path.abspath(__file__)
+    env = {**os.environ, "LC_ALL": "C"}
+    try:
+        root_result = subprocess.run(
+            ["git", "-C", os.path.dirname(script), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=False,
+            timeout=10,
+        )
+        repo_root = root_result.stdout.strip()
+        if root_result.returncode != 0 or not repo_root:
+            return "unknown"
+
+        pathspec = os.path.relpath(script, repo_root)
+        if pathspec == os.pardir or pathspec.startswith(f"{os.pardir}{os.sep}"):
+            return "unknown"
+
+        status_result = subprocess.run(
+            ["git", "-C", repo_root, "status", "--porcelain", "--", pathspec],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=False,
+            timeout=10,
+        )
+        if status_result.returncode != 0 or status_result.stdout.strip():
+            return "unknown"
+
+        result = subprocess.run(
+            ["git", "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=False,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    if result.returncode != 0:
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
 def check_merge_readiness(
     owner: str,
     repo: str,
@@ -870,6 +928,7 @@ def check_merge_readiness(
     )
     return {
         "Success": True,
+        "ScriptCommit": _script_commit(),
         "CanMerge": can_merge,
         "PullRequest": pr_number,
         "Owner": owner,
