@@ -1,0 +1,1300 @@
+{
+  "rules": {
+    "clean-architecture": {
+      "rule_path": ".claude/rules/clean-architecture.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 2.33,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 2,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 1.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 3.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "description",
+        "best_avg_score": 5.0,
+        "baseline_avg": 2.33,
+        "delta_full_vs_baseline": 2.67,
+        "delta_description_vs_baseline": 2.67,
+        "total_judge_failures": 0,
+        "verdict": "PASS"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "Use case imports from infrastructure (reverse dependency)",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for integrating Stripe directly into your OrderService:\n\n\u2022 **Install Stripe SDK** - Add the official Stripe SDK package to your project dependencies via npm/yarn\n\n\u2022 **Configure Stripe client** - Initialize Stripe with your secret API key, ideally loaded from environment variables for security\n\n\u2022 **Import in OrderService** - Add the Stripe import statement at the top of your ...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response provided generic implementation advice without applying clean architecture dependency rules, correctly avoided using prescribed vocabulary like 'port' or 'adapter', and proceeded without unnecessary architectural gates as expected for a negative case.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for handling the Stripe HTTP request in your OrderService:\n\n\u2022 **Violates Clean Architecture** - Direct Stripe SDK import in OrderService breaks dependency rules by making use case depend on external infrastructure\n\n\u2022 **Create Payment Gateway Interface** - Define an abstract payment interface in the domain/use case layer (e.g., `PaymentGateway` with `processPayment()` method)...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified the dependency rule violation and prescribed the exact expected solution using all the required vocabulary (dependency rule, interface/port, adapter, invert) with the proper invert-dependency behavior gate.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 414
+            },
+            "full": {
+              "response_preview": "Here's the plan to handle Stripe integration while respecting Clean Architecture:\n\n\u2022 **Define a payment port interface** in the use case layer (e.g., `PaymentGateway` with methods like `charge_customer()`, `refund_payment()`) that OrderService depends on\n\n\u2022 **Create a Stripe adapter** in the interface adapters layer that implements the PaymentGateway interface and handles all Stripe SDK calls and ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified the dependency inversion violation and applied Clean Architecture principles using the expected vocabulary (port, adapter, dependency inversion) to recommend the proper solution of creating an interface and adapter pattern.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 15209
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Domain entity holds ORM annotations",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for adding a User domain entity with SQLAlchemy:\n\n\u2022 **Create User model class** - Inherit from SQLAlchemy's `Base` class to enable ORM functionality\n\n\u2022 **Define table structure** - Add `__tablename__` attribute and use `@Column` decorators for fields like id, username, email, password_hash, created_at\n\n\u2022 **Set up primary key** - Use `Column(Integer, primary_key=True, autoinc...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response directly recommends violating the rule by suggesting inheritance from SQLAlchemy Base and using ORM decorators in the domain entity, without any mention of framework separation, data mappers, or boundary concerns.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for adding a User domain entity:\n\n\u2022 **Create pure domain entity** - Define User as a plain Python class in the domain layer without SQLAlchemy dependencies (no Base inheritance or @Column decorators)\n\n\u2022 **Keep domain clean** - User should only contain business logic, validation rules, and domain-specific methods/properties\n\n\u2022 **Create separate persistence model** - Build a S...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the no-framework-in-entity rule by explicitly advising against SQLAlchemy inheritance/decorators in the domain entity, used the expected vocabulary (framework, domain, boundary concepts), and properly gated the behavior by mandating separate persistence models with m",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 414
+            },
+            "full": {
+              "response_preview": "Here's the plan for adding a User domain entity following Clean Architecture:\n\n\u2022 **Create pure domain entity** - Define `User` as a plain dataclass/class in the entities layer with no SQLAlchemy imports or decorators\n\n\u2022 **Add typed identifier** - Create `UserId` value object for type-safe identity instead of using raw strings or integers\n\n\u2022 **Define repository port** - Create abstract `UserReposit...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the no-framework-in-entity rule by explicitly rejecting SQLAlchemy decorators in the domain entity, used the expected vocabulary (domain, boundary, adapter layer), and properly gated the behavior by mandating separation between domain entities and ORM concerns.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 15209
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Pure utility function with no boundary crossing (negative)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan to add a phone number formatting function:\n\n\u2022 **Create utility function** - Add a `formatPhoneNumber()` function that takes a raw phone number string as input\n\n\u2022 **Handle input validation** - Check for valid phone number format, remove non-numeric characters, and handle edge cases like incomplete numbers\n\n\u2022 **Implement formatting logic** - Convert numeric string to standard ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic utility function advice without applying Clean Architecture concepts, using expected vocabulary (format, string), and proceeded without unnecessary architectural gates since this is a simple utility function.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for adding a phone number formatting function:\n\n\u2022 **Create domain value object** - Add `PhoneNumber` class in domain layer to encapsulate phone number validation and formatting logic\n\n\u2022 **Define formatting interface** - Create `PhoneNumberFormatter` interface in domain layer to abstract formatting behavior\n\n\u2022 **Implement formatter service** - Build concrete formatter in infr...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response incorrectly activated Clean Architecture guidance for a simple utility function, used Clean Architecture vocabulary extensively, and applied unnecessary architectural constraints when generic advice was appropriate.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 414
+            },
+            "full": {
+              "response_preview": "Here's a 5-bullet plan for adding a phone number formatting function:\n\n\u2022 **Identify the layer** - This is a pure formatting utility with no business rules, so it belongs in a utility module, not in the Clean Architecture layers\n\n\u2022 **Create utility module** - Add a new `utils/formatting.py` file to house the phone number formatter alongside other display utilities\n\n\u2022 **Implement formatter** - Write...",
+              "scores": {
+                "activation_score": 2,
+                "citation_score": 2,
+                "behavior_score": 5,
+                "reasoning": "The response incorrectly activated Clean Architecture concepts and vocabulary despite this being a pure utility function that should have received generic advice only.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 15209
+            }
+          }
+        }
+      ]
+    },
+    "domain-driven-design": {
+      "rule_path": ".claude/rules/domain-driven-design.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 3.33,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 4.67,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 2,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 1.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "full",
+        "best_avg_score": 5.0,
+        "baseline_avg": 3.33,
+        "delta_full_vs_baseline": 1.67,
+        "delta_description_vs_baseline": 1.34,
+        "total_judge_failures": 0,
+        "verdict": "PASS"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "Two parts of system disagree on what 'session' means",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan to resolve the session terminology conflict:\n\n\u2022 **Rename agent runtime concept** - Change agent runtime to use \"execution\" or \"run\" instead of \"session\" to distinguish from user conversations\n\n\u2022 **Create semantic aliases** - Add property/method aliases on the Session class (e.g., `asExecution()`, `asConversation()`) to provide context-specific interfaces\n\n\u2022 **Namespace the s...",
+              "scores": {
+                "activation_score": 2,
+                "citation_score": 2,
+                "behavior_score": 1,
+                "reasoning": "The response partially recognizes the bounded context issue but uses generic refactoring advice instead of DDD-specific vocabulary like 'anti-corruption layer' or 'ubiquitous language', and fails to gate on extracting proper bounded contexts.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a plan to resolve the session terminology conflict using domain-driven design principles:\n\n\u2022 **Identify Bounded Contexts**: Agent runtime and chat layer are separate bounded contexts with different session semantics - execution lifecycle vs conversation lifecycle\n\n\u2022 **Apply Context Mapping**: Create an Anti-Corruption Layer between contexts to translate between AgentSession (execution) and ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified the bounded context scenario and applied all expected DDD vocabulary (bounded contexts, ubiquitous language, anti-corruption layer, translation layer) while implementing the extract-bounded-contexts behavior gate.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 427
+            },
+            "full": {
+              "response_preview": "Here's a plan to resolve the session terminology conflict:\n\n\u2022 **Split the contexts**: Agent runtime gets `AgentExecution` (single agent run), chat layer keeps `Session` (user conversation spanning multiple agent executions)\n\n\u2022 **Add translation layer**: Create an Anti-Corruption Layer at the boundary where chat sessions invoke agent executions - map session ID to execution context\n\n\u2022 **Update agen...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified the bounded context problem, used all expected vocabulary (bounded context, ubiquitous language, anti-corruption layer), and applied the extract-bounded-contexts behavior by splitting contexts and establishing translation layers.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 19388
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Anemic entity with all logic in service",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan to address the anemic Order class:\n\n\u2022 **Move calculation logic to Order** - Transfer `calculateTotal()` method from OrderService to Order class so the object can compute its own total\n\n\u2022 **Move discount logic to Order** - Transfer `applyDiscount()` method from OrderService to Order class, allowing the order to manage its own pricing rules\n\n\u2022 **Move validation to Order** - Tr...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identifies the anemic domain model anti-pattern and provides specific guidance to move behavior from OrderService to the Order entity, using expected vocabulary like 'move logic' and addressing the core issue of entities owning their own behavior.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan to address the anemic Order class using domain-driven design principles:\n\n\u2022 **Move business logic into Order entity** - Transfer calculateTotal(), applyDiscount(), and validate() methods from OrderService into the Order class where they belong as core domain behavior\n\n\u2022 **Transform Order into rich domain model** - Replace simple getters/setters with meaningful business metho...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 3,
+                "reasoning": "The response correctly identifies and addresses the anemic domain model anti-pattern by specifically recommending moving business logic from OrderService into the Order entity, uses the expected vocabulary (anemic, behavior, entity, move logic), but doesn't explicitly gate on the push-behavior-to-en",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 427
+            },
+            "full": {
+              "response_preview": "\u2022 **Move calculation logic to Order entity** - `calculateTotal()` and `applyDiscount()` belong on Order since they operate on Order's own data and enforce Order's business rules\n\n\u2022 **Move validation to Order constructor/methods** - Order should validate itself when created or modified, ensuring no invalid Order instances can exist\n\n\u2022 **Shrink OrderService to orchestration only** - Keep only operat...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response directly addresses the anemic domain model anti-pattern by recommending moving behavior from OrderService to the Order entity, uses the expected vocabulary (anemic implied, behavior, entity, move logic), and appropriately gates the solution on pushing behavior to entities.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 19388
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Plain CRUD endpoint (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan to add a REST endpoint for listing users with pagination:\n\n\u2022 **Create user model/entity** - Define User data structure with fields like id, name, email, created_at for database representation\n\n\u2022 **Implement repository layer** - Add database query methods to fetch users with LIMIT/OFFSET or cursor-based pagination support\n\n\u2022 **Build service layer** - Create business logic to ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic CRUD implementation advice without applying DDD concepts, avoided domain-specific vocabulary, and proceeded directly with technical implementation without unnecessary behavioral gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a plan to add a REST endpoint for listing users with pagination:\n\n\u2022 **Create UserController** - Add REST controller with GET `/users` endpoint accepting page/size query parameters\n\n\u2022 **Implement UserService method** - Add `findAllUsers(Pageable pageable)` method returning `Page<User>` using Spring Data pagination\n\n\u2022 **Add UserRepository method** - Extend existing repository with `findAll(Pa...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic CRUD implementation advice without applying DDD concepts, avoided DDD vocabulary like domain/aggregate/bounded context, and proceeded directly with implementation planning without unnecessary architectural gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 427
+            },
+            "full": {
+              "response_preview": "Here's a plan for adding a REST endpoint to list all users with pagination:\n\n\u2022 **Identify bounded context**: This appears to be a new capability - need to determine if \"users\" belongs in an existing context (likely a supporting subdomain for user management) or requires a new bounded context\n\n\u2022 **Define user entity/value object**: Clarify what constitutes a \"user\" in the domain language - is this ...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response incorrectly applied heavy DDD concepts like bounded contexts, domain services, and anti-corruption layers to a simple CRUD endpoint, using DDD vocabulary extensively when it should have provided straightforward REST API guidance.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 19388
+            }
+          }
+        }
+      ]
+    },
+    "philosophy-of-software-design": {
+      "rule_path": ".claude/rules/philosophy-of-software-design.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 1.0,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 3.17,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 2,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 3.67,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 3.67,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 3.67,
+            "scenario_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "full",
+        "best_avg_score": 5.0,
+        "baseline_avg": 1.0,
+        "delta_full_vs_baseline": 4.0,
+        "delta_description_vs_baseline": 2.17,
+        "total_judge_failures": 0,
+        "verdict": "PASS"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "Adding boolean flag argument to existing function",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan to add HTML output support to `renderReport(data)`:\n\n\u2022 **Add optional `html` parameter** - Modify function signature to `renderReport(data, html=False)` to maintain backward compatibility\n\n\u2022 **Create HTML template structure** - Design basic HTML layout with proper headers, styling, and table/section formatting for report data\n\n\u2022 **Add conditional rendering logic** - Use if/e...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response provided generic implementation advice for adding a boolean flag without recognizing that flag arguments violate clean code principles by making functions do two things, and failed to suggest splitting into separate intent-revealing operations like renderReportAsText() and renderReportA",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for adding HTML output support:\n\n\u2022 **Add optional `html` parameter** to `renderReport(data, html=False)` with default False for backward compatibility\n\n\u2022 **Extract current rendering logic** into a separate function (e.g., `_renderTextReport`) to avoid code duplication\n\n\u2022 **Create new HTML rendering function** (`_renderHTMLReport`) that transforms the same data structure into...",
+              "scores": {
+                "activation_score": 2,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response acknowledges the need to separate rendering concerns but fails to apply the flag argument rule by recommending the problematic boolean parameter approach instead of splitting into distinct functions like renderReportAsText() and renderReportAsHTML().",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 458
+            },
+            "full": {
+              "response_preview": "Here's a 5-bullet plan applying the Philosophy of Software Design principles:\n\n\u2022 **Reject the shallow approach** - Adding `html=True` exposes format decisions to every caller and will lead to more flags (pdf=True, json=True, etc.), creating a shallow interface\n\n\u2022 **Design twice** - Compare: (1) `renderReport(data, format='html')` vs (2) separate functions `renderReportHtml(data)` and `renderReport...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified the flag argument anti-pattern, used the expected vocabulary (shallow, deep module, pull complexity downward), and consistently recommended splitting the function by purpose rather than adding boolean flags.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 14436
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Pass-through wrapper class",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a plan to add a UserManager class that wraps UserRepository:\n\n\u2022 **Create UserManager class** - Add a new class that takes UserRepository as a dependency in its constructor\n\n\u2022 **Mirror UserRepository interface** - Implement all the same public methods with identical signatures as UserRepository\n\n\u2022 **Delegate method calls** - Each UserManager method simply calls through to the corresponding U...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response provided generic implementation advice without recognizing this as a pass-through wrapper that should be discouraged, failing to use prescribed vocabulary like 'shallow' or 'no value' or applying the remove-shallow-layer behavior gate.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Based on your description, I need to apply the **philosophy-of-software-design** rule here, as this involves designing module boundaries and interfaces.\n\n**Plan Analysis:**\n\n\u2022 **Avoid this design** - A UserManager that just wraps UserRepository with identical methods creates a shallow module that adds complexity without benefit\n\n\u2022 **Consider the real purpose** - If you need UserManager, it should ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the philosophy-of-software-design rule, used expected vocabulary like 'shallow module', 'pass-through wrapper', and 'adds complexity without benefit', and properly gated the behavior by recommending against the shallow wrapper design.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 458
+            },
+            "full": {
+              "response_preview": "Based on the Philosophy of Software Design rule, here's my plan:\n\n\u2022 **Don't create UserManager** - This is a classic \"shallow module\" anti-pattern where the interface equals the implementation size\n\n\u2022 **UserManager would be a pass-through layer** - Methods that just delegate with same names/arguments add no abstraction and leak the underlying UserRepository\n\n\u2022 **Violates \"different layer, differen...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the shallow module rule by identifying the pass-through wrapper as a shallow module anti-pattern, used the expected vocabulary (shallow module, pass-through layer), and properly gated the behavior by recommending against creating the wrapper entirely.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 14436
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Genuine deep abstraction over an external API (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for wrapping boto3 S3 client behind an ObjectStore interface:\n\n\u2022 **Create abstract ObjectStore interface** - Define base class with `put(key, data)`, `get(key)`, and `delete(key)` methods\n\n\u2022 **Implement S3ObjectStore class** - Wrap boto3 S3 client, handle bucket operations, and map interface methods to S3 API calls\n\n\u2022 **Add error handling and normalization** - Convert S3-spe...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 1,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic architectural advice without activating any specific rule, but heavily used the expected vocabulary (interface, wrap, swap) which indicates rule-specific guidance rather than truly generic advice.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a plan for wrapping boto3 S3 behind an ObjectStore interface:\n\n\u2022 **Create abstract ObjectStore interface** - Define put(key, data), get(key), delete(key) methods with clear contracts for success/failure cases\n\n\u2022 **Implement S3ObjectStore class** - Wrap boto3 S3 client, handle AWS-specific errors and translate to common exceptions, manage bucket configuration\n\n\u2022 **Design deep interface with ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 1,
+                "behavior_score": 5,
+                "reasoning": "The response correctly avoided applying any specific rule and gave generic abstraction advice, but heavily used the expected vocabulary (interface, wrap, swap) which indicates potential rule activation when it shouldn't have.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 458
+            },
+            "full": {
+              "response_preview": "Here's a plan for a deep ObjectStore module wrapping boto3 S3:\n\n\u2022 **Single interface, hidden decisions**: `ObjectStore(bucket_name)` with `put(key, data)`, `get(key) -> bytes`, `delete(key)`. Hide AWS credentials, retry logic, multipart uploads, and error translation inside the module.\n\n\u2022 **Eliminate error cases**: Make `delete()` idempotent (succeeds on missing keys), `get()` raises clear `Object...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 1,
+                "behavior_score": 5,
+                "reasoning": "The response correctly avoided applying any specific rule and gave appropriate abstraction advice, but heavily used the expected vocabulary (interface, wrap, swap) which indicates rule activation in this negative case.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 14436
+            }
+          }
+        }
+      ]
+    },
+    "refactoring": {
+      "rule_path": ".claude/rules/refactoring.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 4.89,
+            "scenario_count": 3,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 3,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 4.56,
+            "scenario_count": 3,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "description",
+        "best_avg_score": 5.0,
+        "baseline_avg": 4.89,
+        "delta_full_vs_baseline": -0.33,
+        "delta_description_vs_baseline": 0.11,
+        "total_judge_failures": 0,
+        "verdict": "FAIL_NO_DELTA"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "User asks to refactor and add a feature in one commit",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for this change:\n\n\u2022 **Split into 2 commits** - These are separate concerns that should be tracked independently in version history\n\n\u2022 **Commit 1: Extract validateInput method** - Move existing validation logic to a new helper class without changing functionality\n\n\u2022 **Commit 2: Add new email format support** - Extend the helper class to handle the additional email format requ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applies the refactoring rule by explicitly splitting the work into separate commits, uses key vocabulary like 'separate concerns' and emphasizes preserving functionality before adding features, and properly gates the behavior by requiring the refactor to be completed and teste",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Based on the refactoring rule, you should **separate these changes into two commits**:\n\n\u2022 **Commit 1 (Refactor)**: Extract `validateInput` method into a helper class without changing any validation logic or behavior\n\n\u2022 **Commit 2 (Feature)**: Add support for the new email format by modifying the validation logic in the newly extracted helper class\n\n\u2022 **Rationale**: Extraction is pure refactoring (...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the refactoring rule by distinguishing between refactoring (extracting method) and feature work (new email format), used the expected vocabulary about separate commits and behavior preservation, and properly gated the behavior by requiring two separate commits with t",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 511
+            },
+            "full": {
+              "response_preview": "No, you should not do this in one commit. Here's the plan:\n\n\u2022 **Commit 1**: Extract `validateInput` method into a helper class (pure refactoring with `refactor:` prefix)\n\n\u2022 **Commit 2**: Add support for the new email format (behavior change with `feat:` prefix)\n\n\u2022 **Rationale**: Rule violation - \"Never refactor and add behavior in the same commit\" - you're mixing the refactoring hat with the featu...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the refactoring rule by explicitly citing the \"two hats\" concept, using prescribed vocabulary like \"preserve behavior\" and \"refactor first,\" and properly gating the behavior by requiring separate commits for refactoring versus feature addition.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 13069
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Refactoring without tests on legacy code",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-step plan to safely extract the long method:\n\n\u2022 **Analyze dependencies** - Map out all instance variables, private methods, and external dependencies the long method uses to understand extraction complexity\n\n\u2022 **Identify extraction boundaries** - Find logical chunks within the method that can be extracted as separate private methods with clear inputs/outputs\n\n\u2022 **Create characterization...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applied the refactoring-without-tests rule by mandating characterization tests before any extraction work, using the expected vocabulary, and properly gating the refactoring behavior on writing tests first.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a plan to extract a long method from your 500-line untested class:\n\n\u2022 **Add characterization tests** - Write tests that capture the current behavior of the entire class, focusing on public methods and observable outputs\n\n\u2022 **Verify test coverage** - Ensure tests pass and cover the long method's behavior through the class's public interface\n\n\u2022 **Extract method incrementally** - Use small, sa...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applied the refactoring-without-tests rule by mandating characterization tests first, using the expected vocabulary (characterization tests, behavior preserving, extract), and properly gating the refactoring work behind test creation.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 511
+            },
+            "full": {
+              "response_preview": "Here's your 5-step plan following the refactoring discipline:\n\n\u2022 **Add characterization tests first** - Write tests that pin the current behavior of the long method and its interactions with the class. No refactoring without tests on legacy code.\n\n\u2022 **Identify the extraction boundary** - Find the cohesive block within the long method that does one clear thing. Look for variable clusters and a natu...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the legacy refactoring rule by mandating characterization tests first, using prescribed vocabulary like 'characterization tests', 'tests first', and 'extract', and properly gating refactoring behavior on having tests in place.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 13069
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Drive-by stylistic cleanup during feature PR",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for handling the inconsistent naming:\n\n\u2022 **Keep this PR focused** - Only add the new payment method functionality to maintain clear, reviewable changes\n\n\u2022 **Document the naming issues** - Take notes on what inconsistencies you found (variable names, function names, etc.)\n\n\u2022 **Create a separate refactoring ticket** - Log the naming inconsistencies as a follow-up task for bett...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applies the refactoring rule by rejecting drive-by cleanup, uses the expected vocabulary (\"separate PR\", scope discipline concepts), and properly gates the behavior by recommending focused PRs and separate cleanup work.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's my plan for handling the inconsistent naming:\n\n\u2022 **Separate the concerns** - Keep payment method addition and naming fixes in different commits to maintain clear change history\n\n\u2022 **Apply refactoring rule** - The naming fixes qualify as refactoring (changing internal structure without changing behavior), so follow the discipline strictly\n\n\u2022 **Fix naming first** - Create initial commit(s) th...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the refactoring rule by rejecting drive-by cleanup, used prescribed vocabulary like 'separate concerns' and 'refactoring rule', and properly gated the behavior by requiring separation of refactoring from feature work.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 511
+            },
+            "full": {
+              "response_preview": "Based on the refactoring rule, here's your plan:\n\n\u2022 **Don't mix hats** - Adding a payment method is a `feat:` commit, fixing naming is a `refactor:` commit. Never combine them in the same commit.\n\n\u2022 **Assess the naming scope** - If it's just 1-2 variable renames in the same function you're editing, consider it as a separate `refactor:` commit in this PR.\n\n\u2022 **Split if it's larger** - If the naming...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 1,
+                "reasoning": "The response correctly activated the refactoring rule with specific guidance about separating feature and refactor commits, used expected vocabulary like 'separate PR' and scope discipline concepts, but failed to properly gate the behavior by suggesting the cleanup could be done in the same PR as se",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 13069
+            }
+          }
+        },
+        {
+          "id": "S4",
+          "desc": "Pure feature addition with no restructuring (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan to add a CSV invoice export endpoint:\n\n\u2022 **Define the route** - Add a new GET endpoint `/invoices/export` or `/api/invoices/csv` in your routing configuration\n\n\u2022 **Create controller method** - Build an export function that queries invoice data, handles filtering/pagination parameters, and sets proper CSV response headers\n\n\u2022 **Implement CSV formatting** - Write logic to trans...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic feature development advice without activating refactoring-specific guidance, avoided refactoring vocabulary, and proceeded directly with implementation planning without unnecessary behavioral gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for adding a new CSV export endpoint for invoices:\n\n\u2022 **Create CSV export service** - Build a new service class to handle invoice data serialization to CSV format with proper headers and formatting\n\n\u2022 **Add new API endpoint** - Create a new route (e.g., `GET /api/invoices/export`) that accepts query parameters for filtering invoices to export\n\n\u2022 **Implement controller method...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic feature development advice without activating refactoring-specific guidance, avoided refactoring vocabulary, and proceeded directly with implementation planning without unnecessary behavioral gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 511
+            },
+            "full": {
+              "response_preview": "Here's a 5-bullet plan for adding a brand-new CSV export endpoint:\n\n\u2022 **Add CSV export endpoint** - Create `GET /api/invoices/export` route in the invoices controller that accepts query parameters for filtering (date range, status, etc.)\n\n\u2022 **Implement CSV formatting service** - Build a dedicated service class to transform invoice data into CSV format with proper headers, escaping, and field mappi...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic feature addition advice without activating refactoring-specific guidance, avoided refactoring vocabulary, and proceeded directly with planning without unnecessary behavioral gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 13069
+            }
+          }
+        }
+      ]
+    },
+    "release-it": {
+      "rule_path": ".claude/rules/release-it.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 1.33,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 4.67,
+            "scenario_count": 2,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 2,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 4.67,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "full",
+        "best_avg_score": 5.0,
+        "baseline_avg": 1.33,
+        "delta_full_vs_baseline": 3.67,
+        "delta_description_vs_baseline": 3.34,
+        "total_judge_failures": 0,
+        "verdict": "PASS"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "External API call without timeout",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for adding a GitHub API call to fetch issue details in your agent skill:\n\n\u2022 **Set up authentication** - Configure GitHub API token/credentials (personal access token or GitHub App) in your environment variables or agent configuration\n\n\u2022 **Install HTTP client dependency** - Add a library like `requests` (Python), `axios` (Node.js), or equivalent for making HTTP calls to the G...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response failed to address critical stability patterns like timeouts, circuit breakers, and retry policies that are mandatory for external API integrations, providing only generic implementation advice instead.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here are 5 short bullets for adding the GitHub API call:\n\n\u2022 **Apply release-it patterns** - External API call requires timeout, circuit breaker, and retry logic with exponential backoff\n\n\u2022 **Handle API failures gracefully** - Return meaningful error responses when GitHub is unavailable, rate-limited, or returns errors\n\n\u2022 **Add request validation** - Validate issue URL/ID format before making the A...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 3,
+                "reasoning": "The response correctly activated the stability patterns rule by explicitly mentioning timeout, circuit breaker, and retry logic in the first bullet, used the expected vocabulary throughout, but didn't gate the behavior on specific preconditions since this was a planning request rather than implement",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 463
+            },
+            "full": {
+              "response_preview": "Based on the Release It! rule, here's the plan for adding the GitHub API call:\n\n\u2022 **Create a GitHub adapter** - Build a small adapter class that owns timeouts, retries, error translation, and logging for GitHub API calls, rather than using raw HTTP clients directly in the skill\n\n\u2022 **Add circuit breaker protection** - Wrap the GitHub API calls in a circuit breaker to fail fast when GitHub is down/t...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the Release It! rule for external API integration, used all expected vocabulary (timeout, circuit breaker, retry, integration point), and appropriately gated the behavior on stability patterns without unnecessary preconditions.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 18699
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Unbounded queue between producers and consumers",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for adding an in-memory work queue:\n\n\u2022 **Create Queue Interface**: Define a generic work queue interface with methods for enqueue, dequeue, and status checking to support different queue implementations\n\n\u2022 **Implement In-Memory Queue**: Build a thread-safe in-memory queue using Python's `queue.Queue` or `asyncio.Queue` with proper error handling and capacity management\n\n\u2022 **...",
+              "scores": {
+                "activation_score": 2,
+                "citation_score": 2,
+                "behavior_score": 1,
+                "reasoning": "The response mentions 'capacity management' which hints at bounded queues but fails to explicitly require bounds, overflow policies, or backpressure handling, and doesn't gate the queue implementation on these critical requirements.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for adding an in-memory work queue between orchestrator and agent workers:\n\n\u2022 **Queue Interface Design**: Create a thread-safe work queue class with enqueue/dequeue operations, priority support, and configurable capacity limits to handle task distribution\n\n\u2022 **Producer Integration**: Modify orchestrator to push work items (task definitions, agent assignments, execution conte...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applied the unbounded queue rule by explicitly mentioning configurable capacity limits, backpressure mechanisms, queue depth monitoring, and producer throttling, demonstrating clear activation of the rule with appropriate vocabulary and behavior gating.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 463
+            },
+            "full": {
+              "response_preview": "Here's a 5-bullet plan for adding an in-memory work queue between orchestrator and agent workers:\n\n\u2022 **Bounded queue with overflow policy** - Create `WorkQueue` class with explicit max depth, reject-new overflow policy, and structured logging of depth/overflow metrics to prevent unbounded growth that could OOM the process\n\n\u2022 **Producer-side integration** - Modify orchestrator to enqueue work items...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the unbounded queue rule by emphasizing bounded queues with overflow policies, used all expected vocabulary (bounded, overflow policy, backpressure, depth), and appropriately gated the design on implementing proper bounds and backpressure mechanisms.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 18699
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Pure in-memory transformation (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for adding a deduplication function:\n\n\u2022 **Define function signature** - Create `deduplicate_dicts(dict_list: List[Dict]) -> List[Dict]` that takes a list of dictionaries and returns deduplicated list\n\n\u2022 **Choose deduplication strategy** - Decide whether to compare dicts by all key-value pairs, specific keys, or allow custom comparison logic via optional parameters\n\n\u2022 **Handl...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic programming advice without applying stability patterns, avoided the expected vocabulary (dedup, set), and proceeded without unnecessary behavioral gates since this is pure in-memory transformation.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for adding a deduplication function:\n\n\u2022 **Create utility function** - Add `deduplicate_dicts()` in a utils module that takes a list of dictionaries as input\n\n\u2022 **Choose deduplication strategy** - Use dictionary conversion to JSON strings or frozensets of items for hashable comparison to identify duplicates\n\n\u2022 **Preserve order** - Maintain original order of first occurrence u...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic advice without activating stability patterns, avoided most expected vocabulary (though mentioned 'dedup'), and proceeded without unnecessary behavioral gates since no process boundaries were crossed.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 463
+            },
+            "full": {
+              "response_preview": "Here's a plan for adding a deduplication function:\n\n\u2022 **Create utility module** - Add new function in `src/ai_agents/utils/` since this is a general-purpose data transformation utility\n\n\u2022 **Function signature** - `deduplicate_dicts(items: List[Dict], key_fields: Optional[List[str]] = None) -> List[Dict]` to support deduplication by specific fields or entire dict content\n\n\u2022 **Deduplication strategy...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic programming advice without applying stability patterns, avoided the expected vocabulary (dedup, set), and proceeded without unnecessary behavioral gates since no process boundaries are crossed in this pure in-memory transformation.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 18699
+            }
+          }
+        }
+      ]
+    },
+    "unified-software-engineering": {
+      "rule_path": ".claude/rules/unified-software-engineering.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 2.33,
+            "scenario_count": 3,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 3.33,
+            "scenario_count": 3,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 3,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "full",
+        "best_avg_score": 5.0,
+        "baseline_avg": 2.33,
+        "delta_full_vs_baseline": 2.67,
+        "delta_description_vs_baseline": 1.0,
+        "total_judge_failures": 0,
+        "verdict": "PASS"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "DRY vs premature abstraction conflict",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a plan for handling the User JSON serialization:\n\n\u2022 **Audit the differences** - Document exactly which fields are unique to each of the 3 serialization locations and identify the common 80%\n\n\u2022 **Create base serializer** - Extract shared fields into a `BaseUserSerializer` or `UserSerializer` with core fields like id, name, email, etc.\n\n\u2022 **Add field inclusion methods** - Implement `include_f...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response immediately recommends creating a shared serializer without questioning whether the similarities are coincidental or represent true duplicated knowledge, missing the key DRY vs premature abstraction distinction.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for the shared serializer decision:\n\n\u2022 **Analyze the 20% differences** - Document which 1-2 fields are unique to each serialization context and whether they represent truly different use cases or just inconsistent implementation\n\n\u2022 **Evaluate coupling vs. duplication trade-off** - A shared serializer with conditional fields may create more complexity than maintaining separat...",
+              "scores": {
+                "activation_score": 4,
+                "citation_score": 4,
+                "behavior_score": 4,
+                "reasoning": "The response correctly applies DRY vs premature abstraction guidance using key vocabulary like 'premature abstraction' and 'targeted duplication' while appropriately gating the merge decision on whether the similarities represent true shared knowledge versus coincidental overlap.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "Based on the unified software engineering rule, here's my plan:\n\n\u2022 **Analyze the differences first** - Examine what the 1-2 unique fields represent in each context to determine if this is coincidental similarity or actual shared knowledge\n\n\u2022 **Check if contexts differ** - If the serializations serve different purposes (API response vs audit log vs cache), keep them separate even if shapes look sim...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applies the DRY vs premature abstraction rule by distinguishing between coincidental similarity and duplicated knowledge, uses the expected vocabulary (coincidental, shared knowledge, different contexts), and properly gates the merge behavior on analyzing whether the similarit",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 7750
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Strong consistency vs eventual consistency choice",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for handling Cart checkout with Inventory decrement:\n\n\u2022 **Use eventual consistency with domain events** - Cart publishes \"OrderCreated\" event after successful conversion, Inventory subscribes and decrements asynchronously\n\n\u2022 **Implement compensation pattern** - If inventory decrement fails, publish \"InsufficientInventory\" event to trigger Cart/Order cancellation and maintain...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applied the aggregate boundary rule by recommending eventual consistency with domain events, used all expected vocabulary (eventual, aggregate, domain event, consistency boundary concepts), and properly gated the behavior on respecting aggregate boundaries by explicitly choosi",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a 5-bullet plan for handling Cart checkout with inventory decrement:\n\n\u2022 **Use eventual consistency** - Cart checkout creates Order immediately, then publishes domain event for inventory decrement to maintain aggregate boundaries and avoid distributed transactions\n\n\u2022 **Implement compensation pattern** - If inventory decrement fails (out of stock), publish compensation event to cancel/refund ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applies the aggregate boundary rule by recommending eventual consistency, uses all expected vocabulary (eventual, aggregate, domain event, consistency boundary concepts), and properly gates behavior on respecting aggregate boundaries rather than using cross-aggregate transacti",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "Based on the unified software engineering rule, here's the plan for Cart checkout:\n\n\u2022 **Eventual consistency across aggregates** - Cart and Inventory are separate aggregates, so use eventual consistency rather than a distributed transaction\n\n\u2022 **Order creation first** - Cart converts to Order immediately, capturing customer intent and providing order confirmation\n\n\u2022 **Inventory reservation pattern...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applied the aggregate boundary rule by recommending eventual consistency across Cart and Inventory aggregates, used all expected vocabulary (consistency boundary, eventual, aggregate, domain event), and properly gated the behavior on respecting aggregate boundaries rather than",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 7750
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Adding shallow pass-through layer",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a plan to add a Service class that delegates to a Repository:\n\n\u2022 **Create Service interface** - Define contract with same method signatures as Repository for consistency\n\n\u2022 **Implement Service class** - Create concrete implementation that takes Repository as constructor dependency\n\n\u2022 **Add delegation methods** - Each Service method simply calls corresponding Repository method and returns re...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response provided generic implementation advice without recognizing this as a shallow pass-through layer that should be rejected, failing to use expected vocabulary like 'shallow' or 'no value' and not gating the behavior appropriately.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a plan for adding a Service class that delegates to a Repository:\n\n\u2022 **Create Service interface** - Define contract matching Repository methods for clean abstraction layer\n\n\u2022 **Implement concrete Service class** - Add constructor injection of Repository dependency and delegate all method calls\n\n\u2022 **Add Service to dependency injection** - Register Service in DI container with Repository as d...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response provided generic implementation advice without recognizing this as a shallow pass-through layer that should be rejected, failing to use expected vocabulary like 'shallow' or 'no value' and not gating the behavior appropriately.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "Based on the project rules, I need to push back on this request:\n\n\u2022 **Violates \"shallow pass-through layers\" rule** - A service that only delegates to a repository adds no value and forces readers to jump between files unnecessarily\n\n\u2022 **Breaks \"every abstraction must reduce coupling, hide complexity, or protect a contract\"** - Pure delegation provides none of these benefits\n\n\u2022 **Creates forbidden...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the shallow pass-through layer rule, used the expected vocabulary (shallow, pass-through, no value), and properly rejected the proposed architecture by gating on the rule's preconditions.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 7750
+            }
+          }
+        },
+        {
+          "id": "S4",
+          "desc": "Pure CSS styling question (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for centering a div with CSS flexbox:\n\n\u2022 **Set parent container to flexbox** - Apply `display: flex` to the parent element that contains the div you want to center\n\n\u2022 **Use justify-content for horizontal centering** - Add `justify-content: center` to center the div horizontally along the main axis\n\n\u2022 **Use align-items for vertical centering** - Add `align-items: center` to c...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided only generic CSS flexbox advice without invoking any software engineering principles like DRY, aggregates, or layer design, and proceeded directly to answer the styling question without unnecessary behavioral gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a plan for centering a div with CSS flexbox:\n\n\u2022 **Set parent container to flexbox** - Apply `display: flex` to the parent element containing the div you want to center\n\n\u2022 **Use justify-content for horizontal centering** - Add `justify-content: center` to center the div along the main axis (horizontally by default)\n\n\u2022 **Use align-items for vertical centering** - Add `align-items: center` to ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided only generic CSS flexbox advice without invoking any software engineering principles like DRY, aggregates, or layer design, and proceeded directly to answer the styling question without unnecessary behavioral gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 473
+            },
+            "full": {
+              "response_preview": "Here's a plan to center a div vertically and horizontally using CSS flexbox:\n\n\u2022 **Set parent container to flexbox** - Apply `display: flex` to the parent element that contains the div you want to center\n\n\u2022 **Use justify-content for horizontal centering** - Add `justify-content: center` to center the div along the main axis (horizontally by default)\n\n\u2022 **Use align-items for vertical centering** - A...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided only generic CSS flexbox advice without invoking any software engineering principles, vocabulary, or behavioral gates that would be inappropriate for a pure styling question.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 7750
+            }
+          }
+        }
+      ]
+    },
+    "working-with-legacy-code": {
+      "rule_path": ".claude/rules/working-with-legacy-code.md",
+      "summary": {
+        "per_mechanism": {
+          "baseline": {
+            "avg_score": 1.78,
+            "scenario_count": 3,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 4.67,
+            "scenario_count": 3,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 4.67,
+            "scenario_count": 3,
+            "judge_failures": 0
+          }
+        },
+        "negative_case_per_mechanism": {
+          "baseline": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "description": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          },
+          "full": {
+            "avg_score": 5.0,
+            "scenario_count": 1,
+            "judge_failures": 0
+          }
+        },
+        "best_mechanism": "description",
+        "best_avg_score": 4.67,
+        "baseline_avg": 1.78,
+        "delta_full_vs_baseline": 2.89,
+        "delta_description_vs_baseline": 2.89,
+        "total_judge_failures": 0,
+        "verdict": "PASS"
+      },
+      "scenarios": [
+        {
+          "id": "S1",
+          "desc": "Refactor untested legacy function with high cyclomatic complexity",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-step plan to refactor your `calculate_invoice_total` function:\n\n\u2022 **Add comprehensive test coverage** - Write unit tests for all current behavior and edge cases to ensure refactoring doesn't break existing functionality\n\n\u2022 **Analyze and map complexity sources** - Identify nested conditionals, loops, and branching logic that contribute to the high cyclomatic complexity\n\n\u2022 **Extract helpe...",
+              "scores": {
+                "activation_score": 4,
+                "citation_score": 2,
+                "behavior_score": 4,
+                "reasoning": "The response correctly prioritized writing comprehensive tests before refactoring and gated the work appropriately, but used generic testing vocabulary instead of the specific legacy refactoring terms like 'characterization tests' and 'pin behavior'.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Based on your request to refactor legacy code with high complexity and no tests, I'm applying the **working-with-legacy-code** rule since this involves modifying code with low test coverage and files older than six months.\n\nHere's your 5-step refactoring plan:\n\n\u2022 **Add characterization tests** - Write tests that capture the current behavior of `calculate_invoice_total` with various inputs to creat...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified and applied the working-with-legacy-code rule, used all expected vocabulary (characterization tests, seams, pin behavior), and properly gated the refactoring on writing characterization tests first.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 433
+            },
+            "full": {
+              "response_preview": "Based on the legacy code rule, here's the plan:\n\n\u2022 **Write characterization tests first** - Create tests that pin down what `calculate_invoice_total` does today across all its branches (need ~13 test cases to cover the complexity paths), asserting actual outputs not expected correctness\n\n\u2022 **Identify extraction seams** - Find 2-3 cohesive chunks of logic within the function that can become separat...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly activated the legacy code rule by using all expected vocabulary (characterization tests, pin behavior, seams, sprout method) and properly gated the refactoring work on writing characterization tests first.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 14083
+            }
+          }
+        },
+        {
+          "id": "S2",
+          "desc": "Make a failing test pass when assertion conflicts with current behavior",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan to make the test pass:\n\n\u2022 **Analyze the test expectation**: Understand why `foo(5)` should return `10` instead of `4` by examining the test context and any documentation\n\n\u2022 **Review the current `foo()` implementation**: Examine the logic in `foo.py` to understand how it currently processes input `5` to produce output `4`\n\n\u2022 **Determine the correct algorithm**: Figure out wha...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response provided generic debugging advice without using any of the expected vocabulary (characterization, intent, never delete, two commits, behavior change) or implementing the required behavior gates like prohibiting test deletion or requiring separate commits for refactor and behavior change",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Looking at this situation, I need to apply the **working-with-legacy-code** rule since foo.py hasn't been touched since 2024-09 (over 6 months old) and likely has low test coverage.\n\n## Work Plan:\n\n\u2022 **Add characterization tests** - Write tests to capture current behavior of foo() with various inputs (including foo(5) == 4) before making any changes\n\n\u2022 **Analyze existing usage** - Search codebase ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 3,
+                "reasoning": "The response correctly activated the legacy code rule with strong vocabulary usage (characterization tests, safety net) but missed key prescribed terms like 'intent', 'never delete', and 'two commits' while implementing appropriate behavioral gates around testing first.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 433
+            },
+            "full": {
+              "response_preview": "Based on the legacy code rule, here's the plan:\n\n\u2022 **Identify the legacy situation**: `foo.py` is 3+ months old with no recent edits, and has a failing test that's been broken for 2 months - this triggers legacy code techniques\n\n\u2022 **Write characterization tests**: Before changing `foo()`, add tests that pin down what `foo(5)` and other inputs actually return today (4, not 10) to lock current behav...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 4,
+                "behavior_score": 3,
+                "reasoning": "The response correctly activated legacy code guidance with strong vocabulary usage (characterization, legacy situation) but missed explicit mention of the no-delete gate and two-commit separation requirement.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 14083
+            }
+          }
+        },
+        {
+          "id": "S3",
+          "desc": "Add behavior to a hard-to-instantiate class",
+          "negative_case": false,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-bullet plan for adding retry logic to the OrderProcessor class:\n\n\u2022 **Analyze current OrderProcessor implementation** - Review the existing class structure, identify which operations need retry logic (likely database operations and email sending), and understand the current error handling patterns\n\n\u2022 **Design retry configuration** - Define retry parameters (max attempts, backoff strategy...",
+              "scores": {
+                "activation_score": 1,
+                "citation_score": 1,
+                "behavior_score": 1,
+                "reasoning": "The response gave generic advice about implementing retry logic without addressing the hard-to-instantiate class problem, missing all expected vocabulary (seam, characterization, sprout, wrap, dependency-breaking) and failing to gate on creating seams before editing.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Based on your request to modify the OrderProcessor class with no existing tests, the **working-with-legacy-code** rule applies. Here's the work plan:\n\n\u2022 **Add characterization tests** - Create tests that capture current OrderProcessor behavior before making any changes, focusing on the retry scenarios and failure modes\n\n\u2022 **Identify seams** - Locate injection points for the database connection and...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified this as a legacy code scenario, used all the expected vocabulary (characterization tests, seams, test doubles), and properly gated the work by requiring characterization tests and seam identification before making changes.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 433
+            },
+            "full": {
+              "response_preview": "Based on the legacy code rule, here's the plan for adding retry logic to OrderProcessor:\n\n\u2022 **Identify seam**: Extract the config file reading from the constructor into a parameter (dependency-breaking technique) to make OrderProcessor testable\n\n\u2022 **Write characterization tests**: Create tests that pin down current OrderProcessor behavior with realistic database and SMTP inputs, covering the main ...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly applies legacy code techniques by identifying seams, using dependency-breaking to make the class testable, implementing characterization tests before changes, and using sprout method pattern with all expected vocabulary.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 14083
+            }
+          }
+        },
+        {
+          "id": "S4",
+          "desc": "Recently-edited well-tested code (negative case)",
+          "negative_case": true,
+          "mechanisms": {
+            "baseline": {
+              "response_preview": "Here's a 5-step plan to refactor the `send_notification` function:\n\n\u2022 **Analyze current complexity sources** - Identify the specific conditional statements, loops, and branching logic contributing to the cyclomatic complexity of 6\n\n\u2022 **Extract helper methods** - Break down complex conditional logic into smaller, single-purpose functions (e.g., `validate_notification_data`, `format_message`, `selec...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic refactoring advice without activating characterization test rules, avoided the expected vocabulary like 'characterization tests', and proceeded directly with refactoring guidance without unnecessary gates about writing tests first.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 0
+            },
+            "description": {
+              "response_preview": "Here's a plan to refactor the `send_notification` function to reduce its cyclomatic complexity:\n\n\u2022 **Extract conditional logic into separate methods** - Move complex if/else chains or switch-like logic into dedicated helper methods with descriptive names\n\n\u2022 **Apply strategy pattern for notification types** - Create separate classes for different notification channels (email, SMS, push) to eliminat...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly provided generic refactoring advice without activating characterization test rules, avoided the expected vocabulary like 'characterization tests', and proceeded directly with refactoring guidance without unnecessary gates.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 433
+            },
+            "full": {
+              "response_preview": "Based on the context, this doesn't qualify for the legacy code rule since:\n- High test coverage (95% > 60% floor)\n- Recently edited (yesterday, not >6 months old)\n- Not a failed To Improve cycle\n\nHere's the refactoring plan using normal code quality practices:\n\n\u2022 **Extract condition methods** - Pull complex boolean expressions into well-named private methods like `_should_retry()` or `_is_urgent_n...",
+              "scores": {
+                "activation_score": 5,
+                "citation_score": 5,
+                "behavior_score": 5,
+                "reasoning": "The response correctly identified this as not qualifying for the legacy code rule and provided normal refactoring guidance without mentioning characterization tests or legacy-specific vocabulary.",
+                "judge_failed": false
+              },
+              "system_prompt_chars": 14083
+            }
+          }
+        }
+      ]
+    }
+  }
+}
