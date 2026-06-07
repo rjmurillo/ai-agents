@@ -1,9 +1,10 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 2372,
     "date": "2026-06-06",
     "branch": "chore/triage-open-issues-2026-06-06",
-    "startingCommit": "36adee34e",
+    "startingCommit": "36adee34ef479af5c3cf0e22262c8164df9336ec",
     "objective": "Triage and resolve all 32 open GitHub issues: evaluate still-valid, priority, merit; close stale with justification; fix merited via PRs; workflow-orchestrated"
   },
   "protocolCompliance": {
@@ -73,7 +74,7 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Some MUST items still incomplete"
+        "Evidence": "All MUST session-end items are complete after PR review fixes"
       },
       "handoffPreserved": {
         "level": "MUST",
@@ -98,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "validate_session_json.py failed"
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-06-06-session-2372-triage-resolve-open-github-issues.json exited 0 after PR review fixes"
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -117,7 +118,23 @@
       }
     }
   },
-  "workLog": [],
-  "endingCommit": "36adee34e",
+  "workLog": [
+    {
+      "phase": "triage",
+      "description": "Ran the 2026-06-06 open-issue sweep across 32 GitHub issues using read-only issue triage agents, then reconciled recommendations with same-day maintainer KEEP-OPEN decisions.",
+      "outcome": "Recorded the disposition matrix in .agents/analysis/2026-06-06-issue-triage-sweep.md."
+    },
+    {
+      "phase": "resolution",
+      "description": "Closed stale or completed issues, preserved active roadmap and epic issues, and routed merited fixes into PRs.",
+      "outcome": "Closed #2471, #907, and #1351; fixed #2481 via PR work; fixed #2443 via PR #2483; left #2477 and #139 with scoped follow-up plans."
+    },
+    {
+      "phase": "validation",
+      "description": "Committed the sweep summary, session log, episode memory, and causal graph update for durable auditability.",
+      "outcome": "Session artifacts landed in commit d5cfd551881491e03e47cb8fd588c3845c0977b6 with 4 files changed."
+    }
+  ],
+  "endingCommit": "d5cfd551881491e03e47cb8fd588c3845c0977b6",
   "nextSteps": []
 }
