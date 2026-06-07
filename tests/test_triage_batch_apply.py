@@ -219,8 +219,8 @@ class TestPartialFailure:
 class TestCloseVerificationGate:
     """Issue #2481: gate auto-close on epic label and on cited commit/PR truth."""
 
-    def test_epic_label_blocks_close(self):
-        gw = FakeGateway({9: _open(9, labels=("epic", "enhancement"))})
+    def test_epic_label_blocks_close_case_insensitively(self):
+        gw = FakeGateway({9: _open(9, labels=("Epic", "enhancement"))})
         action = ManifestAction(issue=9, category=ACTION_CLOSE, rationale="superseded")
         outcome = apply_action(action, gw, mutate=True)
         assert outcome.outcome == OUTCOME_SKIPPED

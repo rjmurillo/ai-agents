@@ -246,7 +246,7 @@ def _apply_close(
         )
     # Epic guard (#2481): a narrowly-scoped automated close must never take down
     # an epic. Closing an epic stays a human decision regardless of mutate mode.
-    if "epic" in state.labels:
+    if any(label.casefold() == "epic" for label in state.labels):
         return ActionOutcome(
             action.issue, action.category, OUTCOME_SKIPPED,
             "epic close requires human review",
