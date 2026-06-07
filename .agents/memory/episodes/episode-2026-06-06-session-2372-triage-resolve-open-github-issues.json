@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-06-06-session-2372-triage-resolve-open-github-issues",
+  "session": "2026-06-06-session-2372-triage-resolve-open-github-issues",
+  "timestamp": "2026-06-06T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Triage and resolve all 32 open GitHub issues: evaluate still-valid, priority, merit; close stale with justification; fix merited via PRs; workflow-orchestrated",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 36adee34e",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

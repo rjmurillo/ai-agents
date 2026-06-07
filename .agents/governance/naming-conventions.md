@@ -266,6 +266,31 @@ See `.agents/utilities/validate-naming.ps1` (to be created if needed)
 
 ---
 
+## Workflow Output Variables (dorny/paths-filter)
+
+GitHub Actions workflows that gate jobs with the `dorny/paths-filter` pattern
+expose a job-level output that downstream jobs read to decide whether to run.
+Standardize that output name on the **descriptive suffix** form (Issue #139,
+Option A), matching the established precedent in `pester-tests.yml`
+(`should-run-tests`) and `codeql-analysis.yml` (`should-run-analysis`):
+
+- Pattern: `should-run-<scope>` (for example `should-run-review`,
+  `should-run-validation`, `should-run-drift`, `should-run-manifests`).
+- Do NOT use the bare `should-run` or `should-validate` as a job output; the
+  scope makes multi-workflow CI logs self-describing.
+
+Scope and exceptions:
+
+- This convention governs the **job output variable** only. The separate idiom
+  of a step named `id: should-run` that emits a `skip` output
+  (`steps.should-run.outputs.skip`) is unaffected; it is internally consistent
+  and not a cross-workflow output variable.
+- When a workflow passes its gate value into a composite action input, the
+  input KEY must match the action's declared input name (for example the
+  `agent-review` action requires an input literally named `should-run`); keep
+  the input key aligned with the action contract and only rename the workflow's
+  own output that feeds it.
+
 ## Related Documents
 
 - [Agent Design Principles](./agent-design-principles.md) - Principle 6: Consistent Interface

@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 3
     outputs:
-      should-run: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.sessions }}
+      should-run-protocol: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.sessions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -69,7 +69,7 @@ jobs:
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 3
-    if: needs.check-changes.outputs.should-run == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
+    if: needs.check-changes.outputs.should-run-protocol == 'true' && github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 
     outputs:
       has_sessions: ${{ steps.changed.outputs.has_sessions }}
@@ -311,7 +311,7 @@ jobs:
 
     steps:
       - name: Check if aggregation needed
-        id: should-run
+        id: should-run-protocol
         env:
           HAS_SESSIONS: ${{ needs.detect-changes.outputs.has_sessions }}
         run: |
@@ -321,11 +321,11 @@ jobs:
           fi
 
       - name: Checkout repository
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-protocol.outputs.skip != 'true'
         uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
       - name: Download all validation artifacts
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-protocol.outputs.skip != 'true'
         uses: actions/download-artifact@484a0b528fb4d7bd804637ccb632e47a0e638317
         with:
           pattern: validation-*
@@ -333,12 +333,12 @@ jobs:
           merge-multiple: true
 
       - name: Aggregate Verdicts
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-protocol.outputs.skip != 'true'
         id: aggregate
         run: python3 .github/scripts/aggregate_session_verdicts.py
 
       - name: Generate Compliance Report
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-protocol.outputs.skip != 'true'
         id: report
         env:
           OVERALL_VERDICT: ${{ steps.aggregate.outputs.final_verdict }}
@@ -349,7 +349,7 @@ jobs:
         run: python3 .github/scripts/generate_session_report.py
 
       - name: Post PR Comment
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-protocol.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -362,7 +362,7 @@ jobs:
             --marker "AI-SESSION-PROTOCOL"
 
       - name: Set Job Summary
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-protocol.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           REPORT_FILE: ${{ steps.report.outputs.report_file }}
@@ -370,7 +370,7 @@ jobs:
           Get-Content $env:REPORT_FILE | Add-Content $env:GITHUB_STEP_SUMMARY
 
       - name: Enforce MUST Requirements
-        if: steps.should-run.outputs.skip != 'true'
+        if: steps.should-run-protocol.outputs.skip != 'true'
         shell: pwsh -NoProfile -Command "& '{0}'"
         env:
           MUST_FAILURES: ${{ steps.aggregate.outputs.must_failures }}
@@ -388,7 +388,7 @@ jobs:
   skip-validation:
     name: Skip Validation (No Session Changes)
     needs: check-changes
-    if: needs.check-changes.outputs.should-run != 'true'
+    if: needs.check-changes.outputs.should-run-protocol != 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 1
     steps:
