@@ -77,11 +77,29 @@ def _graphql(query: str, variables: dict[str, str | int]) -> dict:
     for key, value in variables.items():
         flag = "-F" if isinstance(value, int) else "-f"
         cmd += [flag, f"{key}={value}"]
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=90,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        sys.stderr.write(f"gh GraphQL failed: {exc}\n")
+        raise SystemExit(3) from exc
     if proc.returncode != 0:
         sys.stderr.write(f"gh GraphQL failed: {proc.stderr}\n")
         raise SystemExit(3)
-    return json.loads(proc.stdout)
+    try:
+        result = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        sys.stderr.write(f"failed to parse gh GraphQL response: {exc}\n")
+        raise SystemExit(3) from exc
+    if "errors" in result or result.get("data") is None:
+        sys.stderr.write(f"gh GraphQL returned errors or null data: {result.get('errors')}\n")
+        raise SystemExit(3)
+    return result
 
 
 def fetch_distribution(owner: str, name: str) -> list[dict]:
@@ -92,7 +110,11 @@ def fetch_distribution(owner: str, name: str) -> list[dict]:
         variables: dict[str, str | int] = {"owner": owner, "name": name}
         if cursor:
             variables["cursor"] = cursor
-        block = _graphql(_DISTRIBUTION_QUERY, variables)["data"]["repository"]["pullRequests"]
+        repo = _graphql(_DISTRIBUTION_QUERY, variables)["data"]["repository"]
+        if repo is None:
+            sys.stderr.write(f"repository not found: {owner}/{name}\n")
+            raise SystemExit(3)
+        block = repo["pullRequests"]
         for node in block["nodes"]:
             out.append(
                 {
@@ -114,7 +136,15 @@ def fetch_headlines(owner: str, name: str, pr: int) -> list[str]:
         variables: dict[str, str | int] = {"owner": owner, "name": name, "n": pr}
         if cursor:
             variables["cursor"] = cursor
-        block = _graphql(_COMMITS_QUERY, variables)["data"]["repository"]["pullRequest"]["commits"]
+        repo = _graphql(_COMMITS_QUERY, variables)["data"]["repository"]
+        if repo is None:
+            sys.stderr.write(f"repository not found: {owner}/{name}\n")
+            raise SystemExit(3)
+        pull_request = repo["pullRequest"]
+        if pull_request is None:
+            sys.stderr.write(f"pull request not found: {owner}/{name}#{pr}\n")
+            raise SystemExit(3)
+        block = pull_request["commits"]
         out += [node["commit"]["messageHeadline"] for node in block["nodes"]]
         if not block["pageInfo"]["hasNextPage"]:
             return out
@@ -178,6 +208,13 @@ def main(argv: list[str] | None = None) -> int:
     if not args.prs and (args.high is None or args.low is None):
         sys.stderr.write("provide --prs, or both --high and --low\n")
         return 2
+    if args.high is not None or args.low is not None:
+        if args.high is None or args.low is None:
+            sys.stderr.write("provide both --high and --low\n")
+            return 2
+        if args.high <= args.low or args.low <= 0:
+            sys.stderr.write("--high and --low must be positive and non-overlapping: high > low\n")
+            return 2
 
     payload: dict = {"owner": args.owner, "name": args.name}
 
@@ -197,8 +234,11 @@ def main(argv: list[str] | None = None) -> int:
             f"{len(degenerate)} | control(<{args.low}): {len(control)}"
         )
         deg_results = [analyze_pr(args.owner, args.name, d["number"]) for d in degenerate]
+        ctrl_results = [analyze_pr(args.owner, args.name, d["number"]) for d in control]
         _print_cohort(f"degenerate (>{args.high} commits)", deg_results)
+        _print_cohort(f"control (<{args.low} commits)", ctrl_results)
         payload["degenerate"] = deg_results
+        payload["control"] = ctrl_results
         payload["control_count"] = len(control)
 
     if args.output:

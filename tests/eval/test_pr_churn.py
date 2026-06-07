@@ -46,6 +46,25 @@ def test_classify_handles_empty_headline() -> None:
     assert _pr_churn.classify("") == "other"
 
 
+@pytest.mark.parametrize(
+    "headline, expected",
+    [
+        ("run gh act locally", "ci_fix"),
+        ("run gh-act locally", "ci_fix"),
+        ("fix session log evidence", "validation_protocol"),
+        ("fix session-log evidence", "validation_protocol"),
+        ("fix pre-pr gate", "validation_protocol"),
+    ],
+)
+def test_classify_allows_explicit_optional_separators(headline: str, expected: str) -> None:
+    assert _pr_churn.classify(headline) == expected
+
+
+@pytest.mark.parametrize("headline", ["ghXact", "sessionXlog", "preXpr"])
+def test_classify_separator_tokens_do_not_match_arbitrary_characters(headline: str) -> None:
+    assert _pr_churn.classify(headline) == "other"
+
+
 def test_classify_priority_merge_beats_ci() -> None:
     # A merge commit that also mentions ci must land in merge_rebase (higher priority).
     assert _pr_churn.classify("Merge branch 'main' to fix ci") == "merge_rebase"

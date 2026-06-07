@@ -16,13 +16,13 @@ Read first.
 ## Gates
 
 **Start**: Init Serena|Read HANDOFF.md + latest issue handoff + resume verify|Session log|Search memories|Verify git
-**Mid**: `git rev-list --count HEAD ^origin/main` <=20, warn 15 (ADR-008)
+**Mid**: `git rev-list --count HEAD ^origin/main` <=20, warn >15 (ADR-008)
 **Pre-PR**: `python3 scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
-**End**: Complete log|Preserve HANDOFF.md|Issue handoff|Update Serena|Lint|Commit|Validate
+**End**: Complete log|Preserve HANDOFF.md|Issue handoff if open|Update Serena|Lint|Commit|Validate
 
 ## Boundaries
 
-**BLOCKING verify**: unrun gen'd artifact -> runtime test|unfixed security thread (CWE/OWASP/CVE) -> security agent|skip validation -> `pre_pr.py`
+**BLOCKING verify**: unrun gen'd artifact -> runtime test|security thread -> code fix or owner|skip validation -> `pre_pr.py`
 **Always**: Python (ADR-042)|Verify branch|Update Serena|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|Bump `plugin.json` on plugin-source change
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
