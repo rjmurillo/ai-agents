@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-06-session-2372-triage-resolve-open-github-issues",
+  "session": "2026-06-06-session-2372-triage-resolve-open-github-issues",
+  "timestamp": "2026-06-06T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Triage and resolve all 32 open GitHub issues: evaluate still-valid, priority, merit; close stale with justification; fix merited via PRs; workflow-orchestrated",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Recorded the disposition matrix in .agents/analysis/2026-06-06-issue-triage-sweep.md.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Closed #2471, #907, and #1351; fixed #2481 via PR work; fixed #2443 via PR #2483; left #2477 and #139 with scoped follow-up plans.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Session artifacts landed in commit d5cfd551881491e03e47cb8fd588c3845c0977b6 with 4 files changed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-06T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d5cfd551881491e03e47cb8fd588c3845c0977b6",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
