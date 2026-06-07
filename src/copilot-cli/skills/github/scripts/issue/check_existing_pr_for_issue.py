@@ -27,7 +27,7 @@ import re
 import subprocess
 import sys
 
-_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or os.environ.get("COPILOT_PLUGIN_ROOT")
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root:
     _lib_dir = os.path.join(_plugin_root, "lib")
