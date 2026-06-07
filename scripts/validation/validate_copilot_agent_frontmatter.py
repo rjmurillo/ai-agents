@@ -24,25 +24,16 @@ import argparse
 import sys
 from pathlib import Path
 
-import yaml
 
-_FENCE = "---"
+def parse_frontmatter(text: str) -> dict[str, object] | None:
+    """Return parsed frontmatter using the canonical pre-PR parser.
 
-
-def split_frontmatter(text: str) -> str | None:
-    """Return the YAML frontmatter block of an agent file, or None if absent.
-
-    The frontmatter is the text between the first two `---` fence lines. Returns
-    None when the file does not open with a fence (no frontmatter to validate).
+    Importing lazily avoids a cycle when ``pre_pr`` imports the plugin checks that
+    run this validator as a subprocess.
     """
+    from pre_pr import _parse_yaml_frontmatter
 
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != _FENCE:
-        return None
-    for i in range(1, len(lines)):
-        if lines[i].strip() == _FENCE:
-            return "\n".join(lines[1:i])
-    return None
+    return _parse_yaml_frontmatter(text)
 
 
 def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
@@ -55,17 +46,11 @@ def find_malformed(agents_dir: Path) -> list[tuple[Path, str]]:
     offenders: list[tuple[Path, str]] = []
     for path in sorted(agents_dir.glob("*.agent.md")):
         text = path.read_text(encoding="utf-8")
-        block = split_frontmatter(text)
-        if block is None:
-            offenders.append((path, "no YAML frontmatter block found"))
-            continue
-        try:
-            parsed = yaml.safe_load(block)
-        except yaml.YAMLError as err:
-            offenders.append((path, str(err).splitlines()[0]))
-            continue
+        parsed = parse_frontmatter(text)
         if not isinstance(parsed, dict) or not parsed.get("name"):
-            offenders.append((path, "frontmatter missing required 'name' field"))
+            offenders.append(
+                (path, "frontmatter is malformed or missing required 'name' field")
+            )
     return offenders
 
 

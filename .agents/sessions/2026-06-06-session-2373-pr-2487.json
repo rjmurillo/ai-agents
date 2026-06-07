@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2373,
+    "date": "2026-06-06",
+    "branch": "fix/2477-issue-coordination",
+    "startingCommit": "0d8a01cdbc9e",
+    "objective": "Drive PR #2487 to ready-to-merge gate and squash-merge if clean"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions loaded at session start."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions returned guidance before code changes."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created this JSON session log."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2477-issue-coordination"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On branch fix/2477-issue-coordination."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified worktree status before changes."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist recorded before final push."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md was read only and not modified."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No durable new repository convention identified for memory storage."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No authored Markdown session artifact required markdownlint; changed markdown was scoped in session-init SKILL.md."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Changes will be committed before push from branch fix/2477-issue-coordination."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Targeted pytest and session JSON validation passed during PR #2487 work."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-07T02:24:19.295191+00:00",
+      "entry": "Created worktree, merged origin/main, diagnosed CI and 24 review threads."
+    },
+    {
+      "time": "2026-06-07T02:24:19.295191+00:00",
+      "entry": "Fixed issue coordination scripts for own-PR continuation, pagination, null JSON fields, plugin root fallback, UTF-8 decoding, and gh timeouts."
+    }
+  ],
+  "validation": [
+    "uv run pytest tests/test_issue_coordination.py tests/workflows/test_post_pr_retrospective.py::TestAgentStepFailureIsolation::test_agent_step_keeps_sha_pinned_action -q"
+  ],
+  "endingCommit": "0d8a01cdbc9e",
+  "nextSteps": []
+}

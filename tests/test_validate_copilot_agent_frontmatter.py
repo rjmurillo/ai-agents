@@ -51,12 +51,12 @@ def _write(d: Path, name: str, text: str) -> None:
     (d / name).write_text(text, encoding="utf-8")
 
 
-class TestSplitFrontmatter:
-    def test_extracts_block(self):
-        assert "name: analyst" in (v.split_frontmatter(_VALID_QUOTED) or "")
+class TestParseFrontmatter:
+    def test_extracts_mapping(self):
+        assert (v.parse_frontmatter(_VALID_QUOTED) or {}).get("name") == "analyst"
 
     def test_none_when_no_fence(self):
-        assert v.split_frontmatter("no frontmatter here\n") is None
+        assert v.parse_frontmatter("no frontmatter here\n") is None
 
 
 class TestFindMalformed:

@@ -45,7 +45,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-validate }}
+      should-run-drift: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run-drift }}
       bypass-requested: ${{ steps.bypass.outputs.bypass-requested }}
 
     steps:
@@ -97,13 +97,13 @@ jobs:
         id: determine
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "should-validate=true" >> "$GITHUB_OUTPUT"
+            echo "should-run-drift=true" >> "$GITHUB_OUTPUT"
             echo "Decision: Run validation (manual trigger)"
           elif [ "${{ steps.filter.outputs.agents }}" = "true" ]; then
-            echo "should-validate=true" >> "$GITHUB_OUTPUT"
+            echo "should-run-drift=true" >> "$GITHUB_OUTPUT"
             echo "Decision: Run validation (agent files changed)"
           else
-            echo "should-validate=false" >> "$GITHUB_OUTPUT"
+            echo "should-run-drift=false" >> "$GITHUB_OUTPUT"
             echo "Decision: Skip validation (no agent files changed)"
           fi
 
@@ -114,7 +114,7 @@ jobs:
     needs: check-paths
     # Run when validation is needed AND no bypass was requested
     if: |
-      needs.check-paths.outputs.should-validate == 'true' &&
+      needs.check-paths.outputs.should-run-drift == 'true' &&
       needs.check-paths.outputs.bypass-requested != 'true'
     permissions:
       contents: read
@@ -286,7 +286,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: check-paths
     if: |
-      needs.check-paths.outputs.should-validate == 'true' &&
+      needs.check-paths.outputs.should-run-drift == 'true' &&
       needs.check-paths.outputs.bypass-requested == 'true'
     permissions:
       contents: read
@@ -308,14 +308,16 @@ jobs:
 
       - name: Write bypass summary
         run: |
-          echo "## Agent Drift Detection - Bypassed" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Drift detection was skipped because a \`[skip-drift-check]\` marker was found in a commit message." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Bypass checklist:**" >> "$GITHUB_STEP_SUMMARY"
-          echo "- [ ] Reason documented in PR description" >> "$GITHUB_STEP_SUMMARY"
-          echo "- [ ] \`templates/README.md\` updated with intentional difference" >> "$GITHUB_STEP_SUMMARY"
-          echo "- [ ] Explicit code-owner approval obtained" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Agent Drift Detection - Bypassed"
+            echo ""
+            echo "Drift detection was skipped because a \`[skip-drift-check]\` marker was found in a commit message."
+            echo ""
+            echo "**Bypass checklist:**"
+            echo "- [ ] Reason documented in PR description"
+            echo "- [ ] \`templates/README.md\` updated with intentional difference"
+            echo "- [ ] Explicit code-owner approval obtained"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─── Skip job, provides passing status when no agent files changed ───────────
   # Uses the SAME NAME as the real validation job so required status checks pass.
@@ -323,7 +325,7 @@ jobs:
   skip:
     name: Agent Drift Detection
     needs: check-paths
-    if: needs.check-paths.outputs.should-validate != 'true'
+    if: needs.check-paths.outputs.should-run-drift != 'true'
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
     permissions:

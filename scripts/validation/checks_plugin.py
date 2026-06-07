@@ -69,7 +69,12 @@ def validate_copilot_agent_frontmatter(repo_root: Path) -> bool:
         raise MissingScriptSkip("validate_copilot_agent_frontmatter.py not present")
 
     exit_code, stdout, stderr = _run_subprocess(
-        ["python3", str(script), "--agents-dir", str(repo_root / ".github" / "agents")]
+        [
+            sys.executable,
+            str(script),
+            "--agents-dir",
+            str(repo_root / ".github" / "agents"),
+        ]
     )
     if exit_code != 0:
         detail = stdout.rstrip() or stderr.rstrip()

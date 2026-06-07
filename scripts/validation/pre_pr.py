@@ -416,7 +416,7 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_hook_anchoring(repo_root),
     )
 
-    # 6c2. Copilot agent frontmatter must parse as YAML (#2491-#2496): an unquoted
+    # 6c3. Copilot agent frontmatter must parse as YAML (#2491-#2496): an unquoted
     # description embedding colon-bearing examples makes Copilot fail to load the agent.
     run_validation(
         "Copilot Agent Frontmatter",
@@ -432,7 +432,7 @@ def main(argv: list[str] | None = None) -> int:
         lambda: validate_git_hooks_installed(repo_root),
     )
 
-    # 6d. Workflow Local Run (actionlint + gh act dry-run for changed workflows)
+    # 6e. Workflow Local Run (actionlint + gh act dry-run for changed workflows)
     run_validation(
         "Workflow Local Run",
         state,
