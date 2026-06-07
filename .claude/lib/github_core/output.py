@@ -132,7 +132,10 @@ def write_skill_error(
     Returns:
         JSON string when format is json, None when human.
     """
-    valid_types = ("NotFound", "ApiError", "AuthError", "InvalidParams", "Timeout", "General")
+    valid_types = (
+        "NotFound", "ApiError", "AuthError", "InvalidParams",
+        "Timeout", "General", "VerificationFailed",
+    )
     if error_type not in valid_types:
         raise ValueError(f"error_type must be one of {valid_types}, got: {error_type}")
 
