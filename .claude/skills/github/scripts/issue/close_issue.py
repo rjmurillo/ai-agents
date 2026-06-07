@@ -20,8 +20,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -86,8 +88,149 @@ def build_parser() -> argparse.ArgumentParser:
         "--comment-file", default="", help="Path to a file containing the comment body",
     )
 
+    parser.add_argument(
+        "--verify-claims",
+        action="store_true",
+        help=(
+            "Before closing, scan the closing comment for cited commit SHAs "
+            "and PR numbers and abort the close (exit code 1) when any cited "
+            "commit does not exist or any cited PR is not merged. "
+            "Prevents 'resolved by commit X' close comments that name a "
+            "phantom commit or an unmerged PR (issue #2481)."
+        ),
+    )
+
     add_output_format_arg(parser)
     return parser
+
+
+# ---------------------------------------------------------------------------
+# Claim extraction + verification (issue #2481 gate)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Claims:
+    """Commit SHAs and PR numbers cited in a closing comment.
+
+    A "claim" is an artifact the comment says resolves the issue. The
+    verifier asserts each claim exists on the remote before we let the
+    close go through.
+    """
+
+    commits: tuple[str, ...]
+    prs: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class VerificationResult:
+    """Outcome of probing each cited claim. Empty failures = clean."""
+
+    failures: tuple[str, ...]
+
+
+# A 7-to-40 char hex token after a "commit" mention is treated as a SHA.
+# Anchored to "commit\s+" so unrelated 7-char hex words are ignored.
+_COMMIT_PATTERN = re.compile(
+    r"\bcommit\s+([0-9a-f]{7,40})\b",
+    re.IGNORECASE,
+)
+
+# A PR claim is any "PR #N" token in the comment body. Closing comments are
+# already scoped to a resolution context, so any cited PR is implicitly being
+# claimed as the resolver. This intentionally ignores bare "#N" tokens (which
+# also reference unrelated context like the issue's own number or sibling
+# issues) and "Closes #N" trailers (which point at the issue being closed,
+# not at the fix source).
+_PR_PATTERN = re.compile(
+    r"\bPR\s*#(\d+)\b",
+    re.IGNORECASE,
+)
+
+
+def extract_claims(comment_body: str) -> Claims:
+    """Pull commit SHAs and PR numbers cited as resolving the issue.
+
+    Returns a Claims tuple preserving first-seen order with duplicates
+    removed. The matcher is intentionally narrow: it only recognizes the
+    "resolved by commit X" / "fixed in PR #N" shape the bot's prior close
+    comments used (issue #2481 audit). Comments that name no artifact
+    return empty tuples and pass the gate trivially.
+    """
+    if not comment_body:
+        return Claims(commits=(), prs=())
+
+    seen_commits: list[str] = []
+    for match in _COMMIT_PATTERN.finditer(comment_body):
+        sha = match.group(1).lower()
+        if sha not in seen_commits:
+            seen_commits.append(sha)
+
+    seen_prs: list[int] = []
+    for match in _PR_PATTERN.finditer(comment_body):
+        number = int(match.group(1))
+        if number not in seen_prs:
+            seen_prs.append(number)
+
+    return Claims(commits=tuple(seen_commits), prs=tuple(seen_prs))
+
+
+def _commit_exists(owner: str, repo: str, sha: str) -> bool:
+    """Return True when ``gh api repos/<o>/<r>/commits/<sha>`` resolves."""
+    result = subprocess.run(
+        [
+            "gh", "api",
+            f"repos/{owner}/{repo}/commits/{sha}",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _pr_is_merged(owner: str, repo: str, number: int) -> bool:
+    """Return True when PR #N is closed AND merged on the remote."""
+    result = subprocess.run(
+        [
+            "gh", "api",
+            f"repos/{owner}/{repo}/pulls/{number}",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+    return bool(isinstance(payload, dict) and payload.get("merged"))
+
+
+def verify_claims(claims: Claims, *, owner: str, repo: str) -> VerificationResult:
+    """Probe each claim against the remote and return any failures.
+
+    Each cited commit must resolve via the GitHub commits API; each cited
+    PR must be merged (state=closed, merged=true). Failures collect into a
+    list so a single close attempt that cites multiple bad claims surfaces
+    every one of them, not just the first.
+    """
+    failures: list[str] = []
+    for sha in claims.commits:
+        if not _commit_exists(owner, repo, sha):
+            failures.append(
+                f"cited commit {sha} does not exist on {owner}/{repo}"
+            )
+    for pr_number in claims.prs:
+        if not _pr_is_merged(owner, repo, pr_number):
+            failures.append(
+                f"cited PR #{pr_number} is not merged on {owner}/{repo}"
+            )
+    return VerificationResult(failures=tuple(failures))
 
 
 def _comment_base_dir() -> Path:
@@ -351,6 +494,34 @@ def main(argv: list[str] | None = None) -> int:
             script_name="close_issue.py",
         )
         return 0
+
+    # Verify any cited commit / PR claims BEFORE we run the close; a bad
+    # claim aborts the entire operation so the bot cannot post "resolved by
+    # commit X" when X does not exist (issue #2481).
+    if args.verify_claims and body and body.strip():
+        claims = extract_claims(body)
+        verification = verify_claims(claims, owner=owner, repo=repo)
+        if verification.failures:
+            message = (
+                "Closing comment cites unverifiable artifact(s); aborting "
+                "close. " + "; ".join(verification.failures)
+            )
+            write_skill_error(
+                message,
+                1,
+                error_type="VerificationFailed",
+                output_format=fmt,
+                script_name="close_issue.py",
+                extra={
+                    "issue": issue,
+                    "claims": {
+                        "commits": list(claims.commits),
+                        "prs": list(claims.prs),
+                    },
+                    "failures": list(verification.failures),
+                },
+            )
+            return 1
 
     result = _close_issue(owner, repo, issue, args.reason)
     if result.returncode != 0:

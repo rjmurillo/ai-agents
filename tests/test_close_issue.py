@@ -580,3 +580,344 @@ class TestMain:
         assert data["commentAlreadyPresent"] is False
         assert mock_run.call_count == 3
         assert mock_run.call_args_list[2].args[0][:2] == ["gh", "api"]
+
+
+# ---------------------------------------------------------------------------
+# extract_claims (pure parser; no I/O)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractClaims:
+    """The claim parser pulls SHAs and PR numbers out of a comment body."""
+
+    def test_no_claims_returns_empty(self):
+        claims = _mod.extract_claims("Closing as completed. No further action needed.")
+        assert claims.commits == ()
+        assert claims.prs == ()
+
+    def test_resolved_by_commit_short_sha(self):
+        claims = _mod.extract_claims("Resolved by commit 61c56cbe (Feb 19, 2026).")
+        assert claims.commits == ("61c56cbe",)
+
+    def test_resolved_by_commit_full_sha(self):
+        claims = _mod.extract_claims(
+            "Resolved by commit deadbeefcafe1234567890abcdef0123456789ab.",
+        )
+        assert claims.commits == ("deadbeefcafe1234567890abcdef0123456789ab",)
+
+    def test_resolved_by_pr_number(self):
+        claims = _mod.extract_claims("Resolved by PR #1024 which standardized outputs.")
+        assert claims.prs == (1024,)
+
+    def test_fixed_in_pr_phrasing(self):
+        claims = _mod.extract_claims("Fixed in PR #42.")
+        assert claims.prs == (42,)
+
+    def test_closed_via_pr_phrasing(self):
+        claims = _mod.extract_claims("Auto-closed via Closes #907 on PR #1024.")
+        # "Closes #N" trailer text mentions the issue being closed, not a fix
+        # source; only PR #1024 is the claimed resolver.
+        assert claims.prs == (1024,)
+
+    def test_extracts_multiple_distinct_shas(self):
+        claims = _mod.extract_claims(
+            "Resolved by commit abc1234 and follow-up commit def5678.",
+        )
+        assert claims.commits == ("abc1234", "def5678")
+
+    def test_ignores_short_hex_words(self):
+        # 6 chars is below the 7-char short-SHA floor; not a claim.
+        claims = _mod.extract_claims("Resolved by commit abc123.")
+        assert claims.commits == ()
+
+    def test_ignores_decimal_numbers_outside_pr_context(self):
+        claims = _mod.extract_claims("Closed because count was 1024 items.")
+        assert claims.prs == ()
+
+    def test_dedups_repeated_claims(self):
+        claims = _mod.extract_claims(
+            "Resolved by commit abc1234. See commit abc1234 for context.",
+        )
+        assert claims.commits == ("abc1234",)
+
+
+# ---------------------------------------------------------------------------
+# verify_claims (gh / git probes)
+# ---------------------------------------------------------------------------
+
+
+def _commit_found():
+    return _completed(stdout='{"sha":"abc1234"}', rc=0)
+
+
+def _commit_missing():
+    return _completed(stderr="Not Found", rc=1)
+
+
+def _pr_merged():
+    return _completed(stdout=json.dumps({"state": "closed", "merged": True}), rc=0)
+
+
+def _pr_open():
+    return _completed(stdout=json.dumps({"state": "open", "merged": False}), rc=0)
+
+
+def _pr_closed_unmerged():
+    return _completed(stdout=json.dumps({"state": "closed", "merged": False}), rc=0)
+
+
+class TestVerifyClaims:
+    """The verifier confirms each claim resolves against GitHub before close."""
+
+    def test_no_claims_returns_clean(self):
+        result = _mod.verify_claims(
+            _mod.Claims(commits=(), prs=()),
+            owner="o",
+            repo="r",
+        )
+        assert result.failures == ()
+
+    def test_resolvable_commit_passes(self):
+        with patch("subprocess.run", side_effect=[_commit_found()]) as mock_run:
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("abc1234",), prs=()),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+        # Probe used gh api repos/o/r/commits/abc1234.
+        probe_args = mock_run.call_args_list[0].args[0]
+        assert probe_args[:2] == ["gh", "api"]
+        assert probe_args[2] == "repos/o/r/commits/abc1234"
+
+    def test_missing_commit_fails(self):
+        with patch("subprocess.run", side_effect=[_commit_missing()]):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("61c56cbe",), prs=()),
+                owner="o",
+                repo="r",
+            )
+        assert len(result.failures) == 1
+        assert "61c56cbe" in result.failures[0]
+        assert "commit" in result.failures[0].lower()
+
+    def test_merged_pr_passes(self):
+        with patch("subprocess.run", side_effect=[_pr_merged()]):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1024,)),
+                owner="o",
+                repo="r",
+            )
+        assert result.failures == ()
+
+    def test_open_pr_fails(self):
+        with patch("subprocess.run", side_effect=[_pr_open()]):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1024,)),
+                owner="o",
+                repo="r",
+            )
+        assert len(result.failures) == 1
+        assert "#1024" in result.failures[0]
+        assert "merged" in result.failures[0].lower()
+
+    def test_closed_unmerged_pr_fails(self):
+        with patch("subprocess.run", side_effect=[_pr_closed_unmerged()]):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=(), prs=(1024,)),
+                owner="o",
+                repo="r",
+            )
+        assert len(result.failures) == 1
+
+    def test_multiple_failures_collected(self):
+        with patch(
+            "subprocess.run",
+            side_effect=[_commit_missing(), _pr_open()],
+        ):
+            result = _mod.verify_claims(
+                _mod.Claims(commits=("61c56cbe",), prs=(1024,)),
+                owner="o",
+                repo="r",
+            )
+        assert len(result.failures) == 2
+
+
+# ---------------------------------------------------------------------------
+# main with --verify-claims gate (integration; the audit failure mode)
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyClaimsGate:
+    """When --verify-claims is set, an unverifiable claim aborts the close."""
+
+    def test_verify_claims_off_skips_verification(self, capsys):
+        # The opt-out path keeps backward compatibility: a comment that
+        # claims a non-existent commit still closes when --verify-claims is
+        # absent. This preserves the legacy contract for callers that have
+        # not yet adopted the gate.
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_open(),
+                _completed(rc=0),
+                _completed(stdout="{}", rc=0),
+            ],
+        ) as mock_run:
+            rc = main(
+                [
+                    "--issue",
+                    "134",
+                    "--comment",
+                    "Resolved by commit 61c56cbe (Feb 19, 2026).",
+                ],
+            )
+        assert rc == 0
+        # State check + close + comment POST; no verification probes.
+        assert mock_run.call_count == 3
+
+    def test_verify_claims_blocks_missing_commit(self, capsys):
+        # The exact failure mode from issue #2481 (#134 audit row).
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[_state_open(), _commit_missing()],
+        ) as mock_run:
+            rc = main(
+                [
+                    "--issue",
+                    "134",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by commit 61c56cbe (Feb 19, 2026).",
+                ],
+            )
+        assert rc == 1
+        # State check + commit probe; NO close, NO comment POST.
+        assert mock_run.call_count == 2
+        close_calls = [
+            call.args[0]
+            for call in mock_run.call_args_list
+            if call.args and call.args[0][:3] == ["gh", "issue", "close"]
+        ]
+        assert close_calls == []
+
+        env = _envelope(capsys)
+        assert env["Success"] is False
+        assert env["Error"]["Code"] == 1
+        assert env["Error"]["Type"] == "VerificationFailed"
+        # Failure detail names the unverifiable claim so a human auditor can
+        # see exactly which claim broke the gate.
+        assert "61c56cbe" in env["Error"]["Message"]
+
+    def test_verify_claims_blocks_unmerged_pr(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[_state_open(), _pr_open()],
+        ) as mock_run:
+            rc = main(
+                [
+                    "--issue",
+                    "139",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by PR #1024.",
+                ],
+            )
+        assert rc == 1
+        # State check + PR probe; no close, no comment POST.
+        assert mock_run.call_count == 2
+        env = _envelope(capsys)
+        assert env["Error"]["Type"] == "VerificationFailed"
+        assert "#1024" in env["Error"]["Message"]
+
+    def test_verify_claims_passes_when_commit_and_pr_resolve(self, capsys):
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_open(),
+                _commit_found(),
+                _pr_merged(),
+                _completed(rc=0),
+                _completed(stdout="{}", rc=0),
+            ],
+        ) as mock_run:
+            rc = main(
+                [
+                    "--issue",
+                    "50",
+                    "--verify-claims",
+                    "--comment",
+                    "Resolved by commit abc1234 (PR #999).",
+                ],
+            )
+        assert rc == 0
+        # State + commit probe + PR probe + close + comment POST.
+        assert mock_run.call_count == 5
+        data = _envelope(capsys)["Data"]
+        assert data["state"] == "closed"
+        assert data["commented"] is True
+
+    def test_verify_claims_passes_when_comment_has_no_claims(self, capsys):
+        # An "I looked and there are none" comment (e.g. #702 row) needs no
+        # commit/PR verification; the gate is for cited artifacts only.
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[
+                _state_open(),
+                _completed(rc=0),
+                _completed(stdout="{}", rc=0),
+            ],
+        ) as mock_run:
+            rc = main(
+                [
+                    "--issue",
+                    "702",
+                    "--verify-claims",
+                    "--comment",
+                    "Closing because the cited gap is no longer reproducible.",
+                ],
+            )
+        assert rc == 0
+        # No commit/PR probes since the comment cites neither.
+        assert mock_run.call_count == 3
+
+    def test_verify_claims_with_no_comment_skips_gate(self, capsys):
+        # No comment = no claim to verify. Backwards compatible with bare
+        # gh issue close usage; the gate only applies to comment claims.
+        with patch(
+            "close_issue.assert_gh_authenticated",
+        ), patch(
+            "close_issue.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "subprocess.run",
+            side_effect=[_state_open(), _completed(rc=0)],
+        ) as mock_run:
+            rc = main(["--issue", "60", "--verify-claims"])
+        assert rc == 0
+        assert mock_run.call_count == 2
