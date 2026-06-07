@@ -192,6 +192,7 @@ set_python_cmd() {
 ZERO="0000000000000000000000000000000000000000"
 CHANGED_FILES=""
 PUSH_RANGE=""
+PUSH_BRANCH=""
 REFS_PROCESSED=0
 # Store each ref's base and head for per-ref validation (plugin version bump)
 PVB_BASES=()
@@ -232,8 +233,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         fi
     fi
 
-    # Keep last ref range for commit count and additions checks
+    # Keep last ref range and branch for commit count and additions checks
     PUSH_RANGE="$ref_range"
+    case "$local_ref" in
+        refs/heads/*)
+            PUSH_BRANCH="${local_ref#refs/heads/}"
+            ;;
+    esac
 
     # Store base and head for per-ref plugin version validation
     if [ -n "$ref_range" ]; then
@@ -308,6 +314,9 @@ CHANGED_TEMPLATES=$(echo "$CHANGED_FILES" | grep -E '^templates/' || true)
 CHANGED_SESSIONS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/sessions/' || true)
 CHANGED_PLANNING=$(echo "$CHANGED_FILES" | grep -E '^\.agents/planning/' || true)
 CHANGED_ADRS=$(echo "$CHANGED_FILES" | grep -E '^\.agents/architecture/ADR-.*\.md$' || true)
+# Agent drift compares agent prompt copies only. Copilot skill scripts live under
+# src/copilot-cli/skills/ and must not inherit unrelated agent drift blockers.
+CHANGED_AGENT_DRIFT_INPUTS=$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+\.md|src/vs-code-agents/.*\.agent\.md|src/copilot-cli/agents/.*\.agent\.md|templates/agents/|\.claude/agents/|\.github/agents/)' || true)
 # Hook-anchoring relevant paths (#2205): generator, both plugin hook files,
 # the project-mode settings source, the anchoring gate, and the e2e itself.
 # A change to any forces the real-CLI e2e (resolution under the live contract).
@@ -388,9 +397,28 @@ fi
 if [ -n "$PUSH_RANGE" ]; then
     COMMIT_COUNT=$(git rev-list --count "$PUSH_RANGE" 2>/dev/null || echo "0")
     if [ "$COMMIT_COUNT" -gt "$COMMIT_LIMIT" ]; then
-        record_fail "Commit count ($COMMIT_COUNT) exceeds limit of $COMMIT_LIMIT"
-        echo_info "  Consider squashing commits or splitting the PR."
-        echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
+        # Honor the commit-limit-bypass label so a repair push to an
+        # already-over-limit PR does not require --no-verify (Issue #2456).
+        # Mirrors the CI gate in .github/workflows/pr-validation.yml
+        # ("Enforce Blocking Issues"). The helper fails closed: any gh error
+        # leaves the limit enforced.
+        if set_python_cmd; then
+            BYPASS_STATUS=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR -u GIT_INDEX_FILE \
+                "${PYTHON_CMD[@]}" "$REPO_ROOT/scripts/validation/check_pr_bypass_label.py" \
+                --branch "${PUSH_BRANCH:-$current_branch}" 2>/dev/null)
+            BYPASS_EXIT=$?
+        else
+            BYPASS_STATUS="python unavailable; cannot check bypass label"
+            BYPASS_EXIT=3
+        fi
+        if [ "$BYPASS_EXIT" -eq 0 ]; then
+            record_warn "Commit count ($COMMIT_COUNT > $COMMIT_LIMIT) bypassed: $BYPASS_STATUS"
+        else
+            record_fail "Commit count ($COMMIT_COUNT) exceeds limit of $COMMIT_LIMIT ($BYPASS_STATUS)"
+            echo_info "  Consider squashing commits or splitting the PR."
+            echo_info "  Or add the 'commit-limit-bypass' label to the PR for repair pushes."
+            echo_info "  See: CONTRIBUTING.md#commit-count-thresholds"
+        fi
     elif [ "$COMMIT_COUNT" -gt "$COMMIT_WARN" ]; then
         record_warn "Commit count ($COMMIT_COUNT) approaching limit of $COMMIT_LIMIT"
     else
@@ -768,7 +796,7 @@ echo_phase "Phase 3: Build Validation"
 # 11. Agent drift detection (Python port of the retired Detect-AgentDrift.ps1)
 AGENT_DRIFT_SCRIPT="$REPO_ROOT/build/scripts/detect_agent_drift.py"
 
-if [ -n "$(echo "$CHANGED_FILES" | grep -E '^(src/claude/[^/]+\.md|src/vs-code-agents/.*\.agent\.md|src/copilot-cli/agents/.*\.agent\.md|templates/agents/|\.claude/agents/|\.github/agents/)' || true)" ]; then
+if [ -n "$CHANGED_AGENT_DRIFT_INPUTS" ]; then
     if [ -L "$AGENT_DRIFT_SCRIPT" ]; then
         record_warn "Agent drift script is a symlink (skipping $AGENT_DRIFT_SCRIPT)"
     elif [ -f "$AGENT_DRIFT_SCRIPT" ]; then

@@ -405,13 +405,22 @@ def _original_main(stdin_bytes):
             for source, text in shown:
                 lines.append(f"- [{source}] {text}")
 
-            # Match the {decision, reason} envelope used by every other
-            # PreToolUse hook in this repo (invoke_branch_protection_guard,
-            # invoke_branch_context_guard, invoke_false_completion_gate,
-            # invoke_security_commit_gate, invoke_prompt_eval_gate). Claude
-            # Code surfaces the `reason` field; `message` was silently dropped.
+            # Advisory hook: surface corrections to the model WITHOUT making a
+            # permission decision. PreToolUse model-visible context goes in
+            # hookSpecificOutput.additionalContext. {"decision": "allow"} is INVALID:
+            # the top-level `decision` field accepts only "approve"/"block" (the
+            # blocking guards use "block"); "allow"/"deny"/"ask" belong to
+            # hookSpecificOutput.permissionDecision, and setting permissionDecision
+            # would auto-approve the tool. additionalContext advises and leaves the
+            # normal permission flow intact. The old envelope failed schema
+            # validation ("(root): Invalid input"), so the advisory was dropped.
             advisory = "\n".join(lines)
-            output = {"decision": "allow", "reason": advisory}
+            output = {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "additionalContext": advisory,
+                }
+            }
             print(json.dumps(output))
             # Mirror advisory text to stderr for human visibility in logs
             # (stdout must remain valid JSON for the hook protocol).

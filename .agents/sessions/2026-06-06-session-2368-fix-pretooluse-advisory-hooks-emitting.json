@@ -1,0 +1,150 @@
+{
+  "session": {
+    "number": 2368,
+    "date": "2026-06-06",
+    "branch": "fix/pretooluse-advisory-hook-json-schema",
+    "startingCommit": "e6031e99c",
+    "objective": "Fix PreToolUse advisory hooks emitting invalid decision:allow JSON; switch to hookSpecificOutput.additionalContext envelope, regenerate copilot shims, add stdout-JSON regression tests, bump plugin.json to 0.5.135"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active; project 'ai-agents' activated; get_symbols_overview used on test files; initial_instructions invoked"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions invoked this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by context-loader hook at SessionStart and reviewed"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog injected at SessionStart; session-init skill invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/CLAUDE.md mandatory usage instructions auto-loaded at session start"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md auto-loaded; Serena memory index loaded via initial_instructions; topical correction memories surfaced via PreToolUse hooks"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/pretooluse-advisory-hook-json-schema"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/pretooluse-advisory-hook-json-schema"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked at session start and throughout"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "e6031e99c"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUSTs complete; fix landed in two atomic commits"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md unchanged this session"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory claude/claude-code-pretooluse-advisory-envelope written"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix run; 0 errors (.agents/ paths excluded by repo config)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Commits 6d9b96be8 (hooks + shims + plugin bump) and ee35428b3 (tests)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run python -m pytest -> 54 passed; validate_session_json.py exit 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Work tracked in this session log and retro 2026-06-06-pretooluse-advisory-envelope.md"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ".agents/retrospective/2026-06-06-pretooluse-advisory-envelope.md"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "diagnose",
+      "evidence": "Reproduced PreToolUse:Bash hook error by feeding the tool payload to each Bash-matcher hook; isolated invoke_correction_applier.py emitting {decision: allow}, which is invalid because the top-level decision field accepts only approve/block"
+    },
+    {
+      "step": "confirm-schema",
+      "evidence": "claude-code-guide plus the context-mode kimi/hooks.ts adapter note confirmed PreToolUse advisory context uses hookSpecificOutput.additionalContext; sibling blocking guards (branch_protection, branch_context, false_completion) use decision:block"
+    },
+    {
+      "step": "fix-hooks",
+      "evidence": "invoke_correction_applier.py and invoke_topical_memory_injection.py switched to the hookSpecificOutput.additionalContext envelope; verified live (harness injected additionalContext with no error)"
+    },
+    {
+      "step": "tests",
+      "evidence": "Ran: uv run python -m pytest tests/test_invoke_correction_applier.py tests/hooks/test_topical_memory_injection.py -> 54 passed (exit code 0). Added stdout-JSON regression guards; the prior tests only checked stderr or substring-matched stdout, so the bad envelope passed green"
+    },
+    {
+      "step": "regenerate-mirror",
+      "evidence": "Ran generate_hooks with an absolute repo_root to regenerate the src/copilot-cli/hooks shims; hook_drift_guard exits 0; the regenerated Bash shim emits valid additionalContext end to end"
+    },
+    {
+      "step": "plugin-bump",
+      "evidence": ".claude/.claude-plugin/plugin.json bumped 0.5.134 to 0.5.135 for the plugin source change"
+    },
+    {
+      "step": "stopgap",
+      "evidence": "Patched the active plugin cache v0.5.134 copies to clear the live terminal error; non-durable, overwritten on the next plugin update which carries the published fix"
+    }
+  ],
+  "endingCommit": "ee35428b3",
+  "nextSteps": [
+    "Open PR linking the tracking issue",
+    "Republish project-toolkit plugin from this fix so consumer cache copies are durably fixed"
+  ]
+}

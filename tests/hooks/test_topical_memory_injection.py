@@ -174,7 +174,15 @@ class TestMain:
         stdin = _stdin_for(tmp_path)
         rc, cap = self._run(tmp_path, stdin, monkeypatch, capsys)
         assert rc == 0
-        assert "Topical memory (github)" in cap.out
+        # stdout MUST be the valid PreToolUse advisory envelope. Regression
+        # guard for the {"decision": "allow"} schema bug, which failed
+        # "(root): Invalid input" validation and dropped the advisory (the prior
+        # assertion substring-matched stdout, so the bad envelope passed green).
+        payload = json.loads(cap.out)
+        assert "decision" not in payload
+        hso = payload["hookSpecificOutput"]
+        assert hso["hookEventName"] == "PreToolUse"
+        assert "Topical memory (github)" in hso["additionalContext"]
 
     def test_silent_when_no_match(self, tmp_path, monkeypatch, capsys):
         _seed_memories(tmp_path, {"powershell/x.md": "# x\n"})
