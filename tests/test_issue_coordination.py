@@ -68,6 +68,7 @@ class TestFindOpenPrsForIssue:
                 "body": "Closes #2477",
                 "html_url": "u",
                 "head": {"ref": "b"},
+                "user": {"login": "alice"},
             },
             {
                 "number": 11,
@@ -75,6 +76,7 @@ class TestFindOpenPrsForIssue:
                 "body": "unrelated",
                 "html_url": "u2",
                 "head": {"ref": "b2"},
+                "user": {"login": "bob"},
             },
         ]
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
@@ -89,6 +91,7 @@ class TestFindOpenPrsForIssue:
                 "body": "y",
                 "html_url": "u",
                 "head": {"ref": "b"},
+                "user": {"login": "alice"},
             }
         ]
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
@@ -102,6 +105,7 @@ class TestFindOpenPrsForIssue:
                 "body": "Fixes #2477",
                 "html_url": "u",
                 "head": {"ref": "work"},
+                "user": {"login": "alice"},
             },
             {
                 "number": 11,
@@ -109,11 +113,39 @@ class TestFindOpenPrsForIssue:
                 "body": "Fixes #2477",
                 "html_url": "u2",
                 "head": {"ref": "other"},
+                "user": {"login": "bob"},
             },
         ]
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
-            out = _check.find_open_prs_for_issue("o", "r", 2477, current_branch_name="work")
+            out = _check.find_open_prs_for_issue(
+                "o",
+                "r",
+                2477,
+                current_branch_name="work",
+                current_user_login="alice",
+            )
         assert [m["number"] for m in out] == [11]
+
+    def test_same_branch_from_different_author_still_blocks(self):
+        prs = [
+            {
+                "number": 10,
+                "title": "feat",
+                "body": "Fixes #2477",
+                "html_url": "u",
+                "head": {"ref": "work"},
+                "user": {"login": "bob"},
+            }
+        ]
+        with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):
+            out = _check.find_open_prs_for_issue(
+                "o",
+                "r",
+                2477,
+                current_branch_name="work",
+                current_user_login="alice",
+            )
+        assert [m["number"] for m in out] == [10]
 
     def test_handles_null_title_and_body(self):
         prs = [
@@ -123,6 +155,7 @@ class TestFindOpenPrsForIssue:
                 "body": None,
                 "html_url": "u",
                 "head": {"ref": "b"},
+                "user": {"login": "alice"},
             }
         ]
         with patch.object(_check.subprocess, "run", return_value=_proc(0, json.dumps([prs]))):

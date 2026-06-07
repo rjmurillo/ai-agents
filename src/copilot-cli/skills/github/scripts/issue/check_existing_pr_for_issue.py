@@ -99,6 +99,18 @@ def current_branch() -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
+def current_login() -> str:
+    """Return the authenticated gh user login."""
+
+    result = _run(["gh", "api", "user", "--jq", ".login"])
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "gh api user failed")
+    login = result.stdout.strip()
+    if not login:
+        raise RuntimeError("gh api user returned empty login")
+    return login
+
+
 def _as_text(value: object) -> str:
     return value if isinstance(value, str) else ""
 
@@ -122,8 +134,20 @@ def _head_ref(pr: dict) -> str:
     return _as_text(pr.get("headRefName"))
 
 
+def _author_login(pr: dict) -> str:
+    user = pr.get("user")
+    if isinstance(user, dict):
+        return _as_text(user.get("login"))
+    return _as_text(pr.get("author"))
+
+
 def find_open_prs_for_issue(
-    owner: str, repo: str, issue: int, *, current_branch_name: str = ""
+    owner: str,
+    repo: str,
+    issue: int,
+    *,
+    current_branch_name: str = "",
+    current_user_login: str = "",
 ) -> list[dict]:
     """Return open PRs whose title or body references ``issue``."""
 
@@ -140,7 +164,13 @@ def find_open_prs_for_issue(
     matches = []
     for pr in _iter_pull_requests(prs):
         head_ref = _head_ref(pr)
-        if current_branch_name and head_ref == current_branch_name:
+        author_login = _author_login(pr)
+        if (
+            current_branch_name
+            and current_user_login
+            and head_ref == current_branch_name
+            and author_login == current_user_login
+        ):
             continue
         text = f"{_as_text(pr.get('title'))}\n{_as_text(pr.get('body'))}"
         if references_issue(text, issue):
@@ -149,6 +179,7 @@ def find_open_prs_for_issue(
                 "title": _as_text(pr.get("title")),
                 "url": _as_text(pr.get("html_url") or pr.get("url")),
                 "head": head_ref,
+                "author": author_login,
             })
     return matches
 
@@ -173,7 +204,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         matches = find_open_prs_for_issue(
-            owner, repo, args.issue, current_branch_name=current_branch()
+            owner,
+            repo,
+            args.issue,
+            current_branch_name=current_branch(),
+            current_user_login=current_login(),
         )
     except RuntimeError as err:
         write_skill_error(
