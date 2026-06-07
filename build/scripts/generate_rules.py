@@ -257,6 +257,18 @@ def _remap_frontmatter(
         # runs once on `applyTo` regardless of whether the source used
         # `paths`, `applyTo`, or `globs`.
         if new_key == "applyTo" and isinstance(value, str):
+            # A source `paths:` block list is parsed by the simple
+            # frontmatter parser into an inline-array string
+            # ("['a', 'b']"). Copilot's `applyTo` is a comma-separated
+            # string, so flatten the array to that shape before the
+            # internal-glob filter (which splits on ",") and before emit.
+            stripped = value.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                value = ",".join(
+                    item.strip().strip("'\"")
+                    for item in stripped[1:-1].split(",")
+                    if item.strip()
+                )
             value, dropped = _filter_internal_globs(value)
             for entry in dropped:
                 # Visible warning per dropped entry so plugin authors
