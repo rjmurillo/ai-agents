@@ -3,7 +3,7 @@
 
 Checks:
   - Conventional commit title format
-  - GitHub issue linking keywords (Closes, Fixes, Resolves)
+  - GitHub issue linking keywords (Closes, Fixes, Resolves, Refs)
   - PR template section completion
 
 Exit codes follow ADR-035:
@@ -30,7 +30,7 @@ _CONVENTIONAL_COMMIT_PATTERN = re.compile(
 )
 
 _ISSUE_KEYWORD_PATTERN = re.compile(
-    r"(?i)(close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s+([\w-]+/[\w-]+)?#\d+"
+    r"(?i)\b(close[sd]?|fix(?:es|ed)?|resolve[sd]?|refs?)\s+([\w-]+/[\w-]+)?#\d+"
 )
 
 
@@ -59,8 +59,9 @@ def validate_issue_keywords(text: str) -> dict:
     return {
         "Status": "WARN",
         "Message": (
-            "No GitHub issue linking keywords found (Closes, Fixes, Resolves). "
-            "Consider adding: Closes #<issue-number>"
+            "No GitHub issue linking keywords found (Closes, Fixes, Resolves, Refs #N). "
+            "Consider adding: Closes #<issue-number> (auto-close on merge) "
+            "or Refs #<issue-number> (partial-fix, leaves issue open)"
         ),
         "Keywords": [],
     }
