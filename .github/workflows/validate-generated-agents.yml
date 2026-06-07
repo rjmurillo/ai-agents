@@ -35,7 +35,7 @@ jobs:
       contents: read
     outputs:
       # For workflow_dispatch, always run validation; otherwise use paths-filter result
-      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-validate }}
+      should-run-agents: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.determine.outputs.should-run-agents }}
 
     steps:
       - name: Checkout repository
@@ -68,7 +68,7 @@ jobs:
         id: determine
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "should-validate=true" >> $GITHUB_OUTPUT
+            echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
             echo "Decision: Run validation (manual trigger)"
           else
             AGENTS="${{ steps.filter.outputs.agents }}"
@@ -77,10 +77,10 @@ jobs:
 
             # Run validation if agent files changed, skip otherwise
             if [ "$AGENTS" = "true" ]; then
-              echo "should-validate=true" >> $GITHUB_OUTPUT
+              echo "should-run-agents=true" >> "$GITHUB_OUTPUT"
               echo "Decision: Run validation (agent files changed)"
             else
-              echo "should-validate=false" >> $GITHUB_OUTPUT
+              echo "should-run-agents=false" >> "$GITHUB_OUTPUT"
               echo "Decision: Skip validation (no agent files changed)"
             fi
           fi
@@ -97,10 +97,10 @@ jobs:
       - name: Check if validation needed
         id: should-run
         env:
-          SHOULD_VALIDATE: ${{ needs.check-paths.outputs.should-validate }}
+          SHOULD_VALIDATE: ${{ needs.check-paths.outputs.should-run-agents }}
         run: |
           if [ "$SHOULD_VALIDATE" != "true" ]; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "No agent files changed - skipping validation"
           fi
 

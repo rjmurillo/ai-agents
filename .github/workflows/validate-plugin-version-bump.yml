@@ -31,7 +31,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      should-validate: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
+      should-run-version-bump: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.paths }}
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
@@ -53,7 +53,7 @@ jobs:
   validate:
     name: Validate Plugin Version Bump
     needs: check-paths
-    if: needs.check-paths.outputs.should-validate == 'true'
+    if: needs.check-paths.outputs.should-run-version-bump == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 15
     permissions:
@@ -102,7 +102,7 @@ jobs:
   skip-validation:
     name: Validate Plugin Version Bump (Skipped)
     needs: check-paths
-    if: needs.check-paths.outputs.should-validate != 'true'
+    if: needs.check-paths.outputs.should-run-version-bump != 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     permissions:
