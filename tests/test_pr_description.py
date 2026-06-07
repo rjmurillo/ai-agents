@@ -82,7 +82,7 @@ class TestIssueKeywords:
         assert kw["Status"] == "PASS"
         assert len(kw["Keywords"]) == 2
 
-    # Issue #2489 — `.claude/rules/universal.md` MUST-2 permits `Refs #<n>` as a
+    # Issue #2489: `.claude/rules/universal.md` MUST-2 permits `Refs #<n>` as a
     # valid issue link for partial-fix PRs. The PR-description gate must accept
     # it as PASS, not WARN, so authors are not pressured to falsely upgrade to
     # `Closes` (the #2481 false-complete-close anti-pattern).
@@ -109,6 +109,15 @@ class TestIssueKeywords:
     def test_refs_cross_repo(self):
         r = run_validator("--title", "feat: X", "--body", "Refs org/repo#42")
         assert r["Validations"]["IssueKeywords"]["Status"] == "PASS"
+
+    def test_keyword_substrings_warn(self):
+        r = run_validator(
+            "--title",
+            "feat: X",
+            "--body",
+            "This is a prefix #123 and I prefer #456",
+        )
+        assert r["Validations"]["IssueKeywords"]["Status"] == "WARN"
 
     def test_warn_message_mentions_refs(self):
         # When NO keywords are found the WARN message must list `Refs` alongside
