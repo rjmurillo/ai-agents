@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
+  "session": "2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
+  "timestamp": "2026-06-07T00:00:00+00:00",
+  "outcome": "success",
+  "task": "AGENTS.md optimization study: apply v2, open ADR-070 conditional rule loading, land PR-churn eval tooling",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest tests/eval/test_pr_churn.py = 19 passed. python3 scripts/validation/pre_pr.py = All validations passed (exit 0). AGENTS.md token budget = 1223/2000.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d2800b214",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

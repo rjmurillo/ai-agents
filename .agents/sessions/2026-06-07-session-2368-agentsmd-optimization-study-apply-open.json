@@ -1,0 +1,135 @@
+{
+  "session": {
+    "number": 2368,
+    "date": "2026-06-07",
+    "branch": "feat/pr-churn-eval-tooling",
+    "startingCommit": "6d6b37d2f",
+    "objective": "AGENTS.md optimization study: apply v2, open ADR-070 conditional rule loading, land PR-churn eval tooling"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; initial_instructions read this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read Serena Instructions Manual"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md + latest retrospective injected by context-loader at session start"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "available-skills list provided in session context; session-init skill invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/rules (incl using-serena/forgetful) in session context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, .claude/rules, ADR-069 read; constraints referenced"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "MEMORY.md index + recalled memories injected at session start"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/pr-churn-eval-tooling"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/pr-churn-eval-tooling"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified before each commit; only intended files staged"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "6d6b37d2f"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work complete: eval tooling + AGENTS.md v2 committed; ADR-070 drafted (pending adr-review); wiki concept + serena memory written"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/instruction-context-efficiency-not-quality.md"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 ran in pre-commit on each commit (0 errors)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "502edb762 (eval tooling), d2800b214 (AGENTS.md v2)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py = All validations passed (exit 0); pytest 19 passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "context",
+      "evidence": "Read AGENTS.md, .claude/rules, ADRs (incl ADR-069), wiki agent-instruction guidance; ran clean-room A/B instruction-optimization study (kata + moq.analyzers)."
+    },
+    {
+      "step": "verify",
+      "evidence": "uv run pytest tests/eval/test_pr_churn.py = 19 passed. python3 scripts/validation/pre_pr.py = All validations passed (exit 0). AGENTS.md token budget = 1223/2000."
+    },
+    {
+      "step": "implement",
+      "evidence": "Applied AGENTS.md v2; created ADR-070 (conditional rule loading / assembly layer); added scripts/eval/_pr_churn.py, scripts/eval/analyze-pr-churn.py, tests/eval/test_pr_churn.py, scripts/eval/README.md row."
+    }
+  ],
+  "endingCommit": "d2800b214",
+  "nextSteps": [
+    "Push branch + open PR for AGENTS.md v2 + ADR-070 + eval tooling",
+    "Route ADR-070 through adr-review",
+    "Complete session-end (serena memory, lint, ending commit)"
+  ]
+}
