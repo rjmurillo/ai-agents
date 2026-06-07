@@ -847,16 +847,49 @@ def _script_commit() -> str:
     """
 
     script = os.path.abspath(__file__)
+    env = {**os.environ, "LC_ALL": "C"}
     try:
-        result = subprocess.run(
-            ["git", "-C", os.path.dirname(script),
-             "log", "-1", "--format=%h", "--", script],
+        root_result = subprocess.run(
+            ["git", "-C", os.path.dirname(script), "rev-parse", "--show-toplevel"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=False,
+            timeout=10,
+        )
+        repo_root = root_result.stdout.strip()
+        if root_result.returncode != 0 or not repo_root:
+            return "unknown"
+
+        pathspec = os.path.relpath(script, repo_root)
+        if pathspec == os.pardir or pathspec.startswith(f"{os.pardir}{os.sep}"):
+            return "unknown"
+
+        status_result = subprocess.run(
+            ["git", "-C", repo_root, "status", "--porcelain", "--", pathspec],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            check=False,
+            timeout=10,
+        )
+        if status_result.returncode != 0 or status_result.stdout.strip():
+            return "unknown"
+
+        result = subprocess.run(
+            ["git", "-C", repo_root, "log", "-1", "--format=%h", "--", pathspec],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
             check=False,
             timeout=10,
         )
     except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    if result.returncode != 0:
         return "unknown"
     return result.stdout.strip() or "unknown"
 
