@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate",
+  "session": "2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Phase 1 baseline analysis 2478 quality-gate signal-to-noise",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
