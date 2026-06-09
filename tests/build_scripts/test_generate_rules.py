@@ -13,12 +13,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 sys.path.insert(0, str(REPO_ROOT / "build"))
 
 import generate_rules  # noqa: E402
-
 
 # Helpers --------------------------------------------------------------------
 
@@ -225,6 +226,81 @@ def test_internal_paths_filtered_from_applyTo(tmp_path: Path) -> None:
     assert "**/Auth/**" in fm
     assert "*.env*" in fm
     assert ".github/workflows/**" in fm
+
+
+def test_block_list_paths_flattened_to_applyTo_string(tmp_path: Path) -> None:
+    """A `paths:` YAML block list MUST flatten to a comma-separated applyTo.
+
+    Claude Code reads `paths` as a YAML list; the Copilot mirror expects a
+    single comma-separated `applyTo` string. The simple frontmatter parser
+    turns a block list into an inline-array string, so the generator flattens
+    it before emit (no `[`/`]` brackets, no quote chars leak through).
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "csharp",
+        frontmatter='paths:\n  - "**/*.cs"\n  - "**/*.csproj"\ndescription: "C#"\n',
+        body="# C#\n",
+    )
+    cfg = _write_config(tmp_path)
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    fm = _read_output(tmp_path, "csharp").split("---")[1]
+    assert "applyTo:" in fm
+    assert "**/*.cs,**/*.csproj" in fm
+    assert "[" not in fm and "]" not in fm
+    assert "paths:" not in fm
+
+
+def test_serialized_paths_list_rejects_comma_inside_item() -> None:
+    """A comma inside a list item is ambiguous after flattening to applyTo."""
+    with pytest.raises(generate_rules.GenerateRulesError, match="cannot contain commas"):
+        generate_rules._flatten_serialized_scope_list("['docs/a,b/**', 'src/**']")
+
+
+def test_serialized_paths_list_uses_python_parser_for_quoted_values() -> None:
+    """Serialized lists should preserve quoted values without comma separators."""
+    value = generate_rules._flatten_serialized_scope_list(
+        "['docs/quoted\\'path/**', 'src/**']"
+    )
+
+    assert value == "docs/quoted'path/**,src/**"
+
+
+def test_serialized_paths_list_falls_back_for_invalid_python_list() -> None:
+    """Invalid serialized lists keep the legacy best-effort fallback."""
+    value = generate_rules._flatten_serialized_scope_list("['docs/**', invalid]")
+
+    assert value == "docs/**,invalid"
+
+
+def test_block_list_paths_internal_globs_filtered(tmp_path: Path) -> None:
+    """Internal-only globs MUST be dropped even when paths is a block list.
+
+    The internal-glob filter splits on ",", so a block list (parsed into an
+    inline-array string) must be flattened first; otherwise the `[`-prefixed
+    first item would never match the internal-path prefixes. Regression guard
+    for the paths-list flatten in `_remap_frontmatter`.
+    """
+    _write_rule(
+        tmp_path / "rules_src",
+        "security",
+        frontmatter=(
+            'paths:\n'
+            '  - ".agents/security/**"\n'
+            '  - "**/Auth/**"\n'
+            '  - ".claude/rules/security.md"\n'
+        ),
+        body="body\n",
+    )
+    cfg = _write_config(tmp_path)
+    rc, _ = generate_rules.generate_rules(cfg, tmp_path)
+    assert rc == 0
+    fm = _read_output(tmp_path, "security").split("---")[1]
+    assert ".agents/security/**" not in fm
+    assert ".claude/rules/security.md" not in fm
+    assert "**/Auth/**" in fm
+    assert "[" not in fm and "]" not in fm
 
 
 def test_all_internal_paths_synthesizes_universal_scope(tmp_path: Path) -> None:

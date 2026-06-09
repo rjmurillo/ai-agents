@@ -1,5 +1,7 @@
 ---
-applyTo: ".agents/retrospective/**,docs/retros/**"
+paths:
+  - ".agents/retrospective/**"
+  - "docs/retros/**"
 priority: normal
 ---
 

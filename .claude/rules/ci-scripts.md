@@ -1,5 +1,10 @@
 ---
-applyTo: "scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/**,build/**"
+paths:
+  - "scripts/validation/**"
+  - "scripts/**"
+  - ".github/workflows/**"
+  - ".github/actions/**"
+  - "build/**"
 priority: high
 ---
 

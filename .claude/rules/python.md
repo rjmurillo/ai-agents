@@ -1,5 +1,8 @@
 ---
-applyTo: "**/*.py,**/pyproject.toml,**/requirements*.txt"
+paths:
+  - "**/*.py"
+  - "**/pyproject.toml"
+  - "**/requirements*.txt"
 description: Python idioms, typing, tooling, and pitfalls. Applies when editing Python or packaging files.
 ---
 

@@ -1,5 +1,11 @@
 ---
-applyTo: ".claude/hooks/**,scripts/validation/**,build/scripts/**,.claude/skills/**,.claude/review-axes/**,.github/prompts/**"
+paths:
+  - ".claude/hooks/**"
+  - "scripts/validation/**"
+  - "build/scripts/**"
+  - ".claude/skills/**"
+  - ".claude/review-axes/**"
+  - ".github/prompts/**"
 priority: high
 ---
 

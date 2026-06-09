@@ -1,5 +1,9 @@
 ---
-applyTo: "src/claude/**,.claude/agents/**,.claude/skills/**,.claude/commands/**"
+paths:
+  - "src/claude/**"
+  - ".claude/agents/**"
+  - ".claude/skills/**"
+  - ".claude/commands/**"
 priority: high
 ---
 

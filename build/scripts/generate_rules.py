@@ -45,6 +45,7 @@ Per ADR-035 Exit Code Standardization.
 from __future__ import annotations
 
 import argparse
+import ast
 import sys
 import time
 from dataclasses import dataclass, field
@@ -58,13 +59,13 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
-from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
-from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 from generate_agents_common import (  # noqa: E402
     format_frontmatter_yaml,
     parse_simple_frontmatter,
     read_yaml_frontmatter,
 )
+from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _DEFAULT_SOURCE_SUFFIX = ".md"
 _DEFAULT_OUTPUT_SUFFIX = ".instructions.md"
@@ -228,6 +229,31 @@ def _filter_internal_globs(value: str) -> tuple[str, list[str]]:
     return ",".join(kept), dropped
 
 
+def _flatten_serialized_scope_list(value: str) -> str:
+    """Flatten a serialized frontmatter list into a comma-separated scope string."""
+    stripped = value.strip()
+    if not (stripped.startswith("[") and stripped.endswith("]")):
+        return value
+    try:
+        parsed = ast.literal_eval(stripped)
+    except (ValueError, SyntaxError):
+        return ",".join(
+            item.strip().strip("'\"")
+            for item in stripped[1:-1].split(",")
+            if item.strip()
+        )
+    if not isinstance(parsed, list):
+        return value
+    items = [str(item) for item in parsed]
+    invalid = [item for item in items if "," in item]
+    if invalid:
+        raise GenerateRulesError(
+            "scope list items cannot contain commas because applyTo is "
+            f"comma-separated: {invalid[0]!r}"
+        )
+    return ",".join(items)
+
+
 def _remap_frontmatter(
     frontmatter: dict[str, str | None],
     remap: dict[str, str],
@@ -257,6 +283,12 @@ def _remap_frontmatter(
         # runs once on `applyTo` regardless of whether the source used
         # `paths`, `applyTo`, or `globs`.
         if new_key == "applyTo" and isinstance(value, str):
+            # A source `paths:` block list is parsed by the simple
+            # frontmatter parser into an inline-array string
+            # ("['a', 'b']"). Copilot's `applyTo` is a comma-separated
+            # string, so flatten the array to that shape before the
+            # internal-glob filter (which splits on ",") and before emit.
+            value = _flatten_serialized_scope_list(value)
             value, dropped = _filter_internal_globs(value)
             for entry in dropped:
                 # Visible warning per dropped entry so plugin authors
@@ -336,7 +368,11 @@ def _process_rule(
     ``emitted`` or ``sentinel-skipped``. Unscoped rules receive a
     synthesized ``applyTo: "**"`` (universal scope) via ``_remap_frontmatter``.
     """
-    name = src_path.name[: -len(source_suffix)] if src_path.name.endswith(source_suffix) else src_path.stem
+    name = (
+        src_path.name[: -len(source_suffix)]
+        if src_path.name.endswith(source_suffix)
+        else src_path.stem
+    )
     text = src_path.read_text(encoding="utf-8")
     match = read_yaml_frontmatter(text)
     if match is None:

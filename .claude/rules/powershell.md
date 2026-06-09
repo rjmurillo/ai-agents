@@ -1,5 +1,8 @@
 ---
-applyTo: "**/*.ps1,**/*.psm1,**/*.psd1"
+paths:
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.psd1"
 description: PowerShell 7+ idioms, error handling, and cross-platform pitfalls. Applies when editing PowerShell scripts or modules.
 ---
 

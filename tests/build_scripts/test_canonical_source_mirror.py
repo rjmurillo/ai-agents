@@ -62,9 +62,15 @@ def _matches_any(path: str, patterns: list[str]) -> bool:
 def apply_to_patterns() -> list[str]:
     text = RULE_PATH.read_text(encoding="utf-8")
     frontmatter = _parse_frontmatter(text)
-    if "applyTo" not in frontmatter:
-        pytest.fail("canonical-source-mirror.md frontmatter missing applyTo")
-    return _coerce_patterns(frontmatter["applyTo"])
+    # Claude Code's conditional-load key is `paths`; the Copilot mirror's is
+    # `applyTo`. The source rule declares `paths`; accept either so the
+    # coverage assertions survive the applyTo->paths key migration.
+    scope = frontmatter.get("paths", frontmatter.get("applyTo"))
+    if scope is None:
+        pytest.fail(
+            "canonical-source-mirror.md frontmatter missing paths/applyTo"
+        )
+    return _coerce_patterns(scope)
 
 
 def test_review_axes_path_matches(apply_to_patterns: list[str]) -> None:

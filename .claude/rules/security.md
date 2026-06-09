@@ -1,5 +1,12 @@
 ---
-applyTo: ".agents/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/workflows/**,.githooks/**,.claude/rules/security.md"
+paths:
+  - ".agents/security/**"
+  - "**/Auth/**"
+  - "*.env*"
+  - "**/*.secrets.*"
+  - ".github/workflows/**"
+  - ".githooks/**"
+  - ".claude/rules/security.md"
 priority: critical
 ---
 
