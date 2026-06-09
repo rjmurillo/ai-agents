@@ -13,6 +13,14 @@
       "content": "session-start",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "merge-main",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

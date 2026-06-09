@@ -19,3 +19,7 @@
 
 - When debugging Copilot CLI hook crashes, check the process log for exit code before assuming payload format. Code 143=timeout, 1=logic, 2=config. Different root causes need different fixes. (Session fix/2290, 2026-06-02)
 - Dual-format defense (try snake_case then camelCase) is cheap insurance for any shim crossing a wire boundary where the producer format is not controlled by this repo. One extra `.get()` call, zero performance cost. (Session fix/2290, 2026-06-02)
+
+## Related
+
+- [copilot-agent-frontmatter-ci-enforcement](copilot-agent-frontmatter-ci-enforcement.md)

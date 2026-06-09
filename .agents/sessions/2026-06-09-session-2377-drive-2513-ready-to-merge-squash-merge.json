@@ -93,12 +93,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session-log bootstrap commit in progress for protocol compliance."
+        "Evidence": "Session bootstrap commit c29363813c exists; merge commit in progress records origin/main integration."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session JSON validated by pre-commit gate for this bootstrap commit."
+        "Evidence": "Session JSON validated by pre-commit gate for bootstrap commit; merge validation continues in work log."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -116,6 +116,10 @@
     {
       "step": "session-start",
       "evidence": "Created session 2377 for PR 2513 merge drive; read HANDOFF, constraints, usage-mandatory, GitHub skill context, and relevant memories."
+    },
+    {
+      "step": "merge-main",
+      "evidence": "Merged origin/main into PR branch. Resolved causal graph by preserving both sides through keyed union and max counters. Resolved both plugin manifests to 0.5.163, above origin/main 0.5.161 and previous PR head 0.5.162."
     }
   ],
   "endingCommit": "",
