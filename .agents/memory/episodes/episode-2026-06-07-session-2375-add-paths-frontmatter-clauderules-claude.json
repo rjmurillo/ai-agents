@@ -34,7 +34,7 @@
       "id": "e004",
       "timestamp": "2026-06-07T00:00:00+00:00",
       "type": "test",
-      "content": "uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed (29 existing + 2 new). Regenerated mirrors: git diff .github/instructions src/copilot-cli/instructions = EMPTY (byte-identical, Copilot-neutral). All 13 rule frontmatters YAML-validate (paths is a list, applyTo absent). python3 scripts/validation/pre_pr.py = All validations passed (exit 0); Plugin Version Bump PASS (no bump), Install Parity PASS, Em/en-dash PASS.",
+      "content": "uv run pytest tests/build_scripts/test_generate_rules.py = 31 passed (29 existing + 2 new). Regenerated mirrors: git diff .github/instructions src/copilot-cli/instructions = EMPTY (byte-identical, Copilot-neutral). All 13 rule frontmatters YAML-validate (paths is a list, applyTo absent). python3 scripts/validation/pre_pr.py = All validations passed (exit 0); Plugin Version Bump PASS (manifest versions bumped), Install Parity PASS, Em/en-dash PASS.",
       "caused_by": [],
       "leads_to": []
     }

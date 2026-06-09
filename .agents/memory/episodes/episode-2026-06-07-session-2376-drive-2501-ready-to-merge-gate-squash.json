@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-06-07-session-2376-drive-2501-ready-to-merge-gate-squash",
+  "session": "2026-06-07-session-2376-drive-2501-ready-to-merge-gate-squash",
+  "timestamp": "2026-06-07T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR 2501 to ready-to-merge gate and squash merge if clean",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created PR worktree at .worktrees/pr-2501 and read three unresolved review threads using GitHub skill scripts.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Copilot frontmatter validator fence parsing and repository-root path anchoring, with tests for the regression and path escape.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Made the validate-generated-agents workflow install PyYAML before running the frontmatter validator.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran focused tests, generated-agent validation, build-all check, workflow dry-run, ruff, security scan, and security review.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran full pre_pr with SKIP_WORKFLOW_LOCAL_TEST=true after a separate validate-generated-agents dry-run succeeded.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Committed frontmatter review fixes as 3bc1e1a84d46.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-07T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 3bc1e1a84d46",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

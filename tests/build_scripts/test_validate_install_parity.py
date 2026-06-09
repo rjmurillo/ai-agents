@@ -23,7 +23,6 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import validate_install_parity as vip  # noqa: E402
 
-
 # --- Fixtures ------------------------------------------------------------
 
 
@@ -239,34 +238,26 @@ def test_rule_clean_diff(fake_repo: Path) -> None:
     assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
-def test_rule_canonical_only_drift_detected(fake_repo: Path) -> None:
+def test_rule_canonical_only_delegates_to_build_all(fake_repo: Path) -> None:
+    """Generated RULE mirror drift belongs to build_all.py --check."""
     touched = [".claude/rules/beta.md"]
-    violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert v.kind == "RULE"
-    assert v.name == "beta"
-    assert ".github/instructions/beta.instructions.md" in v.missing
-    assert "src/copilot-cli/instructions/beta.instructions.md" in v.missing
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
-def test_rule_install_only_drift_detected(fake_repo: Path) -> None:
-    """If only the install mirror moves, canonical must move too."""
+def test_rule_install_only_delegates_to_build_all(fake_repo: Path) -> None:
+    """Generated RULE mirror edits are caught by build_all.py --check."""
     touched = [".github/instructions/beta.instructions.md"]
-    violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert ".claude/rules/beta.md" in v.missing
+    assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
 def test_multiple_independent_groups_each_validated(fake_repo: Path) -> None:
     touched = [
         "templates/agents/alpha.shared.md",  # drift: missing 5 siblings
-        ".claude/rules/beta.md",  # drift: missing 2 mirrors
+        ".claude/rules/beta.md",  # RULE drift delegated to build_all.py
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
     kinds = sorted(v.kind for v in violations)
-    assert kinds == ["RULE", "SHARED_AGENT"]
+    assert kinds == ["SHARED_AGENT"]
 
 
 def test_unrelated_paths_do_not_create_groups(fake_repo: Path) -> None:

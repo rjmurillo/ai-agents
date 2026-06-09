@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-07-session-2375-triage-open-issues-sweep-fix",
+  "session": "2026-06-07-session-2375-triage-open-issues-sweep-fix",
+  "timestamp": "2026-06-07T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Triage open issues sweep 2: fix 2497 2500 frontmatter CI lint, 2489 2490 2443",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

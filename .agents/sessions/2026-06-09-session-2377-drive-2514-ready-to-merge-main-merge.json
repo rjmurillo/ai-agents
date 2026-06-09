@@ -1,0 +1,141 @@
+{
+  "session": {
+    "number": 2377,
+    "date": "2026-06-09",
+    "branch": "feat/claude-rules-se-code-globs",
+    "startingCommit": "77ff3a3aee",
+    "objective": "Drive PR 2514 to ready-to-merge after main merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena toolset active in session; initial instructions executed."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial-instructions returned the Serena manual."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md lines 1-116 as read-only dashboard."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "GitHub skill context loaded with PR scripts and merge-resolver skill context loaded."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded Serena memory usage-mandatory."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read PROJECT-CONSTRAINTS.md lines 1-220 plus path-scoped rule files before edits."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read memory-index preview and usage-mandatory; wrote sessions/pr-2514-merge-readiness memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/claude-rules-se-code-globs"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/claude-rules-se-code-globs"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Verified branch, recent commits, worktree state, and PR metadata before merge."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "77ff3a3aee"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session start and end checklists filled with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No edits made to .agents/HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory sessions/pr-2514-merge-readiness written."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on 42 changed markdown files: 0 errors."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Merge resolution staged for commit with conventional merge message."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build_all.py --check exited 0; focused pytest: 89 passed; plugin bump validation passed against origin/main and previous head; pre_pr.py result: all validations passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo pr-2514 subtasks updated through validation phase."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "context",
+      "evidence": "Loaded PR #2514 context, branch feat/claude-rules-se-code-globs, and required rules. Created worktree .worktrees/pr-2514."
+    },
+    {
+      "step": "merge",
+      "evidence": "Merged origin/main into PR branch. Resolved conflicts by keeping main audit records, using _flatten_serialized_scope_list, keeping SE rule path behavior, and bumping both plugin manifests to 0.5.166."
+    },
+    {
+      "step": "generate",
+      "evidence": "Ran python3 build/scripts/build_all.py and python3 build/scripts/build_all.py --check. Both exited 0."
+    },
+    {
+      "step": "test",
+      "evidence": "uv run pytest focused rule and plugin suites: 89 passed. Plugin version validator passed against origin/main and previous head."
+    },
+    {
+      "step": "pre-pr",
+      "evidence": "python3 scripts/validation/pre_pr.py completed with all validations passed. Advisory review-marker and bundle messages did not block."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Push merge resolution, poll CI, squash merge when CLEAN."
+  ]
+}
