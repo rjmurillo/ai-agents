@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge",
+  "session": "2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR 2513 to ready-to-merge and squash merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "session-start",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
