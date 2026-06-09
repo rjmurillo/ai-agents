@@ -1,6 +1,6 @@
 ---
 description: Unified software engineering rules synthesized from classic engineering literature. Apply when principles appear to conflict, when scoping work, or when judging whether a pattern in a diff should be allowed. Use as the default tiebreaker, not as an additional layer on top of every specialized rule.
-applyTo: '**'
+applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
 # Unified Software Engineering

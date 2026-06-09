@@ -251,7 +251,6 @@ def test_block_list_paths_flattened_to_applyTo_string(tmp_path: Path) -> None:
     assert "[" not in fm and "]" not in fm
     assert "paths:" not in fm
 
-
 def test_serialized_paths_list_rejects_comma_inside_item() -> None:
     """A comma inside a list item is ambiguous after flattening to applyTo."""
     with pytest.raises(generate_rules.GenerateRulesError, match="cannot contain commas"):
@@ -270,7 +269,6 @@ def test_serialized_paths_list_uses_python_parser_for_quoted_values() -> None:
 def test_serialized_paths_list_falls_back_for_invalid_python_list() -> None:
     """Invalid serialized lists keep the legacy best-effort fallback."""
     value = generate_rules._flatten_serialized_scope_list("['docs/**', invalid]")
-
     assert value == "docs/**,invalid"
 
 

@@ -4763,7 +4763,8 @@
         "episode-2026-06-05-session-2367",
         "episode-2026-06-06-session-01-pr-2337-ready-merge",
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
-        "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude"
+        "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
+        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths"
       ],
       "created": "2026-06-06T20:17:10.474613+00:00"
     },
@@ -4803,7 +4804,8 @@
       "episodes": [
         "episode-2026-06-05-session-2367",
         "episode-2026-06-06-session-01-pr-2337-ready-merge",
-        "episode-2026-06-07-session-2374-drive-2499-ready-merge"
+        "episode-2026-06-07-session-2374-drive-2499-ready-merge",
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
       ],
       "created": "2026-06-06T20:17:10.474685+00:00"
     },
@@ -5355,7 +5357,8 @@
       "episodes": [
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
         "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
-        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge",
+        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths"
       ],
       "created": "2026-06-07T20:00:30.167694+00:00"
     },
@@ -5374,7 +5377,8 @@
       "label": "milestone: implement",
       "episodes": [
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
-        "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude"
+        "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
+        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths"
       ],
       "created": "2026-06-07T20:00:30.167748+00:00"
     },
@@ -5631,6 +5635,249 @@
         "episode-2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate"
       ],
       "created": "2026-06-09T13:44:30.296711+00:00"
+    },
+    {
+      "id": "ad8c24921e6b",
+      "type": "outcome",
+      "label": "Outcome: success - Gate 9 SE-book rules with code-globs paths for Claude Code conditional loading (PR2, stacked on PR1)",
+      "episodes": [
+        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths"
+      ],
+      "created": "2026-06-09T14:53:47.209478+00:00"
+    },
+    {
+      "id": "64fc6a484ede",
+      "type": "test",
+      "label": "test: python3 build/scripts/build_all.py --check: exit 0. python3 build/scripts/validate_plugin_version_bump.py passed against origin/main and previous PR head. python3 build/scripts/validate_install_parity.py --base origin/main: OK. uv run pytest focused build and steering tests: 95 passed. python3 scripts/validation/pre_pr.py: 22 passed, 0 failed, 4 skipped.",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
+      ],
+      "created": "2026-06-09T14:53:47.209650+00:00"
+    },
+    {
+      "id": "a4f9b505d856",
+      "type": "milestone",
+      "label": "milestone: merge-main-again",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
+      ],
+      "created": "2026-06-09T14:53:47.209672+00:00"
+    },
+    {
+      "id": "24709bb82398",
+      "type": "milestone",
+      "label": "milestone: review-fix-2",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
+      ],
+      "created": "2026-06-09T14:53:47.209692+00:00"
+    },
+    {
+      "id": "099884bc5b67",
+      "type": "milestone",
+      "label": "milestone: verify-2",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
+      ],
+      "created": "2026-06-09T14:53:47.209712+00:00"
+    },
+    {
+      "id": "34c6d994a279",
+      "type": "test",
+      "label": "test: uv run pytest tests/build_scripts/test_generate_rules.py -q: 34 passed. uv run ruff check build/scripts/generate_rules.py: pass. python3 build/scripts/validate_plugin_version_bump.py --base origin/main --head HEAD: OK before commit.",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
+      ],
+      "created": "2026-06-09T14:53:47.209733+00:00"
+    },
+    {
+      "id": "b207dd0e5f90",
+      "type": "milestone",
+      "label": "milestone: ADR Review Protocol: ADR-072 (JTBD plugin architecture, issue #1774) reviewed by the architect agent via Task(subagent_type='architect'). Verdict: APPROVE WITH CHANGES (status stays proposed). Architect found a factual error in the draft/issue premise (commands/rules/hooks already generate from .claude/ sources, not templates/), flagged ADR-045 precedent, #1773-D3 coupling, M5 contract breakage, and a 5-plugin discrepancy. The ADR was corrected to carry all 5 conditions to Accepted.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-adr-072-jtbd-plugin-architecture"
+      ],
+      "created": "2026-06-09T14:53:47.209911+00:00"
+    },
+    {
+      "id": "4e6a5c89a667",
+      "type": "milestone",
+      "label": "milestone: Verification: ADR-072 is a docs-only artifact. Architect agent review completed (APPROVE WITH CHANGES, 5 conditions). Dash check em+en=0. Session validation=PASS. No code changed; no test/build run applicable. PR checks will run on push.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-adr-072-jtbd-plugin-architecture"
+      ],
+      "created": "2026-06-09T14:53:47.209933+00:00"
+    },
+    {
+      "id": "4ed68d7781cf",
+      "type": "outcome",
+      "label": "Outcome: success - ADR 072 JTBD plugin architecture for issue 1774 architect reviewed",
+      "episodes": [
+        "episode-2026-06-09-session-2378-adr-072-jtbd-plugin-architecture"
+      ],
+      "created": "2026-06-09T14:53:47.209957+00:00"
+    },
+    {
+      "id": "75c94b741705",
+      "type": "milestone",
+      "label": "milestone: Read six unresolved PR #2507 review threads and applied valid documentation and artifact fixes.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2507-review-response"
+      ],
+      "created": "2026-06-09T14:53:47.210020+00:00"
+    },
+    {
+      "id": "c4ba3dc72149",
+      "type": "commit",
+      "label": "commit: Commit: def156e4a81b23a98f3cdc2b482d389ea534d673",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2507-review-response"
+      ],
+      "created": "2026-06-09T14:53:47.210042+00:00"
+    },
+    {
+      "id": "0d4432704264",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR 2507 to Ready-to-Merge after review comments",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2507-review-response"
+      ],
+      "created": "2026-06-09T14:53:47.210063+00:00"
+    },
+    {
+      "id": "a54827d9e30a",
+      "type": "milestone",
+      "label": "milestone: Created PR #2508 worktree and verified branch feat/1784-business-strategy-pack at 2b02c31152",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2508-review"
+      ],
+      "created": "2026-06-09T14:53:47.210120+00:00"
+    },
+    {
+      "id": "209ee81d9ee1",
+      "type": "milestone",
+      "label": "milestone: Read 11 unresolved PR #2508 review threads and clustered them into router progressive disclosure, regex guard, pytest collection, and unrelated artifact cleanup.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2508-review"
+      ],
+      "created": "2026-06-09T14:53:47.210142+00:00"
+    },
+    {
+      "id": "a05623a765dc",
+      "type": "milestone",
+      "label": "milestone: Fixed business-strategy router routes to one primary reference with conditional follow-ups, added regex guard coverage, added CI-collected pytest shim, regenerated src/copilot-cli skill mirror, and bumped both project-toolkit manifests to 0.5.163.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2508-review"
+      ],
+      "created": "2026-06-09T14:53:47.210163+00:00"
+    },
+    {
+      "id": "93c62ab966ff",
+      "type": "milestone",
+      "label": "milestone: Removed unrelated quality-gate session and episode artifacts from the PR diff and restored causal graph to origin/main state.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2508-review"
+      ],
+      "created": "2026-06-09T14:53:47.210183+00:00"
+    },
+    {
+      "id": "27b2ca06223c",
+      "type": "milestone",
+      "label": "milestone: Validated focused skill tests, CI shim tests, generate_skills tests, skill frontmatter, skill size, plugin manifests, ruff, generate_skills, and build_all copilot-cli check.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2508-review"
+      ],
+      "created": "2026-06-09T14:53:47.210204+00:00"
+    },
+    {
+      "id": "109db0b0b1dd",
+      "type": "commit",
+      "label": "commit: Commit: 7393ea01f210",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2508-review"
+      ],
+      "created": "2026-06-09T14:53:47.210225+00:00"
+    },
+    {
+      "id": "d5da6dee5e5a",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR #2508 to Ready-to-Merge and merge if CLEAN. Refs #1784.",
+      "episodes": [
+        "episode-2026-06-09-session-2378-pr-2508-review"
+      ],
+      "created": "2026-06-09T14:53:47.210246+00:00"
+    },
+    {
+      "id": "652106c34ef6",
+      "type": "milestone",
+      "label": "milestone: Verification: docs-only Phase 2 gap-table artifact. Audit ran via workflow (3 agents over roadmap/analyst/devops axis files); findings cite file:line. Dash check 0 em/en. No code changed; PR checks run on push.",
+      "episodes": [
+        "episode-2026-06-09-session-2379-phase-per-agent-gap-audit-issue"
+      ],
+      "created": "2026-06-09T14:53:47.210301+00:00"
+    },
+    {
+      "id": "c5e94e2f351d",
+      "type": "outcome",
+      "label": "Outcome: success - Phase 2 per-agent gap audit issue 2479 quality-gate prompts",
+      "episodes": [
+        "episode-2026-06-09-session-2379-phase-per-agent-gap-audit-issue"
+      ],
+      "created": "2026-06-09T14:53:47.210323+00:00"
+    },
+    {
+      "id": "8f6e2124e2c0",
+      "type": "milestone",
+      "label": "milestone: Created PR #2512 worktree, read all 4 unresolved review threads with get_unresolved_review_threads.py and get_thread_conversation_history.py, and started docs/session-log fixes.",
+      "episodes": [
+        "episode-2026-06-09-session-2380"
+      ],
+      "created": "2026-06-09T14:53:47.210373+00:00"
+    },
+    {
+      "id": "fe1293206128",
+      "type": "milestone",
+      "label": "milestone: Fixed Phase-1 baseline pointer to issue #2478 deliverable instead of a missing file path.",
+      "episodes": [
+        "episode-2026-06-09-session-2380"
+      ],
+      "created": "2026-06-09T14:53:47.210395+00:00"
+    },
+    {
+      "id": "8c4208eb38f4",
+      "type": "milestone",
+      "label": "milestone: Corrected roadmap CI evidence to cite roadmap.md:14 and roadmap.md:40 while naming the actual deterministic-CI coverage-map gap.",
+      "episodes": [
+        "episode-2026-06-09-session-2380"
+      ],
+      "created": "2026-06-09T14:53:47.210416+00:00"
+    },
+    {
+      "id": "3de1603e129e",
+      "type": "milestone",
+      "label": "milestone: Corrected devops actionable-examples evidence to acknowledge devops.md:300-307 and focus the fix on examples plus suppression rules.",
+      "episodes": [
+        "episode-2026-06-09-session-2380"
+      ],
+      "created": "2026-06-09T14:53:47.210437+00:00"
+    },
+    {
+      "id": "2a820bef8a69",
+      "type": "milestone",
+      "label": "milestone: Added schemaVersion and evidence to session log 2379; added schemaVersion to this session log.",
+      "episodes": [
+        "episode-2026-06-09-session-2380"
+      ],
+      "created": "2026-06-09T14:53:47.210458+00:00"
+    },
+    {
+      "id": "b1609c141f5d",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR 2512 to Ready-to-Merge gate",
+      "episodes": [
+        "episode-2026-06-09-session-2380"
+      ],
+      "created": "2026-06-09T14:53:47.210479+00:00"
     }
   ],
   "patterns": [
@@ -5680,7 +5927,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 19,
+      "occurrences": 20,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -5689,7 +5936,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 38,
+      "occurrences": 40,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -5698,7 +5945,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 76,
+      "occurrences": 80,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -5707,7 +5954,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 114,
+      "occurrences": 120,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -5717,7 +5964,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -5725,7 +5972,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -5733,7 +5980,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -5741,7 +5988,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -5749,7 +5996,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -5757,7 +6004,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -5765,7 +6012,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -5773,7 +6020,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -5781,7 +6028,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -5789,7 +6036,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -5797,7 +6044,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -5805,7 +6052,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -5813,7 +6060,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -5821,7 +6068,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -5829,7 +6076,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -5837,7 +6084,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -5845,7 +6092,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -5853,7 +6100,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -5861,7 +6108,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -5869,7 +6116,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -5877,7 +6124,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -5885,7 +6132,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -5893,7 +6140,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -5901,7 +6148,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -5909,7 +6156,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -5917,7 +6164,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -5925,7 +6172,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -5933,7 +6180,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -5941,7 +6188,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -5949,7 +6196,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -5957,7 +6204,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -5965,7 +6212,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -5973,7 +6220,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -5981,7 +6228,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -5989,7 +6236,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -5997,7 +6244,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -6005,7 +6252,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -6013,7 +6260,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -6021,7 +6268,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -6029,7 +6276,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 19,
+      "evidence_count": 20,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]

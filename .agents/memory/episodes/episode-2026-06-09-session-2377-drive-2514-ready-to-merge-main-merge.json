@@ -1,0 +1,91 @@
+{
+  "id": "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge",
+  "session": "2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR 2514 to ready-to-merge after main merge",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "merge",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "generate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run pytest focused rule and plugin suites: 89 passed. Plugin version validator passed against origin/main and previous head.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "pre-pr",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "review-response",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "review-validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "test",
+      "content": "python3 build/scripts/generate_rules.py exited 0; uv run pytest focused rule and manifest suites: 43 passed; plugin-version-bump against HEAD exited 0.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

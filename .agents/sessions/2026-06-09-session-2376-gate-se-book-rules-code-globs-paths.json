@@ -1,0 +1,45 @@
+{
+  "session": {
+    "number": 2376,
+    "date": "2026-06-09",
+    "branch": "feat/claude-rules-se-code-globs",
+    "startingCommit": "e557502b1",
+    "objective": "Gate 9 SE-book rules with code-globs paths for Claude Code conditional loading (PR2, stacked on PR1)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "Serena MCP active this session"},
+      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "Serena initial_instructions read (re-asserted via UserPromptSubmit hook)"},
+      "handoffRead": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md + latest retro injected at session start"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "available-skills list in context; session-init + github skills used"},
+      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "AGENTS.md + .claude/rules in context; generated-artifacts.md + canonical-source-mirror.md consulted"},
+      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": "AGENTS.md, .claude/rules, copilot-cli.yaml generator contract read"},
+      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "MEMORY.md + recalled memories injected at session start"},
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "feat/claude-rules-se-code-globs (stacked on PR1 branch)"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "On feat/claude-rules-se-code-globs"},
+      "gitStatusVerified": {"level": "SHOULD", "Complete": true, "Evidence": "git status verified; only intended files staged"},
+      "startingCommitNoted": {"level": "SHOULD", "Complete": true, "Evidence": "e557502b1 (PR1 branch tip)"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "PR2 complete: 9 SE rules gated with code-globs paths; 18 instruction mirrors regenerated; plugin bumped 0.5.163 (both manifests)"},
+      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified"},
+      "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "instruction-context memory updated in PR1 (session 2375); PR2 is a mechanical follow-up, no new memory needed"},
+      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "markdownlint-cli2 ran in pre-commit on each commit; pre_pr Markdown Linting PASS"},
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "SE rules + regenerated instructions + plugin bump committed on feat/claude-rules-se-code-globs"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "full pytest green; pre_pr All validations passed; plugin-version-bump + parity OK"},
+      "tasksUpdated": {"level": "SHOULD", "Complete": false, "Evidence": ""},
+      "retrospectiveInvoked": {"level": "SHOULD", "Complete": false, "Evidence": ""}
+    }
+  },
+  "workLog": [
+    {"step": "context", "evidence": "User chose 'gate by code globs (no deletion)' for the 9 SE-book rules. They have no natural path glob and Claude Code has no agent-requested mode, so they get a uniform source-code glob set. Stacked on PR1 (depends on the generate_rules paths-flatten patch)."},
+    {"step": "implement", "evidence": "Replaced alwaysApply:false with a 16-entry source-code paths list (py,cs,ts,tsx,js,jsx,go,rs,java,rb,c,h,cpp,ps1,psm1,sql) in 9 SE rules. Regenerated mirrors: 18 instruction files now applyTo the code-glob comma-string (was applyTo universal). Bumped plugin 0.5.162 to 0.5.163 in both manifests."},
+    {"step": "verify", "evidence": "generate_rules regen clean (60 written); clean-architecture.instructions.md applyTo is the flattened comma-string, no bracket leak. 67 key tests pass (generate_rules, canonical-source-mirror, parity, templates-schema). Full pytest + pre_pr run before push."}
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Commit SE rules + regenerated instructions + plugin bump; push; open PR2 (base = PR1 branch)",
+    "Retarget PR2 to main after PR1 merges"
+  ]
+}

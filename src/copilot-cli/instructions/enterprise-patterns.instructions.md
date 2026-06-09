@@ -1,6 +1,6 @@
 ---
 description: Enterprise application architecture patterns from Fowler's PEAA. Apply when designing or changing persistence boundaries, transactional scope, or use-case orchestration. Reinforce existing repositories rather than introduce competing abstractions.
-applyTo: '**'
+applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
 # Enterprise Patterns

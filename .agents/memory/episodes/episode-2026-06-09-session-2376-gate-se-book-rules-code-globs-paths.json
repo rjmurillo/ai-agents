@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths",
+  "session": "2026-06-09-session-2376-gate-se-book-rules-code-globs-paths",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Gate 9 SE-book rules with code-globs paths for Claude Code conditional loading (PR2, stacked on PR1)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
