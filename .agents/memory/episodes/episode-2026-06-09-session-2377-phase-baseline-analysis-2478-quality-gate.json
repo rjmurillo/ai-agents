@@ -1,0 +1,45 @@
+{
+  "id": "episode-2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate",
+  "session": "2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Phase 1 baseline analysis 2478 quality-gate signal-to-noise",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "commit",
+      "content": "Committed Phase 1 quality-gate baseline as d0285901a8347c24fb966ac9882e75dcff5073c4.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "artifact",
+      "content": "Added analysis report, session log, and episode artifact for issue 2478 Phase 1.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: d0285901a8347c24fb966ac9882e75dcff5073c4",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}
