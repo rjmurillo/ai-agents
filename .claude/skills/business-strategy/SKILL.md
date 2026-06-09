@@ -33,9 +33,9 @@ read its reference directly.
 |----------------|--------|
 | `diagnose my business problem` | Walk the decision tree below |
 | `what framework applies` | Walk the decision tree below |
-| `validate demand or find customers` | Route to mom-test, four-steps references |
-| `price or position this` | Route to monetizing-innovation, obviously-awesome references |
-| `get leads or close deals` | Route to 100m-leads, spin-selling references |
+| `validate demand or find customers` | Start with mom-test; use four-steps only after interview evidence names a repeatable buyer |
+| `price or position this` | Route to monetizing-innovation for price pain, or obviously-awesome for category confusion |
+| `get leads or close deals` | Route to 100m-leads for lead volume, or spin-selling for qualified pipeline stalls |
 
 ## Decision tree: symptom to reference
 
@@ -43,15 +43,15 @@ Route on the dominant symptom. If two apply, take the earliest funnel stage: an
 upstream positioning problem usually causes the downstream messaging or pricing
 problem. Read the named reference, then act.
 
-- You do not know what to build, or whether anyone wants it -> `references/mom-test.md` (interview for evidence, not flattery), then `references/four-steps.md` (find the first customers).
+- You do not know what to build, or whether anyone wants it -> `references/mom-test.md` (interview for evidence, not flattery). Follow with `references/four-steps.md` only after interviews identify a repeatable buyer but you still lack first-customer motion.
 - You can build it but have not proven demand -> `references/lean-startup.md` (Build-Measure-Learn, smallest MVP that tests the riskiest assumption).
 - You cannot describe who the product is for, or prospects say "interesting" but do not act -> `references/obviously-awesome.md` (positioning and category choice).
-- You are entering a crowded market and need a wedge -> `references/crossing-the-chasm.md` (beachhead) or `references/blue-ocean-strategy.md` (create uncontested space).
+- You are entering a crowded market and need a wedge -> `references/crossing-the-chasm.md` (beachhead). Follow with `references/blue-ocean-strategy.md` only when no beachhead can produce a defensible category position.
 - People want it but balk at the price, or you are guessing the number -> `references/monetizing-innovation.md` (price before you build, willingness-to-pay).
 - The offer itself feels weak -> `references/100m-offers.md` (stack value so the price feels trivial).
 - Traffic is fine but no leads -> `references/100m-leads.md` (lead generation), and re-check messaging.
-- The words on the page fall flat -> `references/storybrand.md` (make the customer the hero) and `references/made-to-stick.md` (make the message memorable).
-- Leads stall in the pipeline, or you lose at the close -> `references/spin-selling.md` (situation, problem, implication, need-payoff) and `references/influence.md` (the six persuasion principles).
+- The words on the page fall flat -> `references/storybrand.md` (make the customer the hero). Follow with `references/made-to-stick.md` only when the message is clear but not remembered or repeated.
+- Leads stall in the pipeline, or you lose at the close -> `references/spin-selling.md` (situation, problem, implication, need-payoff). Follow with `references/influence.md` only when discovery is sound but decision dynamics still block action.
 - You picked product-market fit but have no growth channel -> `references/traction.md` (test 19 channels, find the one that works).
 
 ## Process (progressive disclosure)
@@ -61,9 +61,12 @@ problem. Read the named reference, then act.
 2. Walk the decision tree to the earliest broken stage. Weak close is often weak
    positioning; low conversion is often the wrong audience. Stop at the root, not
    the symptom.
-3. Read ONLY the reference the tree points to. Each one is self-contained.
-4. Apply that reference's scored checklist. If it passes and the problem persists,
-   re-diagnose: the funnel breaks in more than one place at once.
+3. Read ONLY the primary reference the tree points to first. Each one is
+   self-contained.
+4. Apply that reference's scored checklist. If the checklist passes and the route
+   names a conditional follow-up, load that follow-up next. If no follow-up is
+   named or the follow-up also passes, re-diagnose: the funnel breaks in more
+   than one place at once.
 
 ## Self-assessment: is the router the right entry point?
 
