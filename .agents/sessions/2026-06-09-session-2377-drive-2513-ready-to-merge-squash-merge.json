@@ -93,12 +93,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session bootstrap commit c29363813c exists; merge commit in progress records origin/main integration."
+        "Evidence": "Session bootstrap c29363813c, merge commit 6dc95fff42, uv lock 96a1394e51, and generator fix ed282d4b94 committed."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session JSON validated by pre-commit gate for bootstrap commit; merge validation continues in work log."
+        "Evidence": "Session JSON passed pre-commit validation; focused generator pytest passed 39 tests; ruff passed for build/scripts/generate_rules.py."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -120,6 +120,14 @@
     {
       "step": "merge-main",
       "evidence": "Merged origin/main into PR branch. Resolved causal graph by preserving both sides through keyed union and max counters. Resolved both plugin manifests to 0.5.163, above origin/main 0.5.161 and previous PR head 0.5.162."
+    },
+    {
+      "step": "review-fixes",
+      "evidence": "Fixed PR thread on build/scripts/generate_rules.py by replacing manual serialized-list parsing with ast.literal_eval fallback. Fixed stale session 2375 plugin bump evidence in session log, episode, and causal graph."
+    },
+    {
+      "step": "verify",
+      "evidence": "uv sync --extra dev installed ruff 0.15.16. uv run pytest tests/build_scripts/test_generate_rules.py tests/build_scripts/test_canonical_source_mirror.py -q: 39 passed. uv run ruff check build/scripts/generate_rules.py: pass."
     }
   ],
   "endingCommit": "",

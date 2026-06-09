@@ -21,6 +21,30 @@
       "content": "merge-main",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "review-fixes",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "test",
+      "content": "uv sync --extra dev installed ruff 0.15.16. uv run pytest tests/build_scripts/test_generate_rules.py tests/build_scripts/test_canonical_source_mirror.py -q: 39 passed. uv run ruff check build/scripts/generate_rules.py: pass.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
