@@ -26,16 +26,6 @@ _MODULE = importlib.util.module_from_spec(_SPEC)
 sys.modules["_business_strategy_pack_tests"] = _MODULE
 _SPEC.loader.exec_module(_MODULE)
 
-test_skill_md_exists = _MODULE.test_skill_md_exists
-test_frontmatter_has_required_fields = _MODULE.test_frontmatter_has_required_fields
-test_router_references_all_fourteen_books = _MODULE.test_router_references_all_fourteen_books
-test_every_referenced_file_exists = _MODULE.test_every_referenced_file_exists
-test_no_orphan_references = _MODULE.test_no_orphan_references
-test_reference_regex_ignores_temporary_suffixes = (
-    _MODULE.test_reference_regex_ignores_temporary_suffixes
-)
-test_decision_tree_routes_one_primary_reference_first = (
-    _MODULE.test_decision_tree_routes_one_primary_reference_first
-)
-test_reference_is_substantive = _MODULE.test_reference_is_substantive
-test_pack_has_no_prohibited_dashes = _MODULE.test_pack_has_no_prohibited_dashes
+for _NAME in dir(_MODULE):
+    if _NAME.startswith("test_"):
+        globals()[_NAME] = getattr(_MODULE, _NAME)
