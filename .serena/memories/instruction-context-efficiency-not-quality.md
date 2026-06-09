@@ -51,6 +51,22 @@ appended instruction context; score by compiler + test outcomes (no LLM judge)
 - Cursor: `.cursor/rules/*.mdc`, keys `globs`, `alwaysApply`, `description`
   (rule types: Always / Auto Attached / Agent Requested / Manual).
 
+## Post-fix verification (2026-06-08, controlled A/B, live claude -p)
+
+Confirmed the `applyTo` -> `paths` fix empirically (full report:
+`evals/reports/paths-conditional-loading-verification-2026-06-08.md`).
+
+- **Mechanism A/B** (3 sentinel rules, same probe reads a `.cs` file, flip only
+  the key): `paths` arm loads `cs` + `all`, EXCLUDES the `**/*.py` rule;
+  `applyTo` arm loads all three (cs + py + all). So Claude Code honors `paths`
+  and ignores `applyTo`. This is the proof, not inference.
+- **Token delta** (two dirs, full 30-rule set, applyTo-state vs paths-state,
+  read the kata `UserService.cs`): applyTo = 188,945 loaded tokens / $0.3079;
+  paths = 165,179 / $0.2621. Delta -23,766 tokens (~12.6%), -$0.046 (~15%) for a
+  2-turn probe; compounds per turn in a real session. Quality finding unchanged
+  (conditional loading only excludes non-matching rules, already shown to be
+  dead weight on a `.cs` task).
+
 ## Harness lessons (cost real budget to learn)
 
 Never run concurrent agent batches (API rate limits + dotnet build-lock
