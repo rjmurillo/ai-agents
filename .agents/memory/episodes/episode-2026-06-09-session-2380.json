@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-06-09-session-2380",
+  "session": "2026-06-09-session-2380",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR 2512 to Ready-to-Merge gate",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created PR #2512 worktree, read all 4 unresolved review threads with get_unresolved_review_threads.py and get_thread_conversation_history.py, and started docs/session-log fixes.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed Phase-1 baseline pointer to issue #2478 deliverable instead of a missing file path.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected roadmap CI evidence to cite roadmap.md:14 and roadmap.md:40 while naming the actual deterministic-CI coverage-map gap.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Corrected devops actionable-examples evidence to acknowledge devops.md:300-307 and focus the fix on examples plus suppression rules.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added schemaVersion and evidence to session log 2379; added schemaVersion to this session log.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

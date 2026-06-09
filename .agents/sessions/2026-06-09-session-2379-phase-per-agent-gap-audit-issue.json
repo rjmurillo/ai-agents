@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "1.0",
   "session": {
     "number": 2379,
     "date": "2026-06-09",
@@ -11,17 +12,17 @@
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Session transcript: Serena project activation completed before file edits."
       },
       "serenaInstructions": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Session transcript: Serena initial instructions loaded before file edits."
       },
       "handoffRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Read .agents/HANDOFF.md as the read-only session dashboard."
       },
       "sessionLogCreated": {
         "level": "MUST",
@@ -31,22 +32,22 @@
       "skillScriptsListed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Listed .claude/skills/github/scripts before GitHub-related operations."
       },
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Read Serena memory usage-mandatory."
       },
       "constraintsRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Read .agents/governance/PROJECT-CONSTRAINTS.md."
       },
       "memoriesLoaded": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Loaded memory-index and task-relevant Serena memories for review workflow context."
       },
       "branchVerified": {
         "level": "MUST",
@@ -61,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "git status checked before writing analysis artifact."
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -73,42 +74,42 @@
       "checklistComplete": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "All sessionStart and sessionEnd checklist entries marked complete in this session log."
       },
       "handoffPreserved": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": ".agents/HANDOFF.md preserved unchanged; ADR-014 read-only rule followed."
       },
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Session outcome stored in Serena memory outside the repository workspace."
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Ran scoped markdown validation for .agents/analysis/2026-06-09-phase2-agent-prompt-gap-table.md."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Commit f6360e4f docs(analysis): Phase 2 per-agent prompt gap table (#2479)."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "python3 scripts/validate_session_json.py .agents/sessions/2026-06-09-session-2379-phase-per-agent-gap-audit-issue.json passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Issue #2479 Phase 2 next step captured as Phase 3 issue #2480."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "No retrospective artifact created for docs-only audit session."
       }
     }
   },
