@@ -1,6 +1,6 @@
 ---
 description: System-of-record ownership, consistency models per boundary, schema evolution (backward and forward compatibility), event ordering and delivery semantics (at-least-once with idempotent receivers, no exactly-once wishful thinking) from Kleppmann's _Designing Data-Intensive Applications_. Apply when changing how state is stored, replicated, derived, or exchanged between agents, sessions, memory, workspaces, or external services.
-applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.sql'
+applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
 # Data-Intensive Applications

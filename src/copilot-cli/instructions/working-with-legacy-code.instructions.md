@@ -1,6 +1,6 @@
 ---
 description: Working with legacy code rules from Michael Feathers' Working Effectively with Legacy Code. Apply when modifying code with low test coverage, files older than six months, or any path on a To Improve fix cycle. Add tests around the change before changing behavior.
-applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.sql'
+applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
 # Working With Legacy Code

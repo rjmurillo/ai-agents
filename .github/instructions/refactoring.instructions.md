@@ -1,6 +1,6 @@
 ---
 description: Refactoring discipline from Fowler's _Refactoring_. Apply when changing internal structure without changing observable behavior, when separating refactor commits from feature or fix commits, or when reviewers must classify a change as refactor vs feature vs bug fix. Tests must pass between every step; never delete failing tests to make a refactor pass.
-applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.sql'
+applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
 # Refactoring

@@ -132,10 +132,18 @@
     {
       "step": "pre-pr",
       "evidence": "python3 scripts/validation/pre_pr.py completed with all validations passed. Advisory review-marker and bundle messages did not block."
+    },
+    {
+      "step": "review-response",
+      "evidence": "Addressed 10 Copilot threads: added **/*.psd1 and **/*.sh to all nine SE-book rule paths, regenerated .github and src/copilot-cli instruction mirrors with generate_rules.py, and bumped both plugin manifests to 0.5.167."
+    },
+    {
+      "step": "review-validation",
+      "evidence": "python3 build/scripts/generate_rules.py exited 0; uv run pytest focused rule and manifest suites: 43 passed; plugin-version-bump against HEAD exited 0."
     }
   ],
   "endingCommit": "",
   "nextSteps": [
-    "Push merge resolution, poll CI, squash merge when CLEAN."
+    "Commit review response, push, update PR description, resolve threads, poll CI, squash merge when CLEAN."
   ]
 }
