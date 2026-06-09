@@ -78,8 +78,7 @@ def test_script_using_paths_module_helper_is_exempt(fake_repo: Path) -> None:
     _write(
         fake_repo,
         ".claude/skills/foo/scripts/portable_module.py",
-        "import paths\n\nroot = paths.resolve_artifact_root('analysis')\n"
-        "default = '.agents'\n",
+        "import paths\n\nroot = paths.resolve_artifact_root('analysis')\ndefault = '.agents'\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
@@ -104,6 +103,170 @@ def test_docstrings_with_upstream_paths_are_not_offenders(fake_repo: Path) -> No
         fake_repo,
         ".claude/skills/foo/scripts/docstring.py",
         '"""Mentions .claude/lib/paths.py in prose."""\n\nvalue = "safe"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+# --- collect_offenders: false-positive guards (Issue #2510) ----------------
+
+
+def test_raw_string_regex_pattern_is_not_an_offender(fake_repo: Path) -> None:
+    """Raw-string regex pattern (r"\\.agents/") is a path-matcher, not a path dep.
+
+    Evidence: .claude/skills/metrics/collect_metrics.py:42 carries `r"\\.agents/"`
+    inside a list of regex patterns the script uses to scan commit messages. The
+    literal never participates in an I/O call and cannot be migrated through
+    `paths.py`. Flagging it inflates the #2050 baseline and hides genuine offenders.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/regex.py",
+        'import re\n\nBANNED = [\n    r"docker-compose",\n    r"\\.agents/",\n]\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_raw_string_regex_pattern_with_anchor_is_not_an_offender(fake_repo: Path) -> None:
+    """Anchored regex pattern (r"^\\.agents/sessions/") is still a pattern."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/anchored.py",
+        'PATTERNS = [\n    r"^\\.agents/sessions/",\n    r"^\\.agents/analysis/",\n]\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_raw_string_without_escape_is_still_an_offender(fake_repo: Path) -> None:
+    """A raw string without `\\.` escape is a real path, not a regex pattern.
+
+    Keeps the guard narrow: only escaped-dot patterns are presumed regex. Someone
+    writing r".agents/x" (no backslash) is constructing a literal path and must
+    still be flagged.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/raw_path.py",
+        'out = r".agents/analysis/x.md"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/foo/scripts/raw_path.py"
+
+
+def test_argparse_help_text_is_not_an_offender(fake_repo: Path) -> None:
+    """An argparse `help=` value containing `.agents/` is prose, not a path.
+
+    Evidence: .claude/skills/memory/scripts/update_causal_graph.py:280 references
+    `.agents/memory/episodes/` only inside `help=` to document a default. The
+    string is rendered by argparse onto stderr and never opens or writes a file.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/argparse_help.py",
+        "import argparse\n"
+        "p = argparse.ArgumentParser()\n"
+        "p.add_argument(\n"
+        "    '--episode-path',\n"
+        "    help='Path to episode file or directory (default: .agents/memory/episodes/)',\n"
+        ")\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_argparse_epilog_text_is_not_an_offender(fake_repo: Path) -> None:
+    """An argparse `epilog=` value (often a concatenated string) is prose.
+
+    Evidence: .claude/skills/security-scan/scripts/scan_vulnerabilities.py:337
+    references `.agents/architecture/ADR-054-...` only inside the parser's
+    `epilog=` tuple. Both `description=` and `metavar=` follow the same
+    prose-not-IO contract.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/argparse_epilog.py",
+        "import argparse\n"
+        "parser = argparse.ArgumentParser(\n"
+        "    description='Scan code for CWE-78.',\n"
+        "    epilog=(\n"
+        "        'Exit codes:\\n'\n"
+        "        '  0  no vulnerabilities\\n'\n"
+        "        '\\n'\n"
+        "        'See .agents/architecture/ADR-054-local-security-scanning.md.'\n"
+        "    ),\n"
+        ")\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_argparse_description_text_is_not_an_offender(fake_repo: Path) -> None:
+    """An argparse `description=` value is prose."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/argparse_desc.py",
+        "import argparse\n"
+        "p = argparse.ArgumentParser(\n"
+        "    description='Reads from .agents/sessions/ and reports stats.',\n"
+        ")\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_hardcoded_path_outside_help_kwarg_is_still_offender(fake_repo: Path) -> None:
+    """A real path on a different line of the same file is still flagged.
+
+    Guard against over-broadening: the prose exemption must be scoped to the
+    string literals that *are* the help/description/epilog values, not the
+    whole file containing an `argparse` call.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/mixed.py",
+        "import argparse\n"
+        "p = argparse.ArgumentParser(description='Innocent description.')\n"
+        "p.add_argument('--out', help='Output file.')\n"
+        "OUT = '.agents/analysis/x.md'\n",
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/foo/scripts/mixed.py"
+    assert ".agents/analysis/x.md" in offenders[0].excerpt
+
+
+def test_non_argparse_help_kwarg_is_also_exempt(fake_repo: Path) -> None:
+    """Other CLI libraries (Click, Typer) use the same `help=` convention.
+
+    The exemption is keyed on the kwarg name, not on importing argparse, so
+    Click-style decorators get the same treatment.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/click_help.py",
+        "import click\n\n"
+        "@click.option('--path', help='Defaults to .agents/sessions/')\n"
+        "def cmd(path):\n"
+        "    pass\n",
     )
 
     offenders = cvp.collect_offenders(fake_repo)
