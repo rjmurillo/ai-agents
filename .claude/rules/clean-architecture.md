@@ -1,6 +1,22 @@
 ---
 description: Clean Architecture dependency rule and boundary protection. Apply when adding or changing code that crosses a layer boundary (domain, use case, interface adapter, infrastructure). Reinforce dependency direction; do not let outer concerns leak inward.
-alwaysApply: false
+paths:
+  - "**/*.py"
+  - "**/*.cs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.rb"
+  - "**/*.c"
+  - "**/*.h"
+  - "**/*.cpp"
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.sql"
 ---
 
 # Clean Architecture

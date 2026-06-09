@@ -1,6 +1,22 @@
 ---
 description: Domain-Driven Design tactical and strategic patterns from Evans and Vernon. Apply when modeling agents, skills, sessions, orchestration boundaries, or any cross-context translation. Reuse existing models and bounded contexts rather than introduce parallel ones.
-alwaysApply: false
+paths:
+  - "**/*.py"
+  - "**/*.cs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.rb"
+  - "**/*.c"
+  - "**/*.h"
+  - "**/*.cpp"
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.sql"
 ---
 
 # Domain-Driven Design

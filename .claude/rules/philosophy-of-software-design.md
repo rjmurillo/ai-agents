@@ -1,6 +1,22 @@
 ---
 description: Ousterhout's heuristics from "A Philosophy of Software Design". Apply when shaping module boundaries, designing tool or plugin interfaces, naming things, or deciding how much complexity to expose. Prefer deep modules with simple interfaces and hidden internals over shallow wrappers.
-alwaysApply: false
+paths:
+  - "**/*.py"
+  - "**/*.cs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.rb"
+  - "**/*.c"
+  - "**/*.h"
+  - "**/*.cpp"
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.sql"
 ---
 
 # Philosophy of Software Design
