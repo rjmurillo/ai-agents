@@ -5595,6 +5595,42 @@
         "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge"
       ],
       "created": "2026-06-09T13:45:13.006894+00:00"
+    },
+    {
+      "id": "63ca52b58bad",
+      "type": "commit",
+      "label": "commit: Committed Phase 1 quality-gate baseline as d0285901a8347c24fb966ac9882e75dcff5073c4.",
+      "episodes": [
+        "episode-2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate"
+      ],
+      "created": "2026-06-09T13:44:30.296649+00:00"
+    },
+    {
+      "id": "115d54d7e6b0",
+      "type": "artifact",
+      "label": "artifact: Added analysis report, session log, and episode artifact for issue 2478 Phase 1.",
+      "episodes": [
+        "episode-2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate"
+      ],
+      "created": "2026-06-09T13:44:30.296670+00:00"
+    },
+    {
+      "id": "ed674c9edcdf",
+      "type": "commit",
+      "label": "commit: Commit: d0285901a8347c24fb966ac9882e75dcff5073c4",
+      "episodes": [
+        "episode-2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate"
+      ],
+      "created": "2026-06-09T13:44:30.296690+00:00"
+    },
+    {
+      "id": "2575d0eab18b",
+      "type": "outcome",
+      "label": "Outcome: success - Phase 1 baseline analysis 2478 quality-gate signal-to-noise",
+      "episodes": [
+        "episode-2026-06-09-session-2377-phase-baseline-analysis-2478-quality-gate"
+      ],
+      "created": "2026-06-09T13:44:30.296711+00:00"
     }
   ],
   "patterns": [

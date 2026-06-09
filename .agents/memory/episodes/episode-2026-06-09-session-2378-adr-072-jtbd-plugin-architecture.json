@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-06-09-session-2378-adr-072-jtbd-plugin-architecture",
+  "session": "2026-06-09-session-2378-adr-072-jtbd-plugin-architecture",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "ADR 072 JTBD plugin architecture for issue 1774 architect reviewed",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR Review Protocol: ADR-072 (JTBD plugin architecture, issue #1774) reviewed by the architect agent via Task(subagent_type='architect'). Verdict: APPROVE WITH CHANGES (status stays proposed). Architect found a factual error in the draft/issue premise (commands/rules/hooks already generate from .claude/ sources, not templates/), flagged ADR-045 precedent, #1773-D3 coupling, M5 contract breakage, and a 5-plugin discrepancy. The ADR was corrected to carry all 5 conditions to Accepted.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: ADR-072 is a docs-only artifact. Architect agent review completed (APPROVE WITH CHANGES, 5 conditions). Dash check em+en=0. Session validation=PASS. No code changed; no test/build run applicable. PR checks will run on push.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

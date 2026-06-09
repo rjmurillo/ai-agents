@@ -93,12 +93,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Latest local commits include session bootstrap, origin/main merge, uv lock update, generator fix, session evidence fix, and install parity validator fix."
+        "Evidence": "Latest local commits include second origin/main merge resolution after e5c3ad1643."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "build_all.py --check, plugin bump validators, install parity, focused pytest, and pre_pr.py all passed locally."
+        "Evidence": "Previous validation passed; second merge resolution JSON validated before commit."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -132,6 +132,10 @@
     {
       "step": "validation",
       "evidence": "python3 build/scripts/build_all.py --check: exit 0. python3 build/scripts/validate_plugin_version_bump.py passed against origin/main and previous PR head. python3 build/scripts/validate_install_parity.py --base origin/main: OK. uv run pytest focused build and steering tests: 95 passed. python3 scripts/validation/pre_pr.py: 22 passed, 0 failed, 4 skipped."
+    },
+    {
+      "step": "merge-main-again",
+      "evidence": "Fetched latest origin/main at e5c3ad1643 and merged it. Resolved causal graph conflict by keyed union with max counters; no code conflicts remained."
     }
   ],
   "endingCommit": "",

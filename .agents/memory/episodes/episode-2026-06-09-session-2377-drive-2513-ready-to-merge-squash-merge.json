@@ -61,6 +61,14 @@
       "content": "python3 build/scripts/build_all.py --check: exit 0. python3 build/scripts/validate_plugin_version_bump.py passed against origin/main and previous PR head. python3 build/scripts/validate_install_parity.py --base origin/main: OK. uv run pytest focused build and steering tests: 95 passed. python3 scripts/validation/pre_pr.py: 22 passed, 0 failed, 4 skipped.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "merge-main-again",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -68,7 +76,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 0,
+    "commits": 1,
     "files_changed": 0
   },
   "lessons": []
