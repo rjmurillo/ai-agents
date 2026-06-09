@@ -48,6 +48,14 @@ def _frontmatter(text: str) -> dict[str, str]:
     return fields
 
 
+def _section_between(text: str, start_header: str, end_header: str) -> str:
+    _, start, after_start = text.partition(start_header)
+    assert start, f"missing section header: {start_header}"
+    body, end, _ = after_start.partition(end_header)
+    assert end, f"missing section header: {end_header}"
+    return body
+
+
 def test_skill_md_exists():
     assert _SKILL.is_file()
 
@@ -84,8 +92,11 @@ def test_reference_regex_ignores_temporary_suffixes():
 
 def test_decision_tree_routes_one_primary_reference_first():
     text = _SKILL.read_text(encoding="utf-8")
-    decision_tree = text.split("## Decision tree: symptom to reference", 1)[1]
-    decision_tree = decision_tree.split("## Process", 1)[0]
+    decision_tree = _section_between(
+        text,
+        "## Decision tree: symptom to reference",
+        "## Process",
+    )
     route_lines = [
         line for line in decision_tree.splitlines()
         if line.startswith("- ") and "->" in line
