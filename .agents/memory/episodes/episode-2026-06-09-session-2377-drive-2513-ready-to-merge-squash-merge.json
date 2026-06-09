@@ -45,6 +45,22 @@
       "content": "uv sync --extra dev installed ruff 0.15.16. uv run pytest tests/build_scripts/test_generate_rules.py tests/build_scripts/test_canonical_source_mirror.py -q: 39 passed. uv run ruff check build/scripts/generate_rules.py: pass.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "test",
+      "content": "python3 build/scripts/build_all.py --check: exit 0. python3 build/scripts/validate_plugin_version_bump.py passed against origin/main and previous PR head. python3 build/scripts/validate_install_parity.py --base origin/main: OK. uv run pytest focused build and steering tests: 95 passed. python3 scripts/validation/pre_pr.py: 22 passed, 0 failed, 4 skipped.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

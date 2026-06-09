@@ -88,22 +88,22 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Markdown lint not required for this session-log bootstrap commit; scoped lint runs before final push."
+        "Evidence": "python3 scripts/validation/pre_pr.py ran Markdown Linting: PASS, 16 changed markdown files checked."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session bootstrap c29363813c, merge commit 6dc95fff42, uv lock 96a1394e51, and generator fix ed282d4b94 committed."
+        "Evidence": "Latest local commits include session bootstrap, origin/main merge, uv lock update, generator fix, session evidence fix, and install parity validator fix."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Session JSON passed pre-commit validation; focused generator pytest passed 39 tests; ruff passed for build/scripts/generate_rules.py."
+        "Evidence": "build_all.py --check, plugin bump validators, install parity, focused pytest, and pre_pr.py all passed locally."
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "SQL todo pr-2513 and child tasks created; merge task marked in progress."
+        "Evidence": "SQL child todos advanced through merge, fix, and validation phases."
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
@@ -128,6 +128,10 @@
     {
       "step": "verify",
       "evidence": "uv sync --extra dev installed ruff 0.15.16. uv run pytest tests/build_scripts/test_generate_rules.py tests/build_scripts/test_canonical_source_mirror.py -q: 39 passed. uv run ruff check build/scripts/generate_rules.py: pass."
+    },
+    {
+      "step": "validation",
+      "evidence": "python3 build/scripts/build_all.py --check: exit 0. python3 build/scripts/validate_plugin_version_bump.py passed against origin/main and previous PR head. python3 build/scripts/validate_install_parity.py --base origin/main: OK. uv run pytest focused build and steering tests: 95 passed. python3 scripts/validation/pre_pr.py: 22 passed, 0 failed, 4 skipped."
     }
   ],
   "endingCommit": "",
