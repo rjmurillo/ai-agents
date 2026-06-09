@@ -1,0 +1,67 @@
+{
+  "id": "episode-2026-06-09-session-2378-pr-2508-review",
+  "session": "2026-06-09-session-2378-pr-2508-review",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Drive PR #2508 to Ready-to-Merge and merge if CLEAN. Refs #1784.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created PR #2508 worktree and verified branch feat/1784-business-strategy-pack at 2b02c31152",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read 11 unresolved PR #2508 review threads and clustered them into router progressive disclosure, regex guard, pytest collection, and unrelated artifact cleanup.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed business-strategy router routes to one primary reference with conditional follow-ups, added regex guard coverage, added CI-collected pytest shim, regenerated src/copilot-cli skill mirror, and bumped both project-toolkit manifests to 0.5.163.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed unrelated quality-gate session and episode artifacts from the PR diff and restored causal graph to origin/main state.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated focused skill tests, CI shim tests, generate_skills tests, skill frontmatter, skill size, plugin manifests, ruff, generate_skills, and build_all copilot-cli check.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7393ea01f210",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 0
+  },
+  "lessons": []
+}
