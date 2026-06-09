@@ -1,6 +1,22 @@
 ---
 description: Production survivability patterns from Michael Nygard's _Release It!_. Apply when designing or changing agent orchestration, lifecycle hooks, inter-agent communication, or any code that calls external APIs, message queues, or long-running services. Skip for purely internal utility or pure-function helpers.
-alwaysApply: false
+paths:
+  - "**/*.py"
+  - "**/*.cs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.rb"
+  - "**/*.c"
+  - "**/*.h"
+  - "**/*.cpp"
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.sql"
 ---
 
 # Release It! Production Survivability
