@@ -244,7 +244,14 @@ def _flatten_serialized_scope_list(value: str) -> str:
         )
     if not isinstance(parsed, list):
         return value
-    return ",".join(str(item) for item in parsed)
+    items = [str(item) for item in parsed]
+    invalid = [item for item in items if "," in item]
+    if invalid:
+        raise GenerateRulesError(
+            "scope list items cannot contain commas because applyTo is "
+            f"comma-separated: {invalid[0]!r}"
+        )
+    return ",".join(items)
 
 
 def _remap_frontmatter(
