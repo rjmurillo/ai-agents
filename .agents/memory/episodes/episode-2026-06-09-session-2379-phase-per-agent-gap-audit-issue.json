@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-06-09-session-2379-phase-per-agent-gap-audit-issue",
+  "session": "2026-06-09-session-2379-phase-per-agent-gap-audit-issue",
+  "timestamp": "2026-06-09T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Phase 2 per-agent gap audit issue 2479 quality-gate prompts",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-09T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verification: docs-only Phase 2 gap-table artifact. Audit ran via workflow (3 agents over roadmap/analyst/devops axis files); findings cite file:line. Dash check 0 em/en. No code changed; PR checks run on push.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
