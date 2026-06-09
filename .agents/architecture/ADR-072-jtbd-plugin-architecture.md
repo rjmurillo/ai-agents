@@ -3,8 +3,8 @@
 ## Status
 
 Proposed. Architect design review completed (verdict: APPROVE WITH CHANGES); this
-ADR may exist as `proposed` but MUST clear the five approval conditions in
-"Conditions to reach Accepted" before its status moves to `accepted` and any
+ADR may exist as `Proposed` but MUST clear the five approval conditions in
+"Conditions to reach Accepted" before its status moves to `Accepted` and any
 milestone is implemented. Requested by issue #1774 (parent epic #1072, v0.4.0
 Framework Extraction). Refines the plugin taxonomy of ADR-045 (see Decision
 Drivers). No code moves on this ADR alone.
@@ -119,16 +119,16 @@ criteria and tests.
 ## Conditions to reach Accepted (architect review, APPROVE WITH CHANGES)
 
 1. Generation-architecture description corrected to the asymmetric model and the
-   existing `.claude/ -> generated` seam reused as default (done in this draft; A1).
+   existing `.claude/ -> generated` seam reused as default.
 2. Cross-plugin coupling reconciled with #1773 D3 / #1148 via declared `plugin.json`
-   dependencies and fail-loud partial install (Decision section 3; A2/A5). Analyst
+   dependencies and fail-loud partial install (Decision section 3). Analyst
    to re-verify #1148 currency before M4.
 3. ADR-045 cited as binding precedent; relationship stated as refine-within-epic,
-   and ADR-045 amended if its taxonomy is superseded (A3).
+   and ADR-045 amended if its taxonomy is superseded.
 4. Reversibility assessment treats M5 as contract-breaking with a migration path and
-   marketplace alias (Decision section 4 and Reversibility; A4).
+   marketplace alias (Decision section 4 and Reversibility).
 5. Plugin count and contents fixed to one authoritative five-plugin list (Decision
-   section 1; A6).
+   section 1).
 
 Open Definition-of-Ready questions to answer before Accepted: install-time vs
 build-time emission; whether a `jobs` field is a plugin.json schema extension or
