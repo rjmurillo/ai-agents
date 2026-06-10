@@ -53,4 +53,4 @@ Tests (BLOCKING): pos+neg+edge|branches|mock I/O|CLI exits. See `.agents/governa
 
 ## Stack
 
-Python 3.14|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+
+Python 3.14 dev/CI, 3.10+ install floor (`pyproject.toml requires-python`)|UV|PowerShell 7.5.4+|Node LTS|Pester 5.7.1|pytest 8+|gh 2.60+

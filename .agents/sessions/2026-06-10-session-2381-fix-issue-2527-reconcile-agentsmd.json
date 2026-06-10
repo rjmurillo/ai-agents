@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "fix/2527-python-floor",
+    "startingCommit": "42068c0",
+    "objective": "Fix issue 2527: reconcile AGENTS.md Python stack with pyproject requires-python floor"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2527-python-floor"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2527-python-floor"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Loaded via session context / verified this session"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "origin/main"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart/sessionEnd MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session memory written earlier this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 AGENTS.md: 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed as de62ff4 (AGENTS.md + session log + episode, 3 files)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit code: 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2527: AGENTS.md:56 said bare \"Python 3.14\" while pyproject requires-python is \">=3.10\", contradicting each other. The 3.10 floor is intentional (relied on by PR #2532 cross-version review). Reworded the stack line to \"Python 3.14 dev/CI, 3.10+ install floor (pyproject.toml requires-python)\" so agents reading AGENTS.md know the real floor. python.md already documents the distinction; no change needed there."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Verification: stack line unique to root AGENTS.md (other AGENTS.md are per-dir scoped, not copies); markdownlint-cli2 AGENTS.md = 0 errors."
+    }
+  ],
+  "endingCommit": "de62ff4",
+  "nextSteps": [
+    "Open PR Fixes #2527"
+  ]
+}
