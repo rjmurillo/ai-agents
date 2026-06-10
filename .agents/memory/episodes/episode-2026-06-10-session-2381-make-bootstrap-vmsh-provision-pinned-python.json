@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python",
+  "session": "2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python",
+  "timestamp": "2026-06-10T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Make bootstrap-vm.sh provision the pinned Python via uv and a current uv so the pre-push gate runs on fresh Claude web containers without manual intervention",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnose",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implement",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verify",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Curate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: be4099b",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review response",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2bfa8d7",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Follow-ups",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

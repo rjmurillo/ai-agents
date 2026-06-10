@@ -13,6 +13,7 @@ to a step annotation, not a red check.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +23,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKFLOW_PATH = _REPO_ROOT / ".github" / "workflows" / "post-pr-retrospective.yml"
 
 _AGENT_STEP_NAME = "Run retrospective via Claude Code"
-_ACTION_REF = (
-    "anthropics/claude-code-action@593d7a5c4e0073569f74772c2b7b64c30ec14707"
-)
+_ACTION_PATH = "anthropics/claude-code-action"
+# Assert the pin's SHAPE (exact action path + 40-hex SHA), not an exact SHA.
+# Renovate owns the SHA and bumps it in the workflow; duplicating the literal
+# here re-broke main on every bump (Issue #2348, recurrence 2026-06-09 after
+# the v1.0.140/141/142 bumps in #2486/#2506/#2516).
+_SHA_PINNED_ACTION_RE = re.compile(rf"^{re.escape(_ACTION_PATH)}@[0-9a-f]{{40}}$")
+# Synthetic, valid-shape ref for in-memory negative-control workflows.
+_FAKE_ACTION_REF = f"{_ACTION_PATH}@{'0' * 40}"
 _OAUTH_TOKEN_EXPR = "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
 
 
@@ -96,9 +102,13 @@ class TestAgentStepFailureIsolation:
         assert step is not None
         # Act
         uses = step.get("uses", "")
-        # Assert: exact pin so a path change (owner/repo/path@ref) is caught,
-        # not just the prefix
-        assert uses == _ACTION_REF
+        # Assert: the action path is exact (a repo/owner/path change is caught)
+        # and the ref is a full 40-hex commit SHA (a floating tag is caught).
+        # The specific SHA is owned by the workflow + Renovate, not this test.
+        assert _SHA_PINNED_ACTION_RE.fullmatch(uses), (
+            f"agent step 'uses' is {uses!r}; expected "
+            f"'{_ACTION_PATH}@<40-hex-sha>'"
+        )
 
     def test_agent_step_still_wires_oauth_token(self) -> None:
         # Arrange
@@ -127,7 +137,7 @@ class TestFailureIsolationDetectionNegative:
             "jobs": {
                 "retrospective": {
                     "steps": [
-                        {"name": _AGENT_STEP_NAME, "uses": _ACTION_REF},
+                        {"name": _AGENT_STEP_NAME, "uses": _FAKE_ACTION_REF},
                     ]
                 }
             }
@@ -147,7 +157,7 @@ class TestFailureIsolationDetectionNegative:
                     "steps": [
                         {
                             "name": _AGENT_STEP_NAME,
-                            "uses": _ACTION_REF,
+                            "uses": _FAKE_ACTION_REF,
                             "continue-on-error": False,
                         },
                     ]
@@ -160,6 +170,45 @@ class TestFailureIsolationDetectionNegative:
         continue_on_error = step.get("continue-on-error")
         # Assert
         assert continue_on_error is not True
+
+
+class TestShaPinPredicateNegative:
+    """Negative coverage: the pin-shape predicate rejects bad refs.
+
+    The positive test asserts shape, not an exact SHA. These controls prove
+    the relaxation did not open the door to floating tags, short SHAs, or a
+    hijacked action path.
+    """
+
+    def test_floating_tag_is_rejected(self) -> None:
+        # Arrange / Act / Assert
+        assert _SHA_PINNED_ACTION_RE.fullmatch(f"{_ACTION_PATH}@v1") is None
+
+    def test_short_sha_is_rejected(self) -> None:
+        # Arrange / Act / Assert
+        assert _SHA_PINNED_ACTION_RE.fullmatch(f"{_ACTION_PATH}@{'a' * 12}") is None
+
+    def test_wrong_owner_is_rejected(self) -> None:
+        # Arrange
+        hijacked = f"evil/claude-code-action@{'0' * 40}"
+        # Act / Assert
+        assert _SHA_PINNED_ACTION_RE.fullmatch(hijacked) is None
+
+    def test_subpath_suffix_is_rejected(self) -> None:
+        # Arrange: a path change after the action name must be caught
+        suffixed = f"{_ACTION_PATH}/subdir@{'0' * 40}"
+        # Act / Assert
+        assert _SHA_PINNED_ACTION_RE.fullmatch(suffixed) is None
+
+    def test_uppercase_hex_is_rejected(self) -> None:
+        # Arrange: GitHub SHAs are lowercase; uppercase signals a hand edit
+        # Act / Assert
+        assert _SHA_PINNED_ACTION_RE.fullmatch(f"{_ACTION_PATH}@{'A' * 40}") is None
+
+    def test_valid_shape_is_accepted(self) -> None:
+        # Arrange / Act / Assert: the synthetic ref used by negative-control
+        # workflows passes, proving those fixtures stay representative
+        assert _SHA_PINNED_ACTION_RE.fullmatch(_FAKE_ACTION_REF) is not None
 
 
 class TestStepLookupEdgeCases:
