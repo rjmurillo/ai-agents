@@ -1,0 +1,150 @@
+{
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "claude/pre-push-gate-python-uv-7x757l",
+    "startingCommit": "42068c0",
+    "objective": "Make bootstrap-vm.sh provision the pinned Python via uv and a current uv so the pre-push gate runs on fresh Claude web containers without manual intervention"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active: mcp__serena__get_symbols_overview on scripts/bootstrap-vm.sh returned symbol list; edit_memory calls succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena re-assertion injected by UserPromptSubmit hook; symbolic tools used for code navigation per LSP-first rule"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded by SessionStart context loader hook (read-only dashboard, protocol v1.4)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created via .claude/skills/session-init/scripts/new_session_log.py"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skills enumerated by harness at session start; session-init skill invoked via Skill tool"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .claude/rules/*.md loaded in session context (project instructions)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md boundaries applied: Python-first exception (edited grandfathered bash bootstrap, no new bash script), atomic commits <=5 files, pinned-version single source of truth"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hook-surfaced corrections consumed (github-pr1873, bash-integration, environment-observations); read ci/environment-observations.md and python/python-version-compatibility.md before editing"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/pre-push-gate-python-uv-7x757l"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/pre-push-gate-python-uv-7x757l"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status at start: working tree clean at 42068c0"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "42068c0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUST items completed with evidence in this log"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md untouched (read-only per ADR-014); git status shows no HANDOFF.md modification"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Marked ci/environment-observations.md and python/python-version-compatibility.md SUPERSEDED (pyenv 3.12.8 path replaced by uv-managed 3.14.5)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix on the two edited .serena/memories files: 0 errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "be4099b fix(bootstrap): provision pinned Python via uv instead of pyenv source compile; session artifacts committed separately"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen python scripts/validation/pre_pr.py --quick: RESULT All validations passed; bootstrap-vm.sh executed end to end in target container, exit 0; gate probe uv run --frozen python OK on 3.14.5"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-task session; no open task list to update"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Skipped: small focused fix, learnings captured directly in superseded-memory updates"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Diagnose",
+      "details": "Fresh Claude web container shows the failure state: uv 0.8.17 (predates CPython 3.14.x downloads), python3 -> 3.11.15, pyenv section of bootstrap-vm.sh compiles 3.12.8 from source and blows the SessionStart hook budget so uv/deps steps never run; pyenv local 3.12.8 would clobber the committed .python-version (3.14.5). Pre-push gate probes 'uv run --frozen python' (.githooks/pre-push:153)."
+    },
+    {
+      "action": "Implement",
+      "details": "scripts/bootstrap-vm.sh: replaced pyenv source-compile section with uv-managed provisioning. Reads .python-version as single source of truth; reinstalls uv via astral.sh standalone installer when 'uv python list <pin>' resolves nothing (capability check, never 'uv self update' whose GitHub API path is rate-limited); 'uv python install --default <pin>' (prebuilt, seconds); 'uv sync --frozen --extra dev' for the .venv the pre-push gate uses; venv-first PATH persisted to bashrc; yamllint via 'uv tool install' so the shim lands on PATH. .claude/hooks/session-start.sh: persist repo .venv/bin first in CLAUDE_ENV_FILE PATH; updated stale pyenv comments."
+    },
+    {
+      "action": "Verify",
+      "details": "Ran ./scripts/bootstrap-vm.sh twice in the target container: exit 0 both runs (idempotent). uv 0.11.19 installed; python3 -> .venv/bin/python3 = 3.14.5; import yaml OK; python3 scripts/validation/pre_pr.py --help OK under bare python3; 'uv run --frozen python' gate probe OK; .bashrc venv PATH line appended exactly once. Discovered and fixed mid-session: uv-managed interpreters are PEP 668 externally-managed, so 'uv pip install --system --python <pin>' fails by design; switched to venv-first PATH instead. Dash byte-check: 0 em/en dashes in edited files. pre_pr.py --quick: all validations passed."
+    },
+    {
+      "action": "Curate",
+      "details": "Marked .serena/memories/ci/environment-observations.md and .serena/memories/python/python-version-compatibility.md SUPERSEDED so future agents are not steered back to pyenv 3.12.8."
+    },
+    {
+      "action": "Follow-ups",
+      "details": "Opened the follow-up PRs flagged in #2529: PR #2538 guards the Pester/powershell-yaml Install-Module calls (warm bootstrap 8.5s vs 1-2 min; AI quality gate 10/10 PASS), and docs/contributing-uv-sync aligns CONTRIBUTING.md step 4 with 'uv sync --extra dev' plus fills the 2026-06-10 auto-retro skeleton. Verified before writing: the 'CONTRIBUTING still documents pyenv' flag was stale (file already uv-based); the real drift was the unlocked 'uv venv && uv pip install' instruction. Added a taste-lint file-size suppression to CONTRIBUTING.md (1183-line prose doc predates the 500-line lint)."
+    },
+    {
+      "action": "Review response",
+      "details": "PR #2529 CI + bot review round: bumped src/copilot-cli plugin.json mirror to 0.5.168 (manifest parity CI failure); re-keyed the session-start env-file PATH guard on the venv bin marker instead of PYENV_ROOT so upgraded containers get the venv-first PATH (Cursor bugbot + Gemini high); anchored bootstrap-vm.sh to repo root via BASH_SOURCE (Gemini high, CWE-22). Verified: bash -n clean, bootstrap run from /tmp exits 0 and syncs .venv."
+    },
+    {
+      "action": "Review response",
+      "details": "Copilot review round on the follow-up PRs. PR #2538: powershell-yaml install branch now sets PSGallery InstallationPolicy Trusted itself (warm-Pester/cold-yaml ordering regression); cold path verified empirically with module uninstalled and gallery Untrusted, bootstrap exit 0. PR #2540: CONTRIBUTING step 4 moved to 'uv sync --frozen --extra dev' so setup cannot rewrite uv.lock; retro renamed to canonical 'FM-9 Confident-incorrectness recurrence' per FAILURE-MODES.md row 9 (claim verified against the file before editing)."
+    }
+  ],
+  "endingCommit": "2bfa8d7",
+  "nextSteps": [
+    "Flagged, not fixed: CONTRIBUTING.md Prerequisites still documents the pyenv 3.12.8 flow; needs a doc-only follow-up to describe the uv-based setup",
+    "Optional: Pester Install-Module step in bootstrap-vm.sh runs unconditionally every session start (1-2 min); could be guarded on an installed-version check"
+  ]
+}
