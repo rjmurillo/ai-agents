@@ -41,12 +41,12 @@ A Claude install lands the full set of agents, commands, hooks, and skills. A Co
 
 | Component | Claude Code | Copilot CLI |
 |-----------|-------------|-------------|
-| Agents | 23 | 24 |
-| Skills | 69 | 81 |
-| Slash commands | 23 | n/a (interactive only) |
-| Lifecycle hooks | 29 | 28 |
-| Session protocol | 1 | 1 |
-| Review gates | 5 | 5 |
+| Agents | Included | Included |
+| Skills | Included | Included |
+| Slash commands | Included | n/a (interactive only) |
+| Lifecycle hooks | Included | Included |
+| Session protocol | Included | Included |
+| Review gates | Included | Included |
 
 Specialized agent roles include analyst, architect, implementer, QA, security, devops, and more. See the [Agent Catalog](#agent-catalog) for the full list.
 
@@ -118,13 +118,13 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 ### Core Capabilities
 
-- **23+ specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
+- **Specialized agents** for different development phases (analysis, architecture, implementation, QA, etc.)
 - **Explicit handoff protocols** between agents with clear accountability
 - **Multi-Agent Impact Analysis Framework** for comprehensive planning
 - **Cross-session memory** with citation verification, graph traversal, and health reporting via Serena + Forgetful
 - **Self-improvement system** with skill tracking and retrospectives
 - **Quality gates** with pre-PR validation, session protocol enforcement, and automated CI checks
-- **69+ reusable skills** for common development workflows (git, PR management, testing, linting)
+- **Reusable skills** for common development workflows (git, PR management, testing, linting)
 - **One-step plugin install** through Claude Code's `/install-plugin` or Copilot CLI's `/plugin marketplace add` flow
 - **AI-powered CI/CD** with issue triage, PR quality gates, and spec validation
 
@@ -135,7 +135,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 | **Agent** | A specialized AI persona with a defined role (analyst, implementer, security, etc.) |
 | **Orchestrator** | The coordinating agent that routes tasks to specialists and synthesizes results |
 | **Handoff** | Explicit transfer of context and control between agents with clear accountability |
-| **Skill** | A reusable workflow component for common tasks (69+ included: git, PR, testing, linting) |
+| **Skill** | A reusable workflow component for common tasks (git, PR, testing, linting, and more) |
 | **Memory** | Cross-session context persistence via Serena + Forgetful for knowledge retention |
 | **ADR** | Architectural Decision Record, structured documents capturing design decisions |
 | **Quality Gate** | Validation checkpoint (critic review, QA pass, security scan) before proceeding |
@@ -524,8 +524,8 @@ This project uses a **template-based generation system**. To modify agents:
 | Document | Description |
 |----------|-------------|
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step setup guide |
-| [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples (23 in Claude bundle, 24 in Copilot bundle) |
-| [docs/skill-reference.md](docs/skill-reference.md) | All skills with usage descriptions (69 in Claude bundle, 81 in Copilot bundle) |
+| [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples |
+| [docs/skill-reference.md](docs/skill-reference.md) | All skills with usage descriptions |
 | [docs/architecture.md](docs/architecture.md) | Plugin structure, template system, design decisions |
 | [docs/customization.md](docs/customization.md) | How to extend and customize agents, skills, and hooks |
 | [docs/installation.md](docs/installation.md) | Complete installation guide |

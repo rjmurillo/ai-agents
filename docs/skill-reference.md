@@ -1,6 +1,6 @@
 # Skill Reference
 
-Skills are reusable workflow components that agents and users invoke for common tasks. Skills are organized by category; counts in the table below reflect the categories documented in this reference.
+Skills are reusable workflow components that agents and users invoke for common tasks. Skills are organized by category in the table below.
 
 ## How to Use Skills
 
