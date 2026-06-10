@@ -11,7 +11,8 @@ This memory captures learnings from environment setup, platform compatibility, a
 
 These are corrections that MUST be followed:
 
-- Python 3.13.x SystemError breaks CodeQL and skill validation - use Python 3.12.8 via pyenv for compatibility (Session 05, 2026-01-15)
+- SUPERSEDED (2026-06-10, Session 2381): the repo now pins Python 3.14.5 in `.python-version` and `scripts/bootstrap-vm.sh` provisions it via `uv python install --default` plus `uv sync --frozen --extra dev` (prebuilt, seconds). Do NOT reintroduce pyenv or 3.12.8; the pyenv source compile blew the SessionStart hook budget on Claude web containers. If the image uv is too old to know the pin (0.8.17 was), bootstrap reinstalls uv via the astral.sh standalone installer; never `uv self update` (GitHub-API path, rate-limited).
+- OBSOLETE: Python 3.13.x SystemError breaks CodeQL and skill validation - use Python 3.12.8 via pyenv for compatibility (Session 05, 2026-01-15)
   - Evidence: Batch 37 - Python 3.13.7 SystemError during CodeQL database creation and skill validation on Ubuntu 25.10
   - Root cause: Python 3.13.7 SystemError: failed to join paths during CodeQL Python database creation
   - Solution: `pyenv install 3.12.8` + create `.python-version` file with `3.12.8` to pin version for CodeQL

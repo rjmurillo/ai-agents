@@ -185,7 +185,7 @@ Before finalizing an interview:
 ## Related Documents
 
 - [Interview Response Template](./interview-response-template.md)
-- [Capabilities Matrix](../../docs/agent-capabilities-matrix.md) (if exists)
+- Capabilities Matrix (not currently maintained)
 - [Agent Design Principles](./agent-design-principles.md)
 
 ---

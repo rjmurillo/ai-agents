@@ -154,10 +154,10 @@ class TestMain:
                             "invoke_security_commit_gate.get_project_directory",
                             return_value="/fake",
                         ):
-                            assert main() == 0
+                            assert main() == 2
                             captured = capsys.readouterr()
                             output = json.loads(captured.out.strip())
-                            assert output["decision"] == "deny"
+                            assert output["decision"] == "block"
                             assert "SECURITY COMMIT GATE" in output["reason"]
 
     def test_allows_commit_with_security_files_and_evidence(
@@ -182,12 +182,12 @@ class TestMain:
                         ):
                             assert main() == 0
 
-    def test_denies_commit_on_infrastructure_error(
+    def test_blocks_commit_on_infrastructure_error(
         self,
         capsys: pytest.CaptureFixture[str],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Fail-closed: infrastructure errors block the commit."""
+        """Fail-closed: infrastructure errors block the commit (block + exit 2)."""
         monkeypatch.delenv("SKIP_SECURITY_GATE", raising=False)
         mock_stdin = StringIO(json.dumps({"tool_input": {"command": "git commit -m 'add auth'"}}))
         with patch("invoke_security_commit_gate.sys.stdin", mock_stdin):
@@ -196,8 +196,8 @@ class TestMain:
                     "invoke_security_commit_gate.get_staged_files",
                     side_effect=OSError("git not found"),
                 ):
-                    assert main() == 0
+                    assert main() == 2
                     captured = capsys.readouterr()
                     output = json.loads(captured.out.strip())
-                    assert output["decision"] == "deny"
+                    assert output["decision"] == "block"
                     assert "SECURITY COMMIT GATE FAILED" in output["reason"]

@@ -5887,7 +5887,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645631+00:00"
+      "created": "2026-06-10T03:59:02.777326+00:00"
     },
     {
       "id": "e3ca65586256",
@@ -5896,7 +5896,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645668+00:00"
+      "created": "2026-06-10T03:59:02.777394+00:00"
     },
     {
       "id": "9fd06836b8eb",
@@ -5905,7 +5905,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645693+00:00"
+      "created": "2026-06-10T03:59:02.777430+00:00"
     },
     {
       "id": "7ba295d2c5b2",
@@ -5914,7 +5914,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645721+00:00"
+      "created": "2026-06-10T03:59:02.777461+00:00"
     },
     {
       "id": "4491d35df86f",
@@ -5923,7 +5923,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645748+00:00"
+      "created": "2026-06-10T03:59:02.777490+00:00"
     },
     {
       "id": "5c57c525a9b1",
@@ -5932,7 +5932,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645772+00:00"
+      "created": "2026-06-10T03:59:02.777519+00:00"
     },
     {
       "id": "47ec01cf1ad2",
@@ -5941,7 +5941,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645795+00:00"
+      "created": "2026-06-10T03:59:02.777547+00:00"
     },
     {
       "id": "34fabdac58bd",
@@ -5950,7 +5950,7 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645835+00:00"
+      "created": "2026-06-10T03:59:02.777577+00:00"
     },
     {
       "id": "9a68ddf98864",
@@ -5959,7 +5959,88 @@
       "episodes": [
         "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
-      "created": "2026-06-10T04:30:42.645860+00:00"
+      "created": "2026-06-10T03:59:02.777606+00:00"
+    },
+    {
+      "id": "2abd00557adf",
+      "type": "milestone",
+      "label": "milestone: Diagnose",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.778949+00:00"
+    },
+    {
+      "id": "da51bf9b097b",
+      "type": "milestone",
+      "label": "milestone: Implement",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.778985+00:00"
+    },
+    {
+      "id": "2ba06ba97caf",
+      "type": "milestone",
+      "label": "milestone: Verify",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779042+00:00"
+    },
+    {
+      "id": "1a1f907bb05a",
+      "type": "milestone",
+      "label": "milestone: Curate",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779075+00:00"
+    },
+    {
+      "id": "5e4640d72a3b",
+      "type": "commit",
+      "label": "commit: Commit: be4099b",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779105+00:00"
+    },
+    {
+      "id": "226e9ba9cf65",
+      "type": "milestone",
+      "label": "milestone: Review response",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779133+00:00"
+    },
+    {
+      "id": "16c3bffc3beb",
+      "type": "commit",
+      "label": "commit: Commit: 2bfa8d7",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779162+00:00"
+    },
+    {
+      "id": "a7210f0b10ea",
+      "type": "outcome",
+      "label": "Outcome: success - Make bootstrap-vm.sh provision the pinned Python via uv and a current uv so the pre-push gate runs on fresh Claude web containers without manual intervention",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779193+00:00"
+    },
+    {
+      "id": "add38ced9b2d",
+      "type": "outcome",
+      "label": "Outcome: success - Analyze recent PRs for thrashing/churn, RCA root causes, file issues, and open fix PRs to enable one-shot PR success",
+      "episodes": [
+        "episode-2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca"
+      ],
+      "created": "2026-06-10T04:01:13.764480+00:00"
     },
     {
       "id": "7ac5da4e9b1f",

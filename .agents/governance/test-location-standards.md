@@ -98,4 +98,4 @@ No exceptions to these standards are currently defined. If a new pattern emerges
 ## Related Documents
 
 - [AGENTS.md](../../AGENTS.md) - Main project documentation
-- [powershell-testing-patterns](../../.serena/memories/powershell-testing-patterns.md) - Testing patterns memory
+- [powershell-testing-patterns](../../.serena/memories/powershell/powershell-testing-patterns.md) - Testing patterns memory

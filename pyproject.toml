@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==0.108.0",
+    "anthropic==0.109.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
     "PyYAML==6.0.3",
@@ -84,6 +84,15 @@ ignore = []
 # ANN suppression for pre-existing code (to be fixed incrementally)
 ".claude/skills/**/*.py" = ["ANN"]
 ".claude/hooks/**/*.py" = ["ANN"]
+# Copilot CLI mirror trees are generated wholesale from the .claude sources by
+# build/scripts/build_all.py (the canonical sources above are the linted copy).
+# The generator inlines hooks into wrapper functions, which trips N-series and
+# import-order rules that do not apply to generated code, so the whole selected
+# rule set is exempt for these trees. Without this, regenerating a single mirror
+# surfaces the tree's pre-existing generator-induced violations (~1200) the
+# moment the file enters a changed-set.
+"src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
+"src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
 "packages/**/*.py" = ["ANN"]
 # The skillbook schema checker validates values of arbitrary JSON type;
 # `Any` is the honest annotation for an instance the checker will narrow.
