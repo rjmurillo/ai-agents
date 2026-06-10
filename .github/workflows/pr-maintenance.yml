@@ -151,6 +151,16 @@ jobs:
             --pr-number $env:PR_NUMBER `
             --branch-name $env:HEAD_REF `
             --target-branch $env:BASE_REF
+          $resolverExit = $LASTEXITCODE
+
+          # Resolver exit contract (resolve_pr_conflicts.py, ADR-035): 0 = all
+          # conflicts auto-resolved, 1 = some files blocked. Both are expected
+          # outcomes with JSON on stdout. Exit 2/3/4 = config/external/auth
+          # error where stdout may not be JSON: fail the step loudly.
+          if ($resolverExit -gt 1) {
+            Write-Host "::error::PR #$($env:PR_NUMBER): resolver failed (exit $resolverExit): $result"
+            exit $resolverExit
+          }
 
           $parsed = $result | ConvertFrom-Json
           if ($parsed.success) {
@@ -161,6 +171,11 @@ jobs:
             "needs_ai=true" | Out-File $env:GITHUB_OUTPUT -Append
             "blocked_files=$($parsed.files_blocked | ConvertTo-Json -Compress)" | Out-File $env:GITHUB_OUTPUT -Append
           }
+
+          # Blocked resolution (resolver exit 1) is an expected outcome routed
+          # to the AI steps via needs_ai, not a step failure: clear the lingering
+          # $LASTEXITCODE so the step exits 0 (Cursor finding, PR #2545).
+          exit 0
 
       - name: Prepare conflict context for AI analysis
         id: conflict-context
