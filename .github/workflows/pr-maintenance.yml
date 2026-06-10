@@ -14,11 +14,10 @@ on:
         type: boolean
         default: true
 
+# Issue #2520: least privilege. Only process-prs writes (push merges, comment
+# on PRs); discover-prs and summarize are read-only. Job-level blocks below.
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: read  # Required for workflow status checks
+  contents: read
 
 concurrency:
   group: pr-maintenance
@@ -32,6 +31,9 @@ jobs:
   discover-prs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
       has-prs: ${{ steps.discover.outputs.has-prs }}
@@ -54,7 +56,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
-          result=$(python3 .github/scripts/invoke_pr_maintenance.py --max-prs "${{ env.PR_MAX_PRS }}" --output-json)
+          result=$(python3 .github/scripts/invoke_pr_maintenance.py --max-prs "$PR_MAX_PRS" --output-json)
           matrix_json=$(echo "$result" | jq -c '{include: .prs}')
 
           echo "matrix=$matrix_json" >> "$GITHUB_OUTPUT"
@@ -71,9 +73,12 @@ jobs:
       - name: Write step summary
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          SUMMARY_JSON: ${{ steps.discover.outputs.summary }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $json = '${{ steps.discover.outputs.summary }}'
+          # Issue #2520: discovery JSON carries PR-derived text (categories,
+          # reasons); env-route instead of quoting into the script (CWE-78).
+          $json = $env:SUMMARY_JSON
           $parsed = $json | ConvertFrom-Json
 
           $summary = @"
@@ -110,6 +115,13 @@ jobs:
     if: needs.discover-prs.outputs.has-prs == 'true'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
+    # The only job that mutates state: pushes merge commits, comments on PRs,
+    # and the ai-review action reads workflow status (actions: read).
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
     strategy:
       matrix: ${{ fromJson(needs.discover-prs.outputs.matrix) }}
       fail-fast: false
@@ -131,43 +143,74 @@ jobs:
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          PR_NUMBER: ${{ matrix.number }}
+          HEAD_REF: ${{ matrix.headRefName }}
+          BASE_REF: ${{ matrix.baseRefName }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Attempting auto-resolution for PR #${{ matrix.number }}"
-          Write-Host "Branch: ${{ matrix.headRefName }} -> ${{ matrix.baseRefName }}"
+          Write-Host "Attempting auto-resolution for PR #$env:PR_NUMBER"
+          Write-Host "Branch: $env:HEAD_REF -> $env:BASE_REF"
 
-          $result = ./.claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 `
-            -PRNumber ${{ matrix.number }} `
-            -BranchName '${{ matrix.headRefName }}' `
-            -TargetBranch '${{ matrix.baseRefName }}'
+          # Issue #2519: the PowerShell Resolve-PRConflicts.ps1 was removed in the
+          # ADR-042 Python migration; call the existing Python resolver instead.
+          # Branch names flow through env (not run-block interpolation) to avoid
+          # CWE-78 injection via crafted PR branch names.
+          $result = python3 ./.claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py `
+            --owner $env:REPO_OWNER `
+            --repo $env:REPO_NAME `
+            --pr-number $env:PR_NUMBER `
+            --branch-name $env:HEAD_REF `
+            --target-branch $env:BASE_REF
+          $resolverExit = $LASTEXITCODE
+
+          # Resolver exit contract (resolve_pr_conflicts.py, ADR-035): 0 = all
+          # conflicts auto-resolved, 1 = some files blocked. Both are expected
+          # outcomes with JSON on stdout. Exit 2/3/4 = config/external/auth
+          # error where stdout may not be JSON: fail the step loudly.
+          if ($resolverExit -gt 1) {
+            Write-Host "::error::PR #$($env:PR_NUMBER): resolver failed (exit $resolverExit): $result"
+            exit $resolverExit
+          }
 
           $parsed = $result | ConvertFrom-Json
-          if ($parsed.Success) {
-            Write-Host "::notice::PR #${{ matrix.number }}: Auto-resolved - $($parsed.FilesResolved.Count) file(s)"
+          if ($parsed.success) {
+            Write-Host "::notice::PR #$($env:PR_NUMBER): Auto-resolved - $($parsed.files_resolved.Count) file(s)"
             "needs_ai=false" | Out-File $env:GITHUB_OUTPUT -Append
           } else {
-            Write-Host "::warning::PR #${{ matrix.number }}: Auto-resolution blocked on: $($parsed.FilesBlocked -join ', ')"
+            Write-Host "::warning::PR #$($env:PR_NUMBER): Auto-resolution blocked on: $($parsed.files_blocked -join ', ')"
             "needs_ai=true" | Out-File $env:GITHUB_OUTPUT -Append
-            "blocked_files=$($parsed.FilesBlocked | ConvertTo-Json -Compress)" | Out-File $env:GITHUB_OUTPUT -Append
+            "blocked_files=$($parsed.files_blocked | ConvertTo-Json -Compress)" | Out-File $env:GITHUB_OUTPUT -Append
           }
+
+          # Blocked resolution (resolver exit 1) is an expected outcome routed
+          # to the AI steps via needs_ai, not a step failure: clear the lingering
+          # $LASTEXITCODE so the step exits 0 (Cursor finding, PR #2545).
+          exit 0
 
       - name: Prepare conflict context for AI analysis
         id: conflict-context
         if: steps.auto-resolve.outputs.needs_ai == 'true'
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          HEAD_REF: ${{ matrix.headRefName }}
+          BASE_REF: ${{ matrix.baseRefName }}
+          BLOCKED_FILES_JSON: ${{ steps.auto-resolve.outputs.blocked_files }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
+          # Issue #2520: PR branch names are attacker-controllable; route them
+          # through env, never expression interpolation in run blocks (CWE-78).
           # Checkout PR branch and attempt merge to get conflict state
-          git fetch origin '${{ matrix.headRefName }}'
-          git checkout '${{ matrix.headRefName }}'
-          git fetch origin '${{ matrix.baseRefName }}'
+          git fetch origin $env:HEAD_REF
+          git checkout $env:HEAD_REF
+          git fetch origin $env:BASE_REF
 
           # Attempt merge (will create conflict markers)
-          $null = git merge "origin/${{ matrix.baseRefName }}" 2>&1
+          $null = git merge "origin/$env:BASE_REF" 2>&1
 
           # Gather conflict context with git blame analysis
-          $blockedFiles = '${{ steps.auto-resolve.outputs.blocked_files }}' | ConvertFrom-Json
+          $blockedFiles = $env:BLOCKED_FILES_JSON | ConvertFrom-Json
           $context = @()
 
           foreach ($file in $blockedFiles) {
@@ -192,7 +235,7 @@ jobs:
             $context += ""
             $context += "#### Recent commits (base branch):"
             $context += '```'
-            git log --oneline -5 "origin/${{ matrix.baseRefName }}" -- $file 2>$null | ForEach-Object { $context += $_ }
+            git log --oneline -5 "origin/$env:BASE_REF" -- $file 2>$null | ForEach-Object { $context += $_ }
             $context += '```'
             $context += ""
           }
@@ -230,9 +273,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
           AI_FINDINGS: ${{ steps.ai-analysis.outputs.findings }}
+          PR_NUMBER: ${{ matrix.number }}
+          HEAD_REF: ${{ matrix.headRefName }}
+          BASE_REF: ${{ matrix.baseRefName }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Applying AI-recommended conflict resolutions for PR #${{ matrix.number }}"
+          # Issue #2520: branch names and PR number flow through env, not
+          # expression interpolation (CWE-78 script injection via branch names).
+          Write-Host "Applying AI-recommended conflict resolutions for PR #$env:PR_NUMBER"
 
           # Parse AI output to find resolutions JSON
           $findings = $env:AI_FINDINGS
@@ -271,10 +319,10 @@ jobs:
           }
 
           # Checkout PR branch and merge
-          git fetch origin '${{ matrix.headRefName }}'
-          git checkout '${{ matrix.headRefName }}'
-          git fetch origin '${{ matrix.baseRefName }}'
-          $null = git merge "origin/${{ matrix.baseRefName }}" 2>&1
+          git fetch origin $env:HEAD_REF
+          git checkout $env:HEAD_REF
+          git fetch origin $env:BASE_REF
+          $null = git merge "origin/$env:BASE_REF" 2>&1
 
           # Apply each resolution
           foreach ($res in $resolutions.resolutions) {
@@ -315,20 +363,26 @@ jobs:
           }
 
           # Commit and push
-          git commit -m "Merge ${{ matrix.baseRefName }} into ${{ matrix.headRefName }} - AI-resolved conflicts"
-          git push origin '${{ matrix.headRefName }}'
-          Write-Host "::notice::PR #${{ matrix.number }}: AI-resolved conflicts successfully"
+          git commit -m "Merge $env:BASE_REF into $env:HEAD_REF - AI-resolved conflicts"
+          git push origin $env:HEAD_REF
+          Write-Host "::notice::PR #$($env:PR_NUMBER): AI-resolved conflicts successfully"
 
       - name: Report unresolvable conflicts
         if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict != 'PASS'
+        env:
+          PR_NUMBER: ${{ matrix.number }}
+          AI_VERDICT: ${{ steps.ai-analysis.outputs.verdict }}
+          BLOCKED_FILES: ${{ steps.auto-resolve.outputs.blocked_files }}
         run: |
-          echo "::error::PR #${{ matrix.number }}: Conflicts require manual resolution"
-          echo "::error::AI verdict: ${{ steps.ai-analysis.outputs.verdict }}"
-          echo "::error::Blocked files: ${{ steps.auto-resolve.outputs.blocked_files }}"
-          echo "Use /merge-resolver ${{ matrix.number }} for manual resolution"
+          # Issue #2520: blocked_files carries PR-controlled file paths; route
+          # through env, not run-block interpolation (CWE-78).
+          echo "::error::PR #${PR_NUMBER}: Conflicts require manual resolution"
+          echo "::error::AI verdict: ${AI_VERDICT}"
+          echo "::error::Blocked files: ${BLOCKED_FILES}"
+          echo "Use /merge-resolver ${PR_NUMBER} for manual resolution"
           exit 1
 
-      # Detect human CHANGES_REQUESTED reviews — informational only, no longer gates bot.
+      # Detect human CHANGES_REQUESTED reviews: informational only, no longer gates bot.
       # Human-out-of-the-loop is the goal; the bot processes review comments unconditionally
       # when conflicts are clear (or were auto-resolved). See removal of triage:approved gate.
       - name: Detect human CHANGES_REQUESTED for PR #${{ matrix.number }}
@@ -339,11 +393,12 @@ jobs:
           steps.ai-analysis.outputs.verdict == 'PASS'
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          PR_NUMBER: ${{ matrix.number }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          $prData = gh pr view ${{ matrix.number }} --repo $env:GITHUB_REPOSITORY --json reviews --jq '{reviews: .reviews}'
+          $prData = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json reviews --jq '{reviews: .reviews}'
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "::warning::Failed to fetch PR review data — proceeding without human-changes detection"
+            Write-Host "::warning::Failed to fetch PR review data; proceeding without human-changes detection"
             "human_changes_requested=false" | Out-File $env:GITHUB_OUTPUT -Append
             exit 0
           }
@@ -353,7 +408,7 @@ jobs:
             $_.state -eq 'CHANGES_REQUESTED' -and $_.author.login -notin $botAuthors
           }
           if ($humanChangesRequested) {
-            Write-Host "::warning::PR #${{ matrix.number }}: Human CHANGES_REQUESTED present — bot will still respond, but flagging for visibility"
+            Write-Host "::warning::PR #$($env:PR_NUMBER): Human CHANGES_REQUESTED present; bot will still respond, but flagging for visibility"
             "human_changes_requested=true" | Out-File $env:GITHUB_OUTPUT -Append
           } else {
             "human_changes_requested=false" | Out-File $env:GITHUB_OUTPUT -Append
@@ -362,7 +417,7 @@ jobs:
       - name: Process PR comments for PR #${{ matrix.number }}
         id: process-comments
         # Process review comments whenever conflicts are clear (or were auto-resolved).
-        # The triage:approved human-approval gate has been removed — see PR #1841.
+        # The triage:approved human-approval gate has been removed; see PR #1841.
         if: |
           matrix.hasConflicts != true ||
           steps.auto-resolve.outputs.needs_ai != 'true' ||
@@ -380,9 +435,14 @@ jobs:
 
       - name: Comment processing result
         if: steps.process-comments.outcome == 'success' || steps.process-comments.outcome == 'failure'
+        env:
+          PR_NUMBER: ${{ matrix.number }}
+          STEP_OUTCOME: ${{ steps.process-comments.outcome }}
+          AI_VERDICT: ${{ steps.process-comments.outputs.verdict }}
         run: |
-          echo "PR #${{ matrix.number }} comment processing: ${{ steps.process-comments.outcome }}"
-          echo "Verdict: ${{ steps.process-comments.outputs.verdict }}"
+          # Issue #2520: AI verdict is model output (untrusted); env-route it.
+          echo "PR #${PR_NUMBER} comment processing: ${STEP_OUTCOME}"
+          echo "Verdict: ${AI_VERDICT}"
 
   # Job 3: Post-processing summary
   summarize:
@@ -390,6 +450,8 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout

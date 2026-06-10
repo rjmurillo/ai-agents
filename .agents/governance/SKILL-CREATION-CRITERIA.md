@@ -80,17 +80,17 @@ Before creating a skill, verify:
 
 ---
 
-## Creating New Skills: Use SkillCreator
+## Creating New Skills: Use SkillForge
 
-**RECOMMENDED**: Use the `skillcreator` skill for all new skill creation.
+**RECOMMENDED**: Use the `SkillForge` skill for all new skill creation.
 
 ```text
-SkillCreator: create a skill for [your goal]
+SkillForge: create a skill for [your goal]
 ```
 
-### Why SkillCreator
+### Why SkillForge
 
-| Manual Creation | SkillCreator |
+| Manual Creation | SkillForge |
 |-----------------|--------------|
 | Ad-hoc analysis | 11 thinking models systematically applied |
 | Varies by author | Consistent quality via evolution scoring (≥7) |
@@ -98,9 +98,9 @@ SkillCreator: create a skill for [your goal]
 | Missing edge cases | Regression questioning until exhausted |
 | Scripts optional | Automation analysis for agentic operation |
 
-### SkillCreator Quality Gates
+### SkillForge Quality Gates
 
-The skillcreator enforces these automatically:
+SkillForge enforces these automatically:
 
 | Gate | Requirement |
 |------|-------------|
@@ -110,16 +110,16 @@ The skillcreator enforces these automatically:
 | Extension points | ≥2 documented |
 | Script self-verification | Scripts can verify their own output |
 
-### When to Use SkillCreator
+### When to Use SkillForge
 
 | Scenario | Approach |
 |----------|----------|
-| New production skill | **SkillCreator** (full analysis) |
-| Quick prototype | Manual creation, then SkillCreator refinement |
+| New production skill | **SkillForge** (full analysis) |
+| Quick prototype | Manual creation, then SkillForge refinement |
 | Skill modification | Direct edit (existing skills already validated) |
 | Simple wrapper (<10 lines) | Manual creation acceptable |
 
-### SkillCreator Process Overview
+### SkillForge Process Overview
 
 ```text
 Your Goal → Phase 1: Deep Analysis (11 lenses, regression questions)
@@ -131,14 +131,14 @@ Your Goal → Phase 1: Deep Analysis (11 lenses, regression questions)
 
 ### Integration with This Document
 
-SkillCreator uses these criteria internally:
+SkillForge uses these criteria internally:
 
 - Solved/Unsolved Framework → Phase 1 requirement analysis
 - Decision Matrix → Skill candidacy validation
 - Complexity Tiers → Architecture pattern selection
 - Phase Gates → Built into generated skills (Tier 2+)
 
-**Reference**: [`.claude/skills/skillcreator/SKILL.md`](../../.claude/skills/skillcreator/SKILL.md)
+**Reference**: [`.claude/skills/SkillForge/SKILL.md`](../../.claude/skills/SkillForge/SKILL.md)
 
 ---
 
@@ -365,7 +365,7 @@ Remove skills when:
 - [ADR-030](../architecture/ADR-030-skills-pattern-superiority.md): Skills vs subagents
 - [ADR-033](../architecture/ADR-033-routing-level-enforcement-gates.md): Routing-level enforcement gates
 - [Agent Design Principles](./agent-design-principles.md): Agent creation criteria
-- [SkillCreator](../../.claude/skills/skillcreator/SKILL.md): Meta-skill for production-ready skill creation
+- [SkillForge](../../.claude/skills/SkillForge/SKILL.md): Meta-skill for production-ready skill creation
 - [Vercel Passive Context Research](../analysis/vercel-passive-context-vs-skills-research.md): Evidence for passive context over skills
 
 ---

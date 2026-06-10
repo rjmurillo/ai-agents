@@ -1,0 +1,27 @@
+{
+  "id": "episode-2026-06-10-session-2381-fix-issue-2527-reconcile-agentsmd",
+  "session": "2026-06-10-session-2381-fix-issue-2527-reconcile-agentsmd",
+  "timestamp": "2026-06-10T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue 2527: reconcile AGENTS.md Python stack with pyproject requires-python floor",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-10T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: de62ff4",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}

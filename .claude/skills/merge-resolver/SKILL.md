@@ -123,6 +123,16 @@ The script auto-resolves these by accepting the target branch version.
 | `.github/prompts/*` | GitHub prompts |
 | `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml` | Lock files; regenerate from main |
 
+### Plugin Manifests (Special Rule)
+
+`*/.claude-plugin/plugin.json` is NOT accept-theirs. Accepting main's copy
+makes head version equal to the merge-base and re-trips the plugin
+version-bump gate with `not-bumped` (issue #2543). When the two sides differ
+only in `version`, the script resolves to one patch bump above the higher
+side (for example ours `0.5.168` vs theirs `0.5.169` resolves to `0.5.170`).
+Any other field difference, or a prerelease/build-metadata version, blocks
+auto-resolution and requires manual handling.
+
 ## Scripts
 
 ### resolve_pr_conflicts.py

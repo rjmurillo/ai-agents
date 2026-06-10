@@ -18,6 +18,19 @@ What it flags:
   resolve paths through it; the literal is then the documented lazy default
   or prose, not a hard-coded dependency. Comments and docstrings are ignored.
 
+What it does NOT flag (Issue #2510, false-positive guards):
+  * Raw-string regex patterns. A literal like ``r"\\.agents/"`` carries the
+    raw-string prefix (``r``/``R``/``rb``/``Rb``...) and a backslash-escaped
+    dot (``\\.``); together those signals are overwhelmingly a regex pattern
+    that *matches* paths, not a path the script reads or writes. The literal
+    has no I/O semantics and cannot be migrated through ``paths.py``.
+  * CLI prose. A literal that lives inside a keyword argument named
+    ``help``, ``description``, ``epilog``, ``metavar``, or ``usage`` (the
+    argparse / Click / Typer conventions) is rendered to stderr by the CLI
+    parser and never opened as a file. The skip is scoped to the line range
+    of the keyword's value expression, so a real path elsewhere in the same
+    file is still flagged.
+
 Baseline ratchet:
   131 files across 30+ skills already hard-code these paths (Issue #2050).
   Phase 1 does not migrate them. To gate regressions without forcing that
@@ -59,6 +72,17 @@ if hasattr(tokenize, "FSTRING_MIDDLE"):
 # Helper function names exposed by .claude/lib/paths.py.
 _HELPER_FUNCTIONS: frozenset[str] = frozenset(
     {"resolve_artifact_root", "resolve_skill_resource"}
+)
+
+# Keyword argument names whose value is CLI prose, not an I/O path.
+# When `.agents/` or `.claude/lib/` appears inside one of these kwargs
+# (argparse `help=`, `description=`, `epilog=`, `metavar=`, `usage=`; Click
+# and Typer follow the same convention), the literal is rendered onto
+# stderr by the CLI parser. It never opens or writes a file, so it cannot
+# be migrated through the portability helper and must not be flagged.
+# Issue #2510.
+_PROSE_KWARGS: frozenset[str] = frozenset(
+    {"help", "description", "epilog", "metavar", "usage"}
 )
 
 # Directories scanned for vendor-shipped scripts.
@@ -162,17 +186,106 @@ def _docstring_lines(content: str) -> set[int]:
     return lines
 
 
+def _prose_lines(content: str) -> set[int]:
+    """Return line numbers occupied by CLI prose keyword-arg values.
+
+    Walks the AST for every ``ast.Call`` and records the line range of any
+    keyword whose name is in ``_PROSE_KWARGS`` (``help``, ``description``,
+    ``epilog``, ``metavar``, ``usage``). The value may be a single string,
+    a tuple/list of strings, a parenthesized concatenation (implicit string
+    joining), or a ``+``/``%`` expression mixing strings; the line span of
+    the entire value expression is marked so any banned-path token sitting
+    inside that span is treated as prose, not as a path operation.
+
+    Issue #2510. Cases like ``argparse.ArgumentParser(epilog=...)`` and
+    ``parser.add_argument("--out", help="...")`` are the primary motivators;
+    Click ``@click.option(..., help=...)`` and Typer follow the same
+    convention and are exempted by the same rule.
+    """
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return set()
+
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for kw in node.keywords:
+            if kw.arg is None or kw.arg not in _PROSE_KWARGS:
+                continue
+            start = getattr(kw.value, "lineno", None)
+            end = getattr(kw.value, "end_lineno", start)
+            if start is None:
+                continue
+            lines.update(range(start, (end or start) + 1))
+    return lines
+
+
+# Recognised string-literal prefixes that mark a raw string.
+# A raw string disables Python's own backslash interpretation, so any
+# ``\.`` inside one is the regex escape for a literal dot. Combined with a
+# banned path it is overwhelmingly a regex pattern matching paths, not a
+# real path the script writes. Issue #2510. The ``f`` letters cover raw
+# f-string prefixes (``rf``/``fr``/``Rf``...), which tokenize as a single
+# STRING token on Python < 3.12.
+_RAW_STRING_PREFIX = re.compile(r"^[bBuUfF]*[rR][bBuUfF]*")
+
+
+def _is_raw_string_regex(
+    token_text: str,
+    is_fstring_middle: bool = False,
+    is_raw_fstring: bool = False,
+) -> bool:
+    """True when ``token_text`` is raw-string text containing ``\\.``.
+
+    For a ``tokenize.STRING`` token, ``token_text`` is the raw source slice
+    (prefix + quotes + body) and the raw-ness is read from the prefix. For a
+    ``FSTRING_MIDDLE`` token (Python 3.12+ splits f-strings into
+    FSTRING_START/MIDDLE/END), the text carries no prefix, so the caller
+    passes ``is_raw_fstring`` derived from the enclosing FSTRING_START token.
+
+    We require both the raw-string signal and a literal backslash-escaped
+    dot in the body. Real path strings never escape the dot; matching
+    ``r".agents/x"`` (no backslash) is rare and intentionally still flagged
+    so a missing-escape regex does not become a silent bypass.
+    """
+    if is_fstring_middle:
+        if not is_raw_fstring:
+            return False
+    elif not _RAW_STRING_PREFIX.match(token_text):
+        return False
+    return "\\." in token_text
+
+
 def _first_banned_line(content: str) -> tuple[int, str] | None:
     """Return the first banned path in a non-docstring string literal."""
-    doc_lines = _docstring_lines(content)
+    skip_lines = _docstring_lines(content) | _prose_lines(content)
     reader = io.StringIO(content).readline
+    fstring_start = getattr(tokenize, "FSTRING_START", None)
+    fstring_middle = getattr(tokenize, "FSTRING_MIDDLE", None)
+    fstring_end = getattr(tokenize, "FSTRING_END", None)
+    is_raw_fstring = False
     try:
         tokens = tokenize.generate_tokens(reader)
         for token in tokens:
-            if token.type not in _STRING_TOKEN_TYPES or token.start[0] in doc_lines:
+            if token.type == fstring_start:
+                is_raw_fstring = "r" in token.string.lower()
                 continue
-            if _BANNED_PATH.search(token.string):
-                return token.start[0], token.line.strip()
+            if token.type == fstring_end:
+                is_raw_fstring = False
+                continue
+            if token.type not in _STRING_TOKEN_TYPES or token.start[0] in skip_lines:
+                continue
+            if not _BANNED_PATH.search(token.string):
+                continue
+            if _is_raw_string_regex(
+                token.string,
+                is_fstring_middle=token.type == fstring_middle,
+                is_raw_fstring=is_raw_fstring,
+            ):
+                continue
+            return token.start[0], token.line.strip()
     except tokenize.TokenError:
         return None
     return None
