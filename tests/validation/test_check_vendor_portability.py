@@ -145,6 +145,51 @@ def test_raw_string_regex_pattern_with_anchor_is_not_an_offender(fake_repo: Path
     assert offenders == []
 
 
+def test_raw_fstring_regex_pattern_is_not_an_offender(fake_repo: Path) -> None:
+    """Raw f-string regex pattern (rf"\\.agents/{cat}/") is a pattern, not a path.
+
+    On Python 3.12+ an f-string tokenizes as FSTRING_START/MIDDLE/END; the
+    MIDDLE token carries the `\\.agents/` text without the `rf` prefix, so the
+    raw-ness must be read from the enclosing FSTRING_START token.
+    """
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/raw_fstring.py",
+        'category = "sessions"\npat = rf"\\.agents/{category}/"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_fr_prefixed_raw_string_regex_is_not_an_offender(fake_repo: Path) -> None:
+    """The `fr` prefix spelling (f before r) is also a raw string."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/fr_prefix.py",
+        'category = "sessions"\npat = fr"\\.agents/{category}/"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert offenders == []
+
+
+def test_raw_fstring_without_escape_is_still_an_offender(fake_repo: Path) -> None:
+    """A raw f-string without `\\.` escape is a real path and stays flagged."""
+    _write(
+        fake_repo,
+        ".claude/skills/foo/scripts/raw_fstring_path.py",
+        'day = "today"\nout = rf".agents/analysis/{day}.md"\n',
+    )
+
+    offenders = cvp.collect_offenders(fake_repo)
+
+    assert len(offenders) == 1
+    assert offenders[0].relpath == ".claude/skills/foo/scripts/raw_fstring_path.py"
+
+
 def test_raw_string_without_escape_is_still_an_offender(fake_repo: Path) -> None:
     """A raw string without `\\.` escape is a real path, not a regex pattern.
 

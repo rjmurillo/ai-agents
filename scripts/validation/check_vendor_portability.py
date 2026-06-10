@@ -226,21 +226,34 @@ def _prose_lines(content: str) -> set[int]:
 # A raw string disables Python's own backslash interpretation, so any
 # ``\.`` inside one is the regex escape for a literal dot. Combined with a
 # banned path it is overwhelmingly a regex pattern matching paths, not a
-# real path the script writes. Issue #2510.
-_RAW_STRING_PREFIX = re.compile(r"^[bBuU]?[rR][bB]?")
+# real path the script writes. Issue #2510. The ``f`` letters cover raw
+# f-string prefixes (``rf``/``fr``/``Rf``...), which tokenize as a single
+# STRING token on Python < 3.12.
+_RAW_STRING_PREFIX = re.compile(r"^[bBuUfF]*[rR][bBuUfF]*")
 
 
-def _is_raw_string_regex(token_text: str) -> bool:
-    """True when ``token_text`` is a raw string literal containing ``\\.``.
+def _is_raw_string_regex(
+    token_text: str,
+    is_fstring_middle: bool = False,
+    is_raw_fstring: bool = False,
+) -> bool:
+    """True when ``token_text`` is raw-string text containing ``\\.``.
 
-    ``token_text`` is the raw source slice for one ``tokenize.STRING`` token
-    (prefix + quotes + body). We require both the raw-string prefix and a
-    literal backslash-escaped dot in the body. Real path strings never
-    escape the dot; matching ``r".agents/x"`` (no backslash) is rare and
-    intentionally still flagged so a missing-escape regex does not become
-    a silent bypass.
+    For a ``tokenize.STRING`` token, ``token_text`` is the raw source slice
+    (prefix + quotes + body) and the raw-ness is read from the prefix. For a
+    ``FSTRING_MIDDLE`` token (Python 3.12+ splits f-strings into
+    FSTRING_START/MIDDLE/END), the text carries no prefix, so the caller
+    passes ``is_raw_fstring`` derived from the enclosing FSTRING_START token.
+
+    We require both the raw-string signal and a literal backslash-escaped
+    dot in the body. Real path strings never escape the dot; matching
+    ``r".agents/x"`` (no backslash) is rare and intentionally still flagged
+    so a missing-escape regex does not become a silent bypass.
     """
-    if not _RAW_STRING_PREFIX.match(token_text):
+    if is_fstring_middle:
+        if not is_raw_fstring:
+            return False
+    elif not _RAW_STRING_PREFIX.match(token_text):
         return False
     return "\\." in token_text
 
@@ -249,14 +262,28 @@ def _first_banned_line(content: str) -> tuple[int, str] | None:
     """Return the first banned path in a non-docstring string literal."""
     skip_lines = _docstring_lines(content) | _prose_lines(content)
     reader = io.StringIO(content).readline
+    fstring_start = getattr(tokenize, "FSTRING_START", None)
+    fstring_middle = getattr(tokenize, "FSTRING_MIDDLE", None)
+    fstring_end = getattr(tokenize, "FSTRING_END", None)
+    is_raw_fstring = False
     try:
         tokens = tokenize.generate_tokens(reader)
         for token in tokens:
+            if token.type == fstring_start:
+                is_raw_fstring = "r" in token.string.lower()
+                continue
+            if token.type == fstring_end:
+                is_raw_fstring = False
+                continue
             if token.type not in _STRING_TOKEN_TYPES or token.start[0] in skip_lines:
                 continue
             if not _BANNED_PATH.search(token.string):
                 continue
-            if _is_raw_string_regex(token.string):
+            if _is_raw_string_regex(
+                token.string,
+                is_fstring_middle=token.type == fstring_middle,
+                is_raw_fstring=is_raw_fstring,
+            ):
                 continue
             return token.start[0], token.line.strip()
     except tokenize.TokenError:
