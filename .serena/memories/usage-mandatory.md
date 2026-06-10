@@ -1,172 +1,24 @@
-# MANDATORY: Use Claude Skills, Never Raw Commands
+# Skill-First: Incident Log
 
-**Importance**: **CRITICAL**
-**Date**: 2025-12-18
-**Applies To**: ALL agents
-
-## The Rule
-
-**NEVER use raw commands when a Claude skill exists for that functionality.**
+The skill-first rule itself is canonical in `AGENTS.md` ("Skill-First" section, "Never: Raw gh when skills exist") and `CLAUDE.md` ("Skill routing"). It is technically enforced by the `invoke_skill_first_guard.py` PreToolUse hook, which blocks raw `gh` when a mapped skill script exists. This memory keeps only the episodic incidents that motivated the rule.
 
 ## PR Review Comment Routing (session 1187, 2026-02-08)
 
 **Specific failure mode**: PR review comments with CWE-* bypassed security-scan skill
 
 **User correction**: "just use the security-scan skill to fix these"
+
 - Context: 12 bot comments about CWE-22 path traversal
 - What happened: Manual path validation instead of running security-scan
 - Why it matters: Skills encode validated patterns; manual fixes led to linting iterations
 
-**Checkpoint addition**: Before responding to security bot comments, ask:
-"Is this a CWE-* pattern? → Route to security-scan skill"
+**Checkpoint**: Before responding to security bot comments, ask:
+"Is this a CWE-* pattern? If yes, route to security-scan skill"
 
-Specifically:
+## Memory Alone Is Insufficient (PR #226)
 
-### GitHub Operations
+An agent read this memory and then violated it with raw `gh` commands in the same session. Reading guidance does not enforce it; the `invoke_skill_first_guard` hook is the enforcement layer. Treat prose rules without hooks as advisory only.
 
-WRONG: `gh pr view`, `gh issue create`, `gh api ...`
-CORRECT: Use `.claude/skills/github/` scripts
+## Pre-PR Validation (Issue #934, PR #908)
 
-**Why**: Skills are tested, handle errors, have proper parameter validation, and are maintained centrally.
-
-### Examples
-
-#### Creating Issues
-
-WRONG:
-
-```bash
-gh issue create --title "..." --body "..." --label "enhancement"
-```
-
-CORRECT:
-
-```powershell
-# Check .claude/skills/github/scripts/issue/ for available scripts
-# If capability missing, ADD to skill, don't write inline
-```
-
-#### Posting PR Comments
-
-WRONG:
-
-```bash
-gh pr comment $PR_NUMBER --body "$COMMENT"
-```
-
-CORRECT:
-
-```powershell
-& .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest $PR_NUMBER -Body $COMMENT
-```
-
-#### Getting PR Context
-
-WRONG:
-
-```bash
-gh pr view $PR_NUMBER --json title,body,files
-```
-
-CORRECT:
-
-```powershell
-& .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest $PR_NUMBER -IncludeChangedFiles
-```
-
-## Root Cause of Violations
-
-**Why agents keep using raw `gh`**:
-
-1. **Habit**: Default to inline bash/PowerShell scripts
-2. **Not checking first**: Don't verify if skill exists before writing code
-3. **Ignoring user corrections**: Pattern repeats despite feedback
-4. **Lack of discipline**: Even after being corrected, reverting to old patterns
-
-## The Process
-
-### Before Writing ANY GitHub Operation
-
-1. **CHECK**: Does `.claude/skills/github/` have this capability?
-
-   ```powershell
-   ls .claude/skills/github/scripts/**/*.ps1
-   ```
-
-2. **USE**: If exists, use the skill script
-
-3. **EXTEND**: If missing, add to skill (don't write inline)
-   - Create new script in appropriate directory (pr/, issue/, reactions/)
-   - Add Pester tests
-   - Update skill documentation
-   - Then use it
-
-### This Applies To
-
-- GitHub operations (`gh` command)
-- File operations (if skill exists)
-- Any operation where a tested, validated skill exists
-
-### This Does NOT Apply To
-
-- Git operations (`git` commands) - no skill for this yet
-- Build operations (npm, pwsh for build scripts)
-- System operations (ls, mkdir, etc.)
-
-## Pre-PR Validation
-
-**Before creating any PR, verify:**
-
-- No BLOCKING synthesis issues exist (check synthesis panel documents for `blocking: true`)
-- Reference: Issue #934 (pre-PR validation), PR #908 evidence
-
-## Enforcement
-
-**User will reject PRs/commits that:**
-
-- Use raw `gh` commands when skill exists
-- Write inline scripts duplicating skill functionality
-- Ignore this guidance after being corrected
-- Create PRs with unresolved BLOCKING synthesis issues
-
-## Skill Location
-
-```text
-.claude/skills/github/
-|-- SKILL.md (documentation)
-|-- modules/
-|   `-- GitHubCore.psm1 (shared functions)
-|-- scripts/
-|   |-- pr/
-|   |   |-- Get-PRContext.ps1
-|   |   |-- Post-PRCommentReply.ps1
-|   |   |-- Get-PRReviewComments.ps1
-|   |   `-- Get-PRReviewers.ps1
-|   |-- issue/
-|   |   |-- Get-IssueContext.ps1
-|   |   |-- Post-IssueComment.ps1
-|   |   |-- Set-IssueLabels.ps1
-|   |   `-- Set-IssueMilestone.ps1
-|   `-- reactions/
-|       `-- Add-CommentReaction.ps1
-`-- tests/
-    `-- GitHubCore.Tests.ps1
-```
-
-## Before Every GitHub Operation
-
-**Ask yourself**:
-
-1. Is this a GitHub operation? (PR, issue, comment, label, etc.)
-2. Does `.claude/skills/github/` have this? (CHECK FIRST!)
-3. If yes -> Use skill
-4. If no -> Add to skill, THEN use it
-
-**DO NOT** write raw `gh` commands inline. Ever.
-
-## Related
-
-- ADR-005: PowerShell-only scripting
-- ADR-006: Thin workflows, testable modules
-- User preference: No bash/Python (use `mcp__serena__read_memory` with `memory_file_name="user-preference-no-bash-python"`)
-- Pattern: Thin workflows (use `mcp__serena__read_memory` with `memory_file_name="pattern-thin-workflows"`)
+Before creating any PR, verify no BLOCKING synthesis issues exist (check synthesis panel documents for `blocking: true`). User rejects PRs with unresolved BLOCKING synthesis issues.
