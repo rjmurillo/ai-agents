@@ -80,7 +80,7 @@ PLAN_FILE_PATTERNS = [
 SUMMARY_MAX_CHARS = 500
 
 
-def _read_stdin_json() -> dict | None:
+def _read_stdin_json() -> dict[str, object] | None:
     """Read and parse JSON from stdin (Claude hook input)."""
     if sys.stdin.isatty():
         return None
@@ -88,12 +88,13 @@ def _read_stdin_json() -> dict | None:
         data = sys.stdin.read().strip()
         if not data:
             return None
-        return json.loads(data)
+        parsed: dict[str, object] = json.loads(data)
+        return parsed
     except (json.JSONDecodeError, OSError):
         return None
 
 
-def _extract_file_path(hook_input: dict) -> str | None:
+def _extract_file_path(hook_input: dict[str, object]) -> str | None:
     """Extract the file path from hook input.
 
     Defends against malformed hook input where ``hook_input`` or
@@ -153,12 +154,25 @@ def _read_file_summary(file_path: str) -> str:
         return "(read error)"
 
 
+# Issue #2523: msvcrt.locking() locks a byte RANGE from the current file
+# position, unlike fcntl.flock() which locks the whole file. The previous
+# 1-byte lock at an arbitrary position was decorative: concurrent sessions
+# could still interleave writes. Lock a fixed region anchored at offset 0
+# instead; both lock and unlock must use the same anchor and length.
+_NT_LOCK_BYTES = 0x7FFFFFFF
+
+
 def _acquire_lock(handle) -> None:
     """Acquire an advisory exclusive lock on an open file handle."""
-    if os.name == "nt":  # pragma: no cover - platform branch
+    if sys.platform == "win32":  # pragma: no cover - platform branch
         import msvcrt
 
-        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        pos = handle.tell()
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, _NT_LOCK_BYTES)
+        finally:
+            handle.seek(pos)
         return
     import fcntl
 
@@ -167,13 +181,17 @@ def _acquire_lock(handle) -> None:
 
 def _release_lock(handle) -> None:
     """Release the advisory lock held on an open file handle."""
-    if os.name == "nt":  # pragma: no cover - platform branch
+    if sys.platform == "win32":  # pragma: no cover - platform branch
         import msvcrt
 
+        pos = handle.tell()
+        handle.seek(0)
         try:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, _NT_LOCK_BYTES)
         except OSError:
             pass
+        finally:
+            handle.seek(pos)
         return
     import fcntl
 
@@ -204,7 +222,7 @@ def _write_checkpoint(project_dir: str, file_path: str, summary: str) -> None:
     with checkpoint_file.open(mode, encoding="utf-8") as handle:
         _acquire_lock(handle)
         try:
-            checkpoints: list[dict] = []
+            checkpoints: list[dict[str, object]] = []
             handle.seek(0)
             raw = handle.read()
             if raw:
