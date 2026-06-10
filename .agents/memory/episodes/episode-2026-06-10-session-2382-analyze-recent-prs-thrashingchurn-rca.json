@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca",
+  "session": "2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca",
+  "timestamp": "2026-06-10T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Analyze recent PRs for thrashing/churn, RCA root causes, file issues, and open fix PRs to enable one-shot PR success",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

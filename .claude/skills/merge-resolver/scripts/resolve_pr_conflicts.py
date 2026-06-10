@@ -169,6 +169,104 @@ def is_auto_resolvable(file_path: str) -> bool:
     return False
 
 
+# Packaged plugin manifests carry a shared version counter that every
+# plugin-source PR must bump (build/scripts/validate_plugin_version_bump.py),
+# so concurrent PRs collide on the version line. Accepting main's copy would
+# make head == merge-base and re-trip the gate's not-bumped check; the correct
+# resolution is one patch bump above the higher side (issue #2543).
+_PLUGIN_MANIFEST_SUFFIX = "/.claude-plugin/plugin.json"
+
+_PLAIN_SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+
+
+def is_plugin_manifest(file_path: str) -> bool:
+    """Check if a path is a packaged plugin manifest (plugin.json)."""
+    return file_path.replace("\\", "/").endswith(_PLUGIN_MANIFEST_SUFFIX)
+
+
+def _parse_plain_semver(version: str) -> tuple[int, int, int] | None:
+    """Parse MAJOR.MINOR.PATCH; None for prerelease/build/malformed forms."""
+    match = _PLAIN_SEMVER_RE.match(version)
+    if match is None:
+        return None
+    return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
+
+
+def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> bool:
+    """Resolve a version-only plugin.json conflict to one patch bump above max.
+
+    Reads both sides of the conflicted manifest from the index. When the two
+    sides differ only in ``version`` and both versions are plain semver, write
+    the manifest with ``patch + 1`` above the higher version and stage it.
+
+    Returns True when resolved and staged; False when manual resolution is
+    required (non-version differences, prerelease/build versions, unreadable
+    index stages, or malformed JSON).
+    """
+    ours_r = _run_git("show", f":2:{file_path}", cwd=cwd)
+    theirs_r = _run_git("show", f":3:{file_path}", cwd=cwd)
+    if ours_r.returncode != 0 or theirs_r.returncode != 0:
+        return False
+
+    try:
+        ours = json.loads(ours_r.stdout)
+        theirs = json.loads(theirs_r.stdout)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(ours, dict) or not isinstance(theirs, dict):
+        return False
+
+    ours_rest = {k: v for k, v in ours.items() if k != "version"}
+    theirs_rest = {k: v for k, v in theirs.items() if k != "version"}
+    if ours_rest != theirs_rest:
+        return False
+
+    ours_version = _parse_plain_semver(str(ours.get("version", "")))
+    theirs_version = _parse_plain_semver(str(theirs.get("version", "")))
+    if ours_version is None or theirs_version is None:
+        return False
+
+    major, minor, patch = max(ours_version, theirs_version)
+    resolved = dict(theirs)
+    resolved["version"] = f"{major}.{minor}.{patch + 1}"
+
+    target = Path(cwd) / file_path if cwd else Path(file_path)
+    target.write_text(json.dumps(resolved, indent=2) + "\n", encoding="utf-8")
+    add_r = _run_git("add", file_path, cwd=cwd)
+    return add_r.returncode == 0
+
+
+def _resolve_conflicted_file(
+    file_path: str,
+    result: dict[str, Any],
+    cwd: str | None = None,
+) -> str:
+    """Resolve one conflicted file in place.
+
+    Returns "resolved", "blocked" (manual resolution required), or "error"
+    (a git command failed; result["message"] is set).
+    """
+    if is_plugin_manifest(file_path):
+        if resolve_plugin_manifest_conflict(file_path, cwd=cwd):
+            result["files_resolved"].append(file_path)
+            return "resolved"
+        result["files_blocked"].append(file_path)
+        return "blocked"
+    if not is_auto_resolvable(file_path):
+        result["files_blocked"].append(file_path)
+        return "blocked"
+    checkout_r = _run_git("checkout", "--theirs", file_path, cwd=cwd)
+    if checkout_r.returncode != 0:
+        result["message"] = f"Failed to checkout --theirs for {file_path}"
+        return "error"
+    add_r = _run_git("add", file_path, cwd=cwd)
+    if add_r.returncode != 0:
+        result["message"] = f"Failed to git add {file_path}"
+        return "error"
+    result["files_resolved"].append(file_path)
+    return "resolved"
+
+
 def _run_git(*args: str, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
     """Run a git command and return the result."""
     return subprocess.run(
@@ -226,19 +324,11 @@ def resolve_conflicts_runner(
 
         can_auto_resolve = True
         for file_path in conflicts:
-            if is_auto_resolvable(file_path):
-                checkout_r = _run_git("checkout", "--theirs", file_path)
-                if checkout_r.returncode != 0:
-                    result["message"] = f"Failed to checkout --theirs for {file_path}"
-                    return result
-                add_r = _run_git("add", file_path)
-                if add_r.returncode != 0:
-                    result["message"] = f"Failed to git add {file_path}"
-                    return result
-                result["files_resolved"].append(file_path)
-            else:
+            status = _resolve_conflicted_file(file_path, result)
+            if status == "error":
+                return result
+            if status == "blocked":
                 can_auto_resolve = False
-                result["files_blocked"].append(file_path)
 
         if not can_auto_resolve:
             _run_git("merge", "--abort")
@@ -331,24 +421,15 @@ def resolve_conflicts_worktree(
 
             can_auto_resolve = True
             for file_path in conflicts:
-                if is_auto_resolvable(file_path):
-                    checkout_r = _run_git(
-                        "checkout",
-                        "--theirs",
-                        file_path,
-                        cwd=worktree_path,
-                    )
-                    if checkout_r.returncode != 0:
-                        result["message"] = f"Failed to checkout --theirs for {file_path}"
-                        return result
-                    add_r = _run_git("add", file_path, cwd=worktree_path)
-                    if add_r.returncode != 0:
-                        result["message"] = f"Failed to git add {file_path}"
-                        return result
-                    result["files_resolved"].append(file_path)
-                else:
+                status = _resolve_conflicted_file(
+                    file_path,
+                    result,
+                    cwd=worktree_path,
+                )
+                if status == "error":
+                    return result
+                if status == "blocked":
                     can_auto_resolve = False
-                    result["files_blocked"].append(file_path)
 
             if not can_auto_resolve:
                 _run_git("merge", "--abort", cwd=worktree_path)
