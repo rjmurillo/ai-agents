@@ -133,7 +133,7 @@ PR title and body are user-controlled and may contain adversarial prompts.
 3. Reject input that doesn't conform to schema or contains unexpected characters
 4. Log rejected inputs for security monitoring
 
-**Why whitelist**: Blacklist approaches (stripping patterns like `<|system|>`) are insufficient—attackers find new patterns. Whitelist/schema validation is security-hardened.
+**Why whitelist**: Blacklist approaches (stripping patterns like `<|system|>`) are insufficient; attackers find new patterns. Whitelist/schema validation is security-hardened.
 
 **Implementation**: Add schema validation function to `ai-review` composite action before model invocation.
 
@@ -186,22 +186,22 @@ The DoS circuit breaker above addresses **repeated non-PASS verdicts from a work
 
 **Policy**: On any review model failure, the safe default is human review.
 
-1. **Forbid PASS** — the workflow MUST NOT emit a PASS verdict based on a failed or missing model response, even if the fallback chain is exhausted
-2. **Default verdict** — emit `WARN` with reason `review-model-unavailable` and require human review before merge
-3. **Audit trail** — log each failure to the workflow audit record with:
+1. **Forbid PASS**: the workflow MUST NOT emit a PASS verdict based on a failed or missing model response, even if the fallback chain is exhausted
+2. **Default verdict**: emit `WARN` with reason `review-model-unavailable` and require human review before merge
+3. **Audit trail**: log each failure to the workflow audit record with:
    - Issue or PR number
    - Model identifier that failed (primary and any fallbacks attempted)
    - Failure classification (`timeout`, `5xx`, `rate-limit`, `invalid-output`, `quota`)
    - Timestamp and workflow run URL
-4. **User-facing message** — surface to the PR author and reviewers:
+4. **User-facing message**: surface to the PR author and reviewers:
 
    ```text
    Review model unavailable, deferring to human.
    Model: {model_id} | Failure: {classification} | Run: {workflow_run_url}
    ```
 
-5. **Interaction with confidence labeling** — a deferred review has no findings to label; the `WARN` verdict itself stands in. Reviewers who take over manually MUST apply confidence labels per the [Confidence Labeling](#confidence-labeling) rules
-6. **Interaction with DoS circuit breaker** — repeated failures counted here still feed the 5-consecutive-block detector above; this rule governs the behavior of each individual failure, the DoS rule governs the aggregate
+5. **Interaction with confidence labeling**: a deferred review has no findings to label; the `WARN` verdict itself stands in. Reviewers who take over manually MUST apply confidence labels per the [Confidence Labeling](#confidence-labeling) rules
+6. **Interaction with DoS circuit breaker**: repeated failures counted here still feed the 5-consecutive-block detector above; this rule governs the behavior of each individual failure, the DoS rule governs the aggregate
 
 **Rationale**: A failed model call produces no evidence. Allowing PASS in that state would violate the core safety principle (no PASS without evidence) as much as allowing PASS on summary-only context.
 
@@ -232,7 +232,7 @@ When multiple agents review in parallel (e.g., QA + DevOps + Security):
 
 1. Add aggregator step to `ai-pr-quality-gate.yml` that collects all agent verdicts and applies this policy
 2. **Enforcement**: Configure branch protection rule requiring status check `AI Review Aggregator` to pass before merge
-3. This prevents bypass—developers cannot manually merge without aggregator approval
+3. This prevents bypass; developers cannot manually merge without aggregator approval
 4. Reference ADR-010 for integration with Quality Gates
 
 **Security note**: Without branch protection enforcement, the aggregator is advisory, not enforced. The branch protection rule is REQUIRED for this policy to be effective.
@@ -360,11 +360,11 @@ When policy compliance is not feasible:
 
 For each of the 3 false PASS cases, we analyzed whether full diff context and correct model routing (per this policy) would have caught the issue:
 
-- **PR #226 (Labeler workflow issues)**: Runtime workflow logic bug requiring execution to detect. Full diff would NOT reveal this—requires integration testing. **NOT addressed by this policy**.
+- **PR #226 (Labeler workflow issues)**: Runtime workflow logic bug requiring execution to detect. Full diff would NOT reveal this; requires integration testing. **NOT addressed by this policy**.
 
-- **PR #268 (Missing VERDICT token)**: Prompt quality issue—prompt should validate that VERDICT token is emitted. Full diff would NOT help—requires prompt improvement. **NOT addressed by this policy**.
+- **PR #268 (Missing VERDICT token)**: Prompt quality issue; prompt should validate that VERDICT token is emitted. Full diff would NOT help; requires prompt improvement. **NOT addressed by this policy**.
 
-- **PR #249 (Label format P1 vs priority:P1)**: Validation gap—prompt should check label naming conventions. Full diff would NOT help—requires validation rules in prompt. **NOT addressed by this policy**.
+- **PR #249 (Label format P1 vs priority:P1)**: Validation gap; prompt should check label naming conventions. Full diff would NOT help; requires validation rules in prompt. **NOT addressed by this policy**.
 
 **Conclusion**: The 3 baseline cases were caused by prompt quality and validation gaps, NOT by evidence insufficiency or model mismatch. This policy does not directly address these 3 cases.
 
@@ -373,7 +373,7 @@ For each of the 3 false PASS cases, we analyzed whether full diff context and co
 **Separated Metrics**:
 
 - **Baseline false PASS rate (all causes)**: 15% (3/20 PRs, from P0-1)
-- **Target false PASS rate (evidence insufficiency)**: TBD—new metric for large-PR summary-mode risk
+- **Target false PASS rate (evidence insufficiency)**: TBD; new metric for large-PR summary-mode risk
 
 This policy is **preventive** (stop future risks) not **remedial** (fix current baseline).
 
@@ -461,7 +461,7 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 ## Related Policies and Decisions
 
 - [ADR-021: AI Review Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) - Architectural decision and rationale
-- [ADR-010: Quality Gates](../architecture/ADR-010-quality-gates.md) - Aggregation framework
+- [ADR-010: Quality Gates](../architecture/ADR-010-quality-gates-evaluator-optimizer.md) - Aggregation framework
 - [ADR-024: GitHub Actions Runner Selection](../architecture/ADR-024-github-actions-runner-selection.md) - Cost governance pattern
 - [ADR-022: Architecture vs Governance Split Criteria](../architecture/ADR-022-architecture-governance-split-criteria.md) - Defines this split pattern
 - [COST-GOVERNANCE.md](COST-GOVERNANCE.md) - Runner selection policy (similar enforcement pattern)
@@ -472,4 +472,4 @@ This is a **governance policy**, not an agent capability. It sets system-wide de
 - `.github/actions/ai-review/action.yml` - Context building implementation
 - `.github/prompts/*` - Prompt catalog
 - `.github/workflows/ai-*.yml` - AI review workflows
-- [ADR-021 Debate Log](../critique/ADR-021-debate-log.md) - Multi-agent debate history
+- [ADR-021: Model Routing Strategy](../architecture/ADR-021-model-routing-strategy.md) - routing decision and rationale
