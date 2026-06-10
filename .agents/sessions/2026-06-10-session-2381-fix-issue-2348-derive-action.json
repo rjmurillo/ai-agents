@@ -1,0 +1,129 @@
+{
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "fix/2348-derive-action-pin",
+    "startingCommit": "42068c0",
+    "objective": "Fix issue 2348: derive action pin shape from workflow in post-pr-retrospective test"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; get_symbols_overview used on test file this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server instructions present in session context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded via SessionStart context loader"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog auto-injected; session-init script used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, .claude/rules/*.md loaded in session context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory observations injected via hooks; session memory written earlier"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2348-derive-action-pin"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2348-derive-action-pin"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git fetch origin main + branch created from origin/main 42068c0"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "42068c0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart/sessionEnd MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified this session (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote .serena memory session-2026-06-10-latent-issues-review earlier this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed in this commit (py/json only)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in this commit (test fix + session log)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py run after field completion, exit code: 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2348: replaced exact-SHA _ACTION_REF with pin-shape regex (_SHA_PINNED_ACTION_RE) in tests/workflows/test_post_pr_retrospective.py; added 6 negative controls (floating tag, short SHA, wrong owner, subpath, uppercase hex, valid-shape acceptance)"
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Verification: uv run pytest tests/workflows/test_post_pr_retrospective.py -q: 16 passed in 0.14s; ruff check on the file: All checks passed"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR Fixes #2348; CI Python Tests should go green on next Renovate action bump without test edits"
+  ]
+}
