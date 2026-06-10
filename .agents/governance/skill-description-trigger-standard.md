@@ -299,5 +299,5 @@ Before marking skill complete:
 - [Skill Description Trigger Review](../analysis/skill-description-trigger-review.md) - 28-skill analysis
 - `Skill Triggering Failure Modes` (wiki: Agent Instruction Patterns) - Over-triggering remediation backing the SKIP clause requirement
 - [SkillForge Specification](../../.claude/skills/SkillForge/SKILL.md) - Skill creation framework
-- [Session 372](../sessions/2026-01-03-session-372.md) - Standard creation session
+- [Session 372](../sessions/2026-01-03-session-372.json) - Standard creation session
 - [ADR Review Debate Log](../critique/skill-description-trigger-standard-debate-log.md) - P0 issues addressed

@@ -1,0 +1,138 @@
+{
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "fix/2519-missing-ps1",
+    "startingCommit": "42068c0",
+    "objective": "Fix issue 2519: pr-maintenance auto-resolve calls existing resolve_pr_conflicts.py instead of removed Resolve-PRConflicts.ps1"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2519-missing-ps1"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2519-missing-ps1"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown changed (workflow yaml only)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit code: 0; workflow YAML parses"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2519: .github/workflows/pr-maintenance.yml auto-resolve step called ./.claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1, removed in the ADR-042 Python migration (dir has only resolve_pr_conflicts.py). Every PR with conflicts hit a hard PowerShell error and the conflict path was dead. Rewired the step to call python3 resolve_pr_conflicts.py with --owner/--repo/--pr-number/--branch-name/--target-branch and parse the snake_case JSON (success/files_resolved/files_blocked)."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Also routed PR number + branch names through env (PR_NUMBER/HEAD_REF/BASE_REF/REPO_OWNER/REPO_NAME) instead of run-block ${{ }} interpolation, hardening this step against CWE-78 injection via crafted PR branch names (partial #2520)."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Verification: target script resolve_pr_conflicts.py exists; workflow YAML parses via yaml.safe_load. AC2 (a CI validator that fails when a workflow references a nonexistent script path) deferred: a naive scan false-positives across 57 workflows and risks an #1711-style all-PR block; needs careful allowlist design. Noted as follow-up."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "PR #2545 Cursor high-severity finding: resolve_pr_conflicts.py exits 1 for the expected blocked-resolution outcome (return 0 if success else 1, line 493), and the step never inspected $LASTEXITCODE, so a blocked resolution could fail the step and skip the needs_ai AI-analysis steps; a real error (exit 2/3/4, non-JSON stdout) would crash ConvertFrom-Json opaquely. Fix: capture $resolverExit after the python3 call, fail loudly with ::error for exit >1, and exit 0 explicitly after writing needs_ai outputs. Verified: workflow YAML parses via yaml.safe_load."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR Fixes #2519",
+    "Follow-up: design a low-false-positive workflow-script-path validator (AC2)"
+  ]
+}

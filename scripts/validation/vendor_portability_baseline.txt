@@ -15,11 +15,8 @@
 .claude/skills/memory/tests/test_memory_health.py
 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
 .claude/skills/merge-resolver/tests/test_resolve_pr_conflicts.py
-.claude/skills/metrics/collect_metrics.py
 .claude/skills/orphan-ref-validator/scripts/scan.py
 .claude/skills/quality-grades/scripts/grade_domains.py
-.claude/skills/retrospective/scripts/extract_evidence.py
-.claude/skills/security-scan/scripts/scan_vulnerabilities.py
 .claude/skills/session-end/scripts/rework_warning.py
 .claude/skills/session-end/tests/test_complete_session_log.py
 .claude/skills/session-init/tests/test_session_init.py

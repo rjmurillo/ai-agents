@@ -111,6 +111,10 @@ class TestCheckADRReviewEvidence:
         assert result["complete"] is False
         assert "does not exist" in result["reason"]
 
+    @pytest.mark.skipif(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="chmod-based permission denial is a no-op for root (web containers)",
+    )
     def test_permission_error(self, tmp_path):
         session_log = tmp_path / "session.json"
         session_log.write_text("content")

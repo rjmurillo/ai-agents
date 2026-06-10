@@ -152,6 +152,10 @@
     {
       "time": "2026-06-10T06:50Z",
       "entry": "Verification evidence: uv run pytest tests/skills/merge-resolver/test_resolve_pr_conflicts.py exit 0 (45 passed); full pre-push test suite exit 0 on push of claude/fix-2543-plugin-version-merge (12455 passed, 18 skipped); ruff check exit 0 and mypy exit 0 on all changed files; markdownlint-cli2 exit 0 on analysis doc; validate_session_json exit 0"
+    },
+    {
+      "time": "2026-06-10T07:10Z",
+      "entry": "Addressed Gemini review on PR #2547: Windows-safe geteuid skipif guards (5 files), explicit null-version coercion, CWE-22 path containment on manifest write + containment test, utf-8 encoding in test _git helper. Verification: pytest merge-resolver suite exit 0 (46 passed); pytest 5 guarded files exit 0 (123 passed, 5 skipped); ruff exit 0; mypy exit 0"
     }
   ],
   "endingCommit": "877adbb",

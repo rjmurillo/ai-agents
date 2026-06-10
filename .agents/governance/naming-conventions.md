@@ -295,7 +295,7 @@ Scope and exceptions:
 
 - [Agent Design Principles](./agent-design-principles.md) - Principle 6: Consistent Interface
 - [Consistency Protocol](./consistency-protocol.md) - Cross-document validation
-- [Memory Agent](../../src/claude/memory.md) - Entity naming conventions
+- [memory skill](../../.claude/skills/memory/SKILL.md) - memory entity and observation naming
 - [Roadmap Agent](../../src/claude/roadmap.md) - Epic naming conventions
 
 ---

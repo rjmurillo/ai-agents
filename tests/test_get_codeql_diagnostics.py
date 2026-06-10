@@ -171,7 +171,7 @@ class TestMain:
             result = main(["--repo-path", str(tmp_path)])
             assert result == 1
 
-    def test_json_output(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_json_output(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         with patch("shutil.which", return_value=None):
             main(["--repo-path", str(tmp_path), "--output-format", "json"])
         captured = capsys.readouterr()
@@ -180,7 +180,7 @@ class TestMain:
         assert "config" in data
         assert "overall_status" in data
 
-    def test_markdown_output(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    def test_markdown_output(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         with patch("shutil.which", return_value=None):
             main(["--repo-path", str(tmp_path), "--output-format", "markdown"])
         captured = capsys.readouterr()
@@ -209,6 +209,10 @@ class TestCheckDatabaseCache:
         assert result is False
         assert any("invalid json" in r.message.lower() for r in caplog.records)
 
+    @pytest.mark.skipif(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="chmod-based permission denial is a no-op for root (web containers)",
+    )
     def test_unreadable_metadata_logs_warning(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
     ) -> None:

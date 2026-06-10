@@ -4764,7 +4764,8 @@
         "episode-2026-06-06-session-01-pr-2337-ready-merge",
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
         "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
-        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths"
+        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths",
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
       ],
       "created": "2026-06-06T20:17:10.474613+00:00"
     },
@@ -5878,6 +5879,195 @@
         "episode-2026-06-09-session-2380"
       ],
       "created": "2026-06-09T14:53:47.210479+00:00"
+    },
+    {
+      "id": "8c7fbc92a722",
+      "type": "milestone",
+      "label": "milestone: merge",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777326+00:00"
+    },
+    {
+      "id": "e3ca65586256",
+      "type": "milestone",
+      "label": "milestone: generate",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777394+00:00"
+    },
+    {
+      "id": "9fd06836b8eb",
+      "type": "milestone",
+      "label": "milestone: test",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777430+00:00"
+    },
+    {
+      "id": "7ba295d2c5b2",
+      "type": "test",
+      "label": "test: uv run pytest focused rule and plugin suites: 89 passed. Plugin version validator passed against origin/main and previous head.",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777461+00:00"
+    },
+    {
+      "id": "4491d35df86f",
+      "type": "milestone",
+      "label": "milestone: pre-pr",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777490+00:00"
+    },
+    {
+      "id": "5c57c525a9b1",
+      "type": "milestone",
+      "label": "milestone: review-response",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777519+00:00"
+    },
+    {
+      "id": "47ec01cf1ad2",
+      "type": "milestone",
+      "label": "milestone: review-validation",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777547+00:00"
+    },
+    {
+      "id": "34fabdac58bd",
+      "type": "test",
+      "label": "test: python3 build/scripts/generate_rules.py exited 0; uv run pytest focused rule and manifest suites: 43 passed; plugin-version-bump against HEAD exited 0.",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777577+00:00"
+    },
+    {
+      "id": "9a68ddf98864",
+      "type": "outcome",
+      "label": "Outcome: success - Drive PR 2514 to ready-to-merge after main merge",
+      "episodes": [
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+      ],
+      "created": "2026-06-10T03:59:02.777606+00:00"
+    },
+    {
+      "id": "2abd00557adf",
+      "type": "milestone",
+      "label": "milestone: Diagnose",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.778949+00:00"
+    },
+    {
+      "id": "da51bf9b097b",
+      "type": "milestone",
+      "label": "milestone: Implement",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.778985+00:00"
+    },
+    {
+      "id": "2ba06ba97caf",
+      "type": "milestone",
+      "label": "milestone: Verify",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779042+00:00"
+    },
+    {
+      "id": "1a1f907bb05a",
+      "type": "milestone",
+      "label": "milestone: Curate",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779075+00:00"
+    },
+    {
+      "id": "5e4640d72a3b",
+      "type": "commit",
+      "label": "commit: Commit: be4099b",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779105+00:00"
+    },
+    {
+      "id": "226e9ba9cf65",
+      "type": "milestone",
+      "label": "milestone: Review response",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779133+00:00"
+    },
+    {
+      "id": "16c3bffc3beb",
+      "type": "commit",
+      "label": "commit: Commit: 2bfa8d7",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779162+00:00"
+    },
+    {
+      "id": "a7210f0b10ea",
+      "type": "outcome",
+      "label": "Outcome: success - Make bootstrap-vm.sh provision the pinned Python via uv and a current uv so the pre-push gate runs on fresh Claude web containers without manual intervention",
+      "episodes": [
+        "episode-2026-06-10-session-2381-make-bootstrap-vmsh-provision-pinned-python"
+      ],
+      "created": "2026-06-10T03:59:02.779193+00:00"
+    },
+    {
+      "id": "add38ced9b2d",
+      "type": "outcome",
+      "label": "Outcome: success - Analyze recent PRs for thrashing/churn, RCA root causes, file issues, and open fix PRs to enable one-shot PR success",
+      "episodes": [
+        "episode-2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca"
+      ],
+      "created": "2026-06-10T04:01:13.764480+00:00"
+    },
+    {
+      "id": "7ac5da4e9b1f",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2348: derive action pin shape from workflow in post-pr-retrospective test",
+      "episodes": [
+        "episode-2026-06-10-session-2381-fix-issue-2348-derive-action"
+      ],
+      "created": "2026-06-10T04:30:42.647218+00:00"
+    },
+    {
+      "id": "a7222acb93fa",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2519: pr-maintenance auto-resolve calls existing resolve_pr_conflicts.py instead of removed Resolve-PRConflicts.ps1",
+      "episodes": [
+        "episode-2026-06-10-session-2381-fix-issue-2519-pr-maintenance-auto-resolve"
+      ],
+      "created": "2026-06-10T04:30:42.647287+00:00"
+    },
+    {
+      "id": "fd9c7e038916",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2520: remove untrusted ${{ }} interpolation from run blocks in pr-maintenance/pr-validation, scope permissions per job, trim dead pull_request_target trigger types in rjmurillo-bot",
+      "episodes": [
+        "episode-2026-06-10-session-2381-fix-issue-2520-workflow-injection"
+      ],
+      "created": "2026-06-10T04:30:42.647353+00:00"
     }
   ],
   "patterns": [
@@ -5927,7 +6117,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 20,
+      "occurrences": 22,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -5936,7 +6126,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 40,
+      "occurrences": 44,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -5945,7 +6135,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 80,
+      "occurrences": 88,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -5954,7 +6144,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 120,
+      "occurrences": 132,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -5964,7 +6154,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -5972,7 +6162,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -5980,7 +6170,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -5988,7 +6178,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -5996,7 +6186,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -6004,7 +6194,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -6012,7 +6202,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -6020,7 +6210,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -6028,7 +6218,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -6036,7 +6226,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -6044,7 +6234,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -6052,7 +6242,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -6060,7 +6250,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -6068,7 +6258,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -6076,7 +6266,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -6084,7 +6274,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -6092,7 +6282,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -6100,7 +6290,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -6108,7 +6298,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -6116,7 +6306,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -6124,7 +6314,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -6132,7 +6322,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -6140,7 +6330,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -6148,7 +6338,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -6156,7 +6346,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -6164,7 +6354,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -6172,7 +6362,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -6180,7 +6370,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -6188,7 +6378,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -6196,7 +6386,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -6204,7 +6394,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -6212,7 +6402,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -6220,7 +6410,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -6228,7 +6418,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -6236,7 +6426,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -6244,7 +6434,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -6252,7 +6442,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -6260,7 +6450,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -6268,7 +6458,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -6276,7 +6466,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 20,
+      "evidence_count": 22,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
