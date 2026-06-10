@@ -199,7 +199,13 @@ def _original_main(stdin_bytes):
     Hook Type: PreToolUse
     Matcher: Bash(git commit*)
     Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-        0 = Always (uses JSON decision payload for deny/allow semantics)
+        0 = allow: no security-sensitive files staged, or review evidence present.
+        2 = block: security-sensitive files staged without review, or an
+            infrastructure error reading the index. Paired with a top-level
+            {"decision": "block"} payload, the recognized Claude Code PreToolUse
+            contract (see invoke_branch_protection_guard.py). A previous version
+            emitted {"decision": "deny"} with exit 0, which the harness ignored, so
+            the gate never actually blocked (Issue #2521).
     """
 
 
@@ -217,11 +223,11 @@ def _original_main(stdin_bytes):
     # lib/ is the plugin's lib dir. Layout-independent: works in source
     # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    _lib_dir: str | None = None
     if _plugin_root:
         _lib_dir = str(Path(_plugin_root).resolve() / "lib")
     else:
         _cur = Path(__file__).resolve().parent
-        _lib_dir = None
         while True:
             if (_cur / ".claude-plugin" / "plugin.json").is_file():
                 _lib_dir = str(_cur / "lib")
@@ -230,7 +236,11 @@ def _original_main(stdin_bytes):
                 break
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
-        print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+        print(
+            f"Plugin lib directory not found: {_lib_dir} "
+            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+            file=sys.stderr,
+        )
         sys.exit(2)
     if _lib_dir not in sys.path:
         sys.path.insert(0, _lib_dir)
@@ -327,6 +337,18 @@ def _original_main(stdin_bytes):
         return False
 
 
+    def write_block_response(reason: str) -> None:
+        """Emit a PreToolUse block decision (matches invoke_branch_protection_guard.py).
+
+        Claude Code recognizes a top-level ``{"decision": "block"}`` payload, paired
+        with exit code 2, to deny a tool call. The previous ``{"decision": "deny"}``
+        with exit 0 was not a recognized top-level value, so the gate's output was
+        ignored and the security-sensitive commit proceeded (Issue #2521). The value
+        ``deny`` is only valid under ``hookSpecificOutput.permissionDecision``.
+        """
+        print(json.dumps({"decision": "block", "reason": reason}, separators=(",", ":")))
+
+
     def main() -> int:
         """Main hook entry point."""
         if skip_if_consumer_repo("security-commit-gate"):
@@ -365,36 +387,52 @@ def _original_main(stdin_bytes):
             if find_security_evidence(project_dir):
                 return 0
 
-            # Security files staged without review evidence: deny
+            # Security files staged without review evidence: block the commit.
             file_list = "\n".join(f"  - {f}" for f in security_files)
-            output = {
-                "decision": "deny",
-                "reason": (
-                    "SECURITY COMMIT GATE: Security review required before committing "
-                    "security-sensitive files.\n\n"
-                    f"Matched files:\n{file_list}\n\n"
-                    "Invoke the security agent:\n"
-                    "  Task(subagent_type='security', prompt='Review security-sensitive "
-                    "changes')\n\n"
-                    "Or create a security report in .agents/security/\n\n"
-                    "Bypass: Set SKIP_SECURITY_GATE=true (requires justification)"
-                ),
-            }
-            print(json.dumps(output, separators=(",", ":")))
-            return 0
+            write_block_response(
+                "SECURITY COMMIT GATE: Security review required before committing "
+                "security-sensitive files.\n\n"
+                f"Matched files:\n{file_list}\n\n"
+                "Invoke the security agent:\n"
+                "  Task(subagent_type='security', prompt='Review security-sensitive "
+                "changes')\n\n"
+                "Or create a security report in .agents/security/\n\n"
+                "Bypass: Set SKIP_SECURITY_GATE=true (requires justification)"
+            )
+            return 2
+
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            # Infrastructure error enumerating staged files (not a git repo, index
+            # lock, git timeout). Fail closed with a diagnostic so the failure is
+            # distinguishable from a genuine security signal (Issue #2521).
+            detail = ""
+            stderr = getattr(exc, "stderr", None)
+            if stderr:
+                detail = (
+                    stderr.decode("utf-8", errors="replace").strip()
+                    if isinstance(stderr, bytes)
+                    else str(stderr).strip()
+                )
+            print(
+                f"Security commit gate could not read staged files: "
+                f"{type(exc).__name__}. {detail}".strip(),
+                file=sys.stderr,
+            )
+            write_block_response(
+                "SECURITY COMMIT GATE: could not enumerate staged files "
+                f"({type(exc).__name__}). Commit blocked as a precaution. "
+                "Verify the repository state: git status."
+            )
+            return 2
 
         except Exception as exc:
-            # Fail-closed on infrastructure errors
+            # Fail-closed on any other infrastructure error.
             print(f"Security commit gate error: {type(exc).__name__} - {exc}", file=sys.stderr)
-            output = {
-                "decision": "deny",
-                "reason": (
-                    f"SECURITY COMMIT GATE FAILED due to an internal error: "
-                    f"{type(exc).__name__}. Commit blocked as a security precaution."
-                ),
-            }
-            print(json.dumps(output, separators=(",", ":")))
-            return 0
+            write_block_response(
+                f"SECURITY COMMIT GATE FAILED due to an internal error: "
+                f"{type(exc).__name__}. Commit blocked as a security precaution."
+            )
+            return 2
     return main()
 
 _shim_dispatch()

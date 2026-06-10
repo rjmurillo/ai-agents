@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-10-session-2381-fix-issue-2521-security-commit",
+  "session": "2026-06-10-session-2381-fix-issue-2521-security-commit",
+  "timestamp": "2026-06-10T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue 2521: security commit gate emits recognized block decision and exit 2 instead of unrecognized deny/exit 0; gate now actually blocks",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
