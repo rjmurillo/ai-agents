@@ -6041,6 +6041,33 @@
         "episode-2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca"
       ],
       "created": "2026-06-10T04:01:13.764480+00:00"
+    },
+    {
+      "id": "7ac5da4e9b1f",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2348: derive action pin shape from workflow in post-pr-retrospective test",
+      "episodes": [
+        "episode-2026-06-10-session-2381-fix-issue-2348-derive-action"
+      ],
+      "created": "2026-06-10T04:30:42.647218+00:00"
+    },
+    {
+      "id": "a7222acb93fa",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2519: pr-maintenance auto-resolve calls existing resolve_pr_conflicts.py instead of removed Resolve-PRConflicts.ps1",
+      "episodes": [
+        "episode-2026-06-10-session-2381-fix-issue-2519-pr-maintenance-auto-resolve"
+      ],
+      "created": "2026-06-10T04:30:42.647287+00:00"
+    },
+    {
+      "id": "fd9c7e038916",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2520: remove untrusted ${{ }} interpolation from run blocks in pr-maintenance/pr-validation, scope permissions per job, trim dead pull_request_target trigger types in rjmurillo-bot",
+      "episodes": [
+        "episode-2026-06-10-session-2381-fix-issue-2520-workflow-injection"
+      ],
+      "created": "2026-06-10T04:30:42.647353+00:00"
     }
   ],
   "patterns": [
