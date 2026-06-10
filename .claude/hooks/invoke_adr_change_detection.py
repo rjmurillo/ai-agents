@@ -50,7 +50,9 @@ def get_project_root() -> str | None:
 
     Uses CLAUDE_PROJECT_DIR if set and validates that this script lives
     within the specified project root (CWE-22 protection).
-    Falls back to deriving from script location.
+    Falls back to walking up from __file__ looking for a .git directory,
+    which is layout-independent (works in .claude/hooks/ and in the deeper
+    src/<provider>/hooks/<event>/ plugin install layout).
     """
     script_dir = str(Path(__file__).resolve().parent)
     env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
@@ -68,7 +70,18 @@ def get_project_root() -> str | None:
             return None
         return env_dir
 
-    # parents[2] walks up: hooks -> .claude -> project root
+    # Walk up from __file__ looking for a .git marker. This is layout-independent:
+    # it works in .claude/hooks/ (3 levels) and in src/<provider>/hooks/<event>/
+    # (4+ levels). parents[2] is kept only as a last-resort fallback.
+    cur = Path(__file__).resolve().parent
+    while True:
+        if (cur / ".git").exists():
+            return str(cur)
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+
+    # Last-resort fallback: original parents[2] derivation for .claude/hooks/ layout.
     return str(Path(__file__).resolve().parents[2])
 
 

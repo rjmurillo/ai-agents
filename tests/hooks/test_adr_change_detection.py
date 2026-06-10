@@ -237,3 +237,50 @@ class TestModuleAsScript:
         with pytest.raises(SystemExit) as exc_info:
             runpy.run_path(hook_path, run_name="__main__")
         assert exc_info.value.code == 0
+
+
+# ---------------------------------------------------------------------------
+# Regression test: plugin install layout (src/<provider>/hooks/<event>/)
+# ---------------------------------------------------------------------------
+
+
+class TestGetProjectRootPluginLayout:
+    """Ensure get_project_root finds .git root regardless of install depth."""
+
+    def test_vendored_layout_resolves_to_git_root(self, monkeypatch, tmp_path):
+        """Simulate src/<provider>/hooks/SessionStart/ layout.
+
+        In this layout parents[2] would land inside src/, NOT at the repo
+        root. The fixed implementation should walk up from __file__ looking
+        for .git and return the directory that contains it.
+        """
+        # Build: tmp_path/.git  (repo root)
+        #        tmp_path/src/myprovider/hooks/SessionStart/invoke_adr_change_detection.py
+        git_root = tmp_path
+        (git_root / ".git").mkdir()
+
+        fake_script = (
+            git_root / "src" / "myprovider" / "hooks" / "SessionStart"
+            / "invoke_adr_change_detection.py"
+        )
+        fake_script.parent.mkdir(parents=True)
+        fake_script.write_text("# stub")
+
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.delenv("BUILD_REPOSITORY_LOCALPATH", raising=False)
+
+        with patch.object(
+            invoke_adr_change_detection,
+            "__file__",
+            str(fake_script),
+        ):
+            result = invoke_adr_change_detection.get_project_root()
+
+        assert result is not None
+        resolved = str(Path(result).resolve())
+        expected = str(git_root.resolve())
+        assert resolved == expected, (
+            f"Expected git root {expected!r}, got {resolved!r}. "
+            "parents[2] from src/myprovider/hooks/SessionStart/ points inside "
+            "src/, not at the repo root."
+        )
