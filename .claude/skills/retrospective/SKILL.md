@@ -21,9 +21,7 @@ live verbatim in `references/`; this file is the orchestration contract.
 
 This skill replaces the former `retrospective` agent (`.claude/agents/retrospective.md`).
 Lifecycle hooks can invoke a skill but not an agent, so the retrospective workflow moves
-here to be callable from `Skill("retrospective")`, from `/retro fill <date>` (Issue #2079),
-and from the Stop-hook auto-retrospective path
-(`.claude/hooks/Stop/invoke_auto_retrospective.py`).
+here to be callable from `Skill("retrospective")` and from `/retro fill <date>` (Issue #2531).
 
 ## Triggers
 
