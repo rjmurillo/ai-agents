@@ -41,7 +41,7 @@ Thank you for your interest in contributing to this project. This guide explains
 1. Fork the repository
 2. Clone your fork locally
 3. **Install Python 3.14.x** (see Prerequisites above)
-4. **Set up Python environment**: `uv sync --extra dev` (creates `.venv` from `uv.lock`, the same locked environment the pre-push gate and CI use; on managed containers `scripts/bootstrap-vm.sh` runs this for you)
+4. **Set up Python environment**: `uv sync --extra dev` (creates `.venv` from `uv.lock`). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
 6. Set up git hooks (pre-commit + pre-push): `python3 scripts/install_git_hooks.py` (idempotent: sets `core.hooksPath`, verifies the hooks are executable, and flags a stale `.git/hooks/pre-push` shim; the bare `git config core.hooksPath .githooks` also works)
 7. Make your changes following the guidelines below
