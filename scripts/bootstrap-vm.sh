@@ -33,7 +33,17 @@ sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \
 
 echo "=== Node.js LTS ==="
 if ! command -v node &>/dev/null; then
-    curl "${CURL_OPTS[@]}" -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+    # Signed keyring + explicit apt repo instead of piping the NodeSource
+    # setup script into root bash (semgrep curl-pipe-bash: a MITM'd response
+    # would execute as root). NODE_MAJOR pins the current LTS line because
+    # NodeSource publishes no rolling LTS path (node_lts.x returns 404).
+    NODE_MAJOR=22
+    curl "${CURL_RETRY_OPTS[@]}" -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key -o /tmp/nodesource.gpg
+    sudo gpg --yes --dearmor -o /usr/share/keyrings/nodesource.gpg /tmp/nodesource.gpg
+    rm -f /tmp/nodesource.gpg
+    echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" | \
+        sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
+    sudo apt-get update -qq
     sudo apt-get install -y -qq nodejs
 fi
 node --version && npm --version
