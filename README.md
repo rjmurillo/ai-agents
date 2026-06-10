@@ -35,7 +35,7 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 /plugin install project-toolkit@ai-agents
 ```
 
-A Claude install lands 23 agents, 23 commands, 29 hooks, and 69 skills. A Copilot install lands 24 agents, 28 hooks, and 81 skills generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool sanity check, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
+A Claude install lands the full set of agents, commands, hooks, and skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool sanity check that reports the exact counts for your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
 ### What You Get
 
@@ -112,7 +112,7 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 
 AI Agents is a coordinated multi-agent system for software development. It provides specialized AI agents that handle different phases of the development lifecycle, from research and planning through implementation and quality assurance.
 
-The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. The Claude bundle ships 23 agents and the Copilot bundle ships 24 agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
+The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. Both bundles ship a roster of agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
 
 The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then  extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
 
@@ -160,8 +160,8 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 agent definitions from `src/claude/` (no skills, commands, or hooks) |
-| Project toolkit | `/plugin install project-toolkit@ai-agents` | 23 agents, 23 slash commands, 29 hooks, and 69 reusable skills from `.claude/` |
+| Claude agents only | `/plugin install claude-agents@ai-agents` | Agent definitions from `src/claude/` (no skills, commands, or hooks) |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, slash commands, hooks, and reusable skills from `.claude/` |
 
 **GitHub Copilot CLI:**
 
@@ -171,9 +171,9 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` (Copilot CLI) |
+| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and skills from `src/copilot-cli/` (Copilot CLI) |
 
-Claude exposes both an agents-only bundle (`claude-agents`, from `src/claude/`) and the full toolkit (`project-toolkit`, from `./.claude`); the latter ships 23 agents because `src/claude/` and `.claude/agents/` are two different curated sets, kept in sync where they overlap. Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because that directory's `plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
+Claude exposes both an agents-only bundle (`claude-agents`, from `src/claude/`) and the full toolkit (`project-toolkit`, from `./.claude`); the two draw from different curated sets (`src/claude/` versus `.claude/agents/`), kept in sync where they overlap. Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because that directory's `plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
 
 ### Verify Installation
 
@@ -383,7 +383,7 @@ flowchart LR
 
 ### Agent Catalog
 
-The Claude Code bundle ships 23 agents and the Copilot CLI bundle ships 24 (Copilot adds `backlog-generator`; both bundles include the rest). `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
+The Copilot CLI bundle adds `backlog-generator`; both bundles include the rest. `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
 
 | Agent | Purpose | Output | Bundle |
 |-------|---------|--------|--------|
