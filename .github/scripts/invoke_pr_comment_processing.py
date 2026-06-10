@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import sys
+from typing import Any
 
 _workspace = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 _CODE_FENCE_PATTERN = re.compile(r"```(?:json)?\s*([\s\S]*?)```")
 
 
-def parse_findings(json_str: str) -> dict:
+def parse_findings(json_str: str) -> dict[str, Any]:
     """Parse AI findings JSON, stripping markdown code fences if present.
 
     Returns the parsed dict. Raises SystemExit(2) on parse failure.
@@ -51,7 +52,7 @@ def parse_findings(json_str: str) -> dict:
         clean = match.group(1).strip()
 
     try:
-        parsed: dict = json.loads(clean)
+        parsed: dict[str, Any] = json.loads(clean)
         return parsed
     except json.JSONDecodeError as exc:
         preview = json_str[:500] if len(json_str) > 500 else json_str
@@ -177,7 +178,7 @@ def process_comments(
     owner: str,
     repo: str,
     pr_number: int,
-    findings: dict,
+    findings: dict[str, Any],
 ) -> dict[str, int]:
     """Process each comment based on its classification.
 
@@ -188,6 +189,10 @@ def process_comments(
         "replied": 0,
         "skipped": 0,
         "errors": 0,
+        # Reaction add failures are cosmetic (the acknowledgement emoji): a 404
+        # on a comment id that is not reactable must not fail the scheduled run
+        # (Issue #2522). Tracked separately from errors so the exit code stays 0.
+        "reaction_failures": 0,
     }
 
     comments = findings.get("comments", [])
@@ -204,7 +209,8 @@ def process_comments(
         if add_comment_reaction(owner, repo, comment_id):
             stats["acknowledged"] += 1
         else:
-            stats["errors"] += 1
+            # Cosmetic acknowledgement failure; do not fail the run (Issue #2522).
+            stats["reaction_failures"] += 1
 
         if classification == "stale":
             print("  Stale comment needs manual resolution (thread ID required)")
@@ -358,7 +364,15 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  Acknowledged: {stats['acknowledged']}")
     print(f"  Replied: {stats['replied']}")
     print(f"  Skipped (needs human): {stats['skipped']}")
+    print(f"  Reaction failures (non-fatal): {stats['reaction_failures']}")
     print(f"  Errors: {stats['errors']}")
+
+    if stats["reaction_failures"] > 0:
+        print(
+            f"WARNING: {stats['reaction_failures']} reaction(s) could not be added "
+            "(comment not reactable); not failing the run (Issue #2522)",
+            file=sys.stderr,
+        )
 
     if stats["errors"] > 0:
         print(

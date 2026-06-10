@@ -1,0 +1,135 @@
+{
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "fix/2522-reaction-404",
+    "startingCommit": "42068c0",
+    "objective": "Fix issue 2522: PR comment processing reaction 404s are non-fatal so scheduled run does not go red"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2522-reaction-404"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2522-reaction-404"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown changed (py only)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit code: 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2522 (PR Maintenance went red, run 27242600492): add_comment_reaction 404 was counted as a hard error -> stats.errors>0 -> exit 3. A reaction is a cosmetic acknowledgement emoji; failure now increments a separate non-fatal reaction_failures counter and the run stays exit 0. Scoped to .github/scripts/invoke_pr_comment_processing.py (the workflow copy that failed)."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "The .claude/skills + src/copilot-cli mirror copies share the same pattern but cannot be fixed in the same PR: the pre-push runs mypy on all changed canonical files at once and the two same-named modules (.github/scripts vs .claude/skills) collide (\"Duplicate module\"). Reverted those copies; logged the collision as a follow-up tooling issue."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Updated tests/test_invoke_pr_comment_processing.py: old reaction-failure-as-error test now asserts reaction_failures + errors==0; errors-return-3 uses a real error (missing id); added reaction-404-returns-0 end-to-end test. Fixed 3 pre-existing bare-dict mypy type-arg errors in the .github copy. Verification: 29 tests pass; ruff + mypy clean."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR Fixes #2522 (stacked on fix/2348)",
+    "Follow-up: fix the .claude/skills + copilot mirror copies once the mypy duplicate-module collision is resolved",
+    "Follow-up: investigate comment-id source emitting non-reactable ids"
+  ]
+}
