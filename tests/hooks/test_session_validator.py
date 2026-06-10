@@ -383,3 +383,35 @@ class TestSessionEndCompliance:
         """Skip logging should not raise even if path is invalid."""
         # /dev/null/impossible is not writable - should silently fail
         log_session_end_skip("S-1", "log.json", "/dev/null/impossible")
+
+
+class TestBootstrapDegradesOnPartialInstall:
+    """Regression (#2523): a missing plugin lib/ must degrade, not block.
+
+    The hook's docstring contract is "Exit Codes: 0 = Always (non-blocking
+    hook)". The bootstrap previously did sys.exit(2) when lib/ was absent,
+    so a partial install turned the Stop hook into a config error. The
+    sibling Stop hook invoke_auto_retrospective.py exits 0 on the same
+    failure; this pins the aligned behavior.
+    """
+
+    def test_missing_lib_exits_zero(self, tmp_path: Path) -> None:
+        import shutil
+        import subprocess
+
+        hook_src = HOOK_DIR / "invoke_session_validator.py"
+        hook_copy = tmp_path / "invoke_session_validator.py"
+        shutil.copy(hook_src, hook_copy)
+
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"}
+        result = subprocess.run(
+            [sys.executable, str(hook_copy)],
+            input="",
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(tmp_path),
+            env=env,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "Plugin lib directory not found" in result.stderr

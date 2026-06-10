@@ -50,9 +50,40 @@ class TestGetProjectRoot:
 
     def test_derives_from_script_location(self, monkeypatch):
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
-        # Falls back to parents[2] of __file__
+        # Falls back to walking up from __file__ to the first .git ancestor
         result = invoke_adr_change_detection.get_project_root()
         assert result is not None
+
+    def test_vendored_layout_walks_up_to_git_root(self, monkeypatch, tmp_path):
+        """Regression (#2523): the old parents[2] fallback was only correct
+        for the .claude/hooks/ layout; in the deeper vendored copy layout
+        (src/<provider>/hooks/<event>/) it resolved inside src/, the .git
+        probe failed, and ADR detection silently no-oped in plugin installs.
+        """
+        deep = tmp_path / "src" / "copilot-cli" / "hooks" / "SessionStart"
+        deep.mkdir(parents=True)
+        (tmp_path / ".git").mkdir()
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setattr(
+            invoke_adr_change_detection,
+            "__file__",
+            str(deep / "invoke_adr_change_detection.py"),
+        )
+        result = invoke_adr_change_detection.get_project_root()
+        assert result == str(tmp_path)
+
+    def test_no_git_ancestor_returns_none(self, monkeypatch, tmp_path):
+        """Negative control: without a .git ancestor the fallback returns None
+        and main() fails open instead of pointing at a wrong directory."""
+        loose = tmp_path / "somewhere" / "hooks"
+        loose.mkdir(parents=True)
+        monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+        monkeypatch.setattr(
+            invoke_adr_change_detection,
+            "__file__",
+            str(loose / "invoke_adr_change_detection.py"),
+        )
+        assert invoke_adr_change_detection.get_project_root() is None
 
     def test_falls_back_to_derivation_on_empty_env(self, monkeypatch):
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", "")

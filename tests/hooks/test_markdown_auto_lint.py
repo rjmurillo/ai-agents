@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -175,6 +176,28 @@ class TestSubprocessErrorPaths:
             assert main() == 0
         captured = capsys.readouterr()
         assert "error" in captured.err.lower() or "error" in captured.out.lower()
+
+    def test_timeout_returns_zero_with_warning(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """TimeoutExpired from subprocess.run returns 0 (fail-open), issue #2523."""
+        with patch(
+            "invoke_markdown_auto_lint.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["npx"], timeout=30),
+        ):
+            assert main() == 0
+        captured = capsys.readouterr()
+        assert "timed out" in (captured.err + captured.out).lower()
+
+    def test_npx_call_carries_bounded_timeout(self, _lint_input) -> None:
+        """The npx subprocess call passes an explicit timeout (issue #2523)."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        with patch(
+            "invoke_markdown_auto_lint.subprocess.run", return_value=mock_result
+        ) as mock_run:
+            assert main() == 0
+        assert mock_run.call_args.kwargs.get("timeout") == 30
 
     def test_lint_failure_nonzero_exit_with_output(
         self, _lint_input, capsys: pytest.CaptureFixture[str]
