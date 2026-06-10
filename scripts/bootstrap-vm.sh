@@ -190,7 +190,13 @@ echo "=== powershell-yaml ==="
 if pwsh -NoProfile -Command 'if (Get-Module -ListAvailable -Name powershell-yaml) { exit 0 }; exit 1' &>/dev/null; then
     echo "powershell-yaml already installed; skipping"
 else
-    pwsh -NoProfile -Command 'Install-Module -Name powershell-yaml -Force -Scope CurrentUser -EA SilentlyContinue' 2>/dev/null || true
+    # Trust PSGallery here too: with the Pester install skipped on warm
+    # containers, this branch can no longer rely on the Pester block having
+    # set the policy first.
+    pwsh -NoProfile -Command '
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        Install-Module -Name powershell-yaml -Force -Scope CurrentUser -EA SilentlyContinue
+    ' 2>/dev/null || true
 fi
 
 echo "=== Git Hooks ==="
