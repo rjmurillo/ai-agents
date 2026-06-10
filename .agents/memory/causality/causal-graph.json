@@ -6034,15 +6034,6 @@
       "created": "2026-06-10T03:59:02.779193+00:00"
     },
     {
-      "id": "a0a3e80eef3a",
-      "type": "outcome",
-      "label": "Outcome: partial - Analyze recent PRs for thrashing/churn, RCA root causes, file issues, and open fix PRs to enable one-shot PR success",
-      "episodes": [
-        "episode-2026-06-10-session-2382-analyze-recent-prs-thrashingchurn-rca"
-      ],
-      "created": "2026-06-10T03:59:02.779301+00:00"
-    },
-    {
       "id": "add38ced9b2d",
       "type": "outcome",
       "label": "Outcome: success - Analyze recent PRs for thrashing/churn, RCA root causes, file issues, and open fix PRs to enable one-shot PR success",
