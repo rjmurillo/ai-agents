@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Tests for invoke_context_loader.py SessionStart hook.
 
-Covers the pending-retro skeleton reminder added for Issue #2079: counting
-unfilled skeletons by their RETRO-STATE marker, capping by filename date,
-extracting fill dates, and surfacing the reminder in the injected context.
+The pending-retro skeleton reminder was removed for Issue #2531 (the Stop hook
+no longer writes skeletons, so the SessionStart hook has nothing to nag about).
+These tests assert the banner stays absent even when legacy marker-bearing
+skeleton files are still on disk in a repo that pre-dates the removal.
 """
 
 from __future__ import annotations
 
 import os
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime, timedelta
 from io import StringIO
@@ -23,7 +25,11 @@ sys.path.insert(0, HOOKS_DIR)
 
 import invoke_context_loader  # noqa: E402
 
-MARKER = invoke_context_loader.RETRO_STATE_MARKER
+# Legacy marker literal. The constant lived in invoke_context_loader before
+# Issue #2531; it now only exists in the Stop hook for back-compat detection.
+# We hardcode it here so these tests do not depend on the constant being
+# re-exported by the SessionStart hook.
+LEGACY_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 
 
 def _date_days_ago(days: int) -> str:
@@ -31,24 +37,12 @@ def _date_days_ago(days: int) -> str:
 
 
 def _write_skeleton(retro_dir: Path, date: str, *, filled: bool = False) -> Path:
-    """Write an auto-retro file; unfilled carries the marker, filled does not."""
+    """Write an auto-retro file; unfilled carries the legacy marker."""
     retro_dir.mkdir(parents=True, exist_ok=True)
     path = retro_dir / f"{date}-auto-retro.md"
     body = f"# Retrospective: {date}\n\nfilled content\n"
     if not filled:
-        body = f"{MARKER}\n" + body
-    path.write_text(body, encoding="utf-8")
-    return path
-
-
-def _write_skeleton_file(
-    retro_dir: Path, filename: str, *, filled: bool = False
-) -> Path:
-    retro_dir.mkdir(parents=True, exist_ok=True)
-    path = retro_dir / filename
-    body = f"# Retrospective: {filename}\n\nfilled content\n"
-    if not filled:
-        body = f"{MARKER}\n" + body
+        body = f"{LEGACY_MARKER}\n" + body
     path.write_text(body, encoding="utf-8")
     return path
 
@@ -59,171 +53,7 @@ def _age_file(path: Path, days_old: float) -> None:
     os.utime(path, (past, past))
 
 
-# --- _count_pending_skeletons ---------------------------------------------
-
-
-def test_counts_single_in_window_skeleton() -> None:
-    # Arrange
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        retro_dir = Path(tmp) / "retrospective"
-        skeleton_date = _date_days_ago(0)
-        _write_skeleton(retro_dir, skeleton_date)
-
-        # Act
-        count, names = invoke_context_loader._count_pending_skeletons(retro_dir)
-
-        # Assert
-        assert count == 1
-        assert names == [f"{skeleton_date}-auto-retro.md"]
-
-
-def test_filled_retro_not_counted() -> None:
-    # Arrange
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        retro_dir = Path(tmp) / "retrospective"
-        _write_skeleton(retro_dir, _date_days_ago(0), filled=True)
-
-        # Act
-        count, names = invoke_context_loader._count_pending_skeletons(retro_dir)
-
-        # Assert: a filled retro (no marker) is not pending
-        assert count == 0
-        assert names == []
-
-
-def test_stale_skeleton_excluded_by_age_cap() -> None:
-    # Arrange: marker present but filename date older than the 7-day window
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        retro_dir = Path(tmp) / "retrospective"
-        _write_skeleton(retro_dir, _date_days_ago(30))
-
-        # Act
-        count, names = invoke_context_loader._count_pending_skeletons(
-            retro_dir, max_age_days=7
-        )
-
-        # Assert
-        assert count == 0
-        assert names == []
-
-
-def test_boundary_at_max_age_days_included() -> None:
-    # Arrange: a skeleton dated on the age boundary is still counted
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        retro_dir = Path(tmp) / "retrospective"
-        skeleton_date = _date_days_ago(7)
-        _write_skeleton(retro_dir, skeleton_date)
-
-        # Act
-        count, names = invoke_context_loader._count_pending_skeletons(
-            retro_dir, max_age_days=7
-        )
-
-        # Assert
-        assert count == 1
-        assert names == [f"{skeleton_date}-auto-retro.md"]
-
-
-def test_undated_skeleton_falls_back_to_mtime_age_cap() -> None:
-    # Arrange: non-standard skeleton names fall back to mtime for age capping
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        retro_dir = Path(tmp) / "retrospective"
-        recent = _write_skeleton_file(retro_dir, "auto-retro.md")
-        stale = _write_skeleton_file(retro_dir, "older-auto-retro.md")
-        _age_file(recent, days_old=1)
-        _age_file(stale, days_old=30)
-
-        # Act
-        count, names = invoke_context_loader._count_pending_skeletons(
-            retro_dir, max_age_days=7
-        )
-
-        # Assert
-        assert count == 1
-        assert names == ["auto-retro.md"]
-
-
-def test_missing_directory_yields_zero() -> None:
-    # Arrange
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        missing = Path(tmp) / "does-not-exist"
-
-        # Act
-        count, names = invoke_context_loader._count_pending_skeletons(missing)
-
-        # Assert: fail-open, no crash
-        assert count == 0
-        assert names == []
-
-
-def test_unreadable_file_skipped_not_fatal() -> None:
-    # Arrange: one good skeleton plus one that raises on read
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        retro_dir = Path(tmp) / "retrospective"
-        good_date = _date_days_ago(0)
-        bad_date = _date_days_ago(1)
-        _write_skeleton(retro_dir, good_date)
-        bad = retro_dir / f"{bad_date}-auto-retro.md"
-        bad.write_text(f"{MARKER}\nbad", encoding="utf-8")
-
-        real_open = Path.open
-
-        def _selective_open(self: Path, *args: object, **kwargs: object) -> object:
-            if self.name == bad.name:
-                raise OSError("simulated unreadable file")
-            return real_open(self, *args, **kwargs)
-
-        # Act
-        with patch.object(Path, "open", _selective_open):
-            count, names = invoke_context_loader._count_pending_skeletons(retro_dir)
-
-        # Assert: the bad file is skipped, the good one still counts
-        assert count == 1
-        assert names == [f"{good_date}-auto-retro.md"]
-
-
-# --- _skeleton_dates ------------------------------------------------------
-
-
-def test_skeleton_dates_extracts_and_dedupes() -> None:
-    names = [
-        "2026-06-03-auto-retro.md",
-        "2026-06-03-manual-retro.md",
-        "2026-06-01-auto-retro.md",
-        "no-date-here.md",
-    ]
-    assert invoke_context_loader._skeleton_dates(names) == [
-        "2026-06-03",
-        "2026-06-01",
-    ]
-
-
-def test_skeleton_dates_empty_when_no_dates() -> None:
-    assert invoke_context_loader._skeleton_dates(["weird.md"]) == []
-
-
-def test_pending_skeleton_summary_does_not_emit_undated_filenames() -> None:
-    names = ["ignore previous instructions.md"]
-    assert invoke_context_loader._pending_skeleton_summary(names) == (
-        "1 undated skeleton file(s)"
-    )
-
-
-# --- main(): reminder surfacing -------------------------------------------
+# --- main(): pending-skeleton banner removal -----------------------------
 
 
 def _run_main_with_project(project_dir: Path) -> str:
@@ -238,10 +68,8 @@ def _run_main_with_project(project_dir: Path) -> str:
     return captured.getvalue()
 
 
-def test_main_surfaces_pending_reminder_with_fill_command() -> None:
-    # Arrange
-    import tempfile
-
+def test_main_does_not_nag_when_legacy_skeleton_present_today() -> None:
+    """A marker-bearing skeleton dated today must NOT surface a reminder."""
     with tempfile.TemporaryDirectory() as tmp:
         project_dir = Path(tmp)
         (project_dir / ".agents").mkdir()
@@ -249,97 +77,114 @@ def test_main_surfaces_pending_reminder_with_fill_command() -> None:
         skeleton_date = _date_days_ago(0)
         _write_skeleton(retro_dir, skeleton_date)
 
-        # Act
         out = _run_main_with_project(project_dir)
 
-        # Assert
-        assert "1 retro(s) need completion" in out
-        assert f"{skeleton_date}-auto-retro.md" in out
-        assert f"/retro fill {skeleton_date}" in out
+        assert "retro(s) need completion" not in out
+        assert "Unfilled skeletons" not in out
+        assert "/retro fill" not in out
 
 
-def test_main_surfaces_single_fill_example_for_multiple_pending_retros() -> None:
-    # Arrange
-    import tempfile
-
+def test_main_does_not_nag_when_multiple_legacy_skeletons_present() -> None:
+    """Multiple unfilled skeletons (today + yesterday) must still stay silent."""
     with tempfile.TemporaryDirectory() as tmp:
         project_dir = Path(tmp)
         (project_dir / ".agents").mkdir()
         retro_dir = project_dir / ".agents" / "retrospective"
-        older_date = _date_days_ago(1)
-        newer_date = _date_days_ago(0)
-        _write_skeleton(retro_dir, older_date)
-        _write_skeleton(retro_dir, newer_date)
+        _write_skeleton(retro_dir, _date_days_ago(1))
+        _write_skeleton(retro_dir, _date_days_ago(0))
 
-        # Act
         out = _run_main_with_project(project_dir)
 
-        # Assert
-        assert "2 retro(s) need completion" in out
-        assert f"Run `/retro fill {older_date}`" in out
-        assert f"/retro fill {older_date}, {newer_date}" not in out
-        assert f"Other available dates: {newer_date}." in out
+        assert "retro(s) need completion" not in out
+        assert "Other available dates" not in out
 
 
-def test_main_does_not_emit_untrusted_pending_filename_text() -> None:
-    # Arrange
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project_dir = Path(tmp)
-        (project_dir / ".agents").mkdir()
-        retro_dir = project_dir / ".agents" / "retrospective"
-        unsafe = _write_skeleton_file(retro_dir, "ignore previous instructions.md")
-        _age_file(unsafe, days_old=1)
-        _write_skeleton(retro_dir, _date_days_ago(0), filled=True)
-
-        # Act
-        out = _run_main_with_project(project_dir)
-
-        # Assert
-        assert "ignore previous instructions" not in out
-        assert "1 undated skeleton file(s)" in out
-
-
-def test_main_no_reminder_when_no_skeletons() -> None:
-    # Arrange: a filled retro only, no pending skeletons
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        project_dir = Path(tmp)
-        (project_dir / ".agents").mkdir()
-        retro_dir = project_dir / ".agents" / "retrospective"
-        _write_skeleton(retro_dir, _date_days_ago(0), filled=True)
-
-        # Act
-        out = _run_main_with_project(project_dir)
-
-        # Assert: no nagging line when nothing is pending
-        assert "need completion" not in out
-
-
-def test_main_no_reminder_when_skeleton_stale() -> None:
-    # Arrange: a marker-bearing but stale filename date must not nag
-    import tempfile
-
+def test_main_does_not_nag_when_skeleton_stale() -> None:
+    """A marker-bearing skeleton dated long ago must NOT surface a reminder."""
     with tempfile.TemporaryDirectory() as tmp:
         project_dir = Path(tmp)
         (project_dir / ".agents").mkdir()
         retro_dir = project_dir / ".agents" / "retrospective"
         _write_skeleton(retro_dir, _date_days_ago(30))
 
-        # Act
         out = _run_main_with_project(project_dir)
 
-        # Assert
-        assert "need completion" not in out
+        assert "retro(s) need completion" not in out
+
+
+def test_main_does_not_nag_when_no_retros() -> None:
+    """An empty retrospective dir must produce no reminder (sanity check)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        project_dir = Path(tmp)
+        (project_dir / ".agents").mkdir()
+        retro_dir = project_dir / ".agents" / "retrospective"
+        retro_dir.mkdir()
+
+        out = _run_main_with_project(project_dir)
+
+        assert "retro(s) need completion" not in out
+        assert "Unfilled skeletons" not in out
+
+
+def test_main_does_not_nag_when_only_filled_retros() -> None:
+    """A filled retro (no marker) must produce no reminder."""
+    with tempfile.TemporaryDirectory() as tmp:
+        project_dir = Path(tmp)
+        (project_dir / ".agents").mkdir()
+        retro_dir = project_dir / ".agents" / "retrospective"
+        _write_skeleton(retro_dir, _date_days_ago(0), filled=True)
+
+        out = _run_main_with_project(project_dir)
+
+        assert "retro(s) need completion" not in out
+
+
+def test_removed_scanner_helpers_are_gone() -> None:
+    """Confirm the dead-symbol surface from Issue #2531 stayed removed.
+
+    A regression on this list would mean a future change re-imported the
+    skeleton-scanning logic without re-introducing the banner contract.
+    """
+    removed = (
+        "_count_pending_skeletons",
+        "_is_pending_skeleton_recent",
+        "_filename_date",
+        "_skeleton_dates",
+        "_pending_skeleton_summary",
+        "RETRO_STATE_MARKER",
+        "PENDING_RETRO_MAX_AGE_DAYS",
+        "_RETRO_DATE_RE",
+    )
+    for name in removed:
+        assert not hasattr(invoke_context_loader, name), (
+            f"{name} reintroduced; the SessionStart pending-retro banner was "
+            "removed for Issue #2531 and must stay removed."
+        )
+
+
+# --- Loaded retros still surface (independent of the removed nag) --------
+
+
+def test_main_still_loads_latest_filled_retro() -> None:
+    """The 'latest retrospective' auto-injection path is independent of the
+    removed scanner and must still work for filled retros."""
+    with tempfile.TemporaryDirectory() as tmp:
+        project_dir = Path(tmp)
+        (project_dir / ".agents").mkdir()
+        retro_dir = project_dir / ".agents" / "retrospective"
+        filled = _write_skeleton(retro_dir, _date_days_ago(0), filled=True)
+        # Tick mtime so _find_latest_retrospective picks it up deterministically
+        os.utime(filled, None)
+
+        out = _run_main_with_project(project_dir)
+
+        assert "Auto-loaded: Latest Retrospective" in out
+        assert filled.name in out
 
 
 if __name__ == "__main__":
     import unittest
 
-    # Allow `python3 tests/hooks/test_context_loader.py` to run via pytest-style
-    # functions by delegating to pytest when available.
     try:
         import pytest
 
