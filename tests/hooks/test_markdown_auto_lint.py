@@ -30,7 +30,7 @@ class TestGetFilePathFromInput:
     """Tests for file path extraction."""
 
     def test_extracts_file_path(self) -> None:
-        hook_input = {"tool_input": {"file_path": "/path/to/file.md"}}
+        hook_input: dict[str, object] = {"tool_input": {"file_path": "/path/to/file.md"}}
         assert get_file_path_from_input(hook_input) == "/path/to/file.md"
 
     def test_no_tool_input(self) -> None:
