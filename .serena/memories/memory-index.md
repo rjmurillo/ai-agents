@@ -1,12 +1,12 @@
 # Memory Index
 
 [Session and Protocol]
-|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (219), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
+|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (194), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
 |session validation diagnose fixer protocol compliance NON_COMPLIANT changelog: [session/changelog-session-log-fixer](session/changelog-session-log-fixer.md) (480)
 |protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (245)
 
 [GitHub and PR Operations]
-|github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1023), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
+|github pr issue cli gh api review comment batch response: [skills-github-cli-index](skills-github-cli-index.md) (552), [skills-pr-review-index](skills-pr-review-index.md) (1019), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
 |jq json parse filter select map array object string: [skills-jq-index](skills-jq-index.md) (356)
 |gh extension notify combine metrics milestone webhook grep sub-issue: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
@@ -27,20 +27,20 @@
 
 [Architecture and Design]
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (363)
-|adr decision record active proposed superseded rationale artifact amendment: [adr-reference-index](adr-reference-index.md) (701), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
-|cache invalidation TTL session-local cloudmcp stale refresh: [adr-reference-index](adr-reference-index.md) (701)
+|adr decision record active proposed superseded rationale artifact amendment: [adr-reference-index](adr-reference-index.md) (673), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (754)
+|cache invalidation TTL session-local cloudmcp stale refresh: [adr-reference-index](adr-reference-index.md) (673)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
-|code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
-|prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
+|code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1121)
+|prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1421)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (422)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
 
 [Agent Orchestration]
-|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (431), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
+|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (440), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (378)
 |autonomous execution guardrails circuit breaker patch signal trust metric: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (150)
 |phase3 agent skill session handoff template verification: [agent-workflow/agentworkflow-004-proactive-template-sync-verification-95](agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md) (485), [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (474)
@@ -51,7 +51,7 @@
 |dorny paths-filter checkout base ref PR changes: [ci/ci-infrastructure-dorny-paths-filter-checkout](ci/ci-infrastructure-dorny-paths-filter-checkout.md) (930)
 
 [Documentation and Planning]
-|documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (336)
+|documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)
 |planning task file path scope breakdown: [skills-planning-index](skills-planning-index.md) (246)
 |roadmap epic priority strategic vision business value: [planning/roadmap-priorities](planning/roadmap-priorities.md) (265)
 
@@ -79,9 +79,8 @@
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (935), [ci-infrastructure-observations](ci-infrastructure-observations.md) (890)
 
 [Memory and Context]
-|serena token efficiency symbolic tools cache memory read search: [skills-serena-index](skills-serena-index.md) (284)
-|context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
-|passive context AGENTS.md skills decision-point retrieval-led compression: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
+|context engineering token optimization progressive disclosure just-in-time: [memory/context-engineering-principles](memory/context-engineering-principles.md) (596), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
+|passive context AGENTS.md skills decision-point retrieval-led compression: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (456), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (684), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
 
 [Root Cause Patterns (PR #908)]
 |governance enforcement ADR limits commits files programmatic gate: [root-cause-governance-enforcement](root-cause-governance-enforcement.md) (603)
@@ -90,13 +89,13 @@
 
 [Engineering Knowledge Tiers]
 |<5 years foundational: [foundational-knowledge-index](foundational-knowledge-index.md) (487)
-|all tiers: [engineering-knowledge-index](engineering-knowledge-index.md) (1475)
+|all tiers: [engineering-knowledge-index](engineering-knowledge-index.md) (1439)
 |15+ years principal: [knowledge/principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) (854)
 |25+ years distinguished: [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) (283)
 
 [User Constraints (MUST READ)]
-|no bash/Python scripts: [user-preferences/user-preference-no-bash-python](user-preferences/user-preference-no-bash-python.md) (268)
-|no auto-generated headers: [user-preferences/user-preference-no-auto-headers](user-preferences/user-preference-no-auto-headers.md) (375)
+|no auto-generated headers timestamps do-not-edit: .claude/rules/universal.md MUST NOT 6 (canonical)
+|user-facing content internal refs prohibited: [user-preferences/user-facing-content-restrictions](user-preferences/user-facing-content-restrictions.md) (456)
 
 [Related]
 |feedback retrieval: [memory/memory-001-feedback-retrieval](memory/memory-001-feedback-retrieval.md) (577)
@@ -104,4 +103,4 @@
 |decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (959)
 |fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
 |token efficiency: [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
-|passive context research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447)
+|passive context research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (456)
