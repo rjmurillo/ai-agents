@@ -8,6 +8,6 @@
 | orchestrator routing complex multi-step specialist triage | [orchestration/orchestration-003-orchestrator-first-routing](orchestration/orchestration-003-orchestrator-first-routing.md) |
 | scope discipline minimal fix debug investigation constraints | [orchestration/orchestration-scope-002-minimal-viable-fix](orchestration/orchestration-scope-002-minimal-viable-fix.md) |
 | copilot swe prompting constraints templates scope limits | [orchestration/orchestration-prompt-002-copilot-swe-constraints](orchestration/orchestration-prompt-002-copilot-swe-constraints.md) |
-| copilot anti-patterns scope explosion test mutation signals | [copilot/copilot-swe-anti-patterns](copilot/copilot-swe-anti-patterns.md) |
+| copilot anti-patterns scope explosion test mutation signals | [copilot/orchestration-copilot-swe-anti-patterns](orchestration/orchestration-copilot-swe-anti-patterns.md) |
 | process workflow gap missing capability root cause consultation validation | [orchestration/orchestration-process-workflow-gaps](orchestration/orchestration-process-workflow-gaps.md) |
 | consensus debate disagree commit dissent follow-up multi-agent | [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) |

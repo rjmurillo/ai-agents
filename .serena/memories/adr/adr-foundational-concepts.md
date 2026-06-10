@@ -142,7 +142,7 @@ AKM (Architectural Knowledge Management)
 
 ## Key Insight
 
-An ADR is NOT just documentation—it's a **decision artifact** that:
+An ADR is NOT just documentation: it's a **decision artifact** that:
 
 1. Forces explicit reasoning at decision time
 2. Preserves context for future maintainers
@@ -151,7 +151,7 @@ An ADR is NOT just documentation—it's a **decision artifact** that:
 
 ## Related Memories
 
-- [skill-debate-001-multi-agent-adr-consensus](debate-001-multi-agent-adr-consensus.md): Process for validating ADRs
+- [skill-debate-001-multi-agent-adr-consensus](governance/debate-001-multi-agent-adr-consensus.md): Process for validating ADRs
 - [skills-architecture](skills-architecture-index.md): Architectural skills and patterns
 - [adr-014-review-findings](adr-014-review-findings.md): Example of ADR review process
 
@@ -164,7 +164,6 @@ An ADR is NOT just documentation—it's a **decision artifact** that:
 ## Related
 
 - [adr-007-augmentation-research](adr-007-augmentation-research.md)
-- [adr-014-findings](adr-014-findings.md)
 - [adr-014-review-findings](adr-014-review-findings.md)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
-- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)
+- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
