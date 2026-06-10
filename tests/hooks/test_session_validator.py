@@ -311,7 +311,8 @@ class TestModuleAsScript:
             ["python3", hook_path],
             input="",
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 0
 
@@ -410,7 +411,8 @@ class TestBootstrapDegradesOnPartialInstall:
             [sys.executable, str(hook_copy)],
             input="",
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             cwd=str(tmp_path),
             env=env,

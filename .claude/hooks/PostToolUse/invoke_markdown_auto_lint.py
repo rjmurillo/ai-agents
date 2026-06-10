@@ -100,7 +100,8 @@ def main() -> int:
         result = subprocess.run(
             ["npx", "markdownlint-cli2", "--fix", file_path],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=project_dir,
             timeout=30,
         )
