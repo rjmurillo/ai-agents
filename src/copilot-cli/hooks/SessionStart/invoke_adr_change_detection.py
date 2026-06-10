@@ -24,6 +24,7 @@ from pathlib import Path
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
@@ -37,7 +38,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -68,8 +73,18 @@ def get_project_root() -> str | None:
             return None
         return env_dir
 
-    # parents[2] walks up: hooks -> .claude -> project root
-    return str(Path(__file__).resolve().parents[2])
+    # Issue #2523: walk up to the first ancestor containing .git. The old
+    # parents[2] fallback assumed the .claude/hooks/ layout; in the deeper
+    # vendored copies (src/<provider>/hooks/<event>/) it resolved inside
+    # src/, the .git probe in main() failed, and ADR detection silently
+    # no-oped in plugin installs.
+    cur = Path(__file__).resolve().parent
+    while True:
+        if (cur / ".git").exists():
+            return str(cur)
+        if cur.parent == cur:
+            return None
+        cur = cur.parent
 
 
 def main() -> int:

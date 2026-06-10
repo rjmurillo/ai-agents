@@ -284,11 +284,15 @@ def _original_main(stdin_bytes):
             return 0
 
         try:
+            # Issue #2523: bounded timeout (release-it.md). Without it, a cold npm
+            # cache or unreachable registry blocks every .md Write/Edit turn
+            # indefinitely. 30s matches the CodeQL hook budget.
             result = subprocess.run(
                 ["npx", "markdownlint-cli2", "--fix", file_path],
                 capture_output=True,
                 text=True,
                 cwd=project_dir,
+                timeout=30,
             )
 
             if result.returncode != 0:
@@ -318,6 +322,15 @@ def _original_main(stdin_bytes):
                     )
             else:
                 print(f"\n**Markdown Auto-Lint**: Fixed formatting in `{file_path}`\n")
+        except subprocess.TimeoutExpired:
+            print(
+                f"WARNING: Markdown linting timed out after 30s for {file_path}",
+                file=sys.stderr,
+            )
+            print(
+                f"\n**Markdown Auto-Lint WARNING**: Lint timed out for `{file_path}`. "
+                f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
+            )
         except FileNotFoundError:
             print(
                 f"WARNING: npx not found. Cannot lint {file_path}",

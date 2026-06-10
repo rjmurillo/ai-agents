@@ -217,6 +217,7 @@ def _original_main(stdin_bytes):
     # lib/ is the plugin's lib dir. Layout-independent: works in source
     # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    _lib_dir: str | None
     if _plugin_root:
         _lib_dir = str(Path(_plugin_root).resolve() / "lib")
     else:
@@ -230,7 +231,11 @@ def _original_main(stdin_bytes):
                 break
             _cur = _cur.parent
     if _lib_dir is None or not os.path.isdir(_lib_dir):
-        print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+        print(
+            f"Plugin lib directory not found: {_lib_dir} "
+            f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+            file=sys.stderr,
+        )
         sys.exit(2)
     if _lib_dir not in sys.path:
         sys.path.insert(0, _lib_dir)
@@ -333,11 +338,16 @@ def _original_main(stdin_bytes):
                     key=lambda p: p.stat().st_mtime,
                     reverse=True,
                 )
+                # Issue #2523: stream line-by-line instead of read_text(). A
+                # multi-MB session log pushed the whole-file read past the hook
+                # timeout budget (fail-open). Line streaming follows the
+                # established pattern in invoke_false_completion_gate.py.
                 for log_path in session_logs:
-                    content = log_path.read_text(encoding="utf-8")
-                    for pattern in _SECURITY_REVIEW_PATTERNS:
-                        if pattern.search(content):
-                            return True
+                    with log_path.open(encoding="utf-8", errors="replace") as handle:
+                        for line in handle:
+                            for pattern in _SECURITY_REVIEW_PATTERNS:
+                                if pattern.search(line):
+                                    return True
             except OSError:
                 pass
 
