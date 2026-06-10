@@ -1,0 +1,146 @@
+{
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "fix/2520-workflow-injection",
+    "startingCommit": "a059a7e",
+    "objective": "Fix issue 2520: remove untrusted ${{ }} interpolation from run blocks in pr-maintenance/pr-validation, scope permissions per job, trim dead pull_request_target trigger types in rjmurillo-bot"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2520-workflow-injection"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2520-workflow-injection"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Loaded/verified this session"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "a059a7e (stacked on fix/2519-missing-ps1)"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP unavailable after compaction; findings recorded in this log and issue #2520 PR"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown changed (workflow yaml only)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Done this session"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit code: 0; all 3 workflow YAMLs parse via yaml.safe_load"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2520 finding 1 (HIGH, CWE-78): pr-maintenance.yml interpolated matrix.headRefName/baseRefName (attacker-controllable PR branch names) and steps.auto-resolve.outputs.blocked_files (PR-controlled file paths) directly into run: blocks in the conflict-context, apply-AI-resolution, and report-unresolvable steps. All routed through step env: blocks (HEAD_REF/BASE_REF/BLOCKED_FILES_JSON/PR_NUMBER) and referenced as $env:X (pwsh) / ${X} (bash). Also env-routed AI verdict outputs (model output is untrusted) in the comment-processing-result step and the discovery summary JSON (carries PR-derived text) in both step-summary and summarize steps."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2520 finding 2 (MEDIUM): pr-validation.yml lines 61/124/313/350 used ${{ github.actor }} and ${{ github.repository }} inline in run blocks against the file's own env-var policy. Replaced with the GitHub-provided default env vars $env:GITHUB_ACTOR and $env:GITHUB_REPOSITORY (no new env: entries needed)."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2520 finding 3 (MEDIUM): pr-maintenance.yml granted contents/pull-requests/issues write to ALL jobs at workflow level. Workflow level reduced to contents: read; job-level permissions added: discover-prs (contents/pull-requests read), process-prs (the only mutating job: contents/pull-requests/issues write + actions read), summarize (contents read)."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2520 finding 4 (MEDIUM): rjmurillo-bot.yml pull_request_target declared types [opened, edited, synchronize, review_requested] but the job if: gate only handles review_requested; every fork PR open/edit/push spun a runner with contents:write + id-token:write that immediately skipped. Types trimmed to [review_requested]."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2520 finding 5 (LOW): pr-maintenance.yml line 57 rendered ${{ env.PR_MAX_PRS }} into the bash run block; replaced with \"$PR_MAX_PRS\" (already a real env var from the workflow env: block). The surrounding jq extraction (ADR-006 thin-workflow concern) left as-is; moving it into invoke_pr_maintenance.py is a behavior-preserving refactor for a follow-up."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Also replaced 4 pre-existing em-dashes in pr-maintenance.yml comments/strings (universal.md dash prohibition; the dash-guard rejects staged files containing them). Verification: all 3 modified workflow YAMLs parse via yaml.safe_load; remaining ${{ matrix.* }} / ${{ steps.* }} occurrences are only in name:/if:/with:/env:/outputs: contexts, which are not shell-rendered."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR Fixes #2520 stacked on fix/2519-missing-ps1 (PR #2545)",
+    "Follow-up: move discover-step jq extraction into invoke_pr_maintenance.py per ADR-006"
+  ]
+}
