@@ -4,6 +4,12 @@
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
+# Anchor to the repository root so relative paths (.python-version, uv.lock,
+# pyproject.toml, .githooks) resolve correctly regardless of the caller's CWD
+# (CWE-22 defense: never resolve repo paths against an attacker-influenced CWD).
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
 echo "=== System Prerequisites ==="
 sudo apt-get update -qq
 sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \

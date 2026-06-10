@@ -54,12 +54,16 @@ fi
 # pyenv-provisioned interpreters; they sit last so they never shadow the
 # uv-managed toolchain.
 #
-# Idempotent: SessionStart fires every session, so guard on PYENV_ROOT being
-# already exported in $CLAUDE_ENV_FILE to avoid appending duplicate lines.
-if [ -n "${CLAUDE_ENV_FILE:-}" ] \
-   && ! grep -q '^export PYENV_ROOT=' "$CLAUDE_ENV_FILE" 2>/dev/null; then
-  {
-    echo "export PATH=\"$repo_root/.venv/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$HOME/.pyenv/shims:\$HOME/.pyenv/bin:\$PATH\""
-    echo 'export PYENV_ROOT="$HOME/.pyenv"'
-  } >> "$CLAUDE_ENV_FILE"
+# Idempotent: SessionStart fires every session, so each line is guarded by
+# its own marker. The PATH line is keyed on the venv bin dir (not on
+# PYENV_ROOT): containers that ran an older version of this hook already
+# have a PYENV_ROOT line in $CLAUDE_ENV_FILE, and keying the PATH append on
+# it would skip the venv-first PATH on upgraded sessions.
+if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  if ! grep -qF "$repo_root/.venv/bin" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    echo "export PATH=\"$repo_root/.venv/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$HOME/.pyenv/shims:\$HOME/.pyenv/bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
+  fi
+  if ! grep -q '^export PYENV_ROOT=' "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> "$CLAUDE_ENV_FILE"
+  fi
 fi
