@@ -7,6 +7,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -47,7 +48,7 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
-def _make_findings(comments: list[dict] | None = None) -> str:
+def _make_findings(comments: list[dict[str, Any]] | None = None) -> str:
     return json.dumps({"comments": comments or []})
 
 
@@ -145,7 +146,13 @@ class TestReplyToComment:
 class TestProcessComments:
     def test_empty_comments(self):
         stats = process_comments("o", "r", 1, {"comments": []})
-        assert stats == {"acknowledged": 0, "replied": 0, "skipped": 0, "errors": 0}
+        assert stats == {
+            "acknowledged": 0,
+            "replied": 0,
+            "skipped": 0,
+            "errors": 0,
+            "reaction_failures": 0,
+        }
 
     def test_stale_comment_skipped(self):
         findings = {"comments": [{"id": 1, "classification": "stale"}]}
@@ -207,11 +214,14 @@ class TestProcessComments:
         stats = process_comments("o", "r", 1, findings)
         assert stats["errors"] == 1
 
-    def test_reaction_failure_counted_as_error(self):
+    def test_reaction_failure_is_nonfatal(self):
+        # Issue #2522: a reaction 404 is a cosmetic acknowledgement failure and
+        # must not be counted as an error (which would flip the run to exit 3).
         findings = {"comments": [{"id": 1, "classification": "stale"}]}
         with patch("subprocess.run", return_value=_completed(rc=1, stderr="err")):
             stats = process_comments("o", "r", 1, findings)
-        assert stats["errors"] == 1
+        assert stats["errors"] == 0
+        assert stats["reaction_failures"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +265,8 @@ class TestMain:
         assert rc == 0
 
     def test_errors_return_3(self):
-        findings = _make_findings([{"id": 1, "classification": "stale"}])
+        # A real error (a comment with no id) still fails the run with exit 3.
+        findings = _make_findings([{"classification": "stale"}])
         with patch(
             "invoke_pr_comment_processing.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
@@ -266,6 +277,21 @@ class TestMain:
                 "--findings-json", findings,
             ])
         assert rc == 3
+
+    def test_reaction_404_does_not_fail_run(self):
+        # Issue #2522: every reaction add 404s, but the comments are otherwise
+        # processed, so the scheduled run must exit 0, not 3.
+        findings = _make_findings([{"id": 1, "classification": "stale"}])
+        with patch(
+            "invoke_pr_comment_processing.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch("subprocess.run", return_value=_completed(rc=1, stderr="404")):
+            rc = main([
+                "--pr-number", "1",
+                "--verdict", "PASS",
+                "--findings-json", findings,
+            ])
+        assert rc == 0
 
     def test_invalid_json_exits_2(self):
         with pytest.raises(SystemExit) as exc:
