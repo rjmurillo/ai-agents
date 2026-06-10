@@ -63,7 +63,7 @@ class TestCheckSessionLogEvidence:
         assert "deleted" in result["reason"]
 
     @pytest.mark.skipif(
-        os.geteuid() == 0,
+        getattr(os, "geteuid", lambda: -1)() == 0,
         reason="chmod-based permission denial is a no-op for root (web containers)",
     )
     def test_permission_error(self, tmp_path: Path) -> None:

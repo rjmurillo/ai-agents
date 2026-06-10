@@ -210,7 +210,7 @@ class TestCheckDatabaseCache:
         assert any("invalid json" in r.message.lower() for r in caplog.records)
 
     @pytest.mark.skipif(
-        os.geteuid() == 0,
+        getattr(os, "geteuid", lambda: -1)() == 0,
         reason="chmod-based permission denial is a no-op for root (web containers)",
     )
     def test_unreadable_metadata_logs_warning(

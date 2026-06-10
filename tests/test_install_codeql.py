@@ -244,7 +244,7 @@ class TestAddToPath:
         assert not home_profile.exists()
 
     @pytest.mark.skipif(
-        os.geteuid() == 0,
+        getattr(os, "geteuid", lambda: -1)() == 0,
         reason="chmod-based permission denial is a no-op for root (web containers)",
     )
     def test_handles_permission_error_gracefully(

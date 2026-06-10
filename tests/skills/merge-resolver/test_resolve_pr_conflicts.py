@@ -239,7 +239,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         ["git", *args],
         cwd=cwd,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -395,3 +395,18 @@ class TestResolveConflictedFileDispatch:
             status = _resolve_conflicted_file(".agents/HANDOFF.md", result)
         assert status == "error"
         assert "checkout --theirs" in result["message"]
+
+
+class TestResolvePluginManifestPathContainment:
+    """The manifest write refuses paths that escape the conflict repo (CWE-22)."""
+
+    def test_path_escaping_cwd_is_blocked(self, tmp_path: Path) -> None:
+        ours = MagicMock(returncode=0, stdout=_manifest_json("0.5.2"))
+        theirs = MagicMock(returncode=0, stdout=_manifest_json("0.5.3"))
+        with patch.object(mod, "_run_git", side_effect=[ours, theirs]):
+            resolved = resolve_plugin_manifest_conflict(
+                "../outside/.claude-plugin/plugin.json",
+                cwd=str(tmp_path),
+            )
+        assert resolved is False
+        assert not (tmp_path.parent / "outside").exists()

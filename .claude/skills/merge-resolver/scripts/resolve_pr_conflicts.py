@@ -221,8 +221,8 @@ def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> 
     if ours_rest != theirs_rest:
         return False
 
-    ours_version = _parse_plain_semver(str(ours.get("version", "")))
-    theirs_version = _parse_plain_semver(str(theirs.get("version", "")))
+    ours_version = _parse_plain_semver(str(ours.get("version") or ""))
+    theirs_version = _parse_plain_semver(str(theirs.get("version") or ""))
     if ours_version is None or theirs_version is None:
         return False
 
@@ -230,7 +230,13 @@ def resolve_plugin_manifest_conflict(file_path: str, cwd: str | None = None) -> 
     resolved = dict(theirs)
     resolved["version"] = f"{major}.{minor}.{patch + 1}"
 
-    target = Path(cwd) / file_path if cwd else Path(file_path)
+    # Anchor the write to the repo the conflict lives in and refuse paths
+    # that escape it (CWE-22); file_path normally comes from git itself,
+    # but the function is importable with arbitrary arguments.
+    base_dir = Path(cwd).resolve() if cwd else Path.cwd().resolve()
+    target = (base_dir / file_path).resolve()
+    if not target.is_relative_to(base_dir):
+        return False
     target.write_text(json.dumps(resolved, indent=2) + "\n", encoding="utf-8")
     add_r = _run_git("add", file_path, cwd=cwd)
     return add_r.returncode == 0

@@ -144,6 +144,10 @@
     {
       "time": "2026-06-10T06:15Z",
       "entry": "Root-container test hardening: skipif(euid==0) on 5 chmod-permission tests (no-op for root); fixed pre-existing CaptureFixture[str] mypy debt pulled into changed-file gate; pushed with GIT_CONFIG commit.gpgsign=false override (signing server 400s on tmp-repo fixtures)"
+    },
+    {
+      "time": "2026-06-10T07:10Z",
+      "entry": "Addressed Gemini review on PR #2547: Windows-safe geteuid skipif guards (5 files), explicit null-version coercion, CWE-22 path containment on manifest write + containment test, utf-8 encoding in test _git helper. Verification: pytest merge-resolver suite exit 0 (46 passed); pytest 5 guarded files exit 0 (123 passed, 5 skipped); ruff exit 0; mypy exit 0"
     }
   ],
   "endingCommit": "",
