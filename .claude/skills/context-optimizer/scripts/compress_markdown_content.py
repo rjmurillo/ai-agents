@@ -24,7 +24,7 @@ References:
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import importlib
 import json
 import re
 import sys
@@ -47,8 +47,18 @@ _TIKTOKEN_MISSING_MESSAGE = (
 
 
 def _tiktoken_missing() -> bool:
-    """Return True when tiktoken cannot be imported (matches the CLI's exit-4 case)."""
-    return importlib.util.find_spec("tiktoken") is None
+    """Return True when tiktoken cannot be imported (matches the CLI's exit-4 case).
+
+    Attempts the real import rather than checking ``find_spec``: a present spec
+    with a broken loader still raises ``ImportError`` at ``import tiktoken`` time
+    (which count_tokens does), and ``find_spec`` raises (not returns None) when a
+    test blocks the module via ``sys.modules['tiktoken'] = None`` on Python 3.10.
+    """
+    try:
+        importlib.import_module("tiktoken")
+    except ImportError:
+        return True
+    return False
 
 
 class CompressionLevel(Enum):

@@ -47,10 +47,13 @@ _LEGACY_BAD_PROBE = (
 
 
 def _run_probe(code: str) -> subprocess.CompletedProcess[str]:
+    # encoding/errors set explicitly so the probe decodes UTF-8 output the same
+    # way on Windows (CP1252 default) as on POSIX, rather than relying on text=True.
     return subprocess.run(
         [sys.executable, "-c", code],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
 
