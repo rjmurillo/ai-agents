@@ -10,6 +10,22 @@ export DEBIAN_FRONTEND=noninteractive
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Bound every outbound download: a hung mirror must fail the step, not hang
+# the SessionStart hook. Retries are only safe on curls that write to a file
+# (-o); a --retry on a piped transfer can re-send bytes mid-stream.
+CURL_OPTS=(--connect-timeout 10 --max-time 300)
+CURL_RETRY_OPTS=("${CURL_OPTS[@]}" --retry 3 --retry-delay 5)
+
+install_uv() {
+    # Download then execute (not curl|sh) so a partial transfer never
+    # reaches the shell and retries are safe.
+    local installer
+    installer="$(mktemp)"
+    curl "${CURL_RETRY_OPTS[@]}" -LsSf https://astral.sh/uv/install.sh -o "$installer"
+    sh "$installer"
+    rm -f "$installer"
+}
+
 echo "=== System Prerequisites ==="
 sudo apt-get update -qq
 sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \
@@ -17,7 +33,7 @@ sudo apt-get install -y -qq curl wget git jq unzip zstd apt-transport-https \
 
 echo "=== Node.js LTS ==="
 if ! command -v node &>/dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+    curl "${CURL_OPTS[@]}" -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
     sudo apt-get install -y -qq nodejs
 fi
 node --version && npm --version
@@ -33,7 +49,7 @@ pwsh --version
 
 echo "=== GitHub CLI ==="
 if ! command -v gh &>/dev/null; then
-    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+    curl "${CURL_OPTS[@]}" -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
         sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
         sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
@@ -60,10 +76,10 @@ fi
 # `uv self update` here: that path queries the GitHub API and gets
 # rate-limited on shared container egress IPs.
 if ! command -v uv &>/dev/null; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    install_uv
 elif [[ -n "$PYTHON_PIN" ]] && ! uv python list "$PYTHON_PIN" 2>/dev/null | grep -q .; then
     echo "uv $(uv --version) cannot resolve Python ${PYTHON_PIN}; reinstalling latest uv"
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    install_uv
 fi
 grep -q 'local/bin' "$HOME/.bashrc" 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 uv --version
@@ -108,8 +124,15 @@ if [[ -f "uv.lock" ]]; then
     fi
 elif [[ -f "pyproject.toml" ]]; then
     echo "Installing Python dependencies from pyproject.toml..."
-    uv pip install --system -e ".[dev]"
-    echo "✓ Python dependencies installed"
+    # Non-fatal: when python3 resolves to a uv-managed interpreter this
+    # fails under PEP 668 (externally managed), and `set -e` would abort
+    # the rest of bootstrap. This repo always has uv.lock, so this branch
+    # only serves forks or derivatives without a lockfile.
+    if uv pip install --system -e ".[dev]"; then
+        echo "✓ Python dependencies installed"
+    else
+        echo "⚠ uv pip install --system failed (PEP 668 externally-managed interpreter?); run 'uv venv && uv pip install -e .[dev]' instead"
+    fi
 else
     echo "⚠ No pyproject.toml found, skipping Python dependency installation"
 fi
@@ -169,7 +192,7 @@ if ! command -v actionlint &>/dev/null; then
     mkdir -p "$HOME/.local/bin"
     TMP_DIR=$(mktemp -d)
     trap 'rm -rf -- "$TMP_DIR"' EXIT
-    curl -fsSL "$AL_URL" -o "$TMP_DIR/$AL_TARBALL"
+    curl "${CURL_RETRY_OPTS[@]}" -fsSL "$AL_URL" -o "$TMP_DIR/$AL_TARBALL"
     echo "${AL_SHA256}  $TMP_DIR/$AL_TARBALL" | sha256sum --check --strict
     tar -xzf "$TMP_DIR/$AL_TARBALL" -C "$TMP_DIR" actionlint
     install -m 755 "$TMP_DIR/actionlint" "$HOME/.local/bin/actionlint"
