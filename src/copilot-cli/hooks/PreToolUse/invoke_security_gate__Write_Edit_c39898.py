@@ -338,18 +338,23 @@ def _original_main(stdin_bytes):
                     key=lambda p: p.stat().st_mtime,
                     reverse=True,
                 )
-                # Issue #2523: stream line-by-line instead of read_text(). A
-                # multi-MB session log pushed the whole-file read past the hook
-                # timeout budget (fail-open). Line streaming follows the
-                # established pattern in invoke_false_completion_gate.py.
-                for log_path in session_logs:
+            except OSError:
+                session_logs = []
+            # Issue #2523: stream line-by-line instead of read_text(). A
+            # multi-MB session log pushed the whole-file read past the hook
+            # timeout budget (fail-open). Line streaming follows the
+            # established pattern in invoke_false_completion_gate.py.
+            # OSError is handled per log file so one unreadable log cannot
+            # mask evidence in the others (false block on auth-file edits).
+            for log_path in session_logs:
+                try:
                     with log_path.open(encoding="utf-8", errors="replace") as handle:
                         for line in handle:
                             for pattern in _SECURITY_REVIEW_PATTERNS:
                                 if pattern.search(line):
                                     return True
-            except OSError:
-                pass
+                except OSError:
+                    continue
 
         return False
 

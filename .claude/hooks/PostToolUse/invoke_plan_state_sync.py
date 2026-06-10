@@ -88,7 +88,10 @@ def _read_stdin_json() -> dict[str, object] | None:
         data = sys.stdin.read().strip()
         if not data:
             return None
-        parsed: dict[str, object] = json.loads(data)
+        parsed: object = json.loads(data)
+        if not isinstance(parsed, dict):
+            return None
+        # json.loads object keys are always str, so the cast below is sound.
         return parsed
     except (json.JSONDecodeError, OSError):
         return None
