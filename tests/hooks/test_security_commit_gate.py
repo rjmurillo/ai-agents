@@ -268,3 +268,45 @@ class TestMain:
         data = json.loads(captured.out.strip())
         assert data["decision"] == "block"
         assert "enumerate staged files" in data["reason"]
+
+
+# ---------------------------------------------------------------------------
+# Streaming read tests for find_security_evidence
+# ---------------------------------------------------------------------------
+
+
+class TestFindSecurityEvidenceStreaming:
+    """Verify find_security_evidence streams line-by-line (no full read_text)."""
+
+    def _make_large_log(self, sessions_dir: Path, today: str, *, pattern_at_start: bool) -> Path:
+        """Create a large fake session log (~50000 lines)."""
+        log = sessions_dir / f"{today}-session-001.json"
+        trigger_line = '  "notes": "security review completed"\n'
+        filler_line = '  "data": "x" * 1000,\n'
+        lines = []
+        if pattern_at_start:
+            lines.append(trigger_line)
+        for _ in range(50000):
+            lines.append(filler_line)
+        log.write_text("".join(lines))
+        return log
+
+    def test_large_log_with_pattern_at_line1_returns_true(self, tmp_path):
+        """Pattern at first line of a large file is found without reading whole file."""
+        from datetime import UTC, datetime
+
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        self._make_large_log(sessions_dir, today, pattern_at_start=True)
+        assert invoke_security_commit_gate.find_security_evidence(str(tmp_path))
+
+    def test_large_log_without_pattern_returns_false(self, tmp_path):
+        """Large file with no pattern returns False."""
+        from datetime import UTC, datetime
+
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        self._make_large_log(sessions_dir, today, pattern_at_start=False)
+        assert not invoke_security_commit_gate.find_security_evidence(str(tmp_path))

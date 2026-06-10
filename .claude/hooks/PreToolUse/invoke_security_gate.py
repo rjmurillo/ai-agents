@@ -144,10 +144,12 @@ def find_security_evidence(project_dir: str) -> bool:
                 reverse=True,
             )
             for log_path in session_logs:
-                content = log_path.read_text(encoding="utf-8")
-                for pattern in _SECURITY_REVIEW_PATTERNS:
-                    if pattern.search(content):
-                        return True
+                # Stream line-by-line: avoids loading multi-MB logs into memory.
+                with log_path.open(encoding="utf-8", errors="replace") as handle:
+                    for line in handle:
+                        for pattern in _SECURITY_REVIEW_PATTERNS:
+                            if pattern.search(line):
+                                return True
         except OSError:
             pass
 
