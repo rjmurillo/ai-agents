@@ -132,12 +132,34 @@
     {
       "time": "2026-06-10T05:20Z",
       "entry": "Repaired PR #2544: claude.yml pin edit had been left unstaged when the first pre-commit attempt failed; staged pin + v1.0.142 comment fix and removed stale partial outcome node from causal graph (Copilot review findings)"
+    },
+    {
+      "time": "2026-06-10T05:50Z",
+      "entry": "Implemented #2543 fix on claude/fix-2543-plugin-version-merge (stacked on fix/2348): plugin-manifest conflict resolver (patch-bump above max), shared _resolve_conflicted_file dispatch, 19 new tests (45 pass), SKILL.md special rule, plugin bump 0.5.167->0.5.169"
+    },
+    {
+      "time": "2026-06-10T05:58Z",
+      "entry": "mypy type-arg fix in dispatch test; pre-push full suite has 57 container-only failures (signing server 400 on tmp-repo fixture commits); pushing with GIT_CONFIG env gpgsign=false override matching CI behavior"
+    },
+    {
+      "time": "2026-06-10T06:15Z",
+      "entry": "Root-container test hardening: skipif(euid==0) on 5 chmod-permission tests (no-op for root); fixed pre-existing CaptureFixture[str] mypy debt pulled into changed-file gate; pushed with GIT_CONFIG commit.gpgsign=false override (signing server 400s on tmp-repo fixtures)"
+    },
+    {
+      "time": "2026-06-10T06:40Z",
+      "entry": "Filed #2548 (web-container pre-push gaps); opened PR #2547 (fix #2543, stacked on #2530); repaired PR #2544 after reviewer-caught unstaged pin; wrote analysis doc 010-pr-thrashing-rca-2026-06-10.md and Serena memory analysis/pr-thrashing-rca-2026-06-10"
+    },
+    {
+      "time": "2026-06-10T06:50Z",
+      "entry": "Verification evidence: uv run pytest tests/skills/merge-resolver/test_resolve_pr_conflicts.py exit 0 (45 passed); full pre-push test suite exit 0 on push of claude/fix-2543-plugin-version-merge (12455 passed, 18 skipped); ruff check exit 0 and mypy exit 0 on all changed files; markdownlint-cli2 exit 0 on analysis doc; validate_session_json exit 0"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "877adbb",
   "nextSteps": [
-    "Merge fix PRs for #2542/#2543",
-    "Land #2530 to unred main",
-    "Phase 3 (#2480) quality-gate prompt fixes"
+    "Merge #2530 then retarget stacked PRs",
+    "Merge #2544 (#2542)",
+    "Land #2547 (#2543); ADR for auto-bump-on-main option",
+    "Phase 3 #2480 quality-gate prompt fixes",
+    "#2548 conftest signing guard + gh-act decision"
   ]
 }

@@ -130,8 +130,16 @@
       "details": "Marked .serena/memories/ci/environment-observations.md and .serena/memories/python/python-version-compatibility.md SUPERSEDED so future agents are not steered back to pyenv 3.12.8."
     },
     {
+      "action": "Follow-ups",
+      "details": "Opened the follow-up PRs flagged in #2529: PR #2538 guards the Pester/powershell-yaml Install-Module calls (warm bootstrap 8.5s vs 1-2 min; AI quality gate 10/10 PASS), and docs/contributing-uv-sync aligns CONTRIBUTING.md step 4 with 'uv sync --extra dev' plus fills the 2026-06-10 auto-retro skeleton. Verified before writing: the 'CONTRIBUTING still documents pyenv' flag was stale (file already uv-based); the real drift was the unlocked 'uv venv && uv pip install' instruction. Added a taste-lint file-size suppression to CONTRIBUTING.md (1183-line prose doc predates the 500-line lint)."
+    },
+    {
       "action": "Review response",
       "details": "PR #2529 CI + bot review round: bumped src/copilot-cli plugin.json mirror to 0.5.168 (manifest parity CI failure); re-keyed the session-start env-file PATH guard on the venv bin marker instead of PYENV_ROOT so upgraded containers get the venv-first PATH (Cursor bugbot + Gemini high); anchored bootstrap-vm.sh to repo root via BASH_SOURCE (Gemini high, CWE-22). Verified: bash -n clean, bootstrap run from /tmp exits 0 and syncs .venv."
+    },
+    {
+      "action": "Review response",
+      "details": "Copilot review round on the follow-up PRs. PR #2538: powershell-yaml install branch now sets PSGallery InstallationPolicy Trusted itself (warm-Pester/cold-yaml ordering regression); cold path verified empirically with module uninstalled and gallery Untrusted, bootstrap exit 0. PR #2540: CONTRIBUTING step 4 moved to 'uv sync --frozen --extra dev' so setup cannot rewrite uv.lock; retro renamed to canonical 'FM-9 Confident-incorrectness recurrence' per FAILURE-MODES.md row 9 (claim verified against the file before editing)."
     }
   ],
   "endingCommit": "2bfa8d7",

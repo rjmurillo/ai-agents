@@ -1,6 +1,6 @@
 # Skill Reference
 
-Skills are reusable workflow components that agents and users invoke for common tasks. Skills are organized by category; counts in the table below reflect the categories documented in this reference.
+Skills are reusable workflow components that agents and users invoke for common tasks. Skills are organized by category in the table below.
 
 ## How to Use Skills
 
@@ -20,19 +20,19 @@ Agents invoke skills internally. You do not call skills directly.
 
 ## Skill Categories
 
-| Category | Skills | Purpose |
-|----------|--------|---------|
-| [GitHub Operations](#github-operations) | 3 | PR management, issue operations, URL handling |
-| [Session Management](#session-management) | 6 | Session lifecycle, validation, migration |
-| [Memory and Knowledge](#memory-and-knowledge) | 6 | Memory search, curation, exploration, enhancement |
-| [Security](#security) | 4 | Scanning, detection, threat modeling, CodeQL |
-| [Code Quality](#code-quality) | 6 | Style enforcement, taste lints, golden principles, code-qualities assessment, incoherence detection, codebase analysis |
-| [Architecture and Design](#architecture-and-design) | 7 | ADR review, CVA, decisions, architecture analysis |
-| [Planning and Strategy](#planning-and-strategy) | 4 | Planning, pre-mortem, buy-vs-build, Cynefin |
-| [Documentation](#documentation) | 3 | Doc accuracy verification, markdown fixes, context optimization |
-| [Development Workflows](#development-workflows) | 5 | Git workflows, merge resolution, metrics, encoding |
-| [Agent and Skill Management](#agent-and-skill-management) | 3 | Skill creation, Serena symbols, reflection |
-| [Research](#research) | 3 | Research, programming advice, prompt engineering |
+| Category | Purpose |
+|----------|---------|
+| [GitHub Operations](#github-operations) | PR management, issue operations, URL handling |
+| [Session Management](#session-management) | Session lifecycle, validation, migration |
+| [Memory and Knowledge](#memory-and-knowledge) | Memory search, curation, exploration, enhancement |
+| [Security](#security) | Scanning, detection, threat modeling, CodeQL |
+| [Code Quality](#code-quality) | Style enforcement, taste lints, golden principles, code-qualities assessment, incoherence detection, codebase analysis |
+| [Architecture and Design](#architecture-and-design) | ADR review, CVA, decisions, architecture analysis |
+| [Planning and Strategy](#planning-and-strategy) | Planning, pre-mortem, buy-vs-build, Cynefin |
+| [Documentation](#documentation) | Doc accuracy verification, markdown fixes, context optimization |
+| [Development Workflows](#development-workflows) | Git workflows, merge resolution, metrics, encoding |
+| [Agent and Skill Management](#agent-and-skill-management) | Skill creation, Serena symbols, reflection |
+| [Research](#research) | Research, programming advice, prompt engineering |
 
 ## GitHub Operations
 
@@ -127,6 +127,8 @@ Analyzes codebase architecture, security posture, or code quality. Produces stru
 Assesses code maintainability through 5 foundational qualities: cohesion, coupling, DRY, encapsulation, and testability.
 
 ### incoherence
+
+> **Deprecated.** Use [doc-accuracy](#doc-accuracy) instead, which absorbed incoherence detection and is the canonical doc-vs-code audit entrypoint. Retained only for the legacy `.claude/skills/incoherence/scripts/incoherence.py` reconciliation workflow.
 
 Detects contradictions between documentation and code, ambiguous definitions, and inconsistent patterns across the codebase.
 
