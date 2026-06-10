@@ -40,10 +40,10 @@ For each pair, the kept file fully contains the dropped file's knowledge (verifi
 
 | Change | Where |
 |--------|-------|
-| No-auto-generated-headers preference promoted to rule | `universal.md` MUST NOT 6; mirrors regenerated via `build/scripts/generate_rules.py` |
-| Stale ADR-005 "no Python" constraint corrected to ADR-042 | `governance/governance-001-consolidated-constraints.md`, `session/session-init-constraints.md` |
-| `usage-mandatory.md` trimmed to episodic incidents only | Rule text lives in AGENTS.md; enforcement is the skill-first guard hook |
-| `memory-index.md` User Constraints section repointed | Now points at `universal.md` rule and `user-facing-content-restrictions` |
+| No-auto-generated-headers preference promoted to rule | [`.claude/rules/universal.md`](../../.claude/rules/universal.md) MUST NOT 6; mirrors regenerated via [`build/scripts/generate_rules.py`](../../build/scripts/generate_rules.py) |
+| Stale ADR-005 "no Python" constraint corrected to ADR-042 | [`governance/governance-001-consolidated-constraints.md`](../../.serena/memories/governance/governance-001-consolidated-constraints.md), [`session/session-init-constraints.md`](../../.serena/memories/session/session-init-constraints.md) |
+| `usage-mandatory.md` trimmed to episodic incidents only | Rule text lives in [`AGENTS.md`](../../AGENTS.md); enforcement is the skill-first guard hook |
+| `memory-index.md` User Constraints section repointed | Now points at [`universal.md`](../../.claude/rules/universal.md) rule and [`user-facing-content-restrictions`](../../.serena/memories/user-preferences/user-facing-content-restrictions.md) |
 
 ## Flagged, not changed (follow-up candidates)
 
