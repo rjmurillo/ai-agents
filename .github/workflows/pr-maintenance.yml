@@ -131,24 +131,35 @@ jobs:
         if: matrix.hasConflicts == true && (inputs.process_conflicts != false)
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
+          PR_NUMBER: ${{ matrix.number }}
+          HEAD_REF: ${{ matrix.headRefName }}
+          BASE_REF: ${{ matrix.baseRefName }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
         shell: pwsh -NoProfile -Command "& '{0}'"
         run: |
-          Write-Host "Attempting auto-resolution for PR #${{ matrix.number }}"
-          Write-Host "Branch: ${{ matrix.headRefName }} -> ${{ matrix.baseRefName }}"
+          Write-Host "Attempting auto-resolution for PR #$env:PR_NUMBER"
+          Write-Host "Branch: $env:HEAD_REF -> $env:BASE_REF"
 
-          $result = ./.claude/skills/merge-resolver/scripts/Resolve-PRConflicts.ps1 `
-            -PRNumber ${{ matrix.number }} `
-            -BranchName '${{ matrix.headRefName }}' `
-            -TargetBranch '${{ matrix.baseRefName }}'
+          # Issue #2519: the PowerShell Resolve-PRConflicts.ps1 was removed in the
+          # ADR-042 Python migration; call the existing Python resolver instead.
+          # Branch names flow through env (not run-block interpolation) to avoid
+          # CWE-78 injection via crafted PR branch names.
+          $result = python3 ./.claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py `
+            --owner $env:REPO_OWNER `
+            --repo $env:REPO_NAME `
+            --pr-number $env:PR_NUMBER `
+            --branch-name $env:HEAD_REF `
+            --target-branch $env:BASE_REF
 
           $parsed = $result | ConvertFrom-Json
-          if ($parsed.Success) {
-            Write-Host "::notice::PR #${{ matrix.number }}: Auto-resolved - $($parsed.FilesResolved.Count) file(s)"
+          if ($parsed.success) {
+            Write-Host "::notice::PR #$($env:PR_NUMBER): Auto-resolved - $($parsed.files_resolved.Count) file(s)"
             "needs_ai=false" | Out-File $env:GITHUB_OUTPUT -Append
           } else {
-            Write-Host "::warning::PR #${{ matrix.number }}: Auto-resolution blocked on: $($parsed.FilesBlocked -join ', ')"
+            Write-Host "::warning::PR #$($env:PR_NUMBER): Auto-resolution blocked on: $($parsed.files_blocked -join ', ')"
             "needs_ai=true" | Out-File $env:GITHUB_OUTPUT -Append
-            "blocked_files=$($parsed.FilesBlocked | ConvertTo-Json -Compress)" | Out-File $env:GITHUB_OUTPUT -Append
+            "blocked_files=$($parsed.files_blocked | ConvertTo-Json -Compress)" | Out-File $env:GITHUB_OUTPUT -Append
           }
 
       - name: Prepare conflict context for AI analysis
