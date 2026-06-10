@@ -32,7 +32,6 @@
 | pre mortems failure modes identify before starting | [knowledge/pre-mortems](knowledge/pre-mortems.md) |
 | engineering strategy vision specifications organizational | [engineering/engineering-strategy](engineering/engineering-strategy.md) |
 | platform engineering self-service developer capabilities | [knowledge/platform-engineering](knowledge/platform-engineering.md) |
-| buy vs build framework core context evaluation | [knowledge/buy-vs-build-framework-skill](knowledge/buy-vs-build-framework-skill.md) |
 | migrations at scale incremental transformation modernize | [knowledge/migrations-at-scale](knowledge/migrations-at-scale.md) |
 | lindy effect longevity survival technology older | [knowledge/lindy-effect](knowledge/lindy-effect.md) |
 | second system effect rewrite over-engineering replacement | [knowledge/second-system-effect](knowledge/second-system-effect.md) |
@@ -55,4 +54,4 @@
 | shearing layers pace change architecture building | [knowledge/shearing-layers](knowledge/shearing-layers.md) |
 | lifecycle modeling patterns system evolution sustainability | [knowledge/lifecycle-modeling-patterns](knowledge/lifecycle-modeling-patterns.md) |
 | buy vs build evaluation core context decision | [knowledge/buy-vs-build](knowledge/buy-vs-build.md) |
-| chestertons fence memory integration practical application | [knowledge/chestertons-fence-memory-integration](knowledge/chestertons-fence-memory-integration.md) |
+| chestertons fence memory integration practical application | [knowledge/chestertons-fence](knowledge/chestertons-fence.md) |

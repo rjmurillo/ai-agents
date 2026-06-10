@@ -1,6 +1,5 @@
 | Keywords | File |
 |----------|------|
-| serena activate project instructions mandatory blocking init | [session/session-init-serena](session/session-init-serena.md) |
 | skill check exists validate github operation capability | [session/session-init-skill-validation](session/session-init-skill-validation.md) |
 | constraint governance must-not bash python powershell | [session/session-init-constraints](session/session-init-constraints.md) |
 | protocol verification trust blocking gate compliance | [session/session-init-verification-gates](session/session-init-verification-gates.md) |
