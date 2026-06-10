@@ -37,97 +37,73 @@ gh --version
 
 [[ -n "${GITHUB_TOKEN:-}" ]] && export GH_TOKEN="$GITHUB_TOKEN"
 
-echo "=== pyenv (Python 3.12.8) ==="
-# Python 3.13.7 has a critical bug affecting CodeQL extractor and skill validation
-# See: https://github.com/python/cpython/issues/128974 (frozen modules issue)
-# Ubuntu 25.10 has no packages for 3.12.x, so we use pyenv
-if ! command -v pyenv &>/dev/null; then
-    # Install build dependencies for Python compilation
-    sudo apt-get install -y -qq build-essential libssl-dev zlib1g-dev \
-        libbz2-dev libreadline-dev libsqlite3-dev curl git \
-        libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
-
-    # Install pyenv: Download installer, verify, and execute locally
-    # This avoids piping curl directly to bash (security best practice)
-    curl -fsSL https://pyenv.run -o /tmp/pyenv-installer.sh
-    bash /tmp/pyenv-installer.sh
-    rm -f /tmp/pyenv-installer.sh
-
-    # Add pyenv to PATH for this session
-    export PYENV_ROOT="$HOME/.pyenv"
-    export PATH="$PYENV_ROOT/bin:$PATH"
-    eval "$(pyenv init -)"
-
-    # Add pyenv to shell config for future sessions
-    # Detect shell and update appropriate config file
-    SHELL_CONFIG=""
-    # Guard with default-empty expansions because the script runs under
-    # `set -u`. ZSH_VERSION/BASH_VERSION are unset when the script is invoked
-    # by a non-interactive shell (e.g. SessionStart hook on a fresh
-    # container), and `set -u` would otherwise abort here on first run.
-    if [[ -n "${ZSH_VERSION:-}" ]] || [[ "${SHELL:-}" == *"zsh"* ]]; then
-        SHELL_CONFIG="$HOME/.zshrc"
-    elif [[ -n "${BASH_VERSION:-}" ]] || [[ "${SHELL:-}" == *"bash"* ]]; then
-        SHELL_CONFIG="$HOME/.bashrc"
-    else
-        # Default to bashrc if shell cannot be detected
-        SHELL_CONFIG="$HOME/.bashrc"
-    fi
-
-    # Only add if not already present
-    if ! grep -q "PYENV_ROOT" "$SHELL_CONFIG" 2>/dev/null; then
-        {
-            echo ''
-            echo '# pyenv'
-            echo 'export PYENV_ROOT="$HOME/.pyenv"'
-            echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"'
-            echo 'eval "$(pyenv init -)"'
-        } >> "$SHELL_CONFIG"
-        echo "Added pyenv configuration to $SHELL_CONFIG"
-    fi
-fi
-
-# Ensure pyenv is available
-export PYENV_ROOT="$HOME/.pyenv"
-export PATH="$PYENV_ROOT/bin:$PATH"
-if command -v pyenv &>/dev/null; then
-    eval "$(pyenv init -)"
-fi
-
-# Install Python 3.12.8
-if ! pyenv versions --bare | grep -q "^3.12.8$"; then
-    echo "Installing Python 3.12.8 via pyenv (this may take a few minutes)..."
-    pyenv install 3.12.8
-fi
-
-# Set Python 3.12.8 as the local version for this project
-if [[ -d ".git" ]]; then
-    pyenv local 3.12.8
-    echo "Python 3.12.8 set as local version (.python-version file created)"
-fi
-
-python3 --version
-
 echo "=== Python uv ==="
-if ! command -v uv &>/dev/null && [[ ! -f "$HOME/.local/bin/uv" ]]; then
+export PATH="$HOME/.local/bin:$PATH"
+# Single source of truth for the interpreter version is the committed
+# .python-version pin. Do not hardcode interpreter versions in this script;
+# bump the pin instead.
+PYTHON_PIN=""
+if [[ -f ".python-version" ]]; then
+    PYTHON_PIN="$(tr -d '[:space:]' < .python-version)"
+fi
+
+# Container images can ship a uv too old to know the pinned interpreter
+# (uv 0.8.17 predates the CPython 3.14.x downloads). Detect by capability,
+# not version compare: ask uv to resolve the pin against its download list,
+# and re-run the standalone installer when it cannot. Never use
+# `uv self update` here: that path queries the GitHub API and gets
+# rate-limited on shared container egress IPs.
+if ! command -v uv &>/dev/null; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+elif [[ -n "$PYTHON_PIN" ]] && ! uv python list "$PYTHON_PIN" 2>/dev/null | grep -q .; then
+    echo "uv $(uv --version) cannot resolve Python ${PYTHON_PIN}; reinstalling latest uv"
     curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
-export PATH="$HOME/.local/bin:$PATH"
 grep -q 'local/bin' "$HOME/.bashrc" 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
+uv --version
+
+echo "=== Python ${PYTHON_PIN:-(no .python-version pin)} ==="
+if [[ -n "$PYTHON_PIN" ]]; then
+    # Prebuilt interpreter download (seconds). The previous pyenv source
+    # compile took minutes and blew the SessionStart hook budget on Claude
+    # web containers, so the steps after it never ran. --default links
+    # python3/python into ~/.local/bin so bare python3 resolves to the
+    # pinned interpreter.
+    uv python install --default "$PYTHON_PIN"
+fi
+python3 --version
 
 echo "=== Python Dependencies ==="
-if [[ -f "pyproject.toml" ]]; then
+if [[ -f "uv.lock" ]]; then
+    # Sync the project venv from the lockfile, dev extras included. The
+    # pre-push gate (.githooks/pre-push) runs validation through
+    # `uv run --frozen`, so .venv is the environment that must exist for a
+    # push to validate without on-the-fly downloads.
+    uv sync --frozen --extra dev
+    echo "✓ Python dependencies synced into .venv (uv sync --frozen --extra dev)"
+
+    # Put the project venv first on PATH for this run and future shells so
+    # bare `python3 scripts/...` invocations (AGENTS.md, CI docs) resolve to
+    # the synced environment. Installing project deps into the interpreter
+    # itself is not an option: uv-managed interpreters are PEP 668
+    # externally-managed and uv refuses to modify them. The venv is the one
+    # environment that has the project deps.
+    VENV_BIN="$(pwd)/.venv/bin"
+    export PATH="$VENV_BIN:$PATH"
+    grep -qF "$VENV_BIN" "$HOME/.bashrc" 2>/dev/null \
+        || echo "export PATH=\"$VENV_BIN:\$PATH\"" >> "$HOME/.bashrc"
+
+    # Verify key tools are available through the project environment
+    if uv run --frozen ruff --version &>/dev/null; then
+        echo "✓ ruff $(uv run --frozen ruff --version) available for Python linting"
+    fi
+    if uv run --frozen pytest --version &>/dev/null; then
+        echo "✓ pytest $(uv run --frozen pytest --version 2>&1 | head -1) available for Python testing"
+    fi
+elif [[ -f "pyproject.toml" ]]; then
     echo "Installing Python dependencies from pyproject.toml..."
     uv pip install --system -e ".[dev]"
     echo "✓ Python dependencies installed"
-
-    # Verify key tools are available
-    if command -v ruff &>/dev/null; then
-        echo "✓ ruff $(ruff --version) available for Python linting"
-    fi
-    if command -v pytest &>/dev/null; then
-        echo "✓ pytest $(pytest --version 2>&1 | head -1) available for Python testing"
-    fi
 else
     echo "⚠ No pyproject.toml found, skipping Python dependency installation"
 fi
@@ -198,7 +174,10 @@ if ! command -v actionlint &>/dev/null; then
     fi
 fi
 if ! command -v yamllint &>/dev/null; then
-    uv pip install --system yamllint --quiet
+    # `uv tool install` puts the yamllint shim into ~/.local/bin (on PATH);
+    # a `uv pip install` into the uv-managed interpreter would land the
+    # entry point in the interpreter's own bin dir, off PATH.
+    uv tool install --quiet yamllint
 
     if ! command -v yamllint &>/dev/null; then
         echo "yamllint installation failed: binary not found on PATH" >&2
