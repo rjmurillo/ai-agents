@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "claude/repo-latent-issues-review-vq7yg3",
+    "startingCommit": "42068c0",
+    "objective": "Repository latent-issues review: filed issues 2519-2527, reopened 2348, committing Stop-hook retro artifacts"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP pre-activated by remote harness; write_memory used this session (activate_project tool not exposed)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server instructions present in session context; symbolic tool preference honored"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded via SessionStart context loader"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog auto-injected at session start; session-init and github skills used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, .claude/rules/*.md loaded in session context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory observations injected via hooks; memory-index consulted via injected context"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/repo-latent-issues-review-vq7yg3"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/repo-latent-issues-review-vq7yg3"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain run before commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "42068c0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart/sessionEnd MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified this session (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote .serena memory session-2026-06-10-latent-issues-review"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 --fix via pre-commit hook: 0 errors on staged markdown"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in this commit (retro skeleton + INDEX entry + session log)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py run after field completion, exit 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-10",
+      "entry": "Inventoried 26 open issues and 2 open PRs (#2518, #2515) for exclusion list"
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Ran pre_pr.py (22 pass / 4 skip); analyzed CI runs on main: Python Tests red (run 27232682871), PR Maintenance flap (run 27242600492)"
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Fanned out 4 audit agents: broken refs, hooks/validation bugs, workflow security, doc drift; verified findings against tree"
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Reopened #2348 with recurrence evidence; filed #2519-#2527 for net-new verified findings"
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Verification: uv run pytest tests/test_validate_session_json.py -q: 80 passed in 0.47s (scoped to the validator governing this docs-only change); validate_session_json.py on this log: PASS, exit code: 0; pre-push gate green on pushes 861ece0 and ea104d3"
+    }
+  ],
+  "endingCommit": "ea104d3",
+  "nextSteps": [
+    "Fix #2348 durably: derive expected action pin from workflow in test",
+    "Triage #2521 (security commit gate likely inoperative) first; behavioral smoke test required",
+    "Run /retro fill 2026-06-10 to populate the auto-retro skeleton (summary text is stale)"
+  ]
+}
