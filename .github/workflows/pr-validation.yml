@@ -387,13 +387,23 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Check if label already exists on PR (2>$null is safe - PR exists when workflow runs)
-          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
-          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+          # The needs-split label is advisory (the 20-commit BLOCK tier enforces
+          # the real limit), so labeling failures warn instead of failing the job.
+          # Mutations go through the REST issues API: gh pr edit mutates via
+          # GraphQL, which rejects this workflow's token with HTTP 401 (issue #2557).
+          # 2>$null is safe - PR exists when workflow runs
+          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::Could not fetch PR labels (exit code: $LASTEXITCODE); skipping needs-split labeling"
+            exit 0
+          }
 
           if ($existingLabels -notcontains 'needs-split') {
-            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --add-label "needs-split"
-            if ($LASTEXITCODE -ne 0) { throw "Failed to add needs-split label (exit code: $LASTEXITCODE)" }
+            gh api --method POST "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" -f "labels[]=needs-split" | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::warning::Could not add needs-split label (exit code: $LASTEXITCODE); label is advisory, continuing"
+              exit 0
+            }
             Write-Host "Added 'needs-split' label to PR #$env:PR_NUMBER"
           } else {
             Write-Host "PR #$env:PR_NUMBER already has 'needs-split' label"
@@ -405,14 +415,22 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Remove label if it exists and commit count is back below threshold
+          # Remove label if it exists and commit count is back below threshold.
+          # Advisory label: failures warn instead of failing the job; REST API
+          # instead of gh pr edit (GraphQL 401, issue #2557).
           # 2>$null is safe - PR exists when workflow runs
-          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
-          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
+          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::Could not fetch PR labels (exit code: $LASTEXITCODE); skipping needs-split removal"
+            exit 0
+          }
 
           if ($existingLabels -contains 'needs-split') {
-            gh pr edit $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --remove-label "needs-split"
-            if ($LASTEXITCODE -ne 0) { throw "Failed to remove needs-split label (exit code: $LASTEXITCODE)" }
+            gh api --method DELETE "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels/needs-split" | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::warning::Could not remove needs-split label (exit code: $LASTEXITCODE); label is advisory, continuing"
+              exit 0
+            }
             Write-Host "Removed 'needs-split' label from PR #$env:PR_NUMBER"
           }
 
