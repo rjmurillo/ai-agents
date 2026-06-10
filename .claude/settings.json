@@ -371,11 +371,6 @@
             "type": "command",
             "command": "python3 -u .claude/hooks/Stop/invoke_session_validator.py",
             "statusMessage": "Validating session completeness"
-          },
-          {
-            "type": "command",
-            "command": "python3 -u .claude/hooks/Stop/invoke_auto_retrospective.py",
-            "statusMessage": "Auto-generating session retrospective (#1703)"
           }
         ]
       }

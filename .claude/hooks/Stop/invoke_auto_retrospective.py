@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-Stop hook: Writes a placeholder retrospective skeleton on session end (fill via the retrospective agent).
+Stop hook: No-op. Retrospectives are created on demand via /retro fill or the reflect skill.
 
-Creates an unfilled retrospective skeleton in .agents/retrospective/ and
-updates docs/retros/INDEX.md with a new entry. The skeleton is a prompt to
-run the retrospective agent, not a completed retrospective; its sections stay empty until a
-reviewer populates them.
+See Issue #2531. The skeleton-writing mechanism was removed because it produced
+unfilled artifacts that were never auto-completed and leaked into git history.
 
 Hook Type: Stop (non-blocking, always exits 0)
 Exit Codes: Always 0 (fail-open, never blocks session stop)
@@ -15,6 +13,7 @@ Bypass: SKIP_AUTO_RETRO=true environment variable
 Related:
 - Issue #1703 (lifecycle hook infrastructure)
 - ADR-008 (protocol automation lifecycle hooks)
+- Issue #2531 (skeleton mechanism removal)
 """
 
 import json
@@ -313,75 +312,9 @@ def is_trivial_session(project_dir: Path) -> bool:
 
 
 def generate_retrospective(project_dir: Path, today: str) -> Path | None:
-    """Generate a structured retrospective file."""
-    retro_dir = project_dir / ".agents" / "retrospective"
-    retro_dir.mkdir(parents=True, exist_ok=True)
+    """No-op after Issue #2531. Retrospectives are created on demand via /retro fill."""
+    return None
 
-    filename = f"{today}-auto-retro.md"
-    retro_path = retro_dir / filename
-
-    # Use today-or-yesterday fallback so cross-midnight sessions still
-    # contribute work/outcome context to the retrospective.
-    session_context = ""
-    sessions_dir = project_dir / ".agents" / "sessions"
-    if sessions_dir.is_dir():
-        session_file = find_recent_session_file(sessions_dir, today_only=False)
-        if session_file:
-            try:
-                data = json.loads(session_file.read_text(encoding="utf-8"))
-                work_items, outcomes = _extract_work_outcomes(data)
-                if work_items:
-                    session_context += "### Work Items\n"
-                    for item in work_items[:10]:
-                        if isinstance(item, str):
-                            session_context += f"- {item}\n"
-                        elif isinstance(item, dict):
-                            session_context += f"- {format_work_item(item)}\n"
-                if outcomes:
-                    session_context += "\n### Outcomes\n"
-                    for outcome in outcomes[:10]:
-                        if isinstance(outcome, str):
-                            session_context += f"- {outcome}\n"
-                        elif isinstance(outcome, dict):
-                            session_context += f"- {outcome.get('result', str(outcome))}\n"
-            except Exception as e:
-                print(
-                    "[hook-error] invoke_auto_retrospective generate_retrospective: "
-                    f"{type(e).__name__}: {e}",
-                    file=sys.stderr,
-                )
-
-    content = f"""{RETRO_STATE_MARKER}
-# Retrospective: {today}
-
-> UNFILLED SKELETON written by invoke_auto_retrospective.py (Stop hook).
-> The sections below are empty placeholders, not a completed retrospective.
-> Run /retro fill {today} (or the retrospective skill) to populate them, then
-> delete this banner and the RETRO-STATE marker above.
-
-## Session Context
-
-{session_context if session_context else "_No session log data available._"}
-
-## What Went Well
-
-- _UNFILLED. Run the retrospective agent to populate this section._
-
-## What Could Improve
-
-- _UNFILLED. Run the retrospective agent to populate this section._
-
-## Key Learnings
-
-- _UNFILLED. Run the retrospective agent to populate this section._
-
-## Failure Patterns
-
-- _UNFILLED. Run the retrospective agent to populate this section (check .agents/failure-modes/)._
-"""
-
-    retro_path.write_text(content, encoding="utf-8")
-    return retro_path
 
 
 def write_audit_log(
@@ -472,71 +405,9 @@ def write_audit_log(
 
 
 def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
-    """Append entry to docs/retros/INDEX.md, creating if needed.
+    """No-op after Issue #2531. The docs/retros/INDEX.md is no longer maintained by this hook."""
+    return None
 
-    Idempotent: if a row already references `filename`, no new row is added.
-    This protects the index from a partial-failure path where the retro file
-    was written on a prior call but the index append failed (or this run
-    re-attempted index recovery after the retro file already existed).
-    """
-    index_dir = project_dir / "docs" / "retros"
-    index_dir.mkdir(parents=True, exist_ok=True)
-    index_path = index_dir / "INDEX.md"
-
-    header = "# Retrospective Index\n\n| Date | File | Summary |\n|------|------|---------|"
-
-    # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
-    # Open with "a+b" to atomically create if missing, then lock before any read/write
-    # INDEX.md lives in docs/retros/; retro files live in .agents/retrospective/.
-    # Emit a relative link from the index dir to the file so navigation resolves
-    # (bare filename resolves against docs/retros/, where the file does not exist). See #2229.
-    row = (
-        f"| {today} | "
-        f"[{filename}](../../.agents/retrospective/{filename}) | "
-        f"Auto-generated session retro |"
-    )
-    linked_filename = f"[{filename}](../../.agents/retrospective/{filename})"
-    with open(index_path, "a+b") as f:
-        if _lock_file is not None:
-            _lock_file(f)
-        try:
-            f.seek(0, os.SEEK_END)
-            file_size = f.tell()
-            if file_size == 0:
-                # File was just created, write header
-                f.write((header + "\n").encode("utf-8"))
-            else:
-                # Idempotency check: skip if this filename is already indexed.
-                # Read existing content to detect a prior write that produced
-                # the same row, even if a later index update was lost.
-                f.seek(0)
-                existing = f.read().decode("utf-8", errors="replace")
-                if linked_filename in existing:
-                    return
-                bare_row = f"| {today} | {filename} |"
-                if bare_row in existing:
-                    updated = existing.replace(
-                        bare_row,
-                        f"| {today} | {linked_filename} |",
-                    )
-                    f.seek(0)
-                    f.truncate()
-                    f.write(updated.encode("utf-8"))
-                    if not updated.endswith("\n"):
-                        f.write(b"\n")
-                    return
-                # Ensure file ends with a newline before appending the row
-                # so a previous write that lacked trailing '\n' does not
-                # corrupt the markdown table.
-                if not existing.endswith("\n"):
-                    f.seek(0, os.SEEK_END)
-                    f.write(b"\n")
-                else:
-                    f.seek(0, os.SEEK_END)
-            f.write((row + "\n").encode("utf-8"))
-        finally:
-            if _unlock_file is not None:
-                _unlock_file(f)
 
 
 def main() -> int:
@@ -606,7 +477,6 @@ def main() -> int:
             existing = _pick_same_day_retro(retro_dir, today)
             if existing is not None:
                 existing_name = existing.name
-                update_retro_index(project_dir, today, existing.name)
         except Exception as e:
             print(
                 f"[hook-error] invoke_auto_retrospective index-repair: {type(e).__name__}: {e}",
@@ -632,42 +502,13 @@ def main() -> int:
         )
         return 0
 
-    try:
-        retro_path = generate_retrospective(project_dir, today)
-    except Exception as e:
-        print(
-            f"[hook-error] invoke_auto_retrospective generate: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-        write_audit_log(
-            project_dir,
-            "failed",
-            skip_reason=f"{type(e).__name__}: {e}",
-        )
-        return 0
-
-    if not retro_path:
-        write_audit_log(
-            project_dir,
-            "failed",
-            skip_reason="generate_retrospective returned None",
-        )
-        return 0
-
+    # Skeleton mechanism removed per Issue #2531. Retrospectives are created
+    # on demand via /retro fill or the reflect skill.
     write_audit_log(
         project_dir,
-        "created",
-        retro_filename=retro_path.name,
+        "skipped",
+        skip_reason="mechanism removed per #2531",
     )
-
-    try:
-        update_retro_index(project_dir, today, retro_path.name)
-    except Exception as e:
-        print(
-            f"[hook-error] invoke_auto_retrospective index: {type(e).__name__}: {e}",
-            file=sys.stderr,
-        )
-
     return 0
 
 
