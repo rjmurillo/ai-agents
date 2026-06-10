@@ -391,8 +391,9 @@ jobs:
           # the real limit), so labeling failures warn instead of failing the job.
           # Mutations go through the REST issues API: gh pr edit mutates via
           # GraphQL, which rejects this workflow's token with HTTP 401 (issue #2557).
-          # 2>$null is safe - PR exists when workflow runs
-          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name' 2>$null
+          # Stderr stays visible so a failure's HTTP status/message lands in
+          # the step log next to the warning.
+          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::warning::Could not fetch PR labels (exit code: $LASTEXITCODE); skipping needs-split labeling"
             exit 0
@@ -418,8 +419,9 @@ jobs:
           # Remove label if it exists and commit count is back below threshold.
           # Advisory label: failures warn instead of failing the job; REST API
           # instead of gh pr edit (GraphQL 401, issue #2557).
-          # 2>$null is safe - PR exists when workflow runs
-          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name' 2>$null
+          # Stderr stays visible so a failure's HTTP status/message lands in
+          # the step log next to the warning.
+          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::warning::Could not fetch PR labels (exit code: $LASTEXITCODE); skipping needs-split removal"
             exit 0
