@@ -32,31 +32,38 @@ fi
 cd "$repo_root"
 # Run bootstrap-vm.sh as best-effort: capture its exit code and continue so a
 # partial failure (e.g. a single tool install step erroring out) does not abort
-# session start. Anything that did install successfully (uv, pyenv, project
-# Python deps) remains available; failures are logged for the maintainer to
-# diagnose later.
+# session start. Anything that did install successfully (uv, the pinned
+# Python, project deps) remains available; failures are logged for the
+# maintainer to diagnose later.
 bootstrap_status=0
 ./scripts/bootstrap-vm.sh || bootstrap_status=$?
 if [ "$bootstrap_status" -ne 0 ]; then
   echo "[session-start] bootstrap-vm.sh exited $bootstrap_status; continuing in degraded mode" >&2
 fi
 
-# Persist PATH for the agent loop so newly-installed tools (uv, pyenv, etc.)
-# are reachable from subsequent Bash tool calls in the session.
+# Persist PATH for the agent loop so newly-installed tools (uv, the
+# uv-managed python3, etc.) are reachable from subsequent Bash tool calls in
+# the session.
 #
-# Order matters: $HOME/.pyenv/shims must come before /usr/local/bin (where the
-# system python3 lives) so `python3` resolves to pyenv's shim, which redirects
-# to the version pyenv installed (currently 3.12.8). bootstrap-vm.sh runs
-# `eval "$(pyenv init -)"` to set this up for its own subshell, but those PATH
-# changes are lost when the script exits — we reproduce the shim entry here so
-# `python3` keeps resolving to the pyenv version where uv pip installed deps.
+# Order matters: the project venv's bin must come first so bare `python3`
+# resolves to the synced .venv (the interpreter pinned in .python-version,
+# with project deps installed by `uv sync`). $HOME/.local/bin follows so
+# `uv` and the uv-managed default python3 (the no-venv fallback) resolve to
+# the bootstrap-installed copies rather than older image-provided ones. The
+# pyenv entries are kept for container images that still carry
+# pyenv-provisioned interpreters; they sit last so they never shadow the
+# uv-managed toolchain.
 #
-# Idempotent: SessionStart fires every session, so guard on PYENV_ROOT being
-# already exported in $CLAUDE_ENV_FILE to avoid appending duplicate lines.
-if [ -n "${CLAUDE_ENV_FILE:-}" ] \
-   && ! grep -q '^export PYENV_ROOT=' "$CLAUDE_ENV_FILE" 2>/dev/null; then
-  {
-    echo 'export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.pyenv/shims:$HOME/.pyenv/bin:$PATH"'
-    echo 'export PYENV_ROOT="$HOME/.pyenv"'
-  } >> "$CLAUDE_ENV_FILE"
+# Idempotent: SessionStart fires every session, so each line is guarded by
+# its own marker. The PATH line is keyed on the venv bin dir (not on
+# PYENV_ROOT): containers that ran an older version of this hook already
+# have a PYENV_ROOT line in $CLAUDE_ENV_FILE, and keying the PATH append on
+# it would skip the venv-first PATH on upgraded sessions.
+if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  if ! grep -qF "$repo_root/.venv/bin" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    echo "export PATH=\"$repo_root/.venv/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$HOME/.pyenv/shims:\$HOME/.pyenv/bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
+  fi
+  if ! grep -q '^export PYENV_ROOT=' "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> "$CLAUDE_ENV_FILE"
+  fi
 fi

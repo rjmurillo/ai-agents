@@ -1,6 +1,15 @@
 # Python Version Compatibility
 
-## Known Issues
+> **SUPERSEDED (2026-06-10, Session 2381)**: the project pin is now Python 3.14.5
+> (`.python-version`), provisioned by `scripts/bootstrap-vm.sh` via
+> `uv python install --default` + `uv sync --frozen --extra dev`. The pyenv
+> instructions below are historical: the pyenv source compile took minutes and
+> blew the SessionStart hook budget on Claude web containers, and
+> `pyenv local 3.12.8` clobbered the committed `.python-version`. Bare `python3`
+> now resolves to `.venv/bin/python3` (venv-first PATH); uv-managed interpreters
+> are PEP 668 externally-managed, so deps live only in `.venv`.
+
+## Known Issues (historical, pre-3.14.5 pin)
 
 ### Python 3.13.7 - Skill Validator Failure
 

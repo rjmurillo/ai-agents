@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-10-session-2381-fix-issue-2525-remove-hardcoded",
+  "session": "2026-06-10-session-2381-fix-issue-2525-remove-hardcoded",
+  "timestamp": "2026-06-10T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix issue 2525: remove hardcoded component counts from README and skill-reference, replace with non-drifting prose; mark incoherence deprecated",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
