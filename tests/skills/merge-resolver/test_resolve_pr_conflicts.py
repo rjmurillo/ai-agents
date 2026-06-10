@@ -405,8 +405,11 @@ class TestResolvePluginManifestPathContainment:
         theirs = MagicMock(returncode=0, stdout=_manifest_json("0.5.3"))
         with patch.object(mod, "_run_git", side_effect=[ours, theirs]):
             resolved = resolve_plugin_manifest_conflict(
-                "../outside/.claude-plugin/plugin.json",
+                "../escape-2543/.claude-plugin/plugin.json",
                 cwd=str(tmp_path),
             )
         assert resolved is False
-        assert not (tmp_path.parent / "outside").exists()
+        # tmp_path.parent is the shared pytest session dir; assert on the
+        # unique escape target, not a generic name another test may create.
+        escape = tmp_path.parent / "escape-2543" / ".claude-plugin" / "plugin.json"
+        assert not escape.exists()
