@@ -264,7 +264,7 @@ Enables project-specific RCA retrieval:
 
 - [Security Severity Criteria](SECURITY-SEVERITY-CRITERIA.md)
 - [Security Agent Prompt](../../src/claude/security.md)
-- [Benchmark Suite](../.agents/security/benchmarks/README.md)
+- [Benchmark Suite](../security/benchmarks/README.md)
 - [PR #752 RCA](../analysis/security-agent-failure-rca.md)
 - [Issue #755](https://github.com/rjmurillo/ai-agents/issues/755)
 - [Issue #756](https://github.com/rjmurillo/ai-agents/issues/756)
