@@ -219,7 +219,7 @@ def main() -> int:
         stderr = getattr(exc, "stderr", None)
         if stderr:
             detail = (
-                stderr.decode().strip()
+                stderr.decode("utf-8", errors="replace").strip()
                 if isinstance(stderr, bytes)
                 else str(stderr).strip()
             )
