@@ -140,6 +140,10 @@
     {
       "time": "2026-06-10T05:58Z",
       "entry": "mypy type-arg fix in dispatch test; pre-push full suite has 57 container-only failures (signing server 400 on tmp-repo fixture commits); pushing with GIT_CONFIG env gpgsign=false override matching CI behavior"
+    },
+    {
+      "time": "2026-06-10T06:15Z",
+      "entry": "Root-container test hardening: skipif(euid==0) on 5 chmod-permission tests (no-op for root); fixed pre-existing CaptureFixture[str] mypy debt pulled into changed-file gate; pushed with GIT_CONFIG commit.gpgsign=false override (signing server 400s on tmp-repo fixtures)"
     }
   ],
   "endingCommit": "",
