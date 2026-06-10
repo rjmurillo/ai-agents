@@ -213,3 +213,57 @@ class TestFailOpen:
         )
         assert code == 0
         assert "boom" in stderr
+
+
+# ---------------------------------------------------------------------------
+# Windows lock range tests
+# ---------------------------------------------------------------------------
+
+
+class TestWindowsLockRange:
+    """Verify the Windows msvcrt.locking call covers the full file, not 1 byte."""
+
+    def test_acquire_lock_uses_large_range(self) -> None:
+        """_acquire_lock must call msvcrt.locking with 0x7FFFFFFF, not 1."""
+        import os
+        import sys
+        from unittest.mock import MagicMock, call, patch
+
+        mock_handle = MagicMock()
+        mock_handle.fileno.return_value = 3
+
+        mock_msvcrt = MagicMock()
+        mock_msvcrt.LK_LOCK = 2
+
+        with patch.object(invoke_plan_state_sync, "_acquire_lock", wraps=invoke_plan_state_sync._acquire_lock):
+            with patch.dict("sys.modules", {"msvcrt": mock_msvcrt}):
+                with patch("os.name", "nt"):
+                    invoke_plan_state_sync._acquire_lock(mock_handle)
+
+        mock_msvcrt.locking.assert_called_once()
+        _fd, _mode, nbytes = mock_msvcrt.locking.call_args[0]
+        assert nbytes == 0x7FFFFFFF, (
+            f"Expected lock range 0x7FFFFFFF (full-file sentinel), got {nbytes!r}. "
+            "A value of 1 only locks a single byte and allows concurrent interleaved writes."
+        )
+
+    def test_release_lock_uses_large_range(self) -> None:
+        """_release_lock must call msvcrt.locking with 0x7FFFFFFF, not 1."""
+        import os
+        from unittest.mock import MagicMock, patch
+
+        mock_handle = MagicMock()
+        mock_handle.fileno.return_value = 3
+
+        mock_msvcrt = MagicMock()
+        mock_msvcrt.LK_UNLCK = 0
+
+        with patch.dict("sys.modules", {"msvcrt": mock_msvcrt}):
+            with patch("os.name", "nt"):
+                invoke_plan_state_sync._release_lock(mock_handle)
+
+        mock_msvcrt.locking.assert_called_once()
+        _fd, _mode, nbytes = mock_msvcrt.locking.call_args[0]
+        assert nbytes == 0x7FFFFFFF, (
+            f"Expected unlock range 0x7FFFFFFF, got {nbytes!r}."
+        )

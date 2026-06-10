@@ -158,7 +158,10 @@ def _acquire_lock(handle) -> None:
     if os.name == "nt":  # pragma: no cover - platform branch
         import msvcrt
 
-        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 0x7FFFFFFF)
+        except OSError:
+            pass
         return
     import fcntl
 
@@ -171,7 +174,7 @@ def _release_lock(handle) -> None:
         import msvcrt
 
         try:
-            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 0x7FFFFFFF)
         except OSError:
             pass
         return
