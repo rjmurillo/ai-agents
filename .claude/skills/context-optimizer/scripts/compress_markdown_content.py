@@ -24,6 +24,7 @@ References:
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import re
 import sys
@@ -33,16 +34,31 @@ from pathlib import Path
 
 from path_validation import validate_path_within_repo
 
-try:
-    import tiktoken
-except ImportError:
-    print(
-        "Error: tiktoken library not installed.\n"
-        "Install with: uv pip install -e '.[dev]' (from repository root)\n"
-        "Or: pip install tiktoken",
-        file=sys.stderr
-    )
-    sys.exit(4)
+# tiktoken is imported lazily inside count_tokens so this module is importable
+# (e.g. by the test suite) even when tiktoken is absent. A module-level
+# sys.exit at import time crashed pytest collection with an INTERNALERROR
+# (Issue #2524). The exit-4 contract for the missing dependency now lives in
+# main(), the CLI entry point, which is the only consumer that needs tiktoken.
+_TIKTOKEN_MISSING_MESSAGE = (
+    "Error: tiktoken library not installed.\n"
+    "Install with: uv pip install -e '.[dev]' (from repository root)\n"
+    "Or: pip install tiktoken"
+)
+
+
+def _tiktoken_missing() -> bool:
+    """Return True when tiktoken cannot be imported (matches the CLI's exit-4 case).
+
+    Attempts the real import rather than checking ``find_spec``: a present spec
+    with a broken loader still raises ``ImportError`` at ``import tiktoken`` time
+    (which count_tokens does), and ``find_spec`` raises (not returns None) when a
+    test blocks the module via ``sys.modules['tiktoken'] = None`` on Python 3.10.
+    """
+    try:
+        importlib.import_module("tiktoken")
+    except ImportError:
+        return True
+    return False
 
 
 class CompressionLevel(Enum):
@@ -105,6 +121,8 @@ def count_tokens(text: str) -> int:
     Returns:
         Token count
     """
+    import tiktoken  # imported lazily; main() gates availability with exit 4
+
     encoding = tiktoken.get_encoding("cl100k_base")  # GPT-4 encoding
     return len(encoding.encode(text))
 
@@ -493,6 +511,10 @@ def build_metrics(original: str, compressed: str, level: CompressionLevel) -> Co
 
 def main() -> None:
     """Main entry point."""
+    if _tiktoken_missing():
+        print(_TIKTOKEN_MISSING_MESSAGE, file=sys.stderr)
+        sys.exit(4)
+
     parser = argparse.ArgumentParser(
         description='Compress markdown documentation to minimal tokens using pipe-delimited format',
         formatter_class=argparse.RawDescriptionHelpFormatter,
