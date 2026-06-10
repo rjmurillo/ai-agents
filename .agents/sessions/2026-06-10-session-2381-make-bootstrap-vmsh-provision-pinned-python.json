@@ -128,9 +128,13 @@
     {
       "action": "Curate",
       "details": "Marked .serena/memories/ci/environment-observations.md and .serena/memories/python/python-version-compatibility.md SUPERSEDED so future agents are not steered back to pyenv 3.12.8."
+    },
+    {
+      "action": "Review response",
+      "details": "PR #2529 CI + bot review round: bumped src/copilot-cli plugin.json mirror to 0.5.168 (manifest parity CI failure); re-keyed the session-start env-file PATH guard on the venv bin marker instead of PYENV_ROOT so upgraded containers get the venv-first PATH (Cursor bugbot + Gemini high); anchored bootstrap-vm.sh to repo root via BASH_SOURCE (Gemini high, CWE-22). Verified: bash -n clean, bootstrap run from /tmp exits 0 and syncs .venv."
     }
   ],
-  "endingCommit": "be4099b",
+  "endingCommit": "2bfa8d7",
   "nextSteps": [
     "Flagged, not fixed: CONTRIBUTING.md Prerequisites still documents the pyenv 3.12.8 flow; needs a doc-only follow-up to describe the uv-based setup",
     "Optional: Pester Install-Module step in bootstrap-vm.sh runs unconditionally every session start (1-2 min); could be guarded on an installed-version check"
