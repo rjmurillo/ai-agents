@@ -325,6 +325,26 @@ class TestModuleAsScript:
             runpy.run_path(hook_path, run_name="__main__")
         assert exc_info.value.code == 0
 
+    def test_lib_missing_exits_zero(self) -> None:
+        """When lib/ bootstrap fails (plugin not found), hook exits 0 not 2."""
+        import subprocess
+
+        hook_path = str(HOOK_DIR / "invoke_session_validator.py")
+        env = os.environ.copy()
+        env["CLAUDE_PLUGIN_ROOT"] = "/nonexistent/path/that/does/not/exist"
+        result = subprocess.run(
+            ["python3", hook_path],
+            input="",
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        assert result.returncode == 0, (
+            f"Expected exit 0 on lib-missing path, got {result.returncode}. "
+            f"stderr: {result.stderr!r}"
+        )
+        assert result.stderr.strip(), "Expected a warning on stderr when lib dir is missing"
+
 
 class TestSessionEndCompliance:
     """Tests for session-end checklist enforcement in the Stop hook."""
