@@ -62,6 +62,10 @@ class TestCheckSessionLogEvidence:
         assert result["valid"] is False
         assert "deleted" in result["reason"]
 
+    @pytest.mark.skipif(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="chmod-based permission denial is a no-op for root (web containers)",
+    )
     def test_permission_error(self, tmp_path: Path) -> None:
         log = tmp_path / "session.json"
         log.write_text("content")
@@ -200,7 +204,7 @@ class TestMainBlock:
 
     def test_commit_without_session_log(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture
+        capsys: pytest.CaptureFixture[str]
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
@@ -219,7 +223,7 @@ class TestMainBlock:
 
     def test_commit_with_empty_session_log(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture
+        capsys: pytest.CaptureFixture[str]
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
