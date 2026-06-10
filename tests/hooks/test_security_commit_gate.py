@@ -2,7 +2,7 @@
 """Tests for the invoke_security_commit_gate PreToolUse hook.
 
 Covers: staged file detection, security path matching, evidence checking,
-JSON decision output, exit code (always 0, uses JSON deny/allow).
+JSON decision output and exit code (0 = allow, 2 = block per the PreToolUse contract).
 """
 
 from __future__ import annotations
@@ -156,7 +156,7 @@ class TestMain:
         "invoke_security_commit_gate.get_staged_files",
         return_value=["src/Auth/login.py"],
     )
-    def test_outputs_deny_when_security_files_without_evidence(
+    def test_blocks_when_security_files_without_evidence(
         self,
         _staged,
         _dir,
@@ -164,6 +164,9 @@ class TestMain:
         mock_stdin: Callable[[str], None],
         capsys,
     ):
+        # Issue #2521: the gate must emit the recognized PreToolUse block
+        # contract ({"decision": "block"} + exit 2), not {"decision": "deny"}
+        # + exit 0 which the harness ignored.
         mock_stdin(
             json.dumps({"tool_input": {"command": "git commit -m test"}})
         )
@@ -172,10 +175,10 @@ class TestMain:
             return_value=False,
         ):
             result = invoke_security_commit_gate.main()
-        assert result == 0  # Always exits 0, uses JSON for deny
+        assert result == 2
         captured = capsys.readouterr()
         data = json.loads(captured.out.strip())
-        assert data["decision"] == "deny"
+        assert data["decision"] == "block"
         assert "Auth/login.py" in data["reason"]
 
     @patch("invoke_security_commit_gate.find_security_evidence", return_value=True)
@@ -216,13 +219,13 @@ class TestMain:
         assert result == 0
 
     @patch("invoke_security_commit_gate.get_staged_files")
-    def test_outputs_deny_on_infrastructure_error(
+    def test_blocks_on_infrastructure_error(
         self,
         mock_staged,
         mock_stdin: Callable[[str], None],
         capsys,
     ):
-        """Security gate fails closed on errors."""
+        """Security gate fails closed (block + exit 2) on errors."""
         mock_staged.side_effect = RuntimeError("git broken")
         mock_stdin(
             json.dumps({"tool_input": {"command": "git commit -m test"}})
@@ -232,7 +235,36 @@ class TestMain:
             return_value=False,
         ):
             result = invoke_security_commit_gate.main()
-        assert result == 0
+        assert result == 2
         captured = capsys.readouterr()
         data = json.loads(captured.out.strip())
-        assert data["decision"] == "deny"
+        assert data["decision"] == "block"
+
+    @patch("invoke_security_commit_gate.get_staged_files")
+    def test_blocks_with_diagnostic_on_git_called_process_error(
+        self,
+        mock_staged,
+        mock_stdin: Callable[[str], None],
+        capsys,
+    ):
+        """A non-zero git exit (e.g. not a repo) blocks with a distinct diagnostic."""
+        import subprocess
+
+        mock_staged.side_effect = subprocess.CalledProcessError(
+            returncode=128,
+            cmd=["git", "diff", "--cached", "--name-only"],
+            stderr="fatal: not a git repository",
+        )
+        mock_stdin(
+            json.dumps({"tool_input": {"command": "git commit -m test"}})
+        )
+        with patch(
+            "invoke_security_commit_gate.skip_if_consumer_repo",
+            return_value=False,
+        ):
+            result = invoke_security_commit_gate.main()
+        assert result == 2
+        captured = capsys.readouterr()
+        data = json.loads(captured.out.strip())
+        assert data["decision"] == "block"
+        assert "enumerate staged files" in data["reason"]

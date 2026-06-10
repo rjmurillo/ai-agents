@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2381,
+    "date": "2026-06-10",
+    "branch": "fix/2526-governance-refs",
+    "startingCommit": "42068c0",
+    "objective": "Fix issue 2526: repair eight broken governance cross-references (ADR filename, skillcreator rename, malformed path, missing targets)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena server instructions in session context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded via SessionStart context loader"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill catalog auto-injected; session-init used"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, .claude/rules/*.md in session context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/governance/PROJECT-CONSTRAINTS.md read this session"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory observations injected via hooks"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2526-governance-refs"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2526-governance-refs"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git branch from origin/main; target-existence verified per ref"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "42068c0"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart/sessionEnd MUST items complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session memory written earlier this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run (governance docs excluded by config); SkillForge rename grammar verified"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed as 25a7222 (7 governance docs + session log + episode, 9 files)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py exit code: 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "time": "2026-06-10",
+      "entry": "Issue #2526: fixed 8 broken governance cross-refs. (1) AI-REVIEW-MODEL-POLICY ADR-010 filename ->-evaluator-optimizer; (2) ADR-021 debate-log (nonexistent) -> ADR-021 model-routing-strategy ADR; (3) SECURITY-REVIEW-PROTOCOL malformed ../.agents/security -> ../security; (4) agent-interview-protocol dead capabilities-matrix link -> plain note; (5) naming-conventions Memory Agent (removed) -> memory skill; (6) skill-description-trigger-standard session-372 .md -> .json; (7) test-location-standards powershell memory path + /powershell/ subdir; (8) SKILL-CREATION-CRITERIA skillcreator -> SkillForge (renamed skill)."
+    },
+    {
+      "time": "2026-06-10",
+      "entry": "Verification: every referenced target file now exists on disk (7/7 OK); grep confirms NO residual broken refs in .agents/governance/."
+    }
+  ],
+  "endingCommit": "25a7222",
+  "nextSteps": [
+    "Open PR Fixes #2526"
+  ]
+}

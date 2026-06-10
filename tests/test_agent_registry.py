@@ -8,6 +8,7 @@ Covers:
 
 from __future__ import annotations
 
+import os
 import textwrap
 from pathlib import Path
 
@@ -162,6 +163,10 @@ class TestParseAgentFiles:
         assert "should-skip" not in names
         assert "template" not in names
 
+    @pytest.mark.skipif(
+        getattr(os, "geteuid", lambda: -1)() == 0,
+        reason="chmod-based permission denial is a no-op for root (web containers)",
+    )
     def test_unreadable_file_collected_as_error(self, tmp_agent_dir: Path) -> None:
         _write_agent(
             tmp_agent_dir,
