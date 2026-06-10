@@ -128,7 +128,7 @@ Assesses code maintainability through 5 foundational qualities: cohesion, coupli
 
 ### incoherence
 
-> **Deprecated.** Use [doc-accuracy](#doc-accuracy) instead, which absorbed incoherence detection and is the canonical doc-vs-code audit entrypoint. Retained only for the legacy `scripts/incoherence.py` reconciliation workflow.
+> **Deprecated.** Use [doc-accuracy](#doc-accuracy) instead, which absorbed incoherence detection and is the canonical doc-vs-code audit entrypoint. Retained only for the legacy `.claude/skills/incoherence/scripts/incoherence.py` reconciliation workflow.
 
 Detects contradictions between documentation and code, ambiguous definitions, and inconsistent patterns across the codebase.
 

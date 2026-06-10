@@ -112,7 +112,7 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 
 AI Agents is a coordinated multi-agent system for software development. It provides specialized AI agents that handle different phases of the development lifecycle, from research and planning through implementation and quality assurance.
 
-The orchestrator is the hub of operations. Within it has logic from taking everything from a "vibe" or a "shower thought" and building out a fully functional spec with acceptance criteria and user stories, to taking a well defined idea as input and executing on it. Both bundles ship a roster of agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
+The orchestrator is the hub of operations. Its logic spans the full range, from taking a "vibe" or a "shower thought" and building out a functional spec with acceptance criteria and user stories, to taking a well-defined idea as input and executing on it. Both bundles ship a roster of agents that cover the roles of software development, from vision and strategy, to architecture, implementation, and verification. Each role looks at something specific, like the critic that just looks to poke holes in other agents' (or your own) work, or DevOps that's concerned about how you deploy and operate the thing you just built.
 
 The agents themselves use the platform specific handoffs to invoke subagents, keeping the orchestrator context clean. A great example of this is orchestrator facilitating creating and debating an [Architectural Decision Record](https://adr.github.io/) from research and drafting, to discussion, iterating on the issues, tie breaking when agents don't agree. And then  extracting persistent knowledge to steer future agents to adhere. Artifacts are stored in your memory system if you have one enabled, and Markdown files for easy reference to both agents and humans.
 
@@ -383,7 +383,7 @@ flowchart LR
 
 ### Agent Catalog
 
-The Copilot CLI bundle adds `backlog-generator`; both bundles include the rest. `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
+The Copilot CLI bundle adds the `backlog-generator` agent; both bundles include all the other agents. `spec-generator` is now a skill (issue #2001), available in both bundles. Both bundles share the same templates.
 
 | Agent | Purpose | Output | Bundle |
 |-------|---------|--------|--------|
