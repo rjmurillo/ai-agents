@@ -77,11 +77,6 @@ ignore = []
 # Test files use sys.path.insert() before importing modules under test
 "tests/hooks/**/*.py" = ["E402"]
 "tests/skills/**/*.py" = ["E402"]
-# Generated copilot-cli mirror trees: regenerating a mirror surfaces hundreds of
-# pre-existing generator-induced violations; the .claude sources are the
-# canonical linted copies (same exemption as PRs #2532/#2535 for issue #2523).
-"src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
-"src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN"]
 # ANN suppression for test files (annotations not required in tests)
 "tests/**/*.py" = ["ANN"]
 "test/**/*.py" = ["ANN"]
