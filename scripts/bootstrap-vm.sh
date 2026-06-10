@@ -174,13 +174,30 @@ if ! command -v markdownlint-cli2 &>/dev/null; then
 fi
 
 echo "=== Pester ==="
-pwsh -NoProfile -Command '
-    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-    Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser
-'
+# Skip the PSGallery round-trip (~1-2 min) when the pinned version is already
+# installed. The pin must match the Prerequisites in CONTRIBUTING.md.
+PESTER_VERSION="5.7.1"
+if pwsh -NoProfile -Command "if (Get-Module -ListAvailable -Name Pester | Where-Object Version -eq '$PESTER_VERSION') { exit 0 }; exit 1" &>/dev/null; then
+    echo "Pester $PESTER_VERSION already installed; skipping"
+else
+    pwsh -NoProfile -Command "
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        Install-Module -Name Pester -RequiredVersion $PESTER_VERSION -Force -Scope CurrentUser
+    "
+fi
 
 echo "=== powershell-yaml ==="
-pwsh -NoProfile -Command 'Install-Module -Name powershell-yaml -Force -Scope CurrentUser -EA SilentlyContinue' 2>/dev/null || true
+if pwsh -NoProfile -Command 'if (Get-Module -ListAvailable -Name powershell-yaml) { exit 0 }; exit 1' &>/dev/null; then
+    echo "powershell-yaml already installed; skipping"
+else
+    # Trust PSGallery here too: with the Pester install skipped on warm
+    # containers, this branch can no longer rely on the Pester block having
+    # set the policy first.
+    pwsh -NoProfile -Command '
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+        Install-Module -Name powershell-yaml -Force -Scope CurrentUser -EA SilentlyContinue
+    ' 2>/dev/null || true
+fi
 
 echo "=== Git Hooks ==="
 [[ -d ".githooks" ]] && git config core.hooksPath .githooks
