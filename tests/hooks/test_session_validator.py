@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -398,16 +399,16 @@ class TestBootstrapDegradesOnPartialInstall:
     failure; this pins the aligned behavior.
     """
 
-    def test_missing_lib_exits_zero(self, tmp_path: Path) -> None:
+    @staticmethod
+    def _run_hook_copy(tmp_path: Path) -> subprocess.CompletedProcess[str]:
         import shutil
-        import subprocess
 
         hook_src = HOOK_DIR / "invoke_session_validator.py"
         hook_copy = tmp_path / "invoke_session_validator.py"
         shutil.copy(hook_src, hook_copy)
 
         env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"}
-        result = subprocess.run(
+        return subprocess.run(
             [sys.executable, str(hook_copy)],
             input="",
             capture_output=True,
@@ -417,5 +418,29 @@ class TestBootstrapDegradesOnPartialInstall:
             cwd=str(tmp_path),
             env=env,
         )
+
+    def test_partial_install_marker_without_lib_exits_zero(
+        self, tmp_path: Path
+    ) -> None:
+        """Marker present but lib/ absent: the documented partial install.
+
+        The marker pins the walk-up to tmp_path, so the bootstrap computes
+        tmp_path/lib, finds it missing, and must degrade. Asserting the
+        computed path in stderr proves the marker-found branch ran (a bare
+        "not found" assertion also passes on the no-marker None branch).
+        """
+        marker = tmp_path / ".claude-plugin" / "plugin.json"
+        marker.parent.mkdir()
+        marker.write_text("{}")
+
+        result = self._run_hook_copy(tmp_path)
         assert result.returncode == 0, result.stderr
         assert "Plugin lib directory not found" in result.stderr
+        assert str(tmp_path / "lib") in result.stderr
+
+    def test_no_marker_anywhere_exits_zero(self, tmp_path: Path) -> None:
+        """No plugin marker on the walk-up path: _lib_dir stays None."""
+        result = self._run_hook_copy(tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "Plugin lib directory not found" in result.stderr
+        assert "None" in result.stderr

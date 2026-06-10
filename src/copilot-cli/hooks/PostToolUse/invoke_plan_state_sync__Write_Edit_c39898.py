@@ -352,6 +352,8 @@ def _original_main(stdin_bytes):
     # 1-byte lock at an arbitrary position was decorative: concurrent sessions
     # could still interleave writes. Lock a fixed region anchored at offset 0
     # instead; both lock and unlock must use the same anchor and length.
+    # 0x7FFFFFFF is the max positive signed 32-bit int, the largest range
+    # msvcrt.locking accepts portably.
     _NT_LOCK_BYTES = 0x7FFFFFFF
 
 
