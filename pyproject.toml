@@ -84,6 +84,12 @@ ignore = []
 # ANN suppression for pre-existing code (to be fixed incrementally)
 ".claude/skills/**/*.py" = ["ANN"]
 ".claude/hooks/**/*.py" = ["ANN"]
+# Copilot CLI mirror trees are generated from the .claude sources above by
+# build/scripts/build_all.py; they inherit the sources' unannotated code, so
+# they carry the same ANN exemption (otherwise a mirror regen trips ruff on
+# pre-existing untyped code the source is already exempt from).
+"src/copilot-cli/skills/**/*.py" = ["ANN"]
+"src/copilot-cli/hooks/**/*.py" = ["ANN"]
 "packages/**/*.py" = ["ANN"]
 # The skillbook schema checker validates values of arbitrary JSON type;
 # `Any` is the honest annotation for an instance the checker will narrow.
