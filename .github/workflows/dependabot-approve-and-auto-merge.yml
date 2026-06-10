@@ -29,6 +29,21 @@ jobs:
     runs-on: ubuntu-24.04-arm
     if: github.actor == 'dependabot[bot]' || github.actor == 'dependabot-preview[bot]'
     steps:
+      # Preflight: fail fast with a self-diagnosing annotation when the PAT
+      # secret is empty (expired, rotated, renamed in repo settings). Without
+      # this guard, the next `gh` call dies with the cryptic message
+      # "gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN
+      # environment variable" and an operator has to read raw logs to discover
+      # the real root cause is a missing repository secret. Guards #2551.
+      - name: Verify GH_ACTIONS_PR_WRITE secret is set
+        env:
+          PAT: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+        run: |
+          if [ -z "$PAT" ]; then
+            echo "::error::secrets.GH_ACTIONS_PR_WRITE is empty at run time. A repo admin must rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
+            exit 1
+          fi
+
       - name: Fetch metadata
         id: dependabot-metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
@@ -71,6 +86,21 @@ jobs:
     # 'major.addLabels' applies on major PRs. Label-based detection is
     # reliable; PR title regex was not (no marker configured upstream).
     steps:
+      # Preflight: fail fast with a self-diagnosing annotation when the PAT
+      # secret is empty (expired, rotated, renamed in repo settings). Without
+      # this guard, the next `gh pr view` call dies with the cryptic message
+      # "gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN
+      # environment variable" and an operator has to read raw logs to discover
+      # the real root cause is a missing repository secret. Guards #2551.
+      - name: Verify GH_ACTIONS_PR_WRITE secret is set
+        env:
+          PAT: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+        run: |
+          if [ -z "$PAT" ]; then
+            echo "::error::secrets.GH_ACTIONS_PR_WRITE is empty at run time. A repo admin must rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
+            exit 1
+          fi
+
       - name: Detect major update
         id: detect-major
         env:
