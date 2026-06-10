@@ -99,6 +99,7 @@ def main() -> int:
             capture_output=True,
             text=True,
             cwd=project_dir,
+            timeout=30,
         )
 
         if result.returncode != 0:
@@ -128,6 +129,11 @@ def main() -> int:
                 )
         else:
             print(f"\n**Markdown Auto-Lint**: Fixed formatting in `{file_path}`\n")
+    except subprocess.TimeoutExpired:
+        print(
+            f"WARNING: Markdown auto-lint: markdownlint-cli2 timed out for {file_path}",
+            file=sys.stderr,
+        )
     except FileNotFoundError:
         print(
             f"WARNING: npx not found. Cannot lint {file_path}",

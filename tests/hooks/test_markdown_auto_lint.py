@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -201,3 +202,15 @@ class TestSubprocessErrorPaths:
             assert main() == 0
         captured = capsys.readouterr()
         assert "no output" in captured.err.lower() or "not installed" in captured.err.lower()
+
+    def test_timeout_returns_zero_with_warning(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """TimeoutExpired from subprocess.run returns 0 (fail-open) with stderr warning."""
+        with patch(
+            "invoke_markdown_auto_lint.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["npx", "markdownlint-cli2"], timeout=30),
+        ):
+            assert main() == 0
+        captured = capsys.readouterr()
+        assert "warning" in captured.err.lower() or "timeout" in captured.err.lower()
