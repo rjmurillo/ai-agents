@@ -136,6 +136,10 @@
     {
       "time": "2026-06-10T05:50Z",
       "entry": "Implemented #2543 fix on claude/fix-2543-plugin-version-merge (stacked on fix/2348): plugin-manifest conflict resolver (patch-bump above max), shared _resolve_conflicted_file dispatch, 19 new tests (45 pass), SKILL.md special rule, plugin bump 0.5.167->0.5.169"
+    },
+    {
+      "time": "2026-06-10T05:58Z",
+      "entry": "mypy type-arg fix in dispatch test; pre-push full suite has 57 container-only failures (signing server 400 on tmp-repo fixture commits); pushing with GIT_CONFIG env gpgsign=false override matching CI behavior"
     }
   ],
   "endingCommit": "",

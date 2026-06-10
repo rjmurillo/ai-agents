@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -355,7 +356,7 @@ class TestResolvePluginManifestConflict:
 class TestResolveConflictedFileDispatch:
     """_resolve_conflicted_file routes manifests, patterns, and failures."""
 
-    def _result(self) -> dict:
+    def _result(self) -> dict[str, Any]:
         return {"success": False, "message": "", "files_resolved": [], "files_blocked": []}
 
     def test_plugin_manifest_resolved(self) -> None:
