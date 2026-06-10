@@ -20,8 +20,8 @@ install guards) and the CONTRIBUTING.md `uv sync` doc fix.
 
 ## Failure Mode Classification
 
-Per `.agents/governance/FAILURE-MODES.md`: confident incorrectness (claims made
-from a mental model instead of an executed check). Two instances below, both
+Per `.agents/governance/FAILURE-MODES.md`: FM-9 Confident-incorrectness
+recurrence (claims made from a mental model instead of an executed check). Two instances below, both
 caught before merge. Evidence: PR #2529 review round (commits 2bfa8d7, 4a159a1,
 2b6b1fa), PR #2538.
 
@@ -63,7 +63,8 @@ caught before merge. Evidence: PR #2529 review round (commits 2bfa8d7, 4a159a1,
 
 ## Failure Patterns
 
-- Confident incorrectness (see `.claude/rules/canonical-source-mirror.md`):
+- FM-9 Confident-incorrectness recurrence (see
+  `.claude/rules/canonical-source-mirror.md`):
   both the doomed PEP 668 fallback and the stale CONTRIBUTING flag were claims
   written without an executed check. Counter: run the path, read the file,
   then write the claim.
