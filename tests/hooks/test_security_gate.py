@@ -208,7 +208,7 @@ class TestFindSecurityEvidenceStreaming:
         """Create a large fake session log."""
         log = sessions_dir / f"{today}-session-001.json"
         trigger_line = '  "notes": "security review completed"\n'
-        filler_line = '  "data": "' + ("x" * 1000) + '",\n'
+        filler_line = '  "data": "' + "x" * 1000 + '",\n'
         lines = []
         if pattern_at_start:
             lines.append(trigger_line)
