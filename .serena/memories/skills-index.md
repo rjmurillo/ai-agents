@@ -29,7 +29,6 @@
 | quality DoD definition-of-done test strategy critique coverage smells | [skills-quality-index](skills-quality-index.md) |
 | retrospective learning extraction skill pipeline evidence atomicity | [skills-retrospective-index](skills-retrospective-index.md) |
 | security vulnerability injection secret detection OWASP CWE threat | [skills-security-index](skills-security-index.md) |
-| serena symbolic tools memory read write search token efficiency | [skills-serena-index](skills-serena-index.md) |
 | session init serena activation skill validation constraint handoff | [skills-session-init-index](skills-session-init-index.md) |
 | utilities markdown fence PathInfo security regex pattern | [skills-utilities-index](skills-utilities-index.md) |
 | validation false-positive error message test-first PR gate skepticism | [skills-validation-index](skills-validation-index.md) |

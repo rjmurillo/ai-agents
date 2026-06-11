@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-11-session-2383",
+  "session": "2026-06-11-session-2383",
+  "timestamp": "2026-06-11T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Respond to Copilot review round 2 on PR #2555 (link fixes, index link text, duplicate Related entry); commit auto-retro skeleton",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

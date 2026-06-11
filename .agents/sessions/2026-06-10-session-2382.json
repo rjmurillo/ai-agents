@@ -1,0 +1,144 @@
+{
+  "session": {
+    "number": 2382,
+    "date": "2026-06-10",
+    "branch": "claude/memory-audit-cleanup-woywow",
+    "startingCommit": "d7df0ef",
+    "objective": "Audit Serena memories for content belonging in rules or skills and clean up duplicates"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project ai-agents active; activate_project tool not exposed this session, initial_instructions returned active project confirmation"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions executed at session start (transcript)"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected by SessionStart context loader hook"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Available skills enumerated via system skill list; curating-memories, session-init, session-end invoked"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read usage-mandatory.md in full during audit (subsequently trimmed in this session)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md gates and .claude/rules/universal.md read; ADR-042 verified for constraint corrections"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Full memory inventory listed via initial_instructions; audited 883 memory files this session"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "claude/memory-audit-cleanup-woywow"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On claude/memory-audit-cleanup-woywow"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "d7df0ef"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items complete with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory/curation-2026-06-10-dedupe-audit.md written and committed in dcc7f81"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "1 files linted"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All audit changes committed (31deb24..dcc7f81); this log and audit report committed in the docs commit that includes this evidence"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "validate_session_json.py PASS (run pre-commit)"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "Evidence": [
+          "rework-warning: none"
+        ]
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-10",
+      "activity": "Audited all 883 .serena/memories files: MD5 exact-dupe hashing, 8-token shingle containment scan (58 near-dup pairs), Explore-agent overlap audit vs .claude/rules and .claude/skills"
+    },
+    {
+      "timestamp": "2026-06-10",
+      "activity": "Removed 65 memory files: 5 corrupt/empty (incl. misnamed adr-021 content moved to empty adr-019 slot), 21 covered by lsp-first.md/AGENTS.md/skills, 37 near-duplicates with content fully contained in kept canonical files"
+    },
+    {
+      "timestamp": "2026-06-10",
+      "activity": "Migrated no-auto-generated-headers preference to universal.md MUST NOT 6 (mirrors regenerated); corrected stale ADR-005 no-Python blocks to ADR-042 in two constraint memories; trimmed usage-mandatory to episodic incidents"
+    },
+    {
+      "timestamp": "2026-06-10",
+      "activity": "Repaired links to renamed memories, updated indexes, reverted 52 unrelated boy-scout link fixes to keep PR under 50-file scope limit; report at .agents/analysis/serena-memory-audit-2026-06-10.md"
+    },
+    {
+      "timestamp": "2026-06-10",
+      "activity": "Addressed 7 Copilot review comments on PR #2555: linked plain-text repo paths in audit report and curation memory per DOCUMENTATION-LINK-REQUIREMENTS.md; removed broken session-109..113 Related links and empty Related section in session/init-003-memory-first-monitoring-gate.md and fixed its memory-relative link prefixes; reworded universal.md MUST NOT 6 to drop the Get-AutoGeneratedHeader implication and regenerated instruction mirrors. memory-index.md entry kept as plain text because memory_index.py rejects out-of-tree link targets (validator authoritative)."
+    }
+  ],
+  "endingCommit": "dcc7f81",
+  "nextSteps": []
+}
