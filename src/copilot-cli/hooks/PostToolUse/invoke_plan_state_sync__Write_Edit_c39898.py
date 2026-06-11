@@ -271,13 +271,16 @@ def _original_main(stdin_bytes):
     SUMMARY_MAX_CHARS = 500
 
 
-    def _read_stdin_json() -> dict[str, object] | None:
-        """Read and parse JSON from stdin (Claude hook input)."""
+    def _read_stdin_raw() -> str | None:
+        """Drain stdin (harness drain contract) without parsing."""
         if sys.stdin.isatty():
             return None
         data = sys.stdin.read().strip()
-        if not data:
-            return None
+        return data or None
+
+
+    def _parse_hook_input(data: str) -> dict[str, object]:
+        """Parse drained stdin into the hook input object (raises on bad shape)."""
         parsed: object = json.loads(data)
         if not isinstance(parsed, dict):
             raise ValueError("hook input JSON must be an object")
@@ -458,15 +461,18 @@ def _original_main(stdin_bytes):
 
     def main() -> None:
         """Checkpoint plan/TODO state after relevant file writes."""
-        # Read stdin first to ensure it's drained before any early exit,
-        # maintaining the drain contract with the harness.
-        hook_input = _read_stdin_json()
+        # Drain stdin before any early exit (harness drain contract), but defer
+        # parsing until after the consumer-repo skip: malformed input in a
+        # consumer install must skip (exit 0), not fail closed (exit 2).
+        raw_input = _read_stdin_raw()
 
         if skip_if_consumer_repo(HOOK_NAME):
             sys.exit(0)
 
-        if hook_input is None:
+        if raw_input is None:
             sys.exit(0)
+
+        hook_input = _parse_hook_input(raw_input)
 
         file_path = _extract_file_path(hook_input)
         if not file_path:

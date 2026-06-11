@@ -131,7 +131,7 @@ class TestMain:
         with patch.object(
             invoke_plan_state_sync, "skip_if_consumer_repo", return_value=True
         ), patch.object(
-            invoke_plan_state_sync, "_read_stdin_json", return_value=None
+            invoke_plan_state_sync, "_read_stdin_raw", return_value=None
         ):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_plan_state_sync.main()
@@ -141,7 +141,7 @@ class TestMain:
         with patch.object(
             invoke_plan_state_sync, "skip_if_consumer_repo", return_value=False
         ), patch.object(
-            invoke_plan_state_sync, "_read_stdin_json", return_value=None,
+            invoke_plan_state_sync, "_read_stdin_raw", return_value=None,
         ):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_plan_state_sync.main()
@@ -152,7 +152,7 @@ class TestMain:
         with patch.object(
             invoke_plan_state_sync, "skip_if_consumer_repo", return_value=False
         ), patch.object(
-            invoke_plan_state_sync, "_read_stdin_json", return_value=hook_input,
+            invoke_plan_state_sync, "_read_stdin_raw", return_value=json.dumps(hook_input),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_plan_state_sync.main()
@@ -174,7 +174,7 @@ class TestMain:
         with patch.object(
             invoke_plan_state_sync, "skip_if_consumer_repo", return_value=False
         ), patch.object(
-            invoke_plan_state_sync, "_read_stdin_json", return_value=hook_input,
+            invoke_plan_state_sync, "_read_stdin_raw", return_value=json.dumps(hook_input),
         ), patch.object(
             invoke_plan_state_sync,
             "get_project_directory",
@@ -219,5 +219,7 @@ class TestFailClosed:
     def test_invalid_json_exits_two(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Malformed hook input fails closed."""
         monkeypatch.setattr("sys.stdin", __import__("io").StringIO("{bad"))
+        raw = invoke_plan_state_sync._read_stdin_raw()
+        assert raw == "{bad"
         with pytest.raises(json.JSONDecodeError):
-            invoke_plan_state_sync._read_stdin_json()
+            invoke_plan_state_sync._parse_hook_input(raw)
