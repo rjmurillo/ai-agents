@@ -87,12 +87,14 @@ class TestFindSecurityEvidenceStreaming:
         log = sessions_dir / f"{today}-session-001.json"
         trigger_line = '  "notes": "security review completed"\n'
         filler_line = '  "data": "' + "x" * 1000 + '",\n'
-        lines = []
-        if pattern_at_start:
-            lines.append(trigger_line)
-        for _ in range(50000):
-            lines.append(filler_line)
-        log.write_text("".join(lines), encoding="utf-8")
+        # 2,000 x ~1KB lines (~2MB) written incrementally: large enough to
+        # exercise streaming, without building a multi-MB string in memory
+        # or slowing CI (a prior 50,000-line join allocated ~50MB).
+        with log.open("w", encoding="utf-8") as handle:
+            if pattern_at_start:
+                handle.write(trigger_line)
+            for _ in range(2000):
+                handle.write(filler_line)
         return log
 
     def test_large_log_with_pattern_at_line1_returns_true(self, tmp_path: Path) -> None:
