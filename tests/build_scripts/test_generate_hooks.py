@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -53,7 +54,9 @@ from generate_hooks import (  # noqa: E402
 # Helpers -------------------------------------------------------------------
 
 
-def _run_shim(transformed_source: str, payload: dict) -> subprocess.CompletedProcess:
+def _run_shim(
+    transformed_source: str, payload: dict[str, Any]
+) -> subprocess.CompletedProcess[str]:
     """Execute a shimmed script with payload on stdin; return CompletedProcess.
 
     Each call writes to a fresh temp file so concurrent test workers do
@@ -76,7 +79,9 @@ def _run_shim(transformed_source: str, payload: dict) -> subprocess.CompletedPro
         os.unlink(path)
 
 
-def _run_shim_raw(transformed_source: str, raw_input: bytes) -> subprocess.CompletedProcess:
+def _run_shim_raw(
+    transformed_source: str, raw_input: bytes
+) -> subprocess.CompletedProcess[bytes]:
     """Execute a shimmed script with raw bytes on stdin.
 
     Used to exercise stdin-cap behavior where the input is intentionally
@@ -99,12 +104,14 @@ def _run_shim_raw(transformed_source: str, raw_input: bytes) -> subprocess.Compl
         os.unlink(path)
 
 
-def _write_settings(path: Path, hooks_obj: dict) -> Path:
+def _write_settings(path: Path, hooks_obj: dict[str, Any]) -> Path:
     path.write_text(json.dumps({"hooks": hooks_obj}, indent=2), encoding="utf-8")
     return path
 
 
-def _write_config(tmp_path: Path, *, hooks_stanza_overrides: dict | None = None) -> Path:
+def _write_config(
+    tmp_path: Path, *, hooks_stanza_overrides: dict[str, Any] | None = None
+) -> Path:
     cfg = tmp_path / "platform.yaml"
     body = """\
 schemaVersion: "1.0"
@@ -405,8 +412,8 @@ def test_inject_shim_exits_2_on_missing_tool_name():
 
 
 def _run_shim_with_env(
-    transformed_source: str, payload: dict, env_extra: dict
-) -> subprocess.CompletedProcess:
+    transformed_source: str, payload: dict[str, Any], env_extra: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
     """Run a shimmed script with extra environment variables.
 
     Mirrors :func:`_run_shim` but threads through ``env_extra`` so tests
@@ -1228,6 +1235,56 @@ def test_main_epilogue_emits_return_main_trailer() -> None:
     out = generate_hooks.inject_shim(body, "Bash(git push*)")
     assert "    return main()" in out
     assert "    return 0\n" not in out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    compile(out, "<generated>", "exec")
+
+
+def test_main_epilogue_fail_closed_wrapper_preserves_exit_two() -> None:
+    """Generated shims preserve source fail-closed wrappers."""
+    body = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n\n"
+        "def main() -> int:\n"
+        "    raise RuntimeError('boom')\n\n"
+        'if __name__ == "__main__":\n'
+        "    try:\n"
+        "        main()\n"
+        "    except Exception as exc:\n"
+        "        print(f'error: {exc}', file=sys.stderr)\n"
+        "        sys.exit(2)\n"
+    )
+    out = generate_hooks.inject_shim(body, "Edit")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert "(fail-closed)" in wrapped
+    assert "        return 2\n" in wrapped
+    proc = _run_shim(out, {"tool_name": "Edit"})
+    assert proc.returncode == 2
+    assert "fail-closed" in proc.stderr
+    assert "boom" in proc.stderr
+
+
+def test_main_epilogue_unrelated_exit_two_handler_is_not_fail_closed() -> None:
+    """Unrelated ``sys.exit(2)`` handlers do not mark ``main()`` fail-closed."""
+    body = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n\n"
+        "def parse_args() -> None:\n"
+        "    raise ValueError('bad args')\n\n"
+        "def main() -> int:\n"
+        "    return 0\n\n"
+        'if __name__ == "__main__":\n'
+        "    try:\n"
+        "        main()\n"
+        "    finally:\n"
+        "        pass\n"
+        "    try:\n"
+        "        parse_args()\n"
+        "    except Exception:\n"
+        "        sys.exit(2)\n"
+    )
+    out = generate_hooks.inject_shim(body, "Edit")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert "(fail-closed)" not in wrapped
+    assert "    return main()\n" in wrapped
     compile(out, "<generated>", "exec")
 
 

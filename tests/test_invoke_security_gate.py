@@ -129,12 +129,12 @@ class TestMainAllowPath:
             assert main() == 0
 
     @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
-    def test_allows_missing_file_path(self, mock_stdin: StringIO) -> None:
+    def test_blocks_missing_file_path(self, mock_stdin: StringIO) -> None:
         hook_input = {"tool_input": {"command": "echo hello"}}
         mock_stdin.write(json.dumps(hook_input))
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
-            assert main() == 0
+            assert main() == 2
 
     @patch("invoke_security_gate.find_security_evidence", return_value=True)
     @patch("invoke_security_gate.get_project_directory", return_value="/project")
@@ -152,12 +152,12 @@ class TestMainAllowPath:
             assert main() == 0
 
     @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
-    def test_allows_invalid_tool_input(self, mock_stdin: StringIO) -> None:
+    def test_blocks_invalid_tool_input(self, mock_stdin: StringIO) -> None:
         hook_input = {"tool_input": "not a dict"}
         mock_stdin.write(json.dumps(hook_input))
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
-            assert main() == 0
+            assert main() == 2
 
 
 class TestMainBlockPath:
@@ -218,17 +218,17 @@ class TestMainBlockPath:
         assert "Security Review Required" in captured.out
 
 
-class TestMainFailOpen:
+class TestMainFailClosed:
     @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
-    def test_fail_open_on_json_error(self, mock_stdin: StringIO) -> None:
+    def test_fail_closed_on_json_error(self, mock_stdin: StringIO) -> None:
         mock_stdin.write("not json")
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
-            assert main() == 0
+            assert main() == 2
 
     @patch("invoke_security_gate.get_project_directory", side_effect=RuntimeError("boom"))
     @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
-    def test_fail_open_on_project_dir_error(
+    def test_fail_closed_on_project_dir_error(
         self,
         mock_stdin: StringIO,
         _mock_project: MagicMock,
@@ -237,4 +237,4 @@ class TestMainFailOpen:
         mock_stdin.write(json.dumps(hook_input))
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):
-            assert main() == 0
+            assert main() == 2

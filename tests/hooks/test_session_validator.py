@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -52,7 +53,7 @@ class TestGetProjectDirectory:
 class TestWriteContinueResponse:
     """Tests for continue response output."""
 
-    def test_outputs_json(self, capsys: pytest.CaptureFixture) -> None:
+    def test_outputs_json(self, capsys: pytest.CaptureFixture[str]) -> None:
         write_continue_response("test reason")
         captured = capsys.readouterr()
         data = json.loads(captured.out.strip())
@@ -198,7 +199,7 @@ class TestMainAllow:
 
     def test_complete_log(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture
+        capsys: pytest.CaptureFixture[str]
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
@@ -241,7 +242,7 @@ class TestMainContinue:
 
     def test_log_missing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture
+        capsys: pytest.CaptureFixture[str]
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
@@ -263,7 +264,7 @@ class TestMainContinue:
 
     def test_incomplete_log(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture
+        capsys: pytest.CaptureFixture[str]
     ) -> None:
         sessions_dir = tmp_path / ".agents" / "sessions"
         sessions_dir.mkdir(parents=True)
@@ -284,7 +285,7 @@ class TestMainContinue:
 
     def test_file_error_produces_continue(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture
+        capsys: pytest.CaptureFixture[str]
     ) -> None:
         """OS errors should produce continue response, not crash."""
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
@@ -311,7 +312,8 @@ class TestModuleAsScript:
             ["python3", hook_path],
             input="",
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         assert result.returncode == 0
 
@@ -330,19 +332,21 @@ class TestSessionEndCompliance:
     """Tests for session-end checklist enforcement in the Stop hook."""
 
     def test_is_session_end_missing_when_absent(self) -> None:
-        data = {"protocolCompliance": {"sessionStart": {}}}
+        data: dict[str, object] = {"protocolCompliance": {"sessionStart": {}}}
         assert is_session_end_missing(data) is True
 
     def test_is_session_end_missing_when_present(self) -> None:
-        data = {"protocolCompliance": {"sessionEnd": {"item": {"level": "MUST", "Complete": True}}}}
+        data: dict[str, object] = {
+            "protocolCompliance": {"sessionEnd": {"item": {"level": "MUST", "Complete": True}}}
+        }
         assert is_session_end_missing(data) is False
 
     def test_is_session_end_missing_no_protocol(self) -> None:
-        data = {"session": {}}
+        data: dict[str, object] = {"session": {}}
         assert is_session_end_missing(data) is True
 
     def test_incomplete_items_returns_must_incomplete(self) -> None:
-        data = {
+        data: dict[str, object] = {
             "protocolCompliance": {
                 "sessionEnd": {
                     "changesCommitted": {"level": "MUST", "Complete": False},
@@ -355,7 +359,7 @@ class TestSessionEndCompliance:
         assert result == ["changesCommitted"]
 
     def test_incomplete_items_all_complete(self) -> None:
-        data = {
+        data: dict[str, object] = {
             "protocolCompliance": {
                 "sessionEnd": {
                     "changesCommitted": {"level": "MUST", "Complete": True},
@@ -366,7 +370,7 @@ class TestSessionEndCompliance:
         assert get_incomplete_session_end_items(data) == []
 
     def test_incomplete_items_empty_when_no_session_end(self) -> None:
-        data = {"protocolCompliance": {}}
+        data: dict[str, object] = {"protocolCompliance": {}}
         assert get_incomplete_session_end_items(data) == []
 
     def test_log_session_end_skip_writes_jsonl(self, tmp_path: Path) -> None:
@@ -383,3 +387,63 @@ class TestSessionEndCompliance:
         """Skip logging should not raise even if path is invalid."""
         # /dev/null/impossible is not writable - should silently fail
         log_session_end_skip("S-1", "log.json", "/dev/null/impossible")
+
+
+class TestBootstrapFailsClosedOnPartialInstall:
+    """Regression (#2523): a missing plugin lib/ must force continuation.
+
+    The Stop hook blocks by returning a ``{"continue": true}`` response on
+    stdout, not by exiting non-zero. A missing lib/ means validation cannot
+    run, so the hook must fail closed at the Stop-hook contract level.
+    """
+
+    @staticmethod
+    def _run_hook_copy(tmp_path: Path) -> subprocess.CompletedProcess[str]:
+        import shutil
+
+        hook_src = HOOK_DIR / "invoke_session_validator.py"
+        hook_copy = tmp_path / "invoke_session_validator.py"
+        shutil.copy(hook_src, hook_copy)
+
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_ROOT"}
+        return subprocess.run(
+            [sys.executable, str(hook_copy)],
+            input="",
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            cwd=str(tmp_path),
+            env=env,
+        )
+
+    def test_partial_install_marker_without_lib_exits_zero(
+        self, tmp_path: Path
+    ) -> None:
+        """Marker present but lib/ absent: the documented partial install.
+
+        The marker pins the walk-up to tmp_path, so the bootstrap computes
+        tmp_path/lib, finds it missing, and must degrade. Asserting the
+        computed path in stderr proves the marker-found branch ran (a bare
+        "not found" assertion also passes on the no-marker None branch).
+        """
+        marker = tmp_path / ".claude-plugin" / "plugin.json"
+        marker.parent.mkdir()
+        marker.write_text("{}")
+
+        result = self._run_hook_copy(tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "plugin lib directory not found" in result.stderr.lower()
+        assert str(tmp_path / "lib") in result.stderr
+        response = json.loads(result.stdout)
+        assert response["continue"] is True
+        assert "Session validator unavailable" in response["reason"]
+
+    def test_no_marker_anywhere_exits_zero(self, tmp_path: Path) -> None:
+        """No plugin marker on the walk-up path: _lib_dir stays None."""
+        result = self._run_hook_copy(tmp_path)
+        assert result.returncode == 0, result.stderr
+        assert "plugin lib directory not found" in result.stderr.lower()
+        assert "None" in result.stderr
+        response = json.loads(result.stdout)
+        assert response["continue"] is True

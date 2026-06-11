@@ -79,6 +79,45 @@ class TestFindSecurityEvidence:
         assert not invoke_security_commit_gate.find_security_evidence(str(tmp_path))
 
 
+class TestFindSecurityEvidenceStreaming:
+    """Verify find_security_evidence streams line-by-line."""
+
+    def _make_large_log(self, sessions_dir: Path, today: str, *, pattern_at_start: bool) -> Path:
+        """Create a large fake session log."""
+        log = sessions_dir / f"{today}-session-001.json"
+        trigger_line = '  "notes": "security review completed"\n'
+        filler_line = '  "data": "' + "x" * 1000 + '",\n'
+        # 2,000 x ~1KB lines (~2MB) written incrementally: large enough to
+        # exercise streaming, without building a multi-MB string in memory
+        # or slowing CI (a prior 50,000-line join allocated ~50MB).
+        with log.open("w", encoding="utf-8") as handle:
+            if pattern_at_start:
+                handle.write(trigger_line)
+            for _ in range(2000):
+                handle.write(filler_line)
+        return log
+
+    def test_large_log_with_pattern_at_line1_returns_true(self, tmp_path: Path) -> None:
+        """Pattern at first line of a large file is found."""
+        from datetime import UTC, datetime
+
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        self._make_large_log(sessions_dir, today, pattern_at_start=True)
+        assert invoke_security_commit_gate.find_security_evidence(str(tmp_path))
+
+    def test_large_log_without_pattern_returns_false(self, tmp_path: Path) -> None:
+        """Large file with no pattern returns False."""
+        from datetime import UTC, datetime
+
+        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir.mkdir(parents=True)
+        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        self._make_large_log(sessions_dir, today, pattern_at_start=False)
+        assert not invoke_security_commit_gate.find_security_evidence(str(tmp_path))
+
+
 # ---------------------------------------------------------------------------
 # Unit tests for main
 # ---------------------------------------------------------------------------

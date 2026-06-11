@@ -98,9 +98,9 @@ class TestMain:
         with patch("sys.stdin", StringIO("")):
             assert main() == 0
 
-    def test_returns_zero_for_invalid_json(self) -> None:
+    def test_returns_two_for_invalid_json(self) -> None:
         with patch("sys.stdin", StringIO("not json")):
-            assert main() == 0
+            assert main() == 2
 
     def test_returns_zero_for_non_md_file(self) -> None:
         input_data = json.dumps({"tool_input": {"file_path": "/tmp/test.py"}})
@@ -150,8 +150,10 @@ class TestMain:
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,
         ):
             result = main()
-            assert result == 0
-            assert "WARNING" in mock_stdout.getvalue()
+            assert result == 2
+            # Blocking (exit 2) paths label their user-facing message ERROR
+            # to match the fail-closed semantics.
+            assert "ERROR" in mock_stdout.getvalue()
 
     def test_handles_linter_failure_no_output(self, tmp_path: Path) -> None:
         md_file = tmp_path / "test.md"
@@ -173,7 +175,7 @@ class TestMain:
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,
         ):
             result = main()
-            assert result == 0
+            assert result == 2
             assert "Linter failed with no output" in mock_stdout.getvalue()
 
     def test_handles_npx_not_found(self, tmp_path: Path) -> None:
@@ -195,5 +197,5 @@ class TestMain:
             patch("sys.stdout", new_callable=StringIO) as mock_stdout,
         ):
             result = main()
-            assert result == 0
+            assert result == 2
             assert "npx not found" in mock_stdout.getvalue()

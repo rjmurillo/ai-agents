@@ -203,9 +203,10 @@ def _original_main(stdin_bytes):
     - Session log writes (.agents/sessions/*.json)
     - Plan/TODO file writes (TODO.md, PLAN.md, .agents/plan*.md)
 
-    Hook Type: PostToolUse (non-blocking, fail-open)
+    Hook Type: PostToolUse
     Exit Codes:
-        0 = Always (never blocks tool use)
+        0 = Skipped or checkpoint written
+        2 = Block on malformed hook input or checkpoint failure
 
     References:
         - Issue #1703 (lifecycle hook infrastructure)
@@ -220,6 +221,7 @@ def _original_main(stdin_bytes):
     import sys
     from datetime import UTC, datetime
     from pathlib import Path
+    from typing import cast
 
     # --- Standard hook boilerplate ---
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -270,20 +272,24 @@ def _original_main(stdin_bytes):
     SUMMARY_MAX_CHARS = 500
 
 
-    def _read_stdin_json() -> dict | None:
-        """Read and parse JSON from stdin (Claude hook input)."""
+    def _read_stdin_raw() -> str | None:
+        """Drain stdin (harness drain contract) without parsing."""
         if sys.stdin.isatty():
             return None
-        try:
-            data = sys.stdin.read().strip()
-            if not data:
-                return None
-            return json.loads(data)
-        except (json.JSONDecodeError, OSError):
-            return None
+        data = sys.stdin.read().strip()
+        return data or None
 
 
-    def _extract_file_path(hook_input: dict) -> str | None:
+    def _parse_hook_input(data: str) -> dict[str, object]:
+        """Parse drained stdin into the hook input object (raises on bad shape)."""
+        parsed: object = json.loads(data)
+        if not isinstance(parsed, dict):
+            raise ValueError("hook input JSON must be an object")
+        # json.loads object keys are always str, so this cast is sound.
+        return cast("dict[str, object]", parsed)
+
+
+    def _extract_file_path(hook_input: dict[str, object]) -> str | None:
         """Extract the file path from hook input.
 
         Defends against malformed hook input where ``hook_input`` or
@@ -343,12 +349,27 @@ def _original_main(stdin_bytes):
             return "(read error)"
 
 
+    # Issue #2523: msvcrt.locking() locks a byte RANGE from the current file
+    # position, unlike fcntl.flock() which locks the whole file. The previous
+    # 1-byte lock at an arbitrary position was decorative: concurrent sessions
+    # could still interleave writes. Lock a fixed region anchored at offset 0
+    # instead; both lock and unlock must use the same anchor and length.
+    # 0x7FFFFFFF is the max positive signed 32-bit int, the largest range
+    # msvcrt.locking accepts portably.
+    _NT_LOCK_BYTES = 0x7FFFFFFF
+
+
     def _acquire_lock(handle) -> None:
         """Acquire an advisory exclusive lock on an open file handle."""
-        if os.name == "nt":  # pragma: no cover - platform branch
+        if sys.platform == "win32":  # pragma: no cover - platform branch
             import msvcrt
 
-            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            pos = handle.tell()
+            handle.seek(0)
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, _NT_LOCK_BYTES)
+            finally:
+                handle.seek(pos)
             return
         import fcntl
 
@@ -357,13 +378,17 @@ def _original_main(stdin_bytes):
 
     def _release_lock(handle) -> None:
         """Release the advisory lock held on an open file handle."""
-        if os.name == "nt":  # pragma: no cover - platform branch
+        if sys.platform == "win32":  # pragma: no cover - platform branch
             import msvcrt
 
+            pos = handle.tell()
+            handle.seek(0)
             try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, _NT_LOCK_BYTES)
             except OSError:
                 pass
+            finally:
+                handle.seek(pos)
             return
         import fcntl
 
@@ -394,7 +419,7 @@ def _original_main(stdin_bytes):
         with checkpoint_file.open(mode, encoding="utf-8") as handle:
             _acquire_lock(handle)
             try:
-                checkpoints: list[dict] = []
+                checkpoints: list[dict[str, object]] = []
                 handle.seek(0)
                 raw = handle.read()
                 if raw:
@@ -437,15 +462,18 @@ def _original_main(stdin_bytes):
 
     def main() -> None:
         """Checkpoint plan/TODO state after relevant file writes."""
-        # Read stdin first to ensure it's drained before any early exit,
-        # maintaining the fail-open drain contract with the harness.
-        hook_input = _read_stdin_json()
+        # Drain stdin before any early exit (harness drain contract), but defer
+        # parsing until after the consumer-repo skip: malformed input in a
+        # consumer install must skip (exit 0), not fail closed (exit 2).
+        raw_input = _read_stdin_raw()
 
         if skip_if_consumer_repo(HOOK_NAME):
             sys.exit(0)
 
-        if hook_input is None:
+        if raw_input is None:
             sys.exit(0)
+
+        hook_input = _parse_hook_input(raw_input)
 
         file_path = _extract_file_path(hook_input)
         if not file_path:
@@ -491,7 +519,7 @@ def _original_main(stdin_bytes):
     try:
         return main()
     except Exception as _exc:
-        sys.stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\n')
-        return 0
+        sys.stderr.write('[ERROR] hook error (fail-closed): ' + str(_exc) + '\n')
+        return 2
 
 _shim_dispatch()

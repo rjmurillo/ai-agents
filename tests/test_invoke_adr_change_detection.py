@@ -33,7 +33,7 @@ class TestGetProjectRoot:
             assert result == project_root
 
     def test_returns_none_on_traversal_attempt(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """When CLAUDE_PROJECT_DIR is unrelated, returns None (fail-open)."""
+        """When CLAUDE_PROJECT_DIR is unrelated, returns None."""
         with patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": "/some/other/path"}):
             result = hook.get_project_root()
             # Script is NOT inside /some/other/path, so should return None
@@ -50,23 +50,23 @@ class TestGetProjectRoot:
 class TestMain:
     """Tests for main() entry point."""
 
-    def test_exits_zero_when_no_git_repo(
+    def test_exits_two_when_no_git_repo(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
     ) -> None:
         with patch.object(hook, "get_project_root", return_value=str(tmp_path)):
             result = hook.main()
-        assert result == 0
+        assert result == 2
 
-    def test_exits_zero_when_no_detect_script(self, tmp_path: Path) -> None:
+    def test_exits_two_when_no_detect_script(self, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
         with patch.object(hook, "get_project_root", return_value=str(tmp_path)):
             result = hook.main()
-        assert result == 0
+        assert result == 2
 
-    def test_exits_zero_when_project_root_none(self) -> None:
+    def test_exits_two_when_project_root_none(self) -> None:
         with patch.object(hook, "get_project_root", return_value=None):
             result = hook.main()
-        assert result == 0
+        assert result == 2
 
     def test_outputs_adr_changes_when_detected(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
@@ -125,7 +125,7 @@ class TestMain:
         captured = capsys.readouterr()
         assert captured.out == ""
 
-    def test_handles_script_failure_gracefully(
+    def test_blocks_script_failure(
         self, capsys: pytest.CaptureFixture[str], tmp_path: Path
     ) -> None:
         (tmp_path / ".git").mkdir()
@@ -140,7 +140,7 @@ class TestMain:
         ):
             result = hook.main()
 
-        assert result == 0
+        assert result == 2
         captured = capsys.readouterr()
         assert "exited with code 1" in captured.err
 

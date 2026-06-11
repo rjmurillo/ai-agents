@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -29,7 +30,7 @@ class TestGetFilePathFromInput:
     """Tests for file path extraction."""
 
     def test_extracts_file_path(self) -> None:
-        hook_input = {"tool_input": {"file_path": "/path/to/file.md"}}
+        hook_input: dict[str, object] = {"tool_input": {"file_path": "/path/to/file.md"}}
         assert get_file_path_from_input(hook_input) == "/path/to/file.md"
 
     def test_no_tool_input(self) -> None:
@@ -114,7 +115,7 @@ class TestMainAllow:
 
     def test_invalid_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
-        assert main() == 0
+        assert main() == 2
 
     def test_md_file_triggers_lint(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         md = tmp_path / "test.md"
@@ -126,13 +127,15 @@ class TestMainAllow:
 
         mock_result = MagicMock()
         mock_result.returncode = 0
-        with patch("invoke_markdown_auto_lint.subprocess.run", return_value=mock_result):
+        with patch(
+            "invoke_markdown_auto_lint.shutil.which", return_value="/usr/bin/npx"
+        ), patch("invoke_markdown_auto_lint.subprocess.run", return_value=mock_result):
             assert main() == 0
 
-    def test_invalid_json_returns_zero(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Invalid JSON input returns 0 (fail-open)."""
+    def test_invalid_json_returns_two(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Invalid JSON input fails closed with exit 2."""
         monkeypatch.setattr("sys.stdin", io.StringIO("{bad json"))
-        assert main() == 0
+        assert main() == 2
 
 
 class TestSubprocessErrorPaths:
@@ -152,29 +155,51 @@ class TestSubprocessErrorPaths:
         """Ensure shutil.which('npx') returns a path so we reach subprocess.run."""
         monkeypatch.setattr("invoke_markdown_auto_lint.shutil.which", lambda _: "/usr/bin/npx")
 
-    def test_file_not_found_returns_zero(
+    def test_file_not_found_returns_two(
         self, _lint_input, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """FileNotFoundError from subprocess.run returns 0 (fail-open)."""
+        """FileNotFoundError from subprocess.run fails closed."""
         with patch(
             "invoke_markdown_auto_lint.subprocess.run",
             side_effect=FileNotFoundError("npx not found"),
         ):
-            assert main() == 0
+            assert main() == 2
         captured = capsys.readouterr()
         assert "npx not found" in captured.err.lower() or "npx not found" in captured.out.lower()
 
-    def test_oserror_returns_zero(
+    def test_oserror_returns_two(
         self, _lint_input, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """OSError from subprocess.run returns 0 (fail-open)."""
+        """OSError from subprocess.run fails closed."""
         with patch(
             "invoke_markdown_auto_lint.subprocess.run",
             side_effect=OSError("permission denied"),
         ):
-            assert main() == 0
+            assert main() == 2
         captured = capsys.readouterr()
         assert "error" in captured.err.lower() or "error" in captured.out.lower()
+
+    def test_timeout_returns_two_with_warning(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """TimeoutExpired from subprocess.run fails closed, issue #2523."""
+        with patch(
+            "invoke_markdown_auto_lint.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd=["npx"], timeout=30),
+        ):
+            assert main() == 2
+        captured = capsys.readouterr()
+        assert "timed out" in (captured.err + captured.out).lower()
+
+    def test_npx_call_carries_bounded_timeout(self, _lint_input) -> None:
+        """The npx subprocess call passes an explicit timeout (issue #2523)."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        with patch(
+            "invoke_markdown_auto_lint.subprocess.run", return_value=mock_result
+        ) as mock_run:
+            assert main() == 0
+        assert mock_run.call_args.kwargs.get("timeout") == 30
 
     def test_lint_failure_nonzero_exit_with_output(
         self, _lint_input, capsys: pytest.CaptureFixture[str]
@@ -185,7 +210,7 @@ class TestSubprocessErrorPaths:
         mock_result.stderr = "MD001: heading levels"
         mock_result.stdout = ""
         with patch("invoke_markdown_auto_lint.subprocess.run", return_value=mock_result):
-            assert main() == 0
+            assert main() == 2
         captured = capsys.readouterr()
         assert "heading levels" in captured.err or "failed" in captured.out.lower()
 
@@ -198,6 +223,15 @@ class TestSubprocessErrorPaths:
         mock_result.stderr = ""
         mock_result.stdout = ""
         with patch("invoke_markdown_auto_lint.subprocess.run", return_value=mock_result):
-            assert main() == 0
+            assert main() == 2
         captured = capsys.readouterr()
         assert "no output" in captured.err.lower() or "not installed" in captured.err.lower()
+
+    def test_missing_npx_for_markdown_file_returns_two(
+        self, _lint_input, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Missing npx is a loud hook failure for markdown files."""
+        with patch("invoke_markdown_auto_lint.shutil.which", return_value=None):
+            assert main() == 2
+        captured = capsys.readouterr()
+        assert "npx not found" in (captured.err + captured.out).lower()

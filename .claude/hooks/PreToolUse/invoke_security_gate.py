@@ -27,6 +27,7 @@ from pathlib import Path
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
@@ -40,7 +41,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -143,15 +148,35 @@ def find_security_evidence(project_dir: str) -> bool:
                 key=lambda p: p.stat().st_mtime,
                 reverse=True,
             )
-            for log_path in session_logs:
-                content = log_path.read_text(encoding="utf-8")
-                for pattern in _SECURITY_REVIEW_PATTERNS:
-                    if pattern.search(content):
-                        return True
         except OSError:
-            pass
+            session_logs = []
+        # Issue #2523: stream line-by-line instead of read_text(). A
+        # multi-MB session log pushed the whole-file read past the hook
+        # timeout budget (fail-open). Line streaming follows the
+        # established pattern in invoke_false_completion_gate.py.
+        # OSError is handled per log file so one unreadable log cannot
+        # mask evidence in the others (false block on auth-file edits).
+        for log_path in session_logs:
+            try:
+                with log_path.open(encoding="utf-8", errors="replace") as handle:
+                    for line in handle:
+                        for pattern in _SECURITY_REVIEW_PATTERNS:
+                            if pattern.search(line):
+                                return True
+            except OSError:
+                continue
 
     return False
+
+
+def block_security_gate_error(reason: str) -> None:
+    """Emit a loud PreToolUse block for malformed input or hook errors."""
+    print(
+        "\n## BLOCKED: Security Gate Error\n\n"
+        "Security gate could not verify whether this auth-related operation "
+        "is safe. The hook failed closed.\n\n"
+        f"**Reason**: {reason}\n"
+    )
 
 
 def main() -> int:
@@ -165,14 +190,20 @@ def main() -> int:
             return 0
 
         hook_input = json.loads(input_json)
+        if not isinstance(hook_input, dict):
+            block_security_gate_error("hook input JSON must be an object")
+            return 2
 
         tool_input = hook_input.get("tool_input")
         if not isinstance(tool_input, dict):
-            return 0
+            block_security_gate_error("tool_input is missing or not an object")
+            return 2
 
-        file_path = tool_input.get("file_path", "")
-        if not file_path:
-            return 0
+        file_path_value = tool_input.get("file_path", "")
+        if not isinstance(file_path_value, str) or not file_path_value.strip():
+            block_security_gate_error("file_path is missing or not a string")
+            return 2
+        file_path = file_path_value.strip()
 
         if not is_auth_path(file_path):
             return 0
@@ -191,9 +222,9 @@ def main() -> int:
         return 2
 
     except Exception as exc:
-        # Fail-open on infrastructure errors
         print(f"Security gate error: {type(exc).__name__} - {exc}", file=sys.stderr)
-        return 0
+        block_security_gate_error(f"{type(exc).__name__}: {exc}")
+        return 2
 
 
 if __name__ == "__main__":

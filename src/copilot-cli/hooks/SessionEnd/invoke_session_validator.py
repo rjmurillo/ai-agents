@@ -27,6 +27,7 @@ from pathlib import Path
 # lib/ is the plugin's lib dir. Layout-independent: works in source
 # tree (.claude/) and in the deeper src/<provider>/hooks/<event>/ copy.
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+_lib_dir: str | None
 if _plugin_root:
     _lib_dir = str(Path(_plugin_root).resolve() / "lib")
 else:
@@ -40,8 +41,20 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
-    sys.exit(2)
+    # Issue #2523: a missing lib/ means the validator cannot verify session
+    # completeness. Fail closed at the Stop-hook contract level by forcing
+    # continuation, while still exiting 0 because Stop hooks express blocking
+    # via the JSON response.
+    reason = (
+        "Session validator unavailable: plugin lib directory not found: "
+        f"{_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})"
+    )
+    print(
+        reason,
+        file=sys.stderr,
+    )
+    print(json.dumps({"continue": True, "reason": reason}))
+    sys.exit(0)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
@@ -66,7 +79,7 @@ PLACEHOLDER_PATTERNS = (
 )
 
 
-def get_incomplete_session_end_items(data: dict) -> list[str]:
+def get_incomplete_session_end_items(data: dict[str, object]) -> list[str]:
     """Check protocolCompliance.sessionEnd for incomplete MUST items.
 
     Returns a list of item names that have level=MUST but Complete is not True.
@@ -93,7 +106,7 @@ def get_incomplete_session_end_items(data: dict) -> list[str]:
     return incomplete
 
 
-def is_session_end_missing(data: dict) -> bool:
+def is_session_end_missing(data: dict[str, object]) -> bool:
     """Return True if protocolCompliance.sessionEnd key is entirely absent."""
     protocol = data.get("protocolCompliance")
     if not isinstance(protocol, dict):
