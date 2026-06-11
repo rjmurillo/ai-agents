@@ -93,6 +93,14 @@
       "content": "Renumbered session evidence file",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolved latest origin/main merge conflict",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

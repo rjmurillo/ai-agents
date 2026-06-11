@@ -17,9 +17,8 @@
 
 ## Language Constraints
 ❌ MUST NOT: Create bash scripts
-❌ MUST NOT: Create Python scripts
-✅ MUST: Use PowerShell for all scripting
-Reference: ADR-005, user-preference-no-bash-python
+✅ MUST: Use Python for new scripts (PowerShell remains for existing tooling)
+Reference: ADR-042 (supersedes ADR-005 PowerShell-only constraint)
 
 ## Skill Usage Constraints
 ❌ MUST NOT: Use raw `gh` commands when `.claude/skills/github/` has capability
