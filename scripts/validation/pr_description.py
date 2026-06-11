@@ -268,7 +268,8 @@ def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
             return subprocess.run(
                 argv,
                 capture_output=True,
-                text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
         except FileNotFoundError as exc:
@@ -296,10 +297,10 @@ def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
     labels: list[dict[str, Any]] = json.loads(result.stdout)
 
     return {
-        "title": pr_info.get("title", ""),
+        "title": pr_info.get("title") or "",
         "body": pr_info.get("body", "") or "",
         "files": files,
-        "labels": [{"name": lbl["name"]} for lbl in labels],
+        "labels": [{"name": lbl.get("name") or ""} for lbl in labels],
     }
 
 

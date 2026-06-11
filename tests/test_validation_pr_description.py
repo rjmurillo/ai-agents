@@ -1364,6 +1364,40 @@ class TestFetchPRData:
         assert data["files"] == [{"path": "a.py"}]
 
     @patch("scripts.validation.pr_description.subprocess.run")
+    def test_subprocess_decodes_rest_responses_as_utf8(self, mock_run: MagicMock) -> None:
+        pr_json = json.dumps({"title": "Test", "body": "desc"})
+        files_json = json.dumps([{"filename": "a.py"}])
+        labels_json = json.dumps([{"name": "bug"}])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=0, stdout=labels_json),
+        ]
+
+        fetch_pr_data(1, "owner", "repo")
+
+        for call in mock_run.call_args_list:
+            assert call.kwargs["encoding"] == "utf-8"
+            assert call.kwargs["errors"] == "replace"
+
+    @patch("scripts.validation.pr_description.subprocess.run")
+    def test_explicit_json_nulls_normalize_to_empty_strings(self, mock_run: MagicMock) -> None:
+        pr_json = json.dumps({"title": None, "body": None})
+        files_json = json.dumps([{"filename": "a.py"}])
+        labels_json = json.dumps([{"name": None}])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=0, stdout=labels_json),
+        ]
+
+        data = fetch_pr_data(1, "owner", "repo")
+
+        assert data["title"] == ""
+        assert data["body"] == ""
+        assert data["labels"] == [{"name": ""}]
+
+    @patch("scripts.validation.pr_description.subprocess.run")
     def test_requests_labels_field(self, mock_run: MagicMock) -> None:
         """Bypass-label support requires a labels REST call."""
         pr_json = json.dumps({"title": "T", "body": ""})
