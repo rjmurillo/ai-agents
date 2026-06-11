@@ -38,9 +38,7 @@ SIGNIFICANT_EXTENSIONS: frozenset[str] = frozenset(
 )
 
 # Directories whose files are flagged when changed but not mentioned
-SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(
-    r"^(\.github|scripts|src|\.agents)"
-)
+SIGNIFICANT_DIRS_PATTERN: re.Pattern[str] = re.compile(r"^(\.github|scripts|src|\.agents)")
 
 # File extension pattern for extracting file references from description
 _EXT_GROUP = r"ps1|md|yml|yaml|json|cs|ts|js|py|sh|bash"
@@ -219,8 +217,7 @@ class Issue:
     def __post_init__(self) -> None:
         if self.severity not in _VALID_SEVERITIES:
             raise ValueError(
-                f"Issue.severity must be one of {sorted(_VALID_SEVERITIES)}, "
-                f"got {self.severity!r}"
+                f"Issue.severity must be one of {sorted(_VALID_SEVERITIES)}, got {self.severity!r}"
             )
 
 
@@ -246,43 +243,65 @@ def get_repo_info() -> RepoInfo:
     remote_url = result.stdout.strip()
     match = re.search(r"github\.com[:/]([^/]+)/([^/.]+)", remote_url)
     if not match:
-        raise RuntimeError(
-            f"Could not parse GitHub owner/repo from remote URL: {remote_url}"
-        )
+        raise RuntimeError(f"Could not parse GitHub owner/repo from remote URL: {remote_url}")
 
     return RepoInfo(owner=match.group(1), repo=match.group(2))
 
 
-def fetch_pr_data(
-    pr_number: int, owner: str, repo: str
-) -> dict[str, Any]:
-    """Fetch PR data (title, body, files, labels) via gh CLI.
+def fetch_pr_data(pr_number: int, owner: str, repo: str) -> dict[str, Any]:
+    """Fetch PR data (title, body, files, labels) via REST API calls.
 
-    Returns parsed JSON dict. Raises RuntimeError on failure.
+    Uses three separate REST calls instead of a single GraphQL-backed
+    ``gh pr view --json`` call, because workflow installation tokens return
+    HTTP 401 for GraphQL while accepting the same token for REST.
+
+    Returns a dict with the same shape as before:
+        {"title": str, "body": str,
+         "files": [{"path": str}, ...],
+         "labels": [{"name": str}, ...]}
+
+    Raises RuntimeError on failure.
     """
-    try:
-        result = subprocess.run(
-            [
-                "gh", "pr", "view", str(pr_number),
-                "--json", "title,body,files,labels",
-                "--repo", f"{owner}/{repo}",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except FileNotFoundError as exc:
-        raise RuntimeError(
-            "gh CLI not found. Install: https://cli.github.com/"
-        ) from exc
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"Timed out fetching PR #{pr_number}") from exc
 
+    def _run(argv: list[str]) -> subprocess.CompletedProcess[str]:
+        try:
+            return subprocess.run(
+                argv,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError("gh CLI not found. Install: https://cli.github.com/") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"Timed out fetching PR #{pr_number}") from exc
+
+    # 1. Title + body
+    result = _run(["gh", "api", f"repos/{owner}/{repo}/pulls/{pr_number}"])
     if result.returncode != 0:
-        raise RuntimeError(f"Failed to fetch PR #{pr_number}")
+        raise RuntimeError(f"Failed to fetch PR #{pr_number}: {result.stderr}")
+    pr_info: dict[str, Any] = json.loads(result.stdout)
 
-    data: dict[str, Any] = json.loads(result.stdout)
-    return data
+    # 2. Changed files (paginated; REST uses "filename", normalize to "path")
+    result = _run(["gh", "api", f"repos/{owner}/{repo}/pulls/{pr_number}/files", "--paginate"])
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to fetch PR #{pr_number} files: {result.stderr}")
+    raw_files: list[dict[str, Any]] = json.loads(result.stdout)
+    files = [{"path": f["filename"]} for f in raw_files]
+
+    # 3. Labels (paginated for safety)
+    result = _run(["gh", "api", f"repos/{owner}/{repo}/issues/{pr_number}/labels", "--paginate"])
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to fetch PR #{pr_number} labels: {result.stderr}")
+    labels: list[dict[str, Any]] = json.loads(result.stdout)
+
+    return {
+        "title": pr_info.get("title") or "",
+        "body": pr_info.get("body", "") or "",
+        "files": files,
+        "labels": [{"name": lbl.get("name") or ""} for lbl in labels],
+    }
 
 
 def normalize_path(path: str) -> str:
@@ -309,6 +328,7 @@ def _strip_bot_details_blocks(text: str) -> str:
     preserved, since absent a bot marker we cannot assume the contents are
     informational.
     """
+
     def _replace(match: re.Match[str]) -> str:
         block = match.group(0)
         summary_match = re.search(
@@ -316,9 +336,7 @@ def _strip_bot_details_blocks(text: str) -> str:
             block,
             flags=re.DOTALL | re.IGNORECASE,
         )
-        if summary_match and _BOT_DETAILS_SUMMARY_PATTERN.search(
-            summary_match.group(1)
-        ):
+        if summary_match and _BOT_DETAILS_SUMMARY_PATTERN.search(summary_match.group(1)):
             return ""
         return block
 
@@ -420,9 +438,7 @@ def _strip_informational_sections(description: str) -> str:
     #    silently dropped. Per CommonMark, an H2 section ends at the next
     #    heading of equal-or-higher level, so H1 must terminate H2.
     contextual_pattern = (
-        r"^##\s+(?:"
-        + "|".join(_CONTEXTUAL_SECTION_NAMES)
-        + r")\s*$.*?(?=^#{1,2}(?!#)|\Z)"
+        r"^##\s+(?:" + "|".join(_CONTEXTUAL_SECTION_NAMES) + r")\s*$.*?(?=^#{1,2}(?!#)|\Z)"
     )
     text = re.sub(
         contextual_pattern,
@@ -439,9 +455,7 @@ def _strip_informational_sections(description: str) -> str:
     # line is then consumed by `[^\n]*$`. Same terminating lookahead as above:
     # the section ends at the next H1 or H2 (not H3+).
     reference_prefix_pattern = (
-        r"^##\s+(?:"
-        + "|".join(_REFERENCE_SECTION_PREFIXES)
-        + r")\b[^\n]*$.*?(?=^#{1,2}(?!#)|\Z)"
+        r"^##\s+(?:" + "|".join(_REFERENCE_SECTION_PREFIXES) + r")\b[^\n]*$.*?(?=^#{1,2}(?!#)|\Z)"
     )
     text = re.sub(
         reference_prefix_pattern,
@@ -601,9 +615,7 @@ def validate_pr_description(
         if not SIGNIFICANT_DIRS_PATTERN.match(changed):
             continue
 
-        is_mentioned = any(
-            file_matches(changed, mentioned) for mentioned in mentioned_files
-        )
+        is_mentioned = any(file_matches(changed, mentioned) for mentioned in mentioned_files)
         if not is_mentioned:
             issues.append(
                 Issue(
@@ -642,9 +654,7 @@ def print_results(issues: list[Issue], ci: bool) -> int:
         if ci:
             return 1
     elif warning_count > 0:  # pragma: no branch
-        print(
-            "Warnings found. Consider mentioning significant files in PR description."
-        )
+        print("Warnings found. Consider mentioning significant files in PR description.")
 
     return 0
 
@@ -684,9 +694,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--bypass-label",
-        default=os.environ.get(
-            "DESCRIPTION_VALIDATION_BYPASS_LABEL", DEFAULT_BYPASS_LABEL
-        ),
+        default=os.environ.get("DESCRIPTION_VALIDATION_BYPASS_LABEL", DEFAULT_BYPASS_LABEL),
         help=(
             "PR label that suppresses CRITICAL failures in CI mode "
             f"(env: DESCRIPTION_VALIDATION_BYPASS_LABEL, "
@@ -754,9 +762,7 @@ def main(argv: list[str] | None = None) -> int:
     # maintainer creating `Description-Validation-Bypass` (Title Case) would
     # otherwise silently miss the bypass against the lowercase default.
     pr_labels: list[str] = [
-        label.get("name", "")
-        for label in (pr_data.get("labels") or [])
-        if isinstance(label, dict)
+        label.get("name", "") for label in (pr_data.get("labels") or []) if isinstance(label, dict)
     ]
     bypass_label_lower = args.bypass_label.lower()
     pr_labels_lower = {label.lower() for label in pr_labels}
@@ -769,23 +775,18 @@ def main(argv: list[str] | None = None) -> int:
     # defeat the rule. Dash criticals always block, before the bypass check.
     dash_issue_types = {"Em/en-dash in PR title", "Em/en-dash in PR description"}
     has_dash_critical = any(
-        i.severity == "CRITICAL" and i.issue_type in dash_issue_types
-        for i in issues
+        i.severity == "CRITICAL" and i.issue_type in dash_issue_types for i in issues
     )
     if args.ci and has_dash_critical:
         return print_results(issues, ci=args.ci)
 
     # File-mention CRITICALs may be bypassed via the bypass label.
     has_non_dash_critical = any(
-        i.severity == "CRITICAL" and i.issue_type not in dash_issue_types
-        for i in issues
+        i.severity == "CRITICAL" and i.issue_type not in dash_issue_types for i in issues
     )
     if args.ci and has_non_dash_critical and bypass_label_lower in pr_labels_lower:
         print_results(issues, ci=False)
-        print(
-            f"\nCRITICAL issues bypassed by '{args.bypass_label}' label. "
-            "Exiting 0."
-        )
+        print(f"\nCRITICAL issues bypassed by '{args.bypass_label}' label. Exiting 0.")
         # Emit a structured marker so audit tooling (Audit-Hook-Bypass
         # workflow, weekly review) can detect bypass usage without parsing
         # stdout. Writes to GITHUB_STEP_SUMMARY when the env var is set
@@ -841,9 +842,7 @@ def _warn_if_mutated(name: str, original: str, sanitized: str) -> None:
         )
 
 
-def _write_step_summary(
-    summary_path: str, pr_number: int, label: str, issues: list[Issue]
-) -> None:
+def _write_step_summary(summary_path: str, pr_number: int, label: str, issues: list[Issue]) -> None:
     """Append the human-readable bypass record to `GITHUB_STEP_SUMMARY`.
 
     OSError is logged to stderr (not silently swallowed): a disk-full or
@@ -853,9 +852,7 @@ def _write_step_summary(
     safe_label = _safe_label_for_markdown(label)
     _warn_if_mutated("bypass_label (markdown)", label, safe_label)
     critical_files = [i.file for i in issues if i.severity == "CRITICAL"]
-    safe_files = [
-        (f, _safe_label_for_markdown(f)) for f in critical_files
-    ]
+    safe_files = [(f, _safe_label_for_markdown(f)) for f in critical_files]
     for original, sanitized in safe_files:
         _warn_if_mutated("file path (markdown)", original, sanitized)
     record = (
@@ -877,9 +874,7 @@ def _write_step_summary(
         )
 
 
-def _write_step_output(
-    output_path: str, label: str, critical_count: int
-) -> None:
+def _write_step_output(output_path: str, label: str, critical_count: int) -> None:
     """Append the workflow signal triple to `GITHUB_OUTPUT`.
 
     Label is sanitized via `_safe_label_for_output` before write to prevent
@@ -893,9 +888,7 @@ def _write_step_output(
     try:
         with open(output_path, "a", encoding="utf-8") as fh:
             fh.write(
-                f"bypass_used=true\n"
-                f"bypass_label={safe_label}\n"
-                f"bypass_count={critical_count}\n"
+                f"bypass_used=true\nbypass_label={safe_label}\nbypass_count={critical_count}\n"
             )
     except OSError as exc:
         print(
@@ -905,9 +898,7 @@ def _write_step_output(
         )
 
 
-def _emit_bypass_audit(
-    pr_number: int, label: str, issues: list[Issue]
-) -> None:
+def _emit_bypass_audit(pr_number: int, label: str, issues: list[Issue]) -> None:
     """Emit structured bypass signals.
 
     Distinguishes a bypassed PASS from a clean PASS so the workflow PR
