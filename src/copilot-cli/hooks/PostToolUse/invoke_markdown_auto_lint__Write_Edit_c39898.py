@@ -211,6 +211,7 @@ def _original_main(stdin_bytes):
     import subprocess
     import sys
     from pathlib import Path
+    from typing import cast
 
 
     def get_file_path_from_input(hook_input: dict[str, object]) -> str | None:
@@ -267,7 +268,8 @@ def _original_main(stdin_bytes):
         parsed: object = json.loads(input_json)
         if not isinstance(parsed, dict):
             raise ValueError("hook input JSON must be an object")
-        return parsed
+        # json.loads object keys are always str, so this cast is sound.
+        return cast("dict[str, object]", parsed)
 
 
     def report_missing_npx(file_path: str) -> None:

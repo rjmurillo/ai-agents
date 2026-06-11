@@ -221,6 +221,7 @@ def _original_main(stdin_bytes):
     import sys
     from datetime import UTC, datetime
     from pathlib import Path
+    from typing import cast
 
     # --- Standard hook boilerplate ---
     _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -284,8 +285,8 @@ def _original_main(stdin_bytes):
         parsed: object = json.loads(data)
         if not isinstance(parsed, dict):
             raise ValueError("hook input JSON must be an object")
-        # json.loads object keys are always str, so the cast below is sound.
-        return parsed
+        # json.loads object keys are always str, so this cast is sound.
+        return cast("dict[str, object]", parsed)
 
 
     def _extract_file_path(hook_input: dict[str, object]) -> str | None:
