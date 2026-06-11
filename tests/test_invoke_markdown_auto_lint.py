@@ -151,6 +151,8 @@ class TestMain:
         ):
             result = main()
             assert result == 2
+            # Blocking (exit 2) paths label their user-facing message ERROR
+            # to match the fail-closed semantics.
             assert "ERROR" in mock_stdout.getvalue()
 
     def test_handles_linter_failure_no_output(self, tmp_path: Path) -> None:
