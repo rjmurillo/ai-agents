@@ -1,0 +1,67 @@
+{
+  "id": "episode-2026-06-11-session-2383",
+  "session": "2026-06-11-session-2383",
+  "timestamp": "2026-06-11T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autofix and merge PR 2560 canonical failure modes path",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran live-state gate for PR #2560",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created isolated worktree",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated retrospective hook behavior",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed plugin version gate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran pre_pr validation",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e1569befc1",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 0
+  },
+  "lessons": []
+}
