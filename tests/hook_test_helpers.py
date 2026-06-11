@@ -1,9 +1,9 @@
-"""Shared helpers for testing lifecycle hook fail-open wrappers.
+"""Shared helpers for testing lifecycle hook wrapper exit contracts.
 
-The fail-open contract Claude Code relies on lives in the
-``if __name__ == "__main__":`` block at the bottom of each hook script,
-not in ``main()`` itself. Calling ``main()`` and catching exceptions
-only proves that ``main`` raised, never that the wrapper exited 0.
+The runtime contract Claude Code relies on lives in the ``if __name__ ==
+"__main__":`` block at the bottom of each hook script, not in ``main()``
+itself. Calling ``main()`` and catching exceptions only proves that
+``main`` raised, never which exit code the wrapper returned.
 
 These helpers run the wrapper block with a patched ``main`` callable so
 tests can assert the real exit semantics. Subprocess execution would
@@ -50,12 +50,15 @@ def run_main_wrapper(
     calling it). Exceptions other than ``SystemExit`` propagate, which
     surfaces fail-open violations directly to the test.
     """
-    module_source = Path(module.__file__).read_text(encoding="utf-8")
+    module_file = module.__file__
+    if module_file is None:
+        raise AssertionError("module has no __file__; cannot inspect wrapper")
+    module_source = Path(module_file).read_text(encoding="utf-8")
     wrapper_marker = 'if __name__ == "__main__":'
     if wrapper_marker not in module_source:
         raise AssertionError(
             f"{module.__file__!s} has no {wrapper_marker!r} block; "
-            "run_main_wrapper cannot test a fail-open contract that "
+            "run_main_wrapper cannot test a wrapper exit contract that "
             "does not exist. Add the wrapper or call main() directly."
         )
     wrapper_block = wrapper_marker + module_source.rsplit(wrapper_marker, 1)[1]

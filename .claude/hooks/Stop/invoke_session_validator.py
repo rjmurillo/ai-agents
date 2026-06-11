@@ -41,15 +41,19 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    # Issue #2523: non-blocking Stop hook degrades on a partial install
-    # (missing lib/) instead of signaling a config error. Exit 0 honors the
-    # documented "0 = Always" contract; the sibling Stop hook
-    # invoke_auto_retrospective.py exits 0 on the same failure.
+    # Issue #2523: a missing lib/ means the validator cannot verify session
+    # completeness. Fail closed at the Stop-hook contract level by forcing
+    # continuation, while still exiting 0 because Stop hooks express blocking
+    # via the JSON response.
+    reason = (
+        "Session validator unavailable: plugin lib directory not found: "
+        f"{_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})"
+    )
     print(
-        f"Plugin lib directory not found: {_lib_dir} "
-        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        reason,
         file=sys.stderr,
     )
+    print(json.dumps({"continue": True, "reason": reason}))
     sys.exit(0)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)

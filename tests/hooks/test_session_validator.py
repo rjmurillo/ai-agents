@@ -389,14 +389,12 @@ class TestSessionEndCompliance:
         log_session_end_skip("S-1", "log.json", "/dev/null/impossible")
 
 
-class TestBootstrapDegradesOnPartialInstall:
-    """Regression (#2523): a missing plugin lib/ must degrade, not block.
+class TestBootstrapFailsClosedOnPartialInstall:
+    """Regression (#2523): a missing plugin lib/ must force continuation.
 
-    The hook's docstring contract is "Exit Codes: 0 = Always (non-blocking
-    hook)". The bootstrap previously did sys.exit(2) when lib/ was absent,
-    so a partial install turned the Stop hook into a config error. The
-    sibling Stop hook invoke_auto_retrospective.py exits 0 on the same
-    failure; this pins the aligned behavior.
+    The Stop hook blocks by returning a ``{"continue": true}`` response on
+    stdout, not by exiting non-zero. A missing lib/ means validation cannot
+    run, so the hook must fail closed at the Stop-hook contract level.
     """
 
     @staticmethod
@@ -435,12 +433,17 @@ class TestBootstrapDegradesOnPartialInstall:
 
         result = self._run_hook_copy(tmp_path)
         assert result.returncode == 0, result.stderr
-        assert "Plugin lib directory not found" in result.stderr
+        assert "plugin lib directory not found" in result.stderr.lower()
         assert str(tmp_path / "lib") in result.stderr
+        response = json.loads(result.stdout)
+        assert response["continue"] is True
+        assert "Session validator unavailable" in response["reason"]
 
     def test_no_marker_anywhere_exits_zero(self, tmp_path: Path) -> None:
         """No plugin marker on the walk-up path: _lib_dir stays None."""
         result = self._run_hook_copy(tmp_path)
         assert result.returncode == 0, result.stderr
-        assert "Plugin lib directory not found" in result.stderr
+        assert "plugin lib directory not found" in result.stderr.lower()
         assert "None" in result.stderr
+        response = json.loads(result.stdout)
+        assert response["continue"] is True
