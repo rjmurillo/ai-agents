@@ -94,7 +94,11 @@ def main() -> int:
 
     project_root = get_project_root()
     if project_root is None:
-        return 0  # Fail-open
+        print(
+            "ADR detection failed: could not resolve project root",
+            file=sys.stderr,
+        )
+        return 2
 
     # Validate the resolved path is a git repository
     if not (Path(project_root) / ".git").exists():
@@ -102,7 +106,7 @@ def main() -> int:
             f"ADR detection: ProjectRoot '{project_root}' is not a git repository",
             file=sys.stderr,
         )
-        return 0
+        return 2
 
     detect_script = str(
         Path(project_root)
@@ -114,7 +118,11 @@ def main() -> int:
     )
 
     if not Path(detect_script).exists():
-        return 0
+        print(
+            f"ADR detection script not found: {detect_script}",
+            file=sys.stderr,
+        )
+        return 2
 
     try:
         # Tainted source (CLAUDE_PROJECT_DIR -> project_root) is contained
@@ -126,7 +134,8 @@ def main() -> int:
         result = subprocess.run(  # nosemgrep: dangerous-subprocess-use-tainted-env-args
             [sys.executable, detect_script, "--base-path", project_root, "--include-untracked"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=10,
         )
@@ -134,7 +143,7 @@ def main() -> int:
             print(f"ADR detection script exited with code {result.returncode}", file=sys.stderr)
             if result.stderr:
                 print(f"Output: {result.stderr.strip()}", file=sys.stderr)
-            return 0  # Non-blocking
+            return 2
 
         detection = json.loads(result.stdout)
 
@@ -194,7 +203,7 @@ def main() -> int:
             f"  python3 {detect_script}",
             file=sys.stderr,
         )
-        return 0
+        return 2
 
 
 if __name__ == "__main__":

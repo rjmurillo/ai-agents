@@ -111,22 +111,22 @@ class TestMain:
         assert result == 0
 
     @patch("invoke_adr_change_detection.get_project_root", return_value=None)
-    def test_exits_0_when_project_root_none(self, mock_root):
+    def test_exits_2_when_project_root_none(self, mock_root):
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
 
     @patch("invoke_adr_change_detection.get_project_root")
-    def test_exits_0_when_not_git_repo(self, mock_root, tmp_path):
+    def test_exits_2_when_not_git_repo(self, mock_root, tmp_path):
         mock_root.return_value = str(tmp_path)
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
 
     @patch("invoke_adr_change_detection.get_project_root")
-    def test_exits_0_when_detect_script_missing(self, mock_root, tmp_path):
+    def test_exits_2_when_detect_script_missing(self, mock_root, tmp_path):
         (tmp_path / ".git").mkdir()
         mock_root.return_value = str(tmp_path)
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
 
     @pytest.fixture
     def project_with_detect_script(self, tmp_path):
@@ -184,57 +184,57 @@ class TestMain:
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    def test_exits_0_on_detection_failure(
+    def test_exits_2_on_detection_failure(
         self, mock_root, mock_run, project_with_detect_script
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="error")
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    def test_exits_0_on_invalid_json(
+    def test_exits_2_on_invalid_json(
         self, mock_root, mock_run, project_with_detect_script
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.return_value = MagicMock(returncode=0, stdout="not json", stderr="")
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    def test_exits_0_on_subprocess_timeout(
+    def test_exits_2_on_subprocess_timeout(
         self, mock_root, mock_run, project_with_detect_script, capsys
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="detect", timeout=10)
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
         captured = capsys.readouterr()
         assert "failed" in captured.err.lower() or "skipped" in captured.err.lower()
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    def test_exits_0_on_file_not_found(
+    def test_exits_2_on_file_not_found(
         self, mock_root, mock_run, project_with_detect_script, capsys
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.side_effect = FileNotFoundError("python3 not found")
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
         captured = capsys.readouterr()
         assert "failed" in captured.err.lower() or "skipped" in captured.err.lower()
 
     @patch("invoke_adr_change_detection.subprocess.run")
     @patch("invoke_adr_change_detection.get_project_root")
-    def test_exits_0_on_oserror(
+    def test_exits_2_on_oserror(
         self, mock_root, mock_run, project_with_detect_script, capsys
     ):
         mock_root.return_value = str(project_with_detect_script)
         mock_run.side_effect = OSError("permission denied")
         result = invoke_adr_change_detection.main()
-        assert result == 0
+        assert result == 2
         captured = capsys.readouterr()
         assert "failed" in captured.err.lower() or "skipped" in captured.err.lower()
 
