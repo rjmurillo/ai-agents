@@ -1,6 +1,6 @@
 # Skill-First: Incident Log
 
-The skill-first rule itself is canonical in `AGENTS.md` ("Skill-First" section, "Never: Raw gh when skills exist") and `CLAUDE.md` ("Skill routing"). It is technically enforced by the `invoke_skill_first_guard.py` PreToolUse hook, which blocks raw `gh` when a mapped skill script exists. This memory keeps only the episodic incidents that motivated the rule.
+The skill-first rule itself is canonical in [`AGENTS.md`](../../AGENTS.md) ("Skill-First" section, "Never: Raw gh when skills exist") and [`CLAUDE.md`](../../CLAUDE.md) ("Skill routing"). It is technically enforced by the [`invoke_skill_first_guard.py`](../../.claude/hooks/PreToolUse/invoke_skill_first_guard.py) PreToolUse hook, which blocks raw `gh` when a mapped skill script exists. This memory keeps only the episodic incidents that motivated the rule.
 
 ## PR Review Comment Routing (session 1187, 2026-02-08)
 

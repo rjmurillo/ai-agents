@@ -166,4 +166,3 @@ An ADR is NOT just documentation: it's a **decision artifact** that:
 - [adr-007-augmentation-research](adr-007-augmentation-research.md)
 - [adr-014-review-findings](adr-014-review-findings.md)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
-- [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
