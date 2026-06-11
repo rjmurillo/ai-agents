@@ -6,6 +6,7 @@ change detection via subprocess, git repo validation.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -242,29 +243,65 @@ class TestMain:
 class TestModuleAsScript:
     """Test that the hook can be executed as a script via __main__."""
 
-    def test_adr_change_detection_as_script(self):
+    def test_adr_change_detection_as_script(self, tmp_path):
+        """Run a hook copy with no .git ancestor: deterministic fail-closed.
+
+        Running the in-repo hook directly made the result depend on the
+        checkout's git history (a fetch-depth:1 clone has no HEAD~1, so the
+        detect script fails and the hook exits 2 in CI but 0 locally). The
+        no-git-ancestor copy pins the ADR-066 fail-closed contract (exit 2,
+        loud stderr) identically in every environment.
+        """
+        import shutil
         import subprocess
 
-        hook_path = str(
+        hook_src = (
             Path(__file__).resolve().parents[2]
             / ".claude" / "hooks" / "invoke_adr_change_detection.py"
         )
+        hook_copy = tmp_path / "invoke_adr_change_detection.py"
+        shutil.copy(hook_src, hook_copy)
+
+        # Minimal env: PYTHONPATH leakage lets the copy import hook_utilities
+        # and take the consumer-repo skip (exit 0), making the result depend
+        # on the runner's env. Dropping it pins the bootstrap layer.
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("PYTHONPATH", "CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR")
+        }
         result = subprocess.run(
-            ["python3", hook_path],
+            ["python3", str(hook_copy)],
             input="",
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            cwd=str(tmp_path),
+            env=env,
         )
-        assert result.returncode == 0
+        # Which fail-closed layer fires first differs by environment (the
+        # bootstrap's missing-lib exit vs main()'s no-root exit), so assert
+        # the ADR-066 contract essence: non-zero block plus loud stderr.
+        assert result.returncode == 2, result.stderr
+        assert result.stderr.strip(), "fail-closed exit must be loud"
 
-    def test_main_guard_via_runpy(self):
-        """Cover the sys.exit(main()) in __main__ guard via runpy in-process execution."""
+    def test_main_guard_via_runpy(self, tmp_path):
+        """Cover the sys.exit(main()) in __main__ guard via runpy.
+
+        Same deterministic no-git-ancestor copy as the subprocess form: the
+        guard must propagate main()'s fail-closed exit 2 (ADR-066).
+        """
         import runpy
+        import shutil
 
-        hook_path = str(
+        hook_src = (
             Path(__file__).resolve().parents[2]
             / ".claude" / "hooks" / "invoke_adr_change_detection.py"
         )
+        hook_copy = tmp_path / "invoke_adr_change_detection.py"
+        shutil.copy(hook_src, hook_copy)
+
         with pytest.raises(SystemExit) as exc_info:
-            runpy.run_path(hook_path, run_name="__main__")
-        assert exc_info.value.code == 0
+            runpy.run_path(str(hook_copy), run_name="__main__")
+        assert exc_info.value.code == 2
