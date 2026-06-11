@@ -1,0 +1,118 @@
+{
+  "session": {
+    "number": 2385,
+    "date": "2026-06-11",
+    "branch": "fix/2523-hooks-hardening",
+    "startingCommit": "16f7a64",
+    "objective": "Reconcile ADR-008 with ADR-066 per repo owner directive: amend ADR-008 superseded fail-open passages to point at ADR-066. Architect review completed via Task(subagent_type='architect'): REQUEST CHANGES then approved with two fixes (heading wording, Stop-hook D2 clause). Also: PR 2556 babysitting (review fixes, deterministic tests, 0.5.174 bump)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this remote harness; per-turn UserPromptSubmit re-assertion hooks active (fallback per AGENTS.md)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena re-assertion delivered via UserPromptSubmit hook every turn this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected by SessionStart context loader at session resume"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill inventory auto-injected at session start; github/session-init/merge-resolver skills used this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded in system context at session start"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "universal.md and rules loaded at session start; ADR-066/ADR-008 read this session for the reconciliation"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical Serena memories auto-injected via PreToolUse hooks (pr-review, github, copilot-hooks observations)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2523-hooks-hardening"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2523-hooks-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified before commit: ADR-008 amendment plus session artifacts staged; auto-generated causal-graph.json restored"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "16f7a64"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items in this checklist completed with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/architecture/adr-008-066-reconciliation.md written this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on ADR-008: 0 errors (pre-commit auto-fix pass also clean)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-008 amendment, session log, episode, and Serena memory in this commit on docs/adr-008-fail-open-reconciliation"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py PASS on this log"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SKIPPED: no task tracker items for this governance amendment"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SKIPPED: docs-only governance amendment; learnings captured in Serena memory"
+      }
+    }
+  },
+  "workLog": [],
+  "endingCommit": "",
+  "nextSteps": []
+}
