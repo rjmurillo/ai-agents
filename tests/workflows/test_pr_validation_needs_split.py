@@ -24,6 +24,7 @@ These tests pin both fixes so neither can silently regress.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,7 @@ _REMOVE_STEP_NAME = "Remove needs-split label when below threshold"
 _ENFORCE_STEP_NAME = "Enforce Blocking Issues"
 
 
+@lru_cache(maxsize=1)
 def _load_workflow() -> dict[str, Any]:
     """Parse pr-validation.yml into a dict."""
     with _WORKFLOW_PATH.open(encoding="utf-8") as handle:
@@ -73,16 +75,15 @@ def _executable_lines(run_block: str) -> str:
 
     Strips:
       * pure-comment lines (`#...`)
-      * the trailing `# ...` portion of any line with an inline comment
 
     This keeps the tests focused on actual command invocations and avoids
     false positives from docstring-style comments that reference the old
     (broken) `gh pr edit --add-label` / `--remove-label` calls for context.
-    Note: we DO NOT try to parse strings — if a `#` appears inside quotes,
-    we conservatively keep the rest of the line by only stripping when the
-    line's first non-whitespace char is `#`, OR when ` # ` appears outside
-    quote pairs at a reasonable boundary. Simpler: strip pure-comment
-    lines only; that's enough for this workflow.
+
+    Stricter/looser/different than canonical:
+      This helper is intentionally looser than a PowerShell parser. It only
+      strips pure-comment lines and leaves inline comments intact because the
+      workflow assertions need command-level signal, not shell syntax fidelity.
     """
     kept: list[str] = []
     for line in run_block.splitlines():
@@ -180,6 +181,16 @@ class TestApplyNeedsSplitStep:
             "`gh api`. Expected `gh api ... /labels` in the step body."
         )
 
+    def test_step_reads_labels_via_rest_not_graphql(self) -> None:
+        step = _find_step(_APPLY_STEP_NAME)
+        assert step is not None
+        run = _executable_lines(step.get("run") or "")
+        assert "gh pr view" not in run, (
+            f"{_APPLY_STEP_NAME!r} must not read labels with `gh pr view`, "
+            "which can use GraphQL under this token shape"
+        )
+        assert "issues/$env:PR_NUMBER/labels" in run
+
 
 class TestRemoveNeedsSplitStep:
     """Remove-label step has the same severity / API contract as the add step."""
@@ -224,6 +235,16 @@ class TestRemoveNeedsSplitStep:
             "via `gh api`. Expected `gh api -X DELETE .../labels/<name>`."
         )
 
+    def test_step_reads_labels_via_rest_not_graphql(self) -> None:
+        step = _find_step(_REMOVE_STEP_NAME)
+        assert step is not None
+        run = _executable_lines(step.get("run") or "")
+        assert "gh pr view" not in run, (
+            f"{_REMOVE_STEP_NAME!r} must not read labels with `gh pr view`, "
+            "which can use GraphQL under this token shape"
+        )
+        assert "issues/$env:PR_NUMBER/labels" in run
+
 
 class TestBlockTierStillFails:
     """Sanity: the BLOCK tier (20+ commits) MUST still fail the job.
@@ -253,3 +274,17 @@ class TestBlockTierStillFails:
             "BLOCKED to enforce the 20-commit cap"
         )
         assert "exit 1" in run, f"{_ENFORCE_STEP_NAME!r} must still `exit 1` on the BLOCK tier"
+
+    def test_enforce_step_reads_bypass_label_via_rest_and_fails_closed(self) -> None:
+        step = _find_step(_ENFORCE_STEP_NAME)
+        assert step is not None
+        run = _executable_lines(step.get("run") or "")
+        assert "gh pr view" not in run, (
+            f"{_ENFORCE_STEP_NAME!r} must not use GraphQL-backed `gh pr view` "
+            "for bypass-label reads"
+        )
+        assert "issues/$env:PR_NUMBER/labels" in run
+        assert "throw \"Failed to fetch PR labels" in run, (
+            f"{_ENFORCE_STEP_NAME!r} must fail closed when the bypass-label "
+            "REST read fails"
+        )

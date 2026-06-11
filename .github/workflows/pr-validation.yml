@@ -385,18 +385,17 @@ jobs:
         # Fixes #2557: this step is ADVISORY and must never fail the job.
         # The real 20-commit cap is enforced in `Enforce Blocking Issues`.
         # `continue-on-error` is the belt; warnings (not throws) in the body
-        # are the suspenders, so a label-API outage shows as a clean step
-        # annotation rather than a red ❌ outline.
+        # are the suspenders, so a label API outage shows as an annotation
+        # rather than a red step outline.
         if: steps.commit-check.outputs.status == 'WARNING' || steps.commit-check.outputs.status == 'ALERT' || steps.commit-check.outputs.status == 'BLOCKED'
         continue-on-error: true
         shell: pwsh
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Read existing labels via REST (gh pr view --json labels uses REST
-          # GET, which works with installation/fine-grained tokens). Warn and
-          # exit cleanly on failure instead of throwing.
-          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
+          # Read existing labels through the REST issues endpoint. Stderr stays
+          # visible so HTTP status and response messages remain in the job log.
+          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
           if ($LASTEXITCODE -ne 0) {
             Write-Warning "Could not fetch PR labels (exit code: $LASTEXITCODE); skipping advisory 'needs-split' label."
             exit 0
@@ -431,8 +430,9 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Read existing labels via REST. Warn and exit cleanly on failure.
-          $existingLabels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
+          # Read existing labels through the REST issues endpoint. Stderr stays
+          # visible so HTTP status and response messages remain in the job log.
+          $existingLabels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
           if ($LASTEXITCODE -ne 0) {
             Write-Warning "Could not fetch PR labels (exit code: $LASTEXITCODE); skipping advisory 'needs-split' cleanup."
             exit 0
@@ -472,8 +472,9 @@ jobs:
 
           # Block if commit count exceeds limit (requires human override via bypass label)
           if ($env:COMMIT_STATUS -eq "BLOCKED") {
-            # Check for bypass label (2>$null is safe - PR exists when workflow runs)
-            $labels = gh pr view $env:PR_NUMBER --repo $env:GITHUB_REPOSITORY --json labels --jq '.labels[].name' 2>$null
+            # Check for bypass label through REST. This is a fail-closed gate:
+            # auth/API errors must stay visible and fail validation.
+            $labels = gh api "repos/$env:GITHUB_REPOSITORY/issues/$env:PR_NUMBER/labels" --jq '.[].name'
             if ($LASTEXITCODE -ne 0) { throw "Failed to fetch PR labels (exit code: $LASTEXITCODE)" }
 
             if ($labels -contains 'commit-limit-bypass') {
