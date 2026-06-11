@@ -115,7 +115,7 @@
   "workLog": [
     {
       "time": "2026-06-10",
-      "entry": "Issue #2523 finding 1: invoke_markdown_auto_lint.py npx subprocess.run had no timeout; a cold npm cache or unreachable registry blocked every .md Write/Edit turn indefinitely. Added timeout=30 (CodeQL hook budget) plus a TimeoutExpired fail-closed handler (exit 2 per ADR-066) with a warning. Tests: test_timeout_returns_two_with_warning and test_npx_call_carries_bounded_timeout."
+      "entry": "Issue #2523 finding 1: invoke_markdown_auto_lint.py npx subprocess.run had no timeout; a cold npm cache or unreachable registry blocked every .md Write/Edit turn indefinitely. Added timeout=30 (CodeQL hook budget) plus a TimeoutExpired fail-closed handler (exit 2 per ADR-066) with a loud error. Tests: test_timeout_returns_two_with_warning and test_npx_call_carries_bounded_timeout."
     },
     {
       "time": "2026-06-10",
