@@ -93,7 +93,8 @@ def get_staged_files() -> list[str]:
     result = subprocess.run(
         ["git", "diff", "--cached", "--name-only"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=True,
     )
@@ -136,13 +137,26 @@ def find_security_evidence(project_dir: str) -> bool:
                 key=lambda p: p.stat().st_mtime,
                 reverse=True,
             )
-            for log_path in session_logs:
-                content = log_path.read_text(encoding="utf-8")
-                for pattern in _SECURITY_REVIEW_PATTERNS:
-                    if pattern.search(content):
-                        return True
-        except OSError:
-            pass
+        except OSError as exc:
+            print(
+                f"Security commit gate could not enumerate session logs: {exc}",
+                file=sys.stderr,
+            )
+            session_logs = []
+
+        for log_path in session_logs:
+            try:
+                with log_path.open(encoding="utf-8", errors="replace") as handle:
+                    for line in handle:
+                        for pattern in _SECURITY_REVIEW_PATTERNS:
+                            if pattern.search(line):
+                                return True
+            except OSError as exc:
+                print(
+                    f"Security commit gate could not read session log {log_path}: {exc}",
+                    file=sys.stderr,
+                )
+                continue
 
     return False
 
