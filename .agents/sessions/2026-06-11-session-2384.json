@@ -98,7 +98,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Previous validation passed; after this latest origin/main merge, tests and gates will be rerun before push."
+        "Evidence": "After latest origin/main merge, hook regression tests and path checks passed; plugin manifests bumped again to 0.5.173 because origin/main already contains 0.5.172."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -157,6 +157,11 @@
       "step": 9,
       "action": "Resolved latest origin/main merge conflict",
       "outcome": "Renamed PR evidence to session 2384 to avoid origin/main session 2383 collision; accepted origin/main causal graph, with validation to run after merge commit."
+    },
+    {
+      "step": 10,
+      "action": "Re-bumped plugin manifests after base moved",
+      "outcome": "origin/main now contains 0.5.172, so PR branch bumped Claude and Copilot manifests to 0.5.173."
     }
   ],
   "endingCommit": "8cd15f2c1e",

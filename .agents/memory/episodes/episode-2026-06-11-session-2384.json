@@ -101,6 +101,14 @@
       "content": "Resolved latest origin/main merge conflict",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Re-bumped plugin manifests after base moved",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
