@@ -257,49 +257,61 @@ def _original_main(stdin_bytes):
         return True
 
 
-    def main() -> int:
-        """Main hook entry point. Returns exit code."""
-        try:
-            if sys.stdin.isatty():
-                return 0
-
-            input_json = sys.stdin.read()
-            if not input_json.strip():
-                return 0
-
-            parsed: object = json.loads(input_json)
-        except (json.JSONDecodeError, ValueError):
-            print(
-                "ERROR: Markdown auto-lint: Failed to parse hook input JSON",
-                file=sys.stderr,
-            )
-            return 2
-
+    def read_hook_input() -> dict[str, object] | None:
+        """Read and validate hook input from stdin."""
+        if sys.stdin.isatty():
+            return None
+        input_json = sys.stdin.read()
+        if not input_json.strip():
+            return None
+        parsed: object = json.loads(input_json)
         if not isinstance(parsed, dict):
+            raise ValueError("hook input JSON must be an object")
+        return parsed
+
+
+    def report_missing_npx(file_path: str) -> None:
+        """Report that the markdown linter cannot run because npx is missing."""
+        print(
+            f"ERROR: npx not found. Cannot lint {file_path}",
+            file=sys.stderr,
+        )
+        print(
+            "\n**Markdown Auto-Lint ERROR**: npx not found. "
+            "Install Node.js and markdownlint-cli2.\n"
+        )
+
+
+    def report_lint_failure(file_path: str, result: subprocess.CompletedProcess[str]) -> None:
+        """Report a non-zero markdownlint result."""
+        output = (result.stderr or result.stdout or "").strip()
+        if not output:
             print(
-                "ERROR: Markdown auto-lint: hook input JSON must be an object",
+                f"WARNING: Markdown linting failed for {file_path} "
+                f"(exit {result.returncode}) with no output. "
+                "Linter may not be installed.",
                 file=sys.stderr,
             )
-            return 2
-
-        hook_input: dict[str, object] = parsed
-
-        file_path = get_file_path_from_input(hook_input)
-        project_dir = get_project_directory(hook_input)
-        if not should_lint_file(file_path, project_dir) or file_path is None:
-            return 0
-
-        if not shutil.which("npx"):
             print(
-                f"ERROR: npx not found. Cannot lint {file_path}",
-                file=sys.stderr,
+                "\n**Markdown Auto-Lint WARNING**: Linter failed with no output. "
+                "Verify installation: `npm list markdownlint-cli2`\n"
             )
-            print(
-                "\n**Markdown Auto-Lint ERROR**: npx not found. "
-                "Install Node.js and markdownlint-cli2.\n"
-            )
-            return 2
+            return
+        error_summary = output[:200]
+        print(
+            f"WARNING: Markdown linting failed for {file_path} "
+            f"(exit {result.returncode}): {error_summary}",
+            file=sys.stderr,
+        )
+        print(
+            f"\n**Markdown Auto-Lint WARNING**: Failed to lint `{file_path}`. "
+            f"Exit code: {result.returncode}. "
+            f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
+        )
 
+
+    def run_markdownlint(file_path: str, project_dir: str) -> int:
+        """Run markdownlint and return the hook exit code."""
         try:
             # Issue #2523: bounded timeout (release-it.md). Without it, a cold npm
             # cache or unreachable registry blocks every .md Write/Edit turn
@@ -314,35 +326,10 @@ def _original_main(stdin_bytes):
             )
 
             if result.returncode != 0:
-                output = (result.stderr or result.stdout or "").strip()
-                if not output:
-                    print(
-                        f"WARNING: Markdown linting failed for {file_path} "
-                        f"(exit {result.returncode}) with no output. "
-                        "Linter may not be installed.",
-                        file=sys.stderr,
-                    )
-                    print(
-                        "\n**Markdown Auto-Lint WARNING**: Linter failed with no output. "
-                        "Verify installation: `npm list markdownlint-cli2`\n"
-                    )
-                    return 2
-                else:
-                    error_summary = output[:200]
-                    print(
-                        f"WARNING: Markdown linting failed for {file_path} "
-                        f"(exit {result.returncode}): {error_summary}",
-                        file=sys.stderr,
-                    )
-                    print(
-                        f"\n**Markdown Auto-Lint WARNING**: Failed to lint `{file_path}`. "
-                        f"Exit code: {result.returncode}. "
-                        f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
-                    )
-                    return 2
-            else:
-                print(f"\n**Markdown Auto-Lint**: Fixed formatting in `{file_path}`\n")
-                return 0
+                report_lint_failure(file_path, result)
+                return 2
+            print(f"\n**Markdown Auto-Lint**: Fixed formatting in `{file_path}`\n")
+            return 0
         except subprocess.TimeoutExpired:
             print(
                 f"ERROR: Markdown linting timed out after 30s for {file_path}",
@@ -374,7 +361,30 @@ def _original_main(stdin_bytes):
             )
             return 2
 
-        return 0
+
+    def main() -> int:
+        """Main hook entry point. Returns exit code."""
+        try:
+            hook_input = read_hook_input()
+        except (json.JSONDecodeError, ValueError) as exc:
+            print(
+                f"ERROR: Markdown auto-lint: Failed to parse hook input JSON: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        if hook_input is None:
+            return 0
+
+        file_path = get_file_path_from_input(hook_input)
+        project_dir = get_project_directory(hook_input)
+        if not should_lint_file(file_path, project_dir) or file_path is None:
+            return 0
+
+        if not shutil.which("npx"):
+            report_missing_npx(file_path)
+            return 2
+
+        return run_markdownlint(file_path, project_dir)
     return main()
 
 _shim_dispatch()
