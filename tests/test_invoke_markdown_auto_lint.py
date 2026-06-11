@@ -151,7 +151,7 @@ class TestMain:
         ):
             result = main()
             assert result == 2
-            assert "WARNING" in mock_stdout.getvalue()
+            assert "ERROR" in mock_stdout.getvalue()
 
     def test_handles_linter_failure_no_output(self, tmp_path: Path) -> None:
         md_file = tmp_path / "test.md"

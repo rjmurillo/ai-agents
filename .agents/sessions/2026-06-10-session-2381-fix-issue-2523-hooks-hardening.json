@@ -140,6 +140,10 @@
     {
       "time": "2026-06-11T14:34:07.966460Z",
       "entry": "Addressed CI runtime-contract failure: .github/workflows/pytest.yml now sets UV_PYTHON=3.14 for the Windows pwsh hook contract job so uv uses the runner-provisioned setup-python interpreter instead of trying to provision unavailable Python 3.14.6. Validation: UV_PYTHON=3.14 uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k \"powershell\" passed locally (1 passed, 5 deselected)."
+    },
+    {
+      "time": "2026-06-11T14:57:46.763059Z",
+      "entry": "Addressed follow-up review threads after CI: tightened generate_hooks_body fail-open/fail-closed detection with AST so only the try handler that directly invokes main() preserves exit policy; changed Markdown Auto-Lint fail-closed labels from WARNING to ERROR; updated hook test helper wording. Validation: ruff passed for touched Python files, mypy passed for touched hook/generator files, and targeted pytest passed (163 passed)."
     }
   ],
   "endingCommit": "",

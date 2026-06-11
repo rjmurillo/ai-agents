@@ -287,24 +287,24 @@ def _original_main(stdin_bytes):
         output = (result.stderr or result.stdout or "").strip()
         if not output:
             print(
-                f"WARNING: Markdown linting failed for {file_path} "
+                f"ERROR: Markdown linting failed for {file_path} "
                 f"(exit {result.returncode}) with no output. "
                 "Linter may not be installed.",
                 file=sys.stderr,
             )
             print(
-                "\n**Markdown Auto-Lint WARNING**: Linter failed with no output. "
+                "\n**Markdown Auto-Lint ERROR**: Linter failed with no output. "
                 "Verify installation: `npm list markdownlint-cli2`\n"
             )
             return
         error_summary = output[:200]
         print(
-            f"WARNING: Markdown linting failed for {file_path} "
+            f"ERROR: Markdown linting failed for {file_path} "
             f"(exit {result.returncode}): {error_summary}",
             file=sys.stderr,
         )
         print(
-            f"\n**Markdown Auto-Lint WARNING**: Failed to lint `{file_path}`. "
+            f"\n**Markdown Auto-Lint ERROR**: Failed to lint `{file_path}`. "
             f"Exit code: {result.returncode}. "
             f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
         )
@@ -336,19 +336,12 @@ def _original_main(stdin_bytes):
                 file=sys.stderr,
             )
             print(
-                f"\n**Markdown Auto-Lint WARNING**: Lint timed out for `{file_path}`. "
+                f"\n**Markdown Auto-Lint ERROR**: Lint timed out for `{file_path}`. "
                 f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
             )
             return 2
         except FileNotFoundError:
-            print(
-                f"ERROR: npx not found. Cannot lint {file_path}",
-                file=sys.stderr,
-            )
-            print(
-                "\n**Markdown Auto-Lint WARNING**: npx not found. "
-                "Install Node.js and markdownlint-cli2.\n"
-            )
+            report_missing_npx(file_path)
             return 2
         except OSError as exc:
             print(
