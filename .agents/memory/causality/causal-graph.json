@@ -6205,15 +6205,6 @@
       "created": "2026-06-11T13:38:08.084408+00:00"
     },
     {
-      "id": "fd7795c261cb",
-      "type": "outcome",
-      "label": "Outcome: partial - Respond to Copilot review round 2 on PR #2555 (link fixes, index link text, duplicate Related entry); commit auto-retro skeleton",
-      "episodes": [
-        "episode-2026-06-11-session-2383"
-      ],
-      "created": "2026-06-11T13:38:08.084502+00:00"
-    },
-    {
       "id": "1bb5acbc71c9",
       "type": "outcome",
       "label": "Outcome: success - Respond to Copilot review round 2 on PR #2555 (link fixes, index link text, duplicate Related entry); commit auto-retro skeleton",

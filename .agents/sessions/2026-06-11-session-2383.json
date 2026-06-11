@@ -116,6 +116,10 @@
     {
       "timestamp": "2026-06-11",
       "activity": "Addressed Copilot review round 2 on PR #2555: linked AGENTS.md, CLAUDE.md, and the skill-first guard hook in usage-mandatory.md; corrected copilot/ to orchestration/ link text in skills-orchestration-index.md; removed duplicate adr-019 Related entry in adr-foundational-concepts.md; committed 2026-06-11 auto-retro skeleton and retro index entry. Verification: memory_index.py --ci PASSED, markdownlint 0 errors, pytest session subset 322 passed (1 env-only failure in tmp-repo git commit fixture)"
+    },
+    {
+      "timestamp": "2026-06-11",
+      "activity": "Removed stale 'partial' outcome node fd7795c261cb for episode-2026-06-11-session-2383 from causal-graph.json (Cursor Bugbot finding: conflicting outcomes, the partial node was written when the pre-commit gate blocked the first commit attempt; episode JSON records success only). Verified no edges or patterns reference the removed node; JSON re-validated on load"
     }
   ],
   "endingCommit": "",
