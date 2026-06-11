@@ -294,6 +294,37 @@ class TestRetroSkeletonText(unittest.TestCase):
             ):
                 self.assertIn(heading, content)
 
+    def test_failure_patterns_reference_points_at_existing_path(self):
+        """Issue #2550: the Failure Patterns placeholder must reference a path
+        that actually exists in the repo, not a dead directory.
+
+        Regression guard: prior to the fix the skeleton pointed at
+        ``.agents/failure-modes/`` which does not exist. The canonical location
+        is ``.agents/governance/FAILURE-MODES.md``. Pinning the exact reference
+        keeps the placeholder honest and prevents future regenerated skeletons
+        from carrying dead references.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            content = self._generate(Path(tmp), "2026-04-20")
+
+            # Positive: the new, canonical reference is present.
+            self.assertIn(".agents/governance/FAILURE-MODES.md", content)
+
+            # Negative: the dead reference must be gone.
+            self.assertNotIn(".agents/failure-modes/", content)
+
+            # Repo-truth check: the referenced path actually exists in the
+            # checkout this test runs from. This catches future renames on
+            # either side (the skeleton OR the governance file) without a
+            # mirrored update.
+            repo_root = Path(__file__).resolve().parent.parent
+            self.assertTrue(
+                (repo_root / ".agents" / "governance" / "FAILURE-MODES.md").exists(),
+                "skeleton references .agents/governance/FAILURE-MODES.md but the "
+                "file is missing from the repo; either the file was moved or the "
+                "skeleton reference drifted.",
+            )
+
     def test_module_docstring_describes_skeleton(self):
         """The module docstring no longer claims it generates a retrospective."""
         doc = invoke_auto_retrospective.__doc__ or ""
