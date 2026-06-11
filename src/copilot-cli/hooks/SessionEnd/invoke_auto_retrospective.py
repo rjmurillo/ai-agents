@@ -377,7 +377,7 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
 
 ## Failure Patterns
 
-- _UNFILLED. Run the retrospective agent to populate this section (check .agents/failure-modes/)._
+- _UNFILLED. Run the retrospective agent to populate this section (check .agents/governance/FAILURE-MODES.md)._
 """
 
     retro_path.write_text(content, encoding="utf-8")
