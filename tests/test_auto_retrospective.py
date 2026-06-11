@@ -62,8 +62,11 @@ class TestAutoRetrospective(unittest.TestCase):
                 ):
                     result = invoke_auto_retrospective.main()
                     self.assertEqual(result, 0)
-                    # No new file created
-                    files = list(retro_dir.glob("*.md"))
+                    # No new retro created (the co-located INDEX.md is meta,
+                    # not a retrospective; the skip path repairs the index).
+                    files = [
+                        f for f in retro_dir.glob("*.md") if f.name != "INDEX.md"
+                    ]
                     self.assertEqual(len(files), 1)
 
     def test_skips_trivial_sessions(self):
@@ -111,9 +114,63 @@ class TestAutoRetrospective(unittest.TestCase):
                     self.assertIn("Implemented feature X", content)
 
                     # INDEX.md updated
-                    index = tmp_path / "docs" / "retros" / "INDEX.md"
+                    index = tmp_path / ".agents" / "retrospective" / "INDEX.md"
                     self.assertTrue(index.exists())
                     self.assertIn(today, index.read_text())
+
+    def test_create_path_emits_fill_continuation(self):
+        """The create path emits a Stop continuation prompting the model to fill.
+
+        Block-and-fill: writing the skeleton is not enough on its own; the hook
+        prompts the in-session model to populate it. Mirrors the
+        invoke_session_validator {"continue": true, "reason": ...} contract.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            (sessions_dir / f"{today}-session-01.json").write_text(
+                json.dumps({"work": ["Did real work"], "outcomes": ["PR opened"]})
+            )
+            captured = StringIO()
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective,
+                "get_project_directory",
+                return_value=tmp_path,
+            ), patch("sys.stdout", captured):
+                result = invoke_auto_retrospective.main()
+            self.assertEqual(result, 0)
+            payload = json.loads(captured.getvalue().strip())
+            self.assertIs(payload["continue"], True)
+            self.assertIn("fill", payload["reason"].lower())
+            self.assertIn(today, payload["reason"])
+            # Instructs the model to use the retrospective skill (user request)
+            self.assertIn("retrospective skill", payload["reason"].lower())
+
+    def test_skip_path_emits_no_continuation(self):
+        """Loop-safety: when today's retro already exists, no continuation fires.
+
+        The fill prompt is keyed to the create path. A later stop (file already
+        present) must exit clean so the session can actually end rather than
+        re-prompt forever.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / ".agents").mkdir()
+            retro_dir = tmp_path / ".agents" / "retrospective"
+            retro_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            (retro_dir / f"{today}-auto-retro.md").write_text("# filled retro")
+            captured = StringIO()
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective,
+                "get_project_directory",
+                return_value=tmp_path,
+            ), patch("sys.stdout", captured):
+                result = invoke_auto_retrospective.main()
+            self.assertEqual(result, 0)
+            self.assertNotIn('"continue"', captured.getvalue())
 
     def test_fail_open_on_os_error(self):
         """OSError should not crash the hook."""
@@ -136,7 +193,7 @@ class TestAutoRetrospective(unittest.TestCase):
             today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
             existing = retro_dir / f"{today}-auto-retro.md"
             existing.write_text("# Prior retro")
-            # docs/retros/INDEX.md intentionally missing
+            # .agents/retrospective/INDEX.md intentionally missing
 
             with patch("sys.stdin", StringIO("")):
                 with patch.object(
@@ -144,7 +201,7 @@ class TestAutoRetrospective(unittest.TestCase):
                 ):
                     result = invoke_auto_retrospective.main()
                     self.assertEqual(result, 0)
-                    index = tmp_path / "docs" / "retros" / "INDEX.md"
+                    index = tmp_path / ".agents" / "retrospective" / "INDEX.md"
                     self.assertTrue(index.exists())
                     self.assertIn(f"{today}-auto-retro.md", index.read_text())
 
@@ -159,7 +216,7 @@ class TestAutoRetrospective(unittest.TestCase):
             invoke_auto_retrospective.update_retro_index(
                 tmp_path, today, "2026-04-20-auto-retro.md"
             )
-            index = tmp_path / "docs" / "retros" / "INDEX.md"
+            index = tmp_path / ".agents" / "retrospective" / "INDEX.md"
             content = index.read_text()
             # One data row for the filename. Count the date cell, not the
             # filename: since #2229 each row links the filename twice (link
@@ -167,20 +224,19 @@ class TestAutoRetrospective(unittest.TestCase):
             self.assertEqual(content.count("| 2026-04-20 |"), 1)
 
     def test_index_row_links_to_retro_file_location(self):
-        """Regression #2229: INDEX rows must link to the actual retro file.
+        """INDEX rows must link to the actual retro file (regression #2229).
 
-        INDEX.md lives in docs/retros/ but retro files live in
-        .agents/retrospective/. A bare filename resolves against docs/retros/
-        (a dead link); the row must use a relative path that resolves.
+        INDEX.md is co-located with the retro files under .agents/retrospective/,
+        so a bare-filename link resolves directly to the sibling file.
         """
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             today = "2026-04-20"
             filename = "2026-04-20-auto-retro.md"
             invoke_auto_retrospective.update_retro_index(tmp_path, today, filename)
-            content = (tmp_path / "docs" / "retros" / "INDEX.md").read_text()
+            content = (tmp_path / ".agents" / "retrospective" / "INDEX.md").read_text()
             self.assertIn(
-                f"[{filename}](../../.agents/retrospective/{filename})", content
+                f"[{filename}]({filename})", content
             )
 
     def test_index_update_upgrades_bare_filename_row(self):
@@ -189,7 +245,7 @@ class TestAutoRetrospective(unittest.TestCase):
             tmp_path = Path(tmp)
             today = "2026-04-20"
             filename = "2026-04-20-auto-retro.md"
-            index = tmp_path / "docs" / "retros" / "INDEX.md"
+            index = tmp_path / ".agents" / "retrospective" / "INDEX.md"
             index.parent.mkdir(parents=True)
             index.write_text(
                 "# Retrospective Index\n\n"
@@ -203,7 +259,7 @@ class TestAutoRetrospective(unittest.TestCase):
 
             content = index.read_text(encoding="utf-8")
             self.assertIn(
-                f"[{filename}](../../.agents/retrospective/{filename})", content
+                f"[{filename}]({filename})", content
             )
             self.assertEqual(content.count(f"| {today} |"), 1)
 
@@ -412,8 +468,8 @@ class TestAutoRetroSuppressionSentinel(unittest.TestCase):
         """Negative path: with the sentinel set, a non-trivial session writes nothing.
 
         Regression for #2327: no auto-retro file under .agents/retrospective/
-        and no docs/retros/INDEX.md created, even though the session is
-        non-trivial and would normally generate a skeleton.
+        and no .agents/retrospective/INDEX.md created, even though the session
+        is non-trivial and would normally generate a skeleton.
         """
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -439,7 +495,7 @@ class TestAutoRetroSuppressionSentinel(unittest.TestCase):
 
             retro_dir = tmp_path / ".agents" / "retrospective"
             self.assertEqual(list(retro_dir.glob("*.md")) if retro_dir.exists() else [], [])
-            self.assertFalse((tmp_path / "docs" / "retros" / "INDEX.md").exists())
+            self.assertFalse((tmp_path / ".agents" / "retrospective" / "INDEX.md").exists())
 
     def test_suppressed_run_audits_skip_reason(self):
         """Edge: the suppressed run records a 'skipped' audit citing the sentinel."""
