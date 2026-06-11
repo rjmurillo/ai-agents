@@ -272,4 +272,6 @@ jobs:
 
       - name: Run pwsh hook contract tests
         shell: pwsh
+        env:
+          UV_PYTHON: '3.14'
         run: uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k "powershell"
