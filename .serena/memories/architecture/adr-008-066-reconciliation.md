@@ -10,8 +10,11 @@ Why it matters: until the amendment, the tree asserted both contracts, and a
 reviewer cited the superseded ADR-008 text against ADR-066-compliant changes
 on PR #2556, burning a review cycle.
 
-When reviewing hook failure semantics, cite ADR-066 D1 (policy) and D2
-(exit-code table). The Stop host ignores exit codes; per D2 the repository
+When reviewing hook failure semantics, cite ADR-071 (Accepted) Decision
+item 5 as the binding rule (hooks MUST fail closed and loud, never silently
+degrade) and ADR-066 D1 (policy detail) and D2 (exit-code table) for the
+reconciliation specifics. ADR-066 is the detailed reconciliation doc; ADR-071
+item 5 is the accepted authority. The Stop host ignores exit codes; per D2 the repository
 still treats a failed Stop hook as failed and relies on pre-push, CI, and
 runtime-contract tests.
 
