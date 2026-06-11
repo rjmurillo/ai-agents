@@ -1,6 +1,6 @@
 {
   "session": {
-    "number": 2383,
+    "number": 2384,
     "date": "2026-06-11",
     "branch": "fix/2550-auto-retro-failure-modes-path",
     "startingCommit": "47ae3f9f3d",
@@ -147,6 +147,11 @@
       "step": 7,
       "action": "Merged latest origin/main and revalidated",
       "outcome": "Merge commit 8cd15f2c1e; tests, plugin version gate, diff check, session validation, and pre_pr all passed."
+    },
+    {
+      "step": 8,
+      "action": "Renumbered session evidence file",
+      "outcome": "Moved session log from 2383 to 2384 because origin/main independently added session 2383 before the final base merge."
     }
   ],
   "endingCommit": "8cd15f2c1e",

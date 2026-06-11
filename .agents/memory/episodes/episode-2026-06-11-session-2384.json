@@ -1,6 +1,6 @@
 {
-  "id": "episode-2026-06-11-session-2383",
-  "session": "2026-06-11-session-2383",
+  "id": "episode-2026-06-11-session-2384",
+  "session": "2026-06-11-session-2384",
   "timestamp": "2026-06-11T00:00:00+00:00",
   "outcome": "success",
   "task": "Autofix and merge PR 2560 canonical failure modes path",
@@ -83,6 +83,14 @@
       "timestamp": "2026-06-11T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 8cd15f2c1e",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Renumbered session evidence file",
       "caused_by": [],
       "leads_to": []
     }
