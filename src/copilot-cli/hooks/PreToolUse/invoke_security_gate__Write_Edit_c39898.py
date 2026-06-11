@@ -359,6 +359,16 @@ def _original_main(stdin_bytes):
         return False
 
 
+    def block_security_gate_error(reason: str) -> None:
+        """Emit a loud PreToolUse block for malformed input or hook errors."""
+        print(
+            "\n## BLOCKED: Security Gate Error\n\n"
+            "Security gate could not verify whether this auth-related operation "
+            "is safe. The hook failed closed.\n\n"
+            f"**Reason**: {reason}\n"
+        )
+
+
     def main() -> int:
         """Main hook entry point. Returns exit code."""
         try:
@@ -370,14 +380,20 @@ def _original_main(stdin_bytes):
                 return 0
 
             hook_input = json.loads(input_json)
+            if not isinstance(hook_input, dict):
+                block_security_gate_error("hook input JSON must be an object")
+                return 2
 
             tool_input = hook_input.get("tool_input")
             if not isinstance(tool_input, dict):
-                return 0
+                block_security_gate_error("tool_input is missing or not an object")
+                return 2
 
-            file_path = tool_input.get("file_path", "")
-            if not file_path:
-                return 0
+            file_path_value = tool_input.get("file_path", "")
+            if not isinstance(file_path_value, str) or not file_path_value.strip():
+                block_security_gate_error("file_path is missing or not a string")
+                return 2
+            file_path = file_path_value.strip()
 
             if not is_auth_path(file_path):
                 return 0
@@ -396,9 +412,9 @@ def _original_main(stdin_bytes):
             return 2
 
         except Exception as exc:
-            # Fail-open on infrastructure errors
             print(f"Security gate error: {type(exc).__name__} - {exc}", file=sys.stderr)
-            return 0
+            block_security_gate_error(f"{type(exc).__name__}: {exc}")
+            return 2
     return main()
 
 _shim_dispatch()
