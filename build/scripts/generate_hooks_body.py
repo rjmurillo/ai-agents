@@ -42,7 +42,8 @@ _MAIN_EPILOGUE_TRY_RE = _re.compile(
 # Used to preserve fail-open behavior when stripping the main epilogue.
 _FAIL_OPEN_HANDLER_RE = _re.compile(
     r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
-    r"\s+try:.*?"
+    r"\s+try:\s*\n"
+    r"\s+(?:sys\.exit\()?main\(\).*?"
     r"except.*?sys\.exit\(0\)",
     _re.MULTILINE | _re.DOTALL,
 )
@@ -51,7 +52,8 @@ _FAIL_OPEN_HANDLER_RE = _re.compile(
 # Used to preserve blocking behavior when stripping the main epilogue.
 _FAIL_CLOSED_HANDLER_RE = _re.compile(
     r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
-    r"\s+try:.*?"
+    r"\s+try:\s*\n"
+    r"\s+(?:sys\.exit\()?main\(\).*?"
     r"except.*?sys\.exit\(2\)",
     _re.MULTILINE | _re.DOTALL,
 )

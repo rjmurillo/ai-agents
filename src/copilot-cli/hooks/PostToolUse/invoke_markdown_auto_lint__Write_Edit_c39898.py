@@ -293,7 +293,7 @@ def _original_main(stdin_bytes):
                 file=sys.stderr,
             )
             print(
-                "\n**Markdown Auto-Lint WARNING**: Linter failed with no output. "
+                "\n**Markdown Auto-Lint ERROR**: Linter failed with no output. "
                 "Verify installation: `npm list markdownlint-cli2`\n"
             )
             return
@@ -304,7 +304,7 @@ def _original_main(stdin_bytes):
             file=sys.stderr,
         )
         print(
-            f"\n**Markdown Auto-Lint WARNING**: Failed to lint `{file_path}`. "
+            f"\n**Markdown Auto-Lint ERROR**: Failed to lint `{file_path}`. "
             f"Exit code: {result.returncode}. "
             f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
         )
@@ -336,7 +336,7 @@ def _original_main(stdin_bytes):
                 file=sys.stderr,
             )
             print(
-                f"\n**Markdown Auto-Lint WARNING**: Lint timed out for `{file_path}`. "
+                f"\n**Markdown Auto-Lint ERROR**: Lint timed out for `{file_path}`. "
                 f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
             )
             return 2
@@ -346,7 +346,7 @@ def _original_main(stdin_bytes):
                 file=sys.stderr,
             )
             print(
-                "\n**Markdown Auto-Lint WARNING**: npx not found. "
+                "\n**Markdown Auto-Lint ERROR**: npx not found. "
                 "Install Node.js and markdownlint-cli2.\n"
             )
             return 2

@@ -48,7 +48,7 @@ def run_main_wrapper(
     Returns ``(exit_code, stdout, stderr)``. The exit code is the value
     passed to ``sys.exit`` (or ``None`` when the wrapper exits without
     calling it). Exceptions other than ``SystemExit`` propagate, which
-    surfaces fail-open violations directly to the test.
+    surfaces wrapper exit-contract violations directly to the test.
     """
     module_file = module.__file__
     if module_file is None:
