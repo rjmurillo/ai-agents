@@ -136,6 +136,10 @@
     {
       "time": "2026-06-10",
       "entry": "Collateral: regenerated the copilot-cli hook mirrors via build_all.py; final plugin.json version is 0.5.173 after merging main's 0.5.172 baseline and preserving this branch's plugin-source bump. Fixed surfaced mypy errors in touched files (_lib_dir str|None annotation, bare dict type args). Verification includes 226 hook contract tests, full pre-push Python tests, scoped ruff and mypy, generated artifact check, session JSON validation, and merge conflict marker validation."
+    },
+    {
+      "time": "2026-06-11T14:34:07.966460Z",
+      "entry": "Addressed CI runtime-contract failure: .github/workflows/pytest.yml now sets UV_PYTHON=3.14 for the Windows pwsh hook contract job so uv uses the runner-provisioned setup-python interpreter instead of trying to provision unavailable Python 3.14.6. Validation: UV_PYTHON=3.14 uv run pytest tests/build_scripts/test_generate_hooks_runtime_contract.py -v -k \"powershell\" passed locally (1 passed, 5 deselected)."
     }
   ],
   "endingCommit": "",
