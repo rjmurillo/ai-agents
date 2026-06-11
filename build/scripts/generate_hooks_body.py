@@ -18,6 +18,7 @@ module depends on its sentinels and :func:`generate_hooks_shim._build_shim`.
 
 from __future__ import annotations
 
+import ast as _ast
 import re as _re
 
 from generate_hooks_shim import _SHIM_BEGIN, _SHIM_END, _build_shim
@@ -34,28 +35,8 @@ _MAIN_EPILOGUE_RE = _re.compile(
 _MAIN_EPILOGUE_TRY_RE = _re.compile(
     r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
     r"\s+try:\s*\n"
-    r"\s+main\(\)",
+    r"\s+(?:sys\.exit\(\s*)?main\(\s*\)\s*\)?",
     _re.MULTILINE,
-)
-
-# Matches fail-open pattern: try/except in __main__ that exits 0 on exception.
-# Used to preserve fail-open behavior when stripping the main epilogue.
-_FAIL_OPEN_HANDLER_RE = _re.compile(
-    r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
-    r"\s+try:\s*\n"
-    r"\s+(?:sys\.exit\()?main\(\).*?"
-    r"except.*?sys\.exit\(0\)",
-    _re.MULTILINE | _re.DOTALL,
-)
-
-# Matches fail-closed pattern: try/except in __main__ that exits 2 on exception.
-# Used to preserve blocking behavior when stripping the main epilogue.
-_FAIL_CLOSED_HANDLER_RE = _re.compile(
-    r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
-    r"\s+try:\s*\n"
-    r"\s+(?:sys\.exit\()?main\(\).*?"
-    r"except.*?sys\.exit\(2\)",
-    _re.MULTILINE | _re.DOTALL,
 )
 
 # Full epilogue pattern for stripping: matches from `if __name__` to end of file.
@@ -64,6 +45,81 @@ _MAIN_EPILOGUE_FULL_RE = _re.compile(
     r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:.*",
     _re.MULTILINE | _re.DOTALL,
 )
+
+
+def _is_main_guard(test: _ast.expr) -> bool:
+    """Return whether ``test`` is ``__name__ == "__main__"``."""
+    if not isinstance(test, _ast.Compare):
+        return False
+    if not isinstance(test.left, _ast.Name) or test.left.id != "__name__":
+        return False
+    if len(test.ops) != 1 or not isinstance(test.ops[0], _ast.Eq):
+        return False
+    if len(test.comparators) != 1:
+        return False
+    comparator = test.comparators[0]
+    return isinstance(comparator, _ast.Constant) and comparator.value == "__main__"
+
+
+def _is_main_call(call: _ast.Call) -> bool:
+    return isinstance(call.func, _ast.Name) and call.func.id == "main" and not call.args
+
+
+def _is_sys_exit_call(call: _ast.Call, exit_code: int | None = None) -> bool:
+    if not (
+        isinstance(call.func, _ast.Attribute)
+        and call.func.attr == "exit"
+        and isinstance(call.func.value, _ast.Name)
+        and call.func.value.id == "sys"
+    ):
+        return False
+    if exit_code is None:
+        return True
+    return (
+        len(call.args) == 1
+        and isinstance(call.args[0], _ast.Constant)
+        and call.args[0].value == exit_code
+    )
+
+
+def _statement_invokes_main(statement: _ast.stmt) -> bool:
+    if not isinstance(statement, _ast.Expr) or not isinstance(statement.value, _ast.Call):
+        return False
+    call = statement.value
+    if _is_main_call(call):
+        return True
+    return (
+        _is_sys_exit_call(call)
+        and len(call.args) == 1
+        and isinstance(call.args[0], _ast.Call)
+        and _is_main_call(call.args[0])
+    )
+
+
+def _handler_exits_with(handler: _ast.ExceptHandler, exit_code: int) -> bool:
+    return any(
+        isinstance(node, _ast.Call) and _is_sys_exit_call(node, exit_code)
+        for statement in handler.body
+        for node in _ast.walk(statement)
+    )
+
+
+def _has_main_try_handler(body: str, exit_code: int) -> bool:
+    try:
+        tree = _ast.parse(body)
+    except SyntaxError:
+        return False
+    for node in tree.body:
+        if not isinstance(node, _ast.If) or not _is_main_guard(node.test):
+            continue
+        for statement in node.body:
+            if not isinstance(statement, _ast.Try) or not statement.body:
+                continue
+            if not _statement_invokes_main(statement.body[0]):
+                continue
+            if any(_handler_exits_with(handler, exit_code) for handler in statement.handlers):
+                return True
+    return False
 
 
 def _has_main_function_and_epilogue(body: str) -> bool:
@@ -99,7 +155,7 @@ def _has_fail_open_handler(body: str) -> bool:
 
     Pattern: ``if __name__ == "__main__": try: main() except: ... sys.exit(0)``
     """
-    return _FAIL_OPEN_HANDLER_RE.search(body) is not None
+    return _has_main_try_handler(body, 0)
 
 
 def _has_fail_closed_handler(body: str) -> bool:
@@ -112,7 +168,7 @@ def _has_fail_closed_handler(body: str) -> bool:
 
     Pattern: ``if __name__ == "__main__": try: main() except: ... sys.exit(2)``
     """
-    return _FAIL_CLOSED_HANDLER_RE.search(body) is not None
+    return _has_main_try_handler(body, 2)
 
 
 def _strip_main_epilogue(body: str) -> str:

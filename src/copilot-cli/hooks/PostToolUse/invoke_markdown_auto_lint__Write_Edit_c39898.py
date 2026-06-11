@@ -287,7 +287,7 @@ def _original_main(stdin_bytes):
         output = (result.stderr or result.stdout or "").strip()
         if not output:
             print(
-                f"WARNING: Markdown linting failed for {file_path} "
+                f"ERROR: Markdown linting failed for {file_path} "
                 f"(exit {result.returncode}) with no output. "
                 "Linter may not be installed.",
                 file=sys.stderr,
@@ -299,7 +299,7 @@ def _original_main(stdin_bytes):
             return
         error_summary = output[:200]
         print(
-            f"WARNING: Markdown linting failed for {file_path} "
+            f"ERROR: Markdown linting failed for {file_path} "
             f"(exit {result.returncode}): {error_summary}",
             file=sys.stderr,
         )
@@ -341,14 +341,7 @@ def _original_main(stdin_bytes):
             )
             return 2
         except FileNotFoundError:
-            print(
-                f"ERROR: npx not found. Cannot lint {file_path}",
-                file=sys.stderr,
-            )
-            print(
-                "\n**Markdown Auto-Lint ERROR**: npx not found. "
-                "Install Node.js and markdownlint-cli2.\n"
-            )
+            report_missing_npx(file_path)
             return 2
         except OSError as exc:
             print(

@@ -1262,6 +1262,32 @@ def test_main_epilogue_fail_closed_wrapper_preserves_exit_two() -> None:
     assert "boom" in proc.stderr
 
 
+def test_main_epilogue_unrelated_exit_two_handler_is_not_fail_closed() -> None:
+    """Unrelated ``sys.exit(2)`` handlers do not mark ``main()`` fail-closed."""
+    body = (
+        "#!/usr/bin/env python3\n"
+        "import sys\n\n"
+        "def parse_args() -> None:\n"
+        "    raise ValueError('bad args')\n\n"
+        "def main() -> int:\n"
+        "    return 0\n\n"
+        'if __name__ == "__main__":\n'
+        "    try:\n"
+        "        main()\n"
+        "    finally:\n"
+        "        pass\n"
+        "    try:\n"
+        "        parse_args()\n"
+        "    except Exception:\n"
+        "        sys.exit(2)\n"
+    )
+    out = generate_hooks.inject_shim(body, "Edit")
+    wrapped = out.split("def _original_main")[1].split("_shim_dispatch")[0]
+    assert "(fail-closed)" not in wrapped
+    assert "    return main()\n" in wrapped
+    compile(out, "<generated>", "exec")
+
+
 def test_def_main_without_epilogue_keeps_return_zero() -> None:
     """def main() WITHOUT 'if __name__ == "__main__": sys.exit(main())' keeps return 0.
 
