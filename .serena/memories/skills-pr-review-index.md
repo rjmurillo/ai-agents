@@ -22,10 +22,10 @@
 | coderabbit sparse-checkout git-ls-tree .agents blindness flag-missing false-positive checkout-pattern | [pr-review/pr-review-coderabbit-sparse-checkout-blindness](pr-review/pr-review-coderabbit-sparse-checkout-blindness.md) |
 | copilot follow-up PR detection branch pattern duplicate | [pr-review/pr-review-copilot-followup](pr-review/pr-review-copilot-followup.md) |
 | core workflow conversation resolution threads merge | [pr-review/pr-review-core-workflow](pr-review/pr-review-core-workflow.md) |
-| list-completeness verification cross-check total-count | [pr-review/pr-review-enum-001](pr-review/pr-review-enum-001.md) |
+| list-completeness verification cross-check total-count | [pr-review/pr-enum-001](pr-review/pr-enum-001.md) |
 | python implicit string concat false positive PEP | [pr-review/pr-review-python-implicit-string-concat](pr-review/pr-review-python-implicit-string-concat.md) |
 | security-comments priority-boost TOCTOU injection XSS | [pr-review/pr-review-security](pr-review/pr-review-security.md) |
-| status classification decision tree blocking human | [pr-review/pr-review-status-001](pr-review/pr-review-status-001.md) |
+| status classification decision tree blocking human | [pr-review/pr-status-001](pr-review/pr-status-001.md) |
 | batch response single commit multiple comments clean history efficiency | [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) |
 | code-review observations skill constraints parallel agents confidence threshold haiku sonnet permalink | [pr-review/pr-review-code-review-skill-observations](pr-review/pr-review-code-review-skill-observations.md) |
 | batching triage tier parallel dispatch merge ordering bot thread classification required checks | [workflows/pr-review-batching-strategy](workflows/pr-review-batching-strategy.md) |

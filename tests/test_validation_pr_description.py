@@ -80,16 +80,23 @@ class TestFileMatches:
         assert file_matches("", "") is True
 
     def test_glob_star_match(self) -> None:
-        assert file_matches(".github/prompts/pr-quality-gate-qa.md",
-                            ".github/prompts/pr-quality-gate-*.md") is True
+        assert (
+            file_matches(
+                ".github/prompts/pr-quality-gate-qa.md", ".github/prompts/pr-quality-gate-*.md"
+            )
+            is True
+        )
 
     def test_glob_directory_star(self) -> None:
-        assert file_matches(".claude/commands/pr-quality/analyst.md",
-                            ".claude/commands/pr-quality/*.md") is True
+        assert (
+            file_matches(
+                ".claude/commands/pr-quality/analyst.md", ".claude/commands/pr-quality/*.md"
+            )
+            is True
+        )
 
     def test_glob_no_match(self) -> None:
-        assert file_matches("scripts/foo.py",
-                            "scripts/*.md") is False
+        assert file_matches("scripts/foo.py", "scripts/*.md") is False
 
     def test_glob_question_mark(self) -> None:
         assert file_matches("src/a.py", "src/?.py") is True
@@ -278,51 +285,33 @@ class TestExtractMentionedFiles:
         assert "scripts/legacy.py" not in result
 
     def test_references_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## References\n- `b.py` documents the spec\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## References\n- `b.py` documents the spec\n"
         result = extract_mentioned_files(desc)
         assert "a.py" in result
         assert "b.py" not in result
 
     def test_see_also_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## See Also\n- `b.py`\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## See Also\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_notes_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Notes\nInspired by approach in `b.py`.\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Notes\nInspired by approach in `b.py`.\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_background_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Background\nBuilds on work in `b.py`.\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Background\nBuilds on work in `b.py`.\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_inspired_by_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Inspired By\n- `b.py`\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Inspired By\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_pattern_from_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Pattern From\n- `b.py`\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Pattern From\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -359,18 +348,12 @@ class TestExtractMentionedFiles:
         assert "c.json" not in result
 
     def test_validation_summary_suffix_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Validation Summary\n- `b.py` passed\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Validation Summary\n- `b.py` passed\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_verification_results_suffix_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Verification Results\n- `b.py` exit 0\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Verification Results\n- `b.py` exit 0\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -386,28 +369,19 @@ class TestExtractMentionedFiles:
         assert "marketplace.json" not in result
 
     def test_out_of_scope_hyphenated_section_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Out-of-Scope\n- `b.py`\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Out-of-Scope\n- `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_related_issues_multiword_heading_ignored(self) -> None:
         """The strict exact-match anchor rejected 'Related Issues' (only bare
         'Related' matched); it is now listed explicitly."""
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Related Issues\n- see `b.py` from #100\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Related Issues\n- see `b.py` from #100\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
     def test_notes_for_reviewers_multiword_heading_ignored(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## Notes for Reviewers\n- `b.py` is the prior art\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## Notes for Reviewers\n- `b.py` is the prior art\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -415,20 +389,14 @@ class TestExtractMentionedFiles:
         """`\\b` after the prefix prevents matching a longer word. A section
         named 'Validations' (plural, not a known proof kind) must NOT strip, so
         a real change claim inside it is still validated."""
-        desc = (
-            "## Summary\nWork.\n\n"
-            "## Validationsxyz\n- changed `b.py`\n"
-        )
+        desc = "## Summary\nWork.\n\n## Validationsxyz\n- changed `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" in result
 
     def test_reference_prefix_does_not_overstrip_changes_section(self) -> None:
         """A real change claim in a normal section still extracts even when an
         Evidence section follows it."""
-        desc = (
-            "## Changes\n- `real.py` rewritten\n\n"
-            "## Evidence\n- `proof.py` shows the fix\n"
-        )
+        desc = "## Changes\n- `real.py` rewritten\n\n## Evidence\n- `proof.py` shows the fix\n"
         result = extract_mentioned_files(desc)
         assert "real.py" in result
         assert "proof.py" not in result
@@ -438,8 +406,7 @@ class TestExtractMentionedFiles:
         strip because they can describe real validator changes. Only bare
         'Validation' and known proof suffixes (Summary, Results, Report) strip."""
         desc = (
-            "## Summary\nUpdated the validator.\n\n"
-            "## Validation Script\n- rewrote `validator.py`\n"
+            "## Summary\nUpdated the validator.\n\n## Validation Script\n- rewrote `validator.py`\n"
         )
         result = extract_mentioned_files(desc)
         assert "validator.py" in result
@@ -447,18 +414,12 @@ class TestExtractMentionedFiles:
     def test_verification_steps_heading_not_stripped(self) -> None:
         """'Verification Steps' is a change-description heading, not a proof
         heading; it must NOT strip."""
-        desc = (
-            "## Summary\nAdded hook.\n\n"
-            "## Verification Steps\n- run `hook.py` to confirm\n"
-        )
+        desc = "## Summary\nAdded hook.\n\n## Verification Steps\n- run `hook.py` to confirm\n"
         result = extract_mentioned_files(desc)
         assert "hook.py" in result
 
     def test_contextual_section_case_insensitive(self) -> None:
-        desc = (
-            "## Summary\nChanged `a.py`.\n\n"
-            "## DESIGN DECISIONS\n- See `b.py`\n"
-        )
+        desc = "## Summary\nChanged `a.py`.\n\n## DESIGN DECISIONS\n- See `b.py`\n"
         result = extract_mentioned_files(desc)
         assert "b.py" not in result
 
@@ -494,22 +455,14 @@ class TestExtractMentionedFiles:
     def test_design_decisions_with_trailing_text_not_stripped(self) -> None:
         """Same protection for `## Design Decisions for X` style headings."""
         desc = (
-            "## Summary\n"
-            "Edit.\n\n"
-            "## Design Decisions for the cache layer\n"
-            "- `cache.py` rewritten\n"
+            "## Summary\nEdit.\n\n## Design Decisions for the cache layer\n- `cache.py` rewritten\n"
         )
         result = extract_mentioned_files(desc)
         assert "cache.py" in result
 
     def test_bare_heading_with_trailing_whitespace_still_strips(self) -> None:
         """Trailing whitespace on a bare heading line must still strip."""
-        desc = (
-            "## Summary\n"
-            "Changed `real.py`.\n\n"
-            "## Design Decisions   \n"
-            "- See `pattern.py`\n"
-        )
+        desc = "## Summary\nChanged `real.py`.\n\n## Design Decisions   \n- See `pattern.py`\n"
         result = extract_mentioned_files(desc)
         assert "pattern.py" not in result
 
@@ -570,11 +523,7 @@ class TestExtractMentionedFiles:
     def test_h3_design_decisions_not_stripped(self) -> None:
         """Only `##` (h2) sections strip. `### Design Decisions` stays so we
         do not silently swallow file claims under nested headings."""
-        desc = (
-            "## Summary\n"
-            "### Design Decisions\n"
-            "- Modified `kept.py`\n"
-        )
+        desc = "## Summary\n### Design Decisions\n- Modified `kept.py`\n"
         result = extract_mentioned_files(desc)
         assert "kept.py" in result
 
@@ -670,7 +619,7 @@ class TestExtractMentionedFiles:
         desc = (
             "## Summary\n"
             "Changed `real.py`.\n\n"
-            "<pre lang=\"markdown\">\n"
+            '<pre lang="markdown">\n'
             "## Design Decisions\n"
             "sample\n"
             "## Changes\n"
@@ -754,8 +703,7 @@ class TestExtensionBoundary:
         markdown link)."""
         result = extract_mentioned_files(desc)
         assert "runs.json" not in result, (
-            f"expected boundary to reject 'runs.json' from input: {desc!r}; "
-            f"got result={result!r}"
+            f"expected boundary to reject 'runs.json' from input: {desc!r}; got result={result!r}"
         )
 
     def test_actual_file_runs_jsonl_not_extracted(self) -> None:
@@ -856,9 +804,7 @@ class TestExtensionBoundary:
         ],
         ids=["tar-gz-list", "tar-gz-inline", "py-gz-bold"],
     )
-    def test_unrecognized_trailing_extension_extracts_nothing(
-        self, desc: str
-    ) -> None:
+    def test_unrecognized_trailing_extension_extracts_nothing(self, desc: str) -> None:
         """`.tar.gz` / `.py.gz`: the trailing segment is not in
         `_EXT_GROUP`, and the mid segment is rejected as a double
         extension, so nothing is extracted (issue #1881)."""
@@ -876,15 +822,12 @@ class TestExtensionBoundary:
         ],
         ids=["inline", "bold", "list-backtick", "list-bare", "link"],
     )
-    def test_double_extension_rejected_across_all_patterns(
-        self, desc: str
-    ) -> None:
+    def test_double_extension_rejected_across_all_patterns(self, desc: str) -> None:
         """The double-extension rule must hold uniformly across all four
         FILE_MENTION_PATTERNS variants (issue #1881)."""
         result = extract_mentioned_files(desc)
         assert "runs.json" not in result, (
-            f"expected boundary to reject 'runs.json' from input: {desc!r}; "
-            f"got result={result!r}"
+            f"expected boundary to reject 'runs.json' from input: {desc!r}; got result={result!r}"
         )
 
     # Regression guard: the sentence-ending-period carve-out from #1874
@@ -1021,14 +964,7 @@ class TestStripInformationalSections:
         assert "packages/orders/queue.py" in result
 
     def test_strips_detected_package_files_section(self) -> None:
-        text = (
-            "Intro\n\n"
-            "### Detected Package Files\n\n"
-            " * `foo.yml`\n"
-            " * `bar.yml`\n\n"
-            "---\n\n"
-            "Footer"
-        )
+        text = "Intro\n\n### Detected Package Files\n\n * `foo.yml`\n * `bar.yml`\n\n---\n\nFooter"
         result = _strip_informational_sections(text)
         assert "foo.yml" not in result
         assert "Footer" in result
@@ -1062,19 +998,13 @@ class TestStripInformationalSections:
         assert "foo.py" in result
 
     def test_strips_design_decisions_section(self) -> None:
-        text = (
-            "## Summary\nChanged `foo.py`.\n\n"
-            "## Design Decisions\n- follows `pattern.py`\n"
-        )
+        text = "## Summary\nChanged `foo.py`.\n\n## Design Decisions\n- follows `pattern.py`\n"
         result = _strip_informational_sections(text)
         assert "pattern.py" not in result
         assert "foo.py" in result
 
     def test_strips_related_section(self) -> None:
-        text = (
-            "## Summary\nChanged `foo.py`.\n\n"
-            "## Related\n- `prior.py`\n"
-        )
+        text = "## Summary\nChanged `foo.py`.\n\n## Related\n- `prior.py`\n"
         result = _strip_informational_sections(text)
         assert "prior.py" not in result
         assert "foo.py" in result
@@ -1166,8 +1096,7 @@ class TestValidatePRDescription:
         NOT in the diff must still fire CRITICAL even when an Evidence section
         is present."""
         description = (
-            "## Summary\nRewrites `scripts/missing.py`.\n\n"
-            "## Evidence\n- `proof.py` shows it\n"
+            "## Summary\nRewrites `scripts/missing.py`.\n\n## Evidence\n- `proof.py` shows it\n"
         )
         mentioned = extract_mentioned_files(description)
         issues = validate_pr_description(
@@ -1277,9 +1206,7 @@ class TestValidatePRDescription:
         critical = [i for i in issues if i.severity == "CRITICAL"]
         offenders = [i.file for i in critical]
         assert ".claude/commands/spec.md" in offenders
-        msg = next(
-            i.message for i in critical if i.file == ".claude/commands/spec.md"
-        )
+        msg = next(i.message for i in critical if i.file == ".claude/commands/spec.md")
         assert "## Related Files" in msg
         assert "description-validation-bypass" in msg
 
@@ -1301,15 +1228,11 @@ class TestValidatePRDescription:
         )
         critical = [i for i in issues if i.severity == "CRITICAL"]
         offenders = [i.file for i in critical]
-        assert (
-            ".agents/architecture/ADR-035-exit-code-standardization.md"
-            in offenders
-        )
+        assert ".agents/architecture/ADR-035-exit-code-standardization.md" in offenders
         msg = next(
             i.message
             for i in critical
-            if i.file
-            == ".agents/architecture/ADR-035-exit-code-standardization.md"
+            if i.file == ".agents/architecture/ADR-035-exit-code-standardization.md"
         )
         assert "fenced code block" in msg
         assert "## Related Files" in msg
@@ -1407,9 +1330,7 @@ class TestGetRepoInfo:
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_unparseable_url_raises(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="https://gitlab.com/foo/bar\n"
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="https://gitlab.com/foo/bar\n")
         with pytest.raises(RuntimeError, match="Could not parse"):
             get_repo_info()
 
@@ -1430,23 +1351,86 @@ class TestGetRepoInfo:
 class TestFetchPRData:
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_success(self, mock_run: MagicMock) -> None:
-        pr_json = json.dumps(
-            {"title": "Test", "body": "desc", "files": [{"path": "a.py"}]}
-        )
-        mock_run.return_value = MagicMock(returncode=0, stdout=pr_json)
+        pr_json = json.dumps({"title": "Test", "body": "desc"})
+        files_json = json.dumps([{"filename": "a.py"}])
+        labels_json = json.dumps([{"name": "bug"}])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=0, stdout=labels_json),
+        ]
         data = fetch_pr_data(1, "owner", "repo")
         assert data["title"] == "Test"
+        assert data["files"] == [{"path": "a.py"}]
+
+    @patch("scripts.validation.pr_description.subprocess.run")
+    def test_subprocess_decodes_rest_responses_as_utf8(self, mock_run: MagicMock) -> None:
+        pr_json = json.dumps({"title": "Test", "body": "desc"})
+        files_json = json.dumps([{"filename": "a.py"}])
+        labels_json = json.dumps([{"name": "bug"}])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=0, stdout=labels_json),
+        ]
+
+        fetch_pr_data(1, "owner", "repo")
+
+        for call in mock_run.call_args_list:
+            assert call.kwargs["encoding"] == "utf-8"
+            assert call.kwargs["errors"] == "replace"
+
+    @patch("scripts.validation.pr_description.subprocess.run")
+    def test_explicit_json_nulls_normalize_to_empty_strings(self, mock_run: MagicMock) -> None:
+        pr_json = json.dumps({"title": None, "body": None})
+        files_json = json.dumps([{"filename": "a.py"}])
+        labels_json = json.dumps([{"name": None}])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=0, stdout=labels_json),
+        ]
+
+        data = fetch_pr_data(1, "owner", "repo")
+
+        assert data["title"] == ""
+        assert data["body"] == ""
+        assert data["labels"] == [{"name": ""}]
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_requests_labels_field(self, mock_run: MagicMock) -> None:
-        """Bypass-label support requires labels in the gh JSON request."""
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=json.dumps({"title": "T", "files": []})
-        )
+        """Bypass-label support requires a labels REST call."""
+        pr_json = json.dumps({"title": "T", "body": ""})
+        files_json = json.dumps([])
+        labels_json = json.dumps([])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=0, stdout=labels_json),
+        ]
         fetch_pr_data(1, "owner", "repo")
-        args = mock_run.call_args[0][0]
-        json_idx = args.index("--json")
-        assert "labels" in args[json_idx + 1].split(",")
+        all_calls = [call[0][0] for call in mock_run.call_args_list]
+        assert any("issues/1/labels" in " ".join(argv) for argv in all_calls)
+
+    @patch("scripts.validation.pr_description.subprocess.run")
+    def test_does_not_invoke_gh_pr_view_json(self, mock_run: MagicMock) -> None:
+        """Regression: fetch_pr_data must never call gh pr view --json (GraphQL 401)."""
+        pr_json = json.dumps({"title": "T", "body": ""})
+        files_json = json.dumps([])
+        labels_json = json.dumps([])
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout=pr_json),
+            MagicMock(returncode=0, stdout=files_json),
+            MagicMock(returncode=0, stdout=labels_json),
+        ]
+        fetch_pr_data(1, "owner", "repo")
+        for call in mock_run.call_args_list:
+            argv = call[0][0]
+            has_pr_view = "pr" in argv and "view" in argv
+            has_json_flag = "--json" in argv
+            assert not (has_pr_view and has_json_flag), (
+                f"fetch_pr_data must not invoke 'gh pr view --json' (GraphQL 401); got: {argv}"
+            )
 
     @patch("scripts.validation.pr_description.subprocess.run")
     def test_nonzero_exit_raises(self, mock_run: MagicMock) -> None:
@@ -1513,7 +1497,9 @@ class TestMain:
 
     @patch("scripts.validation.pr_description.fetch_pr_data")
     def test_owner_repo_from_args(
-        self, mock_fetch: MagicMock, monkeypatch: pytest.MonkeyPatch,
+        self,
+        mock_fetch: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("CI", raising=False)
         mock_fetch.return_value = {
@@ -1609,7 +1595,9 @@ class TestBypassLabel:
     @patch("scripts.validation.pr_description.fetch_pr_data")
     @patch("scripts.validation.pr_description.get_repo_info")
     def test_bypass_label_present_returns_zero_on_critical(
-        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
     ) -> None:
         """CRITICAL + bypass label → exit 0 in CI mode."""
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
@@ -1625,7 +1613,9 @@ class TestBypassLabel:
     @patch("scripts.validation.pr_description.fetch_pr_data")
     @patch("scripts.validation.pr_description.get_repo_info")
     def test_bypass_label_absent_still_blocks_critical(
-        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
     ) -> None:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
@@ -1640,7 +1630,9 @@ class TestBypassLabel:
     @patch("scripts.validation.pr_description.fetch_pr_data")
     @patch("scripts.validation.pr_description.get_repo_info")
     def test_custom_bypass_label_honored(
-        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
     ) -> None:
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
         mock_fetch.return_value = {
@@ -1655,7 +1647,9 @@ class TestBypassLabel:
     @patch("scripts.validation.pr_description.fetch_pr_data")
     @patch("scripts.validation.pr_description.get_repo_info")
     def test_bypass_label_does_not_affect_clean_pr(
-        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
     ) -> None:
         """When there are no CRITICAL issues, the bypass path is not taken."""
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
@@ -1671,7 +1665,9 @@ class TestBypassLabel:
     @patch("scripts.validation.pr_description.fetch_pr_data")
     @patch("scripts.validation.pr_description.get_repo_info")
     def test_missing_labels_field_does_not_crash(
-        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
     ) -> None:
         """Old gh responses without labels must still validate cleanly."""
         mock_repo.return_value = RepoInfo(owner="o", repo="r")
@@ -1686,7 +1682,9 @@ class TestBypassLabel:
     @patch("scripts.validation.pr_description.fetch_pr_data")
     @patch("scripts.validation.pr_description.get_repo_info")
     def test_bypass_label_ignored_outside_ci(
-        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Without --ci, CRITICAL never blocks regardless of label state."""
@@ -1704,7 +1702,9 @@ class TestBypassLabel:
     @patch("scripts.validation.pr_description.fetch_pr_data")
     @patch("scripts.validation.pr_description.get_repo_info")
     def test_bypass_label_case_insensitive(
-        self, mock_repo: MagicMock, mock_fetch: MagicMock,
+        self,
+        mock_repo: MagicMock,
+        mock_fetch: MagicMock,
     ) -> None:
         """GitHub label names render case-insensitively. A maintainer who
         creates the label with different casing must still get the bypass."""
@@ -1904,6 +1904,7 @@ class TestBypassLabel:
         # sanitizer must be applied unconditionally even if a future
         # caller passes one. We invoke the helper directly:
         from scripts.validation.pr_description import _write_step_output
+
         _write_step_output(str(output), "bypass\nvalidation_result=PASS", 1)
         body = output.read_text()
         assert "bypass_used=true" in body
@@ -1952,9 +1953,7 @@ class TestBypassLabel:
             "files": [{"path": "real.py"}],
             "labels": [{"name": "weird=label"}],
         }
-        code = main(
-            ["--pr-number", "1", "--ci", "--bypass-label", "weird=label"]
-        )
+        code = main(["--pr-number", "1", "--ci", "--bypass-label", "weird=label"])
         assert code == 0
         err = capsys.readouterr().err
         assert "sanitized" in err
@@ -2013,9 +2012,7 @@ class TestBypassLabel:
             "files": [{"path": "real.py"}],
             "labels": [{"name": "weird`label"}],
         }
-        code = main(
-            ["--pr-number", "1", "--ci", "--bypass-label", "weird`label"]
-        )
+        code = main(["--pr-number", "1", "--ci", "--bypass-label", "weird`label"])
         assert code == 0
         body = summary.read_text()
         # Backtick replaced with single quote in the rendered label.
@@ -2034,13 +2031,16 @@ class TestValidateNoDashes:
 
     def test_clean_title_and_body_returns_no_issues(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         issues = validate_no_dashes("feat: clean title", "body without dashes")
         assert issues == []
 
     def test_em_dash_in_title_returns_critical(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         issues = validate_no_dashes(
-            f"feat: bad {chr(0x2014)} title", "clean body",
+            f"feat: bad {chr(0x2014)} title",
+            "clean body",
         )
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
@@ -2049,18 +2049,19 @@ class TestValidateNoDashes:
 
     def test_en_dash_in_title_returns_critical(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         issues = validate_no_dashes(
-            f"feat: range 1{chr(0x2013)}10", "clean body",
+            f"feat: range 1{chr(0x2013)}10",
+            "clean body",
         )
         assert len(issues) == 1
         assert issues[0].severity == "CRITICAL"
 
     def test_em_dash_in_body_returns_critical_with_line_numbers(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         body = (
-            "Line one is clean.\n"
-            f"Line two has em-dash {chr(0x2014)} here.\n"
-            "Line three is clean.\n"
+            f"Line one is clean.\nLine two has em-dash {chr(0x2014)} here.\nLine three is clean.\n"
         )
         issues = validate_no_dashes("feat: clean", body)
         assert len(issues) == 1
@@ -2070,6 +2071,7 @@ class TestValidateNoDashes:
 
     def test_en_dash_in_body_returns_critical(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         body = f"range {chr(0x2013)} here"
         issues = validate_no_dashes("feat: clean", body)
         assert len(issues) == 1
@@ -2077,6 +2079,7 @@ class TestValidateNoDashes:
 
     def test_both_title_and_body_dirty_returns_two_issues(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         issues = validate_no_dashes(
             f"feat: bad {chr(0x2014)}",
             f"body {chr(0x2013)} here",
@@ -2086,6 +2089,7 @@ class TestValidateNoDashes:
 
     def test_many_dash_lines_truncates_sample(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         body = "\n".join(f"line {n} {chr(0x2014)}" for n in range(1, 11))
         issues = validate_no_dashes("feat: clean", body)
         assert len(issues) == 1
@@ -2093,6 +2097,7 @@ class TestValidateNoDashes:
 
     def test_hyphen_does_not_trigger(self) -> None:
         from scripts.validation.pr_description import validate_no_dashes
+
         issues = validate_no_dashes(
             "feat: hyphen-separated word",
             "body with multi-word hyphen",
@@ -2102,6 +2107,7 @@ class TestValidateNoDashes:
     def test_unicode_chars_with_e2_80_prefix_do_not_trigger(self) -> None:
         """U+2019 (right single quote) shares E2 80 prefix; must not match."""
         from scripts.validation.pr_description import validate_no_dashes
+
         body = f"don{chr(0x2019)}t match this"
         issues = validate_no_dashes("feat: clean", body)
         assert issues == []
@@ -2123,11 +2129,15 @@ class TestBypassLabelExcludesDashViolations:
     def test_bypass_label_with_only_dash_critical_returns_1(self, tmp_path):
         from unittest.mock import patch
         from scripts.validation.pr_description import main as pr_main
+
         # Mock fetch_pr_data to return a PR with the bypass label and a
         # body containing a dash. Expect exit 1 (NOT bypassed).
-        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
-             patch("scripts.validation.pr_description.get_repo_info") as mock_repo:
+        with (
+            patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch,
+            patch("scripts.validation.pr_description.get_repo_info") as mock_repo,
+        ):
             from scripts.github_core.api import RepoInfo
+
             mock_repo.return_value = RepoInfo(owner="a", repo="b")
             mock_fetch.return_value = {
                 "title": "feat: clean",
@@ -2139,15 +2149,20 @@ class TestBypassLabelExcludesDashViolations:
             assert result == 1, "dash violations must NOT be bypassable"
 
     def test_bypass_label_with_only_file_mention_critical_returns_0(
-        self, tmp_path,
+        self,
+        tmp_path,
     ):
         """Bypass label suppresses file-mention CRITICALs (existing behavior)."""
         from unittest.mock import patch
         from scripts.validation.pr_description import main as pr_main
-        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
-             patch("scripts.validation.pr_description.get_repo_info") as mock_repo, \
-             patch("scripts.validation.pr_description._emit_bypass_audit"):
+
+        with (
+            patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch,
+            patch("scripts.validation.pr_description.get_repo_info") as mock_repo,
+            patch("scripts.validation.pr_description._emit_bypass_audit"),
+        ):
             from scripts.github_core.api import RepoInfo
+
             mock_repo.return_value = RepoInfo(owner="a", repo="b")
             mock_fetch.return_value = {
                 "title": "feat: clean",
@@ -2162,15 +2177,18 @@ class TestBypassLabelExcludesDashViolations:
         """Mixed CRITICALs: dash takes priority and blocks the merge."""
         from unittest.mock import patch
         from scripts.validation.pr_description import main as pr_main
-        with patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch, \
-             patch("scripts.validation.pr_description.get_repo_info") as mock_repo:
+
+        with (
+            patch("scripts.validation.pr_description.fetch_pr_data") as mock_fetch,
+            patch("scripts.validation.pr_description.get_repo_info") as mock_repo,
+        ):
             from scripts.github_core.api import RepoInfo
+
             mock_repo.return_value = RepoInfo(owner="a", repo="b")
             mock_fetch.return_value = {
                 "title": "feat: clean",
                 "body": (
-                    f"Em-dash {chr(0x2014)} here.\n"
-                    "Description claims `nonexistent.py` was changed."
+                    f"Em-dash {chr(0x2014)} here.\nDescription claims `nonexistent.py` was changed."
                 ),
                 "files": [{"path": "real.py"}],
                 "labels": [{"name": "description-validation-bypass"}],
