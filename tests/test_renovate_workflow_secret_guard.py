@@ -56,7 +56,8 @@ def _step_mapping(step: dict, key: str) -> dict:
 
 def _job_uses_pat(job: dict) -> bool:
     """Return True if any step in this job references the PAT secret in env."""
-    for step in job.get("steps", []):
+    steps = job.get("steps") or []
+    for step in steps:
         env = _step_mapping(step, "env")
         for value in env.values():
             if isinstance(value, str) and PAT_SECRET in value:
@@ -66,7 +67,7 @@ def _job_uses_pat(job: dict) -> bool:
 
 def _jobs_requiring_pat(workflow: dict) -> dict[str, dict]:
     """Return jobs whose steps depend on the GH_ACTIONS_PR_WRITE PAT."""
-    jobs = workflow.get("jobs", {})
+    jobs = workflow.get("jobs") or {}
     return {name: job for name, job in jobs.items() if _job_uses_pat(job)}
 
 
@@ -80,7 +81,8 @@ def _preflight_step(job: dict) -> dict | None:
       * emit a `::error::` annotation so the failure surfaces in the UI,
       * exit non-zero.
     """
-    for step in job.get("steps", []):
+    steps = job.get("steps") or []
+    for step in steps:
         run_block = _step_string(step, "run")
         env = _step_mapping(step, "env")
         pat_in_env = any(
@@ -148,7 +150,7 @@ def test_preflight_runs_before_any_gh_call(workflow: dict, job_name: str) -> Non
     happens first and the operator never sees the helpful error.
     """
     job = workflow["jobs"][job_name]
-    steps = job.get("steps", [])
+    steps = job.get("steps") or []
     guard_index = next(
         (i for i, step in enumerate(steps) if step is _preflight_step(job)),
         -1,
@@ -184,7 +186,7 @@ def test_preflight_annotation_names_the_secret_and_admin_action(
         f"Preflight annotation must name {PAT_SECRET!r} so operators know "
         f"which secret to rotate. See #2551."
     )
-    # Either 'admin' or 'rotate' is fine — both signal "this isn't a code fix".
+    # Either 'admin' or 'rotate' is fine, both signal "this isn't a code fix".
     assert any(
         marker in run_block.lower() for marker in ("admin", "rotate", "settings")
     ), (

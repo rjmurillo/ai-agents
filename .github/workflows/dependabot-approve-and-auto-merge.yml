@@ -39,7 +39,7 @@ jobs:
         env:
           PAT: ${{ secrets.GH_ACTIONS_PR_WRITE }}
         run: |
-          if [ -z "$PAT" ]; then
+          if [ -z "${PAT:-}" ]; then
             echo "::error::secrets.GH_ACTIONS_PR_WRITE is empty at run time. A repo admin must rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
             exit 1
           fi
@@ -96,7 +96,7 @@ jobs:
         env:
           PAT: ${{ secrets.GH_ACTIONS_PR_WRITE }}
         run: |
-          if [ -z "$PAT" ]; then
+          if [ -z "${PAT:-}" ]; then
             echo "::error::secrets.GH_ACTIONS_PR_WRITE is empty at run time. A repo admin must rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
             exit 1
           fi
