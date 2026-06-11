@@ -47,6 +47,15 @@ _FAIL_OPEN_HANDLER_RE = _re.compile(
     _re.MULTILINE | _re.DOTALL,
 )
 
+# Matches fail-closed pattern: try/except in __main__ that exits 2 on exception.
+# Used to preserve blocking behavior when stripping the main epilogue.
+_FAIL_CLOSED_HANDLER_RE = _re.compile(
+    r"^if\s+__name__\s*==\s*['\"]__main__['\"]\s*:\s*\n"
+    r"\s+try:.*?"
+    r"except.*?sys\.exit\(2\)",
+    _re.MULTILINE | _re.DOTALL,
+)
+
 # Full epilogue pattern for stripping: matches from `if __name__` to end of file.
 # Used by _strip_main_epilogue to remove the entire block before wrapping.
 _MAIN_EPILOGUE_FULL_RE = _re.compile(
@@ -91,6 +100,19 @@ def _has_fail_open_handler(body: str) -> bool:
     return _FAIL_OPEN_HANDLER_RE.search(body) is not None
 
 
+def _has_fail_closed_handler(body: str) -> bool:
+    """Detect scripts with fail-closed exception handlers in their ``__main__`` block.
+
+    A fail-closed handler catches exceptions from ``main()`` and exits 2 so
+    the hook blocks on unexpected errors. When the shim strips the
+    ``__main__`` block, this behavior must be preserved in the generated
+    ``_original_main`` wrapper.
+
+    Pattern: ``if __name__ == "__main__": try: main() except: ... sys.exit(2)``
+    """
+    return _FAIL_CLOSED_HANDLER_RE.search(body) is not None
+
+
 def _strip_main_epilogue(body: str) -> str:
     """Remove the ``if __name__ == '__main__'`` block from the script body.
 
@@ -130,14 +152,15 @@ def _wrap_body_in_function(body: str) -> str:
     is the ONLY path that invokes main; leaving the original ``if __name__``
     block would cause main() to run twice when Copilot executes the shim.
 
-    FAIL-OPEN PRESERVATION: When the original script had a fail-open
-    handler (try/except with sys.exit(0)), the wrapper preserves that
-    behavior by wrapping the ``return main()`` in a try/except that
-    catches exceptions and returns 0. This ensures hooks like
-    ``invoke_false_completion_gate`` maintain their fail-open contract.
+    FAIL-OPEN / FAIL-CLOSED PRESERVATION: When the original script had a
+    try/except handler in its ``__main__`` block, the wrapper preserves the
+    exit policy. A ``sys.exit(0)`` handler returns 0. A ``sys.exit(2)``
+    handler returns 2. This keeps generated shims aligned with the source
+    hook's runtime contract.
     """
     has_epilogue = _has_main_function_and_epilogue(body)
     has_fail_open = _has_fail_open_handler(body) if has_epilogue else False
+    has_fail_closed = _has_fail_closed_handler(body) if has_epilogue else False
     if has_epilogue:
         body = _strip_main_epilogue(body)
     indented = "\n".join("    " + line if line else "" for line in body.splitlines())
@@ -150,6 +173,15 @@ def _wrap_body_in_function(body: str) -> str:
                 "        sys.stderr.write('[WARNING] hook error "
                 "(fail-open): ' + str(_exc) + '\\n')\n"
                 "        return 0\n"
+            )
+        elif has_fail_closed:
+            trailer = (
+                "    try:\n"
+                "        return main()\n"
+                "    except Exception as _exc:\n"
+                "        sys.stderr.write('[ERROR] hook error "
+                "(fail-closed): ' + str(_exc) + '\\n')\n"
+                "        return 2\n"
             )
         else:
             trailer = "    return main()\n"
