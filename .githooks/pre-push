@@ -623,20 +623,21 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             # run each colliding-basename file individually.
             PY_FILES_UNIQUE=()
             PY_FILES_COLLIDING=()
-            declare -A _basename_count
             for _f in "${PY_FILES[@]}"; do
                 _bn="${_f##*/}"
-                _basename_count["$_bn"]=$(( ${_basename_count["$_bn"]:-0} + 1 ))
-            done
-            for _f in "${PY_FILES[@]}"; do
-                _bn="${_f##*/}"
-                if [ "${_basename_count["$_bn"]}" -gt 1 ]; then
+                _bn_count=0
+                for _candidate in "${PY_FILES[@]}"; do
+                    if [ "${_candidate##*/}" = "$_bn" ]; then
+                        _bn_count=$((_bn_count + 1))
+                    fi
+                done
+                if [ "$_bn_count" -gt 1 ]; then
                     PY_FILES_COLLIDING+=("$_f")
                 else
                     PY_FILES_UNIQUE+=("$_f")
                 fi
             done
-            unset _basename_count _f _bn
+            unset _f _bn _bn_count _candidate
 
             MYPY_OVERALL_PASS=true
 
@@ -655,13 +656,13 @@ if [ -n "$CHANGED_PY_CANONICAL" ]; then
             fi
 
             # Per-file path: colliding-basename files checked one at a time.
-            for col_file in ${PY_FILES_COLLIDING[@]+"${PY_FILES_COLLIDING[@]}"}; do
+            for col_file in "${PY_FILES_COLLIDING[@]}"; do
                 MYPY_OUTPUT=$(mktemp)
                 TEMP_FILES+=("$MYPY_OUTPUT")
                 if mypy "$col_file" > "$MYPY_OUTPUT" 2>&1; then
                     : # pass; aggregate recorded below
                 else
-                    echo_info "  mypy issues ($col_file):"
+                    echo_info "  mypy issues in a colliding-basename file:"
                     head -20 "$MYPY_OUTPUT"
                     MYPY_OVERALL_PASS=false
                 fi
@@ -1263,7 +1264,12 @@ if [ -L "$INFRA_DETECT_SCRIPT" ]; then
 elif [ -f "$INFRA_DETECT_SCRIPT" ]; then
     if set_python_cmd; then
         # Pass all changed files to infrastructure detection (newline-safe)
-        mapfile -t _infra_files <<< "$CHANGED_FILES"
+        _infra_files=()
+        while IFS= read -r _infra_file; do
+            [ -z "$_infra_file" ] && continue
+            _infra_files+=("$_infra_file")
+        done <<< "$CHANGED_FILES"
+        unset _infra_file
         INFRA_OUTPUT=$("${PYTHON_CMD[@]}" "$INFRA_DETECT_SCRIPT" "${_infra_files[@]}" 2>&1)
         if echo "$INFRA_OUTPUT" | grep -q "CRITICAL"; then
             echo_info "  Infrastructure detection output:"
