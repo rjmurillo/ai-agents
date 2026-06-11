@@ -75,7 +75,7 @@ class TestGetProjectRoot:
 
     def test_no_git_ancestor_returns_none(self, monkeypatch, tmp_path):
         """Negative control: without a .git ancestor the fallback returns None
-        and main() fails open instead of pointing at a wrong directory."""
+        so the hook never points at a wrong directory."""
         loose = tmp_path / "somewhere" / "hooks"
         loose.mkdir(parents=True)
         monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
