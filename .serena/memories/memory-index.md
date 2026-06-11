@@ -94,7 +94,7 @@
 |25+ years distinguished: [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) (283)
 
 [User Constraints (MUST READ)]
-|no auto-generated headers timestamps do-not-edit: .claude/rules/universal.md MUST NOT 6 (canonical)
+|no auto-generated headers timestamps do-not-edit: <a href="../../.claude/rules/universal.md">universal.md</a> MUST NOT 6 (canonical)
 |user-facing content internal refs prohibited: [user-preferences/user-facing-content-restrictions](user-preferences/user-facing-content-restrictions.md) (456)
 
 [Related]
