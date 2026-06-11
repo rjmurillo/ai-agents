@@ -93,12 +93,12 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Code changes committed as e1569befc1; this session log is committed separately as session evidence."
+        "Evidence": "Code changes committed as e1569befc1; session evidence committed as 539b3170f3; origin/main merge committed as 2f31f05adc."
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Validation passed: python3 tests/test_auto_retrospective.py (36 tests), build/scripts/validate_plugin_version_bump.py, git diff --check, scripts/validation/pre_pr.py (22 PASS, 0 FAIL, 4 SKIP), and validate_session_json.py."
+        "Evidence": "Validation passed after origin/main merge: python3 tests/test_auto_retrospective.py (36 tests), build/scripts/validate_plugin_version_bump.py, git diff --check, scripts/validation/pre_pr.py (22 PASS, 0 FAIL, 4 SKIP), and validate_session_json.py."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -137,9 +137,14 @@
       "step": 5,
       "action": "Ran pre_pr validation",
       "outcome": "scripts/validation/pre_pr.py returned 22 PASS, 0 FAIL, 4 SKIP."
+    },
+    {
+      "step": 6,
+      "action": "Merged origin/main and revalidated",
+      "outcome": "Merge commit 2f31f05adc; tests, plugin version gate, diff check, and pre_pr all passed."
     }
   ],
-  "endingCommit": "e1569befc1",
+  "endingCommit": "2f31f05adc",
   "nextSteps": [
     "Push PR branch after SHA lease check",
     "Wait for required CI",

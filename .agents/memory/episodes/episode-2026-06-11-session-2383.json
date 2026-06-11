@@ -53,6 +53,22 @@
       "content": "Commit: e1569befc1",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main and revalidated",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 2f31f05adc",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -60,7 +76,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 1,
+    "commits": 2,
     "files_changed": 0
   },
   "lessons": []
