@@ -9,7 +9,8 @@ Hook Type: PostToolUse
 Matcher: Write|Edit
 Filter: .md files only
 Exit Codes (Claude Hook Semantics, exempt from ADR-035):
-    0 = Always (non-blocking hook, all errors are warnings)
+    0 = Skipped or lint succeeded
+    2 = Block (malformed hook input or markdown lint failed)
 """
 
 from __future__ import annotations
@@ -68,10 +69,6 @@ def should_lint_file(file_path: str | None, project_dir: str) -> bool:
 
 def main() -> int:
     """Main hook entry point. Returns exit code."""
-    if not shutil.which("npx"):
-        print("[SKIP] npx not found. Install Node.js for markdown auto-linting.", file=sys.stderr)
-        return 0
-
     try:
         if sys.stdin.isatty():
             return 0
@@ -80,18 +77,38 @@ def main() -> int:
         if not input_json.strip():
             return 0
 
-        hook_input = json.loads(input_json)
+        parsed: object = json.loads(input_json)
     except (json.JSONDecodeError, ValueError):
         print(
-            "WARNING: Markdown auto-lint: Failed to parse hook input JSON",
+            "ERROR: Markdown auto-lint: Failed to parse hook input JSON",
             file=sys.stderr,
         )
-        return 0
+        return 2
+
+    if not isinstance(parsed, dict):
+        print(
+            "ERROR: Markdown auto-lint: hook input JSON must be an object",
+            file=sys.stderr,
+        )
+        return 2
+
+    hook_input: dict[str, object] = parsed
 
     file_path = get_file_path_from_input(hook_input)
     project_dir = get_project_directory(hook_input)
     if not should_lint_file(file_path, project_dir) or file_path is None:
         return 0
+
+    if not shutil.which("npx"):
+        print(
+            f"ERROR: npx not found. Cannot lint {file_path}",
+            file=sys.stderr,
+        )
+        print(
+            "\n**Markdown Auto-Lint ERROR**: npx not found. "
+            "Install Node.js and markdownlint-cli2.\n"
+        )
+        return 2
 
     try:
         # Issue #2523: bounded timeout (release-it.md). Without it, a cold npm
@@ -119,6 +136,7 @@ def main() -> int:
                     "\n**Markdown Auto-Lint WARNING**: Linter failed with no output. "
                     "Verify installation: `npm list markdownlint-cli2`\n"
                 )
+                return 2
             else:
                 error_summary = output[:200]
                 print(
@@ -131,35 +149,40 @@ def main() -> int:
                     f"Exit code: {result.returncode}. "
                     f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
                 )
+                return 2
         else:
             print(f"\n**Markdown Auto-Lint**: Fixed formatting in `{file_path}`\n")
+            return 0
     except subprocess.TimeoutExpired:
         print(
-            f"WARNING: Markdown linting timed out after 30s for {file_path}",
+            f"ERROR: Markdown linting timed out after 30s for {file_path}",
             file=sys.stderr,
         )
         print(
             f"\n**Markdown Auto-Lint WARNING**: Lint timed out for `{file_path}`. "
             f"Run manually: `npx markdownlint-cli2 --fix '{file_path}'`\n"
         )
+        return 2
     except FileNotFoundError:
         print(
-            f"WARNING: npx not found. Cannot lint {file_path}",
+            f"ERROR: npx not found. Cannot lint {file_path}",
             file=sys.stderr,
         )
         print(
             "\n**Markdown Auto-Lint WARNING**: npx not found. "
             "Install Node.js and markdownlint-cli2.\n"
         )
+        return 2
     except OSError as exc:
         print(
-            f"WARNING: Markdown auto-lint: File system error for {file_path}: {exc}",
+            f"ERROR: Markdown auto-lint: File system error for {file_path}: {exc}",
             file=sys.stderr,
         )
         print(
             f"\n**Markdown Auto-Lint ERROR**: Cannot access file `{file_path}`. "
             "Check permissions.\n"
         )
+        return 2
 
     return 0
 
