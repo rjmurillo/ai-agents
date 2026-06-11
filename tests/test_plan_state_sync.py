@@ -130,6 +130,8 @@ class TestMain:
     def test_skip_consumer_repo(self) -> None:
         with patch.object(
             invoke_plan_state_sync, "skip_if_consumer_repo", return_value=True
+        ), patch.object(
+            invoke_plan_state_sync, "_read_stdin_json", return_value=None
         ):
             with pytest.raises(SystemExit) as exc_info:
                 invoke_plan_state_sync.main()
@@ -194,14 +196,14 @@ class TestMain:
         assert "Item 1" in checkpoint_text
 
 
-class TestFailOpen:
-    """Test fail-open behavior of the script wrapper."""
+class TestFailClosed:
+    """Test fail-closed behavior of the script wrapper."""
 
-    def test_exception_exits_zero(self) -> None:
-        """The ``__main__`` wrapper must catch errors and exit 0.
+    def test_exception_exits_two(self) -> None:
+        """The ``__main__`` wrapper must catch errors and exit 2.
 
-        Validates the contract Claude Code relies on: even when
-        ``main()`` raises, the script must not block tool use.
+        Unexpected checkpoint failures must be loud and blocking so a
+        missing resume checkpoint is not mistaken for success.
         """
         from tests.hook_test_helpers import run_main_wrapper
 
@@ -211,5 +213,11 @@ class TestFailOpen:
         code, _stdout, stderr = run_main_wrapper(
             invoke_plan_state_sync, raising_main
         )
-        assert code == 0
+        assert code == 2
         assert "boom" in stderr
+
+    def test_invalid_json_exits_two(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Malformed hook input fails closed."""
+        monkeypatch.setattr("sys.stdin", __import__("io").StringIO("{bad"))
+        with pytest.raises(json.JSONDecodeError):
+            invoke_plan_state_sync._read_stdin_json()

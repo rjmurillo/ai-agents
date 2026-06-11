@@ -203,9 +203,10 @@ def _original_main(stdin_bytes):
     - Session log writes (.agents/sessions/*.json)
     - Plan/TODO file writes (TODO.md, PLAN.md, .agents/plan*.md)
 
-    Hook Type: PostToolUse (non-blocking, fail-open)
+    Hook Type: PostToolUse
     Exit Codes:
-        0 = Always (never blocks tool use)
+        0 = Skipped or checkpoint written
+        2 = Block on malformed hook input or checkpoint failure
 
     References:
         - Issue #1703 (lifecycle hook infrastructure)
@@ -274,17 +275,14 @@ def _original_main(stdin_bytes):
         """Read and parse JSON from stdin (Claude hook input)."""
         if sys.stdin.isatty():
             return None
-        try:
-            data = sys.stdin.read().strip()
-            if not data:
-                return None
-            parsed: object = json.loads(data)
-            if not isinstance(parsed, dict):
-                return None
-            # json.loads object keys are always str, so the cast below is sound.
-            return parsed
-        except (json.JSONDecodeError, OSError):
+        data = sys.stdin.read().strip()
+        if not data:
             return None
+        parsed: object = json.loads(data)
+        if not isinstance(parsed, dict):
+            raise ValueError("hook input JSON must be an object")
+        # json.loads object keys are always str, so the cast below is sound.
+        return parsed
 
 
     def _extract_file_path(hook_input: dict[str, object]) -> str | None:
@@ -461,7 +459,7 @@ def _original_main(stdin_bytes):
     def main() -> None:
         """Checkpoint plan/TODO state after relevant file writes."""
         # Read stdin first to ensure it's drained before any early exit,
-        # maintaining the fail-open drain contract with the harness.
+        # maintaining the drain contract with the harness.
         hook_input = _read_stdin_json()
 
         if skip_if_consumer_repo(HOOK_NAME):
@@ -511,10 +509,6 @@ def _original_main(stdin_bytes):
         _write_checkpoint(project_dir, recorded_path, summary)
 
         print(f"[INFO] {HOOK_NAME}: Checkpointed state for {recorded_path}", file=sys.stderr)
-    try:
-        return main()
-    except Exception as _exc:
-        sys.stderr.write('[WARNING] hook error (fail-open): ' + str(_exc) + '\n')
-        return 0
+    return main()
 
 _shim_dispatch()
