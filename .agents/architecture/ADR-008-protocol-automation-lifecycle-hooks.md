@@ -111,9 +111,9 @@ Implemented via Issue #1703. Five new Python hooks added:
 
 All hooks follow ADR-042 (Python-first). Failure semantics are scoped:
 
-- **Runtime and I/O errors during hook execution are fail-open.** Network timeouts, transient filesystem errors, parse failures on optional artifacts, and similar runtime exceptions never block the triggering tool call — the hook logs and returns success so agent work proceeds.
-- **`invoke_false_completion_gate` is the intentional exception.** When an agent claims completion without test evidence, the gate exits non-zero (exit code 2) by design to block the false claim. This is a policy gate, not a runtime failure.
-- **Configuration and bootstrap failures can still terminate non-zero.** The standard hook import boilerplate exits with code 2 when the plugin lib directory is missing (per ADR-047 plugin lib resolution and ADR-035 exit-code conventions). This is a misconfiguration signal — the hook environment itself is broken — and is distinct from runtime fail-open behavior. Once bootstrap succeeds, runtime stays fail-open.
+- **Amended 2026-06-11 per ADR-071 item 5 and ADR-066.** This ADR previously stated that runtime and I/O errors during hook execution are fail-open (the hook logs and returns success so agent work proceeds). That position is replaced: ADR-071 (Accepted) Decision item 5 records the binding rule that hooks MUST fail closed and loud, never silently degrade, and ADR-066 (hook fail-open reconciliation) is the detailed D1/D2 reconciliation of prior guidance to that rule. The default for hooks is prevention-first, fail-closed-and-loud: runtime errors that escape prevention exit non-zero with actionable stderr, and silent exit 0 as a recovery path violates ADR-071 item 5 and ADR-066 D1. See `.agents/architecture/ADR-071-plugin-hook-runtime-contract-verification.md` (binding, Accepted) and `.agents/architecture/ADR-066-hook-fail-open-reconciliation.md` (failure-mode policy detail, exit-code table, and the #2205 incident rationale).
+- **`invoke_false_completion_gate` remains a policy gate.** When an agent claims completion without test evidence, the gate exits non-zero (exit code 2) by design to block the false claim. Under ADR-066 this is no longer an exception; it is an instance of the default.
+- **Configuration and bootstrap failures terminate non-zero.** The standard hook import boilerplate exits with code 2 when the plugin lib directory is missing (per ADR-047 plugin lib resolution and ADR-035 exit-code conventions). Stop runs on a host that ignores non-zero exits; per ADR-066 D2 the repository still treats a failed Stop hook as failed and relies on pre-push, CI, and runtime-contract tests to catch the broken artifact before release.
 
 ## References
 
@@ -147,7 +147,7 @@ Implemented via Issue #1703. Five new hooks added to `.claude/hooks/`:
 
 ### Design Principles
 
-- **Fail-open**: Non-blocking hooks (SessionStart, PostToolUse, Stop, PreCompact) always exit 0
+- **Fail-closed-and-loud (amended 2026-06-11 per ADR-066)**: hooks exit non-zero with actionable stderr on failures; the original "non-blocking hooks always exit 0" principle is superseded
 - **Typed memory lanes**: Each hook writes to its own state (per hilyfux feedback on #1703)
 - **Idempotent**: Stop retro skips if one already exists for today
 - **Bypass-friendly**: Environment variables for all gates (SKIP_COMPLETION_GATE, SKIP_AUTO_RETRO)
