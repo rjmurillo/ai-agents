@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -189,10 +190,7 @@ exit {path_ruff_exit}
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     env = os.environ.copy()
-    sys_python = subprocess.run(
-        ["which", "python3"], capture_output=True, encoding="utf-8"
-    ).stdout.strip()
-    sys_python_dir = str(Path(sys_python).parent) if sys_python else "/usr/bin"
+    sys_python_dir = str(Path(sys.executable).parent)
     env["PATH"] = os.pathsep.join([str(bin_dir), "/usr/bin", "/bin", sys_python_dir])
     env["RUFF_LOG"] = str(repo / "ruff.log")
     env["UV_LOG"] = str(repo / "uv.log")
