@@ -74,7 +74,6 @@ analyst.
 ### 1. Code Quality Assessment
 
 - **Readability**: Is the code easy to understand?
-- **Maintainability**: Will this be easy to modify in the future?
 - **Consistency**: Does it follow existing patterns in the codebase?
 - **Simplicity**: Is this the simplest solution that works?
 
@@ -88,14 +87,14 @@ analyst.
 Architectural patterns, anti-patterns, separation of concerns, and module
 boundaries are the architect axis's domain. Do NOT raise findings here; if you
 notice an architectural concern, leave it to architect rather than emitting a
-duplicate. Review the code only for the readability/maintainability of how the
-pattern is expressed, not whether the pattern itself is correct.
+duplicate. Review the code only for the readability of how the pattern is
+expressed, not whether the pattern itself is correct.
 
 ### 4. Documentation Completeness
 
 - Is the PR description adequate?
 - Are code comments present where needed?
-- Should code-quality documentation be updated for readability or maintainability?
+- Should code-quality documentation be updated for readability?
 
 ## Output Requirements
 
