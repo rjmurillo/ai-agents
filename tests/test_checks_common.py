@@ -11,19 +11,14 @@ import os
 import subprocess
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, call, patch
-
-import pytest
+from unittest.mock import patch
 
 from scripts.validation.checks_common import (
-    MissingScriptSkip,
-    _gh_base_ref,
     _refresh_remote_base,
     _resolve_branch_base_ref,
     _run_build_script_gate,
     _run_subprocess,
 )
-
 
 # ---------------------------------------------------------------------------
 # _run_subprocess
@@ -164,7 +159,7 @@ class TestRefreshRemoteBase:
         with patch(
             "scripts.validation.checks_common._run_subprocess",
             return_value=(1, "", ""),
-        ) as mock_run:
+        ):
             result = _refresh_remote_base("origin/main", tmp_path)
             assert result == "git fetch exit 1"
 
@@ -451,12 +446,12 @@ else:
             "scripts.validation.checks_common._resolve_branch_base_ref",
             return_value="origin/main",
         ):
-            result = _run_build_script_gate(
+            build_gate_result = _run_build_script_gate(
                 local_repo, "validate_plugin_version_bump.py", "plugin-version-bump"
             )
 
         # With the fix, the gate should FAIL (0.5.114 < 0.5.128)
-        assert result is False, "Expected FAIL: 0.5.114 < 0.5.128 after fetch"
+        assert build_gate_result is False, "Expected FAIL: 0.5.114 < 0.5.128 after fetch"
 
         # 8. Verify that origin/main was indeed refreshed to 0.5.128
         result = subprocess.run(
@@ -636,7 +631,7 @@ class TestResolveBranchBaseRefSelfTracking:
             cwd=local,
             check=True,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
         ).stdout.strip()
         assert upstream == "origin/fix/2571-demo", (
             f"precondition: branch must self-track, got {upstream!r}"
@@ -663,7 +658,7 @@ class TestResolveBranchBaseRefSelfTracking:
             ["git", "diff", "--name-only", "origin/fix/2571-demo...HEAD"],
             cwd=local,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             check=True,
         ).stdout.strip()
         assert diff_against_self == "", (
@@ -691,7 +686,7 @@ class TestResolveBranchBaseRefSelfTracking:
             ["git", "diff", "--name-only", f"{base_ref}...HEAD"],
             cwd=local,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             check=True,
         ).stdout.strip().splitlines()
         assert (
@@ -781,7 +776,7 @@ class TestResolveBranchBaseRefSelfTracking:
             cwd=seed,
             check=True,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
         ).stdout.strip()
         assert upstream == "origin/feat/parent", (
             f"precondition: derivative branch must track parent feature, got {upstream!r}"

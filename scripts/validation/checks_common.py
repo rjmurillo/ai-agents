@@ -59,6 +59,15 @@ def _run_subprocess(
         return -1, "", f"Command timed out after {timeout}s"
 
 
+def _git_subprocess_env() -> dict[str, str]:
+    """Return a deterministic environment for nested git subprocess calls."""
+    clean_env = os.environ.copy()
+    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        clean_env.pop(name, None)
+    clean_env["LC_ALL"] = "C"
+    return clean_env
+
+
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
@@ -109,8 +118,10 @@ def _is_self_tracking_upstream(repo_root: Path) -> bool:
     Non-self upstreams (a derivative branch tracking a parent feature branch)
     return False; those should still be honoured.
     """
+    clean_env = _git_subprocess_env()
     branch_rc, branch_out, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        env=clean_env,
         timeout=10,
     )
     if branch_rc != 0:
@@ -130,6 +141,7 @@ def _is_self_tracking_upstream(repo_root: Path) -> bool:
             "--symbolic-full-name",
             "@{u}",
         ],
+        env=clean_env,
         timeout=10,
     )
     if upstream_rc != 0:
