@@ -139,8 +139,12 @@ try:
 except ModuleNotFoundError:
     # Installed-plugin fallback (issue #2572): the repo's top-level scripts/
     # package is not bundled with the skill, so the canonical import is
-    # unavailable when the user's repo is not ai-agents itself. This mirrors
-    # scripts/utils/path_validation.validate_safe_path; keep the two in sync.
+    # unavailable when the user's repo is not ai-agents itself.
+    # Canonical source:
+    # scripts/utils/path_validation.py::validate_safe_path. Contract quote:
+    # "Resolve path safely within base directory."
+    # Divergence: this fallback is local to installed-plugin execution and
+    # implements only the containment contract needed by this script.
     def validate_safe_path(path: str | Path, base_dir: str | Path) -> Path:
         """Resolve ``path`` under ``base_dir`` and reject any escape."""
         resolved_base = Path(base_dir).resolve()

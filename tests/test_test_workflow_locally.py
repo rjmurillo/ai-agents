@@ -159,6 +159,36 @@ def test_successful_run(mock_root, mock_exists, mock_run, mock_which, capsys):
     assert "ghp_secret_token" not in out
 
 
+@patch("shutil.which")
+@patch("subprocess.run")
+@patch("os.path.exists")
+@patch.object(_mod, "_write_event_payload")
+@patch.object(_mod, "_get_repo_root", return_value="/repo")
+def test_invalid_secrets_do_not_create_generated_event_file(
+    mock_root,
+    mock_write_event,
+    mock_exists,
+    mock_run,
+    mock_which,
+):
+    mock_which.side_effect = lambda cmd: f"/usr/bin/{cmd}"
+    mock_exists.return_value = True
+    mock_run.side_effect = [
+        _completed(stdout="act version 0.2.0\n"),
+        _completed(rc=0),
+    ]
+
+    rc = main([
+        "--workflow",
+        "pester-tests",
+        "--secrets",
+        "{not-json",
+    ])
+
+    assert rc == 1
+    mock_write_event.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # Worktree-aware repo root and GIT_DIR handling (#2377, #2344)
 # ---------------------------------------------------------------------------

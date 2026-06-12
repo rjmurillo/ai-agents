@@ -42,7 +42,8 @@ def test_runs_from_installed_path_without_scripts_tree(tmp_path: Path) -> None:
         [sys.executable, str(installed / "run_completion_gate.py"), "--help"],
         cwd=user_repo,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

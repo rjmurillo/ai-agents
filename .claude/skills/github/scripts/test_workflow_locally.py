@@ -184,7 +184,9 @@ def _current_branch(repo_root: str) -> str:
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         cwd=repo_root,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "LC_ALL": "C"},
         check=False,
     )
     branch = result.stdout.strip()
@@ -197,7 +199,9 @@ def _repo_full_name(repo_root: str) -> str:
         ["git", "remote", "get-url", "origin"],
         cwd=repo_root,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env={**os.environ, "LC_ALL": "C"},
         check=False,
     )
     url = result.stdout.strip()
@@ -250,10 +254,15 @@ def build_pull_request_event(
 
 def _write_event_payload(payload: dict) -> str:
     """Write an event payload to a temp JSON file and return its path."""
-    fd, path = tempfile.mkstemp(prefix="act-event-", suffix=".json")
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="act-event-",
+        suffix=".json",
+        delete=False,
+    ) as handle:
         json.dump(payload, handle, indent=2)
-    return path
+        return handle.name
 
 
 WORKFLOW_MAP = {
@@ -428,6 +437,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.verbose:
         act_args.append("-v")
 
+    # Parse secrets
+    secrets: dict[str, str] = {}
+    if args.secrets:
+        try:
+            secrets = json.loads(args.secrets)
+        except json.JSONDecodeError:
+            print("[ERROR] Invalid JSON for --secrets parameter", file=sys.stderr)
+            return 1
+
     # Event payload: an explicit --eventpath wins; otherwise, for pull_request*
     # events generate a minimal payload so github.event.pull_request fields
     # (PR_NUMBER, PR_TITLE, ...) are non-empty in the local run (issue #2573).
@@ -435,7 +453,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.eventpath:
         if not os.path.exists(args.eventpath):
             print(
-                f"[ERROR] Event payload not found: {args.eventpath}", file=sys.stderr,
+                f"[ERROR] Event payload not found: {args.eventpath}",
+                file=sys.stderr,
             )
             return 1
         act_args.extend(["--eventpath", args.eventpath])
@@ -451,15 +470,6 @@ def main(argv: list[str] | None = None) -> int:
         generated_event_path = _write_event_payload(payload)
         act_args.extend(["--eventpath", generated_event_path])
         print(f"[INFO] Generated pull_request event payload: {generated_event_path}")
-
-    # Parse secrets
-    secrets: dict[str, str] = {}
-    if args.secrets:
-        try:
-            secrets = json.loads(args.secrets)
-        except json.JSONDecodeError:
-            print("[ERROR] Invalid JSON for --secrets parameter", file=sys.stderr)
-            return 1
 
     for key, value in secrets.items():
         act_args.extend(["-s", f"{key}={value}"])
@@ -481,15 +491,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"[INFO] Running: {act_name} {logged_args}")
     print()
 
-    result = subprocess.run(
-        [*act_argv, *act_args],
-        cwd=repo_root,
-        env=_act_env(repo_root),
-        check=False,
-    )
-
-    if generated_event_path and os.path.exists(generated_event_path):
-        os.unlink(generated_event_path)
+    try:
+        result = subprocess.run(
+            [*act_argv, *act_args],
+            cwd=repo_root,
+            env=_act_env(repo_root),
+            check=False,
+        )
+    finally:
+        if generated_event_path and os.path.exists(generated_event_path):
+            os.unlink(generated_event_path)
 
     if result.returncode == 0:
         print()
