@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -652,6 +653,38 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
     return decisions
 
 
+def _staged_files_changed(cwd: str | Path | None = None) -> int:
+    """Count files in the staged commit of the repo at ``cwd`` (best-effort).
+
+    The episode extractor runs in the pre-commit hook, where the session's
+    in-flight commit is staged but no commit SHA exists yet. ``git diff
+    --cached --numstat`` lists one line per staged file, so its line count is
+    the commit's files-changed. Scoped to ``cwd`` (the session log's repo) via
+    ``git -C`` so it is deterministic: a non-repo path (e.g. a tmp fixture)
+    yields 0 rather than leaking the ambient index. Returns 0 when git is
+    unavailable, nothing is staged, or the command fails (issue #2537 item 3:
+    episodes otherwise report ``files_changed=0`` even when the commit changed
+    several files).
+    """
+    cmd = ["git"]
+    if cwd is not None:
+        cmd += ["-C", str(cwd)]
+    cmd += ["diff", "--cached", "--numstat"]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return 0
+    if result.returncode != 0:
+        return 0
+    return sum(1 for line in result.stdout.splitlines() if line.strip())
+
+
 def json_metrics(data: dict) -> dict:
     # Count every distinct commit the session documents (ending commit plus any
     # SHAs in work-log evidence), not just the ending commit. Excludes the
@@ -1166,6 +1199,15 @@ def main(argv: list[str] | None = None) -> int:
             if metadata["objectives"]
             else metadata["title"]
         )
+
+    # Best-effort backfill: when neither the JSON workLog nor the legacy
+    # markdown recorded a files-changed count, derive it from the staged commit.
+    # The extractor runs in pre-commit, so the in-flight commit is staged even
+    # though no SHA exists yet (issue #2537 item 3).
+    if not metrics.get("files_changed"):
+        staged = _staged_files_changed(session_log_path.parent)
+        if staged:
+            metrics["files_changed"] = staged
 
     episode = {
         "id": f"episode-{session_id}",
