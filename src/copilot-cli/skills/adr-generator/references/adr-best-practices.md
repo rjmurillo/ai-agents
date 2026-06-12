@@ -28,9 +28,9 @@ The field splits three ways on whether an accepted ADR may be edited:
 
 | School | Rule | Source |
 |--------|------|--------|
-| Strict append-only | Accepted (and rejected) ADRs are immutable; any change is a new superseding ADR; only the old ADR's status field changes. | AWS Prescriptive Guidance; Azure Well-Architected ("append-only log; don't edit accepted records") |
-| No rule | Nygard never says "immutable"; MADR's `date` means "when the decision was last updated" and all fields are optional. | Nygard 2011; MADR 4.0.0 |
-| Bounded in-place edits | Clarifications editable any time; Consequences updatable during implementation; replace in place only if never implemented and stakeholders agree; once any implementation occurred, supersede. | GDS Way |
+| Strict append-only | Accepted (and rejected) ADRs are immutable; any change is a new superseding ADR; only the old ADR's status field changes. | [AWS ADR process](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html), [AWS ADR best practices](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/best-practices.html), [Azure Well-Architected Framework](https://learn.microsoft.com/en-us/azure/well-architected/architect-role/architecture-decision-record) ("append-only log; don't edit accepted records") |
+| No rule | Nygard never says "immutable"; MADR's `date` means "when the decision was last updated" and all fields are optional. | [Nygard 2011](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions), [MADR 4.0.0](https://adr.github.io/madr/) |
+| Bounded in-place edits | Clarifications editable any time; Consequences updatable during implementation; replace in place only if never implemented and stakeholders agree; once any implementation occurred, supersede. | [GDS Way](https://gds-way.digital.cabinet-office.gov.uk/standards/architecture-decisions.html) |
 
 This project adopts the **GDS Way bounded rule**, because it is the only published rule with an objective boundary (implementation status):
 
@@ -101,5 +101,10 @@ Skip an ADR when:
 - [Joel Parker Henderson ADR Collection](https://github.com/joelparkerhenderson/architecture-decision-record)
 - [Michael Nygard, "Documenting Architecture Decisions" (2011)](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
 - [ADR Templates Catalog](https://adr.github.io/adr-templates/)
+- [MADR 4.0.0](https://adr.github.io/madr/)
+- [GDS Way: Architecture decisions](https://gds-way.digital.cabinet-office.gov.uk/standards/architecture-decisions.html)
+- [AWS Prescriptive Guidance: ADR process](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html)
+- [AWS Prescriptive Guidance: ADR best practices](https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/best-practices.html)
+- [Azure Well-Architected Framework: ADRs](https://learn.microsoft.com/en-us/azure/well-architected/architect-role/architecture-decision-record)
 - [Arc42](https://arc42.org/): architecture documentation framework
 - [C4 Model](https://c4model.com/): architecture diagramming approach
