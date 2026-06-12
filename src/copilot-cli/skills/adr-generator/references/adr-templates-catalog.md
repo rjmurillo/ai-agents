@@ -127,7 +127,7 @@ What is the change that we're proposing and/or doing?
 What becomes easier or more difficult to do because of this change?
 ```
 
-Nygard's original defines exactly four statuses: `proposed`, `accepted`, `deprecated`, `superseded`. `rejected` is **not** in the primary source; it is a common extension popularized by MADR and the broader ADR community. Add it only when your project explicitly tracks rejected proposals (this project does, see the lifecycle table in [adr-best-practices.md](adr-best-practices.md)).
+Nygard's original defines exactly four statuses: `proposed`, `accepted`, `deprecated`, `superseded`. `rejected` is **not** in the primary source; it is a common extension popularized by MADR and the broader ADR community. Add it only when the target project's ADR template or existing ADRs explicitly track rejected proposals.
 
 ---
 

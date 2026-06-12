@@ -39,7 +39,7 @@ This project adopts the **GDS Way bounded rule**, because it is the only publish
 3. **Decision change before any implementation**: replace in place with stakeholder agreement, update `date`.
 4. **Decision change after any implementation**: create a new superseding ADR. Never delete the old one.
 
-An `implemented` boolean that flips at the first merged change gives this rule an objective, git-checkable gate between cases 3 and 4.
+If a project wants a machine-checkable gate between cases 3 and 4, it may add optional `implemented` metadata that flips at the first merged change. Do not emit that field unless the project's ADR template or existing ADRs already use it.
 
 When a new ADR supersedes another:
 
