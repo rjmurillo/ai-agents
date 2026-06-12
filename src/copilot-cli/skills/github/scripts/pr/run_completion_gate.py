@@ -109,23 +109,52 @@ from typing import Any
 # package. A fixed ``parents[N]`` index works for the canonical
 # ``.claude/skills/.../pr/`` location but breaks for the
 # ``src/copilot-cli/skills/.../pr/`` mirror (one extra ``src/`` level)
-# and would break again for any future deployed install. The walk
-# resolves the right root regardless of where the script lives.
+# and for an installed plugin (the script lives under
+# ``~/.copilot/installed-plugins/`` with no ``scripts/`` tree above it).
+# The walk resolves the right root regardless of where the script lives.
 def _resolve_project_root() -> Path:
     here = Path(__file__).resolve().parent
     for ancestor in (here, *here.parents):
         if (ancestor / "scripts" / "utils" / "path_validation.py").is_file():
             return ancestor
-    # Fall back to the original heuristic if the marker is missing
-    # (e.g. when the script is bundled without the scripts/ tree).
-    return Path(__file__).resolve().parents[4]
+    # Installed-plugin context (issue #2572): the script is bundled without the
+    # repo's scripts/ tree. The plugin runs with cwd = the user's repo, so
+    # resolve the project root from the working directory by walking up for a
+    # repo marker. This makes the default config path and path containment base
+    # point at the user's repo, not the installed-plugins directory.
+    cwd = Path.cwd().resolve()
+    for ancestor in (cwd, *cwd.parents):
+        if (ancestor / ".claude").is_dir() or (ancestor / ".git").exists():
+            return ancestor
+    return cwd
 
 
 _PROJECT_ROOT = _resolve_project_root()
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+try:
+    from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+except ModuleNotFoundError:
+    # Installed-plugin fallback (issue #2572): the repo's top-level scripts/
+    # package is not bundled with the skill, so the canonical import is
+    # unavailable when the user's repo is not ai-agents itself. This mirrors
+    # scripts/utils/path_validation.validate_safe_path; keep the two in sync.
+    def validate_safe_path(path: str | Path, base_dir: str | Path) -> Path:
+        """Resolve ``path`` under ``base_dir`` and reject any escape."""
+        resolved_base = Path(base_dir).resolve()
+        if not resolved_base.exists():
+            raise FileNotFoundError(f"Base directory does not exist: {base_dir}")
+        if not resolved_base.is_dir():
+            raise ValueError(f"Base path is not a directory: {base_dir}")
+        resolved_path = (resolved_base / path).resolve()
+        try:
+            resolved_path.relative_to(resolved_base)
+        except ValueError:
+            raise ValueError(
+                f"Path {path} is outside base directory {base_dir}"
+            ) from None
+        return resolved_path
 
 # PyYAML is a hard dependency for this script. The rest of the codebase
 # already requires PyYAML; matching that is simpler than maintaining a
