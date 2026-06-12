@@ -92,8 +92,7 @@ pattern is expressed, not whether the pattern itself is correct.
 
 - Is the PR description adequate?
 - Are code comments present where needed?
-- Should documentation be updated?
-- Are breaking changes documented?
+- Should code-quality documentation be updated for readability or maintainability?
 
 ### 5. Dependencies
 
