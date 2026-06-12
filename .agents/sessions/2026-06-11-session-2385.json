@@ -1,0 +1,135 @@
+{
+  "session": {
+    "number": 2385,
+    "date": "2026-06-11",
+    "branch": "fix/2523-hooks-hardening",
+    "startingCommit": "16f7a64",
+    "objective": "Reconcile ADR-008 with ADR-066 per repo owner directive: amend ADR-008 superseded fail-open passages to point at ADR-066. Architect review completed via Task(subagent_type='architect'): REQUEST CHANGES then approved with two fixes (heading wording, Stop-hook D2 clause). Also: PR 2556 babysitting (review fixes, deterministic tests, 0.5.174 bump)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this remote harness; per-turn UserPromptSubmit re-assertion hooks active (fallback per AGENTS.md)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena re-assertion delivered via UserPromptSubmit hook every turn this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-injected by SessionStart context loader at session resume"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill inventory auto-injected at session start; github/session-init/merge-resolver skills used this session"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and CLAUDE.md loaded in system context at session start"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "universal.md and rules loaded at session start; ADR-066/ADR-008 read this session for the reconciliation"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical Serena memories auto-injected via PreToolUse hooks (pr-review, github, copilot-hooks observations)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2523-hooks-hardening"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2523-hooks-hardening"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status verified before commit: ADR-008 amendment plus session artifacts staged; auto-generated causal-graph.json restored"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "16f7a64"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items in this checklist completed with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/architecture/adr-008-066-reconciliation.md written this session"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on ADR-008: 0 errors (pre-commit auto-fix pass also clean)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-008 amendment, session log, episode, and Serena memory in this commit on docs/adr-008-fail-open-reconciliation"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "scripts/validate_session_json.py PASS on this log"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SKIPPED: no task tracker items for this governance amendment"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SKIPPED: docs-only governance amendment; learnings captured in Serena memory"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-11T15:05:00Z",
+      "entry": "Architect agent reviewed the proposed ADR-008 amendment: REQUEST CHANGES with two corrections (heading must read 'Amended 2026-06-11 per ADR-066' to avoid contradicting Accepted status; Stop-hook clause rewritten to match ADR-066 D2 prevention language instead of asserting a continuation-JSON contract). Applied both."
+    },
+    {
+      "timestamp": "2026-06-11T15:12:00Z",
+      "entry": "Amended ADR-008 failure-semantics bullets and the Design Principles 'Fail-open' bullet to defer to ADR-066 (commit 3080d86); zero em/en dashes verified at byte level; markdownlint clean; Serena memory architecture/adr-008-066-reconciliation.md written."
+    },
+    {
+      "timestamp": "2026-06-11T15:20:00Z",
+      "entry": "Reset .agents/memory/causality/causal-graph.json to main's version: the memory hook re-staged 234 lines of auto-generated counter churn unrelated to the governance amendment."
+    },
+    {
+      "timestamp": "2026-06-11T16:05:00Z",
+      "entry": "Copilot review on PR #2575: ADR-008 (Accepted) deferring solely to ADR-066 (Proposed) left an accepted-defers-to-proposed ambiguity. Verified ADR-071 is Accepted (six-agent adr-review 2026-06-02) and its Decision item 5 records the binding fail-closed rule; the amendment bullet now cites ADR-071 item 5 as binding with ADR-066 as the detailed D1/D2 reconciliation. Serena memory updated to match."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
