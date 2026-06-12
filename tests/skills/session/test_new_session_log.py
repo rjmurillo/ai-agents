@@ -201,6 +201,20 @@ class TestBuildSessionData:
         assert "sessionEnd" in data["protocolCompliance"]
         assert data["workLog"] == []
 
+    def test_includes_schema_version(self):
+        # SESSION-PROTOCOL.md lists schemaVersion "1.0" as a required top-level
+        # field; the generator must emit it (issue #2537).
+        git_info = {
+            "repo_root": "/repo",
+            "branch": "main",
+            "commit": "abc1234",
+            "status": "clean",
+        }
+        data = new_session_log._build_session_data(
+            git_info, 1, "Test objective", "2026-01-01"
+        )
+        assert data["schemaVersion"] == "1.0"
+
     def test_not_on_main_detection(self):
         git_info = {
             "repo_root": "/repo",
@@ -232,6 +246,15 @@ class TestWriteSessionFile:
         with open(path) as f:
             loaded = json.load(f)
         assert loaded["test"] is True
+
+    def test_writes_trailing_newline(self, tmp_path):
+        # Generated JSON must end with a newline (issue #2537); reviewers flag a
+        # missing EOF newline on every session PR.
+        data = {"session": {"number": 1}, "test": True}
+        path, _ = new_session_log._write_session_file(
+            str(tmp_path), data, "2026-01-01", "test objective"
+        )
+        assert Path(path).read_text(encoding="utf-8").endswith("}\n")
 
     def test_atomic_creation(self, tmp_path):
         """Test O_EXCL prevents overwrite via collision retry."""

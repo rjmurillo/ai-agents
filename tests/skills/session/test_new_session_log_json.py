@@ -1,12 +1,9 @@
 """Tests for new_session_log_json.py simple session log creator."""
 
 import json
-import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "session-init" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -87,6 +84,9 @@ class TestMain:
         assert data["session"]["startingCommit"] == "abc1234"
         assert "protocolCompliance" in data
         assert data["workLog"] == []
+        # schemaVersion + trailing newline (issue #2537)
+        assert data["schemaVersion"] == "1.0"
+        assert files[0].read_text(encoding="utf-8").endswith("}\n")
 
     @patch("new_session_log_json._get_repo_root")
     @patch("new_session_log_json._get_branch")
