@@ -1,7 +1,7 @@
 {
   "name": "project-toolkit",
   "description": "Specialized agent definitions, reusable skills, and lifecycle hooks for GitHub Copilot CLI, generated from Claude canonical sources",
-  "version": "0.5.177",
+  "version": "0.5.185",
   "author": {
     "name": "rjmurillo"
   }

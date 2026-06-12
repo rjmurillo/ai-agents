@@ -416,7 +416,7 @@ def _as_dict(value: Any) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _valid_fail_match(text: str) -> "re.Match[str] | None":
+def _valid_fail_match(text: str) -> re.Match[str] | None:
     """First counted-failure match that is a real failure tally, else None.
 
     Rejects matches where the keyword is "error(s)" and the count falls in the
@@ -461,9 +461,10 @@ def _entry_title(entry: Any) -> str:
 
     Work-log entries appear in several shapes across the log history: a bare
     string, ``{action, outcome}`` (older), ``{task, outcome, evidence}``
-    (newer), ``{step, summary}``, and ``{step, evidence}``. All are handled; a
-    string entry is its own title. A numeric ``step`` is an ordinal index, not
-    a label, so ``summary`` is preferred ahead of it.
+    (newer), ``{step, summary}``, ``{step, evidence}``, and ``{entry, ...}``
+    (issue #2552). All are handled; a string entry is its own title. A numeric
+    ``step`` is an ordinal index, not a label, so ``summary`` and ``entry`` are
+    preferred ahead of it.
     """
     if isinstance(entry, str):
         return entry.strip()
@@ -472,6 +473,7 @@ def _entry_title(entry: Any) -> str:
             entry.get("task")
             or entry.get("action")
             or entry.get("summary")
+            or entry.get("entry")
             or entry.get("step")
             or entry.get("outcome")
             or ""
@@ -486,7 +488,7 @@ def _entry_text(entry: Any) -> str:
     if isinstance(entry, dict):
         return " ".join(
             str(entry.get(k) or "")
-            for k in ("task", "action", "summary", "step", "outcome", "evidence", "result")
+            for k in ("task", "action", "summary", "entry", "step", "outcome", "evidence", "result")
         )
     return ""
 
@@ -494,8 +496,9 @@ def _entry_text(entry: Any) -> str:
 # Fields that carry the entry's own label/intent. Decision detection scans only
 # these so narrative ``evidence``/``result`` prose mentioning "adopt" or
 # "prioritize" does not manufacture spurious decisions (the ``outcome`` field is
-# excluded too because it is a status, not the decision wording).
-_DECISION_SIGNAL_FIELDS = ("task", "action", "summary", "step")
+# excluded too because it is a status, not the decision wording). ``entry`` is a
+# primary label-bearing field in newer logs (issue #2552).
+_DECISION_SIGNAL_FIELDS = ("task", "action", "summary", "entry", "step")
 
 # Status words that describe how a step ended, not what was decided.
 _STATUS_WORDS = {"success", "ok", "done", "complete", "completed", "passed"}
@@ -609,7 +612,9 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
             add("milestone", title)
         text = _entry_text(entry)
         if _PASS_COUNT_RE.search(text):
-            add("test", (_entry_field(entry, "evidence") or _entry_field(entry, "outcome") or text).strip())
+            evidence = _entry_field(entry, "evidence")
+            outcome = _entry_field(entry, "outcome")
+            add("test", (evidence or outcome or text).strip())
         if _valid_fail_match(text):
             add("error", text.strip())
 
@@ -1208,7 +1213,10 @@ def main(argv: list[str] | None = None) -> int:
         elif not args.force:
             print(
                 json.dumps({
-                    "Error": f"Episode file already exists: {episode_file}. Use --force to overwrite or --preserve to merge.",
+                    "Error": (
+                        f"Episode file already exists: {episode_file}. "
+                        "Use --force to overwrite or --preserve to merge."
+                    ),
                 }),
                 file=sys.stderr,
             )
