@@ -92,7 +92,7 @@ def test_gh_act_extension_fallback_succeeds(mock_run, mock_which, capsys):
     # Use a real workflow path via dry-run to skip resolution failure
     main(["--workflow", "pester-tests", "--dry-run"])
     # We don't assert rc==0 (workflow file may not exist in mocked env),
-    # but we MUST have invoked the `gh act` runtime — not `act`.
+    # but we MUST have invoked the `gh act` runtime, not `act`.
     invoked_cmds = [c[0] for c in calls]
     assert "gh" in invoked_cmds, f"Expected gh-act invocation; got {calls}"
     # And we must never have tried to invoke standalone `act` directly.
@@ -137,6 +137,10 @@ def test_successful_run(mock_root, mock_exists, mock_run, mock_which, capsys):
     mock_run.side_effect = [
         _completed(stdout="act version 0.2.0\n"),  # act --version
         _completed(rc=0),  # docker info
+        _completed(stdout="feat/test\n", rc=0),  # git rev-parse (current branch)
+        _completed(  # git remote get-url origin
+            stdout="git@github.com:rjmurillo/ai-agents.git\n", rc=0,
+        ),
         _completed(stdout="ghp_secret_token\n", rc=0),  # gh auth token
         _completed(rc=0),  # act run
     ]
