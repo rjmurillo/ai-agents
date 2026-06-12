@@ -23,7 +23,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
-    _resolve_branch_base_ref,
+    _resolve_default_base_ref,
     _run_build_script_gate,
     _run_subprocess,
 )
@@ -237,12 +237,17 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     NOT block here, because the pre-push gate is the authoritative enforcer;
     pre_pr only warns so a contributor without actionlint installed is not
     stopped pre-PR.
+
+    Change detection uses :func:`_resolve_default_base_ref` to choose a default
+    branch ref for the diff. The branch's own upstream is deliberately not used:
+    once the branch is pushed it yields an empty diff, which is how pre_pr
+    previously missed changed workflows that pre-push detected (issue #2571).
     """
     script = repo_root / "scripts" / "validation" / "run_workflow_local_test.py"
     if not script.exists():
         raise MissingScriptSkip("run_workflow_local_test.py not present")
 
-    base_ref = _resolve_branch_base_ref(repo_root)
+    base_ref = _resolve_default_base_ref(repo_root)
     if not base_ref:
         print("[WARN] workflow local-run: base ref unresolved; skipping.")
         return True
