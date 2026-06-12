@@ -2,33 +2,14 @@
 
 > **IMPORTANT**: File minimal. Cut context bloat. Detail in AGENTS.md.
 
-## Global Behavioral Steering (read FIRST when running locally)
+## Global Behavioral Steering
 
-If you are running on a developer machine where Richard's
-`ubuntu-machine-config` dotfiles are deployed, the global file at
-`~/.copilot/copilot-instructions.md` carries the cross-harness behavioral
-discipline that applies to every AI session (STOP TOKEN / last-sentence audit,
-refuse-to-fabricate, audit-progress-claims, diagnose-before-fixing,
-walk-or-don't-name, prohibited commands, AI-vernacular scrub list).
+For cross-harness behavior rules, local Copilot sessions can also read
+`~/.copilot/copilot-instructions.md`. AGENTS.md remains this repository's
+primary reference for ai-agents-specific rules.
 
-Those rules are sourced from Richard's `SOUL.md` and Anthropic's Claude
-Fable 5 / Mythos 5 skill-bundle prompting guidance (the `shared/model-migration.md`
-file inside the `/claude-api` skill, mirrored at
-<https://github.com/Piebald-AI/claude-code-system-prompts/blob/main/system-prompts/skill-model-migration-guide.md>
-because Anthropic does not web-publish it). Five of the six
-Anthropic-recommended snippets confirm the same engineer-side discipline
-`SOUL.md` codifies independently.
-
-**On Copilot Cloud / web Copilot (no access to `~/.copilot/`)**: the relevant
-behavioral rules are restated in
-[`rjmurillo/ubuntu-machine-config/app-configs/copilot/copilot-instructions.md`](https://github.com/rjmurillo/ubuntu-machine-config/blob/master/app-configs/copilot/copilot-instructions.md).
-Read it before this file when behavioral steering matters (long-running PR
-reviews, autonomous workflows, anything where manufactured-trailing-offers
-or fabricated-progress-claims would cost real time).
-
-This project-level file below covers the **ai-agents repo-specific** rules
-(agent delegation, session protocol, Serena MCP). Global rules take precedence
-when there is a conflict.
+Copilot Cloud cannot read local dotfiles. If you have access to Richard's
+dotfiles repo, use the branch-agnostic fallback link in Key Documents.
 
 ## Agent Delegation for Complex Tasks
 
@@ -120,7 +101,7 @@ Serena MCP tools available → MUST call FIRST:
 3. `.agents/HANDOFF.md` - Project dashboard (read-only)
 4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
 5. `.agents/AGENT-SYSTEM.md` - Full agent details
-6. **Global behavioral steering**: `~/.copilot/copilot-instructions.md` (local) or [`rjmurillo/ubuntu-machine-config/app-configs/copilot/copilot-instructions.md`](https://github.com/rjmurillo/ubuntu-machine-config/blob/master/app-configs/copilot/copilot-instructions.md) (Copilot Cloud)
+6. **Global behavioral steering**: `~/.copilot/copilot-instructions.md` (local) or [`rjmurillo/ubuntu-machine-config/app-configs/copilot/copilot-instructions.md`](https://github.com/rjmurillo/ubuntu-machine-config/blob/HEAD/app-configs/copilot/copilot-instructions.md) (Copilot Cloud; requires repo access)
 
 ---
 
