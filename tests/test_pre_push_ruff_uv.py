@@ -49,7 +49,8 @@ def _run_git(repo: Path, *args: str) -> str:
         cwd=repo,
         capture_output=True,
         check=True,
-        text=True,
+        encoding="utf-8",
+        env={**os.environ, "LC_ALL": "C"},
         timeout=30,
     )
     return result.stdout.strip()
@@ -189,7 +190,7 @@ exit {path_ruff_exit}
     # and append the directory containing the system ``python3`` so
     # set_python_cmd's later fallback can find an interpreter.
     sys_python = subprocess.run(
-        ["which", "python3"], capture_output=True, text=True
+        ["which", "python3"], capture_output=True, encoding="utf-8"
     ).stdout.strip()
     sys_python_dir = str(Path(sys_python).parent) if sys_python else "/usr/bin"
     env["PATH"] = os.pathsep.join([str(bin_dir), "/usr/bin", "/bin", sys_python_dir])
@@ -212,7 +213,7 @@ def _run_pre_push(
         input=f"refs/heads/feature/ruff-uv {head_sha} "
         f"refs/heads/feature/ruff-uv {base_sha}\n",
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         env=env,
         timeout=60,
     )
