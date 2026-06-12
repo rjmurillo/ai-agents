@@ -45,9 +45,7 @@ class TestGetSessionIdFromPath:
         assert a != b
 
     def test_session_only_pattern(self):
-        result = extract_session_episode.get_session_id_from_path(
-            Path("/path/to/session-7.md")
-        )
+        result = extract_session_episode.get_session_id_from_path(Path("/path/to/session-7.md"))
         assert result == "session-7"
 
     def test_session_only_pattern_preserves_suffix(self):
@@ -57,9 +55,7 @@ class TestGetSessionIdFromPath:
         assert result == "session-7-hotfix"
 
     def test_fallback_to_filename(self):
-        result = extract_session_episode.get_session_id_from_path(
-            Path("/path/to/custom-name.md")
-        )
+        result = extract_session_episode.get_session_id_from_path(Path("/path/to/custom-name.md"))
         assert result == "custom-name"
 
 
@@ -295,13 +291,17 @@ def _json_log(work_log, end_complete=True):
     gate = _gate(end_complete)
     return {
         "session": {
-            "number": 1, "date": "2026-05-31", "branch": "feat/x",
-            "startingCommit": "aaaaaaa", "objective": "Do the thing",
+            "number": 1,
+            "date": "2026-05-31",
+            "branch": "feat/x",
+            "startingCommit": "aaaaaaa",
+            "objective": "Do the thing",
         },
         "protocolCompliance": {
             "sessionStart": {},
             "sessionEnd": {
-                "checklistComplete": gate, "changesCommitted": gate,
+                "checklistComplete": gate,
+                "changesCommitted": gate,
                 "validationPassed": gate,
             },
         },
@@ -322,7 +322,10 @@ class TestJsonSessionLogPath:
         assert extract_session_episode.looks_like_json_session("# H\n**Status**: Done\n") is None
 
     def test_all_gates_complete_is_success(self):
-        assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "20 passed"}])) == "success"
+        assert (
+            extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "20 passed"}]))
+            == "success"
+        )
 
     def test_lowercase_session_end_gates_are_success(self):
         data = _json_log([{"task": "t", "outcome": "20 passed"}])
@@ -335,32 +338,57 @@ class TestJsonSessionLogPath:
         assert extract_session_episode.json_outcome(data) == "success"
 
     def test_incomplete_gates_is_partial(self):
-        assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "wip"}], end_complete=False)) == "partial"
+        assert (
+            extract_session_episode.json_outcome(
+                _json_log([{"task": "t", "outcome": "wip"}], end_complete=False)
+            )
+            == "partial"
+        )
 
     def test_counted_failure_incomplete_is_failure(self):
-        assert extract_session_episode.json_outcome(_json_log([{"task": "t", "outcome": "3 failed"}], end_complete=False)) == "failure"
+        assert (
+            extract_session_episode.json_outcome(
+                _json_log([{"task": "t", "outcome": "3 failed"}], end_complete=False)
+            )
+            == "failure"
+        )
 
     def test_regression_2036_prose_fail_not_failure(self):
-        data = _json_log([
-            {"action": "compress", "outcome": "compression insufficient; test still fails"},
-            {"action": "verify", "outcome": "AGENTS.md 2791 B; markdownlint 0 errors"},
-        ])
+        data = _json_log(
+            [
+                {"action": "compress", "outcome": "compression insufficient; test still fails"},
+                {"action": "verify", "outcome": "AGENTS.md 2791 B; markdownlint 0 errors"},
+            ]
+        )
         assert extract_session_episode.json_outcome(data) == "success"
 
     def test_milestone_from_task_and_action_and_string(self):
-        ev_task = extract_session_episode.json_events(_json_log([{"task": "Build X", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
-        ev_action = extract_session_episode.json_events(_json_log([{"action": "Refactor Y", "outcome": "done"}]), "2026-05-31T00:00:00+00:00")
-        ev_string = extract_session_episode.json_events(_json_log(["Reviewed PR 1766"]), "2026-05-31T00:00:00+00:00")
+        ev_task = extract_session_episode.json_events(
+            _json_log([{"task": "Build X", "outcome": "done"}]), "2026-05-31T00:00:00+00:00"
+        )
+        ev_action = extract_session_episode.json_events(
+            _json_log([{"action": "Refactor Y", "outcome": "done"}]), "2026-05-31T00:00:00+00:00"
+        )
+        ev_string = extract_session_episode.json_events(
+            _json_log(["Reviewed PR 1766"]), "2026-05-31T00:00:00+00:00"
+        )
         assert any(e["type"] == "milestone" and e["content"] == "Build X" for e in ev_task)
         assert any(e["type"] == "milestone" and e["content"] == "Refactor Y" for e in ev_action)
-        assert any(e["type"] == "milestone" and "Reviewed PR 1766" in e["content"] for e in ev_string)
+        assert any(
+            e["type"] == "milestone" and "Reviewed PR 1766" in e["content"] for e in ev_string
+        )
 
     def test_no_error_event_from_prose_fail(self):
-        events = extract_session_episode.json_events(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]), "2026-05-31T00:00:00+00:00")
+        events = extract_session_episode.json_events(
+            _json_log([{"action": "x", "outcome": "test still fails; 0 errors"}]),
+            "2026-05-31T00:00:00+00:00",
+        )
         assert not any(e["type"] == "error" for e in events)
 
     def test_error_event_from_counted_failure(self):
-        events = extract_session_episode.json_events(_json_log([{"task": "t", "outcome": "2 failed"}]), "2026-05-31T00:00:00+00:00")
+        events = extract_session_episode.json_events(
+            _json_log([{"task": "t", "outcome": "2 failed"}]), "2026-05-31T00:00:00+00:00"
+        )
         assert any(e["type"] == "error" for e in events)
 
     def test_string_worklog_does_not_crash(self):
@@ -369,7 +397,10 @@ class TestJsonSessionLogPath:
 
     def test_main_on_json_log_with_prose_fail(self, tmp_path, capsys):
         log = tmp_path / "2026-05-31-session-9001.json"
-        log.write_text(json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])), encoding="utf-8")
+        log.write_text(
+            json.dumps(_json_log([{"action": "x", "outcome": "test still fails; 0 errors"}])),
+            encoding="utf-8",
+        )
         rc = extract_session_episode.main([str(log), "--output-path", str(tmp_path / "ep")])
         assert rc == 0
         episode = json.loads(capsys.readouterr().out)
@@ -420,7 +451,9 @@ class TestJsonNullSafety:
     def test_null_protocol_compliance_gate(self):
         data = _json_log([])
         data["protocolCompliance"] = None
-        assert extract_session_episode._gate_complete(data, "sessionEnd", "checklistComplete") is False
+        assert (
+            extract_session_episode._gate_complete(data, "sessionEnd", "checklistComplete") is False
+        )
 
     def test_null_entry_field_not_literal_none(self):
         assert extract_session_episode._entry_field({"task": None}, "task") == ""
@@ -453,7 +486,9 @@ class TestArchiveFallback:
 
     def test_padded_archive_json_is_found(self, tmp_path, monkeypatch):
         archive = tmp_path / "2026-05-31-session-02.json"
-        archive.write_text(json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8")
+        archive.write_text(
+            json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8"
+        )
 
         def fake_find(session_id):
             p = tmp_path / f"{session_id}.json"
@@ -466,7 +501,9 @@ class TestArchiveFallback:
 
     def test_metrics_sourced_from_archive(self, tmp_path, monkeypatch):
         archive = tmp_path / "2026-05-31-session-2.json"
-        archive.write_text(json.dumps(_json_log([{"task": "t", "outcome": "3 failed"}])), encoding="utf-8")
+        archive.write_text(
+            json.dumps(_json_log([{"task": "t", "outcome": "3 failed"}])), encoding="utf-8"
+        )
 
         def fake_find(session_id):
             p = tmp_path / f"{session_id}.json"
@@ -509,7 +546,9 @@ class TestArchiveFallback:
 
     def test_truthy_empty_worklog_still_uses_archive(self, tmp_path, monkeypatch):
         archive = tmp_path / "2026-05-31-session-2.json"
-        archive.write_text(json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8")
+        archive.write_text(
+            json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8"
+        )
 
         def fake_find(session_id):
             p = tmp_path / f"{session_id}.json"
@@ -540,9 +579,7 @@ class TestStepWorklogEntries:
     def test_numeric_step_summary_becomes_milestone(self):
         data = _json_log([{"step": 1, "summary": "Authored REQ-005"}])
         events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
-        assert any(
-            e["type"] == "milestone" and e["content"] == "Authored REQ-005" for e in events
-        )
+        assert any(e["type"] == "milestone" and e["content"] == "Authored REQ-005" for e in events)
         assert not any(e["type"] == "milestone" and e["content"] == "1" for e in events)
 
     def test_summary_included_in_entry_text(self):
@@ -550,22 +587,50 @@ class TestStepWorklogEntries:
         assert "Ran 3 failed checks" in text
 
 
+class TestEntryKeyWorklogEntries:
+    """`{entry: ...}` work-log entries must yield milestone events (#2552)."""
+
+    def test_entry_field_becomes_milestone(self):
+        data = _json_log([{"entry": "Filed 40 latent issues"}])
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        assert any(
+            e["type"] == "milestone" and e["content"] == "Filed 40 latent issues" for e in events
+        )
+
+    def test_entry_title_uses_entry_field(self):
+        assert extract_session_episode._entry_title({"entry": "Reviewed PRs"}) == "Reviewed PRs"
+
+    def test_entry_text_includes_entry_field(self):
+        text = extract_session_episode._entry_text({"entry": "Audited the catalog"})
+        assert "Audited the catalog" in text
+
+    def test_task_still_preferred_over_entry(self):
+        title = extract_session_episode._entry_title({"task": "Primary", "entry": "Secondary"})
+        assert title == "Primary"
+
+
 class TestJsonLessonsObjectShape:
     """`_json_lessons` flattens the schema object shape (#2170 thread GAzih)."""
 
     def test_object_patterns_and_avoidances(self):
-        data = {"learnings": {
-            "patterns": [
-                {"pattern": "Save pending state before reset",
-                 "context": "lost data at boundaries",
-                 "application": "Always checkpoint first"},
-            ],
-            "avoidances": [
-                {"antipattern": "Resetting mid-loop",
-                 "consequence": "dropped items",
-                 "correction": "Defer the reset"},
-            ],
-        }}
+        data = {
+            "learnings": {
+                "patterns": [
+                    {
+                        "pattern": "Save pending state before reset",
+                        "context": "lost data at boundaries",
+                        "application": "Always checkpoint first",
+                    },
+                ],
+                "avoidances": [
+                    {
+                        "antipattern": "Resetting mid-loop",
+                        "consequence": "dropped items",
+                        "correction": "Defer the reset",
+                    },
+                ],
+            }
+        }
         out = extract_session_episode._json_lessons(data)
         assert "Save pending state before reset. Always checkpoint first" in out
         assert "Avoid: Resetting mid-loop. Defer the reset" in out
@@ -588,18 +653,22 @@ class TestJsonCommitMetric:
     """`json_metrics["commits"]` counts every distinct documented commit (#2170)."""
 
     def test_counts_ending_and_worklog_shas(self):
-        data = _json_log([
-            {"task": "Commit A", "outcome": "1234abc. Added parser"},
-            {"task": "Commit B", "outcome": "5678def0. Fixed lint"},
-        ])
+        data = _json_log(
+            [
+                {"task": "Commit A", "outcome": "1234abc. Added parser"},
+                {"task": "Commit B", "outcome": "5678def0. Fixed lint"},
+            ]
+        )
         # endingCommit bbbbbbb1234 + two work-log SHAs = 3 distinct.
         assert extract_session_episode.json_metrics(data)["commits"] == 3
 
     def test_dedupes_repeated_sha(self):
-        data = _json_log([
-            {"task": "Commit A", "outcome": "1234abc. Added parser"},
-            {"task": "Re-reference", "evidence": "see 1234abc for details"},
-        ])
+        data = _json_log(
+            [
+                {"task": "Commit A", "outcome": "1234abc. Added parser"},
+                {"task": "Re-reference", "evidence": "see 1234abc for details"},
+            ]
+        )
         # endingCommit + one distinct work-log SHA (1234abc counted once) = 2.
         assert extract_session_episode.json_metrics(data)["commits"] == 2
 
@@ -620,7 +689,9 @@ class TestArchiveGateAndRoot:
 
     def test_decisions_do_not_block_archive_events(self, tmp_path, monkeypatch):
         archive = tmp_path / "2026-05-31-session-2.json"
-        archive.write_text(json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8")
+        archive.write_text(
+            json.dumps(_json_log([{"task": "archived", "outcome": "5 passed"}])), encoding="utf-8"
+        )
 
         def fake_find(session_id):
             p = tmp_path / f"{session_id}.json"
@@ -635,7 +706,9 @@ class TestArchiveGateAndRoot:
         }
         bundle = extract_session_episode.extract_from_json(data)
         assert bundle["decisions"], "primary decision should be preserved"
-        assert any(e.get("type") == "milestone" for e in bundle["events"]), "archive events should still be recovered"
+        assert any(e.get("type") == "milestone" for e in bundle["events"]), (
+            "archive events should still be recovered"
+        )
 
     def test_repo_root_finds_agents_marker(self):
         root = extract_session_episode._repo_root()
@@ -671,9 +744,9 @@ class TestArchiveGateAndRoot:
         bundle = extract_session_episode.extract_from_json(data)
         commits = [e for e in bundle["events"] if e.get("type") == "commit"]
         assert commits, "own commit event must survive archive recovery"
-        assert not any(
-            e.get("type") == "milestone" for e in bundle["events"]
-        ), "archive events must not replace the session's own commit event"
+        assert not any(e.get("type") == "milestone" for e in bundle["events"]), (
+            "archive events must not replace the session's own commit event"
+        )
         assert bundle["decisions"], "archived decisions should still be recovered"
 
 
@@ -749,8 +822,14 @@ class TestMergePreserving:
             "task": "[Migrated from markdown]",
             "decisions": [],
             "events": [],
-            "metrics": {"duration_minutes": 0, "tool_calls": 0, "errors": 0,
-                        "recoveries": 0, "commits": 0, "files_changed": 0},
+            "metrics": {
+                "duration_minutes": 0,
+                "tool_calls": 0,
+                "errors": 0,
+                "recoveries": 0,
+                "commits": 0,
+                "files_changed": 0,
+            },
             "lessons": [],
         }
 
@@ -762,12 +841,35 @@ class TestMergePreserving:
             "timestamp": "2026-01-08T12:20:10.97-06:00",
             "outcome": "success",
             "task": "Session 807 real work",
-            "decisions": [{"id": "d001", "type": "tradeoff", "context": "parser",
-                           "chosen": "streaming", "rationale": "memory", "outcome": "success", "effects": []}],
-            "events": [{"id": "e001", "timestamp": "2026-01-08T12:20:10.93-06:00",
-                        "type": "milestone", "content": "did the thing", "caused_by": [], "leads_to": []}],
-            "metrics": {"duration_minutes": 0, "tool_calls": 0, "errors": 3,
-                        "recoveries": 0, "commits": 0, "files_changed": 7},
+            "decisions": [
+                {
+                    "id": "d001",
+                    "type": "tradeoff",
+                    "context": "parser",
+                    "chosen": "streaming",
+                    "rationale": "memory",
+                    "outcome": "success",
+                    "effects": [],
+                }
+            ],
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": "2026-01-08T12:20:10.93-06:00",
+                    "type": "milestone",
+                    "content": "did the thing",
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+            "metrics": {
+                "duration_minutes": 0,
+                "tool_calls": 0,
+                "errors": 3,
+                "recoveries": 0,
+                "commits": 0,
+                "files_changed": 7,
+            },
             "lessons": ["curated lesson one"],
         }
 
@@ -843,9 +945,22 @@ class TestMergePreserving:
 
     def test_no_wallclock_when_no_deterministic_date(self):
         new = {"timestamp": "", "events": [], "decisions": [], "lessons": [], "metrics": {}}
-        existing = {"timestamp": "", "events": [
-            {"id": "e001", "timestamp": "garbage", "type": "milestone", "content": "x",
-             "caused_by": [], "leads_to": []}], "decisions": [], "lessons": [], "metrics": {}}
+        existing = {
+            "timestamp": "",
+            "events": [
+                {
+                    "id": "e001",
+                    "timestamp": "garbage",
+                    "type": "milestone",
+                    "content": "x",
+                    "caused_by": [],
+                    "leads_to": [],
+                }
+            ],
+            "decisions": [],
+            "lessons": [],
+            "metrics": {},
+        }
         merged = extract_session_episode.merge_preserving(new, existing, session_id="")
         assert merged["events"][0]["timestamp"] == "garbage"
 
@@ -855,25 +970,38 @@ class TestPreserveCli:
 
     def _write_log(self, tmp_path, sha="bbbbbbb1234"):
         log = tmp_path / "2026-01-08-session-807.json"
-        log.write_text(json.dumps({
-            "session": {"date": "2026-01-08"},
-            "workLog": [{"task": "fresh extraction milestone"}],
-            "endingCommit": sha,
-        }), encoding="utf-8")
+        log.write_text(
+            json.dumps(
+                {
+                    "session": {"date": "2026-01-08"},
+                    "workLog": [{"task": "fresh extraction milestone"}],
+                    "endingCommit": sha,
+                }
+            ),
+            encoding="utf-8",
+        )
         return log
 
     def test_preserve_merges_existing_file(self, tmp_path):
         out = tmp_path / "episodes"
         out.mkdir()
         ep = out / "episode-2026-01-08-session-807.json"
-        ep.write_text(json.dumps({
-            "id": "episode-2026-01-08-session-807",
-            "session": "2026-01-08-session-807",
-            "timestamp": "2026-01-08T00:00:00+00:00",
-            "outcome": "success", "task": "old curated task",
-            "decisions": [], "events": [], "lessons": ["keep me"],
-            "metrics": {"errors": 5},
-        }), encoding="utf-8")
+        ep.write_text(
+            json.dumps(
+                {
+                    "id": "episode-2026-01-08-session-807",
+                    "session": "2026-01-08-session-807",
+                    "timestamp": "2026-01-08T00:00:00+00:00",
+                    "outcome": "success",
+                    "task": "old curated task",
+                    "decisions": [],
+                    "events": [],
+                    "lessons": ["keep me"],
+                    "metrics": {"errors": 5},
+                }
+            ),
+            encoding="utf-8",
+        )
         log = self._write_log(tmp_path)
         rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
         assert rc == 0
@@ -912,15 +1040,17 @@ class TestFailCountFilter:
             assert extract_session_episode._valid_fail_match(s) is None, s
 
     def test_metrics_errors_excludes_status_and_refs(self):
-        data = _json_log([
-            {"action": "ci", "outcome": "3 failed"},
-            {"action": "http", "outcome": "saw 404 errors from upstream"},
-            {"action": "ref", "outcome": "closed #760 failures backlog"},
-        ])
+        data = _json_log(
+            [
+                {"action": "ci", "outcome": "3 failed"},
+                {"action": "http", "outcome": "saw 404 errors from upstream"},
+                {"action": "ref", "outcome": "closed #760 failures backlog"},
+            ]
+        )
         assert extract_session_episode.json_metrics(data)["errors"] == 3
 
     def test_defect_inventory_not_counted(self):
-        """"N errors" describing a pre-existing/baseline backlog is defect
+        """ "N errors" describing a pre-existing/baseline backlog is defect
         inventory, not session failures (#2170 thread GA72x)."""
         for s in [
             "23 errors in pre-existing files",
@@ -936,10 +1066,12 @@ class TestFailCountFilter:
         assert extract_session_episode._valid_fail_match("3 failed in baseline suite") is not None
 
     def test_metrics_errors_excludes_defect_inventory(self):
-        data = _json_log([
-            {"action": "lint", "outcome": "23 errors in pre-existing files"},
-            {"action": "ci", "outcome": "3 failed"},
-        ])
+        data = _json_log(
+            [
+                {"action": "lint", "outcome": "23 errors in pre-existing files"},
+                {"action": "ci", "outcome": "3 failed"},
+            ]
+        )
         assert extract_session_episode.json_metrics(data)["errors"] == 3
 
     def test_no_error_event_from_status_code(self):
