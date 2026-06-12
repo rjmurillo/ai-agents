@@ -550,6 +550,29 @@ class TestStepWorklogEntries:
         assert "Ran 3 failed checks" in text
 
 
+class TestEntryKeyWorklogEntries:
+    """`{entry: ...}` work-log entries must yield milestone events (#2552)."""
+
+    def test_entry_field_becomes_milestone(self):
+        data = _json_log([{"entry": "Filed 40 latent issues"}])
+        events = extract_session_episode.json_events(data, "2026-05-31T00:00:00+00:00")
+        assert any(
+            e["type"] == "milestone" and e["content"] == "Filed 40 latent issues"
+            for e in events
+        )
+
+    def test_entry_title_uses_entry_field(self):
+        assert extract_session_episode._entry_title({"entry": "Reviewed PRs"}) == "Reviewed PRs"
+
+    def test_entry_text_includes_entry_field(self):
+        text = extract_session_episode._entry_text({"entry": "Audited the catalog"})
+        assert "Audited the catalog" in text
+
+    def test_task_still_preferred_over_entry(self):
+        title = extract_session_episode._entry_title({"task": "Primary", "entry": "Secondary"})
+        assert title == "Primary"
+
+
 class TestJsonLessonsObjectShape:
     """`_json_lessons` flattens the schema object shape (#2170 thread GAzih)."""
 

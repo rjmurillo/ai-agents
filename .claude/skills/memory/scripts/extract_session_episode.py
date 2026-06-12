@@ -461,9 +461,10 @@ def _entry_title(entry: Any) -> str:
 
     Work-log entries appear in several shapes across the log history: a bare
     string, ``{action, outcome}`` (older), ``{task, outcome, evidence}``
-    (newer), ``{step, summary}``, and ``{step, evidence}``. All are handled; a
-    string entry is its own title. A numeric ``step`` is an ordinal index, not
-    a label, so ``summary`` is preferred ahead of it.
+    (newer), ``{step, summary}``, ``{step, evidence}``, and ``{entry, ...}``
+    (issue #2552). All are handled; a string entry is its own title. A numeric
+    ``step`` is an ordinal index, not a label, so ``summary`` and ``entry`` are
+    preferred ahead of it.
     """
     if isinstance(entry, str):
         return entry.strip()
@@ -472,6 +473,7 @@ def _entry_title(entry: Any) -> str:
             entry.get("task")
             or entry.get("action")
             or entry.get("summary")
+            or entry.get("entry")
             or entry.get("step")
             or entry.get("outcome")
             or ""
@@ -486,7 +488,7 @@ def _entry_text(entry: Any) -> str:
     if isinstance(entry, dict):
         return " ".join(
             str(entry.get(k) or "")
-            for k in ("task", "action", "summary", "step", "outcome", "evidence", "result")
+            for k in ("task", "action", "summary", "entry", "step", "outcome", "evidence", "result")
         )
     return ""
 
@@ -494,8 +496,9 @@ def _entry_text(entry: Any) -> str:
 # Fields that carry the entry's own label/intent. Decision detection scans only
 # these so narrative ``evidence``/``result`` prose mentioning "adopt" or
 # "prioritize" does not manufacture spurious decisions (the ``outcome`` field is
-# excluded too because it is a status, not the decision wording).
-_DECISION_SIGNAL_FIELDS = ("task", "action", "summary", "step")
+# excluded too because it is a status, not the decision wording). ``entry`` is a
+# primary label-bearing field in newer logs (issue #2552).
+_DECISION_SIGNAL_FIELDS = ("task", "action", "summary", "entry", "step")
 
 # Status words that describe how a step ended, not what was decided.
 _STATUS_WORDS = {"success", "ok", "done", "complete", "completed", "passed"}
