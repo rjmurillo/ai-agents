@@ -160,7 +160,7 @@ After your human-readable analysis, emit a fenced JSON block matching the inline
   "findings": [
     {
       "severity": "critical|high|medium|low",
-      "category": "readability|maintainability|consistency|simplicity|impact|documentation",
+      "category": "readability|claim-support|consistency|simplicity",
       "description": "What was found",
       "location": "file:line",
       "recommendation": "Suggested fix"
