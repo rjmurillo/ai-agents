@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-11-session-2385",
+  "session": "2026-06-11-session-2385",
+  "timestamp": "2026-06-11T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Reconcile ADR-008 with ADR-066 per repo owner directive: amend ADR-008 superseded fail-open passages to point at ADR-066. Architect review completed via Task(subagent_type='architect'): REQUEST CHANGES then approved with two fixes (heading wording, Stop-hook D2 clause). Also: PR 2556 babysitting (review fixes, deterministic tests, 0.5.174 bump).",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

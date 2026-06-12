@@ -24,10 +24,11 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # Bootstrap: find lib directory via env var or manifest walk-up.
 # CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
@@ -48,7 +49,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -58,7 +63,17 @@ from hook_utilities import (  # noqa: E402
     get_today_session_log,
 )
 
-_ADR_PATTERN = re.compile(r"ADR-\d+.*\.md$", re.IGNORECASE)
+_ADR_PATTERN = re.compile(r"(?:^|/)ADR-\d+[^/]*\.md$", re.IGNORECASE)
+
+# Directories that hold the gate's OWN evidence artifacts (debate logs,
+# critiques). Writing a debate log here is the act the gate asks for, so the
+# gate must never block writes under these directories, even when the filename
+# starts with an "ADR-<n>" substring (issue #2579: the natural evidence name
+# ADR-0002-architect-review-debate.md otherwise self-blocks, chicken-and-egg).
+_EVIDENCE_DIRS = (
+    (".agents", "analysis"),
+    (".agents", "critique"),
+)
 
 _ARCHITECT_EVIDENCE_PATTERNS = [
     re.compile(r"/adr-review"),
@@ -120,9 +135,47 @@ def write_audit_log(message: str) -> None:
         )
 
 
+def _normalize_hook_path(file_path: str) -> str:
+    """Normalize a hook path for lexical gate matching.
+
+    Hook inputs are project-relative strings, not necessarily existing files.
+    ``posixpath.normpath`` collapses ``..`` without requiring the target to
+    exist; replacing backslashes first keeps Windows paths on the same path
+    separator contract as POSIX paths.
+    """
+    normalized = file_path.replace("\\", "/")
+    return posixpath.normpath(normalized)
+
+
+def _is_evidence_artifact(normalized_path: str) -> bool:
+    """True if file_path lives under a gate evidence directory.
+
+    Matches ``.agents/analysis/`` and ``.agents/critique/`` after lexical
+    normalization has collapsed traversal segments.
+    """
+    parts = PurePosixPath(normalized_path).parts
+    for needle in _EVIDENCE_DIRS:
+        span = len(needle)
+        for start in range(len(parts) - span + 1):
+            if parts[start : start + span] == needle:
+                return True
+    return False
+
+
 def is_adr_file(file_path: str) -> bool:
-    """Check if file path matches ADR naming pattern."""
-    return _ADR_PATTERN.search(file_path) is not None
+    """Check if file path matches ADR naming pattern.
+
+    Files under the gate's own evidence directories (``.agents/analysis/``,
+    ``.agents/critique/``) are excluded: writing the architect-review debate
+    log is the act the gate asks for, so blocking it is a chicken-and-egg
+    deadlock (issue #2579). The pattern is basename-anchored so only files
+    whose name starts with ``ADR-<digits>`` match, not any path containing the
+    substring.
+    """
+    normalized_path = _normalize_hook_path(file_path)
+    if _is_evidence_artifact(normalized_path):
+        return False
+    return _ADR_PATTERN.search(normalized_path) is not None
 
 
 def check_architect_evidence(project_dir: str) -> dict[str, object]:
