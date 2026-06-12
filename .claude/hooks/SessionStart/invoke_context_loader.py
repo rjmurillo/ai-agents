@@ -106,7 +106,12 @@ def _find_latest_retrospective(retro_dir: Path) -> Path | None:
 
     candidates: list[tuple[float, Path]] = []
     try:
-        retro_paths = list(retro_dir.glob("*.md"))
+        # Exclude the co-located INDEX.md: it lives alongside the retro files
+        # but is a meta-index, not a retrospective. See
+        # .claude/hooks/Stop/invoke_auto_retrospective.py::update_retro_index.
+        retro_paths = [
+            p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"
+        ]
     except OSError:
         return None
 
@@ -140,7 +145,12 @@ def _count_pending_skeletons(
         return 0, []
 
     try:
-        retro_paths = list(retro_dir.glob("*.md"))
+        # Exclude the co-located INDEX.md: it lives alongside the retro files
+        # but is a meta-index, not a retrospective. See
+        # .claude/hooks/Stop/invoke_auto_retrospective.py::update_retro_index.
+        retro_paths = [
+            p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"
+        ]
     except OSError:
         return 0, []
 

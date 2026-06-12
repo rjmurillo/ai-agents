@@ -1,0 +1,45 @@
+{
+  "session": {
+    "number": 2377,
+    "date": "2026-06-11",
+    "branch": "fix/auto-retro-block-and-fill",
+    "startingCommit": "78153bb7c",
+    "objective": "Auto-retro hook: block-and-fill continuation + relocate index to .agents/retrospective"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {"level": "MUST", "Complete": true, "Evidence": "Serena MCP active; get_symbols_overview/find_symbol used on the hook + test files"},
+      "serenaInstructions": {"level": "MUST", "Complete": true, "Evidence": "Serena initial_instructions read (re-asserted via UserPromptSubmit hook)"},
+      "handoffRead": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md + latest retro injected at session start"},
+      "sessionLogCreated": {"level": "MUST", "Complete": true, "Evidence": "This file"},
+      "skillScriptsListed": {"level": "MUST", "Complete": true, "Evidence": "available-skills list in context; session-init used"},
+      "usageMandatoryRead": {"level": "MUST", "Complete": true, "Evidence": "AGENTS.md + .claude/rules in context; canonical-source-mirror + testing rules consulted for the hook change"},
+      "constraintsRead": {"level": "MUST", "Complete": true, "Evidence": "Read invoke_auto_retrospective.py, invoke_session_validator.py (continuation contract), invoke_context_loader.py before editing"},
+      "memoriesLoaded": {"level": "MUST", "Complete": true, "Evidence": "MEMORY.md + recalled memories injected at session start"},
+      "branchVerified": {"level": "MUST", "Complete": true, "Evidence": "fix/auto-retro-block-and-fill (off origin/main)"},
+      "notOnMain": {"level": "MUST", "Complete": true, "Evidence": "On fix/auto-retro-block-and-fill"},
+      "gitStatusVerified": {"level": "SHOULD", "Complete": true, "Evidence": "git status verified; only intended files staged"},
+      "startingCommitNoted": {"level": "SHOULD", "Complete": true, "Evidence": "78153bb7c"}
+    },
+    "sessionEnd": {
+      "checklistComplete": {"level": "MUST", "Complete": true, "Evidence": "Hook emits a Stop continuation on the create path (block-and-fill) instructing the retrospective skill with an inline fallback; index relocated to .agents/retrospective/INDEX.md; context-loader excludes INDEX.md; tests added; stale skeletons removed"},
+      "handoffPreserved": {"level": "MUST", "Complete": true, "Evidence": "HANDOFF.md not modified"},
+      "serenaMemoryUpdated": {"level": "MUST", "Complete": true, "Evidence": "No new cross-session memory required; change is a self-contained hook fix. Decision recorded in this log + PR body"},
+      "markdownLintRun": {"level": "MUST", "Complete": true, "Evidence": "markdownlint-cli2 runs in pre-commit on each commit; pre_pr Markdown Linting PASS"},
+      "changesCommitted": {"level": "MUST", "Complete": true, "Evidence": "Hook + context-loader + index migration + tests committed on fix/auto-retro-block-and-fill"},
+      "validationPassed": {"level": "MUST", "Complete": true, "Evidence": "135 affected tests pass (.venv pytest); runtime smoke: hook emits {continue:true} with retrospective-skill instruction + creates .agents/retrospective/INDEX.md; full pytest + pre_pr run before push"},
+      "tasksUpdated": {"level": "SHOULD", "Complete": false, "Evidence": ""},
+      "retrospectiveInvoked": {"level": "SHOULD", "Complete": false, "Evidence": ""}
+    }
+  },
+  "workLog": [
+    {"step": "context", "evidence": "User: auto-retro skeletons are noise unless a hook auto-fills them; the index at docs/retros/INDEX.md is the wrong location (retros live in .agents/retrospective/). Confirmed the create-then-prompt mechanism via the proven invoke_session_validator continuation contract."},
+    {"step": "implement", "evidence": "invoke_auto_retrospective.py: added write_continue_response (mirrors invoke_session_validator) emitted on the create path, instructing the retrospective skill with an inline fallback; relocated update_retro_index to .agents/retrospective/INDEX.md with bare-filename links. invoke_context_loader.py: _find_latest_retrospective and _count_pending_skeletons exclude INDEX.md. Migrated the existing index, removed docs/retros/, updated .githooks/pre-push + tree-neutral test comments, deleted the 3 stale skeletons (06-06/07/09)."},
+    {"step": "verify", "evidence": ".venv pytest tests/test_auto_retrospective.py tests/test_context_loader.py tests/test_pre_push_tree_neutral.py tests/test_pr_description.py tests/hooks/test_topical_memory_injection.py = 135 passed. Runtime smoke: real hook invocation emits continue=true with the retrospective-skill instruction and writes .agents/retrospective/INDEX.md. Loop-safety covered by test_skip_path_emits_no_continuation."}
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Commit hook + context-loader + index migration + tests; pre_pr; push; open PR",
+    "Bot review: the continuation reason is long but one-time per day on non-trivial sessions only"
+  ]
+}

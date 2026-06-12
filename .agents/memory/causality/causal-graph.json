@@ -4765,7 +4765,8 @@
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
         "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
         "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths",
-        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge"
+        "episode-2026-06-09-session-2377-drive-2514-ready-to-merge-main-merge",
+        "episode-2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate"
       ],
       "created": "2026-06-06T20:17:10.474613+00:00"
     },
@@ -5359,7 +5360,8 @@
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
         "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
         "episode-2026-06-09-session-2377-drive-2513-ready-to-merge-squash-merge",
-        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths"
+        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths",
+        "episode-2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate"
       ],
       "created": "2026-06-07T20:00:30.167694+00:00"
     },
@@ -5379,7 +5381,8 @@
       "episodes": [
         "episode-2026-06-07-session-2368-agentsmd-optimization-study-apply-open",
         "episode-2026-06-07-session-2375-add-paths-frontmatter-clauderules-claude",
-        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths"
+        "episode-2026-06-09-session-2376-gate-se-book-rules-code-globs-paths",
+        "episode-2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate"
       ],
       "created": "2026-06-07T20:00:30.167748+00:00"
     },
@@ -6212,6 +6215,159 @@
         "episode-2026-06-11-session-2383"
       ],
       "created": "2026-06-11T13:41:28.184441+00:00"
+    },
+    {
+      "id": "1d330a6bd5c2",
+      "type": "outcome",
+      "label": "Outcome: success - Fix issue 2523: hooks hardening sweep (npx timeout, Stop hook exit contract, session-log streaming, Windows lock range, install-layout walk-up)",
+      "episodes": [
+        "episode-2026-06-10-session-2381-fix-issue-2523-hooks-hardening"
+      ],
+      "created": "2026-06-11T19:10:16.661383+00:00"
+    },
+    {
+      "id": "30c35218feef",
+      "type": "test",
+      "label": "test: .venv pytest tests/test_auto_retrospective.py tests/test_context_loader.py tests/test_pre_push_tree_neutral.py tests/test_pr_description.py tests/hooks/test_topical_memory_injection.py = 135 passed. Runtime smoke: real hook invocation emits continue=true with the retrospective-skill instruction and writes .agents/retrospective/INDEX.md. Loop-safety covered by test_skip_path_emits_no_continuation.",
+      "episodes": [
+        "episode-2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate"
+      ],
+      "created": "2026-06-11T19:10:16.662343+00:00"
+    },
+    {
+      "id": "3cd3bc39a568",
+      "type": "outcome",
+      "label": "Outcome: success - Auto-retro hook: block-and-fill continuation + relocate index to .agents/retrospective",
+      "episodes": [
+        "episode-2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate"
+      ],
+      "created": "2026-06-11T19:10:16.662373+00:00"
+    },
+    {
+      "id": "4b6a9b9d1a6e",
+      "type": "milestone",
+      "label": "milestone: Ran live-state gate for PR #2560",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662519+00:00"
+    },
+    {
+      "id": "d8ca9032b8b1",
+      "type": "milestone",
+      "label": "milestone: Created isolated worktree",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662546+00:00"
+    },
+    {
+      "id": "dadc2f3c9b9c",
+      "type": "milestone",
+      "label": "milestone: Validated retrospective hook behavior",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662572+00:00"
+    },
+    {
+      "id": "09c9207ff2d8",
+      "type": "milestone",
+      "label": "milestone: Fixed plugin version gate",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662597+00:00"
+    },
+    {
+      "id": "52f5d4ac42d1",
+      "type": "milestone",
+      "label": "milestone: Ran pre_pr validation",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662622+00:00"
+    },
+    {
+      "id": "1a724f68a538",
+      "type": "commit",
+      "label": "commit: Commit: e1569befc1",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662648+00:00"
+    },
+    {
+      "id": "4747d9eb25eb",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main and revalidated",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662674+00:00"
+    },
+    {
+      "id": "aa067cee5096",
+      "type": "commit",
+      "label": "commit: Commit: 2f31f05adc",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662699+00:00"
+    },
+    {
+      "id": "c4b6fb39acbc",
+      "type": "milestone",
+      "label": "milestone: Merged latest origin/main and revalidated",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662725+00:00"
+    },
+    {
+      "id": "0c2886f9f5bf",
+      "type": "commit",
+      "label": "commit: Commit: 8cd15f2c1e",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662750+00:00"
+    },
+    {
+      "id": "218d86db1f60",
+      "type": "milestone",
+      "label": "milestone: Renumbered session evidence file",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662776+00:00"
+    },
+    {
+      "id": "2891e29d7b6d",
+      "type": "milestone",
+      "label": "milestone: Resolved latest origin/main merge conflict",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662811+00:00"
+    },
+    {
+      "id": "b086e962c0e9",
+      "type": "milestone",
+      "label": "milestone: Re-bumped plugin manifests after base moved",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662837+00:00"
+    },
+    {
+      "id": "c7c3a6ca1462",
+      "type": "outcome",
+      "label": "Outcome: success - Autofix and merge PR 2560 canonical failure modes path",
+      "episodes": [
+        "episode-2026-06-11-session-2384"
+      ],
+      "created": "2026-06-11T19:10:16.662863+00:00"
     }
   ],
   "patterns": [
@@ -6261,7 +6417,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 24,
+      "occurrences": 26,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -6270,7 +6426,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 48,
+      "occurrences": 52,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -6279,7 +6435,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 96,
+      "occurrences": 104,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -6288,7 +6444,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 144,
+      "occurrences": 156,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -6298,7 +6454,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -6306,7 +6462,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -6314,7 +6470,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -6322,7 +6478,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -6330,7 +6486,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -6338,7 +6494,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -6346,7 +6502,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -6354,7 +6510,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -6362,7 +6518,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -6370,7 +6526,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -6378,7 +6534,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -6386,7 +6542,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -6394,7 +6550,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -6402,7 +6558,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -6410,7 +6566,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -6418,7 +6574,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -6426,7 +6582,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -6434,7 +6590,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -6442,7 +6598,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -6450,7 +6606,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -6458,7 +6614,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -6466,7 +6622,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -6474,7 +6630,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -6482,7 +6638,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -6490,7 +6646,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -6498,7 +6654,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -6506,7 +6662,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -6514,7 +6670,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -6522,7 +6678,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -6530,7 +6686,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -6538,7 +6694,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -6546,7 +6702,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -6554,7 +6710,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -6562,7 +6718,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -6570,7 +6726,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -6578,7 +6734,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -6586,7 +6742,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -6594,7 +6750,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -6602,7 +6758,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -6610,7 +6766,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 24,
+      "evidence_count": 26,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
