@@ -137,6 +137,41 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     return None
 
 
+def _resolve_default_base_ref(repo_root: Path) -> str | None:
+    """Resolve the base ref for "what changed vs the default branch".
+
+    Unlike :func:`_resolve_branch_base_ref`, this deliberately EXCLUDES the
+    current branch's own upstream (``@{u}``). For a feature branch ``@{u}`` is
+    ``origin/<feature-branch>``; once the branch is pushed, ``@{u}...HEAD`` is
+    empty, so a change-vs-base diff misses everything the branch added. That is
+    exactly how ``pre_pr.py`` reported "No changed workflow files" while the
+    pre-push hook (which diffs against the merge-base with ``origin/main``)
+    found and validated one (issue #2571).
+
+    Priority, matching ``.githooks/pre-push`` semantics (merge-base with the
+    default branch):
+
+        1. The PR's actual baseRefName via ``gh pr view`` (validated).
+        2. The remote default branch via ``refs/remotes/origin/HEAD``.
+        3. ``origin/main`` then local ``main`` as last-resort literals.
+
+    Returns None when none resolve.
+    """
+    candidates: list[str] = []
+    pr_base = _gh_base_ref(repo_root)
+    if pr_base:
+        candidates.append(pr_base)
+    candidates += ["refs/remotes/origin/HEAD", "origin/main", "main"]
+    for ref in candidates:
+        exit_code, _, _ = _run_subprocess(
+            ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", ref],
+            timeout=10,
+        )
+        if exit_code == 0:
+            return ref
+    return None
+
+
 def _refresh_remote_base(base_ref: str, repo_root: Path) -> str | None:
     """Best-effort fetch of ``origin/<branch>`` to keep the base ref fresh (#2453).
 
