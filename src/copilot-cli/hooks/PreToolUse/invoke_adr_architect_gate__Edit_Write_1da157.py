@@ -214,10 +214,10 @@ def _original_main(stdin_bytes):
 
     import json
     import os
+    import posixpath
     import re
     import sys
     from datetime import UTC, datetime
-    import posixpath
     from pathlib import Path, PurePosixPath
 
     # Bootstrap: find lib directory via env var or manifest walk-up.
