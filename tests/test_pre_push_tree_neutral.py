@@ -8,7 +8,7 @@ Two dirtying sources are guarded here at the script-content level:
 2. The pre-push hook drops an auto-retro suppression sentinel under the
    gitignored ``.agents/.hook-state/`` and removes it on exit, so a session
    ending mid-run does not leave an untracked auto-retro file or a
-   ``docs/retros/INDEX.md`` edit behind.
+   ``.agents/retrospective/INDEX.md`` edit behind.
 
 The runtime suppression behavior of the Stop hook itself is covered in
 ``tests/test_auto_retrospective.py`` (TestAutoRetroSuppressionSentinel). Here we

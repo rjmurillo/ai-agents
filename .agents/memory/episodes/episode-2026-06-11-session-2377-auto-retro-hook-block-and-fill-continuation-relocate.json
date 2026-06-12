@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate",
+  "session": "2026-06-11-session-2377-auto-retro-hook-block-and-fill-continuation-relocate",
+  "timestamp": "2026-06-11T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Auto-retro hook: block-and-fill continuation + relocate index to .agents/retrospective",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "context",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "implement",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "milestone",
+      "content": "verify",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-11T00:00:00+00:00",
+      "type": "test",
+      "content": ".venv pytest tests/test_auto_retrospective.py tests/test_context_loader.py tests/test_pre_push_tree_neutral.py tests/test_pr_description.py tests/hooks/test_topical_memory_injection.py = 135 passed. Runtime smoke: real hook invocation emits continue=true with the retrospective-skill instruction and writes .agents/retrospective/INDEX.md. Loop-safety covered by test_skip_path_emits_no_continuation.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}

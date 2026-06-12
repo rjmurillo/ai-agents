@@ -92,7 +92,7 @@ TEMP_FILES=()
 # The Stop hook (.claude/hooks/Stop/invoke_auto_retrospective.py) skips skeleton
 # generation while this file exists, so a session ending mid-pre-push (including
 # a failing one) does not leave an untracked auto-retro file or a
-# docs/retros/INDEX.md edit behind. Removed on exit by cleanup().
+# .agents/retrospective/INDEX.md edit behind. Removed on exit by cleanup().
 AUTO_RETRO_SUPPRESS_SENTINEL=""
 cleanup() {
     for f in "${TEMP_FILES[@]}"; do
