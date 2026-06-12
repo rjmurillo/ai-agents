@@ -7,7 +7,7 @@ description: PR review focused on code quality, impact analysis, and maintainabi
 
 # Analyst Review Task
 
-You are reviewing a pull request for code quality, impact, and architectural concerns.
+You are reviewing a pull request for code quality, impact, and maintainability.
 
 ## Context Mode Enforcement (REQUIRED)
 
@@ -67,6 +67,9 @@ findings. When nothing code-quality-specific is wrong, the correct output is an
 empty findings list. This non-overlap rule is the primary control against the
 verbatim-duplication noise pattern (Issue #2480).
 
+This section overrides the broad task summary above. If a concern belongs to
+architect, QA, security, or deterministic CI, do not emit it from analyst.
+
 ### 1. Code Quality Assessment
 
 - **Readability**: Is the code easy to understand?
@@ -76,8 +79,7 @@ verbatim-duplication noise pattern (Issue #2480).
 
 ### 2. Impact Analysis
 
-- Which systems or features are affected? (code-quality lens only; defer
-  blast-radius and dependency-graph judgments to the architect axis)
+- Which call sites or module surfaces become harder to read, test, or maintain?
 - Could this affect readability or maintainability at the call sites?
 
 ### 3. Architectural Alignment (defer to the architect axis)
@@ -147,13 +149,13 @@ MESSAGE: [Brief explanation]
 
 ## Critical Failure Triggers
 
-Automatically use `CRITICAL_FAIL` if you find:
+Automatically use `CRITICAL_FAIL` only for analyst-owned findings:
 
-- Architectural violations that would require significant rework
-- Code that would be extremely difficult to maintain
-- Missing critical documentation for public APIs
-- Changes that break established contracts
-- Over-engineering that adds unnecessary complexity
+- Code-quality degradation that would be extremely difficult to maintain
+- Missing critical documentation for public APIs when no documentation axis owns it
+- Local code contracts that are broken in a way visible from the diff and not owned
+  by the architect axis
+- Over-engineering that adds unnecessary implementation complexity
 
 ## Structured JSON Output
 
