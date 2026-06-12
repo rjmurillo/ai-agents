@@ -71,7 +71,8 @@ empty findings list. This non-overlap rule is the primary control against the
 verbatim-duplication noise pattern (Issue #2480).
 
 This section overrides the broad task summary above. If a concern belongs to
-architect, QA, security, or deterministic CI, do not emit it from analyst.
+architect, code-quality, QA, security, or deterministic CI, do not emit it from
+analyst.
 
 ### 1. Code Quality Assessment
 
@@ -103,16 +104,12 @@ pattern is expressed, not whether the pattern itself is correct.
 
 Provide your analysis in this format:
 
-### Code Quality Score
+### Analysis Summary
 
-| Criterion | Score (1-5) | Notes |
-|-----------|-------------|-------|
-| Readability | | |
-| Claim support | | |
-| Consistency | | |
-| Simplicity | | |
-
-**Overall**: X/5
+- **Readability**: brief note or "no finding"
+- **Claim support**: brief note or "no finding"
+- **Consistency**: brief note or "no finding"
+- **Simplicity**: brief note or "no finding"
 
 ### Impact Assessment
 
