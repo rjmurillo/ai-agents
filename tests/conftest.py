@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,38 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.validation.models import ValidationResult  # noqa: E402
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _disable_commit_signing_for_test_git() -> Iterator[None]:
+    """Neutralize host ``commit.gpgsign`` for all git subprocesses in the suite.
+
+    Some environments (e.g. Claude web containers) set a global
+    ``commit.gpgsign`` backed by a signing server that rejects commits made in
+    ``tmp_path`` fixture repos with HTTP 400, breaking the ~57 tests that create
+    commits (adr-review, metrics, merge-resolver, worktree tests, ...). Injecting
+    ``commit.gpgsign=false`` via ``GIT_CONFIG_COUNT`` gives it command-line
+    precedence over host config, so fixtures commit cleanly without per-fixture
+    edits (issue #2548). The signing-sensitive tests still RUN (they are not
+    skipped); only the signing requirement is removed.
+
+    No test sets ``GIT_CONFIG_COUNT``, so index 0 is free; if some outer process
+    already uses the indexed mechanism, this fixture leaves it untouched.
+    """
+    keys = ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0")
+    prior = {k: os.environ.get(k) for k in keys}
+    if not os.environ.get("GIT_CONFIG_COUNT"):
+        os.environ["GIT_CONFIG_COUNT"] = "1"
+        os.environ["GIT_CONFIG_KEY_0"] = "commit.gpgsign"
+        os.environ["GIT_CONFIG_VALUE_0"] = "false"
+    try:
+        yield
+    finally:
+        for key, value in prior.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
 
 
 def assert_validation_result(
