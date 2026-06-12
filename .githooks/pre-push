@@ -568,19 +568,34 @@ else
     record_skip "Markdown lint (no .md files changed)"
 fi
 
-# 6. Python lint (ruff) - BLOCKING
+# 6. Python lint (ruff) - ADVISORY (Issues #2574, #2592)
 #
-# Issue #2574: choose ruff via uv first when this checkout is uv-managed.
-# Mirrors set_python_cmd's "uv run --frozen ..." preference so we get the
-# pinned ruff from [project.optional-dependencies].dev rather than silently
-# skipping lint when ``ruff`` is not on PATH.  Order of preference:
+# Resolution of the ruff command (Issue #2574): choose ruff via uv first when
+# this checkout is uv-managed. Mirrors set_python_cmd's "uv run --frozen ..."
+# preference so we get the pinned ruff from [project.optional-dependencies].dev
+# rather than silently skipping lint when ``ruff`` is not on PATH.  Order of
+# preference:
 #   1. ``uv run --frozen --extra dev ruff`` when uv + (uv.lock | pyproject.toml)
 #   2. ``ruff`` on PATH                      (legacy / non-uv installations)
 #   3. fail loudly                           (uv-managed checkout with no ruff)
 #
-# Failure mode matters: the prior ``command -v ruff || record_skip`` let
-# import-order (I001) and other BLOCKING lint failures pass pre-push when
-# the developer had no global ruff but uv could supply one.
+# Output policy (Issue #2592): lint *findings* on changed .py files are
+# advisory (record_warn). The CI ruff step in .github/workflows/pytest.yml
+# runs with ``continue-on-error: true`` (Issue #2194) because of a 2026-finding
+# pre-existing backlog. Pre-push lints *whole files* (not just diff hunks), so
+# treating findings as BLOCKING here forces unrelated cleanup of every
+# pre-existing finding in any legacy file the developer touches -- even for a
+# one-line change. That made pre-push stricter than CI, which the issue
+# reporter hit on 2026-06-11 (18 pre-existing E501s on a 2-line fix to PR
+# #2588). Until the backlog reaches zero, the policy is: pre-push *surfaces*
+# lint findings (no silent skip, per #2574) but does not block the push.
+# Flip back to record_fail here at the same time as removing
+# ``continue-on-error: true`` from pytest.yml so the gate strictness lives in
+# one place.
+#
+# Missing-ruff still BLOCKS (Issue #2574): the advisory policy applies only to
+# lint *output*, never to missing tooling. A uv-managed checkout that cannot
+# resolve ruff is an environment bug the developer must fix.
 RUFF_CMD=()
 RUFF_SOURCE=""
 if [ -n "$CHANGED_PY" ]; then
@@ -608,13 +623,15 @@ if [ -n "$CHANGED_PY" ]; then
             if "${RUFF_CMD[@]}" check -- "${PY_FILES[@]}" > "$RUFF_OUTPUT" 2>&1; then
                 record_pass "Python lint/ruff (${#PY_FILES[@]} files via ${RUFF_SOURCE})"
             else
-                echo_info "  Ruff issues:"
+                # Surface the findings so the developer can clean them when
+                # convenient. Advisory per Issue #2592: do not block the push.
+                echo_info "  Ruff findings (advisory, see Issue #2592):"
                 head -20 "$RUFF_OUTPUT"
-                record_fail "Python lint/ruff"
+                record_warn "Python lint/ruff (advisory: pre-existing backlog #2194, see #2592)"
                 if [ "$RUFF_SOURCE" = "uv" ]; then
-                    echo_info "  Fix: uv run --frozen --extra dev ruff check --fix <files>"
+                    echo_info "  Fix at your convenience: uv run --frozen --extra dev ruff check --fix <files>"
                 else
-                    echo_info "  Fix: ruff check --fix <files>"
+                    echo_info "  Fix at your convenience: ruff check --fix <files>"
                 fi
             fi
             rm -f "$RUFF_OUTPUT"
@@ -626,7 +643,8 @@ if [ -n "$CHANGED_PY" ]; then
         # BLOCKING check: fail loudly with actionable guidance instead of
         # silently passing the push (Issue #2574). In a uv-managed checkout
         # the fix is ``uv sync --extra dev``; in a bare environment the fix
-        # is ``pip install ruff`` (or installing uv).
+        # is ``pip install ruff`` (or installing uv). The #2592 advisory
+        # policy narrows to lint *output* only; missing tooling still blocks.
         record_fail "Python lint/ruff (no ruff available)"
         if [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; then
             echo_info "  Fix: ensure uv can run the repo dev environment: run 'uv sync --extra dev'; if uv cannot provision the pinned Python, update uv or adjust .python-version"
