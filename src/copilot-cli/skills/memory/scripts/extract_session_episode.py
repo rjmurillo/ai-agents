@@ -416,7 +416,7 @@ def _as_dict(value: Any) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def _valid_fail_match(text: str) -> "re.Match[str] | None":
+def _valid_fail_match(text: str) -> re.Match[str] | None:
     """First counted-failure match that is a real failure tally, else None.
 
     Rejects matches where the keyword is "error(s)" and the count falls in the
@@ -612,7 +612,9 @@ def json_events(data: dict, now_iso: str) -> list[dict]:
             add("milestone", title)
         text = _entry_text(entry)
         if _PASS_COUNT_RE.search(text):
-            add("test", (_entry_field(entry, "evidence") or _entry_field(entry, "outcome") or text).strip())
+            evidence = _entry_field(entry, "evidence")
+            outcome = _entry_field(entry, "outcome")
+            add("test", (evidence or outcome or text).strip())
         if _valid_fail_match(text):
             add("error", text.strip())
 
@@ -1211,7 +1213,10 @@ def main(argv: list[str] | None = None) -> int:
         elif not args.force:
             print(
                 json.dumps({
-                    "Error": f"Episode file already exists: {episode_file}. Use --force to overwrite or --preserve to merge.",
+                    "Error": (
+                        f"Episode file already exists: {episode_file}. "
+                        "Use --force to overwrite or --preserve to merge."
+                    ),
                 }),
                 file=sys.stderr,
             )
