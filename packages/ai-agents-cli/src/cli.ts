@@ -11,6 +11,7 @@ import { mergeClaudeMd } from "./target/merge-claude-md.js";
 import { mergeCopilotInstructions } from "./target/merge-copilot-instructions.js";
 import { writeAgentsMd } from "./target/write-agents-md.js";
 import { writeVersionPin } from "./target/version-pin.js";
+import { makePackFilter, knownPacks, parsePacks } from "./packs.js";
 import { TARGETS, type BundleEntry, type Target, type TargetContext } from "./types.js";
 
 const VERSION = "0.1.0";
@@ -23,6 +24,7 @@ export interface RunInitOptions {
   assetsDir: string;
   version: string;
   target?: Target;
+  packs?: string[];
 }
 
 // Append the inline harness block to the instruction file(s) the target selects.
@@ -67,7 +69,12 @@ export async function runInit(opts: RunInitOptions): Promise<number> {
     return entry;
   };
 
-  const code = await init(source, emitter, target, [capture]);
+  // Optional skill packs are excluded by default; --pack opts them in. The
+  // filter runs before capture so a non-requested pack's files are neither
+  // vendored nor recorded in the version pin (issue #2509).
+  const packFilter = makePackFilter(new Set(opts.packs ?? []));
+
+  const code = await init(source, emitter, target, [packFilter, capture]);
   if (code !== 0) return code;
 
   if (!opts.dryRun) {
@@ -105,6 +112,7 @@ async function main(): Promise<number> {
       yes: { type: "boolean", short: "y", default: false },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", default: false },
+      pack: { type: "string", multiple: true },
     },
     allowPositionals: true,
     strict: true,
@@ -128,6 +136,8 @@ async function main(): Promise<number> {
         "  --dry-run     Show what would be written without touching disk",
         "  --target T    Instruction file(s) to update: claude, copilot, or both",
         "                (default: claude)",
+        `  --pack NAME   Also install an optional skill pack (${knownPacks().join(", ")});`,
+        "                repeatable or comma-separated",
         "  -y, --yes     Skip confirmation prompts",
         "  -h, --help    Show this help message",
         "  --version     Print the CLI version and exit",
@@ -157,6 +167,15 @@ async function main(): Promise<number> {
     return 2;
   }
 
+  let packs: string[];
+  try {
+    packs = [...parsePacks(values.pack as string[] | undefined)];
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`${message}\n`);
+    return 2;
+  }
+
   process.stdout.write(
     `ai-agents init: dir=${targetDir} target=${target} force=${force} dryRun=${dryRun}\n`,
   );
@@ -168,6 +187,7 @@ async function main(): Promise<number> {
     assetsDir: resolveAssetsDir(),
     version: VERSION,
     target,
+    packs,
   });
 }
 
