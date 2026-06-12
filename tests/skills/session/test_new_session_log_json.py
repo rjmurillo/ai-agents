@@ -87,6 +87,9 @@ class TestMain:
         assert data["session"]["startingCommit"] == "abc1234"
         assert "protocolCompliance" in data
         assert data["workLog"] == []
+        # schemaVersion + trailing newline (issue #2537)
+        assert data["schemaVersion"] == "1.0"
+        assert files[0].read_text(encoding="utf-8").endswith("}\n")
 
     @patch("new_session_log_json._get_repo_root")
     @patch("new_session_log_json._get_branch")

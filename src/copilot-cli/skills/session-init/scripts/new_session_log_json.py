@@ -178,6 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         session_metadata["parentSessionId"] = parent_session_id
 
     session: dict[str, Any] = {
+        "schemaVersion": "1.0",
         "session": session_metadata,
         "protocolCompliance": {
             "sessionStart": {
@@ -211,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     # Atomic file creation with collision retry (CWE-362)
-    json_content = json.dumps(session, indent=2)
+    json_content = json.dumps(session, indent=2) + "\n"
     max_retries = 5
     created = False
     filepath = ""
@@ -237,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 session_number += 1
                 session["session"]["number"] = session_number
-                json_content = json.dumps(session, indent=2)
+                json_content = json.dumps(session, indent=2) + "\n"
             else:
                 raise
 
