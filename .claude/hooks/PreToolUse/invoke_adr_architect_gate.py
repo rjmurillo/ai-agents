@@ -24,10 +24,11 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
 import sys
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # Bootstrap: find lib directory via env var or manifest walk-up.
 # CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
@@ -48,7 +49,11 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} "
+        f"(CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     sys.exit(2)
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -130,13 +135,25 @@ def write_audit_log(message: str) -> None:
         )
 
 
-def _is_evidence_artifact(file_path: str) -> bool:
+def _normalize_hook_path(file_path: str) -> str:
+    """Normalize a hook path for lexical gate matching.
+
+    Hook inputs are project-relative strings, not necessarily existing files.
+    ``posixpath.normpath`` collapses ``..`` without requiring the target to
+    exist; replacing backslashes first keeps Windows paths on the same path
+    separator contract as POSIX paths.
+    """
+    normalized = file_path.replace("\\", "/")
+    return posixpath.normpath(normalized)
+
+
+def _is_evidence_artifact(normalized_path: str) -> bool:
     """True if file_path lives under a gate evidence directory.
 
-    Matches ``.agents/analysis/`` and ``.agents/critique/`` as consecutive
-    path segments, for both relative and absolute paths.
+    Matches ``.agents/analysis/`` and ``.agents/critique/`` after lexical
+    normalization has collapsed traversal segments.
     """
-    parts = Path(file_path).parts
+    parts = PurePosixPath(normalized_path).parts
     for needle in _EVIDENCE_DIRS:
         span = len(needle)
         for start in range(len(parts) - span + 1):
@@ -155,9 +172,10 @@ def is_adr_file(file_path: str) -> bool:
     whose name starts with ``ADR-<digits>`` match, not any path containing the
     substring.
     """
-    if _is_evidence_artifact(file_path):
+    normalized_path = _normalize_hook_path(file_path)
+    if _is_evidence_artifact(normalized_path):
         return False
-    return _ADR_PATTERN.search(file_path) is not None
+    return _ADR_PATTERN.search(normalized_path) is not None
 
 
 def check_architect_evidence(project_dir: str) -> dict[str, object]:

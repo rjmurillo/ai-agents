@@ -72,6 +72,24 @@ class TestIsADRFile:
         # Basename-anchored: ADR-<n> embedded mid-name does not match.
         assert is_adr_file("notes/about-ADR-5-stuff.md") is False
 
+    def test_matches_windows_separator_adr_path(self) -> None:
+        assert is_adr_file(r".agents\architecture\ADR-0002-decision.md") is True
+
+    def test_excludes_windows_separator_evidence_artifact(self) -> None:
+        assert is_adr_file(r".agents\analysis\ADR-0002-debate.md") is False
+
+    def test_rejects_path_traversal_bypass(self) -> None:
+        assert (
+            is_adr_file(".agents/analysis/../architecture/ADR-0002-decision.md")
+            is True
+        )
+
+    def test_rejects_nested_path_traversal_bypass(self) -> None:
+        assert (
+            is_adr_file(".agents/analysis/../../docs/architecture/ADR-0002.md")
+            is True
+        )
+
 
 class TestCheckArchitectEvidence:
     def test_complete_when_debate_log_in_analysis(self, tmp_path: Path) -> None:
