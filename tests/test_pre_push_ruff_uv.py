@@ -150,6 +150,14 @@ case "$*" in
     "run --frozen python -c "*)
         exit 0
         ;;
+    "run --frozen python "*)
+        # set_python_cmd resolves PYTHON_CMD=(uv run --frozen python). Later
+        # phases (e.g. Phase 5b drift detection) invoke it with a script path.
+        # Treat the call as successful so phases after ruff do not produce a
+        # spurious FAIL that masks the ruff branch under test (Issue #2592
+        # added record_warn semantics that made these calls reach).
+        exit 0
+        ;;
     "run --frozen --extra dev ruff --version"*)
         echo "ruff 0.15.16 (uv-managed)"
         exit 0
@@ -326,10 +334,18 @@ def test_uv_managed_checkout_runs_ruff_via_uv(tmp_path: Path) -> None:
     )
 
 
-def test_uv_managed_checkout_fails_push_when_uv_ruff_finds_violations(tmp_path: Path) -> None:
+def test_uv_managed_checkout_surfaces_violations_visibly(tmp_path: Path) -> None:
     """Acceptance: import-order (or any) violations from uv-managed ruff
-    must fail the push, satisfying the acceptance criterion that the bug
-    reporter's I001 errors no longer pass silently.
+    must produce visible, non-silent feedback (the original #2574 bug was
+    silent skip when ruff was missing).
+
+    Note: prior to Issue #2592 this test asserted the push FAILED on
+    violations. After #2592 the lint output is advisory (warn, not block) to
+    match the CI ``continue-on-error: true`` ruff step (Issue #2194) so that
+    a small change to a legacy file does not force unrelated cleanup of the
+    pre-existing 2026-finding backlog. The visible-feedback contract (no
+    silent skip) survives -- only the blocking semantics changed. The new
+    contract is pinned by ``tests/test_pre_push_ruff_advisory.py``.
     """
     repo, base_sha, head_sha, env = _make_hook_repo(
         tmp_path,
@@ -341,15 +357,18 @@ def test_uv_managed_checkout_fails_push_when_uv_ruff_finds_violations(tmp_path: 
     result = _run_pre_push(repo, base_sha, head_sha, env)
     output = result.stdout + result.stderr
 
-    assert result.returncode != 0, (
-        f"Expected pre-push to fail when uv-managed ruff reports violations; "
-        f"exit was {result.returncode}, output:\n{output}"
+    # The push must NOT fail on lint output (advisory per #2592).
+    assert result.returncode == 0, (
+        f"Expected pre-push to succeed on lint findings (advisory per "
+        f"Issue #2592 to match CI continue-on-error: true); exit was "
+        f"{result.returncode}, output:\n{output}"
     )
-    assert "Python lint/ruff" in output and (
-        "ERROR" in output or "FAIL" in output
-    ), (
-        f"Expected an ERROR/FAIL marker for Python lint/ruff in pre-push "
-        f"output, got:\n{output}"
+    # But the lint step must still surface visibly -- the #2574 contract
+    # (no silent skip) means a WARNING is recorded, not nothing.
+    assert "Python lint/ruff" in output and "WARNING" in output, (
+        f"Expected a WARNING marker for Python lint/ruff in pre-push "
+        f"output (visible non-silent feedback per #2574, advisory per "
+        f"#2592); got:\n{output}"
     )
 
 
