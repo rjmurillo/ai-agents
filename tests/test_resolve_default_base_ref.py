@@ -3,8 +3,8 @@
 pre_pr.py missed changed workflow files that the pre-push hook detected,
 because its base resolver could fall back to the branch's own upstream
 (``@{u}``), which yields an empty diff once the branch is pushed. The
-default-branch resolver must mirror pre-push (merge-base with origin/main)
-and must never request ``@{u}``.
+default-branch resolver must choose a trunk-facing base ref and must never
+request ``@{u}``.
 """
 
 from __future__ import annotations

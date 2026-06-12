@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -32,10 +33,14 @@ def _pinned_version() -> str:
     # .python-version may carry a trailing comment or multiple lines; the pin is
     # the first non-empty token.
     for line in text.splitlines():
-        token = line.strip()
+        token = line.split("#", 1)[0].strip().split(maxsplit=1)[0]
         if token and not token.startswith("#"):
             return token
     return ""
+
+
+def _uv_cpython_pattern(version: str) -> re.Pattern[str]:
+    return re.compile(rf"cpython-{re.escape(version)}(?!\d)")
 
 
 def test_python_version_file_exists_and_is_pinned() -> None:
@@ -57,7 +62,7 @@ def test_pinned_python_version_is_uv_installable() -> None:
         result = subprocess.run(
             [uv, "python", "list", "--all-versions"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             timeout=60,
             check=False,
         )
@@ -68,11 +73,11 @@ def test_pinned_python_version_is_uv_installable() -> None:
         pytest.skip(f"uv python list failed (rc={result.returncode}); cannot verify")
 
     listing = result.stdout
-    # uv lists interpreters as e.g. "cpython-3.14.6-linux-x86_64-gnu" (installed
-    # or "<download available>"). A provisionable pin appears as cpython-<ver>-
-    # or cpython-<ver>+ (freethreaded). Match either boundary so 3.14.6 does not
-    # spuriously match 3.14.60.
-    pattern = re.compile(rf"cpython-{re.escape(version)}[-+]")
+    # uv lists interpreters as e.g. "cpython-3.14.6-linux-x86_64-gnu"
+    # (installed or "<download available>"). A minor pin such as "3.14" should
+    # match any listed 3.14.x patch, while a patch pin such as "3.14.6" must not
+    # match 3.14.60.
+    pattern = _uv_cpython_pattern(version)
     assert pattern.search(listing), (
         f"Pinned Python {version} is not in uv's provisionable list. "
         "uv cannot install it (its catalog is older than this release), so "
@@ -80,3 +85,28 @@ def test_pinned_python_version_is_uv_installable() -> None:
         "Pin .python-version to the newest version uv can provision "
         "(see `uv python list --all-versions`). Refs issue #2576."
     )
+
+
+def test_pinned_version_strips_inline_comment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    version_file = tmp_path / ".python-version"
+    version_file.write_text("3.14.6 # renovate managed\n", encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "_PYTHON_VERSION_FILE", version_file)
+
+    assert _pinned_version() == "3.14.6"
+
+
+def test_uv_pattern_allows_minor_pin_to_match_patch() -> None:
+    pattern = _uv_cpython_pattern("3.14")
+
+    assert pattern.search("cpython-3.14.6-linux-x86_64-gnu")
+    assert not pattern.search("cpython-3.140.1-linux-x86_64-gnu")
+
+
+def test_uv_pattern_patch_pin_does_not_match_longer_patch() -> None:
+    pattern = _uv_cpython_pattern("3.14.6")
+
+    assert pattern.search("cpython-3.14.6-linux-x86_64-gnu")
+    assert not pattern.search("cpython-3.14.60-linux-x86_64-gnu")

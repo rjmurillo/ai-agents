@@ -629,7 +629,7 @@ if [ -n "$CHANGED_PY" ]; then
         # is ``pip install ruff`` (or installing uv).
         record_fail "Python lint/ruff (no ruff available)"
         if [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; then
-            echo_info "  Fix: install uv and run 'uv sync --extra dev' so pre-push can run ruff via 'uv run --frozen --extra dev ruff'"
+            echo_info "  Fix: ensure uv can run the repo dev environment: run 'uv sync --extra dev'; if uv cannot provision the pinned Python, update uv or adjust .python-version"
         else
             echo_info "  Fix: install ruff (pip install ruff) or install uv so pre-push can run it via 'uv run --frozen --extra dev ruff'"
         fi

@@ -238,11 +238,10 @@ def validate_workflow_local_run(repo_root: Path) -> bool:
     pre_pr only warns so a contributor without actionlint installed is not
     stopped pre-PR.
 
-    Change detection uses :func:`_resolve_default_base_ref` (merge-base with the
-    default branch), matching the pre-push hook. The branch's own upstream is
-    deliberately not used as the base: once the branch is pushed it yields an
-    empty diff, which is how pre_pr previously missed changed workflows that
-    pre-push detected (issue #2571).
+    Change detection uses :func:`_resolve_default_base_ref` to choose a default
+    branch ref for the diff. The branch's own upstream is deliberately not used:
+    once the branch is pushed it yields an empty diff, which is how pre_pr
+    previously missed changed workflows that pre-push detected (issue #2571).
     """
     script = repo_root / "scripts" / "validation" / "run_workflow_local_test.py"
     if not script.exists():

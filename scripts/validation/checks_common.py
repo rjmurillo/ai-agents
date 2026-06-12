@@ -218,8 +218,7 @@ def _resolve_default_base_ref(repo_root: Path) -> str | None:
     pre-push hook (which diffs against the merge-base with ``origin/main``)
     found and validated one (issue #2571).
 
-    Priority, matching ``.githooks/pre-push`` semantics (merge-base with the
-    default branch):
+    Priority order:
 
         1. The PR's actual baseRefName via ``gh pr view`` (validated).
         2. The remote default branch via ``refs/remotes/origin/HEAD``.
