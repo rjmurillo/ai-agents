@@ -32,13 +32,16 @@ See [adr-template.md](adr-template.md) for the full template.
 
 ## MADR (Markdown Architectural Decision Records)
 
-Source: [github.com/adr/madr](https://github.com/adr/madr) (CC0-1.0 license)
+Source: [MADR 4.0.0 template](https://raw.githubusercontent.com/adr/madr/4.0.0/template/adr-template.md) (CC0-1.0 license). Pinned to version 4.0.0 (released 2024-09-17); an unpinned copy silently drifts as upstream evolves.
 
 ```markdown
 ---
+# These are optional metadata elements. Feel free to remove any of them.
 status: "{proposed | rejected | accepted | deprecated | superseded by ADR-0123}"
 date: {YYYY-MM-DD when the decision was last updated}
 decision-makers: {list everyone involved in the decision}
+consulted: {list everyone whose opinions are sought (typically subject-matter experts); and with whom there is a two-way communication}
+informed: {list everyone who is kept up-to-date on progress; and with whom there is a one-way communication}
 ---
 
 # {short title, representative of solved problem and found solution}
@@ -90,11 +93,17 @@ Chosen option: "{title of option 1}", because {justification}.
 {Additional evidence, team agreement, links to other decisions.}
 ```
 
+**MADR 4.0.0 facts**:
+
+- All frontmatter fields are optional ("These are optional metadata elements. Feel free to remove any of them.").
+- 4.0.0 also ships `bare` and `minimal` template variants for low-ceremony decisions; offer them when the full template is too heavy.
+- Naming history: 3.0.0-beta (2022-05-17) renamed the project "Markdown Any Decision Records"; 4.0.0 reverted to "Markdown **Architectural** Decision Records". Cite the architectural form.
+
 ---
 
 ## Nygard Template
 
-Source: [Michael Nygard, "Documenting Architecture Decisions" (2011)](http://thinkrelevance.com/blog/2011/11/15/documenting-architecture-decisions)
+Source: [Michael Nygard, "Documenting Architecture Decisions" (2011)](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
 
 The original and most widely adopted ADR format. Minimal by design.
 
@@ -103,7 +112,7 @@ The original and most widely adopted ADR format. Minimal by design.
 
 ## Status
 
-{proposed | accepted | rejected | deprecated | superseded}
+{proposed | accepted | deprecated | superseded}
 
 ## Context
 
@@ -117,6 +126,8 @@ What is the change that we're proposing and/or doing?
 
 What becomes easier or more difficult to do because of this change?
 ```
+
+Nygard's original defines exactly four statuses: `proposed`, `accepted`, `deprecated`, `superseded`. `rejected` is **not** in the primary source; it is a common extension popularized by MADR and the broader ADR community. Add it only when the target project's ADR template or existing ADRs explicitly track rejected proposals.
 
 ---
 
@@ -193,4 +204,4 @@ Source: [Planguage specification by Tom Gilb](https://www.iaria.org/conferences2
 - [ADR Templates Catalog](https://adr.github.io/adr-templates/)
 - [MADR Repository](https://github.com/adr/madr)
 - [Joel Parker Henderson ADR Collection](https://github.com/joelparkerhenderson/architecture-decision-record)
-- [ISO/IEC/IEEE 42010:2011](https://en.wikipedia.org/wiki/ISO/IEC_42010) — International standard for architecture descriptions
+- [ISO/IEC/IEEE 42010:2011](https://en.wikipedia.org/wiki/ISO/IEC_42010): international standard for architecture descriptions
