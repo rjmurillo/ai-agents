@@ -47,6 +47,49 @@ class TestIsADRFile:
     def test_rejects_partial_match(self) -> None:
         assert is_adr_file("ADR-notes.txt") is False
 
+    def test_excludes_evidence_artifact_in_analysis(self) -> None:
+        # Issue #2579: the architect-review debate log is the evidence the gate
+        # asks for; writing it must not be blocked even though its name starts
+        # with ADR-<n>.
+        assert (
+            is_adr_file(".agents/analysis/ADR-0002-architect-review-debate.md")
+            is False
+        )
+
+    def test_excludes_evidence_artifact_in_critique(self) -> None:
+        assert is_adr_file(".agents/critique/ADR-0002-debate-log.md") is False
+
+    def test_excludes_evidence_artifact_absolute_path(self) -> None:
+        assert (
+            is_adr_file("/home/u/repo/.agents/analysis/ADR-7-debate.md") is False
+        )
+
+    def test_still_gates_real_adr_outside_evidence_dirs(self) -> None:
+        # The exclusion is scoped to evidence dirs; a real ADR is still gated.
+        assert is_adr_file(".agents/architecture/ADR-0002-decision.md") is True
+
+    def test_rejects_substring_not_at_basename_start(self) -> None:
+        # Basename-anchored: ADR-<n> embedded mid-name does not match.
+        assert is_adr_file("notes/about-ADR-5-stuff.md") is False
+
+    def test_matches_windows_separator_adr_path(self) -> None:
+        assert is_adr_file(r".agents\architecture\ADR-0002-decision.md") is True
+
+    def test_excludes_windows_separator_evidence_artifact(self) -> None:
+        assert is_adr_file(r".agents\analysis\ADR-0002-debate.md") is False
+
+    def test_rejects_path_traversal_bypass(self) -> None:
+        assert (
+            is_adr_file(".agents/analysis/../architecture/ADR-0002-decision.md")
+            is True
+        )
+
+    def test_rejects_nested_path_traversal_bypass(self) -> None:
+        assert (
+            is_adr_file(".agents/analysis/../../docs/architecture/ADR-0002.md")
+            is True
+        )
+
 
 class TestCheckArchitectEvidence:
     def test_complete_when_debate_log_in_analysis(self, tmp_path: Path) -> None:
