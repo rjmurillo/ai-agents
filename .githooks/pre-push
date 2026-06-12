@@ -569,8 +569,32 @@ else
 fi
 
 # 6. Python lint (ruff) - BLOCKING
+#
+# Issue #2574: choose ruff via uv first when this checkout is uv-managed.
+# Mirrors set_python_cmd's "uv run --frozen ..." preference so we get the
+# pinned ruff from [project.optional-dependencies].dev rather than silently
+# skipping lint when ``ruff`` is not on PATH.  Order of preference:
+#   1. ``uv run --frozen --extra dev ruff`` when uv + (uv.lock | pyproject.toml)
+#   2. ``ruff`` on PATH                      (legacy / non-uv installations)
+#   3. fail loudly                           (uv-managed checkout with no ruff)
+#
+# Failure mode matters: the prior ``command -v ruff || record_skip`` let
+# import-order (I001) and other BLOCKING lint failures pass pre-push when
+# the developer had no global ruff but uv could supply one.
+RUFF_CMD=()
+RUFF_SOURCE=""
 if [ -n "$CHANGED_PY" ]; then
-    if command -v ruff &> /dev/null; then
+    if command -v uv &> /dev/null \
+        && { [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; } \
+        && uv run --frozen --extra dev ruff --version &> /dev/null; then
+        RUFF_CMD=(uv run --frozen --extra dev ruff)
+        RUFF_SOURCE="uv"
+    elif command -v ruff &> /dev/null; then
+        RUFF_CMD=(ruff)
+        RUFF_SOURCE="path"
+    fi
+
+    if [ ${#RUFF_CMD[@]} -gt 0 ]; then
         PY_FILES=()
         while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -581,20 +605,34 @@ if [ -n "$CHANGED_PY" ]; then
         if [ ${#PY_FILES[@]} -gt 0 ]; then
             RUFF_OUTPUT=$(mktemp)
             TEMP_FILES+=("$RUFF_OUTPUT")
-            if ruff check -- "${PY_FILES[@]}" > "$RUFF_OUTPUT" 2>&1; then
-                record_pass "Python lint/ruff (${#PY_FILES[@]} files)"
+            if "${RUFF_CMD[@]}" check -- "${PY_FILES[@]}" > "$RUFF_OUTPUT" 2>&1; then
+                record_pass "Python lint/ruff (${#PY_FILES[@]} files via ${RUFF_SOURCE})"
             else
                 echo_info "  Ruff issues:"
                 head -20 "$RUFF_OUTPUT"
                 record_fail "Python lint/ruff"
-                echo_info "  Fix: ruff check --fix <files>"
+                if [ "$RUFF_SOURCE" = "uv" ]; then
+                    echo_info "  Fix: uv run --frozen --extra dev ruff check --fix <files>"
+                else
+                    echo_info "  Fix: ruff check --fix <files>"
+                fi
             fi
             rm -f "$RUFF_OUTPUT"
         else
             record_skip "Python lint (no accessible files)"
         fi
     else
-        record_skip "Python lint (ruff not installed)"
+        # Neither uv-managed ruff nor a PATH ruff is reachable. This is a
+        # BLOCKING check: fail loudly with actionable guidance instead of
+        # silently passing the push (Issue #2574). In a uv-managed checkout
+        # the fix is ``uv sync --extra dev``; in a bare environment the fix
+        # is ``pip install ruff`` (or installing uv).
+        record_fail "Python lint/ruff (no ruff available)"
+        if [ -f "$REPO_ROOT/uv.lock" ] || [ -f "$REPO_ROOT/pyproject.toml" ]; then
+            echo_info "  Fix: install uv and run 'uv sync --extra dev' so pre-push can run ruff via 'uv run --frozen --extra dev ruff'"
+        else
+            echo_info "  Fix: install ruff (pip install ruff) or install uv so pre-push can run it via 'uv run --frozen --extra dev ruff'"
+        fi
     fi
 else
     record_skip "Python lint (no .py files changed)"
