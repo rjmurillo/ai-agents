@@ -58,7 +58,17 @@ from hook_utilities import (  # noqa: E402
     get_today_session_log,
 )
 
-_ADR_PATTERN = re.compile(r"ADR-\d+.*\.md$", re.IGNORECASE)
+_ADR_PATTERN = re.compile(r"(?:^|/)ADR-\d+[^/]*\.md$", re.IGNORECASE)
+
+# Directories that hold the gate's OWN evidence artifacts (debate logs,
+# critiques). Writing a debate log here is the act the gate asks for, so the
+# gate must never block writes under these directories, even when the filename
+# starts with an "ADR-<n>" substring (issue #2579: the natural evidence name
+# ADR-0002-architect-review-debate.md otherwise self-blocks, chicken-and-egg).
+_EVIDENCE_DIRS = (
+    (".agents", "analysis"),
+    (".agents", "critique"),
+)
 
 _ARCHITECT_EVIDENCE_PATTERNS = [
     re.compile(r"/adr-review"),
@@ -120,8 +130,33 @@ def write_audit_log(message: str) -> None:
         )
 
 
+def _is_evidence_artifact(file_path: str) -> bool:
+    """True if file_path lives under a gate evidence directory.
+
+    Matches ``.agents/analysis/`` and ``.agents/critique/`` as consecutive
+    path segments, for both relative and absolute paths.
+    """
+    parts = Path(file_path).parts
+    for needle in _EVIDENCE_DIRS:
+        span = len(needle)
+        for start in range(len(parts) - span + 1):
+            if parts[start : start + span] == needle:
+                return True
+    return False
+
+
 def is_adr_file(file_path: str) -> bool:
-    """Check if file path matches ADR naming pattern."""
+    """Check if file path matches ADR naming pattern.
+
+    Files under the gate's own evidence directories (``.agents/analysis/``,
+    ``.agents/critique/``) are excluded: writing the architect-review debate
+    log is the act the gate asks for, so blocking it is a chicken-and-egg
+    deadlock (issue #2579). The pattern is basename-anchored so only files
+    whose name starts with ``ADR-<digits>`` match, not any path containing the
+    substring.
+    """
+    if _is_evidence_artifact(file_path):
+        return False
     return _ADR_PATTERN.search(file_path) is not None
 
 
