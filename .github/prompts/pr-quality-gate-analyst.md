@@ -97,12 +97,6 @@ pattern is expressed, not whether the pattern itself is correct.
 - Are code comments present where needed?
 - Should code-quality documentation be updated for readability or maintainability?
 
-### 5. Dependencies
-
-- Are new dependencies justified?
-- Are dependency versions appropriate?
-- Any licensing concerns?
-
 ## Output Requirements
 
 Provide your analysis in this format:
