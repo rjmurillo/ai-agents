@@ -78,7 +78,7 @@ Use this skill BEFORE proposing changes to existing:
 
 **Step 4: Dependency Analysis.** Use `grep` or `Grep` tool to find all references. Map upstream and downstream dependencies. Identify what breaks if the structure is removed.
 
-**Step 5: Generate Report.** Use the template at `.agents/templates/chestertons-fence-investigation.md`. Fill all sections with evidence from steps 1 through 4.
+**Step 5: Generate Report.** Use the template at the bundled `templates/chestertons-fence-investigation.md` in this skill directory. Fill all sections with evidence from steps 1 through 4.
 
 **Step 6: Decision.** Based on evidence, recommend one action:
 
@@ -102,6 +102,12 @@ python3 scripts/investigate.py --target .agents/architecture/ADR-005.md --change
 python3 scripts/investigate.py --target path/to/file.py --change "description" --format json
 ```
 
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| [`scripts/investigate.py`](scripts/investigate.py) | Git archaeology (origin commit, recent changes), related-ADR search, and dependent search for a target; emits a Markdown or JSON investigation report from the bundled template. | 0=success, 1=error |
+
 ## Integration with Agent Workflows
 
 | Agent | How to Integrate |
@@ -120,9 +126,15 @@ python3 scripts/investigate.py --target path/to/file.py --change "description" -
 | Skipping PR/ADR search | Loses original design rationale | Always check git history and PRs |
 | Proposing replacement without evidence | Cannot compare tradeoffs | Document original constraints first |
 
+## Verification
+
+- [ ] Investigation ran for the target before any change proposal was made.
+- [ ] Origin commit, recent changes, related ADRs, and dependents were gathered (or explicitly recorded as none found).
+- [ ] The resulting report (template-based or inline fallback) is attached to the change proposal or the ADR Prior Art Investigation section.
+
 ## Template
 
-Investigation reports use the template at `.agents/templates/chestertons-fence-investigation.md`.
+Investigation reports use the template at the bundled `templates/chestertons-fence-investigation.md` in this skill directory.
 
 ## References
 
