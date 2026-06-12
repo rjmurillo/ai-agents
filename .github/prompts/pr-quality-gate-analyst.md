@@ -53,9 +53,8 @@ or deterministic gate owns: PR/diff consistency, falsifiability of claims, local
 readability, and implementation simplicity. Defer everything else and do not
 restate it as a finding:
 
-- **Architectural alignment, coupling/cohesion, anti-patterns, separation of
-  concerns, module boundaries, breaking-change/blast-radius** belong to the
-  **architect** axis.
+- **Architectural alignment, anti-patterns, separation of concerns, module
+  boundaries, breaking-change/blast-radius** belong to the **architect** axis.
 - **Cohesion, coupling, encapsulation, testability, non-redundancy, and
   code-quality scoring** belong to the **code-quality** axis.
 - **Test coverage and error-handling** belong to the **QA** axis.
@@ -64,7 +63,7 @@ restate it as a finding:
 
 Do not emit a finding that duplicates another axis (no "(duplicates X finding)"
 entries) and do not emit confirmations or "no action required" notes as
-findings. When nothing code-quality-specific is wrong, the correct output is an
+findings. When nothing analyst-owned is wrong, the correct output is an
 empty findings list. This non-overlap rule is the primary control against the
 verbatim-duplication noise pattern (Issue #2480).
 
