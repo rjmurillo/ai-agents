@@ -48,6 +48,25 @@ Ground quality findings in the project's reasoning artifacts. All paths are unde
 
 ## Analysis Focus Areas
 
+### Scope and Non-Overlap (REQUIRED)
+
+You are one of several Stage-2 axes. Review ONLY code-quality concerns no other
+axis or deterministic gate owns: readability, maintainability, consistency, and
+simplicity. Defer everything else and do not restate it as a finding:
+
+- **Architectural alignment, coupling/cohesion, anti-patterns, separation of
+  concerns, module boundaries, breaking-change/blast-radius** belong to the
+  **architect** axis.
+- **Test coverage and error-handling** belong to the **QA** axis.
+- **Security (secrets, injection, auth)** belongs to the **security** axis.
+- **Lint, type-check, format, and dash rules** are covered by deterministic CI.
+
+Do not emit a finding that duplicates another axis (no "(duplicates X finding)"
+entries) and do not emit confirmations or "no action required" notes as
+findings. When nothing code-quality-specific is wrong, the correct output is an
+empty findings list. This non-overlap rule is the primary control against the
+verbatim-duplication noise pattern (Issue #2480).
+
 ### 1. Code Quality Assessment
 
 - **Readability**: Is the code easy to understand?
@@ -57,17 +76,17 @@ Ground quality findings in the project's reasoning artifacts. All paths are unde
 
 ### 2. Impact Analysis
 
-- Which systems or features are affected?
-- What is the blast radius of this change?
-- Are there dependencies that need to be updated?
-- Could this affect performance?
+- Which systems or features are affected? (code-quality lens only; defer
+  blast-radius and dependency-graph judgments to the architect axis)
+- Could this affect readability or maintainability at the call sites?
 
-### 3. Architectural Alignment
+### 3. Architectural Alignment (defer to the architect axis)
 
-- Does this follow established patterns?
-- Are there any anti-patterns introduced?
-- Is the separation of concerns maintained?
-- Are module boundaries respected?
+Architectural patterns, anti-patterns, separation of concerns, and module
+boundaries are the architect axis's domain. Do NOT raise findings here; if you
+notice an architectural concern, leave it to architect rather than emitting a
+duplicate. Review the code only for the readability/maintainability of how the
+pattern is expressed, not whether the pattern itself is correct.
 
 ### 4. Documentation Completeness
 
