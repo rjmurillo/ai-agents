@@ -1,0 +1,18 @@
+{
+  "id": "episode-2026-06-12-session-2386-commit-hook-generated-2026-06-12-auto-retro-skeleton",
+  "session": "2026-06-12-session-2386-commit-hook-generated-2026-06-12-auto-retro-skeleton",
+  "timestamp": "2026-06-12T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Commit hook-generated 2026-06-12 auto-retro skeleton and retro INDEX row left after PR #2575 merged",
+  "decisions": [],
+  "events": [],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
