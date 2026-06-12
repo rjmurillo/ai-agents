@@ -147,6 +147,7 @@ class TestAutoRetrospective(unittest.TestCase):
             self.assertIn(today, payload["reason"])
             # Instructs the model to use the retrospective skill (user request)
             self.assertIn("retrospective skill", payload["reason"].lower())
+            self.assertIn("Do not delete this skeleton", payload["reason"])
 
     def test_skip_path_emits_no_continuation(self):
         """Loop-safety: when today's retro already exists, no continuation fires.
@@ -171,6 +172,28 @@ class TestAutoRetrospective(unittest.TestCase):
                 result = invoke_auto_retrospective.main()
             self.assertEqual(result, 0)
             self.assertNotIn('"continue"', captured.getvalue())
+
+    def test_create_path_does_not_invite_delete_and_recreate_loop(self):
+        """The prompt must not tell the model to delete a non-trivial skeleton."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            sessions_dir = tmp_path / ".agents" / "sessions"
+            sessions_dir.mkdir(parents=True)
+            today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+            (sessions_dir / f"{today}-session-01.json").write_text(
+                json.dumps({"work": ["Did real work"], "outcomes": ["PR opened"]})
+            )
+            captured = StringIO()
+            with patch("sys.stdin", StringIO("")), patch.object(
+                invoke_auto_retrospective,
+                "get_project_directory",
+                return_value=tmp_path,
+            ), patch("sys.stdout", captured):
+                result = invoke_auto_retrospective.main()
+            self.assertEqual(result, 0)
+            payload = json.loads(captured.getvalue().strip())
+            self.assertNotIn("delete the skeleton", payload["reason"].lower())
+            self.assertIn("do not delete this skeleton", payload["reason"].lower())
 
     def test_fail_open_on_os_error(self):
         """OSError should not crash the hook."""

@@ -381,7 +381,8 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
 
 ## Failure Patterns
 
-- _UNFILLED. Run the retrospective agent to populate this section (check .agents/governance/FAILURE-MODES.md)._
+- _UNFILLED. Run the retrospective agent to populate this section.
+  Check .agents/governance/FAILURE-MODES.md._
 """
 
     retro_path.write_text(content, encoding="utf-8")
@@ -699,18 +700,17 @@ def main() -> int:
     except ValueError:
         rel = retro_path
     write_continue_response(
-        f"Auto-retrospective skeleton created at {rel}. Before you stop, fill "
-        f"it for {today}. Preferred: run the retrospective skill (or "
-        f"/retro fill {today}); it applies the repo's structured retro "
-        f"framework (Five Whys, timeline, learning matrix, failure-mode check). "
-        f"If that skill or command is not available, fill it inline to the same "
-        f"shape: What Went Well and What Could Improve cite concrete "
-        f"this-session specifics (files, commands, decisions, not generalities); "
-        f"Key Learnings are durable reusable rules, each with a one-line why; "
-        f"Failure Patterns name any mistake or near-miss and check it against "
-        f".agents/governance/FAILURE-MODES.md. Then remove the RETRO-STATE "
-        f"marker line and the UNFILLED-SKELETON banner. If the session was "
-        f"genuinely trivial, delete the skeleton instead."
+        f"Auto-retrospective skeleton created at {rel}. "
+        f"Before you stop, fill it for {today}. "
+        f"Preferred: run the retrospective skill or `/retro fill {today}`. "
+        f"It applies Five Whys, timeline, learning matrix, and failure-mode checks. "
+        f"If unavailable, fill it inline to the same shape. "
+        f"What Went Well and What Could Improve cite concrete session specifics. "
+        f"Key Learnings are durable reusable rules with a one-line why. "
+        f"Failure Patterns name any mistake or near-miss. "
+        f"Check them against .agents/governance/FAILURE-MODES.md. "
+        f"Then remove the RETRO-STATE marker line and the UNFILLED-SKELETON banner. "
+        f"Do not delete this skeleton; creation already means this session is non-trivial."
     )
 
     return 0
