@@ -200,6 +200,7 @@ def _build_session_data(
     not_on_main = branch not in ("main", "master")
 
     return {
+        "schemaVersion": "1.0",
         "session": {
             "number": session_number,
             "date": current_date,
@@ -262,7 +263,7 @@ def _write_session_file(
         try:
             fd = os.open(filepath, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             try:
-                content = json.dumps(session_data, indent=2)
+                content = json.dumps(session_data, indent=2) + "\n"
                 os.write(fd, content.encode("utf-8"))
             finally:
                 os.close(fd)
