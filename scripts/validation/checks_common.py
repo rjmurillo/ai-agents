@@ -59,6 +59,15 @@ def _run_subprocess(
         return -1, "", f"Command timed out after {timeout}s"
 
 
+def _git_subprocess_env() -> dict[str, str]:
+    """Return a deterministic environment for nested git subprocess calls."""
+    clean_env = os.environ.copy()
+    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        clean_env.pop(name, None)
+    clean_env["LC_ALL"] = "C"
+    return clean_env
+
+
 def _gh_base_ref(repo_root: Path) -> str | None:
     """Return ``origin/<baseRefName>`` for the open PR, or None.
 
@@ -95,6 +104,55 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     return f"origin/{base}"
 
 
+def _is_self_tracking_upstream(repo_root: Path) -> bool:
+    """Return True when ``@{u}`` resolves to the current branch's own remote ref.
+
+    After ``git push -u origin HEAD`` (the default contributor workflow), the
+    branch's configured upstream is ``origin/<current_branch>`` -- i.e. the
+    branch tracks itself. Using that ref as a diff base produces an empty
+    range once the branch is pushed and HEAD == origin/<branch>, which makes
+    every "since base" gate silently no-op (Issue #2571).
+
+    This helper is intentionally pure (queries git only, no side effects) so
+    callers can decide whether to fall back to a trunk-pointing ref.
+    Non-self upstreams (a derivative branch tracking a parent feature branch)
+    return False; those should still be honoured.
+    """
+    clean_env = _git_subprocess_env()
+    branch_rc, branch_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        env=clean_env,
+        timeout=10,
+    )
+    if branch_rc != 0:
+        return False
+    branch = branch_out.strip()
+    if not branch or branch == "HEAD":
+        # Detached HEAD has no upstream; nothing to disambiguate.
+        return False
+
+    upstream_rc, upstream_out, _ = _run_subprocess(
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{u}",
+        ],
+        env=clean_env,
+        timeout=10,
+    )
+    if upstream_rc != 0:
+        return False
+    upstream = upstream_out.strip()
+    if not upstream or "@{" in upstream:
+        return False
+
+    return upstream == f"origin/{branch}"
+
+
 def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     """Resolve the branch base ref by trying signals in priority order.
 
@@ -104,7 +162,12 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
         1. The PR's actual baseRefName via ``gh pr view`` (validated
            further with ``git rev-parse --verify`` so an unfetched ref
            falls through to the next step).
-        2. The current branch's configured upstream via ``@{u}``.
+        2. The current branch's configured upstream via ``@{u}``, EXCEPT
+           when the upstream is the branch's own ``origin/<branch>``
+           (self-tracking after ``git push -u origin HEAD``). A
+           self-tracking upstream produces an empty diff against HEAD
+           once the branch is pushed, which would let "since base"
+           gates miss real changes -- the bug behind Issue #2571.
         3. The remote's default branch via ``refs/remotes/origin/HEAD``.
         4. ``origin/main`` as a last-resort literal.
 
@@ -126,8 +189,15 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
         if exit_code == 0:
             return pr_base
 
+    # ``@{u}`` is the right base for derivative branches that track a parent
+    # feature branch, so it stays in the candidate list. The self-tracking
+    # case (the bug in Issue #2571) is filtered out here so the loop falls
+    # through to ``refs/remotes/origin/HEAD``.
+    skip_at_upstream = _is_self_tracking_upstream(repo_root)
     candidates = ("@{u}", "refs/remotes/origin/HEAD", "origin/main")
     for ref in candidates:
+        if ref == "@{u}" and skip_at_upstream:
+            continue
         exit_code, _, _ = _run_subprocess(
             ["git", "-C", str(repo_root), "rev-parse", "--verify", "--quiet", ref],
             timeout=10,

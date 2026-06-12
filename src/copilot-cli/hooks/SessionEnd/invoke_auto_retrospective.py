@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Stop hook: Writes a placeholder retrospective skeleton on session end (fill via the retrospective agent).
+Stop hook: Writes a placeholder retrospective skeleton on session end and
+prompts the in-session model to fill it before stopping.
 
-Creates an unfilled retrospective skeleton in .agents/retrospective/ and
-updates docs/retros/INDEX.md with a new entry. The skeleton is a prompt to
-run the retrospective agent, not a completed retrospective; its sections stay empty until a
-reviewer populates them.
+Creates a placeholder retrospective skeleton in .agents/retrospective/ and
+appends an entry to .agents/retrospective/INDEX.md (co-located with the retro
+files). On the run that CREATES the skeleton, the hook emits a Stop-hook
+continuation response so the model that just did the work fills the sections
+and drops the banner before the session ends. Loop-safe: only the create path
+prompts; the next stop finds the file (has_retro_today) and exits 0, so there
+is at most one fill prompt per day, on non-trivial sessions only.
 
-Hook Type: Stop (non-blocking, always exits 0)
-Exit Codes: Always 0 (fail-open, never blocks session stop)
+Hook Type: Stop (emits a continuation on the create path; otherwise exits 0)
+Exit Codes: Always 0 (fail-open; blocking is expressed via the JSON response)
 
 Bypass: SKIP_AUTO_RETRO=true environment variable
 
@@ -90,8 +94,8 @@ RETRO_STATE_MARKER = "<!-- RETRO-STATE: skeleton-pending-fill -->"
 # .agents/.hook-state/ directory at the start of a run and removes it on
 # exit (trap). If a Claude session ends while a pre-push run is active, this
 # Stop hook honors the sentinel and stays tree-neutral, so a failing pre-push
-# never leaves an untracked auto-retro file or a docs/retros/INDEX.md edit
-# behind.
+# never leaves an untracked auto-retro file or a .agents/retrospective/INDEX.md
+# edit behind.
 AUTO_RETRO_SUPPRESS_SENTINEL = "auto-retrospective.suppress"
 
 
@@ -377,7 +381,8 @@ def generate_retrospective(project_dir: Path, today: str) -> Path | None:
 
 ## Failure Patterns
 
-- _UNFILLED. Run the retrospective agent to populate this section (check .agents/governance/FAILURE-MODES.md)._
+- _UNFILLED. Run the retrospective agent to populate this section.
+  Check .agents/governance/FAILURE-MODES.md._
 """
 
     retro_path.write_text(content, encoding="utf-8")
@@ -472,30 +477,30 @@ def write_audit_log(
 
 
 def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
-    """Append entry to docs/retros/INDEX.md, creating if needed.
+    """Append entry to .agents/retrospective/INDEX.md, creating if needed.
 
-    Idempotent: if a row already references `filename`, no new row is added.
-    This protects the index from a partial-failure path where the retro file
-    was written on a prior call but the index append failed (or this run
-    re-attempted index recovery after the retro file already existed).
+    The index is co-located with the retro files under .agents/retrospective/
+    (retros and their index belong in the same tree; docs/retros/ was the
+    wrong location). Idempotent: if a row already references `filename`, no new
+    row is added, which protects the index from a partial-failure path where
+    the retro file was written on a prior call but the index append failed.
     """
-    index_dir = project_dir / "docs" / "retros"
+    index_dir = project_dir / ".agents" / "retrospective"
     index_dir.mkdir(parents=True, exist_ok=True)
     index_path = index_dir / "INDEX.md"
 
     header = "# Retrospective Index\n\n| Date | File | Summary |\n|------|------|---------|"
 
-    # Append new row (advisory lock to prevent interleaved writes from parallel sessions)
-    # Open with "a+b" to atomically create if missing, then lock before any read/write
-    # INDEX.md lives in docs/retros/; retro files live in .agents/retrospective/.
-    # Emit a relative link from the index dir to the file so navigation resolves
-    # (bare filename resolves against docs/retros/, where the file does not exist). See #2229.
+    # Append new row (advisory lock to prevent interleaved writes from parallel sessions).
+    # Open with "a+b" to atomically create if missing, then lock before any read/write.
+    # INDEX.md is co-located with the retro files, so a bare-filename link
+    # resolves directly to the sibling file (no relative prefix needed).
     row = (
         f"| {today} | "
-        f"[{filename}](../../.agents/retrospective/{filename}) | "
+        f"[{filename}]({filename}) | "
         f"Auto-generated session retro |"
     )
-    linked_filename = f"[{filename}](../../.agents/retrospective/{filename})"
+    linked_filename = f"[{filename}]({filename})"
     with open(index_path, "a+b") as f:
         if _lock_file is not None:
             _lock_file(f)
@@ -539,6 +544,23 @@ def update_retro_index(project_dir: Path, today: str, filename: str) -> None:
                 _unlock_file(f)
 
 
+def write_continue_response(reason: str) -> None:
+    """Emit a Stop-hook continuation so Claude fills the retro before stopping.
+
+    Mirrors the proven contract in
+    ``.claude/hooks/Stop/invoke_session_validator.py::write_continue_response``,
+    quoted verbatim:
+
+        response = json.dumps({"continue": True, "reason": reason})
+        print(response)
+
+    The harness keeps the turn alive and surfaces ``reason`` to the model.
+    Identical to canonical; this hook reuses the same shape so a single Stop
+    event can carry both the session-validator and the retro-fill prompt.
+    """
+    print(json.dumps({"continue": True, "reason": reason}))
+
+
 def main() -> int:
     """Generate retrospective on session stop."""
     # Drain stdin FIRST, before any early-exit branches. Sibling hook
@@ -578,7 +600,7 @@ def main() -> int:
     # Suppress while a tree-mutating validation run is in flight (Issue #2327).
     # The pre-push hook drops a sentinel for the duration of its run; honoring
     # it here keeps a failing pre-push from leaving an untracked auto-retro file
-    # or a docs/retros/INDEX.md edit in the worktree.
+    # or a .agents/retrospective/INDEX.md edit in the worktree.
     if is_auto_retro_suppressed(project_dir):
         write_audit_log(
             project_dir,
@@ -667,6 +689,29 @@ def main() -> int:
             f"[hook-error] invoke_auto_retrospective index: {type(e).__name__}: {e}",
             file=sys.stderr,
         )
+
+    # Auto-fill: prompt the in-session model to populate the skeleton it just
+    # created, while it still has the full session context. Fires ONLY on the
+    # run that creates the file; the next Stop hits has_retro_today and returns
+    # 0, so there is no loop and at most one prompt per day. Mirrors the
+    # continuation contract in invoke_session_validator.py.
+    try:
+        rel = retro_path.relative_to(project_dir)
+    except ValueError:
+        rel = retro_path
+    write_continue_response(
+        f"Auto-retrospective skeleton created at {rel}. "
+        f"Before you stop, fill it for {today}. "
+        f"Preferred: run the retrospective skill or `/retro fill {today}`. "
+        f"It applies Five Whys, timeline, learning matrix, and failure-mode checks. "
+        f"If unavailable, fill it inline to the same shape. "
+        f"What Went Well and What Could Improve cite concrete session specifics. "
+        f"Key Learnings are durable reusable rules with a one-line why. "
+        f"Failure Patterns name any mistake or near-miss. "
+        f"Check them against .agents/governance/FAILURE-MODES.md. "
+        f"Then remove the RETRO-STATE marker line and the UNFILLED-SKELETON banner. "
+        f"Do not delete this skeleton; creation already means this session is non-trivial."
+    )
 
     return 0
 
