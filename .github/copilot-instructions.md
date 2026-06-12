@@ -2,6 +2,15 @@
 
 > **IMPORTANT**: File minimal. Cut context bloat. Detail in AGENTS.md.
 
+## Global Behavioral Steering
+
+For cross-harness behavior rules, local Copilot sessions can also read
+`~/.copilot/copilot-instructions.md`. AGENTS.md remains this repository's
+primary reference for ai-agents-specific rules.
+
+Copilot Cloud cannot read local dotfiles. If you have access to Richard's
+dotfiles repo, use the branch-agnostic fallback link in Key Documents.
+
 ## Agent Delegation for Complex Tasks
 
 Multi-step tasks, specialized expertise, big context → prefer delegation via `#runSubagent` rather than inline handling.
@@ -92,6 +101,7 @@ Serena MCP tools available → MUST call FIRST:
 3. `.agents/HANDOFF.md` - Project dashboard (read-only)
 4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
 5. `.agents/AGENT-SYSTEM.md` - Full agent details
+6. **Global behavioral steering**: `~/.copilot/copilot-instructions.md` (local) or [`rjmurillo/ubuntu-machine-config/app-configs/copilot/copilot-instructions.md`](https://github.com/rjmurillo/ubuntu-machine-config/blob/HEAD/app-configs/copilot/copilot-instructions.md) (Copilot Cloud; requires repo access)
 
 ---
 
