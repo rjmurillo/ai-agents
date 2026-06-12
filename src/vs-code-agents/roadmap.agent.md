@@ -118,6 +118,16 @@ P0/P1/P2/P3 with RICE score
 
 ## Kill Criteria
 [What observation would make us cancel this mid-flight]
+
+## Outcome Review (post-delivery)
+Filled after the epic ships, on the Success Metrics review date. Without this, the roadmap captures hypotheses but never learns whether they held.
+- **Review date**: [when the Success Metrics target date arrives]
+- **Status**: shipped | rolled-back | superseded
+- **Actual vs target**: [Primary metric: actual value vs the target above]
+- **Hypothesis verdict**: confirmed | refuted | inconclusive (and why)
+- **Next**: continue | iterate | kill | spin a new epic [link]
+
+Feed the verdict back into prioritization: a refuted hypothesis lowers the RICE confidence of related future epics; a confirmed one raises it.
 ```
 
 ## Build vs Buy vs Partner vs Defer
