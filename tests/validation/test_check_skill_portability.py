@@ -80,6 +80,16 @@ runtime = ".agents/runtime"
 '''
         assert csp.count_upstream_refs(text) == 1
 
+    def test_ignores_python_cli_prose_fstrings(self) -> None:
+        text = '''\
+parser.add_argument(
+    "--path",
+    help=f"Mentions .agents/{name} and .claude/lib/{name} as CLI prose.",
+)
+runtime = ".agents/runtime"
+'''
+        assert csp.count_upstream_refs(text) == 1
+
     def test_ignores_hash_comments_in_shell_and_powershell(self) -> None:
         text = (
             "# .agents/comment\n"
