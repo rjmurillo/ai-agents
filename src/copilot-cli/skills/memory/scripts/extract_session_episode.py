@@ -1132,6 +1132,13 @@ def build_parser() -> argparse.ArgumentParser:
             "extraction over it without dropping richer existing data"
         ),
     )
+    parser.add_argument(
+        "--pending-stage", action="store_true",
+        help=(
+            "Add 1 to staged files count to account for the episode file "
+            "that will be staged after extraction (pre-commit hook context)"
+        ),
+    )
     return parser
 
 
@@ -1211,9 +1218,14 @@ def main(argv: list[str] | None = None) -> int:
     # markdown recorded a files-changed count, derive it from the staged commit.
     # The extractor runs in pre-commit, so the in-flight commit is staged even
     # though no SHA exists yet (issue #2537 item 3).
+    # When --pending-stage is set, add 1 to account for the episode file that
+    # will be staged after extraction (the hook stages it after this script
+    # returns, so numstat cannot see it yet).
     if not metrics.get("files_changed"):
         staged = _staged_files_changed(session_log_path.parent)
         if staged:
+            if args.pending_stage:
+                staged += 1
             metrics["files_changed"] = staged
 
     episode = {
