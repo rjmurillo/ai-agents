@@ -196,7 +196,14 @@ def investigate(target: str, proposed_change: str) -> InvestigationResult:
 
 def generate_report(result: InvestigationResult) -> str:
     """Generate a markdown investigation report from results."""
-    template_path = Path(".agents/templates/chestertons-fence-investigation.md")
+    # Resolve the report template relative to this skill so it works in both the
+    # source repo and a vendored plugin install (issue #2050). The template
+    # ships inside the skill at ``chestertons-fence/templates/``.
+    template_path = (
+        Path(__file__).resolve().parents[1]
+        / "templates"
+        / "chestertons-fence-investigation.md"
+    )
     if not template_path.exists():
         return _generate_inline_report(result)
 
@@ -306,7 +313,7 @@ def main() -> int:
         epilog="""
 Examples:
   python3 investigate.py --target scripts/validate.py --change "remove unused validation"
-  python3 investigate.py --target .agents/architecture/ADR-005.md --change "allow bash scripts"
+  python3 investigate.py --target docs/architecture/ADR-005.md --change "allow bash scripts"
   python3 investigate.py --target scripts/validate.py --change "refactor" --format json
         """,
     )
