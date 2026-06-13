@@ -18,7 +18,7 @@ Enforce epistemic humility before changing existing systems. Understand original
 /chestertons-fence "path/to/file.py" "remove unused validation"
 
 # Investigate an ADR before deprecating it
-/chestertons-fence ".agents/architecture/ADR-005.md" "allow bash scripts"
+/chestertons-fence "docs/architecture/ADR-005.md" "allow bash scripts"
 ```
 
 ## Triggers
@@ -96,7 +96,7 @@ Use this skill BEFORE proposing changes to existing:
 python3 scripts/investigate.py --target path/to/file.py --change "remove unused validation"
 
 # Investigate an ADR
-python3 scripts/investigate.py --target .agents/architecture/ADR-005.md --change "allow bash scripts"
+python3 scripts/investigate.py --target docs/architecture/ADR-005.md --change "allow bash scripts"
 
 # Output as JSON (for automation)
 python3 scripts/investigate.py --target path/to/file.py --change "description" --format json
