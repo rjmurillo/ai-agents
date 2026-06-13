@@ -1,0 +1,108 @@
+{
+  "session": {
+    "number": 2583,
+    "date": "2026-06-13",
+    "branch": "docs/adr-073-lifecycle-frontmatter",
+    "startingCommit": "c1941d4",
+    "objective": "Autopilot sweep of 40 open issues, continuation. This session: shipped the #2050 printed-hint portability fix (PR #2606); cleared CI failures on open PRs #2596/#2602/#2606 (install-parity copies, em-dash cleanup, PR-description path false-positives); posted the #2583 governance determination; then, at the owner's direction, authored proposed ADR-073 (machine-readable ADR lifecycle frontmatter) and ran the 6-agent adr-review, revising the ADR to incorporate the P1 findings."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this remote harness; per-turn UserPromptSubmit re-assertion active (AGENTS.md fallback)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this remote harness; AGENTS.md and rule files loaded as the instruction source instead."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed .agents/HANDOFF.md and the autopilot objective + plan.md at session resume."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This log created at .agents/sessions/2026-06-13-session-2583-adr-073-lifecycle-frontmatter.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed docs/adr-073-lifecycle-frontmatter before staging the ADR."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work branch is docs/adr-073-lifecycle-frontmatter; the ADR and debate log are committed off main."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist walked: lint, commit, validation completed for the ADR-073 + debate-log change set."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md left untouched (read-only per ADR-014); no edits made this session."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this remote harness; durable context captured in this session log and the ADR-073 debate log per the AGENTS.md fallback."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on the change set; ADRs and critique under .agents/ are excluded by .markdownlint config (0 lintable files, 0 errors)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-073, its debate log, and this session log committed on docs/adr-073-lifecycle-frontmatter as atomic commits of 5 files or fewer; earlier session PRs #2595/#2596/#2600/#2601/#2602/#2603/#2606 already pushed."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "check_adr_uniqueness.py PASS (next free 074); validate_session_json.py PASS on this log; pre-commit gates green; pre-push runs the full suite on push."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-13T02:30:00Z",
+      "entry": "Finished the #2050 printed-hint portability fix: set_pr_auto_merge.py and new_slash_command.py now derive sibling-script paths from Path(__file__) instead of hardcoding .claude/skills/... Verified ruff clean and 18+25 tests pass; regenerated copilot mirrors; bumped both plugin manifests to 0.5.191; opened PR #2606 (Refs #2050)."
+    },
+    {
+      "timestamp": "2026-06-13T02:55:00Z",
+      "entry": "Cleared CI failures on open PRs. #2596: added the two missing install-parity self-host copies (.claude/agents/roadmap.md, .github/agents/roadmap.agent.md) with the Outcome Review and fixed two pre-existing em-dashes in the .github copy. #2602 and #2606: rephrased PR-description path tokens (chestertons investigate path, *.py/*.sh/*.ps1 glob, merge_pr.py/validate_slash_command.py references) that tripped the description-vs-diff validator. All three returned to green."
+    },
+    {
+      "timestamp": "2026-06-13T03:08:00Z",
+      "entry": "Posted the #2583 governance determination (merited; repo-wide ADR-schema + gate change hits the Ask-First Architecture/New-ADRs constraint; recommended a phased additive rollout). Corrected the post_issue_comment.py flag from --comment to --body-file after an initial silent exit-2."
+    },
+    {
+      "timestamp": "2026-06-13T03:25:00Z",
+      "entry": "At the owner's direction (ask_user: adr_2583), authored proposed ADR-073 via the adr-generator skill: next number 073, canonical .agents/architecture format, prose status, no auto-generated header. Passed G4 checks (no dashes, unique number, all required sections)."
+    },
+    {
+      "timestamp": "2026-06-13T03:45:00Z",
+      "entry": "Ran adr-review: six parallel sub-agents (architect, critic, independent-thinker, security, analyst, high-level-advisor) on the Zimmermann checklist. Agents run in a sibling worktree and could not open the uncommitted file, so three returned procedural BLOCKs while still giving substantive notes; the analyst ran real evidence checks. Verified two flagged claims directly: detect_adr_changes.py exists and already parses status: (refutes the phantom-consumer P0), and adr-best-practices.md line 42 authorizes the optional implemented field (refutes the no-precedent P0)."
+    },
+    {
+      "timestamp": "2026-06-13T04:05:00Z",
+      "entry": "Phase 3 resolution: revised ADR-073 to incorporate the valid P1 findings: scope committed to Phase 1 only with backfill/gate deferred and consumer-gated; status:accepted bound to an adr-review artifact; explainer made display-only/no-auto-fetch; yq example replaced with python-frontmatter (ADR-042); backfill acknowledged as non-mechanical (ADR-072/ADR-055 triage); minimal status-only alternative added; yaml.safe_load + bidirectional supersession mandated; drift reconciliation defined (ADR-066). Wrote the debate log to .agents/critique/ADR-073-debate-log.md. ADR remains Proposed pending human acceptance."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Human decision: accept or revise ADR-073; an agent cannot move it to Accepted (governance).",
+    "If accepted, implement Phase 1 only (additive optional frontmatter in template + adr-generator); keep Phases 2 to 4 deferred until a concrete consumer exists.",
+    "Owner to review and merge the 7 green PRs (#2595/#2596/#2600/#2601/#2602/#2603/#2606).",
+    "Remaining open issues are governance (#2480/#702/#2548), blocked-on-externals (#1948/#1949), roadmap epics (#1073-77/#1774/#1944/#1950), research/harness (#1875/#1984), and non-code (#1351/#1622/#2551)."
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter",
+  "session": "2026-06-13-session-2583-adr-073-lifecycle-frontmatter",
+  "timestamp": "2026-06-13T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Autopilot sweep of 40 open issues, continuation. This session: shipped the #2050 printed-hint portability fix (PR #2606); cleared CI failures on open PRs #2596/#2602/#2606 (install-parity copies, em-dash cleanup, PR-description path false-positives); posted the #2583 governance determination; then, at the owner's direction, authored proposed ADR-073 (machine-readable ADR lifecycle frontmatter) and ran the 6-agent adr-review, revising the ADR to incorporate the P1 findings.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Finished the #2050 printed-hint portability fix: set_pr_auto_merge.py and new_slash_command.py now derive sibling-script paths from Path(__file__) instead of hardcoding .claude/skills/... Verified ruff clean and 18+25 tests pass; regenerated copilot mirrors; bumped both plugin manifests to 0.5.191; opened PR #2606 (Refs #2050).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cleared CI failures on open PRs. #2596: added the two missing install-parity self-host copies (.claude/agents/roadmap.md, .github/agents/roadmap.agent.md) with the Outcome Review and fixed two pre-existing em-dashes in the .github copy. #2602 and #2606: rephrased PR-description path tokens (chestertons investigate path, *.py/*.sh/*.ps1 glob, merge_pr.py/validate_slash_command.py references) that tripped the description-vs-diff validator. All three returned to green.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Posted the #2583 governance determination (merited; repo-wide ADR-schema + gate change hits the Ask-First Architecture/New-ADRs constraint; recommended a phased additive rollout). Corrected the post_issue_comment.py flag from --comment to --body-file after an initial silent exit-2.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "At the owner's direction (ask_user: adr_2583), authored proposed ADR-073 via the adr-generator skill: next number 073, canonical .agents/architecture format, prose status, no auto-generated header. Passed G4 checks (no dashes, unique number, all required sections).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran adr-review: six parallel sub-agents (architect, critic, independent-thinker, security, analyst, high-level-advisor) on the Zimmermann checklist. Agents run in a sibling worktree and could not open the uncommitted file, so three returned procedural BLOCKs while still giving substantive notes; the analyst ran real evidence checks. Verified two flagged claims directly: detect_adr_changes.py exists and already parses status: (refutes the phantom-consumer P0), and adr-best-practices.md line 42 authorizes the optional implemented field (refutes the no-precedent P0).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Phase 3 resolution: revised ADR-073 to incorporate the valid P1 findings: scope committed to Phase 1 only with backfill/gate deferred and consumer-gated; status:accepted bound to an adr-review artifact; explainer made display-only/no-auto-fetch; yq example replaced with python-frontmatter (ADR-042); backfill acknowledged as non-mechanical (ADR-072/ADR-055 triage); minimal status-only alternative added; yaml.safe_load + bidirectional supersession mandated; drift reconciliation defined (ADR-066). Wrote the debate log to .agents/critique/ADR-073-debate-log.md. ADR remains Proposed pending human acceptance.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 0
+  },
+  "lessons": []
+}
