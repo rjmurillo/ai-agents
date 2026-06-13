@@ -89,8 +89,9 @@ axis or deterministic gate owns. Defer everything else and do not restate it:
 Do not emit any `OK` / "verified" / "no action required" row as a finding
 (confirmations belong in the verdict line, not the findings list), and do not
 duplicate a finding another axis owns. When `CONTEXT_MODE` is `full` and nothing
-build/pipeline-specific is wrong, emit `PASS` with an empty findings list. Every
-finding MUST cite a `file:line` from the received diff (Issue #2480).
+build/pipeline-specific is wrong, emit `PASS` with an empty findings list. When
+`CONTEXT_MODE` is `full`, every finding MUST cite a `file:line` from the received
+diff (Issue #2480); when context is limited, describe the missing evidence instead.
 
 ### 1. Build Pipeline Impact
 
