@@ -654,6 +654,38 @@ def json_decisions(data: dict, now_iso: str) -> list[dict]:
     return decisions
 
 
+def _staged_file_paths(cwd: str | Path | None = None) -> set[str]:
+    """Return the set of file paths in the staged commit (best-effort).
+
+    Runs ``git diff --cached --name-only`` to get the list of staged files.
+    When ``cwd`` is provided, the command is scoped via ``git -C``.
+    Returns an empty set when git is unavailable or the command fails.
+    """
+    cmd = ["git"]
+    if cwd is not None:
+        cmd += ["-C", str(cwd)]
+    cmd += ["diff", "--cached", "--name-only"]
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return set()
+    if result.returncode != 0:
+        return set()
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
 def _staged_files_changed(cwd: str | Path | None = None) -> int:
     """Count files in the staged commit of the repo at ``cwd`` (best-effort).
 
@@ -1225,7 +1257,16 @@ def main(argv: list[str] | None = None) -> int:
         staged = _staged_files_changed(session_log_path.parent)
         if staged:
             if args.pending_stage:
-                staged += 1
+                episode_path = output_path / f"episode-{session_id}.json"
+                repo_root = _repo_root()
+                try:
+                    episode_rel = episode_path.resolve().relative_to(repo_root)
+                    episode_rel_path = str(episode_rel).replace("\\", "/")
+                except ValueError:
+                    episode_rel_path = str(episode_path)
+                staged_paths = _staged_file_paths(session_log_path.parent)
+                if episode_rel_path not in staged_paths:
+                    staged += 1
             metrics["files_changed"] = staged
 
     episode = {
