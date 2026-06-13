@@ -82,6 +82,9 @@ _PYTHON_DOCSTRING_NODES = (
     ast.FunctionDef,
     ast.Module,
 )
+_PROSE_KWARGS: frozenset[str] = frozenset(
+    {"help", "description", "epilog", "metavar", "usage"}
+)
 
 
 def _python_docstring_spans(text: str) -> set[tuple[int, int, int, int]]:
@@ -107,31 +110,78 @@ def _python_docstring_spans(text: str) -> set[tuple[int, int, int, int]]:
     return spans
 
 
+def _python_prose_spans(text: str) -> set[tuple[int, int, int, int]]:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+
+    spans: set[tuple[int, int, int, int]] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg not in _PROSE_KWARGS:
+                continue
+            value = keyword.value
+            if value.end_lineno is None or value.end_col_offset is None:
+                continue
+            spans.add((value.lineno, value.col_offset, value.end_lineno, value.end_col_offset))
+    return spans
+
+
+def _span_contains(
+    spans: set[tuple[int, int, int, int]], token: tokenize.TokenInfo
+) -> bool:
+    start_line, start_col = token.start
+    end_line, end_col = token.end
+    for span_start_line, span_start_col, span_end_line, span_end_col in spans:
+        starts_inside = (start_line, start_col) >= (span_start_line, span_start_col)
+        ends_inside = (end_line, end_col) <= (span_end_line, span_end_col)
+        if starts_inside and ends_inside:
+            return True
+    return False
+
+
 def _strip_hash_comments(text: str) -> str:
-    return "\n".join(line.split("#", 1)[0] for line in text.splitlines())
+    stripped: list[str] = []
+    for line in text.splitlines():
+        in_single = False
+        in_double = False
+        escaped = False
+        cut_at = len(line)
+        for index, char in enumerate(line):
+            if escaped:
+                escaped = False
+                continue
+            if char in {"\\", "`"}:
+                escaped = True
+                continue
+            if char == "'" and not in_double:
+                in_single = not in_single
+                continue
+            if char == '"' and not in_single:
+                in_double = not in_double
+                continue
+            if char == "#" and not in_single and not in_double:
+                cut_at = index
+                break
+        stripped.append(line[:cut_at])
+    return "\n".join(stripped)
 
 
 def _runtime_text(text: str, suffix: str) -> str:
     if suffix != ".py":
         return _strip_hash_comments(text)
 
-    docstring_spans = _python_docstring_spans(text)
+    ignored_spans = _python_docstring_spans(text) | _python_prose_spans(text)
     try:
         tokens = tokenize.generate_tokens(io.StringIO(text).readline)
         return " ".join(
             token.string
             for token in tokens
             if token.type != tokenize.COMMENT
-            and (
-                token.type != tokenize.STRING
-                or (
-                    token.start[0],
-                    token.start[1],
-                    token.end[0],
-                    token.end[1],
-                )
-                not in docstring_spans
-            )
+            and not (token.type == tokenize.STRING and _span_contains(ignored_spans, token))
         )
     except tokenize.TokenError:
         return _strip_hash_comments(text)

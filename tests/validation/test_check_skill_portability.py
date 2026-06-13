@@ -28,9 +28,9 @@ class TestCountUpstreamRefs:
     def test_counts_windows_separators_bare_dirs_and_mixed_case(self) -> None:
         text = (
             r"base / '.agents' "
-            r"p = '.CLAUDE\\lib\\github_core' "
-            r"q = '.claude\\review-axes\\roadmap.md' "
-            r"s = '.claude\\skills\\github'"
+            "p = '.CLAUDE\\lib\\github_core' "
+            "q = '.claude\\review-axes\\roadmap.md' "
+            "s = '.claude\\skills\\github'"
         )
         assert csp.count_upstream_refs(text) == 4
 
@@ -61,8 +61,28 @@ def path() -> str:
 '''
         assert csp.count_upstream_refs(text) == 1
 
+    def test_ignores_python_cli_prose_strings(self) -> None:
+        text = '''\
+parser = argparse.ArgumentParser(
+    description="Mentions .agents/ as CLI prose.",
+    epilog="Mentions .claude/lib/ as CLI prose.",
+)
+parser.add_argument("--path", help="Mentions .claude/skills/ as CLI prose.")
+runtime = ".agents/runtime"
+'''
+        assert csp.count_upstream_refs(text) == 1
+
     def test_ignores_hash_comments_in_shell_and_powershell(self) -> None:
-        text = "# .agents/comment\nvalue='.claude/skills/runtime'\n"
+        text = (
+            "# .agents/comment\n"
+            "value='label # .claude/skills/runtime'\n"
+            'other="label # .agents/runtime"\n'
+        )
+        assert csp.count_upstream_refs(text, ".sh") == 2
+        assert csp.count_upstream_refs(text, ".ps1") == 2
+
+    def test_strips_unquoted_hash_comments_in_shell_and_powershell(self) -> None:
+        text = "value='.claude/skills/runtime' # .agents/comment\n"
         assert csp.count_upstream_refs(text, ".sh") == 1
         assert csp.count_upstream_refs(text, ".ps1") == 1
 
