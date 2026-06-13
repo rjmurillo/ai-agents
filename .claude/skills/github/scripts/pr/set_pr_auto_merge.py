@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -211,7 +212,7 @@ def enable_auto_merge(
         if "unstable status" in msg.lower():
             strategy = merge_method.lower()
             fallback = (
-                f"python3 .claude/skills/github/scripts/pr/merge_pr.py "
+                f"python3 {Path(__file__).resolve().parent / 'merge_pr.py'} "
                 f"--pull-request {pr_number} --strategy {strategy}"
             )
             error_and_exit(
@@ -233,7 +234,7 @@ def enable_auto_merge(
         if "clean status" in msg.lower():
             strategy = merge_method.lower()
             fallback = (
-                f"python3 .claude/skills/github/scripts/pr/merge_pr.py "
+                f"python3 {Path(__file__).resolve().parent / 'merge_pr.py'} "
                 f"--pull-request {pr_number} --strategy {strategy}"
             )
             error_and_exit(
