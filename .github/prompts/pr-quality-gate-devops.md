@@ -81,8 +81,9 @@ axis or deterministic gate owns. Defer everything else and do not restate it:
   axis. Flag only build/pipeline-specific exposure the security axis would miss.
 - **Correctness/tests** belong to **QA**; **design** belongs to **architect**.
 - **Already covered by deterministic CI, do not restate**: YAML/actionlint
-  syntax, the Actions SHA-pinning validator, shellcheck, and the dash-prohibition
-  guard. Only flag what those gates miss.
+  syntax for workflow files and workflow `run:` blocks, the Actions SHA-pinning
+  validator, and the dash-prohibition guard. Standalone `*.sh` and `*.ps1`
+  scripts remain in DevOps scope when changed.
 
 Do not emit any `OK` / "verified" / "no action required" row as a finding
 (confirmations belong in the verdict line, not the findings list), and do not
@@ -115,10 +116,11 @@ diff (Issue #2480); when context is limited, describe the missing evidence inste
 - If secrets are involved, is there a build/pipeline-specific exposure the
   security axis would not see?
 
-### 4. Shell Script Quality (Gaps Outside shellcheck)
+### 4. Shell Script Quality
 
-Defer syntax, quoting, `set -e`, exit-code propagation, and heredoc issues to
-shellcheck. This section covers only what shellcheck misses:
+For workflow `run:` blocks, defer syntax and quoting issues to actionlint's
+shellcheck integration. For standalone scripts, review the changed script
+directly:
 
 - Are scripts compatible across target environments (bash on Ubuntu vs macOS,
   PowerShell Core vs Windows PowerShell)?
@@ -126,6 +128,8 @@ shellcheck. This section covers only what shellcheck misses:
   would not see (e.g., artifact paths interpolated into shell commands)?
 - Are there cross-platform portability issues that break CI on a different
   runner OS?
+- Are quoting, heredoc, exit-code propagation, or error-handling defects present
+  in standalone scripts where no deterministic gate covers them?
 
 ### 5. Artifact Management
 
