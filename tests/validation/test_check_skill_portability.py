@@ -44,8 +44,27 @@ class TestCountUpstreamRefs:
         assert csp.count_upstream_refs(text) == 0
 
     def test_counts_multiple_occurrences(self) -> None:
-        text = ".agents/a .agents/b .claude/review-axes/c .claude/skills/d"
+        text = (
+            "paths = ['.agents/a', '.agents/b', "
+            "'.claude/review-axes/c', '.claude/skills/d']"
+        )
         assert csp.count_upstream_refs(text) == 4
+
+    def test_ignores_python_comments_and_docstrings(self) -> None:
+        text = '''\
+"""Mentions .agents/ in a module docstring."""
+
+def path() -> str:
+    """Mentions .claude/lib/ in a function docstring."""
+    # Mentions .claude/skills/ in a comment.
+    return ".agents/runtime"
+'''
+        assert csp.count_upstream_refs(text) == 1
+
+    def test_ignores_hash_comments_in_shell_and_powershell(self) -> None:
+        text = "# .agents/comment\nvalue='.claude/skills/runtime'\n"
+        assert csp.count_upstream_refs(text, ".sh") == 1
+        assert csp.count_upstream_refs(text, ".ps1") == 1
 
     def test_zero_when_clean(self) -> None:
         assert csp.count_upstream_refs("import os\nPath('./local')\n") == 0
@@ -67,6 +86,20 @@ class TestScanSkillScripts:
         self._skill_script(tmp_path, "beta", "Path('./local')\n")
         (skills / "beta" / "SKILL.md").write_text("mentions .agents/ in prose\n", encoding="utf-8")
         assert csp.scan_skill_scripts(skills) == {}
+
+    def test_ignores_non_runtime_python_prose(self, tmp_path: Path) -> None:
+        self._skill_script(
+            tmp_path,
+            "docs",
+            '''\
+"""Mentions .agents/ in a docstring."""
+
+# Mentions .claude/lib/ in a comment.
+RUNTIME_PATH = ".claude/skills/runtime"
+''',
+        )
+        counts = csp.scan_skill_scripts(tmp_path / ".claude" / "skills")
+        assert counts == {"skills/docs/scripts/run.py": 1}
 
     def test_fails_closed_on_unreadable_script(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

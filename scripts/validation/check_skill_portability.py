@@ -38,9 +38,12 @@ This validator uses only the subset below:
 from __future__ import annotations
 
 import argparse
+import ast
+import io
 import json
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 # Upstream-only runtime path prefixes. A skill script that references these as
@@ -73,9 +76,71 @@ def _repo_root(start: Path) -> Path:
     return start
 
 
-def count_upstream_refs(text: str) -> int:
+_PYTHON_DOCSTRING_NODES = (
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.FunctionDef,
+    ast.Module,
+)
+
+
+def _python_docstring_spans(text: str) -> set[tuple[int, int, int, int]]:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+
+    spans: set[tuple[int, int, int, int]] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, _PYTHON_DOCSTRING_NODES):
+            continue
+        if not node.body:
+            continue
+        first = node.body[0]
+        if not isinstance(first, ast.Expr):
+            continue
+        if not isinstance(first.value, ast.Constant) or not isinstance(first.value.value, str):
+            continue
+        if first.end_lineno is None or first.end_col_offset is None:
+            continue
+        spans.add((first.lineno, first.col_offset, first.end_lineno, first.end_col_offset))
+    return spans
+
+
+def _strip_hash_comments(text: str) -> str:
+    return "\n".join(line.split("#", 1)[0] for line in text.splitlines())
+
+
+def _runtime_text(text: str, suffix: str) -> str:
+    if suffix != ".py":
+        return _strip_hash_comments(text)
+
+    docstring_spans = _python_docstring_spans(text)
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(text).readline)
+        return " ".join(
+            token.string
+            for token in tokens
+            if token.type != tokenize.COMMENT
+            and (
+                token.type != tokenize.STRING
+                or (
+                    token.start[0],
+                    token.start[1],
+                    token.end[0],
+                    token.end[1],
+                )
+                not in docstring_spans
+            )
+        )
+    except tokenize.TokenError:
+        return _strip_hash_comments(text)
+
+
+def count_upstream_refs(text: str, suffix: str = ".py") -> int:
     """Count upstream-only path references in a single file's text."""
-    return sum(len(pat.findall(text)) for pat in UPSTREAM_PATTERNS)
+    runtime_text = _runtime_text(text, suffix)
+    return sum(len(pat.findall(runtime_text)) for pat in UPSTREAM_PATTERNS)
 
 
 def scan_skill_scripts(skills_dir: Path) -> dict[str, int]:
@@ -95,7 +160,7 @@ def scan_skill_scripts(skills_dir: Path) -> dict[str, int]:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise OSError(f"Failed to read skill script {path}: {exc}") from exc
-        n = count_upstream_refs(text)
+        n = count_upstream_refs(text, path.suffix)
         if n > 0:
             counts[path.relative_to(base).as_posix()] = n
     return counts
