@@ -134,12 +134,17 @@ shellcheck. This section covers only what shellcheck misses:
 - Are artifact names unique to prevent conflicts?
 - Is sensitive data excluded from artifacts?
 
-### 6. Environment & Secrets
+### 6. Environment & Secrets (Build/Pipeline Gaps Only)
 
-- Are environment variables named consistently?
-- Are secrets referenced securely (`${{ secrets.X }}`)?
-- Are environment-specific configs handled properly?
-- Is there risk of secret exposure in logs?
+Defer generic secrets-in-logs and auth checks to the security axis per
+[Scope and Non-Overlap](#scope-and-non-overlap-required). This section covers
+only build/pipeline-specific gaps the security axis would miss:
+
+- Are environment variables named consistently across workflows?
+- Are environment-specific configs (dev/staging/prod) handled correctly in CI?
+- Is there a build/pipeline-specific secret exposure the security axis would
+  not see (e.g., env dump uploaded as artifact, matrix expansion leaking
+  secrets into job names)?
 
 ### 7. Performance & Cost
 
