@@ -75,6 +75,11 @@ _SPLIT_CLAUDE_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 SCRIPT_SUFFIXES = (".py", ".sh", ".ps1")
 
+_FSTRING_TOKEN_TYPES: frozenset[int] = frozenset(
+    getattr(tokenize, name, -1)
+    for name in ("FSTRING_START", "FSTRING_MIDDLE", "FSTRING_END")
+) - {-1}
+
 _DEFAULT_BASELINE_NAME = "skill_portability_baseline.json"
 
 
@@ -181,6 +186,15 @@ def _strip_hash_comments(text: str) -> str:
     return "\n".join(stripped)
 
 
+def _is_skippable_string_token(token: tokenize.TokenInfo) -> bool:
+    """Return True if token is a string-like token that can be in prose spans."""
+    if token.type == tokenize.STRING:
+        return True
+    if token.type in _FSTRING_TOKEN_TYPES:
+        return True
+    return False
+
+
 def _runtime_text(text: str, suffix: str) -> str:
     if suffix != ".py":
         return _strip_hash_comments(text)
@@ -192,7 +206,7 @@ def _runtime_text(text: str, suffix: str) -> str:
             token.string
             for token in tokens
             if token.type != tokenize.COMMENT
-            and not (token.type == tokenize.STRING and _span_contains(ignored_spans, token))
+            and not (_is_skippable_string_token(token) and _span_contains(ignored_spans, token))
         )
     except tokenize.TokenError:
         return _strip_hash_comments(text)
