@@ -146,6 +146,14 @@ RUNTIME_PATH = ".claude/skills/runtime"
             csp.scan_skill_scripts(tmp_path / ".claude" / "skills")
 
 
+class TestRepoRoot:
+    def test_fallback_is_parent_directory_when_start_is_file(self, tmp_path: Path) -> None:
+        script = tmp_path / "script.py"
+        script.write_text("print('ok')\n", encoding="utf-8")
+
+        assert csp._repo_root(script) == tmp_path
+
+
 class TestDiffAgainstBaseline:
     def test_regression_when_count_rises(self) -> None:
         regressions, _ = csp.diff_against_baseline({"a": 3}, {"a": 2})
