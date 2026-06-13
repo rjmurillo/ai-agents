@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -211,8 +212,11 @@ def enable_auto_merge(
         # documented fallback for this state.
         if "unstable status" in msg.lower():
             strategy = merge_method.lower()
+            merge_script = shlex.quote(
+                str(Path(__file__).resolve().parent / "merge_pr.py")
+            )
             fallback = (
-                f"python3 {Path(__file__).resolve().parent / 'merge_pr.py'} "
+                f"python3 {merge_script} "
                 f"--pull-request {pr_number} --strategy {strategy}"
             )
             error_and_exit(
@@ -233,8 +237,11 @@ def enable_auto_merge(
         # instead of leaking the raw GraphQL prefix.
         if "clean status" in msg.lower():
             strategy = merge_method.lower()
+            merge_script = shlex.quote(
+                str(Path(__file__).resolve().parent / "merge_pr.py")
+            )
             fallback = (
-                f"python3 {Path(__file__).resolve().parent / 'merge_pr.py'} "
+                f"python3 {merge_script} "
                 f"--pull-request {pr_number} --strategy {strategy}"
             )
             error_and_exit(

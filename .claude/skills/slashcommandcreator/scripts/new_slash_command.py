@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -127,10 +128,14 @@ allowed-tools: []
     print("\nNext steps:")
     print("  1. Edit frontmatter (description, argument-hint, allowed-tools)")
     print("  2. Write prompt body")
+    validator = shlex.quote(
+        str(Path(__file__).resolve().parent / "validate_slash_command.py")
+    )
+    target = shlex.quote(str(file_path))
     print(
         f"  3. Run: python3 "
-        f"{Path(__file__).resolve().parent / 'validate_slash_command.py'} "
-        f"--path {file_path}"
+        f"{validator} "
+        f"--path {target}"
     )
     print(f"  4. Test: /{name} [arguments]")
     return 0
