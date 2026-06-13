@@ -188,6 +188,10 @@ Strategic framework for evaluating build, buy, partner, or defer decisions. Scor
 
 Classifies problems into Cynefin Framework domains (Clear, Complicated, Complex, Chaotic). Recommends appropriate response strategies per domain.
 
+### business-strategy (optional pack)
+
+Routes a founder or business problem to the right framework (customer discovery, positioning, pricing, sales, growth, persuasion), then loads it on demand. Ships as an **optional pack**: it is not installed by a default `ai-agents init`. Add it with `npx ai-agents init --pack business` (see [installation.md](installation.md#optional-skill-packs)).
+
 ## Documentation
 
 ### doc-accuracy

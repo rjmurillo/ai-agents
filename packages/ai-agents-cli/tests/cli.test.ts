@@ -33,6 +33,8 @@ describe("CLI init (integration)", () => {
     expect(output).toContain("--force");
     expect(output).toContain("--dry-run");
     expect(output).toContain("--target");
+    expect(output).toContain("--pack NAME");
+    expect(output).not.toContain("skill pack (business);");
   });
 
   test("unknown command exits with error", async () => {
@@ -73,5 +75,16 @@ describe("CLI init (integration)", () => {
     await proc.exited;
     expect(proc.exitCode).toBe(2);
     expect(stderr).toContain('Invalid --target "gemini"');
+  });
+
+  test("init --pack with an invalid value exits with config error", async () => {
+    const proc = Bun.spawn(
+      ["bun", "run", "src/cli.ts", "init", testDir, "--pack", "nope"],
+      { cwd: join(import.meta.dir, ".."), stderr: "pipe" },
+    );
+    const stderr = await new Response(proc.stderr).text();
+    await proc.exited;
+    expect(proc.exitCode).toBe(2);
+    expect(stderr).toContain('Unknown pack "nope"');
   });
 });
