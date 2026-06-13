@@ -212,13 +212,13 @@ graph TD
 |--------|--------|---------|
 | [Metric] | [Target] | [Current] |
 
-## Outcome Review
-
-Filled after each epic ships, on its Success Metrics review date, so the roadmap learns whether its hypotheses held instead of only recording them.
-
-| Epic | Review date | Status | Actual vs target | Hypothesis verdict | Next |
-|------|-------------|--------|------------------|--------------------|------|
-| [Epic] | [target date] | shipped/rolled-back/superseded | [actual vs target] | confirmed/refuted/inconclusive | continue/iterate/cancel/new epic |
+## Outcome Review (post-delivery)
+Filled after the epic ships, on the Success Metrics review date. Without this, the roadmap captures hypotheses but never learns whether they held.
+- **Review date**: [when the Success Metrics target date arrives]
+- **Status**: shipped | rolled-back | superseded
+- **Actual vs target**: [Primary metric: actual value vs the target above]
+- **Hypothesis verdict**: confirmed | refuted | inconclusive (and why)
+- **Next**: continue | iterate | kill | spin a new epic [link]
 
 A refuted hypothesis lowers the RICE confidence of related future epics; a confirmed one raises it.
 
