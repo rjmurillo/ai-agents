@@ -50,6 +50,14 @@ class TestCountUpstreamRefs:
         )
         assert csp.count_upstream_refs(text) == 4
 
+    def test_counts_split_claude_path_construction(self) -> None:
+        text = '''\
+os.path.join(root, ".claude", "lib")
+Path(".claude") / "review-axes"
+base / ".claude" / "skills"
+'''
+        assert csp.count_upstream_refs(text) == 3
+
     def test_ignores_python_comments_and_docstrings(self) -> None:
         text = '''\
 """Mentions .agents/ in a module docstring."""

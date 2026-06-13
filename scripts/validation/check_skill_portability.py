@@ -62,6 +62,16 @@ UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.IGNORECASE,
     ),
 )
+_SPLIT_CLAUDE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"(['\"])\.claude\1\s*,\s*(['\"])(?:lib|review-axes|skills)\2",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(['\"])\.claude\1(?:\s*\))*\s*/\s*(['\"])(?:lib|review-axes|skills)\2",
+        re.IGNORECASE,
+    ),
+)
 
 SCRIPT_SUFFIXES = (".py", ".sh", ".ps1")
 
@@ -190,7 +200,11 @@ def _runtime_text(text: str, suffix: str) -> str:
 def count_upstream_refs(text: str, suffix: str = ".py") -> int:
     """Count upstream-only path references in a single file's text."""
     runtime_text = _runtime_text(text, suffix)
-    return sum(len(pat.findall(runtime_text)) for pat in UPSTREAM_PATTERNS)
+    same_literal_refs = sum(len(pat.findall(runtime_text)) for pat in UPSTREAM_PATTERNS)
+    split_component_refs = sum(
+        len(pat.findall(runtime_text)) for pat in _SPLIT_CLAUDE_PATTERNS
+    )
+    return same_literal_refs + split_component_refs
 
 
 def scan_skill_scripts(skills_dir: Path) -> dict[str, int]:
