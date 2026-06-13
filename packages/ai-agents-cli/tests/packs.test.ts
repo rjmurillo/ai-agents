@@ -28,6 +28,10 @@ describe("parsePacks", () => {
   test("throws on an unknown pack id", () => {
     expect(() => parsePacks(["nope"])).toThrow(/Unknown pack "nope"/);
   });
+
+  test("rejects inherited object properties", () => {
+    expect(() => parsePacks(["toString"])).toThrow(/Unknown pack "toString"/);
+  });
 });
 
 describe("makePackFilter", () => {
@@ -55,5 +59,10 @@ describe("makePackFilter", () => {
     expect(
       filter(entry("skills\\business-strategy\\references\\x.md"), null as never),
     ).toBeNull();
+  });
+
+  test("normalizes skill directory casing", () => {
+    const filter = makePackFilter(new Set());
+    expect(filter(entry("Skills/BUSINESS-STRATEGY/SKILL.md"), null as never)).toBeNull();
   });
 });

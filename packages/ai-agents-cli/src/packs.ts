@@ -21,7 +21,7 @@ export function parsePacks(raw: string[] | undefined): Set<string> {
   const requested = new Set<string>();
   for (const item of raw ?? []) {
     for (const name of item.split(",").map((s) => s.trim()).filter(Boolean)) {
-      if (!(name in PACKS)) {
+      if (!Object.prototype.hasOwnProperty.call(PACKS, name)) {
         throw new Error(
           `Unknown pack "${name}". Available packs: ${knownPacks().join(", ")}.`,
         );
@@ -42,9 +42,9 @@ export function makePackFilter(requestedPacks: Set<string>): Transform {
   );
   return (entry: BundleEntry): BundleEntry | null => {
     const normalized = entry.relativePath.replace(/\\/g, "/");
-    const match = normalized.match(/^skills\/([^/]+)\//);
+    const match = normalized.match(/^skills\/([^/]+)\//i);
     if (match) {
-      const dir = match[1];
+      const dir = match[1].toLowerCase();
       if (PACK_SKILL_DIRS.has(dir) && !requestedDirs.has(dir)) {
         return null;
       }

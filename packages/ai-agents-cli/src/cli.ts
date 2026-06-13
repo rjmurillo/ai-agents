@@ -136,7 +136,7 @@ async function main(): Promise<number> {
         "  --dry-run     Show what would be written without touching disk",
         "  --target T    Instruction file(s) to update: claude, copilot, or both",
         "                (default: claude)",
-        `  --pack NAME   Also install an optional skill pack (${knownPacks().join(", ")});`,
+        `  --pack NAME   Also install an optional skill pack (${knownPacks().join(", ")})`,
         "                repeatable or comma-separated",
         "  -y, --yes     Skip confirmation prompts",
         "  -h, --help    Show this help message",
