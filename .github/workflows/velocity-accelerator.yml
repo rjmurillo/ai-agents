@@ -19,7 +19,13 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: velocity-accelerator-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.issue.number || github.sha }}
+  # Dedupe across event types for the same subject (issue or PR), not per
+  # event_name. Keying on github.event_name let an issues:opened run and a
+  # later issues:labeled run for the same issue land in different groups and
+  # execute concurrently (issue #2490). Type-prefix the subject so an issue and
+  # a PR that happen to share a number do not collide; fall back to the SHA for
+  # push and manual runs.
+  group: velocity-accelerator-${{ github.event.issue.number && format('issue-{0}', github.event.issue.number) || github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.sha }}
   cancel-in-progress: false
 
 env:
