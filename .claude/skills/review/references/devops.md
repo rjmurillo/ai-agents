@@ -116,13 +116,17 @@ finding MUST cite a `file:line` from the received diff (Issue #2480).
 - If secrets are involved, is there a build/pipeline-specific exposure the
   security axis would not see?
 
-### 4. Shell Script Quality
+### 4. Shell Script Quality (Gaps Outside shellcheck)
 
-- Are scripts compatible with target environments (bash, PowerShell)?
-- Is input validation present (untrusted inputs sanitized)?
-- Are exit codes handled correctly?
-- Is error handling robust (set -e, try/catch)?
-- Are heredocs and special characters escaped properly?
+Defer syntax, quoting, `set -e`, exit-code propagation, and heredoc issues to
+shellcheck. This section covers only what shellcheck misses:
+
+- Are scripts compatible across target environments (bash on Ubuntu vs macOS,
+  PowerShell Core vs Windows PowerShell)?
+- Is there a build/pipeline-specific input-sanitization gap the security axis
+  would not see (e.g., artifact paths interpolated into shell commands)?
+- Are there cross-platform portability issues that break CI on a different
+  runner OS?
 
 ### 5. Artifact Management
 
@@ -281,7 +285,7 @@ Use `WARN` if:
 - The SHA-pinning validator is weakened, bypassed, or missing coverage
 - Caching could be improved
 - Job parallelization opportunities exist
-- Minor shell script improvements suggested
+- Shell script has cross-platform or build-integration issues outside shellcheck scope
 - Template clarity could be improved
 
 ### PASS (Standards Met)
