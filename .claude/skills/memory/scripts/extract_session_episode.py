@@ -1265,9 +1265,9 @@ def main(argv: list[str] | None = None) -> int:
                     episode_rel = episode_path.resolve().relative_to(repo_root)
                     episode_rel_path = str(episode_rel).replace("\\", "/")
                 except ValueError:
-                    episode_rel_path = str(episode_path)
+                    episode_rel_path = None
                 staged_paths = _staged_file_paths(session_log_path.parent)
-                if episode_rel_path not in staged_paths:
+                if episode_rel_path is not None and episode_rel_path not in staged_paths:
                     staged += 1
             metrics["files_changed"] = staged
 
