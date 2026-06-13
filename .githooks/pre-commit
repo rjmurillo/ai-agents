@@ -1292,10 +1292,12 @@ if [ -n "$STAGED_SESSION_LOG" ]; then
                 # Run episode extraction.
                 # Use --preserve (non-destructive merge) so re-staging a session
                 # log cannot silently overwrite a richer existing episode file.
+                # Use --pending-stage so the staged file count includes the
+                # episode file that will be staged after extraction returns.
                 # Refs #2193: previously --force was unconditional, dropping
                 # curated decisions/lessons on every commit that touched a log.
                 # Guard against set -e aborting the hook on non-blocking extraction failures.
-                if EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --preserve 2>&1); then
+                if EXTRACT_OUTPUT=$("${PYTHON_CMD[@]}" "$EPISODE_EXTRACT_SCRIPT" "$STAGED_SESSION_LOG" --preserve --pending-stage 2>&1); then
                     EXTRACT_EXIT=0
                 else
                     EXTRACT_EXIT=$?
