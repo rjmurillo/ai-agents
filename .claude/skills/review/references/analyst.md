@@ -7,7 +7,7 @@ description: PR review focused on code quality, impact analysis, and maintainabi
 
 # Analyst Review Task
 
-You are reviewing a pull request for code quality, impact, and architectural concerns.
+You are reviewing a pull request for code quality, impact, and maintainability.
 
 ## Context Mode Enforcement (REQUIRED)
 
@@ -48,60 +48,72 @@ Ground quality findings in the project's reasoning artifacts. All paths are unde
 
 ## Analysis Focus Areas
 
+### Scope and Non-Overlap (REQUIRED)
+
+You are one of several Stage-2 axes. Review ONLY analysis concerns no other axis
+or deterministic gate owns: PR/diff consistency, falsifiability of claims, local
+readability, and implementation simplicity. Defer everything else and do not
+restate it as a finding:
+
+- **Architectural alignment, anti-patterns, separation of concerns, module
+  boundaries, breaking-change/blast-radius** belong to the **architect** axis.
+- **Cohesion, coupling, encapsulation, testability, non-redundancy, and
+  code-quality scoring** belong to the **code-quality** axis.
+- **Test coverage and error-handling** belong to the **QA** axis.
+- **Security (secrets, injection, auth)** belongs to the **security** axis.
+- **Lint, type-check, format, and dash rules** are covered by deterministic CI.
+
+Do not emit a finding that duplicates another axis (no "(duplicates X finding)"
+entries) and do not emit confirmations or "no action required" notes as
+findings. When nothing analyst-owned is wrong, the correct output is an
+empty findings list. This non-overlap rule is the primary control against the
+verbatim-duplication noise pattern (Issue #2480).
+
+This section overrides the broad task summary above. If a concern belongs to
+architect, code-quality, QA, security, or deterministic CI, do not emit it from
+analyst.
+
 ### 1. Code Quality Assessment
 
 - **Readability**: Is the code easy to understand?
-- **Maintainability**: Will this be easy to modify in the future?
 - **Consistency**: Does it follow existing patterns in the codebase?
 - **Simplicity**: Is this the simplest solution that works?
 
 ### 2. Impact Analysis
 
-- Which systems or features are affected?
-- What is the blast radius of this change?
-- Are there dependencies that need to be updated?
-- Could this affect performance?
+- Which call sites or module surfaces become harder to understand or verify?
+- Could this affect local readability or claim verification at the call sites?
 
-### 3. Architectural Alignment
+### 3. Architectural Alignment (defer to the architect axis)
 
-- Does this follow established patterns?
-- Are there any anti-patterns introduced?
-- Is the separation of concerns maintained?
-- Are module boundaries respected?
+Architectural patterns, anti-patterns, separation of concerns, and module
+boundaries are the architect axis's domain. Do NOT raise findings here; if you
+notice an architectural concern, leave it to architect rather than emitting a
+duplicate. Review the code only for the readability of how the pattern is
+expressed, not whether the pattern itself is correct.
 
 ### 4. Documentation Completeness
 
 - Is the PR description adequate?
 - Are code comments present where needed?
-- Should documentation be updated?
-- Are breaking changes documented?
-
-### 5. Dependencies
-
-- Are new dependencies justified?
-- Are dependency versions appropriate?
-- Any licensing concerns?
+- Should code-quality documentation be updated for readability?
 
 ## Output Requirements
 
 Provide your analysis in this format:
 
-### Code Quality Score
+### Analysis Summary
 
-| Criterion | Score (1-5) | Notes |
-|-----------|-------------|-------|
-| Readability | | |
-| Maintainability | | |
-| Consistency | | |
-| Simplicity | | |
-
-**Overall**: X/5
+- **Readability**: brief note or "no finding"
+- **Claim support**: brief note or "no finding"
+- **Consistency**: brief note or "no finding"
+- **Simplicity**: brief note or "no finding"
 
 ### Impact Assessment
 
-- **Scope**: Isolated/Module-wide/System-wide
-- **Risk Level**: Low/Medium/High
-- **Affected Components**: [list]
+- **Code-quality surface**: call site, module surface, or local implementation
+- **Verification risk**: Low/Medium/High
+- **Affected analyst concern**: readability, claim support, consistency, or simplicity
 
 ### Findings
 
@@ -128,13 +140,13 @@ MESSAGE: [Brief explanation]
 
 ## Critical Failure Triggers
 
-Automatically use `CRITICAL_FAIL` if you find:
+Automatically use `CRITICAL_FAIL` only for analyst-owned findings:
 
-- Architectural violations that would require significant rework
-- Code that would be extremely difficult to maintain
-- Missing critical documentation for public APIs
-- Changes that break established contracts
-- Over-engineering that adds unnecessary complexity
+- Analysis-owned degradation that makes the change extremely difficult to verify
+- Missing critical documentation for public APIs when no documentation axis owns it
+- Local code contracts that are broken in a way visible from the diff and not owned
+  by the architect axis
+- Over-engineering that adds unnecessary implementation complexity
 
 ## Structured JSON Output
 
@@ -149,7 +161,7 @@ After your human-readable analysis, emit a fenced JSON block matching the inline
   "findings": [
     {
       "severity": "critical|high|medium|low",
-      "category": "readability|maintainability|consistency|simplicity|impact|documentation",
+      "category": "readability|claim-support|consistency|simplicity",
       "description": "What was found",
       "location": "file:line",
       "recommendation": "Suggested fix"
@@ -164,8 +176,9 @@ Each finding MUST be reported with these structured fields:
 
 - **severity**: one of `critical`, `high`, `medium`, `low` (matches the JSON schema field used in the body section above; treat `critical` as a CRITICAL_FAIL trigger and `high` as a WARN trigger). Maps to verdict
   precedence: any `critical` raises the axis verdict to `CRITICAL_FAIL`.
-- **category**: short keyword identifying the failure class (e.g. `coupling`,
-  `error-handling`, `command-injection`, `missing-test`). Used for clustering.
+- **category**: short keyword identifying the analyst-owned failure class (e.g.
+  `readability`, `claim-support`, `consistency`, `simplicity`). Used for
+  clustering.
 - **location**: `file:line` (or `file:line-range`). Required for every finding.
 - **recommendation**: one-sentence imperative fix the author can act on.
 Top-level (NOT per-finding; the schema rejects `verdict` inside
