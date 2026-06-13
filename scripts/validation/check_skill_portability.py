@@ -21,7 +21,15 @@ Markdown instruction files carry a prose-vs-runtime ambiguity (a maintainer note
 mentioning ``.agents/`` is fine; a runtime instruction to write there is not) and
 are a documented follow-up, not part of this ratchet.
 
-EXIT CODES (per ADR-035):
+EXIT CODES (per .agents/architecture/ADR-035-exit-code-standardization.md):
+  Canonical contract:
+  | 0 | Success | Operation completed, idempotent skip |
+  | 1 | General error / Validation failure | Logic error, assertion failed |
+  | 2 | Usage/configuration error | Missing required param, invalid argument, not in git repo |
+  | 3 | External service error | GitHub API failure, network error |
+  | 4 | Authentication/authorization error | Token expired, permission denied |
+
+This validator uses only the subset below:
   0 - no drift (counts at or below baseline)
   1 - drift detected (a script exceeds its baseline or a new script offends)
   2 - configuration error (skills dir missing, baseline unreadable)
@@ -40,10 +48,16 @@ from pathlib import Path
 # install. ``.claude/skills/`` is included because a script reaching into a
 # sibling skill by that absolute prefix breaks once the plugin root moves.
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\.agents/"),
-    re.compile(r"\.claude/lib/"),
-    re.compile(r"\.claude/review-axes/"),
-    re.compile(r"\.claude/skills/"),
+    re.compile(r"(?<![\\\w.])\.agents(?:[\\/]+|['\"]|$)", re.IGNORECASE),
+    re.compile(r"(?<![\\\w.])\.claude[\\/]+lib(?:[\\/]+|['\"]|$)", re.IGNORECASE),
+    re.compile(
+        r"(?<![\\\w.])\.claude[\\/]+review-axes(?:[\\/]+|['\"]|$)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?<![\\\w.])\.claude[\\/]+skills(?:[\\/]+|['\"]|$)",
+        re.IGNORECASE,
+    ),
 )
 
 SCRIPT_SUFFIXES = (".py", ".sh", ".ps1")
@@ -79,8 +93,8 @@ def scan_skill_scripts(skills_dir: Path) -> dict[str, int]:
             continue
         try:
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OSError(f"Failed to read skill script {path}: {exc}") from exc
         n = count_upstream_refs(text)
         if n > 0:
             counts[path.relative_to(base).as_posix()] = n
@@ -89,10 +103,23 @@ def scan_skill_scripts(skills_dir: Path) -> dict[str, int]:
 
 def _load_baseline(path: Path) -> dict[str, int]:
     if not path.is_file():
-        return {}
+        raise FileNotFoundError(f"Baseline file not found: {path}")
     data = json.loads(path.read_text(encoding="utf-8"))
-    files = data.get("files", data) if isinstance(data, dict) else {}
-    return {str(k): int(v) for k, v in files.items()}
+    if not isinstance(data, dict):
+        raise ValueError("Baseline must be a JSON object")
+    files = data["files"] if "files" in data else data
+    if not isinstance(files, dict):
+        raise ValueError("Baseline 'files' must be a JSON object")
+
+    baseline: dict[str, int] = {}
+    for key, value in files.items():
+        if value is None:
+            raise ValueError(f"Baseline count for {key!r} is null")
+        try:
+            baseline[str(key)] = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Baseline count for {key!r} is not an integer") from exc
+    return baseline
 
 
 def diff_against_baseline(
@@ -150,16 +177,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    root = args.repo_root or _repo_root(Path(__file__).resolve())
+    root = args.repo_root.resolve() if args.repo_root else _repo_root(Path(__file__).resolve())
     skills_dir = root / ".claude" / "skills"
     if not skills_dir.is_dir():
         print(f"Skills dir not found: {skills_dir}", file=sys.stderr)
         return 2
-    baseline_path = args.baseline or (
-        root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
-    )
+    if args.baseline:
+        baseline_path = args.baseline if args.baseline.is_absolute() else root / args.baseline
+    else:
+        baseline_path = root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
 
-    current = scan_skill_scripts(skills_dir)
+    try:
+        current = scan_skill_scripts(skills_dir)
+    except OSError as exc:
+        print(f"Could not scan skills dir {skills_dir}: {exc}", file=sys.stderr)
+        return 2
 
     if args.update_baseline:
         total = sum(current.values())
