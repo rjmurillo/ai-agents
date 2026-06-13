@@ -60,6 +60,33 @@ class TestStagedFilesChanged:
         cmd = run.call_args[0][0]
         assert cmd[:3] == ["git", "-C", "/some/repo"]
 
+    def test_runs_git_with_utf8_clean_env_and_c_locale(self) -> None:
+        with (
+            patch.dict(
+                ese.os.environ,
+                {
+                    "GIT_DIR": "bad",
+                    "GIT_WORK_TREE": "bad",
+                    "GIT_COMMON_DIR": "bad",
+                    "GIT_INDEX_FILE": "bad",
+                    "PATH": "keep",
+                },
+                clear=True,
+            ),
+            patch.object(ese.subprocess, "run", return_value=_completed("")) as run,
+        ):
+            ese._staged_files_changed()
+
+        kwargs = run.call_args.kwargs
+        assert kwargs["encoding"] == "utf-8"
+        assert kwargs["errors"] == "replace"
+        assert kwargs["env"]["LC_ALL"] == "C"
+        assert kwargs["env"]["PATH"] == "keep"
+        assert "GIT_DIR" not in kwargs["env"]
+        assert "GIT_WORK_TREE" not in kwargs["env"]
+        assert "GIT_COMMON_DIR" not in kwargs["env"]
+        assert "GIT_INDEX_FILE" not in kwargs["env"]
+
     def test_non_repo_dir_yields_zero(self, tmp_path: Path) -> None:
         # Real git call against a non-repo path must return 0, not raise.
         assert ese._staged_files_changed(tmp_path) == 0

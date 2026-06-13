@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -659,22 +660,28 @@ def _staged_files_changed(cwd: str | Path | None = None) -> int:
     The episode extractor runs in the pre-commit hook, where the session's
     in-flight commit is staged but no commit SHA exists yet. ``git diff
     --cached --numstat`` lists one line per staged file, so its line count is
-    the commit's files-changed. Scoped to ``cwd`` (the session log's repo) via
-    ``git -C`` so it is deterministic: a non-repo path (e.g. a tmp fixture)
-    yields 0 rather than leaking the ambient index. Returns 0 when git is
-    unavailable, nothing is staged, or the command fails (issue #2537 item 3:
-    episodes otherwise report ``files_changed=0`` even when the commit changed
-    several files).
+    the commit's files-changed. When ``cwd`` is provided, the command is scoped
+    via ``git -C`` so a non-repo path (e.g. a tmp fixture) yields 0 rather than
+    leaking the ambient index. When ``cwd`` is omitted, git uses the ambient
+    current working directory. Returns 0 when git is unavailable, nothing is
+    staged, or the command fails (issue #2537 item 3: episodes otherwise report
+    ``files_changed=0`` even when the commit changed several files).
     """
     cmd = ["git"]
     if cwd is not None:
         cmd += ["-C", str(cwd)]
     cmd += ["diff", "--cached", "--numstat"]
+    env = os.environ.copy()
+    for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
+        env.pop(var, None)
+    env["LC_ALL"] = "C"
     try:
         result = subprocess.run(
             cmd,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
             timeout=10,
             check=False,
         )
