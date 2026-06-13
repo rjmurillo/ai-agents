@@ -161,6 +161,7 @@ only build/pipeline-specific gaps the security axis would miss:
 
 Review changes to `.github/actions/`:
 
+- Is the `action.yml` structurally valid YAML with required keys (`name`, `description`, `runs`)? (actionlint excludes composite actions; this check is DevOps-owned)
 - Is the action well-documented with clear inputs/outputs?
 - Are action inputs validated before use?
 - Is the action reusable across multiple workflows?
@@ -268,6 +269,7 @@ Use `CRITICAL_FAIL` if ANY of these are true:
 | `permissions: write-all` without justification | Excessive privileges |
 | Build/pipeline-specific secret exposure the security axis would miss (e.g., artifact upload of env dump) | Credential leakage in build context |
 | Build/pipeline-specific injection the security axis would miss (e.g., artifact paths interpolated into shell) | RCE in build context |
+| Composite `action.yml` has invalid YAML structure or missing required keys (`name`, `description`, `runs`) | Runtime failure (actionlint excludes composite actions) |
 
 #### For SCRIPT PRs
 
