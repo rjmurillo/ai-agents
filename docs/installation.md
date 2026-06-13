@@ -129,6 +129,22 @@ python3 scripts/validate_skill_installation.py
 python3 scripts/validate_skill_installation.py --verbose
 ```
 
+### Optional skill packs
+
+Some skills ship as optional packs: excluded from a default `ai-agents init` and
+installed only on request with `--pack`.
+
+```bash
+npx ai-agents init --pack business
+```
+
+| Pack | Installs | Purpose |
+|------|----------|---------|
+| `business` | `business-strategy` | Customer discovery, positioning, pricing, sales, and growth frameworks |
+
+`--pack` is repeatable and accepts comma-separated values (`--pack business` or
+`--pack a,b`). An unknown pack name fails with the list of available packs.
+
 ## Uninstallation
 
 Use your tool's native uninstall support.

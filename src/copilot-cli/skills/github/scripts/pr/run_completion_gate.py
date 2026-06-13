@@ -105,27 +105,61 @@ import sys
 from pathlib import Path
 from typing import Any
 
+
 # Resolve the project root by walking up to find the ``scripts/``
 # package. A fixed ``parents[N]`` index works for the canonical
 # ``.claude/skills/.../pr/`` location but breaks for the
 # ``src/copilot-cli/skills/.../pr/`` mirror (one extra ``src/`` level)
-# and would break again for any future deployed install. The walk
-# resolves the right root regardless of where the script lives.
+# and for an installed plugin (the script lives under
+# ``~/.copilot/installed-plugins/`` with no ``scripts/`` tree above it).
+# The walk resolves the right root regardless of where the script lives.
 def _resolve_project_root() -> Path:
     here = Path(__file__).resolve().parent
     for ancestor in (here, *here.parents):
         if (ancestor / "scripts" / "utils" / "path_validation.py").is_file():
             return ancestor
-    # Fall back to the original heuristic if the marker is missing
-    # (e.g. when the script is bundled without the scripts/ tree).
-    return Path(__file__).resolve().parents[4]
+    # Installed-plugin context (issue #2572): the script is bundled without the
+    # repo's scripts/ tree. The plugin runs with cwd = the user's repo, so
+    # resolve the project root from the working directory by walking up for a
+    # repo marker. This makes the default config path and path containment base
+    # point at the user's repo, not the installed-plugins directory.
+    cwd = Path.cwd().resolve()
+    for ancestor in (cwd, *cwd.parents):
+        if (ancestor / ".claude").is_dir() or (ancestor / ".git").exists():
+            return ancestor
+    return cwd
 
 
 _PROJECT_ROOT = _resolve_project_root()
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+try:
+    from scripts.utils.path_validation import validate_safe_path  # noqa: E402
+except ModuleNotFoundError:
+    # Installed-plugin fallback (issue #2572): the repo's top-level scripts/
+    # package is not bundled with the skill, so the canonical import is
+    # unavailable when the user's repo is not ai-agents itself.
+    # Canonical source:
+    # scripts/utils/path_validation.py::validate_safe_path. Contract quote:
+    # "Resolve path safely within base directory."
+    # Divergence: this fallback is local to installed-plugin execution and
+    # implements only the containment contract needed by this script.
+    def validate_safe_path(path: str | Path, base_dir: str | Path) -> Path:
+        """Resolve ``path`` under ``base_dir`` and reject any escape."""
+        resolved_base = Path(base_dir).resolve()
+        if not resolved_base.exists():
+            raise FileNotFoundError(f"Base directory does not exist: {base_dir}")
+        if not resolved_base.is_dir():
+            raise ValueError(f"Base path is not a directory: {base_dir}")
+        resolved_path = (resolved_base / path).resolve()
+        try:
+            resolved_path.relative_to(resolved_base)
+        except ValueError:
+            raise ValueError(
+                f"Path {path} is outside base directory {base_dir}"
+            ) from None
+        return resolved_path
 
 # PyYAML is a hard dependency for this script. The rest of the codebase
 # already requires PyYAML; matching that is simpler than maintaining a
@@ -316,7 +350,7 @@ _COMPARE_OPS: dict[type[ast.cmpop], Any] = {
 }
 
 
-class _UnsafeExpression(ValueError):
+class _UnsafeExpressionError(ValueError):
     """A pass_when_python lambda used a construct outside the safe subset."""
 
 
@@ -363,7 +397,7 @@ def _eval_node(node: ast.AST, param_name: str, data: dict) -> Any:
     composition (``and``/``or``), ``not``, comparisons (including ``is`` and
     ``in``), constants, tuple/list membership operands, the single lambda
     parameter (which resolves to ``data``), and ``<param>.get(key[, default])``
-    lookups. Any other node raises ``_UnsafeExpression`` so an unexpected
+    lookups. Any other node raises ``_UnsafeExpressionError`` so an unexpected
     construct fails closed instead of executing.
     """
     if isinstance(node, ast.BoolOp):
@@ -381,7 +415,7 @@ def _eval_node(node: ast.AST, param_name: str, data: dict) -> Any:
                 if result:
                     return result
             return result
-        raise _UnsafeExpression(f"unsupported boolean op: {type(node.op).__name__}")
+        raise _UnsafeExpressionError(f"unsupported boolean op: {type(node.op).__name__}")
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
         return not _eval_node(node.operand, param_name, data)
     if isinstance(node, ast.Compare):
@@ -390,23 +424,23 @@ def _eval_node(node: ast.AST, param_name: str, data: dict) -> Any:
         return node.value
     if isinstance(node, ast.Name):
         if node.id != param_name:
-            raise _UnsafeExpression(f"unknown name: {node.id}")
+            raise _UnsafeExpressionError(f"unknown name: {node.id}")
         return data
     if isinstance(node, (ast.Tuple, ast.List)):
         return [_eval_node(elt, param_name, data) for elt in node.elts]
     if isinstance(node, ast.Call):
         return _eval_call(node, param_name, data)
-    raise _UnsafeExpression(f"unsupported expression node: {type(node).__name__}")
+    raise _UnsafeExpressionError(f"unsupported expression node: {type(node).__name__}")
 
 
 def _eval_compare(node: ast.Compare, param_name: str, data: dict) -> bool:
     """Evaluate a (possibly chained) comparison against the safe op table."""
     left = _eval_node(node.left, param_name, data)
     result = True
-    for op, comparator in zip(node.ops, node.comparators):
+    for op, comparator in zip(node.ops, node.comparators, strict=True):
         op_fn = _COMPARE_OPS.get(type(op))
         if op_fn is None:
-            raise _UnsafeExpression(
+            raise _UnsafeExpressionError(
                 f"unsupported comparison op: {type(op).__name__}",
             )
         right = _eval_node(comparator, param_name, data)
@@ -425,11 +459,11 @@ def _eval_call(node: ast.Call, param_name: str, data: dict) -> Any:
         and isinstance(func.value, ast.Name)
         and func.value.id == param_name
     ):
-        raise _UnsafeExpression(
+        raise _UnsafeExpressionError(
             "only <param>.get(...) calls are allowed in pass_when_python",
         )
     if node.keywords or not 1 <= len(node.args) <= 2:
-        raise _UnsafeExpression(
+        raise _UnsafeExpressionError(
             "<param>.get(...) takes one or two positional arguments",
         )
     key = _eval_node(node.args[0], param_name, data)
