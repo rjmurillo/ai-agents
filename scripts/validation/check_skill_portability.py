@@ -175,17 +175,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _resolve_root(repo_root: Path | None) -> Path:
+    if repo_root:
+        return repo_root.resolve()
+    return _repo_root(Path(__file__).resolve())
+
+
+def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
+    if baseline is None:
+        return root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
+    if baseline.is_absolute():
+        return baseline
+    return root / baseline
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    root = args.repo_root.resolve() if args.repo_root else _repo_root(Path(__file__).resolve())
+    root = _resolve_root(args.repo_root)
     skills_dir = root / ".claude" / "skills"
     if not skills_dir.is_dir():
         print(f"Skills dir not found: {skills_dir}", file=sys.stderr)
         return 2
-    if args.baseline:
-        baseline_path = args.baseline if args.baseline.is_absolute() else root / args.baseline
-    else:
-        baseline_path = root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
+    baseline_path = _resolve_baseline_path(root, args.baseline)
 
     try:
         current = scan_skill_scripts(skills_dir)
