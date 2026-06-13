@@ -245,26 +245,27 @@ MESSAGE: [Brief explanation]
 
 ### CRITICAL_FAIL (Merge Blocked)
 
+Only emit `CRITICAL_FAIL` for build/pipeline-specific gaps that the security axis
+and deterministic CI would miss. Defer all other findings per
+[Scope and Non-Overlap](#scope-and-non-overlap-required).
+
 #### For WORKFLOW and ACTION PRs
 
 Use `CRITICAL_FAIL` if ANY of these are true:
 
 | Condition | Rationale |
 |-----------|-----------|
-| Secrets exposed in logs or artifacts | Credential leakage |
-| Unpinned actions from untrusted sources | Supply chain attack |
-| Shell injection via untrusted inputs | Remote code execution |
+| Unpinned actions from untrusted sources **and** SHA-pinning validator is bypassed or missing coverage | Supply chain attack (defer to validator otherwise) |
 | `permissions: write-all` without justification | Excessive privileges |
-| Workflow syntax errors that prevent execution | Broken CI |
-| Missing input validation for `${{ github.event.* }}` | Injection vector |
+| Build/pipeline-specific secret exposure the security axis would miss (e.g., artifact upload of env dump) | Credential leakage in build context |
+| Build/pipeline-specific injection the security axis would miss (e.g., artifact paths interpolated into shell) | RCE in build context |
 
 #### For SCRIPT PRs
 
 Use `CRITICAL_FAIL` if:
 
-- Scripts accept untrusted input without sanitization
-- Missing error handling for critical operations
-- Exit codes not propagated correctly
+- Missing error handling for critical build operations (not covered by shellcheck)
+- Cross-platform portability issues that break CI on a target runner OS
 
 #### For TEMPLATE PRs
 
