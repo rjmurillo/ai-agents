@@ -73,8 +73,8 @@ This ADR records the decision and the migration contract. It does not itself shi
 ### Why Change Now
 
 - **Has the original problem changed?** Yes. The consumer is now agents and CI tooling, not only humans. Prose status blocks enum filtering and forces body scraping.
-- **Is there a better solution now?** Yes. Frontmatter is parseable by `yq`, by the existing Python tooling, and by the agents, with no loss of the human prose section.
-- **What are the risks of change?** Backfilling 72 existing ADRs; a gate that requires the enum becomes a tripwire on any un-migrated record. Mitigated by shipping the gate last and using `// "-"` query fallbacks during migration.
+- **Is there a better solution now?** Yes. Frontmatter is parseable by Python frontmatter tooling and by agents, with no loss of the human prose section.
+- **What are the risks of change?** Backfilling 72 existing ADRs; a gate that requires the enum becomes a tripwire on any un-migrated record. Mitigated by shipping the gate last and defaulting missing frontmatter to `proposed` during migration.
 
 ## Rationale
 

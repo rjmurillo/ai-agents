@@ -53,6 +53,14 @@
       "content": "Phase 3 resolution: revised ADR-073 to incorporate the valid P1 findings: scope committed to Phase 1 only with backfill/gate deferred and consumer-gated; status:accepted bound to an adr-review artifact; explainer made display-only/no-auto-fetch; yq example replaced with python-frontmatter (ADR-042); backfill acknowledged as non-mechanical (ADR-072/ADR-055 triage); minimal status-only alternative added; yaml.safe_load + bidirectional supersession mandated; drift reconciliation defined (ADR-066). Wrote the debate log to .agents/critique/ADR-073-debate-log.md. ADR remains Proposed pending human acceptance.",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-13T00:00:00+00:00",
+      "type": "milestone",
+      "content": "PR #2607 autofix: resolved the remaining review thread by removing unsupported yq parseability and query-specific fallback wording from ADR-073. The ADR now names Python frontmatter tooling and agents as parse targets, and defaults missing frontmatter to proposed during migration. Updated the debate log with the post-review thread resolution and reran validate_session_json.py plus pre_pr.py successfully.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

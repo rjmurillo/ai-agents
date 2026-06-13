@@ -91,6 +91,14 @@ P2 items (re-prioritize #2583; template completion criteria) are documented, non
 
 ---
 
+## Post-Review PR Thread Resolution
+
+| Finding | Resolution in ADR-073 |
+|---|---|
+| Reviewer noted that the "Why Change Now" section still implied `yq` support and used a query-specific fallback syntax. | Rephrased the section to name Python frontmatter tooling and agents as the parse targets, and replaced the query-specific fallback with tool-agnostic migration behavior: default missing frontmatter to `proposed`. |
+
+---
+
 ## Round 4, Convergence
 
 | Agent | Final position |
