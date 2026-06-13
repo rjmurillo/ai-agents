@@ -57,9 +57,10 @@ or deterministic gate owns. Defer everything else and do not restate it:
 
 Do not emit confirmations, acknowledgements, or any finding whose recommendation
 is no-op / "acceptable" / "no action required", and do not duplicate a finding
-another axis owns. When you have nothing strategically blocking to say, emit
-`PASS` with an empty findings list. A strategic finding MUST name the specific
-contradicted goal, ADR, or roadmap item it conflicts with (Issue #2480).
+another axis owns. When `CONTEXT_MODE` is `full` and you have nothing
+strategically blocking to say, emit `PASS` with an empty findings list. A
+strategic finding MUST name the specific contradicted goal, ADR, or roadmap item
+it conflicts with (Issue #2480).
 
 ### 1. Strategic Alignment
 

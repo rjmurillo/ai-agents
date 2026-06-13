@@ -67,7 +67,7 @@ These patterns are normal and should not trigger DevOps warnings:
 | Matrix jobs without fail-fast | Sometimes intentional for comprehensive testing |
 | `permissions: {}` (empty) | Restricts to minimum permissions |
 | Workflows without caching | Small jobs don't need cache overhead |
-| Actions pinned to tags (v1, v4) | Acceptable if from trusted sources (actions/*) |
+| Action pinning handled by deterministic CI | Do not restate SHA-pinning pass/fail unless the validator itself changes or is bypassed |
 
 **Principle**: Not every workflow optimization is a blocking issue.
 
@@ -88,9 +88,9 @@ axis or deterministic gate owns. Defer everything else and do not restate it:
 
 Do not emit any `OK` / "verified" / "no action required" row as a finding
 (confirmations belong in the verdict line, not the findings list), and do not
-duplicate a finding another axis owns. When nothing build/pipeline-specific is
-wrong, emit `PASS` with an empty findings list. Every finding MUST cite a
-`file:line` from the received diff (Issue #2480).
+duplicate a finding another axis owns. When `CONTEXT_MODE` is `full` and nothing
+build/pipeline-specific is wrong, emit `PASS` with an empty findings list. Every
+finding MUST cite a `file:line` from the received diff (Issue #2480).
 
 ### 1. Build Pipeline Impact
 
@@ -101,18 +101,20 @@ wrong, emit `PASS` with an empty findings list. Every finding MUST cite a
 
 ### 2. CI/CD Configuration
 
-- Are workflow files (`.github/workflows/`) properly structured?
-- Is YAML syntax correct and validated?
-- Are job dependencies and ordering correct?
-- Are triggers (push, pull_request, schedule) appropriate?
+- Do workflow changes alter job dependencies, ordering, or triggers in a way the
+  deterministic validators would not catch?
+- Do workflow changes bypass or weaken an existing deterministic gate?
+- Is there a pipeline behavior risk not covered by actionlint, SHA-pinning,
+  shellcheck, or dash-prohibition checks?
 
 ### 3. GitHub Actions Best Practices
 
-- Are actions pinned to specific versions (SHA or tag)?
-- Is `fail-fast` set appropriately for matrix jobs?
-- Are secrets handled securely (not logged, proper masking)?
-- Are permissions scoped minimally (`contents: read`, etc.)?
-- Are caching strategies used effectively?
+- Are matrix, permissions, caching, or artifact choices creating a build or
+  deployment risk not already enforced by deterministic CI?
+- If the SHA-pinning validator itself changed, does the diff preserve the
+  full-commit-SHA requirement?
+- If secrets are involved, is there a build/pipeline-specific exposure the
+  security axis would not see?
 
 ### 4. Shell Script Quality
 
@@ -192,15 +194,14 @@ Provide your analysis in this format:
 | Deploy | None/Low/Medium/High | |
 | Cost | None/Low/Medium/High | |
 
-### CI/CD Quality Checks
+### CI/CD Scope Notes
 
-| Check | Status | Location |
-|-------|--------|----------|
-| YAML syntax valid | ✅/❌ | [file] |
-| Actions pinned | ✅/❌ | [file:line] |
-| Secrets secure | ✅/❌ | [file:line] |
-| Permissions minimal | ✅/❌ | [file:line] |
-| Shell scripts robust | ✅/❌ | [file:line] |
+List only build/pipeline-specific risks that are not owned by another axis or a
+deterministic gate. Omit this section when there are no such risks.
+
+| Area | Evidence | Risk |
+|------|----------|------|
+| [Build/CI/CD/Actions/Artifacts/Automation] | [file:line] | [risk] |
 
 ### Findings
 
@@ -277,7 +278,7 @@ CRITICAL_FAIL is NOT applicable. Use PASS.
 
 Use `WARN` if:
 
-- Actions pinned to tags (not SHA) from trusted sources
+- The SHA-pinning validator is weakened, bypassed, or missing coverage
 - Caching could be improved
 - Job parallelization opportunities exist
 - Minor shell script improvements suggested
@@ -285,7 +286,7 @@ Use `WARN` if:
 
 ### PASS (Standards Met)
 
-Use `PASS` if:
+When `CONTEXT_MODE` is `full`, use `PASS` if:
 
 - PR is DOCS-only or TEMPLATE-only with valid content
 - All CI/CD checks pass
