@@ -157,14 +157,15 @@ MESSAGE: [Brief explanation]
 
 ## Critical Failure Triggers
 
-Automatically use `CRITICAL_FAIL` if you find:
+Emit `CRITICAL_FAIL` only for roadmap-owned strategic findings per
+[Scope and Non-Overlap](#scope-and-non-overlap-required). If a concern belongs to
+another axis (architect, QA, security) or deterministic CI, defer it.
 
-- Change directly contradicts stated project goals
-- Feature adds significant maintenance burden with low user value
-- Breaking changes without compelling strategic reason
-- Scope creep that would delay critical roadmap items
-- Investment disproportionate to expected return
-- Feature that could harm existing users
+Use `CRITICAL_FAIL` if you find:
+
+- Change directly contradicts a named, cited project goal or roadmap item
+- Scope creep that would delay critical roadmap items (cite the item)
+- Strategic investment disproportionate to expected user value (cite the value gap)
 
 ## Note on Verdict Selection
 
