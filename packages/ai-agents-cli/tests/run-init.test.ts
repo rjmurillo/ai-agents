@@ -65,4 +65,35 @@ describe("runInit (end-to-end pipeline)", () => {
     ).rejects.toThrow();
     await expect(access(join(targetDir, "CLAUDE.md"))).rejects.toThrow();
   });
+
+  test("excludes optional pack skills by default", async () => {
+    await mkdir(join(assetsDir, "skills", "business-strategy"), { recursive: true });
+    await writeFile(join(assetsDir, "skills", "business-strategy", "SKILL.md"), "# biz\n");
+    await mkdir(join(assetsDir, "skills", "review"), { recursive: true });
+    await writeFile(join(assetsDir, "skills", "review", "SKILL.md"), "# review\n");
+
+    const code = await runInit({ targetDir, force: false, dryRun: false, assetsDir, version: "0.1.0" });
+    expect(code).toBe(0);
+    // Core skill vendored; pack skill excluded.
+    await access(join(targetDir, ".claude", "skills", "review", "SKILL.md"));
+    await expect(
+      access(join(targetDir, ".claude", "skills", "business-strategy", "SKILL.md")),
+    ).rejects.toThrow();
+  });
+
+  test("installs an optional pack when requested via packs", async () => {
+    await mkdir(join(assetsDir, "skills", "business-strategy"), { recursive: true });
+    await writeFile(join(assetsDir, "skills", "business-strategy", "SKILL.md"), "# biz\n");
+
+    const code = await runInit({
+      targetDir,
+      force: false,
+      dryRun: false,
+      assetsDir,
+      version: "0.1.0",
+      packs: ["business"],
+    });
+    expect(code).toBe(0);
+    await access(join(targetDir, ".claude", "skills", "business-strategy", "SKILL.md"));
+  });
 });
