@@ -24,7 +24,7 @@ sys.path.insert(0, str(_SCRIPTS))
 import extract_session_episode as ese  # noqa: E402
 
 
-def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
+def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(
         args=["git"], returncode=returncode, stdout=stdout, stderr=""
     )
