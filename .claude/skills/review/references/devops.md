@@ -48,9 +48,9 @@ Before evaluating, categorize the PR by examining changed files:
 |----------|---------------|---------------------|
 | WORKFLOW | `*.yml` in `.github/workflows/` | Full CI/CD review |
 | ACTION | `.github/actions/**` | Composite action review |
-| SCRIPT | `*.sh`, `*.ps1` in `scripts/` | Shell quality review |
+| SCRIPT | `*.sh`, `*.ps1` | Shell quality review |
 | TEMPLATE | `.github/*.md`, `.github/ISSUE_TEMPLATE/**` | Template review only |
-| CODE | `*.ps1`, `*.cs`, `*.ts`, `*.js`, `*.py` (non-scripts/) | Build impact only |
+| CODE | `*.cs`, `*.ts`, `*.js`, `*.py` | Build impact only |
 | DOCS | `*.md` (non-.github/), `*.txt` | None required |
 | CONFIG | `*.json`, `*.yaml` (non-workflow) | Schema validation only |
 
