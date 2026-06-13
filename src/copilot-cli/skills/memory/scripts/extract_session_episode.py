@@ -1252,7 +1252,9 @@ def main(argv: list[str] | None = None) -> int:
     # though no SHA exists yet (issue #2537 item 3).
     # When --pending-stage is set, add 1 to account for the episode file that
     # will be staged after extraction (the hook stages it after this script
-    # returns, so numstat cannot see it yet).
+    # returns, so numstat cannot see it yet). However, skip the +1 if the
+    # episode file is already in the staged diff (e.g., via `git add -A`)
+    # to avoid double-counting.
     if not metrics.get("files_changed"):
         staged = _staged_files_changed(session_log_path.parent)
         if staged:
