@@ -48,6 +48,21 @@ def _disable_commit_signing_for_test_git() -> Iterator[None]:
                 os.environ[key] = value
 
 
+@pytest.fixture(autouse=True)
+def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default every test to the ai-agents project repo (issue #2610).
+
+    ``is_project_repo()`` now resolves repository identity from the git origin
+    remote, not from an incidental ``.agents/`` directory. A ``tmp_path`` fixture
+    has no such remote, so without this default each guard would treat the test
+    as a consumer repo and skip its real work. The suite genuinely runs inside
+    the project repo, so ``"1"`` is the correct default. Consumer-repo
+    simulation tests override ``AI_AGENTS_PROJECT_REPO`` to ``"0"`` (or unset it
+    and stub the git lookup) to exercise the skip path.
+    """
+    monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
+
+
 def assert_validation_result(
     result: ValidationResult,
     *,
