@@ -72,9 +72,9 @@ def is_project_repo() -> bool:
     project_root = get_project_directory()
     if project_root not in _origin_repo_cache:
         name = _remote_repo_name(project_root)
-        _origin_repo_cache[project_root] = (
-            name is not None and name.lower() == _PROJECT_REPO_NAME
-        )
+        if name is None:
+            return False
+        _origin_repo_cache[project_root] = name.lower() == _PROJECT_REPO_NAME
     return _origin_repo_cache[project_root]
 
 
