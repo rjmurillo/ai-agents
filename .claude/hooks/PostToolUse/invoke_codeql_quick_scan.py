@@ -30,7 +30,8 @@ def _get_file_path_from_input(hook_input: dict) -> str | None:
     """Extract file_path from hook input."""
     tool_input = hook_input.get("tool_input", {})
     if isinstance(tool_input, dict):
-        return tool_input.get("file_path")
+        # file_path (Claude) or path (Copilot CLI create/edit); see #2610.
+        return tool_input.get("file_path") or tool_input.get("path")
     return None
 
 

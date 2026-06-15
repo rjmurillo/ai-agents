@@ -298,7 +298,8 @@ def _original_main(stdin_bytes):
 
     def _detect_write_or_edit(tool_input: dict[str, object]) -> str | None:
         """Detect Write or Edit targeting an ADR file. Returns the file path or None."""
-        file_path = str(tool_input.get("file_path", ""))
+        # file_path (Claude) or path (Copilot CLI create/edit); see #2610.
+        file_path = str(tool_input.get("file_path") or tool_input.get("path") or "")
         if not file_path:
             return None
         if _is_adr_path(file_path):
