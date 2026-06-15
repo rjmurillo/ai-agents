@@ -202,7 +202,8 @@ class TestMain:
         assert rc == 0
 
     def test_consumer_repo_skips(self, tmp_path, monkeypatch, capsys):
-        # No .agents/ -> skip_if_consumer_repo returns True -> silent exit 0.
+        # Consumer repo (AI_AGENTS_PROJECT_REPO=0) -> skip -> silent exit 0 (#2610).
+        monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "0")
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
         stdin = json.dumps({"tool_input": {"file_path": "/x/.claude/skills/github/x.py"}})
         with patch.object(sys, "stdin", io.StringIO(stdin)):
