@@ -1,0 +1,107 @@
+{
+  "session": {
+    "number": 2584,
+    "date": "2026-06-15",
+    "branch": "fix/2610-copilot-tool-input-path-key",
+    "startingCommit": "a310ffb5",
+    "objective": "RCA and fix issue #2610: the project-toolkit plugin denied every create/edit in Copilot CLI sessions. Root cause found by capturing the live hook stdin: Copilot's native create/edit/view tools deliver the target path under tool_input.path, but invoke_security_gate.py reads tool_input.file_path and fails closed when absent, so it blocked every write. Secondary: is_project_repo() keyed on a bare .agents/ directory, so the internal guards mis-fired in any consumer repo that has its own .agents/. Fixed both: hooks resolve path from file_path then path, the security gate fails open when no path is resolvable, and is_project_repo() resolves identity from the git origin remote with an AI_AGENTS_PROJECT_REPO override instead of an incidental on-disk marker."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this Copilot CLI harness; AGENTS.md and rule files loaded as the instruction source instead (AGENTS.md fallback)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable in this Copilot CLI harness; AGENTS.md fallback used."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed repo AGENTS.md, governance rules, and the prior copilot-hooks retrospectives (#2290, ADR-068) before acting."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This log created at .agents/sessions/2026-06-15-session-2584-fix-2610-copilot-path-key.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current confirmed fix/2610-copilot-tool-input-path-key before staging."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Work branch is fix/2610-copilot-tool-input-path-key, created off origin/main (a310ffb5)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist walked: tests, lint, regen parity, commit, validation for the #2610 change set."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md left untouched (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena unavailable; durable RCA captured in this session log and the GitHub issue #2610 body per the AGENTS.md fallback."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Change set is Python hooks, guards, tests, and plugin manifests; no lintable markdown changed under tracked paths."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in atomic groups of five files or fewer on fix/2610-copilot-tool-input-path-key."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest green on the changed hooks and guards (pre-existing Windows-only relativize/CodeQL failures confirmed on origin/main); sync_plugin_lib --check and build_all regen parity verified."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-15T22:10:00Z",
+      "entry": "RCA from primary sources: read the failing session events.jsonl and OTEL. Found the denied tool was create with cwd in a different repo (consumer). Captured the live preToolUse stdin by instrumenting the installed dispatcher (reverted after): Copilot maps create->Write/edit->Edit/view->Read but keeps native arg keys (path, file_text, old_str). invoke_security_gate.py read tool_input.file_path, found it empty, and failed closed (exit 2, block to stdout = empty-stderr 'hook errored'). Reproduced deterministically and live in this session."
+    },
+    {
+      "timestamp": "2026-06-15T22:20:00Z",
+      "entry": "Secondary finding: 7 of 10 denials in the failing session were lsp-grep/glob guards blocking code searches in the consumer repo. is_project_repo() returned True there because the consumer repo had its own .agents/ directory (just tools/). skip_if_consumer_repo therefore did not skip."
+    },
+    {
+      "timestamp": "2026-06-15T22:45:00Z",
+      "entry": "Filed issue #2610 with the RCA and fix plan (genericized; repo is public). Created branch fix/2610-copilot-tool-input-path-key."
+    },
+    {
+      "timestamp": "2026-06-15T23:05:00Z",
+      "entry": "Fix part 1 (path-key class): resolved the target path from file_path then path in invoke_security_gate, invoke_adr_architect_gate, invoke_topical_memory_injection, invoke_lsp_read_guard (PreToolUse) and invoke_markdown_auto_lint, invoke_adr_lifecycle_hook, invoke_codeql_quick_scan, invoke_lsp_read_tracker (PostToolUse), matching the existing invoke_plan_state_sync precedent. Security gate now fails OPEN when no path is resolvable instead of blocking every write."
+    },
+    {
+      "timestamp": "2026-06-15T23:30:00Z",
+      "entry": "Fix part 2 (consumer-repo detection): at the owner's direction, replaced the brittle on-disk marker approach with authoritative git-origin-remote detection in is_project_repo(), cached per root, with an AI_AGENTS_PROJECT_REPO env override that doubles as the test/CI hook. Added a tests/conftest.py autouse default (AI_AGENTS_PROJECT_REPO=1, since the suite runs in the project repo); consumer-simulation tests override to 0."
+    },
+    {
+      "timestamp": "2026-06-15T23:50:00Z",
+      "entry": "Tests: updated the two security-gate tests that encoded the old fail-closed contract to assert fail-open; added path-key positive/negative cases; rewrote the guards tests for the env+remote model and added _remote_repo_name URL-parsing coverage. Regenerated src/copilot-cli shims and lib via build_all, reverting the unrelated Windows CRLF churn so the diff stays scoped. Bumped both plugin.json manifests to 0.5.199 (parity)."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open the PR (Fixes #2610) once the full suite confirms no new failures beyond the pre-existing Windows-only relativize/CodeQL cases.",
+    "After merge and plugin republish, the vendored install needs `copilot plugin update` to pick up 0.5.199.",
+    "Pre-existing Windows-only test failures (topical relativize POSIX-path, codeql WindowsApps python3 stub) are unrelated to #2610 and out of scope; they pass on Linux CI."
+  ]
+}
