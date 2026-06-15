@@ -199,11 +199,28 @@ def main() -> int:
             block_security_gate_error("tool_input is missing or not an object")
             return 2
 
-        file_path_value = tool_input.get("file_path", "")
-        if not isinstance(file_path_value, str) or not file_path_value.strip():
-            block_security_gate_error("file_path is missing or not a string")
-            return 2
-        file_path = file_path_value.strip()
+        # Resolve the target path across harness key spellings. Claude Code's
+        # Write/Edit tools use "file_path"; GitHub Copilot CLI's native
+        # create/edit tools use "path" (same mapping documented in
+        # invoke_plan_state_sync.py). Reading only "file_path" made this gate
+        # fail closed on every Copilot create/edit, denying all writes (#2610).
+        file_path = ""
+        for _path_key in ("file_path", "path"):
+            _path_value = tool_input.get(_path_key)
+            if isinstance(_path_value, str) and _path_value.strip():
+                file_path = _path_value.strip()
+                break
+        if not file_path:
+            # No resolvable target path. This gate classifies auth files by
+            # their path; with no path it cannot, and blocking every pathless
+            # Write/Edit is a denial of service far worse than the gate's narrow
+            # purpose. Allow (fail open); identified auth-file edits without a
+            # review are still blocked below.
+            print(
+                "security-gate: no file path in tool_input; allowing (fail open)",
+                file=sys.stderr,
+            )
+            return 0
 
         if not is_auth_path(file_path):
             return 0

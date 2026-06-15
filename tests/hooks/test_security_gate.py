@@ -117,17 +117,29 @@ class TestMain:
         result = invoke_security_gate.main()
         assert result == 0
 
-    def test_exits_2_for_empty_file_path(
+    def test_exits_0_for_empty_file_path_fail_open(
         self, mock_stdin: Callable[[str], None], capsys
     ):
+        # Empty/absent path: fail open (allow) rather than block every write (#2610).
         mock_stdin(
             json.dumps(
                 {"tool_name": "Edit", "tool_input": {"file_path": ""}}
             )
         )
         result = invoke_security_gate.main()
-        assert result == 2
-        assert "file_path" in capsys.readouterr().out
+        assert result == 0
+        assert "fail open" in capsys.readouterr().err
+
+    def test_allows_create_via_path_key(
+        self, mock_stdin: Callable[[str], None]
+    ):
+        # Copilot CLI create sends the non-auth target under ``path`` (#2610).
+        mock_stdin(
+            json.dumps(
+                {"tool_name": "Write", "tool_input": {"path": "/project/notes.md"}}
+            )
+        )
+        assert invoke_security_gate.main() == 0
 
     @patch("invoke_security_gate.find_security_evidence", return_value=True)
     @patch("invoke_security_gate.get_project_directory", return_value="/project")
