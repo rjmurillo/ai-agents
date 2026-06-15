@@ -287,7 +287,8 @@ def main() -> int:
         if not isinstance(tool_input, dict):
             return 0
 
-        file_path = str(tool_input.get("file_path") or "").strip()
+        # file_path (Claude) or path (Copilot CLI view); see #2610.
+        file_path = str(tool_input.get("file_path") or tool_input.get("path") or "").strip()
         if not file_path:
             return 0
 
