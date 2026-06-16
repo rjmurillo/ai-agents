@@ -32,7 +32,7 @@ def _remote_repo_name(project_root: str) -> str | None:
 
     Parses both HTTPS (``https://host/owner/ai-agents.git``) and SSH
     (``git@host:owner/ai-agents.git``) forms. Any failure (git missing, no
-    origin, timeout) yields None so the caller can block on unknown identity.
+    origin, timeout) yields None so the caller can fail open outside the project.
     """
     git = shutil.which("git")
     if git is None:
@@ -91,7 +91,7 @@ def is_project_repo() -> bool:
 
 
 def skip_if_consumer_repo(hook_name: str) -> bool:
-    """Print skip message and return True if this is a consumer repo."""
+    """Print skip message and return True unless this is confirmed project repo."""
     identity = _project_repo_identity()
     if identity == "consumer":
         print(
@@ -101,9 +101,9 @@ def skip_if_consumer_repo(hook_name: str) -> bool:
         return True
     if identity == "unknown":
         print(
-            f"[BLOCK] {hook_name}: cannot verify ai-agents project repo identity; "
-            f"set {_PROJECT_REPO_ENV}=0 for consumer repos or restore git origin",
+            f"[SKIP] {hook_name}: cannot verify ai-agents project repo identity; "
+            "treating as consumer repo",
             file=sys.stderr,
         )
-        raise SystemExit(2)
+        return True
     return False

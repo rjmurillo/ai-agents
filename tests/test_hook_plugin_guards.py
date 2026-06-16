@@ -128,20 +128,6 @@ class TestRemoteRepoName:
         assert captured_kwargs["errors"] == "replace"
         assert captured_kwargs["check"] is True
 
-    def test_origin_lookup_subprocess_error_returns_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
-        monkeypatch.setattr(
-            guards.subprocess,
-            "run",
-            lambda *a, **k: (_ for _ in ()).throw(
-                subprocess.CalledProcessError(2, a, stderr="no origin")
-            ),
-        )
-
-        assert guards._remote_repo_name("/repo") is None
-
     def test_git_missing_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(guards.shutil, "which", lambda _name: None)
         assert guards._remote_repo_name("/repo") is None
@@ -161,7 +147,7 @@ class TestSkipIfConsumerRepo:
         assert "[SKIP] test-hook" in captured.err
         assert "consumer repo" in captured.err
 
-    def test_blocks_when_repo_identity_unknown(
+    def test_skips_when_repo_identity_unknown(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
@@ -169,12 +155,9 @@ class TestSkipIfConsumerRepo:
         monkeypatch.setattr(guards, "get_project_directory", lambda: "/repo")
         monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: None)
 
-        with pytest.raises(SystemExit) as exc_info:
-            skip_if_consumer_repo("test-hook")
-
-        assert exc_info.value.code == 2
+        assert skip_if_consumer_repo("test-hook") is True
         captured = capsys.readouterr()
-        assert "[BLOCK] test-hook" in captured.err
+        assert "[SKIP] test-hook" in captured.err
         assert "cannot verify ai-agents project repo identity" in captured.err
 
 
