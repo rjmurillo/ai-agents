@@ -112,7 +112,8 @@ def parse_file_path(stdin_data: str) -> str | None:
             return None
     if not isinstance(tool_input, dict):
         return None
-    path = tool_input.get("file_path")
+    # file_path (Claude) or path (Copilot CLI create/edit); see #2610.
+    path = tool_input.get("file_path") or tool_input.get("path")
     return path if isinstance(path, str) and path else None
 
 

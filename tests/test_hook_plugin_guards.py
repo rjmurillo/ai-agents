@@ -6,12 +6,14 @@ Verifies that project-specific hooks skip gracefully in consumer repos
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
+from scripts.hook_utilities import guards
 from scripts.hook_utilities.guards import is_project_repo, skip_if_consumer_repo
 
 # Hook scripts that should skip in consumer repos (no .agents/ dir).
@@ -36,41 +38,127 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class TestIsProjectRepo:
-    def test_returns_true_in_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(REPO_ROOT)
+    """is_project_repo resolves identity from the env override or git remote (#2610)."""
+
+    def test_env_override_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
         assert is_project_repo() is True
 
-    def test_returns_false_in_consumer(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.chdir(tmp_path)
+    def test_env_override_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "0")
         assert is_project_repo() is False
 
-    def test_returns_false_when_agents_is_file(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """A .agents file (not directory) should be treated as consumer repo with warning."""
-        (tmp_path / ".agents").write_text("not a directory")
-        monkeypatch.chdir(tmp_path)
+    def test_remote_ai_agents_is_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
+        guards._origin_repo_cache.clear()
+        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: "ai-agents")
+        assert is_project_repo() is True
+
+    def test_remote_other_repo_is_consumer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A consumer repo with its own .agents/ (e.g. a vendored install) must
+        # not be mistaken for the project repo just because that dir exists.
+        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
+        guards._origin_repo_cache.clear()
+        monkeypatch.setattr(
+            guards, "_remote_repo_name", lambda _root: "Wcd.Infra.ConfigurationGeneration2"
+        )
         assert is_project_repo() is False
-        captured = capsys.readouterr()
-        assert "[WARNING]" in captured.err
-        assert "not a directory" in captured.err
+
+    def test_no_remote_is_not_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
+        guards._origin_repo_cache.clear()
+        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: None)
+        assert is_project_repo() is False
+
+
+class TestRemoteRepoName:
+    """_remote_repo_name parses the origin URL across HTTPS and SSH forms."""
+
+    @pytest.mark.parametrize(
+        "url,expected",
+        [
+            ("https://github.com/rjmurillo/ai-agents.git", "ai-agents"),
+            ("https://github.com/rjmurillo/ai-agents", "ai-agents"),
+            ("git@github.com:rjmurillo/ai-agents.git", "ai-agents"),
+            (
+                "git@github.com:org/Wcd.Infra.ConfigurationGeneration2.git",
+                "Wcd.Infra.ConfigurationGeneration2",
+            ),
+        ],
+    )
+    def test_parses_remote_url(
+        self, url: str, expected: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
+        monkeypatch.setattr(
+            guards.subprocess,
+            "run",
+            lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=url + "\n", stderr=""),
+        )
+        assert guards._remote_repo_name("/repo") == expected
+
+    def test_no_origin_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
+
+        def raise_no_origin(*a, **k):
+            raise subprocess.CalledProcessError(2, a, stderr="no origin")
+
+        monkeypatch.setattr(guards.subprocess, "run", raise_no_origin)
+        assert guards._remote_repo_name("/repo") is None
+
+    def test_origin_lookup_uses_utf8_and_check_true(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured_kwargs: dict[str, object] = {}
+
+        def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+            captured_kwargs.update(kwargs)
+            return subprocess.CompletedProcess(
+                ["git", "-C", "/repo", "remote", "get-url", "origin"],
+                0,
+                stdout="ai-agents\n",
+                stderr="",
+            )
+
+        monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
+        monkeypatch.setattr(guards.subprocess, "run", fake_run)
+
+        assert guards._remote_repo_name("/repo") == "ai-agents"
+        assert captured_kwargs["encoding"] == "utf-8"
+        assert captured_kwargs["errors"] == "replace"
+        assert captured_kwargs["check"] is True
+
+    def test_git_missing_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(guards.shutil, "which", lambda _name: None)
+        assert guards._remote_repo_name("/repo") is None
 
 
 class TestSkipIfConsumerRepo:
     def test_returns_false_in_project(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.chdir(REPO_ROOT)
+        monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
         assert skip_if_consumer_repo("test-hook") is False
 
     def test_returns_true_in_consumer(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "0")
         assert skip_if_consumer_repo("test-hook") is True
         captured = capsys.readouterr()
         assert "[SKIP] test-hook" in captured.err
         assert "consumer repo" in captured.err
+
+    def test_skips_when_repo_identity_unknown(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.delenv("AI_AGENTS_PROJECT_REPO", raising=False)
+        guards._origin_repo_cache.clear()
+        monkeypatch.setattr(guards, "get_project_directory", lambda: "/repo")
+        monkeypatch.setattr(guards, "_remote_repo_name", lambda _root: None)
+
+        assert skip_if_consumer_repo("test-hook") is True
+        captured = capsys.readouterr()
+        assert "[SKIP] test-hook" in captured.err
+        assert "cannot verify ai-agents project repo identity" in captured.err
 
 
 class TestHookSkipsInConsumerRepo:
@@ -94,6 +182,11 @@ class TestHookSkipsInConsumerRepo:
         # Some hooks read stdin for hook input JSON
         hook_input = '{"tool_name": "Bash", "tool_input": {"command": "echo hi"}}'
 
+        # Force consumer-repo identity for the spawned hook. The suite-wide
+        # autouse default sets AI_AGENTS_PROJECT_REPO=1; override to "0" so the
+        # subprocess takes the skip path (#2610).
+        env = {**os.environ, "AI_AGENTS_PROJECT_REPO": "0"}
+
         result = subprocess.run(
             [sys.executable, str(full_path)],
             capture_output=True,
@@ -101,6 +194,7 @@ class TestHookSkipsInConsumerRepo:
             cwd=str(consumer_dir),
             input=hook_input,
             timeout=10,
+            env=env,
         )
 
         assert result.returncode == 0, (

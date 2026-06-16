@@ -129,8 +129,35 @@ class TestMainAllowPath:
             assert main() == 0
 
     @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
-    def test_blocks_missing_file_path(self, mock_stdin: StringIO) -> None:
+    def test_allows_missing_file_path_fail_open(self, mock_stdin: StringIO) -> None:
+        # No resolvable path: the gate cannot classify an auth file, so it fails
+        # open instead of blocking every pathless write (#2610).
         hook_input = {"tool_input": {"command": "echo hello"}}
+        mock_stdin.write(json.dumps(hook_input))
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+
+    @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
+    def test_allows_non_auth_file_via_path_key(self, mock_stdin: StringIO) -> None:
+        # Copilot CLI create/edit deliver the target as ``path`` (#2610).
+        hook_input = {"tool_name": "Write", "tool_input": {"path": "src/utils/helpers.py"}}
+        mock_stdin.write(json.dumps(hook_input))
+        mock_stdin.seek(0)
+        with patch.object(mock_stdin, "isatty", return_value=False):
+            assert main() == 0
+
+    @patch("invoke_security_gate.find_security_evidence", return_value=False)
+    @patch("invoke_security_gate.get_project_directory", return_value="/project")
+    @patch("invoke_security_gate.sys.stdin", new_callable=StringIO)
+    def test_blocks_auth_file_via_path_key(
+        self,
+        mock_stdin: StringIO,
+        _mock_project: MagicMock,
+        _mock_evidence: MagicMock,
+    ) -> None:
+        # An auth file created via Copilot's ``path`` key is still gated (#2610).
+        hook_input = {"tool_name": "Write", "tool_input": {"path": "src/Auth/Login.cs"}}
         mock_stdin.write(json.dumps(hook_input))
         mock_stdin.seek(0)
         with patch.object(mock_stdin, "isatty", return_value=False):

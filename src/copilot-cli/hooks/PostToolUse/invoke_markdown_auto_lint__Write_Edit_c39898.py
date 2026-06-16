@@ -218,7 +218,8 @@ def _original_main(stdin_bytes):
         """Extract file_path from hook input's tool_input."""
         tool_input = hook_input.get("tool_input")
         if isinstance(tool_input, dict):
-            file_path = tool_input.get("file_path")
+            # file_path (Claude) or path (Copilot CLI create/edit); see #2610.
+            file_path = tool_input.get("file_path") or tool_input.get("path")
             if isinstance(file_path, str) and file_path.strip():
                 return file_path.strip()
         return None
