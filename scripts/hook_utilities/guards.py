@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import sys
+from typing import Literal
 
 from scripts.hook_utilities.utilities import get_project_directory
 
@@ -22,7 +23,8 @@ _PROJECT_REPO_ENV = "AI_AGENTS_PROJECT_REPO"
 
 # Per-root, per-process memo so the Copilot in-process dispatcher (every shim in
 # one interpreter, ADR-068) pays the git lookup at most once per repository root.
-_origin_repo_cache: dict[str, bool] = {}
+RepoIdentity = Literal["project", "consumer", "unknown"]
+_origin_repo_cache: dict[str, RepoIdentity] = {}
 
 
 def _remote_repo_name(project_root: str) -> str | None:
@@ -30,7 +32,7 @@ def _remote_repo_name(project_root: str) -> str | None:
 
     Parses both HTTPS (``https://host/owner/ai-agents.git``) and SSH
     (``git@host:owner/ai-agents.git``) forms. Any failure (git missing, no
-    origin, timeout) yields None so the caller treats the repo as a consumer.
+    origin, timeout) yields None so the caller can block on unknown identity.
     """
     git = shutil.which("git")
     if git is None:
@@ -39,9 +41,10 @@ def _remote_repo_name(project_root: str) -> str | None:
         result = subprocess.run(
             [git, "-C", project_root, "remote", "get-url", "origin"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
-            check=False,
+            check=True,
         )
     except (OSError, subprocess.SubprocessError):
         return None
@@ -58,6 +61,26 @@ def _remote_repo_name(project_root: str) -> str | None:
     return tail or None
 
 
+def _project_repo_identity() -> RepoIdentity:
+    """Resolve whether the current checkout is project, consumer, or unknown."""
+    override = os.environ.get(_PROJECT_REPO_ENV, "").strip()
+    if override == "1":
+        return "project"
+    if override == "0":
+        return "consumer"
+
+    project_root = get_project_directory()
+    if project_root not in _origin_repo_cache:
+        name = _remote_repo_name(project_root)
+        if name is None:
+            _origin_repo_cache[project_root] = "unknown"
+        elif name.lower() == _PROJECT_REPO_NAME:
+            _origin_repo_cache[project_root] = "project"
+        else:
+            _origin_repo_cache[project_root] = "consumer"
+    return _origin_repo_cache[project_root]
+
+
 def is_project_repo() -> bool:
     """Return True when running inside the ai-agents project repository.
 
@@ -66,24 +89,23 @@ def is_project_repo() -> bool:
     overrides the lookup ("1"/"0") and caches a one-time resolution; tests set
     it directly. Uses get_project_directory() so it works from a subdirectory.
     """
-    override = os.environ.get(_PROJECT_REPO_ENV, "").strip()
-    if override in ("0", "1"):
-        return override == "1"
-    project_root = get_project_directory()
-    if project_root not in _origin_repo_cache:
-        name = _remote_repo_name(project_root)
-        _origin_repo_cache[project_root] = (
-            name is not None and name.lower() == _PROJECT_REPO_NAME
-        )
-    return _origin_repo_cache[project_root]
+    return _project_repo_identity() == "project"
 
 
 def skip_if_consumer_repo(hook_name: str) -> bool:
     """Print skip message and return True if this is a consumer repo."""
-    if not is_project_repo():
+    identity = _project_repo_identity()
+    if identity == "consumer":
         print(
             f"[SKIP] {hook_name}: not the ai-agents project repo (consumer repo)",
             file=sys.stderr,
         )
         return True
+    if identity == "unknown":
+        print(
+            f"[BLOCK] {hook_name}: cannot verify ai-agents project repo identity; "
+            f"set {_PROJECT_REPO_ENV}=0 for consumer repos or restore git origin",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
     return False
