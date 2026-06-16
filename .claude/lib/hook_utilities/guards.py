@@ -48,8 +48,6 @@ def _remote_repo_name(project_root: str) -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    if result.returncode != 0:
-        return None
     url = result.stdout.strip()
     if not url:
         return None

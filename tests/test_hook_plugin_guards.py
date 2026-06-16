@@ -99,11 +99,11 @@ class TestRemoteRepoName:
 
     def test_no_origin_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(guards.shutil, "which", lambda _name: "git")
-        monkeypatch.setattr(
-            guards.subprocess,
-            "run",
-            lambda *a, **k: subprocess.CompletedProcess(a, 2, stdout="", stderr="no origin"),
-        )
+
+        def raise_no_origin(*a, **k):
+            raise subprocess.CalledProcessError(2, a, stderr="no origin")
+
+        monkeypatch.setattr(guards.subprocess, "run", raise_no_origin)
         assert guards._remote_repo_name("/repo") is None
 
     def test_origin_lookup_uses_utf8_and_check_true(
