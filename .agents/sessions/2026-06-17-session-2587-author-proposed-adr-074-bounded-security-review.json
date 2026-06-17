@@ -17,7 +17,7 @@
    "serenaInstructions": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Subagent harness; initial_instructions deferred-tool noted. Operated on retrieval-led reasoning from .agents/architecture ADRs and .claude/rules."
+    "Evidence": "Subagent harness; initial_instructions tool acknowledged. Operated on retrieval-led reasoning from .agents/architecture ADRs and .claude/rules."
    },
    "handoffRead": {
     "level": "MUST",
