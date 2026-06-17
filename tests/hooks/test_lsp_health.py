@@ -73,9 +73,7 @@ class TestFailOpen:
     def test_warn_once_never_raises_on_unwritable_dir(self, monkeypatch, capsys):
         # Force the marker dir to an unwritable location: warning still prints,
         # the call reports warned, and no exception escapes.
-        monkeypatch.setattr(
-            lsp_health, "_state_dir", lambda: Path("/proc/nonexistent/cannot")
-        )
+        monkeypatch.setattr(lsp_health, "_state_dir", lambda: Path("/proc/nonexistent/cannot"))
         emitted = lsp_health.warn_once_lsp_down("lsp-read-guard", str(REPO_ROOT))
         assert emitted is True
         assert "LSP runtime is down" in capsys.readouterr().err
@@ -84,6 +82,7 @@ class TestFailOpen:
         """_state_dir() uses tempfile.gettempdir() when XDG_STATE_HOME is absent
         and Path.home() raises RuntimeError (sandboxed/CI/no-homedir environments).
         """
+
         def _raise() -> Path:
             raise RuntimeError("Cannot determine home directory")
 
@@ -99,6 +98,7 @@ class TestFailOpen:
         """warn_once_lsp_down() falls back gracefully when Path.home() raises
         RuntimeError; the warning is still emitted (fail-open, never raises).
         """
+
         def _raise() -> Path:
             raise RuntimeError("Cannot determine home directory")
 
@@ -109,3 +109,13 @@ class TestFailOpen:
         emitted = lsp_health.warn_once_lsp_down("lsp-read-guard", str(REPO_ROOT))
         assert emitted is True
         assert "LSP runtime is down" in capsys.readouterr().err
+
+    def test_warn_once_emits_when_marker_path_is_invalid(self, monkeypatch, capsys):
+        monkeypatch.setattr(lsp_health, "_marker_path", lambda _project_dir: Path("bad\0marker"))
+        emitted = lsp_health.warn_once_lsp_down("lsp-read-guard", str(REPO_ROOT))
+        assert emitted is True
+        assert "LSP runtime is down" in capsys.readouterr().err
+
+    def test_clear_marker_fails_open_when_marker_path_is_invalid(self, monkeypatch):
+        monkeypatch.setattr(lsp_health, "_marker_path", lambda _project_dir: Path("bad\0marker"))
+        assert lsp_health.clear_lsp_down_marker(str(REPO_ROOT)) is False

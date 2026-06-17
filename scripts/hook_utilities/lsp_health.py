@@ -95,7 +95,7 @@ def _cwd_key(project_dir: str) -> str:
     """Return a stable per-cwd key: sha256(resolved cwd) truncated to 16 hex."""
     try:
         normalized = str(Path(project_dir).resolve())
-    except (OSError, ValueError):
+    except OSError, ValueError:
         normalized = project_dir
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
@@ -113,17 +113,17 @@ def warn_once_lsp_down(guard_name: str, project_dir: str) -> bool:
     repeated hard blocks"). Returns True when this call emitted the warning
     (regardless of whether the dedup marker was successfully persisted).
     Returns False when the warning was already emitted this session (marker
-    exists) or when the marker existence check itself fails (OSError).
+    exists).
 
-    Any filesystem error degrades to NOT emitting on the failed call rather than
-    raising; a navigation gate must never wedge a turn (release-it.md).
+    Any marker filesystem error degrades to emitting without persistence rather
+    than raising; a navigation gate must never wedge a turn (release-it.md).
     """
     marker = _marker_path(project_dir)
     try:
         if marker.exists():
             return False
-    except OSError:
-        return False
+    except OSError, ValueError:
+        pass
 
     message = (
         f"{guard_name}: LSP runtime is down ({LSP_DOWN_ENV} set); allowing native "
@@ -135,7 +135,7 @@ def warn_once_lsp_down(guard_name: str, project_dir: str) -> bool:
     try:
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_text("1", encoding="utf-8")
-    except OSError:
+    except OSError, ValueError:
         # Could not persist the marker: we already printed once, so degrade to
         # "warned" semantics for this call but allow a future call to warn again.
         return True
@@ -150,6 +150,6 @@ def clear_lsp_down_marker(project_dir: str) -> bool:
     """
     try:
         _marker_path(project_dir).unlink(missing_ok=True)
-    except OSError:
+    except OSError, ValueError:
         return False
     return True
