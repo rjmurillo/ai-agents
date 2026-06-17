@@ -55,25 +55,31 @@ class TestNewIssue:
         )) as mock_run:
             result = main(["--title", "Title", "--body", "Body text", "--labels", "bug,P1"])
         assert result == 0
-        call_args = mock_run.call_args[0][0]
-        assert "--body" in call_args
-        assert "--label" in call_args
+        all_calls = [call[0][0] for call in mock_run.call_args_list]
+        create_call = next(c for c in all_calls if "create" in c)
+        assert "--body" in create_call
+        edit_call = next(c for c in all_calls if "edit" in c)
+        assert "--add-label" in edit_call
 
-    def test_api_error_exits_3(self):
+    def test_api_error_exits_3(self, capsys):
         with patch("subprocess.run", return_value=_make_proc(
             returncode=1, stderr="API error"
         )):
-            with pytest.raises(SystemExit) as exc:
-                main(["--title", "Title"])
-        assert exc.value.code == 3
+            result = main(["--title", "Title", "--output-format", "json"])
+        assert result == 3
+        data = json.loads(capsys.readouterr().out)
+        assert data["Success"] is False
+        assert data["Error"]["Type"] == "ApiError"
 
-    def test_unparseable_result_exits_3(self):
+    def test_unparseable_result_exits_3(self, capsys):
         with patch("subprocess.run", return_value=_make_proc(
             stdout="no url here"
         )):
-            with pytest.raises(SystemExit) as exc:
-                main(["--title", "Title"])
-        assert exc.value.code == 3
+            result = main(["--title", "Title", "--output-format", "json"])
+        assert result == 3
+        data = json.loads(capsys.readouterr().out)
+        assert data["Success"] is False
+        assert data["Error"]["Type"] == "ApiError"
 
     def test_empty_body_not_passed(self):
         with patch("subprocess.run", return_value=_make_proc(
