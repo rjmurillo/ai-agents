@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-06-17-session-2585-fix-2621-exclude-worktrees-plugin-manifest",
+  "session": "2026-06-17-session-2585-fix-2621-exclude-worktrees-plugin-manifest",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix #2621: exclude .worktrees from plugin-manifest validator discovery (keystone unblock for pushes)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix #2621: add '.worktrees' to excluded_dirs in build/scripts/validate_plugin_manifests.py find_manifests. Ran: uv run pytest tests/build_scripts/test_validate_plugin_manifests.py -> 40 passed. Mutation check: removing '.worktrees' makes new test fail (finds 2 manifests including the .worktrees one); restoring passes. Validator over repo -> exit 0, 3 manifests valid, 0 .worktrees paths.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "test",
+      "content": "pytest: 40 passed in 0.24s; mutation-checked; validator exit 0",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}

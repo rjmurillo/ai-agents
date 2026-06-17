@@ -123,6 +123,28 @@ def _check_marketplace_runtime_forbidden_keys(
     ]
 
 
+def _validate_hook_group(event: str, idx: int, group: object) -> list[str]:
+    """Validate one matcher group (an object with a `hooks` array)."""
+    if not isinstance(group, dict):
+        return [f"`hooks.{event}[{idx}]`: must be an object with `hooks` array"]
+    if "hooks" not in group or not isinstance(group["hooks"], list):
+        return [f"`hooks.{event}[{idx}].hooks`: required array of hook commands"]
+    errors: list[str] = []
+    for hidx, hook in enumerate(group["hooks"]):
+        if not isinstance(hook, dict):
+            errors.append(f"`hooks.{event}[{idx}].hooks[{hidx}]`: must be an object")
+            continue
+        if hook.get("type") != "command":
+            errors.append(
+                f"`hooks.{event}[{idx}].hooks[{hidx}].type`: must be 'command'"
+            )
+        if not isinstance(hook.get("command"), str):
+            errors.append(
+                f"`hooks.{event}[{idx}].hooks[{hidx}].command`: required string"
+            )
+    return errors
+
+
 def _validate_hook_event_entries(event: str, entries: object) -> list[str]:
     """Each event maps to a list of matcher groups."""
     if not isinstance(entries, list):
@@ -134,91 +156,66 @@ def _validate_hook_event_entries(event: str, entries: object) -> list[str]:
         ]
     errors: list[str] = []
     for idx, group in enumerate(entries):
-        if not isinstance(group, dict):
-            errors.append(
-                f"`hooks.{event}[{idx}]`: must be an object with `hooks` array"
-            )
-            continue
-        if "hooks" not in group or not isinstance(group["hooks"], list):
-            errors.append(
-                f"`hooks.{event}[{idx}].hooks`: required array of hook commands"
-            )
-            continue
-        for hidx, hook in enumerate(group["hooks"]):
-            if not isinstance(hook, dict):
-                errors.append(
-                    f"`hooks.{event}[{idx}].hooks[{hidx}]`: must be an object"
-                )
-                continue
-            if hook.get("type") != "command":
-                errors.append(
-                    f"`hooks.{event}[{idx}].hooks[{hidx}].type`: must be 'command'"
-                )
-            if not isinstance(hook.get("command"), str):
-                errors.append(
-                    f"`hooks.{event}[{idx}].hooks[{hidx}].command`: required string"
-                )
+        errors.extend(_validate_hook_group(event, idx, group))
     return errors
 
 
-def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str]:
-    """Hooks must be either a string path to a JSON file or an inline object.
-
-    Rejects the dict-of-strings shape (`{event: "./hooks/Event"}`) that broke
-    plugin install in PR #1773. When `value` is a string ref and `manifest_dir`
-    is provided, the referenced file is also loaded and its contents validated.
-    """
-    if isinstance(value, str):
-        if not value.endswith(".json"):
-            return [
-                "`hooks`: string value must reference a `.json` file "
-                f"(got '{value}'). Pointing to a directory is invalid."
-            ]
-        errors = _validate_relative_path("hooks", value)
-        if errors or manifest_dir is None:
-            return errors
-        # The plugin root is the directory containing .claude-plugin/, i.e.
-        # the parent of manifest_dir. Hook string refs are relative to root.
-        plugin_root = manifest_dir.parent
-        referenced = (plugin_root / value).resolve()
-        if not referenced.exists():
-            return errors  # Don't fail if path is just unresolvable here.
-        try:
-            inner = json.loads(referenced.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            return [f"`hooks`: referenced file '{value}' is unreadable: {exc}"]
-        if not isinstance(inner, dict):
-            return [f"`hooks`: referenced file '{value}' must be a JSON object"]
-        # The canonical hooks.json shape (per production plugins
-        # context-mode and security-guidance) wraps event names under
-        # a top-level "hooks" key. Without the wrapper, Claude Code
-        # does not load the events. Enforce strictly.
-        if "hooks" not in inner:
-            return [
-                f"`hooks`: referenced file '{value}' must contain a top-level "
-                f"`hooks` key wrapping the event names "
-                f"(e.g. {{\"hooks\": {{\"PreToolUse\": [...]}}}}). "
-                f"Without the wrapper, Claude Code does not load the events."
-            ]
-        events_obj = inner["hooks"]
-        if not isinstance(events_obj, dict):
-            return [
-                f"`hooks`: referenced file '{value}' top-level `hooks` value "
-                f"must be an object of event names"
-            ]
-        nested_errors: list[str] = []
-        for event, entries in events_obj.items():
-            if event not in VALID_HOOK_EVENTS:
-                nested_errors.append(
-                    f"`hooks` ref '{value}': unknown hook event '{event}'"
-                )
-                continue
-            nested_errors.extend(_validate_hook_event_entries(event, entries))
-        return nested_errors
-    if not isinstance(value, dict):
+def _validate_referenced_hooks_doc(value: str, inner: object) -> list[str]:
+    """Validate the parsed contents of a referenced hooks JSON file."""
+    if not isinstance(inner, dict):
+        return [f"`hooks`: referenced file '{value}' must be a JSON object"]
+    # The canonical hooks.json shape (per production plugins context-mode and
+    # security-guidance) wraps event names under a top-level "hooks" key.
+    # Without the wrapper, Claude Code does not load the events. Enforce strictly.
+    if "hooks" not in inner:
         return [
-            f"`hooks`: must be an object or string path (got {type(value).__name__})"
+            f"`hooks`: referenced file '{value}' must contain a top-level "
+            f"`hooks` key wrapping the event names "
+            f"(e.g. {{\"hooks\": {{\"PreToolUse\": [...]}}}}). "
+            f"Without the wrapper, Claude Code does not load the events."
         ]
+    events_obj = inner["hooks"]
+    if not isinstance(events_obj, dict):
+        return [
+            f"`hooks`: referenced file '{value}' top-level `hooks` value "
+            f"must be an object of event names"
+        ]
+    nested_errors: list[str] = []
+    for event, entries in events_obj.items():
+        if event not in VALID_HOOK_EVENTS:
+            nested_errors.append(
+                f"`hooks` ref '{value}': unknown hook event '{event}'"
+            )
+            continue
+        nested_errors.extend(_validate_hook_event_entries(event, entries))
+    return nested_errors
+
+
+def _validate_hooks_string_ref(value: str, manifest_dir: Path | None) -> list[str]:
+    """Validate a `hooks` string ref to a JSON file and its referenced contents."""
+    if not value.endswith(".json"):
+        return [
+            "`hooks`: string value must reference a `.json` file "
+            f"(got '{value}'). Pointing to a directory is invalid."
+        ]
+    errors = _validate_relative_path("hooks", value)
+    if errors or manifest_dir is None:
+        return errors
+    # The plugin root is the directory containing .claude-plugin/, i.e.
+    # the parent of manifest_dir. Hook string refs are relative to root.
+    plugin_root = manifest_dir.parent
+    referenced = (plugin_root / value).resolve()
+    if not referenced.exists():
+        return errors  # Don't fail if path is just unresolvable here.
+    try:
+        inner = json.loads(referenced.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [f"`hooks`: referenced file '{value}' is unreadable: {exc}"]
+    return _validate_referenced_hooks_doc(value, inner)
+
+
+def _validate_hooks_inline(value: dict) -> list[str]:
+    """Validate an inline `hooks` object mapping event names to matcher groups."""
     inline_errors: list[str] = []
     for event, entries in value.items():
         if event not in VALID_HOOK_EVENTS:
@@ -238,22 +235,28 @@ def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str
     return inline_errors
 
 
-def validate_manifest(path: Path) -> list[str]:
-    """Validate a single plugin.json file. Returns list of error messages."""
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        return [f"Manifest read error for '{path}': {exc}"]
-    except UnicodeDecodeError as exc:
-        return [f"Manifest decode error for '{path}': {exc}"]
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        return [f"JSON parse error: {exc}"]
+def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str]:
+    """Hooks must be either a string path to a JSON file or an inline object.
 
-    if not isinstance(data, dict):
-        return ["Top-level value must be an object"]
+    Rejects the dict-of-strings shape (`{event: "./hooks/Event"}`) that broke
+    plugin install in PR #1773. When `value` is a string ref and `manifest_dir`
+    is provided, the referenced file is also loaded and its contents validated.
+    """
+    if isinstance(value, str):
+        return _validate_hooks_string_ref(value, manifest_dir)
+    if not isinstance(value, dict):
+        return [
+            f"`hooks`: must be an object or string path (got {type(value).__name__})"
+        ]
+    return _validate_hooks_inline(value)
 
+
+def _validate_manifest_data(data: dict, path: Path) -> list[str]:
+    """Validate the parsed manifest object. Returns list of error messages.
+
+    Split out of validate_manifest so each stays within the cyclomatic-complexity
+    budget; validate_manifest handles read/parse, this handles field semantics.
+    """
     errors: list[str] = []
 
     missing = REQUIRED_KEYS - data.keys()
@@ -281,6 +284,25 @@ def validate_manifest(path: Path) -> list[str]:
     return errors
 
 
+def validate_manifest(path: Path) -> list[str]:
+    """Validate a single plugin.json file. Returns list of error messages."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"Manifest read error for '{path}': {exc}"]
+    except UnicodeDecodeError as exc:
+        return [f"Manifest decode error for '{path}': {exc}"]
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return [f"JSON parse error: {exc}"]
+
+    if not isinstance(data, dict):
+        return ["Top-level value must be an object"]
+
+    return _validate_manifest_data(data, path)
+
+
 def find_manifests(root: Path) -> list[Path]:
     """Find all plugin.json files under `.claude-plugin/` directories.
 
@@ -290,7 +312,7 @@ def find_manifests(root: Path) -> list[Path]:
     """
     import os
 
-    excluded_dirs = {"worktrees", "node_modules", ".git", "cache", ".pytest_tmp"}
+    excluded_dirs = {".worktrees", "worktrees", "node_modules", ".git", "cache", ".pytest_tmp"}
     results: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         # Prune excluded directories in-place so os.walk does not descend.

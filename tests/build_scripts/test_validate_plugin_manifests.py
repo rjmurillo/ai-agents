@@ -385,6 +385,21 @@ def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
     assert "worktrees" not in str(found[0])
 
 
+def test_find_manifests_skips_dot_worktrees(tmp_path: Path) -> None:
+    """Top-level worktree dir is `.worktrees` (dot-prefixed); it must be pruned
+    too. Regression for #2621: a broken manifest in a sibling .worktrees/ checkout
+    blocked unrelated pushes because the exclusion set listed only "worktrees"."""
+    repo_manifest = tmp_path / "a" / ".claude-plugin" / "plugin.json"
+    repo_manifest.parent.mkdir(parents=True)
+    repo_manifest.write_text("{}", encoding="utf-8")
+    dot_worktree = tmp_path / ".worktrees" / "sibling" / ".claude-plugin" / "plugin.json"
+    dot_worktree.parent.mkdir(parents=True)
+    dot_worktree.write_text("{ broken json", encoding="utf-8")
+    found = vpm.find_manifests(tmp_path)
+    assert len(found) == 1
+    assert ".worktrees" not in str(found[0])
+
+
 def test_find_manifests_skips_pytest_tmp(tmp_path: Path) -> None:
     """Regression for #2366: fixture manifests under .pytest_tmp must be ignored.
 
