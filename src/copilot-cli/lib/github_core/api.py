@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import re
 import subprocess
 import sys
@@ -271,16 +272,18 @@ _RETRY_AFTER_PATTERN = re.compile(r"\bRetry-After:\s*(\d+)", re.IGNORECASE)
 
 
 def _retry_after_delay(error_text: str, backoff: float) -> float:
-    """Return Retry-After delay if present in error text, else backoff.
+    """Return Retry-After delay if present in error text, else jittered backoff.
 
     GitHub may include ``Retry-After: <seconds>`` in gh error text for HTTP 429
-    responses. Honouring it avoids hammering the rate limit instead of using
-    the caller-supplied exponential backoff.
+    responses. Honouring it avoids hammering the rate limit.
+    Falls back to full-jitter exponential backoff (``random.uniform(0, backoff)``)
+    to prevent synchronized retry storms (release-it.md: exponential backoff with
+    jitter).
     """
     match = _RETRY_AFTER_PATTERN.search(error_text)
     if match:
         return float(match.group(1))
-    return backoff
+    return random.uniform(0, backoff)
 
 
 def _build_gh_graphql_args(query: str, variables: dict) -> list[str]:

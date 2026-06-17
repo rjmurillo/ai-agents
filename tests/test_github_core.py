@@ -39,7 +39,7 @@ from scripts.github_core import (
     safe_log_str,
     update_issue_comment,
 )
-from scripts.github_core.api import _403_PATTERN
+from scripts.github_core.api import _403_PATTERN, _retry_after_delay
 from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
@@ -580,6 +580,37 @@ class TestGhGraphQL:
                 gh_graphql("query { x }")
         assert run_mock.call_count == 1
         assert sleep_mock.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# API: _retry_after_delay
+# ---------------------------------------------------------------------------
+
+
+class TestRetryAfterDelay:
+    def test_retry_after_header_overrides_backoff(self):
+        """Retry-After: N in error text returns N, not the backoff."""
+        delay = _retry_after_delay("gh: rate limited (HTTP 429)\nRetry-After: 42", 2.0)
+        assert delay == 42.0
+
+    def test_retry_after_case_insensitive(self):
+        """Header matching is case-insensitive."""
+        delay = _retry_after_delay("retry-after: 10", 5.0)
+        assert delay == 10.0
+
+    def test_no_retry_after_uses_jitter(self):
+        """Without Retry-After, the returned delay is in [0, backoff]."""
+        backoff = 4.0
+        delays = [_retry_after_delay("server error (HTTP 503)", backoff) for _ in range(20)]
+        assert all(0.0 <= d <= backoff for d in delays), delays
+        # Jitter must not always return the same value (probability of 20 identical
+        # draws from uniform(0, 4) is negligible).
+        assert len(set(delays)) > 1, "jitter produced identical values - check random source"
+
+    def test_no_retry_after_empty_text(self):
+        """Empty error text returns a value in [0, backoff]."""
+        delay = _retry_after_delay("", 2.0)
+        assert 0.0 <= delay <= 2.0
 
 
 # ---------------------------------------------------------------------------
