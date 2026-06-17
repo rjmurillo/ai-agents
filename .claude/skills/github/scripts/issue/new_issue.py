@@ -6,7 +6,7 @@ Supports both inline body text and file-based body content.
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
-    2 - File not found
+    2 - Usage/configuration error (invalid args, file not found)
     3 - External error (API failure)
     4 - Auth error (not authenticated)
 """
@@ -114,7 +114,10 @@ def _apply_labels(
 
     result = subprocess.run(
         gh_args,
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     if result.returncode == 0:
         return None
@@ -162,7 +165,13 @@ def main(argv: list[str] | None = None) -> int:
     if body and body.strip():
         gh_args.extend(["--body", body])
 
-    result = subprocess.run(gh_args, capture_output=True, text=True, check=False)
+    result = subprocess.run(
+        gh_args,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
 
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()

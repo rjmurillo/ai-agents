@@ -61,6 +61,9 @@ def test_create_issue_with_labels(mock_run, capsys):
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["issue_number"] == 5
+    edit_kwargs = mock_run.call_args_list[3].kwargs
+    assert edit_kwargs["encoding"] == "utf-8"
+    assert edit_kwargs["errors"] == "replace"
 
 
 @patch("subprocess.run")
@@ -109,6 +112,9 @@ def test_api_failure(mock_run, capsys):
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
     assert output["Error"]["Type"] == "ApiError"
+    create_kwargs = mock_run.call_args_list[2].kwargs
+    assert create_kwargs["encoding"] == "utf-8"
+    assert create_kwargs["errors"] == "replace"
 
 
 @patch("subprocess.run")
