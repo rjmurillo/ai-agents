@@ -597,13 +597,14 @@ class TestSetIssueLabels:
 
     def test_priority_label_added(self, capsys):
         mod = self._import()
-        # _label_exists -> success, _apply_label -> success
+        # _label_exists -> success, _apply_label -> success, _get_issue_labels -> empty
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", side_effect=[
-                make_proc(returncode=0),   # _label_exists
-                make_proc(returncode=0),   # _apply_label
+                make_proc(returncode=0),                         # _label_exists
+                make_proc(returncode=0),                         # _apply_label
+                make_proc(stdout='{"labels": []}', returncode=0),  # _get_issue_labels for reconcile
             ]),
         ):
             rc = mod.main(["--issue", "1", "--priority", "P1"])
