@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2587,
+    "date": "2026-06-17",
+    "branch": "fix/2551-bot-pat-secret-name",
+    "startingCommit": "41a1acb597",
+    "objective": "Fix #2551: repoint dependabot-approve-and-auto-merge.yml from never-provisioned GH_ACTIONS_PR_WRITE secret to canonical BOT_PAT (rjmurillo-bot, ADR-026 Decision 5) used by 11 other write workflows"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena LSP unavailable this session (markdown language server init timeout); used grep/Bash fallback per AGENTS.md fallback clause and search-before-building 'when search tools fail' rule. Documented in response."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP returned init error; fell back to direct .agents/architecture and grep search."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No HANDOFF.md changes needed; read issue #2551 full discourse (5 comments) via get_issue_comments.py."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/get_issue_context.py and get_issue_comments.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/ci-scripts.md, security.md, testing.md via session context."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read ADR-026 (BOT_PAT mandate); searched .agents/architecture for PAT/secret prior art."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory unavailable; relied on hook-injected topical memories and ADR-026."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2551-bot-pat-secret-name"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2551-bot-pat-secret-name"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status + git log confirmed branch off 41a1acb597 (current origin/main HEAD)."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "41a1acb597"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All work-log steps recorded with command output."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote .serena/memories/tasks/issue-2551-bot-pat-secret-name.md (Serena MCP write unavailable; used file fallback per search-before-building rule)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files changed in the deliverable (tests are .py, workflow is .yml). PR body file is staged outside commit scope."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in this session; see endingCommit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest 13 passed (secret guard + token tests), 16 passed (validate_workflows), actionlint exit 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-slice config fix; no task tracker entries."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Investigate config-side root cause for #2551",
+      "result": "Found that .github/workflows/dependabot-approve-and-auto-merge.yml referenced a bespoke secret GH_ACTIONS_PR_WRITE that appears in this single workflow and nowhere else (grep: 8 refs, all in one file). The repo's canonical write PAT is BOT_PAT (rjmurillo-bot service account), referenced by 11 other workflows (46 refs) and mandated by ADR-026 Decision 5 for PR-automation attribution. The bespoke secret was never provisioned, so it resolved empty at run time. This is a config-side bug (wrong secret name), not a missing-secret-value human gate."
+    },
+    {
+      "step": "TDD: update workflow secret-wiring tests to assert BOT_PAT (RED)",
+      "result": "Edited tests/test_renovate_workflow_secret_guard.py (PAT_SECRET constant GH_ACTIONS_PR_WRITE -> BOT_PAT) and tests/test_dependabot_workflow_token.py (assertions). Ran: uv run python -m pytest tests/test_renovate_workflow_secret_guard.py tests/test_dependabot_workflow_token.py -q -> 9 failed, 4 passed (RED, expected: workflow still on old secret)."
+    },
+    {
+      "step": "GREEN: repoint workflow from GH_ACTIONS_PR_WRITE to BOT_PAT",
+      "result": "Replaced all 8 secrets.GH_ACTIONS_PR_WRITE -> secrets.BOT_PAT in the workflow and updated guard step names, error messages, and rationale comments. Ran: uv run python -m pytest tests/test_renovate_workflow_secret_guard.py tests/test_dependabot_workflow_token.py -q -> 13 passed (GREEN)."
+    },
+    {
+      "step": "Mutate-confirm test teeth",
+      "result": "Temporarily broke one secrets.BOT_PAT ref to secrets.WRONG_NAME -> pytest reported 3 failed, 10 passed; restored file -> 13 passed. Tests catch regressions."
+    },
+    {
+      "step": "Workflow validation",
+      "result": "actionlint .github/workflows/dependabot-approve-and-auto-merge.yml -> exit 0 (clean). YAML safe_load OK. tests/test_validate_workflows.py -> 16 passed."
+    }
+  ],
+  "endingCommit": "64bda8c54d8f42f9c9fa2bc198e457a671df1089",
+  "nextSteps": [
+    "Merge once CI green; renovate/dependabot auto-approve resumes with BOT_PAT. No admin action required."
+  ]
+}
