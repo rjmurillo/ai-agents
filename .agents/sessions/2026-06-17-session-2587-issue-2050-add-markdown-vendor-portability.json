@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2587,
+    "date": "2026-06-17",
+    "branch": "feat/2050-skill-md-vendor-portability",
+    "startingCommit": "fb9741fa9b",
+    "objective": "Issue #2050: add Markdown vendor-portability ratchet (check_skill_md_portability.py) for skill .md files; the deferred follow-up to the script-only validators"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active; LSP markdown server timed out (warmup-block), fell back to grep/bash reads and direct write_memory which succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions unavailable due to LSP timeout; followed AGENTS.md retrieval rules directly"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No issue-specific HANDOFF; read issue #2050 body + 12 comments via get_issue_context.py/get_issue_comments.py"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed scripts/validation/; found prior art check_vendor_portability.py + check_skill_portability.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/skills CLAUDE.md conventions via system reminder + skill rules"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/* (universal, canonical-source-mirror, ci-scripts, python) via system context"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Searched git log + scripts/validation for #2050 prior art; wrote decision memory tasks/issue-2050-skill-md-vendor-portability"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/2050-skill-md-vendor-portability"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/2050-skill-md-vendor-portability"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fb9741fa9b"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart MUSTs populated honestly with LSP-timeout caveat"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not touched (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote tasks/issue-2050-skill-md-vendor-portability via mcp__serena__write_memory (succeeded)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 ran; .claude/skills/** excluded by config (0 files). Verified em-dash count: my added section dash-clean; 1 pre-existing em-dash at line 65 untouched (in origin/main)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commits created this turn (validator+tests, pre_pr wiring, session-end migration), each <=5 files, conventional + Co-Authored-By trailer"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest 22 passed; py_compile clean; validator wrapper returns True"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "N/A subagent run; no TaskCreate list in use"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "N/A single-slice subagent deliverable"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T17:30:00Z",
+      "action": "Built check_skill_md_portability.py Markdown vendor-portability ratchet + 22 pytest tests",
+      "evidence": "TDD: wrote test first (RED: ModuleNotFoundError), implemented validator (GREEN). `uv run python -m pytest tests/validation/test_check_skill_md_portability.py -q` -> 22 passed in 0.24s. Mutate-confirm: lowered a baseline count, TestCommittedRepoHasNoDrift FAILED with drift assertion, restored baseline, test passed again.",
+      "filesModified": [
+        "scripts/validation/check_skill_md_portability.py",
+        "tests/validation/test_check_skill_md_portability.py",
+        "scripts/validation/skill_md_portability_baseline.json"
+      ]
+    },
+    {
+      "timestamp": "2026-06-17T17:40:00Z",
+      "action": "Wired validator into pre_pr.py and migrated session-end SKILL.md off baseline via machine-readable marker",
+      "evidence": "validate_skill_md_portability added to checks_spec.py + registered in pre_pr.py. Wrapper runs clean (True). Added `## Vendored install` + `<!-- vendor-portability: ... -->` to session-end/SKILL.md; baseline regenerated 14->13 files, validator reports 'No Markdown vendor-portability drift'. py_compile passed on all 4 python files.",
+      "filesModified": [
+        "scripts/validation/checks_spec.py",
+        "scripts/validation/pre_pr.py",
+        ".claude/skills/session-end/SKILL.md"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}

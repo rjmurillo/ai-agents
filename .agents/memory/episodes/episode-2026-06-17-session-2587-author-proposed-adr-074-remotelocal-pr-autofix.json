@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix",
+  "session": "2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Author Proposed ADR-074 for remote/local pr-autofix coordination lease (storage, TTL, fail-open) per issue #2615",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #2615 and full discourse; searched .agents/architecture ADRs and check_pr_live_state.py for prior art",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Authored Proposed ADR-074 (PR-comment lease, 15-min TTL, fail-open, advisory beside the SHA gate) following ADR-073 format model; authored single-reviewer architect design-review note",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Attempted Write to canonical .agents/architecture/ADR-074-*.md path",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 3
+  },
+  "lessons": []
+}

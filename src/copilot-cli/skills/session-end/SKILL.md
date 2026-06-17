@@ -62,7 +62,7 @@ python3 .claude/skills/session-end/scripts/complete_session_log.py --dry-run
 
 ## When to Use
 
-**REQUIRED** before closing any session. The Stop hook at `.claude/hooks/Stop/invoke_session_validator.py` enforces this — sessions will not close until `protocolCompliance.sessionEnd` MUST items are complete. If you attempt to close without running session-end, the hook will force continuation.
+**REQUIRED** before closing any session. The Stop hook at `.claude/hooks/Stop/invoke_session_validator.py` enforces this: sessions will not close until `protocolCompliance.sessionEnd` MUST items are complete. If you attempt to close without running session-end, the hook will force continuation.
 
 Specifically:
 
@@ -291,6 +291,22 @@ File: .agents/sessions/2026-02-07-session-05.json
 | [session](../session/) | Session management utilities |
 
 ---
+
+## Vendored install
+
+<!-- vendor-portability: declared. This skill writes session logs under .agents/sessions/. A consumer repo without that path gets "[FAIL] No session log found in .agents/sessions/", not a silent no-op. Issue #2050. -->
+
+This skill depends on upstream-only paths. In a vendored install (a consumer
+repo that is not `rjmurillo/ai-agents`) these paths do not exist:
+
+| Path | Direction | Behavior when absent |
+|------|-----------|----------------------|
+| `.agents/sessions/` | write (session logs) | The completion script prints `[FAIL] No session log found in .agents/sessions/` and exits non-zero. Create the directory or set the session path explicitly. |
+| `.agents/SESSION-PROTOCOL.md` | reference only | The protocol reference link is informational; absence does not block the skill. |
+
+The HTML comment above is the machine-readable declaration the
+`check_skill_md_portability.py` validator (Issue #2050) reads to confirm this
+skill has disclosed its path dependencies instead of hiding them in prose.
 
 ## References
 
