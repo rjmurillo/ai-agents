@@ -1,0 +1,51 @@
+{
+  "run_id": "m4-overlap-1949-2026-06-17",
+  "model": "claude-sonnet-4-6",
+  "generated_at": "2026-06-17T16:14:23.514811+00:00",
+  "pairs": [
+    {
+      "skill_a": "curating-memories",
+      "skill_b": "memory-enhancement",
+      "verdict": "DISTINCT",
+      "recommendation": "Keep both. curating-memories and memory-enhancement cover different prompts.",
+      "a_on_a": {
+        "baseline": 5.0,
+        "own": 5.0,
+        "other": 5.0,
+        "own_delta": 0.0,
+        "other_delta": 0.0
+      },
+      "b_on_b": {
+        "baseline": 3.75,
+        "own": 3.0,
+        "other": 2.5,
+        "own_delta": -0.75,
+        "other_delta": -1.25
+      },
+      "api_calls": 48,
+      "flags": []
+    },
+    {
+      "skill_a": "exploring-knowledge-graph",
+      "skill_b": "memory",
+      "verdict": "SUBSUMED",
+      "recommendation": "Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; DELETE/FOLD not triggered on this evidence.",
+      "a_on_a": {
+        "baseline": 3.25,
+        "own": 4.5,
+        "other": 4.0,
+        "own_delta": 1.25,
+        "other_delta": 0.75
+      },
+      "b_on_b": {
+        "baseline": 1.25,
+        "own": 4.25,
+        "other": 2.25,
+        "own_delta": 3.0,
+        "other_delta": 1.0
+      },
+      "api_calls": 48,
+      "flags": []
+    }
+  ]
+}
