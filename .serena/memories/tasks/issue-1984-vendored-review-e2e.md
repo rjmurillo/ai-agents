@@ -18,8 +18,7 @@ vendored checkout.
   kept identical to test_vendored_install.py.
 - **Synthetic diff**: real git repo with one staged one-line change
   (`make_synthetic_diff_repo`). `/review HEAD` evaluates the staged diff.
-- **Axis count discovered, not hardcoded.** Issue says "9 verdict rows" (5-axis
-  era). Current canonical set = 12 `references/*.md` + 3 chained skills = 15.
+- **Axis count discovered, not hardcoded.** Issue says "9 verdict rows" (6 canonical + 3 chained = 9). Current canonical set = 12 `references/*.md` + 3 chained skills = 15.
   `discover_axis_count` derives the expected row count from the vendored
   `references/` dir, so it tracks the SKILL.md auto-discovery contract and
   never drifts. The literal 9 is kept only as a floor assertion.

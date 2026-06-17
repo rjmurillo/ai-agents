@@ -17,7 +17,7 @@ a synthetic one-line diff inside that tree. It asserts:
   2. The output carries a verdict row for every axis the vendored install
      ships (the canonical `references/*.md` set plus the 3 chained-skill axes),
      discovered from the vendored copy rather than hardcoded. The issue text
-     said "9 verdict rows", which was the 5-axis era; the current canonical
+     said "9 verdict rows", which was the 6-canonical + 3-chained era; the current canonical
      set is larger, so the test derives the expected count from the directory
      that `/review` itself discovers (SKILL.md "Convergence contract"). Pinning
      a literal would drift the moment an axis is added or removed.
@@ -186,7 +186,8 @@ def make_synthetic_diff_repo(repo: Path) -> str:
             env=env,
             check=True,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
 
     _git("init", "-q")
@@ -302,7 +303,8 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
             ["claude", "-p", _REVIEW_PROMPT, "--plugin-dir", str(plugin_root)],
             cwd=workdir,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_REVIEW_TIMEOUT_S,
             check=False,
             env=env,
@@ -390,7 +392,8 @@ def test_synthetic_diff_repo_has_staged_change(tmp_path: Path) -> None:
         cwd=repo,
         check=True,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     names = [line for line in staged.stdout.splitlines() if line.strip()]
     assert names == [changed], f"expected staged change {changed!r}, got {names!r}"
@@ -399,7 +402,8 @@ def test_synthetic_diff_repo_has_staged_change(tmp_path: Path) -> None:
         cwd=repo,
         check=True,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     assert "subtract" in diff.stdout, "staged diff missing the expected change"
 
