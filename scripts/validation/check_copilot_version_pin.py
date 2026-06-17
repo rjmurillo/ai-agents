@@ -100,9 +100,9 @@ def check_action(action_path: Path) -> int:
             resolved_path = (repo_root / action_path).resolve()
             resolved_path.relative_to(repo_root)
             action_path = resolved_path
-        except ValueError, RuntimeError:
+        except (ValueError, RuntimeError) as exc:
             print(
-                f"::error::Path traversal attempt detected: {action_path}",
+                f"::error::Path traversal attempt detected: {action_path} ({type(exc).__name__})",
                 file=sys.stderr,
             )
             return EXIT_LOGIC
