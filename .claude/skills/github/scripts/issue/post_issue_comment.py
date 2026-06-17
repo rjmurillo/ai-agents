@@ -95,7 +95,7 @@ def _save_failed_comment_artifact(
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=10,
         )
         if result.returncode == 0:
             git_common = Path(result.stdout.strip())
@@ -192,10 +192,15 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
         comments_result = subprocess.run(
             ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}/comments"],
-            capture_output=True, text=True, check=False,
+            capture_output=True, encoding="utf-8", errors="replace", check=False,
         )
 
-        if comments_result.returncode == 0:
+        # Guard stdout: under locale text mode on Windows, gh's UTF-8 JSON was
+        # decoded with cp1252, the reader thread died on a non-cp1252 byte, and
+        # stdout came back None with returncode 0, so json.loads(None) crashed
+        # (issue #2657). encoding="utf-8" above is the fix; this guard is defense
+        # in depth for an empty or missing body.
+        if comments_result.returncode == 0 and comments_result.stdout:
             try:
                 comments = json.loads(comments_result.stdout)
             except json.JSONDecodeError:
@@ -268,7 +273,8 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
         ],
         input=payload,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 

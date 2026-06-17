@@ -146,3 +146,50 @@ class TestPostIssueComment:
         ):
             rc = mod.main(["--issue", "1", "--body", "body"])
         assert rc == 0
+
+    def test_marker_list_none_stdout_does_not_crash(self, _import_module):
+        # Regression for issue #2657: on Windows the comments-list call decoded
+        # gh's UTF-8 with cp1252, the stdout reader thread died, and stdout came
+        # back None with returncode 0. Feeding None to json.loads crashed with
+        # TypeError. The marker path must guard stdout and fall through to
+        # posting a new comment. (First mock call = list comments, second = POST.)
+        mod = _import_module
+        response = {"id": 101, "html_url": "https://example.com/c"}
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(stdout=None, returncode=0),
+                make_completed_process(stdout=json.dumps(response), returncode=0),
+            ]),
+        ):
+            rc = mod.main(["--issue", "1", "--body", "b", "--marker", "M"])
+        assert rc == 0
+
+
+class TestSubprocessEncoding:
+    """Lock the issue #2657 fix: gh subprocess calls must declare UTF-8.
+
+    Bare ``text=True`` decodes with the OS locale codec (cp1252 on Windows),
+    which corrupts or drops gh's UTF-8 output. Every gh/git subprocess call in
+    the comment path and the shared api helper must pass ``encoding="utf-8"``.
+    """
+
+    def test_post_issue_comment_has_no_bare_text_true(self):
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[3]
+        src = (
+            repo_root
+            / ".claude/skills/github/scripts/issue/post_issue_comment.py"
+        ).read_text(encoding="utf-8")
+        assert "text=True" not in src
+        assert 'encoding="utf-8"' in src
+
+    def test_github_core_api_has_no_bare_text_true(self):
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[3]
+        src = (repo_root / ".claude/lib/github_core/api.py").read_text(encoding="utf-8")
+        assert "text=True" not in src
+        assert 'encoding="utf-8"' in src
