@@ -42,6 +42,7 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=[]),
             patch("subprocess.run", side_effect=[
                 make_completed_process(),  # _label_exists for "bug"
                 make_completed_process(),  # _apply_label for "bug"
@@ -61,6 +62,7 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=[]),
             patch("subprocess.run", side_effect=[
                 make_completed_process(returncode=1),   # _label_exists fails
                 make_completed_process(),                # _create_label succeeds
@@ -78,6 +80,7 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=[]),
             patch("subprocess.run", side_effect=[
                 make_completed_process(),  # _label_exists
                 make_completed_process(),  # _apply_label
@@ -112,6 +115,7 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=[]),
             patch("subprocess.run", side_effect=[
                 make_completed_process(returncode=1),                     # _label_exists fails
                 make_completed_process(returncode=1, stderr="err"),       # _create_label fails
@@ -127,6 +131,7 @@ class TestSetIssueLabels:
         with (
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch("set_issue_labels._get_issue_labels", return_value=[]),
             patch("subprocess.run", side_effect=[
                 make_completed_process(),  # _label_exists for "good"
                 make_completed_process(),  # _apply_label for "good"
@@ -136,3 +141,66 @@ class TestSetIssueLabels:
         assert rc == 0
         result = json.loads(capsys.readouterr().out)
         assert result["Data"]["applied"] == ["good"]
+
+
+class TestComputePriorityRemovals:
+    """Pure decision logic: which existing priority labels to remove (#2623)."""
+
+    def test_removes_existing_priority_when_setting_different(self, _import_module):
+        mod = _import_module
+        removals = mod.compute_priority_removals(
+            existing=["bug", "priority:P2", "automation"],
+            incoming=["priority:P1"],
+        )
+        assert removals == ["priority:P2"]
+
+    def test_keeps_existing_priority_when_setting_same(self, _import_module):
+        mod = _import_module
+        # Re-stamping the same priority must not remove then re-add it.
+        removals = mod.compute_priority_removals(
+            existing=["priority:P1"],
+            incoming=["priority:P1"],
+        )
+        assert removals == []
+
+    def test_no_removals_when_no_incoming_priority(self, _import_module):
+        mod = _import_module
+        removals = mod.compute_priority_removals(
+            existing=["priority:P2"],
+            incoming=["bug", "enhancement"],
+        )
+        assert removals == []
+
+    def test_removes_all_stale_priorities_when_multiple_present(self, _import_module):
+        mod = _import_module
+        # Issue already in the contradictory state: two priority labels.
+        removals = mod.compute_priority_removals(
+            existing=["priority:P1", "priority:P3"],
+            incoming=["priority:P2"],
+        )
+        assert removals == ["priority:P1", "priority:P3"]
+
+
+class TestPriorityMutualExclusion:
+    """End-to-end: setting a priority removes the conflicting one (#2623)."""
+
+    def test_setting_priority_removes_conflicting_label(self, _import_module, capsys):
+        mod = _import_module
+        with (
+            patch("set_issue_labels.assert_gh_authenticated"),
+            patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
+            patch(
+                "set_issue_labels._get_issue_labels",
+                return_value=["bug", "priority:P2"],
+            ),
+            patch("subprocess.run", side_effect=[
+                make_completed_process(),  # _remove_label for "priority:P2"
+                make_completed_process(),  # _label_exists for "priority:P1"
+                make_completed_process(),  # _apply_label for "priority:P1"
+            ]),
+        ):
+            rc = mod.main(["--issue", "1", "--priority", "P1"])
+        assert rc == 0
+        result = json.loads(capsys.readouterr().out)
+        assert "priority:P1" in result["Data"]["applied"]
+        assert result["Data"]["removed"] == ["priority:P2"]
