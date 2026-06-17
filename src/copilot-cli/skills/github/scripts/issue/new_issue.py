@@ -149,10 +149,17 @@ def _apply_labels(
     return 3
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    fmt = get_output_format(args.output_format)
+def _resolve_auth_and_repo(
+    owner: str,
+    repo: str,
+    fmt: str,
+) -> tuple[str, str] | int:
+    """Assert authentication and resolve owner/repo, emitting JSON envelopes on failure.
 
+    Returns:
+        ``(owner, repo)`` on success, or an int exit code after writing the
+        error envelope so ``main`` can propagate it immediately.
+    """
     try:
         assert_gh_authenticated()
     except SystemExit as exc:
@@ -169,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     _stderr_buf = io.StringIO()
     try:
         with contextlib.redirect_stderr(_stderr_buf):
-            resolved = resolve_repo_params(args.owner, args.repo)
+            resolved = resolve_repo_params(owner, repo)
     except SystemExit as exc:
         code = exc.code if isinstance(exc.code, int) else 2
         message = _stderr_buf.getvalue().strip() or "Could not resolve repository parameters."
@@ -182,7 +189,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         return code
 
-    owner, repo = resolved.owner, resolved.repo
+    return resolved.owner, resolved.repo
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
+
+    auth_result = _resolve_auth_and_repo(args.owner, args.repo, fmt)
+    if isinstance(auth_result, int):
+        return auth_result
+    owner, repo = auth_result
 
     if not args.title or not args.title.strip():
         write_skill_error(
