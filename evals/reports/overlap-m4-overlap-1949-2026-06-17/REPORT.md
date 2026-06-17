@@ -9,7 +9,7 @@ Pairwise skill overlap analysis (Issue #1932). Verdicts: DISTINCT (keep both), O
 | Skill A | Skill B | Verdict | A_delta | B_delta | Recommendation |
 |---------|---------|---------|---------|---------|----------------|
 | curating-memories | memory-enhancement | DISTINCT | +0.00 | -0.75 | Keep both. curating-memories and memory-enhancement cover different prompts. |
-| exploring-knowledge-graph | memory | SUBSUMED | +1.25 | +3.00 | Prune candidate. One of exploring-knowledge-graph/memory covers the other's prompts without reciprocity; the covered skill is a deletion candidate. |
+| exploring-knowledge-graph | memory | SUBSUMED | +1.25 | +3.00 | Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; deletion not triggered on this evidence. |
 
 ## Per-Pair Detail
 
@@ -23,4 +23,4 @@ Pairwise skill overlap analysis (Issue #1932). Verdicts: DISTINCT (keep both), O
 
 - exploring-knowledge-graph on its own prompts: baseline 3.25, own 4.50 (delta +1.25), cross 4.00 (delta +0.75).
 - memory on its own prompts: baseline 1.25, own 4.25 (delta +3.00), cross 2.25 (delta +1.00).
-- Recommendation: Prune candidate. One of exploring-knowledge-graph/memory covers the other's prompts without reciprocity; the covered skill is a deletion candidate.
+- Recommendation: Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; deletion not triggered on this evidence.

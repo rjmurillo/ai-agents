@@ -27,7 +27,7 @@ Per prompt set, the harness scores three conditions on a 1 to 5 scale: `baseline
 | Pair | Verdict | A_delta (own) | B_delta (own) | Script recommendation |
 |------|---------|---------------|---------------|-----------------------|
 | `curating-memories` x `memory-enhancement` | DISTINCT | +0.00 | -0.75 | Keep both. Cover different prompts. |
-| `exploring-knowledge-graph` x `memory` | SUBSUMED | +1.25 | +3.00 | Prune candidate. One covers the other without reciprocity. |
+| `exploring-knowledge-graph` x `memory` | SUBSUMED | +1.25 | +3.00 | Script: SUBSUMED (moderate-band). Action: rewrite boundary + confirmatory eval. |
 
 ## Pair 1: curating-memories x memory-enhancement -> DISTINCT (KEEP both)
 

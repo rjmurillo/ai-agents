@@ -29,7 +29,7 @@
       "skill_a": "exploring-knowledge-graph",
       "skill_b": "memory",
       "verdict": "SUBSUMED",
-      "recommendation": "Prune candidate. One of exploring-knowledge-graph/memory covers the other's prompts without reciprocity; the covered skill is a deletion candidate.",
+      "recommendation": "Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; DELETE/FOLD not triggered on this evidence.",
       "a_on_a": {
         "baseline": 3.25,
         "own": 4.5,

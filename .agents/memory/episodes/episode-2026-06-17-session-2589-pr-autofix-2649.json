@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-06-17-session-2589-pr-autofix-2649",
+  "session": "2026-06-17-session-2589-pr-autofix-2649",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "PR #2649 autofix round 2: resolve 4 fresh copilot-pull-request-reviewer threads. Root cause: SUBSUMED recommendation text in REPORT.md, matrix.json, and analysis doc used 'deletion candidate' language that conflicts with the PR's stated moderate-band triage action (rewrite boundary + confirmatory eval).",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read AGENTS.md, AGENT-INSTRUCTIONS.md, CLAUDE.md, HANDOFF.md. Fetched live PR state and all 9 review threads via GraphQL.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Root cause analysis of 4 threads.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Edited REPORT.md lines 12 and 26: replaced 'Prune candidate...deletion candidate' with 'Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; deletion not triggered on this evidence.'",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Edited matrix.json recommendation field for Pair 2: same non-prescriptive language (DELETE/FOLD not triggered). JSON round-tripped cleanly.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Edited .agents/analysis/skill-overlap-2026-06-17.md Verdicts table line 31 (Pair 2 Script recommendation cell): 'Prune candidate...' -> 'Script: SUBSUMED (moderate-band). Action: rewrite boundary + confirmatory eval.'",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added QA addendum to .agents/qa/pr-2649-m4-overlap-eval.md documenting round-2 fix.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Created this session log. Committed docs(eval) + chore(session) atomically. Pushed to origin. Replied to and resolved 4 threads.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 5
+  },
+  "lessons": []
+}
