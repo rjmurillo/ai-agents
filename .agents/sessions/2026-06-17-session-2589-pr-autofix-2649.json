@@ -143,7 +143,7 @@
       "result": "All 4 threads resolved. Auto-merge (SQUASH) remains enabled."
     }
   ],
-  "endingCommit": "TBD",
+  "endingCommit": "14413ad23",
   "nextSteps": [
     "Monitor CI for green on new commits.",
     "Auto-merge will squash-merge once branch protection checks pass.",

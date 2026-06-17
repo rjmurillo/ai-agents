@@ -96,3 +96,32 @@ produce clean output without intervention.
 **PASS**: Code change is minimal, correct, and test-covered. Eval artifacts are internally
 consistent and pass lint. Verdict reasoning matches the evidence-rigor rule adopted on 2026-05-09.
 AC1, AC2, AC3, AC6 satisfied. AC4 not triggered. AC5 queued as follow-up PR.
+
+---
+
+## Addendum: Session 2589 (2026-06-17) - Round-2 Thread Resolution
+
+**Trigger**: 4 fresh copilot-pull-request-reviewer threads after session 2588 push.
+
+**Root cause**: SUBSUMED recommendation text in REPORT.md (×2), matrix.json, and
+analysis doc used "deletion candidate" / "prune candidate" language. The analysis doc body
+correctly identifies the moderate-band action as boundary rewrite + confirmatory eval, not
+deletion. The summary cells and machine-readable recommendation field did not reflect that.
+
+**Changes** (1 commit):
+
+| File | Location | Change |
+|------|----------|--------|
+| `evals/reports/overlap-m4-overlap-1949-2026-06-17/REPORT.md` | Prune/Fold Table row (line 12) | "Prune candidate...deletion candidate" → "Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; deletion not triggered on this evidence." |
+| `evals/reports/overlap-m4-overlap-1949-2026-06-17/REPORT.md` | Per-Pair Detail (line 26) | Same wording update |
+| `evals/reports/overlap-m4-overlap-1949-2026-06-17/matrix.json` | `recommendation` field, Pair 2 | Same wording update; JSON re-validated |
+| `.agents/analysis/skill-overlap-2026-06-17.md` | Verdicts table Pair 2 cell (line 31) | "Prune candidate..." → "Script: SUBSUMED (moderate-band). Action: rewrite boundary + confirmatory eval." |
+
+**Verification**:
+
+- markdownlint on REPORT.md: 0 errors
+- matrix.json parses as valid JSON after edit
+- REPORT.md line 5 legend ("SUBSUMED (prune candidate)") left intact: it defines the
+  classifier schema, not a per-pair action, so it is not misleading
+
+**Updated conclusion**: PASS (round 2). All 9 review threads resolved.
