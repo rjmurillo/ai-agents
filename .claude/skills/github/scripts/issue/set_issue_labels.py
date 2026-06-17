@@ -49,6 +49,7 @@ from github_core.output import (  # noqa: E402
 
 VALID_PRIORITIES = ("P0", "P1", "P2", "P3")
 PRIORITY_PREFIX = "priority:"
+GH_TIMEOUT_SECONDS = 15
 
 
 def compute_priority_removals(
@@ -124,6 +125,7 @@ def _label_exists(owner: str, repo: str, label_name: str) -> bool:
         capture_output=True,
         encoding="utf-8",
         errors="replace",
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
     return result.returncode == 0
@@ -153,6 +155,7 @@ def _create_label(
         capture_output=True,
         encoding="utf-8",
         errors="replace",
+        timeout=GH_TIMEOUT_SECONDS,
         check=False,
     )
     return result.returncode == 0
@@ -187,22 +190,26 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
     priority label survives one pass, which the dual-priority validator still
     catches. It never blocks the intended apply.
     """
-    result = subprocess.run(
-        [
-            "gh",
-            "issue",
-            "view",
-            str(issue),
-            "--repo",
-            f"{owner}/{repo}",
-            "--json",
-            "labels",
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "issue",
+                "view",
+                str(issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--json",
+                "labels",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return []
     if result.returncode != 0:
         return []
     try:

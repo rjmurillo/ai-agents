@@ -164,3 +164,9 @@ class TestFetchLabelsGhFailureModes:
         assert rc == mod.EXIT_CONFIG
         out = capsys.readouterr().out
         assert "FAIL" in out
+
+    def test_main_rejects_issue_and_pr_together(self, capsys):
+        rc = mod.main(["--issue", "99", "--pr", "100"])
+        assert rc == mod.EXIT_CONFIG
+        out = capsys.readouterr().out
+        assert "only one" in out

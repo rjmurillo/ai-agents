@@ -151,6 +151,10 @@ def main(argv: list[str] | None = None) -> int:
         print(status)
         return exit_code
 
+    if args.issue and args.pr:
+        print("FAIL: provide only one of --issue or --pr")
+        return EXIT_CONFIG
+
     if args.issue:
         kind, number = "issue", args.issue
     elif args.pr:

@@ -1,6 +1,7 @@
 """Tests for set_issue_labels.py."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -211,9 +212,9 @@ class TestPriorityMutualExclusion:
             patch(
                 "subprocess.run",
                 side_effect=[
-                    make_completed_process(),  # _remove_label for "priority:P2"
                     make_completed_process(),  # _label_exists for "priority:P1"
                     make_completed_process(),  # _apply_label for "priority:P1"
+                    make_completed_process(),  # _remove_label for "priority:P2"
                 ],
             ),
         ):
@@ -222,3 +223,12 @@ class TestPriorityMutualExclusion:
         result = json.loads(capsys.readouterr().out)
         assert "priority:P1" in result["Data"]["applied"]
         assert result["Data"]["removed"] == ["priority:P2"]
+
+    def test_get_issue_labels_timeout_fails_soft(self, _import_module):
+        mod = _import_module
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=mod.GH_TIMEOUT_SECONDS),
+        ):
+            labels = mod._get_issue_labels("o", "r", 1)
+        assert labels == []
