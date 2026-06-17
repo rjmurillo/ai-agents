@@ -38,12 +38,12 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -82,6 +82,48 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _apply_labels(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    url: str,
+    labels: str,
+    fmt: str,
+) -> int | None:
+    """Apply labels to an already-created issue.
+
+    Label application runs as a separate ``gh issue edit`` call so a missing
+    label does not lose the created issue. On failure, emit the standard error
+    envelope carrying the issue number and URL so automation can repair labels
+    rather than re-create the issue.
+
+    Returns:
+        ``None`` on success (or when no labels were requested), otherwise the
+        exit code to return from ``main``.
+    """
+    if not labels or not labels.strip():
+        return None
+
+    result = subprocess.run(
+        ["gh", "issue", "edit", str(issue_number), "--repo", f"{owner}/{repo}",
+         "--add-label", labels],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode == 0:
+        return None
+
+    error_str = result.stderr.strip() or result.stdout.strip()
+    write_skill_error(
+        f"Issue #{issue_number} created but label application failed: {error_str}",
+        3,
+        error_type="ApiError",
+        output_format=fmt,
+        script_name="new_issue.py",
+        extra={"issue_number": issue_number, "url": url},
+    )
+    return 3
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -91,13 +133,21 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     if not args.title or not args.title.strip():
-        error_and_exit("Title cannot be empty.", 2)
+        write_skill_error(
+            "Title cannot be empty.", 2,
+            error_type="InvalidParams", output_format=fmt, script_name="new_issue.py",
+        )
+        return 2
 
     body = args.body
     if args.body_file:
         body_path = Path(args.body_file)
         if not body_path.exists():
-            error_and_exit(f"Body file not found: {args.body_file}", 2)
+            write_skill_error(
+                f"Body file not found: {args.body_file}", 2,
+                error_type="NotFound", output_format=fmt, script_name="new_issue.py",
+            )
+            return 2
         body = body_path.read_text(encoding="utf-8")
 
     gh_args = ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", args.title]
@@ -105,21 +155,30 @@ def main(argv: list[str] | None = None) -> int:
     if body and body.strip():
         gh_args.extend(["--body", body])
 
-    if args.labels and args.labels.strip():
-        gh_args.extend(["--label", args.labels])
-
     result = subprocess.run(gh_args, capture_output=True, text=True, check=False)
 
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        error_and_exit(f"Failed to create issue: {error_str}", 3)
+        write_skill_error(
+            f"Failed to create issue: {error_str}", 3,
+            error_type="ApiError", output_format=fmt, script_name="new_issue.py",
+        )
+        return 3
 
     output_text = result.stdout.strip()
     match = re.search(r"issues/(\d+)", output_text)
     if not match:
-        error_and_exit(f"Could not parse issue number from result: {output_text}", 3)
+        write_skill_error(
+            f"Could not parse issue number from result: {output_text}", 3,
+            error_type="ApiError", output_format=fmt, script_name="new_issue.py",
+        )
+        return 3
 
     issue_number = int(match.group(1))
+
+    label_error = _apply_labels(owner, repo, issue_number, output_text, args.labels, fmt)
+    if label_error is not None:
+        return label_error
 
     write_skill_output(
         {

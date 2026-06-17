@@ -9,8 +9,6 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1]
     / ".claude" / "skills" / "github" / "scripts" / "issue"
@@ -53,9 +51,10 @@ def test_create_issue_with_body(mock_run, capsys):
 @patch("subprocess.run")
 def test_create_issue_with_labels(mock_run, capsys):
     mock_run.side_effect = [
-        _completed(rc=0),
-        _completed(stdout="https://github.com/o/r\n"),
-        _completed(stdout="https://github.com/o/r/issues/5\n"),
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="https://github.com/o/r/issues/5\n"),  # create
+        _completed(rc=0),  # edit --add-label
     ]
 
     rc = main(["--title", "Feature", "--labels", "enhancement,P2"])
@@ -65,28 +64,51 @@ def test_create_issue_with_labels(mock_run, capsys):
 
 
 @patch("subprocess.run")
-def test_empty_title_fails(mock_run):
+def test_missing_label_emits_json_envelope_with_issue_number(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="https://github.com/o/r/issues/42\n"),  # create succeeds
+        _completed(rc=1, stderr="could not add label: 'ci' not found"),  # label fails
+    ]
+
+    rc = main(["--title", "Bug", "--labels", "bug,ci", "--output-format", "json"])
+
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "ApiError"
+    assert output["Data"]["issue_number"] == 42
+    assert output["Data"]["url"] == "https://github.com/o/r/issues/42"
+
+
+@patch("subprocess.run")
+def test_empty_title_fails(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
     ]
 
-    with pytest.raises(SystemExit) as exc_info:
-        main(["--title", "   "])
-    assert exc_info.value.code == 2
+    rc = main(["--title", "   ", "--output-format", "json"])
+    assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "InvalidParams"
 
 
 @patch("subprocess.run")
-def test_api_failure(mock_run):
+def test_api_failure(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),
         _completed(rc=1, stderr="API error"),
     ]
 
-    with pytest.raises(SystemExit) as exc_info:
-        main(["--title", "Test"])
-    assert exc_info.value.code == 3
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "ApiError"
 
 
 @patch("subprocess.run")
@@ -107,12 +129,15 @@ def test_body_file(mock_run, capsys, tmp_path):
 
 
 @patch("subprocess.run")
-def test_body_file_not_found(mock_run):
+def test_body_file_not_found(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),
     ]
 
-    with pytest.raises(SystemExit) as exc_info:
-        main(["--title", "Test", "--body-file", "/nonexistent/file.md"])
-    assert exc_info.value.code == 2
+    rc = main(["--title", "Test", "--body-file", "/nonexistent/file.md",
+               "--output-format", "json"])
+    assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "NotFound"

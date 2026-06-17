@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2585,
+    "date": "2026-06-17",
+    "branch": "fix/2618-new-issue-json-envelope",
+    "startingCommit": "ccf2020857",
+    "objective": "fix #2618 new_issue JSON mode envelopes missing-label failures with partial issue data"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP available; write_memory succeeded (github/new-issue-json-envelope-missing-label). LSP manager degraded (markdown server timeout) so get_symbols_overview failed; navigation fell back to grep/read per lsp-first escape clause."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Operated under AGENTS.md retrieval-led rules; .claude/rules/*.md auto-loaded into context this session."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open issue handoff for #2618; HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file (session 2585) via new_session_log.py."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/{get_issue_context,get_issue_comments,new_issue}.py and session-init/session scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read /tmp/fix_2618.json plan, issue body, and 3 issue comments before editing."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md boundaries and .claude/rules/{universal,python,canonical-source-mirror,testing}.md applied."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse memory hints surfaced worktree-isolation and github-pr1873 (uv run python) memories; applied both."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2618-new-issue-json-envelope, branched off HEAD ccf2020857."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git branch --show-current => fix/2618-new-issue-json-envelope."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status confirmed clean worktree before edits; only intended files changed."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Starting commit ccf2020857 (== origin/main; keystone #2611 already merged)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix implemented, 71 tests pass, memory written, session log complete."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote github/new-issue-json-envelope-missing-label via mcp__serena__write_memory."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files changed (git status: only .py + session .json); markdownlint not applicable."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed new_issue.py + 3 test files on fix/2618-new-issue-json-envelope; session log auto-committed by new_session_log.py."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest (71 passed); pre_pr.py run pre-push."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-PR fix; no separate task tracker entries needed."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Lightweight: DRY smell (3 duplicate test files for new_issue.py) flagged in memory and PR body; no full retro for an S-size bug fix."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T13:35:00Z",
+      "entry": "Fixed #2618: new_issue.py now emits the ADR-051 JSON error envelope on every failure path via write_skill_error, and applies labels through a separate 'gh issue edit --add-label' call so a missing label no longer loses the created issue. On label failure the envelope carries Data.issue_number and url for repair. TDD: wrote a failing test for the missing-label envelope (RED), implemented to GREEN, mutated _apply_labels to swallow the failure and confirmed the test caught it (assert 0 == 3), then restored. Command: 'uv run pytest tests/test_new_issue.py tests/skills/github/test_new_issue.py tests/skills/github/test_issue_scripts.py -q' result: 71 passed. Updated 3 pre-existing tests across the duplicate test files to the new return-code + envelope contract (former SystemExit assertions encoded the buggy non-envelope behavior)."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
