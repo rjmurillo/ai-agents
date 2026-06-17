@@ -263,11 +263,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     incoming_names = [label_info["name"] for label_info in all_labels]
-    removed = _reconcile_priorities(owner, repo, args.issue, incoming_names)
 
     applied: list[str] = []
     created: list[str] = []
     failed: list[str] = []
+    removed: list[str] = []
 
     for label_info in all_labels:
         label_name = label_info["name"]
@@ -287,6 +287,8 @@ def main(argv: list[str] | None = None) -> int:
 
         if _apply_label(owner, repo, args.issue, label_name):
             applied.append(label_name)
+            if label_name.lower().startswith(PRIORITY_PREFIX):
+                removed = _reconcile_priorities(owner, repo, args.issue, incoming_names)
         else:
             failed.append(label_name)
 
