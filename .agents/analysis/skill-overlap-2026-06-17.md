@@ -2,7 +2,7 @@
 
 Issue: #1949 (M4 pairwise overlap eval). Parent epic: #1944. Blocking infra: #1932 (shipped via PR #2336).
 
-This is the live scored run that the 2026-06-05 dry-run (`.agents/analysis/skill-overlap-2026-06-05.md`) left pending on credentials. The `ANTHROPIC_API_KEY` was present in the repo-root `.env`, so the evaluator ran end to end. The dry-run file stays as the methodology record; this file carries the verdicts.
+This is the live scored run that the 2026-06-05 dry-run (`.agents/analysis/skill-overlap-2026-06-05.md`) left pending on credentials. The `ANTHROPIC_API_KEY` was available via the local, gitignored repo-root `.env` (not committed to the repository), so the evaluator ran end to end. The dry-run file stays as the methodology record; this file carries the verdicts.
 
 ## Run metadata
 
