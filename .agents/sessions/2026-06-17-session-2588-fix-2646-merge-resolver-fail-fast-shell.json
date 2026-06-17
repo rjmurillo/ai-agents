@@ -1,0 +1,146 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2588,
+    "date": "2026-06-17",
+    "branch": "fix/2646-merge-resolver-fail-fast",
+    "startingCommit": "0a7d4d3eb3",
+    "objective": "Fix #2646: merge-resolver fail-fast on no shell, never report execution phases complete from a plan alone"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active: wrote memory git/merge-resolver-fail-fast-no-shell via mcp__serena__write_memory"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP instructions delivered in session context; symbol tools loaded via ToolSearch"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md is read-only (ADR-014); not edited. No issue handoff for #2646."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located merge-resolver template, SKILL.md, generated agents, and tests via find/ls"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, and .claude/rules/* read via injected session context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "templates.md and claude-agents.md rules followed: edited template, regenerated, kept generated commits separate"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical worktree and git memories surfaced via PreToolUse hooks; merge-resolver memories enumerated in find output"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2646-merge-resolver-fail-fast"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2646-merge-resolver-fail-fast"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --porcelain verified changed files before commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "0a7d4d3eb3"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sections filled with honest evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote git/merge-resolver-fail-fast-no-shell documenting fix, contract phrases, and generator gotcha"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 on changed agent markdown: Summary 0 error(s)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commits: contract+test, regenerated outputs, session log/memory"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/test_merge_resolver_fail_fast_contract.py: 25 passed. Existing skill test: 35 passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked inline; single-PR scope"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-issue prompt-contract fix; reflection captured in Serena memory instead"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #2646 and discourse",
+      "evidence": "merge-resolver returned a plan and marked phases complete with no shell; never merged; PR stayed DIRTY"
+    },
+    {
+      "step": "Located merge-resolver surfaces",
+      "evidence": "template merge-resolver.shared.md, SKILL.md, src/claude (hand-maintained), src/copilot-cli, src/vs-code-agents"
+    },
+    {
+      "step": "TDD red",
+      "evidence": "Wrote tests/test_merge_resolver_fail_fast_contract.py; 20 failed, 5 passed before edits"
+    },
+    {
+      "step": "Added Phase 0 Execution Capability Precondition + completion rule",
+      "evidence": "template, SKILL.md (2.1.0->2.2.0), and src/claude variant edited; copilot/vscode regenerated"
+    },
+    {
+      "step": "TDD green + drift",
+      "evidence": "pytest: 25 passed; detect_agent_drift.py merge-resolver OK (baselined 20.9%); 10 pre-existing unrelated drifts"
+    },
+    {
+      "step": "Lint + regression",
+      "evidence": "markdownlint 0 errors; existing skill test 35 passed; no em/en dashes in any edited file"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Monitor pr-autofix runs for [BLOCKED] from merge-resolver when shell is unavailable"
+  ]
+}
