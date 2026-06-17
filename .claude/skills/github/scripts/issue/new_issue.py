@@ -104,9 +104,16 @@ def _apply_labels(
     if not labels or not labels.strip():
         return None
 
+    label_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
+    if not label_list:
+        return None
+
+    gh_args = ["gh", "issue", "edit", str(issue_number), "--repo", f"{owner}/{repo}"]
+    for lbl in label_list:
+        gh_args.extend(["--add-label", lbl])
+
     result = subprocess.run(
-        ["gh", "issue", "edit", str(issue_number), "--repo", f"{owner}/{repo}",
-         "--add-label", labels],
+        gh_args,
         capture_output=True, text=True, check=False,
     )
     if result.returncode == 0:
