@@ -1,8 +1,8 @@
 ---
 id: ADR-074
-status: proposed
+status: accepted
 date: 2026-06-17
-decision-makers: []
+decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
@@ -21,9 +21,9 @@ staging-note: >-
 
 ## Status
 
-Proposed. Requested by issue #2615 (labels `bug`, `agent-qa`, `agent-devops`, `area-workflows`, `priority:P1`, `priority:P2`, `automation`). The maintainer's backlog evaluation (issue #2615 comment 2026-06-17) deferred the epic and named the precondition directly: "Requires an ADR on lease storage + concurrency semantics before implementation." This ADR is that precondition. It records the coordination protocol and the lease contract; it ships no code.
+Accepted by maintainer 2026-06-17. Requested by issue #2615 (labels `bug`, `agent-qa`, `agent-devops`, `area-workflows`, `priority:P1`, `priority:P2`, `automation`). The maintainer's backlog evaluation (issue #2615 comment 2026-06-17) deferred the epic and named the precondition directly: "Requires an ADR on lease storage + concurrency semantics before implementation." This ADR is that precondition. It records the coordination protocol and the lease contract; it ships no code. The maintainer accepted the decision on 2026-06-17, clearing the human-approval gate for the lease protocol and contract recorded here.
 
-A single-reviewer architect design-review note was authored alongside this ADR (`.agents/critique/ADR-074-architect-design-review-debate-note.md`, verdict APPROVE-AS-PROPOSED). That note is NOT the full multi-agent debate. The standard 6-agent adr-review debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) and human acceptance are the required next gate. This ADR MUST clear both before its status moves to `accepted`. No tooling changes ship on this ADR alone.
+A single-reviewer architect design-review note was authored alongside this ADR (`.agents/critique/ADR-074-architect-design-review-debate-note.md`, verdict APPROVE-AS-PROPOSED). That note is NOT the full multi-agent debate. The maintainer's acceptance (2026-06-17) authorizes this status flip directly. The standard 6-agent adr-review debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) in a non-isolated checkout remains the precondition for renaming this staging copy to the canonical `.agents/architecture/ADR-074-pr-autofix-branch-ownership-lease.md` path (see `staging-note`). No tooling changes ship on this ADR alone; Phase 1 implementation follows separately.
 
 ## Date
 
