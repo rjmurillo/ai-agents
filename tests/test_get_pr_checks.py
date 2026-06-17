@@ -1591,7 +1591,7 @@ class TestSupersededCheckRuns:
            "get_pr_checks.gh_graphql",
            return_value=_rollup_response(nodes),
         ):
-           rc = main(["--pull-request", "2325", "--required-only"])
+           main(["--pull-request", "2325", "--required-only"])
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
         assert data["PendingCount"] == 2
@@ -1623,7 +1623,7 @@ class TestSupersededCheckRuns:
            "get_pr_checks.gh_graphql",
            return_value=_rollup_response(nodes),
         ):
-           rc = main(["--pull-request", "2325", "--required-only"])
+           main(["--pull-request", "2325", "--required-only"])
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
         # Should have both failed and pending required checks visible.

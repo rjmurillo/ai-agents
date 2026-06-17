@@ -80,9 +80,8 @@ def extract_required_check_lists(
         # IsPending=true onto the winner from a stale sibling row. The IsPending
         # OR is retained on the row for wait polling, but PendingRequiredChecks
         # must classify a completed-passing required check consistently with
-        # test_pr_merge_ready.py, which treats it as non-blocking. Refs issue
-        # #2614: a SKIPPED required check with a PENDING sibling was reported as
-        # pending while test_pr_merge_ready.py treated it as non-blocking.
+        # test_pr_merge_ready.py, which treats it as non-blocking. Refs issue #2614:
+        # a SKIPPED required check with a PENDING sibling was reported as pending.
         if check.get("IsPending") and not check.get("IsPassing"):
             pending_required.append(name)
 
