@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review",
+  "session": "2026-06-17-session-2591-2651-autofix-address-copilot-review",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "PR #2651 autofix: address 4 copilot review threads (ADR-073 schema, lease contract, session evidence); merge main to resolve causal-graph conflict",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Live-state gate: PR 2651 OPEN, 0 superseded commits, ACT",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Retrieved 4 unresolved threads + Validate PR FAILURE logs (9 CRITICAL)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed ADR frontmatter, lease contract, session evidence x2; removed em-dash",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated PR body via GitHub REST API (9 Validate PR failures fixed)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Pushed; replied+resolved all 4 threads via add_pr_review_thread_reply.py --resolve",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test_pr_merge_ready: DIRTY (causal-graph.json conflict with main); merge in progress",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6a3b39e45",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 12
+  },
+  "lessons": []
+}
