@@ -89,7 +89,10 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     # Fail-open: SessionStart must never block session startup.
     sys.exit(0)
 if _lib_dir not in sys.path:
@@ -114,7 +117,14 @@ def main() -> int:
         # would reset a different state file than the one guards actually use.
         project_dir = get_project_directory()
 
-        ok = reset_state(project_dir)
+        try:
+            ok = reset_state(project_dir)
+        except Exception as exc:  # noqa: BLE001 - marker reset still must run.
+            ok = False
+            print(
+                f"lsp-session-reset state error: {type(exc).__name__} - {exc}",
+                file=sys.stderr,
+            )
         marker_ok = clear_lsp_down_marker(project_dir)
         mode = os.environ.get("LSP_GATE_MODE", "block")
         print(

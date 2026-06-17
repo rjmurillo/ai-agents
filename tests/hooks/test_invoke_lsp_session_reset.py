@@ -32,13 +32,9 @@ import runpy
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 HOOK_DIR = Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "SessionStart"
 sys.path.insert(0, str(HOOK_DIR))
@@ -65,18 +61,14 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch):
 
 
 class TestKillSwitch:
-    def test_skip_lsp_gate_bypasses_reset(
-        self, monkeypatch: pytest.MonkeyPatch, capsys
-    ):
+    def test_skip_lsp_gate_bypasses_reset(self, monkeypatch: pytest.MonkeyPatch, capsys):
         monkeypatch.setenv("SKIP_LSP_GATE", "true")
         with patch(f"{MOD}.reset_state") as mock_reset:
             assert invoke_lsp_session_reset.main() == 0
         mock_reset.assert_not_called()
         assert "SKIP_LSP_GATE=true" in capsys.readouterr().err
 
-    def test_skip_lsp_gate_non_true_does_not_bypass(
-        self, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_skip_lsp_gate_non_true_does_not_bypass(self, monkeypatch: pytest.MonkeyPatch):
         # Only the exact string "true" bypasses; anything else runs the reset.
         monkeypatch.setenv("SKIP_LSP_GATE", "1")
         with patch(f"{MOD}.get_project_directory", return_value="/workspace"):
@@ -125,9 +117,7 @@ class TestResetOutcomes:
                 assert invoke_lsp_session_reset.main() == 0
         assert "reset=False" in capsys.readouterr().err
 
-    def test_warn_mode_still_runs_reset(
-        self, monkeypatch: pytest.MonkeyPatch, capsys
-    ):
+    def test_warn_mode_still_runs_reset(self, monkeypatch: pytest.MonkeyPatch, capsys):
         # warn mode affects read/grep/glob guards, not the reset itself.
         monkeypatch.setenv("LSP_GATE_MODE", "warn")
         with patch(f"{MOD}.get_project_directory", return_value="/repo"):
@@ -153,7 +143,16 @@ class TestExceptionFailOpen:
         with patch(f"{MOD}.get_project_directory", return_value="/repo"):
             with patch(f"{MOD}.reset_state", side_effect=RuntimeError("boom")):
                 assert invoke_lsp_session_reset.main() == 0
-        assert "lsp-session-reset error: RuntimeError" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert "lsp-session-reset state error: RuntimeError" in err
+        assert "marker_cleared=" in err
+
+    def test_marker_clear_runs_when_reset_state_raises(self):
+        with patch(f"{MOD}.get_project_directory", return_value="/repo"):
+            with patch(f"{MOD}.reset_state", side_effect=RuntimeError("boom")):
+                with patch(f"{MOD}.clear_lsp_down_marker", return_value=True) as mock_clear:
+                    assert invoke_lsp_session_reset.main() == 0
+        mock_clear.assert_called_once_with("/repo")
 
     def test_get_project_directory_raising_fails_open(self, capsys):
         with patch(f"{MOD}.get_project_directory", side_effect=OSError("git failed")):
@@ -167,9 +166,7 @@ class TestExceptionFailOpen:
 
 
 class TestRealReset:
-    def test_clears_existing_state_file(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path
-    ):
+    def test_clears_existing_state_file(self, monkeypatch: pytest.MonkeyPatch, tmp_path):
         from hook_utilities import lsp_gate_state
 
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
@@ -184,9 +181,7 @@ class TestRealReset:
         assert invoke_lsp_session_reset.main() == 0
         assert not lsp_gate_state.state_path(project_dir).exists()
 
-    def test_idempotent_when_no_state_file(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path
-    ):
+    def test_idempotent_when_no_state_file(self, monkeypatch: pytest.MonkeyPatch, tmp_path):
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
         monkeypatch.setenv("CLAUDE_PROJECT_DIR", "/never/seen")
         # No file exists; reset is a no-op that still exits 0.
