@@ -70,6 +70,8 @@ On budget exhaustion the review does not silently truncate and does not emit a f
 
 Quick-pass mode scans only for the highest-confidence, highest-severity patterns and skips the per-finding threat-model reasoning protocol. The pattern set is the existing BLOCKED-trigger set already enumerated in the canonical verdict rules (`security.shared.md` lines 127 to 128): CWE-22 (path traversal), CWE-77 and CWE-78 (command injection), hard-coded secrets and credentials (CWE-798), and ASI01 to ASI10 boundary violations.
 
+**Incomplete-diff precondition.** Before pattern scanning, quick-pass verifies that all required inputs are present (changed files, test coverage data if the diff touches security-critical paths, dependency manifest if dependencies changed). If any required artifact is missing, quick-pass returns `[BLOCKED] Cannot evaluate: <specific missing artifact>` per the fail-closed rule (`security.shared.md` line 129). An incomplete diff MUST NOT receive `QUICK_PASS`; the incomplete-diff gate fires before pattern matching.
+
 Quick-pass returns one of two new verdicts:
 
 | Verdict | Meaning | Action |
@@ -161,7 +163,7 @@ Phased, each phase independently shippable and reversible, ordered so the cheape
 
 1. **Diff-scope classifier.** `classify_diff_scope(file_count, lines_changed) -> tier` as a pure function with parametrized pytest cases on every tier boundary (4/200, 5/200, 6/201, etc.). No behavior change to review depth yet; classifier output is logged only.
 2. **Budget watchdog.** `SECURITY_REVIEW_BUDGET_MS` plus `--budget-ms`, watchdog via `signal.SIGALRM` (POSIX) and a watchdog thread (Windows), emitting `budget_exceeded` + `needs_deeper_pass` on exhaustion. Reuse the ADR-068 implementation shape; do not fork a second watchdog.
-3. **Quick-pass mode and verdicts.** Scan the BLOCKED-trigger pattern set only; skip the threat-model protocol; return QUICK_PASS or NEEDS_DEEP_REVIEW. Extend the PIV gate. Coverage: positive (clean small diff -> QUICK_PASS), negative (planted CWE-78 -> NEEDS_DEEP_REVIEW), edge (ambiguous scope -> NEEDS_DEEP_REVIEW).
+3. **Quick-pass mode and verdicts.** Scan the BLOCKED-trigger pattern set only; skip the threat-model protocol; return QUICK_PASS or NEEDS_DEEP_REVIEW. Extend the PIV gate. Coverage: positive (clean small diff -> QUICK_PASS), negative (planted CWE-78 -> NEEDS_DEEP_REVIEW), edge (ambiguous scope -> NEEDS_DEEP_REVIEW, incomplete diff missing changed files -> BLOCKED Cannot evaluate).
 4. **Progress reporting.** 30-second-interval stderr checkpoints with `elapsed_ms`, `remaining_ms`, `files_scanned`, `findings_count`.
 
 Each phase carries pos/neg/edge tests per `.agents/governance/TESTING-RIGOR.md`. The canonical change to `security.shared.md` and its projections land together in one change set per the canonical-source-mirror rule.
