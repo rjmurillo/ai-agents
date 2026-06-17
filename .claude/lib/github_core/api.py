@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, NoReturn
 if TYPE_CHECKING:
     from .protocol import GitHubClient
 
-from .log_safety import safe_log_str  # noqa: F401
+from .log_safety import safe_log_str
 from .rate_limit import (  # noqa: F401
     DEFAULT_RATE_THRESHOLDS,
     RateLimitResult,
@@ -267,6 +267,22 @@ def _is_transient_graphql_error(error_msg: str) -> bool:
     return _TRANSIENT_HTTP_PATTERN.search(error_msg) is not None
 
 
+_RETRY_AFTER_PATTERN = re.compile(r"\bRetry-After:\s*(\d+)", re.IGNORECASE)
+
+
+def _retry_after_delay(error_text: str, backoff: float) -> float:
+    """Return Retry-After delay if present in error text, else backoff.
+
+    GitHub may include ``Retry-After: <seconds>`` in gh error text for HTTP 429
+    responses. Honouring it avoids hammering the rate limit instead of using
+    the caller-supplied exponential backoff.
+    """
+    match = _RETRY_AFTER_PATTERN.search(error_text)
+    if match:
+        return float(match.group(1))
+    return backoff
+
+
 def _build_gh_graphql_args(query: str, variables: dict) -> list[str]:
     """Assemble the ``gh api graphql`` argv with typed variable flags."""
     gh_args = ["gh", "api", "graphql", "-f", f"query={query}"]
@@ -278,12 +294,12 @@ def _build_gh_graphql_args(query: str, variables: dict) -> list[str]:
     return gh_args
 
 
-def _extract_graphql_error(result: subprocess.CompletedProcess) -> str:
+def _extract_graphql_error(result: subprocess.CompletedProcess[str]) -> str:
     """Pull a human-readable error message out of a failed gh invocation."""
     error_msg = result.stderr.strip() or result.stdout.strip()
     msg_match = re.search(r'"message"\s*:\s*"([^"]+)"', error_msg)
     if msg_match:
-        return msg_match.group(1)
+        return str(msg_match.group(1))
     return error_msg
 
 
@@ -333,7 +349,8 @@ def gh_graphql(query: str, variables: dict | None = None) -> dict:
         result = subprocess.run(
             gh_args,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -348,14 +365,15 @@ def gh_graphql(query: str, variables: dict | None = None) -> dict:
         is_last = attempt == _GRAPHQL_MAX_ATTEMPTS
         if not is_last and _is_transient_graphql_error(raw_error):
             backoff = _GRAPHQL_BACKOFF_BASE_SECONDS ** (attempt - 1)
+            delay = _retry_after_delay(raw_error, backoff)
             logger.warning(
                 "Transient GraphQL failure (attempt %d/%d), retrying in %.1fs: %s",
                 attempt,
                 _GRAPHQL_MAX_ATTEMPTS,
-                backoff,
-                error_msg,
+                delay,
+                safe_log_str(error_msg),
             )
-            time.sleep(backoff)
+            time.sleep(delay)
             continue
         raise RuntimeError(f"GraphQL request failed: {error_msg}")
 
