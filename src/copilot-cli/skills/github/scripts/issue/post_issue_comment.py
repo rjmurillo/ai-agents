@@ -95,7 +95,7 @@ def _save_failed_comment_artifact(
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, encoding="utf-8", errors="replace", timeout=10,
         )
         if result.returncode == 0:
             git_common = Path(result.stdout.strip())
@@ -190,12 +190,21 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     if args.marker:
         marker_html = f"<!-- {args.marker} -->"
 
-        comments_result = subprocess.run(
-            ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}/comments"],
-            capture_output=True, text=True, check=False,
-        )
+        try:
+            comments_result = subprocess.run(
+                ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}/comments"],
+                capture_output=True, encoding="utf-8", errors="replace",
+                check=False, timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            error_and_exit("Timed out (30s) listing issue comments via gh.", 3)
 
-        if comments_result.returncode == 0:
+        # Guard stdout: under locale text mode on Windows, gh's UTF-8 JSON was
+        # decoded with cp1252, the reader thread died on a non-cp1252 byte, and
+        # stdout came back None with returncode 0, so json.loads(None) crashed
+        # (issue #2657). encoding="utf-8" above is the fix; this guard is defense
+        # in depth for an empty or missing body.
+        if comments_result.returncode == 0 and comments_result.stdout:
             try:
                 comments = json.loads(comments_result.stdout)
             except json.JSONDecodeError:
@@ -259,18 +268,23 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     # Post new comment
     payload = json.dumps({"body": body})
-    result = subprocess.run(
-        [
-            "gh", "api",
-            f"repos/{owner}/{repo}/issues/{issue}/comments",
-            "-X", "POST",
-            "--input", "-",
-        ],
-        input=payload,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api",
+                f"repos/{owner}/{repo}/issues/{issue}/comments",
+                "-X", "POST",
+                "--input", "-",
+            ],
+            input=payload,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit("Timed out (30s) posting comment via gh.", 3)
 
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()

@@ -105,7 +105,8 @@ def get_repo_info() -> RepoInfo | None:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if result.returncode != 0:
@@ -162,7 +163,8 @@ def is_gh_authenticated() -> bool:
         result = subprocess.run(
             ["gh", "auth", "status"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         return result.returncode == 0
@@ -208,7 +210,8 @@ def gh_api_paginated(endpoint: str, page_size: int = 100) -> list[dict]:
         result = subprocess.run(
             ["gh", "api", url],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -572,7 +575,8 @@ def update_issue_comment(owner: str, repo: str, comment_id: int, body: str) -> d
         ],
         input=payload,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
 
@@ -623,7 +627,8 @@ def create_issue_comment(
         ["gh", "api", endpoint, "-X", "POST", "--input", "-"],
         input=payload,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
     )
 
