@@ -54,6 +54,8 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_hooks  # noqa: E402
 
+from scripts.cli_exec import resolve_executable  # noqa: E402
+
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 _PROMPT = "Reply with exactly the word: ok"
 
@@ -183,9 +185,7 @@ def _copilot_failure_diagnostics(
         try:
             for index, path in enumerate(root.rglob("hooks.json")):
                 if index >= _DIAGNOSTIC_MAX_INSTALL_HOOKS:
-                    lines.append(
-                        f"  install_root_truncated_after={_DIAGNOSTIC_MAX_INSTALL_HOOKS}"
-                    )
+                    lines.append(f"  install_root_truncated_after={_DIAGNOSTIC_MAX_INSTALL_HOOKS}")
                     break
                 lines.append(f"  {path}")
                 try:
@@ -230,7 +230,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         # never blocks a push; a real broken hook still trips the asserts below.
         try:
             install = subprocess.run(
-                ["copilot", "plugin", "install", str(plugin)],
+                [resolve_executable("copilot"), "plugin", "install", str(plugin)],
                 capture_output=True,
                 text=True,
                 timeout=240,
@@ -242,7 +242,13 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         assert install.returncode == 0, install.stderr or install.stdout
         try:
             run = subprocess.run(
-                ["copilot", "-p", _PROMPT, "--allow-all-tools", "--allow-all-paths"],
+                [
+                    resolve_executable("copilot"),
+                    "-p",
+                    _PROMPT,
+                    "--allow-all-tools",
+                    "--allow-all-paths",
+                ],
                 cwd=userland,
                 capture_output=True,
                 text=True,
@@ -265,7 +271,7 @@ def test_copilot_vendor_install_hook_resolves(tmp_path: Path) -> None:
         # has already asserted the behavior under test.
         try:
             subprocess.run(
-                ["copilot", "plugin", "uninstall", probe_name],
+                [resolve_executable("copilot"), "plugin", "uninstall", probe_name],
                 capture_output=True,
                 text=True,
                 timeout=180,
@@ -310,7 +316,7 @@ def test_claude_plugin_dir_hook_resolves(tmp_path: Path) -> None:
 
     try:
         run = subprocess.run(
-            ["claude", "-p", _PROMPT, "--plugin-dir", str(plugin)],
+            [resolve_executable("claude"), "-p", _PROMPT, "--plugin-dir", str(plugin)],
             cwd=userland,
             capture_output=True,
             text=True,
