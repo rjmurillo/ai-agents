@@ -24,9 +24,10 @@ Therefore:
     outcome == failure, error_message set   -> real bad title, block (exit 1)
     outcome == failure, error_message empty -> transient flake, pass (exit 0)
 
-The Unicorn HTML marker in the captured log is a secondary positive signal used
-only to label the transient case in output; the decision keys on whether the
-action reported a semantic reason.
+The Unicorn HTML marker in an optional ``--log-file`` is a secondary positive
+signal used only to label the transient case in output; the workflow does not
+currently pass a log file. The decision keys on whether the action reported a
+semantic reason.
 
 Exit Codes (ADR-035):
     0 = pass (valid title, success, or transient infra flake)
@@ -110,7 +111,15 @@ def _read_log(log_file: str | None) -> str:
     """Read the captured action log, tolerating a missing file."""
     if not log_file:
         return ""
+    base_dir = Path(__file__).resolve().parents[2]
     path = Path(log_file)
+    if not path.is_absolute():
+        path = base_dir / path
+    try:
+        path = path.resolve()
+        path.relative_to(base_dir)
+    except (OSError, ValueError):
+        return ""
     if not path.is_file():
         return ""
     return path.read_text(encoding="utf-8", errors="replace")

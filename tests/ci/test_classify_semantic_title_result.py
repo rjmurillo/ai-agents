@@ -151,7 +151,6 @@ def test_main_unicorn_flake_exits_zero(capsys, tmp_path):
 
 def test_main_success_exits_zero(capsys):
     exit_code = main(["--outcome", "success", "--error-message", "", "--pr-title", "x"])
-    captured = capsys.readouterr()
     assert exit_code == 0
 
 
@@ -170,6 +169,28 @@ def test_main_missing_log_file_is_tolerated(capsys, tmp_path):
         ]
     )
     assert exit_code == 0
+
+
+def test_main_ignores_log_file_outside_repo(capsys, tmp_path):
+    outside_log = tmp_path / "outside.log"
+    outside_log.write_text(UNICORN_LOG, encoding="utf-8")
+
+    exit_code = main(
+        [
+            "--outcome",
+            "failure",
+            "--error-message",
+            "",
+            "--pr-title",
+            "x",
+            "--log-file",
+            str(outside_log),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    assert "without a semantic-title reason" in captured.out
 
 
 def test_classification_is_a_dataclass_instance():

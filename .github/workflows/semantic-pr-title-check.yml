@@ -51,7 +51,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Classify outcome (retry Unicorn HTML, block real failures)
+      - name: Classify outcome (ignore Unicorn HTML flake, block real failures)
         if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]' && github.actor != 'renovate[bot]'
         env:
           OUTCOME: ${{ steps.semantic.outcome }}
