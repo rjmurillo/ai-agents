@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2587,
+    "date": "2026-06-17",
+    "branch": "test/1984-vendored-review-e2e",
+    "startingCommit": "fb9741fa9b",
+    "objective": "E2E /review test inside vendored checkout via claude -p harness (issue #1984, PR #1965 Y13)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active in worktree; memory written to .serena/memories/tasks/issue-1984-vendored-review-e2e.md"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + project rules loaded via session context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md is read-only (ADR-014); not modified"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed .claude/skills/github/scripts and tests/e2e/test_cli_hook_e2e.py harness pattern"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue #1984 context + 8 comments via get_issue_context.py / get_issue_comments.py"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed .claude/rules/testing.md, claude-agents.md, universal.md applyTo for tests/"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree topical memories surfaced via hooks (issue-2621, qa-007); no prior #1984 memory existed"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "test/1984-vendored-review-e2e"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On test/1984-vendored-review-e2e"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git switch -c off origin/main; clean tree at start"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fb9741fa9b"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start + session-end MUSTs populated with honest evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/tasks/issue-1984-vendored-review-e2e.md written (43 lines)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Changed .md is the serena memory + PR body; markdownlint-cli2 run on PR body (see workLog)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on test/1984-vendored-review-e2e (see endingCommit)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/e2e/test_vendored_review_e2e.py -> 7 passed, 1 skipped; py_compile OK; mutation-confirmed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "N/A single-deliverable task; tracked in this session log"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T16:05:00Z",
+      "action": "Wrote tests/e2e/test_vendored_review_e2e.py: gated claude -p /review E2E inside a vendored checkout + 7 always-on guards.",
+      "evidence": "Command: uv run pytest tests/e2e/test_vendored_review_e2e.py -q | Result: 7 passed, 1 skipped (gated E2E skipped without RUN_CLI_E2E=1). py_compile passed. Mutation-confirm: breaking _VERDICT_TOKEN regex made the row-counter guards FAIL (assert 0 == 1), then restored to passing. 0 em/en dashes (byte count).",
+      "result": "passed"
+    }
+  ],
+  "endingCommit": "37448147e5",
+  "nextSteps": [
+    "Run RUN_CLI_E2E=1 uv run pytest tests/e2e/test_vendored_review_e2e.py in a credentialed env (nightly w/ secrets) to exercise the gated harness test.",
+    "Maintainer: decide whether to wire this into a nightly secret-bearing CI job."
+  ]
+}
