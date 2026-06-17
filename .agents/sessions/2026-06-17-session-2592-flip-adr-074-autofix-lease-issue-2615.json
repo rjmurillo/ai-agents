@@ -127,7 +127,7 @@
       "result": "0 em/en dashes; markdownlint clean (.agents/** ignored). Wrote serena memory. Committed <=5 files and pushed to existing remote branch adr/2615-pr-autofix-lease with SKIP_WORKFLOW_LOCAL_TEST=true."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "7757077b4f",
   "nextSteps": [
     "Run the full 6-agent adr-review debate in a non-isolated checkout, then rename the staging draft to canonical .agents/architecture/ADR-074-pr-autofix-branch-ownership-lease.md.",
     "Implement Phase 1 lease helpers (acquire/release/read, fail-open, 15-min TTL, SHA-gate freshness guard) wired into local pr-autofix."
