@@ -4,8 +4,12 @@ name: Auto-Approve and Auto-Merge Bot PRs
 # Dependabot and Renovate so dependency PR debt does not accumulate.
 #
 # Major version bumps are excluded from auto-approval and require manual
-# review. Uses the GH_ACTIONS_PR_WRITE PAT so approvals come from a real
-# user identity that satisfies branch ruleset requirements.
+# review. Uses the BOT_PAT PAT (the rjmurillo-bot service account, ADR-026
+# Decision 5) so approvals come from a real user identity that satisfies
+# branch ruleset requirements. BOT_PAT is the canonical write PAT shared by
+# every other PR-automation workflow in this repo; this workflow originally
+# referenced a bespoke GH_ACTIONS_PR_WRITE secret that was never provisioned,
+# which is why approvals failed with an empty GH_TOKEN. Fixes #2551.
 #
 # Security: all PR-supplied values (html_url, title) are passed via env and
 # referenced as quoted shell variables, never interpolated into run blocks.
@@ -20,7 +24,7 @@ permissions:
 jobs:
   dependabot:
     name: Dependabot (GitHub Actions and Python)
-    # All approval and merge calls use the GH_ACTIONS_PR_WRITE PAT. The job
+    # All approval and merge calls use the BOT_PAT PAT. The job
     # GITHUB_TOKEN keeps the workflow-level read-only stance for least
     # privilege under pull_request_target.
     permissions:
@@ -35,12 +39,12 @@ jobs:
       # "gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN
       # environment variable" and an operator has to read raw logs to discover
       # the real root cause is a missing repository secret. Guards #2551.
-      - name: Verify GH_ACTIONS_PR_WRITE secret is set
+      - name: Verify BOT_PAT secret is set
         env:
-          PAT: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          PAT: ${{ secrets.BOT_PAT }}
         run: |
           if [ -z "${PAT:-}" ]; then
-            echo "::error::secrets.GH_ACTIONS_PR_WRITE is empty at run time. A repo admin must rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
+            echo "::error::secrets.BOT_PAT is empty at run time. A repo admin must set or rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
             exit 1
           fi
 
@@ -51,7 +55,7 @@ jobs:
           # GITHUB_TOKEN is always available to the workflow (including in
           # Dependabot PR contexts where org/repo secrets are NOT exposed by
           # default), so use it for the read-only metadata fetch. The
-          # GH_ACTIONS_PR_WRITE PAT is still required for the approval and
+          # BOT_PAT PAT is still required for the approval and
           # auto-merge steps below because ruleset-required reviews must come
           # from a real user identity. Fixes #2307.
           github-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -60,18 +64,18 @@ jobs:
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
 
       - name: Enable auto-merge for non-major updates
         if: steps.dependabot-metadata.outputs.update-type != '' && steps.dependabot-metadata.outputs.update-type != 'version-update:semver-major'
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
 
   renovate:
     name: Renovate
-    # Approval uses the GH_ACTIONS_PR_WRITE PAT. The job GITHUB_TOKEN keeps
+    # Approval uses the BOT_PAT PAT. The job GITHUB_TOKEN keeps
     # the workflow-level read-only stance for least privilege under
     # pull_request_target.
     permissions:
@@ -92,19 +96,19 @@ jobs:
       # "gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN
       # environment variable" and an operator has to read raw logs to discover
       # the real root cause is a missing repository secret. Guards #2551.
-      - name: Verify GH_ACTIONS_PR_WRITE secret is set
+      - name: Verify BOT_PAT secret is set
         env:
-          PAT: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          PAT: ${{ secrets.BOT_PAT }}
         run: |
           if [ -z "${PAT:-}" ]; then
-            echo "::error::secrets.GH_ACTIONS_PR_WRITE is empty at run time. A repo admin must rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
+            echo "::error::secrets.BOT_PAT is empty at run time. A repo admin must set or rotate the PAT in Settings > Secrets and variables > Actions (needs 'repo' scope; approvals must come from a real user identity to satisfy branch rulesets). See #2551."
             exit 1
           fi
 
       - name: Detect major update
         id: detect-major
         env:
-          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
           labels=$(gh pr view "$PR_URL" --json labels --jq '[.labels[].name] | join(",")')
@@ -118,5 +122,5 @@ jobs:
         if: steps.detect-major.outputs.is_major != 'true'
         run: gh pr review --approve "$PR_URL"
         env:
-          GH_TOKEN: ${{ secrets.GH_ACTIONS_PR_WRITE }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
           PR_URL: ${{ github.event.pull_request.html_url }}
