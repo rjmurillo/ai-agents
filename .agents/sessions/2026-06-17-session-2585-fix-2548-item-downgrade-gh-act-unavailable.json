@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2585,
+    "date": "2026-06-17",
+    "branch": "fix/2548-gh-act-container-downgrade",
+    "startingCommit": "ccf2020857",
+    "objective": "fix #2548 item 3: downgrade gh-act-unavailable pre-push gate to warning in remote containers"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena active; wrote tasks/issue-2548-gh-act-container-downgrade memory"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions in effect this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue #2548 body + 4 comments + /tmp/fix_2548.json triage plan"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/github + session-init + taste-lints scripts"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md skill-first + boundaries; followed uv run + skill-first for github ops"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, .claude/rules/*, ci-scripts.md, canonical-source-mirror.md"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed PreToolUse memory hints (worktrees, github, environment)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2548-gh-act-container-downgrade"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2548-gh-act-container-downgrade"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at start; HEAD ccf2020857"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ccf2020857"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session-end checklist walked: tests, lint, memory, commit done"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory tasks/issue-2548-gh-act-container-downgrade"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed this session (git diff --name-only HEAD over '*.md' empty), so markdownlint had nothing to run"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on fix/2548-gh-act-container-downgrade; ending commit ccf20208578ef9125036b750f6c03bfcfd8f96fb"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/validation/test_run_workflow_local_test.py -> 52 passed; ruff clean; taste-lints complexity clean"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Tracked inline; no external task tracker entry required"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-issue scoped fix; learnings captured in serena memory instead of full retro"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T14:30:00Z",
+      "action": "TDD fix for issue #2548 item 3: gh act gate degrades in remote containers",
+      "evidence": "RED then GREEN via pytest. Ran: uv run pytest tests/validation/test_run_workflow_local_test.py -> 52 passed (4 new tests + 48 existing). Initial run of the 4 new tests failed (true RED). After implementing _is_remote_container/_gh_act_gap_report all 52 passed. Mutation check: forcing _is_remote_container to return False made the 2 downgrade tests fail, then restored to green. ruff check clean; taste-lints complexity clean."
+    }
+  ],
+  "endingCommit": "ccf20208578ef9125036b750f6c03bfcfd8f96fb",
+  "nextSteps": []
+}

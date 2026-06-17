@@ -594,12 +594,38 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     return paths
 
 
-def assert_no_claude_writes(repo_root: Path) -> list[str]:
+# The .claude/ tree is off-limits to generators (REQ-003-010). It is
+# snapshotted before the generators run, then compared after, so the guard
+# attributes only writes the generators themselves made. Git-diff scoping
+# (the prior approach) flagged any pre-build drift, including a legitimate
+# `.claude/lib` sync from scripts/sync_plugin_lib.py (issue #2613).
+CLAUDE_GUARD_PREFIX: tuple[str, ...] = (".claude/",)
+
+
+def assert_no_claude_writes(
+    repo_root: Path, baseline: dict[Path, bytes]
+) -> list[str]:
     """REQ-003-010: generators MUST NOT write under .claude/.
 
-    Returns the list of offending paths (empty when compliant).
+    ``baseline`` is a snapshot of the .claude/ tree captured BEFORE any
+    generator ran (see :func:`_snapshot_owned_prefixes`). This function
+    re-reads the tree and returns the repo-relative paths the generators
+    created, modified, or deleted relative to that baseline.
+
+    Scoping to generator-attributable writes (not raw git diff) lets a
+    legitimate pre-build sync of .claude/lib pass while still tripping on
+    a generator that writes under .claude/ during the run (issue #2613).
+
+    Returns the sorted list of offending paths (empty when compliant).
     """
-    return [p for p in _git_diff_paths(repo_root) if p.startswith(".claude/")]
+    current = _snapshot_owned_prefixes(repo_root, CLAUDE_GUARD_PREFIX)
+    offending: set[Path] = set()
+    for path, content in current.items():
+        if baseline.get(path) != content:
+            offending.add(path)  # created or modified by a generator
+    for path in baseline.keys() - current.keys():
+        offending.add(path)  # deleted by a generator
+    return sorted(str(p.relative_to(repo_root)) for p in offending)
 
 
 # --- Clean ----------------------------------------------------------------
@@ -832,9 +858,18 @@ def run(
     if check:
         snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
 
+    # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
+    # generator runs so the no-write guard attributes only writes the
+    # generators made, not pre-build drift such as a .claude/lib sync.
+    claude_baseline = _snapshot_owned_prefixes(repo_root, CLAUDE_GUARD_PREFIX)
+
     try:
         return _run_generators(
-            repo_root, configs, check=check, audit_format=audit_format
+            repo_root,
+            configs,
+            check=check,
+            audit_format=audit_format,
+            claude_baseline=claude_baseline,
         )
     finally:
         # #2440: ALWAYS restore on --check, including on exception paths.
@@ -850,6 +885,7 @@ def _run_generators(
     *,
     check: bool,
     audit_format: str,
+    claude_baseline: dict[Path, bytes],
 ) -> int:
     """Execute the generator pipeline and emit the audit log.
 
@@ -879,7 +915,7 @@ def _run_generators(
     audit.duration_s = time.monotonic() - started
 
     # REQ-003-010: enforce .claude/ no-write invariant.
-    claude_writes = assert_no_claude_writes(repo_root)
+    claude_writes = assert_no_claude_writes(repo_root, claude_baseline)
     if claude_writes:
         for p in claude_writes:
             print(f"REQ-003-010 VIOLATION: generator wrote to {p}", file=sys.stderr)

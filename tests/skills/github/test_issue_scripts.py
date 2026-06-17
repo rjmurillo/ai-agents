@@ -239,7 +239,7 @@ class TestNewIssue:
         assert "--body" not in cmd
         assert "--label" not in cmd
 
-    def test_api_error_exits_3(self):
+    def test_api_error_exits_3(self, capsys):
         mod = self._import()
         proc = make_proc(stderr="server error", returncode=1)
         with (
@@ -247,11 +247,13 @@ class TestNewIssue:
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            with pytest.raises(SystemExit) as exc:
-                mod.main(["--title", "title"])
-        assert exc.value.code == 3
+            rc = mod.main(["--title", "title", "--output-format", "json"])
+        assert rc == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Type"] == "ApiError"
 
-    def test_unparseable_output_exits_3(self):
+    def test_unparseable_output_exits_3(self, capsys):
         mod = self._import()
         proc = make_proc(stdout="no url here", returncode=0)
         with (
@@ -259,32 +261,39 @@ class TestNewIssue:
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=proc),
         ):
-            with pytest.raises(SystemExit) as exc:
-                mod.main(["--title", "title"])
-        assert exc.value.code == 3
+            rc = mod.main(["--title", "title", "--output-format", "json"])
+        assert rc == 3
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Type"] == "ApiError"
 
-    def test_main_empty_title_exits_2(self):
+    def test_main_empty_title_exits_2(self, capsys):
         mod = self._import()
         with (
             patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
         ):
-            with pytest.raises(SystemExit) as exc:
-                mod.main(["--title", "   "])
-        assert exc.value.code == 2
+            rc = mod.main(["--title", "   ", "--output-format", "json"])
+        assert rc == 2
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Type"] == "InvalidParams"
 
-    def test_main_body_file_not_found_exits_2(self, tmp_path):
+    def test_main_body_file_not_found_exits_2(self, tmp_path, capsys):
         mod = self._import()
         with (
             patch("new_issue.assert_gh_authenticated"),
             patch("new_issue.resolve_repo_params", return_value=_mock_repo()),
         ):
-            with pytest.raises(SystemExit) as exc:
-                mod.main([
-                    "--title", "T",
-                    "--body-file", str(tmp_path / "missing.txt"),
-                ])
-        assert exc.value.code == 2
+            rc = mod.main([
+                "--title", "T",
+                "--body-file", str(tmp_path / "missing.txt"),
+                "--output-format", "json",
+            ])
+        assert rc == 2
+        result = json.loads(capsys.readouterr().out)
+        assert result["Success"] is False
+        assert result["Error"]["Type"] == "NotFound"
 
     def test_main_body_file_used(self, tmp_path, capsys):
         mod = self._import()

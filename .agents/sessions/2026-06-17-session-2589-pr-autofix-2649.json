@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2589,
+    "date": "2026-06-17",
+    "branch": "chore/1949-m4-overlap-eval",
+    "startingCommit": "05a7ec157",
+    "objective": "PR #2649 autofix round 2: resolve 4 fresh copilot-pull-request-reviewer threads. Root cause: SUBSUMED recommendation text in REPORT.md, matrix.json, and analysis doc used 'deletion candidate' language that conflicts with the PR's stated moderate-band triage action (rewrite boundary + confirmatory eval)."
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "serena-initial_instructions called; Serena tools active."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions read at session start."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/HANDOFF.md (read-only ref) and AGENTS.md, AGENT-INSTRUCTIONS.md, CLAUDE.md before any mutation."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pr-review-008-session-state-continuity memory read; existing resolved threads (2588) filtered; only 4 new threads processed."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first honored; raw gh used only for operations without a mapped skill."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No force push; canonical-source fix at artifact; HANDOFF.md not modified."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pr-review-008-session-state-continuity, eval-harness, github-pr1873, bash-integration observations loaded via PreToolUse hooks."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/1949-m4-overlap-eval confirmed. 6 commits ahead of main (ADR-008 gate: OK, under 20)."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/1949-m4-overlap-eval, not main."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at session start (05a7ec157)."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "05a7ec157 (chore(session): record ending commit for session 2588 pr-autofix-2649)."
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUSTs populated with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No new memory entries required; fix pattern already captured in existing pr-review observations."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 on evals/reports/.../REPORT.md = 0 errors. .agents/** excluded by repo config (expected)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commit: docs(eval) for 3 artifact files; chore(session) for session log + QA addendum."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pre-commit hooks passed. Force-push safety confirmed (normal push only)."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "4 review threads addressed via pushed commit + inline replies + thread resolution."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read AGENTS.md, AGENT-INSTRUCTIONS.md, CLAUDE.md, HANDOFF.md. Fetched live PR state and all 9 review threads via GraphQL.",
+      "result": "Live-state gate passed. 5 threads resolved+outdated (session 2588). 4 threads unresolved+current: all on REPORT.md, matrix.json, analysis doc."
+    },
+    {
+      "step": "Root cause analysis of 4 threads.",
+      "result": "All 4 threads point to the same mismatch: SUBSUMED recommendation text said 'deletion candidate' / 'prune candidate' while the analysis doc concludes moderate-band action = rewrite boundary + confirmatory eval, not delete. The per-pair recommendation cells and the matrix.json recommendation field are the specific locations."
+    },
+    {
+      "step": "Edited REPORT.md lines 12 and 26: replaced 'Prune candidate...deletion candidate' with 'Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; deletion not triggered on this evidence.'",
+      "result": "Both REPORT.md recommendation locations updated. markdownlint: 0 errors."
+    },
+    {
+      "step": "Edited matrix.json recommendation field for Pair 2: same non-prescriptive language (DELETE/FOLD not triggered). JSON round-tripped cleanly.",
+      "result": "matrix.json updated. JSON still valid (python3 -c json.load verified)."
+    },
+    {
+      "step": "Edited .agents/analysis/skill-overlap-2026-06-17.md Verdicts table line 31 (Pair 2 Script recommendation cell): 'Prune candidate...' -> 'Script: SUBSUMED (moderate-band). Action: rewrite boundary + confirmatory eval.'",
+      "result": "Analysis doc updated. The verbose reasoning in Pair 2 section (line 45+) already correctly states moderate-band action; only the summary table cell needed updating."
+    },
+    {
+      "step": "Added QA addendum to .agents/qa/pr-2649-m4-overlap-eval.md documenting round-2 fix.",
+      "result": "QA report updated."
+    },
+    {
+      "step": "Created this session log. Committed docs(eval) + chore(session) atomically. Pushed to origin. Replied to and resolved 4 threads.",
+      "result": "All 4 threads resolved. Auto-merge (SQUASH) remains enabled."
+    }
+  ],
+  "endingCommit": "14413ad23",
+  "nextSteps": [
+    "Monitor CI for green on new commits.",
+    "Auto-merge will squash-merge once branch protection checks pass.",
+    "Follow-up: AC5 boundary-rewrite SKILL.md edits in a separate PR (out of scope for this eval-artifact PR)."
+  ]
+}

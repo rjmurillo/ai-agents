@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2586,
+    "date": "2026-06-17",
+    "branch": "fix/2629-nightly-windows-cli-exec-resolution",
+    "startingCommit": "14bb688be5",
+    "objective": "fix #2629 nightly CLI smoke windows-latest WinError 2: platform-safe executable resolution + unit test guard"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree session; Serena MCP available, symbolic search used via repo greps; resolver is leaf module with no symbol graph dependency"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project conventions read via @AGENTS.md + .claude/rules/* injected each turn"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open issue handoff for #2629; HANDOFF.md not modified (read-only ADR-014)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/get_issue_context.py and session-init script"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md boundaries + .claude/rules read (generated-artifacts.md, ci-scripts.md, python.md, testing.md)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + universal.md + ci-scripts.md reviewed; no ADR or governance file touched"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse self-improving memory hints reviewed (worktree isolation, github script interpreter)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2629-nightly-windows-cli-exec-resolution"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2629-nightly-windows-cli-exec-resolution"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at start; HEAD == origin/main 14bb688be5"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "14bb688be5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items populated with evidence below"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "decision-windows-cli-exec-resolution memory written (see workLog); resolver design + PATHEXT/sys.platform constraint recorded"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files changed in this session; markdownlint not applicable"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on fix/2629-nightly-windows-cli-exec-resolution (see endingCommit)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_cli_exec.py tests/e2e/ -q -> 11 passed (gated real-CLI e2e deselected by design, no RUN_CLI_E2E); uvx ruff check -> All checks passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-objective session; no task tracker entries"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Reproduce + locate root cause",
+      "detail": "Issue #2629: tests/e2e/test_cli_hook_e2e.py launches copilot/claude via subprocess.run([name, ...]); on windows-latest CreateProcess does not apply PATHEXT, npm shim is copilot.cmd, raises FileNotFoundError WinError 2. Confirmed in real files: 4 bare-name launches (lines ~232 install, ~247 run, ~270 uninstall, ~312 claude).",
+      "result": "root cause confirmed in source"
+    },
+    {
+      "step": "TDD: failing test first",
+      "detail": "Wrote tests/test_cli_exec.py against scripts.cli_exec.resolve_executable (not yet created). Ran: uv run pytest tests/test_cli_exec.py -q",
+      "result": "RED: ModuleNotFoundError: No module named 'scripts.cli_exec'"
+    },
+    {
+      "step": "Implement resolver to GREEN",
+      "detail": "scripts/cli_exec.py: resolve_executable scans PATH applying PATHEXT (Windows ';' sep, case-insensitive os.listdir match, no pathlib so WindowsPath is not instantiated on POSIX); POSIX returns bare name; raises FileNotFoundError when unresolved. Ran: uv run pytest tests/test_cli_exec.py -q",
+      "result": "passed: 7 passed (6 resolver + 1 call-site guard)"
+    },
+    {
+      "step": "Mutation testing (confirm tests bite)",
+      "detail": "3 mutations of scripts/cli_exec.py: (1) always return name -> 4 failed; (2) case-sensitive entry==target -> 3 failed; (3) split on os.pathsep -> 3 failed. Restored from backup; final run passed.",
+      "result": "passed: each mutation produced failures, restored module 6 passed"
+    },
+    {
+      "step": "Wire resolver into e2e launcher",
+      "detail": "tests/e2e/test_cli_hook_e2e.py: routed all 4 CLI launches through resolve_executable('copilot'/'claude'). Added regression guard test_e2e_launchers_route_through_resolver reading the e2e source. Mutated e2e back to bare name -> guard failed; restored -> guard passed. Ran: uv run pytest tests/test_cli_exec.py tests/e2e/ -q",
+      "result": "passed: 11 passed, gated e2e deselected by design"
+    },
+    {
+      "step": "Lint",
+      "detail": "uvx ruff check + ruff format on scripts/cli_exec.py, tests/test_cli_exec.py, tests/e2e/test_cli_hook_e2e.py",
+      "result": "passed: All checks passed; files formatted"
+    },
+    {
+      "step": "act note (windows-latest cannot run under act)",
+      "detail": "act is Linux-only; nightly-cli-smoke.yml smoke job runs on windows-latest and needs live secrets (SMOKE_ANTHROPIC_API_KEY, SMOKE_COPILOT_CLI_TOKEN). gh act cannot execute the windows e2e. Verification is the new unit test that simulates the Windows PATHEXT layout on Linux (the Linux-exercisable substitute the issue asks for). No workflow YAML changed.",
+      "result": "act not applicable for windows job; verified via unit test instead"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}

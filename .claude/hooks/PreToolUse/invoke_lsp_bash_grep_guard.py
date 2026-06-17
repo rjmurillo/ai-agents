@@ -93,6 +93,10 @@ if _lib_dir not in sys.path:
 
 from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+from hook_utilities.lsp_health import (  # noqa: E402
+    lsp_runtime_down,
+    warn_once_lsp_down,
+)
 from hook_utilities.lsp_provider import (  # noqa: E402
     SYMBOL_NAVIGATION,
     detect_providers,
@@ -415,6 +419,16 @@ def main() -> int:
         decision = evaluate_command(command, project_dir)
         if decision is None:
             # Not a gated grep, or no navigable target with an available LSP.
+            return 0
+
+        # Runtime fail-open (issue #2622): evaluate_command's provider check is
+        # config-only, so it still gates when the language server timed out at
+        # startup (ADR-062 Section 8, "configured != active"). If the LSP runtime
+        # is down, degrade to ALLOW with a one-time warning rather than block a
+        # grep the agent cannot replace with a (dead) symbol query (ADR-062
+        # Section 5, release-it.md graceful degradation).
+        if lsp_runtime_down():
+            warn_once_lsp_down("lsp-bash-grep-guard", project_dir)
             return 0
 
         guidance = build_guidance(decision["symbols"], decision["target"])

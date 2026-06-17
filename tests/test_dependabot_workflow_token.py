@@ -1,8 +1,8 @@
 """Regression test for #2307.
 
-Dependabot PRs do NOT receive org/repo secrets by default, so
-`secrets.GH_ACTIONS_PR_WRITE` resolves to an empty string in the
-fetch-metadata step's context. The action then errors with:
+Dependabot PRs do NOT receive org/repo secrets by default, so a PAT secret
+resolves to an empty string in the fetch-metadata step's context. The action
+then errors with:
 
     github-token is not set! Please add 'github-token:
     "${{ secrets.GITHUB_TOKEN }}"' to your workflow file.
@@ -11,7 +11,9 @@ Evidence: https://github.com/rjmurillo/ai-agents/actions/runs/26853238605/job/79
 
 This test asserts the read-only `dependabot/fetch-metadata` step uses
 `secrets.GITHUB_TOKEN` (always available in the workflow context),
-while the subsequent approval/merge steps may still use the PAT.
+while the subsequent approval/merge steps use the `BOT_PAT` PAT (the
+canonical write PAT per ADR-026 Decision 5; #2551 repointed this workflow
+off the never-provisioned `GH_ACTIONS_PR_WRITE` secret onto `BOT_PAT`).
 """
 
 from __future__ import annotations
@@ -64,15 +66,16 @@ def test_fetch_metadata_uses_github_token(workflow: dict) -> None:
 
 
 def test_fetch_metadata_does_not_use_pr_write_pat(workflow: dict) -> None:
-    """Negative: fetch-metadata must NOT use GH_ACTIONS_PR_WRITE.
+    """Negative: fetch-metadata must NOT use the BOT_PAT secret.
 
-    That secret is empty in Dependabot PR contexts and triggers the
-    'github-token is not set!' failure mode from #2307.
+    Org/repo secrets are empty in Dependabot PR contexts and trigger the
+    'github-token is not set!' failure mode from #2307. fetch-metadata must
+    stay on GITHUB_TOKEN.
     """
     step = _fetch_metadata_step(workflow)
     token = _step_mapping(step, "with").get("github-token", "")
-    assert "GH_ACTIONS_PR_WRITE" not in token, (
-        "fetch-metadata must not depend on GH_ACTIONS_PR_WRITE; it is "
+    assert "BOT_PAT" not in token, (
+        "fetch-metadata must not depend on BOT_PAT; org/repo secrets are "
         "empty in Dependabot PR contexts. See #2307."
     )
 
@@ -104,8 +107,9 @@ def test_approve_and_merge_steps_still_use_pat(workflow: dict) -> None:
     """Edge: write actions still require the PAT for ruleset compliance.
 
     The auto-approve and auto-merge steps must continue to use
-    GH_ACTIONS_PR_WRITE so reviews come from a real user identity that
-    satisfies branch-protection ruleset requirements.
+    BOT_PAT so reviews come from a real user identity (the rjmurillo-bot
+    service account, ADR-026 Decision 5) that satisfies branch-protection
+    ruleset requirements.
     """
     job = workflow["jobs"]["dependabot"]
     write_steps = [
@@ -114,7 +118,7 @@ def test_approve_and_merge_steps_still_use_pat(workflow: dict) -> None:
     assert len(write_steps) == 2, "expected Approve PR + Enable auto-merge steps"
     for step in write_steps:
         gh_token = _step_mapping(step, "env").get("GH_TOKEN", "")
-        assert "GH_ACTIONS_PR_WRITE" in gh_token, (
-            f"{step['name']!r} must use GH_ACTIONS_PR_WRITE PAT for "
+        assert "BOT_PAT" in gh_token, (
+            f"{step['name']!r} must use BOT_PAT PAT for "
             f"ruleset-compliant reviews; got: {gh_token!r}"
         )

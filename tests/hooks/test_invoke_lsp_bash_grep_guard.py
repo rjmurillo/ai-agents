@@ -321,6 +321,53 @@ class TestMainBlockAndWarn:
         assert guard.main() == 2
 
 
+class TestMainLspRuntimeDownFailOpen:
+    """LSP_DOWN makes a would-be-blocked grep ALLOW with a one-time warning.
+
+    detect_providers is config-only, so a grep on a configured language still
+    gates when the language server has timed out. With the LSP-down signal set,
+    the grep gate degrades to ALLOW (issue #2622, ADR-062 Section 5).
+
+    The block decision is forced via a patched ``evaluate_command`` so the gate
+    outcome is deterministic regardless of the host MCP config (whether a serena
+    provider is "configured" varies by environment; the gate-vs-allow split is
+    not what this test exercises, the LSP-down fail-open is).
+    """
+
+    _DECISION = {"symbols": ["parseConfig"], "target": "src/app.py"}
+
+    @pytest.fixture(autouse=True)
+    def _isolated(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        monkeypatch.delenv("LSP_GATE_MODE", raising=False)
+        monkeypatch.delenv("LSP_DOWN", raising=False)
+        monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
+
+    @patch.object(guard, "skip_if_consumer_repo", return_value=False)
+    @patch.object(guard, "get_project_directory", return_value=str(REPO_ROOT))
+    @patch.object(guard, "evaluate_command")
+    def test_blocking_grep_allows_when_lsp_down(
+        self, mock_eval, _mock_dir, _mock_skip, mock_stdin, monkeypatch, capsys
+    ):
+        mock_eval.return_value = self._DECISION
+        monkeypatch.setenv("LSP_DOWN", "true")
+        mock_stdin(_bash_payload(_BLOCKING_CMD))
+        assert guard.main() == 0
+        assert "LSP runtime is down" in capsys.readouterr().err
+
+    @patch.object(guard, "skip_if_consumer_repo", return_value=False)
+    @patch.object(guard, "get_project_directory", return_value=str(REPO_ROOT))
+    @patch.object(guard, "evaluate_command")
+    def test_lsp_up_still_blocks(
+        self, mock_eval, _mock_dir, _mock_skip, mock_stdin, monkeypatch
+    ):
+        # Negative control: LSP_DOWN unset, the gated grep still blocks.
+        mock_eval.return_value = self._DECISION
+        monkeypatch.delenv("LSP_DOWN", raising=False)
+        mock_stdin(_bash_payload(_BLOCKING_CMD))
+        assert guard.main() == 2
+
+
 class TestMainAllowPaths:
     @patch.object(guard, "get_project_directory", return_value=str(REPO_ROOT))
     def test_allows_git_grep(self, _mock_dir, mock_stdin: Callable[[str], None]):

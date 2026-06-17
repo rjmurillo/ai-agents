@@ -311,6 +311,10 @@ def _original_main(stdin_bytes):
 
     from hook_utilities import get_project_directory  # noqa: E402
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+    from hook_utilities.lsp_health import (  # noqa: E402
+        lsp_runtime_down,
+        warn_once_lsp_down,
+    )
     from hook_utilities.lsp_provider import (  # noqa: E402
         SYMBOLS_OVERVIEW,
         configured_languages,
@@ -494,6 +498,16 @@ def _original_main(stdin_bytes):
                     "LSP pre-delegation guard: no provider available, allowing",
                     file=sys.stderr,
                 )
+                return 0
+
+            # Runtime fail-open (issue #2622): provider_available is config-only, so
+            # it still reports a provider when the language server timed out at
+            # startup (ADR-062 Section 8, "configured != active"). With the LSP down,
+            # the orchestrator cannot pre-resolve symbol context, so blocking the
+            # delegation just wedges the turn. Allow it with a one-time warning
+            # (ADR-062 Section 5, release-it.md graceful degradation).
+            if lsp_runtime_down():
+                warn_once_lsp_down("lsp-pre-delegation-guard", project_dir)
                 return 0
 
             # Mode (ADR-062 Section 6): warn never blocks.

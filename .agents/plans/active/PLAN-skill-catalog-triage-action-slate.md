@@ -68,7 +68,7 @@ Skill eval (session-1825) ran `eval-knowledge-integration.py` against 15 suspect
 | **M1**: Prune doc-coverage + doc-sync + workflow | Low-risk deletions only | Nothing | Spec in progress |
 | **M2**: Fold session-qa-eligibility + sunset session-migration | Session cluster consolidation | M1 optional | Not started |
 | **M3**: memory decomposition | ADR-led architecture | ADR draft | Blocked on ADR |
-| **M4**: Investigate memory cluster overlap | Pairwise eval | Issue #1932 eval infra | Blocked on #1932 |
+| **M4**: Investigate memory cluster overlap | Pairwise eval | Issue #1932 eval infra | Live verdicts landed 2026-06-17: Pair 1 KEEP, Pair 2 REWRITE boundary |
 | **Wave 2**: Remaining 47 skills | Full catalog | M1-M4 learnings | Not started |
 
 ## Dependencies
@@ -94,7 +94,7 @@ Wave 2 triage → M1-M4 learnings + quarterly CI cron
 - [ ] Spec M3: memory skill decomposition PRD
 - [ ] Implement M3: memory cluster refactor
 - [ ] Implement #1932: eval-skill-overlap.py + Phase 1 (4 known pairs)
-- [ ] Run M4: overlap eval on curating-memories / exploring-knowledge-graph
+- [x] Run M4: overlap eval on curating-memories / exploring-knowledge-graph (live run 2026-06-17, `.agents/analysis/skill-overlap-2026-06-17.md`)
 - [ ] Wave 2: triage remaining 47 skills
 
 ## Decision Log
@@ -108,6 +108,7 @@ Wave 2 triage → M1-M4 learnings + quarterly CI cron
 | 2026-05-09 | M3 memory decomposition requires ADR-first | AGENTS.md "Ask First" gate for architecture changes. 143 KB skill is architectural concern. | Skip ADR; rejected (governance) |
 | 2026-05-09 | Issue #1932 filed for pairwise eval infra | Current eval-knowledge-integration.py cannot answer "are A and B redundant." Separate PR/issue for new evaluator. | Extend existing script; deferred (design needed) |
 | 2026-06-05 | M4 pairwise overlap eval wired and dry-run validated; live verdict pending credentials (Issue #1949) | `eval-skill-overlap.py` landed on main and ran a dry-run over the two M4 pairs (`curating-memories` x `memory-enhancement`, `exploring-knowledge-graph` x `memory` Tier-1): 96 calls, ~$3.02. The live run that produces the per-pair OVERLAP/DISTINCT/SUBSUMED verdict needs `ANTHROPIC_API_KEY`, absent in the build environment. Pairs file and methodology are recorded in `.agents/analysis/skill-overlap-2026-06-05.md`. No FOLD or KEEP decision is final until the live run executes. | Hand-curate verdicts without running the evaluator; rejected (no evidence, violates the evidence-rigor rule the plan adopted on 2026-05-09) |
+| 2026-06-17 | M4 live verdicts (Issue #1949): Pair 1 DISTINCT (KEEP both), Pair 2 SUBSUMED but moderate band (REWRITE boundary, do NOT delete). | Live scored run executed with `ANTHROPIC_API_KEY` from the local, gitignored repo-root `.env` (not committed), model `claude-sonnet-4-6`, run id `m4-overlap-1949-2026-06-17`. Pair 1 `curating-memories` x `memory-enhancement` = DISTINCT (deltas +0.00 / -0.75; neither covers the other; matches pre-registered hypothesis). Pair 2 `exploring-knowledge-graph` x `memory` = SUBSUMED with `memory` the covering skill (on exploring's prompts memory recovers +0.75 of exploring's +1.25 = 60% one-way coverage; on memory's prompts exploring lags +1.00 vs +3.00). 60% sits in the issue's 50-80% moderate band, which routes to SKILL.md boundary rewrite + routing re-check, NOT delete/FOLD. AC1-AC3, AC6 satisfied. AC4 (FOLD PR) not triggered. AC5 (boundary statements) recommended for both pairs as a separate follow-up. Full analysis: `.agents/analysis/skill-overlap-2026-06-17.md`; artifacts: `evals/reports/overlap-m4-overlap-1949-2026-06-17/`. | Delete `exploring-knowledge-graph` on the bare SUBSUMED label; rejected (60% one-way coverage on a single 4-prompt run is moderate-band evidence; deletion needs a confirmatory rewrite-then-eval pass, per the evidence-rigor rule). Hand-curate without re-running; not needed, the live run executed. |
 
 ## Progress Log
 
@@ -120,7 +121,7 @@ Wave 2 triage → M1-M4 learnings + quarterly CI cron
 
 ## Blockers
 
-1. **Issue #1949** (live overlap eval): Blocks final M4 verdicts until credentials are available.
+1. ~~**Issue #1949** (live overlap eval): Blocks final M4 verdicts until credentials are available.~~ RESOLVED 2026-06-17: live run executed (key present in local, gitignored repo-root `.env`; not committed). Verdicts: Pair 1 KEEP (DISTINCT), Pair 2 REWRITE boundary (SUBSUMED, moderate band). Follow-up: SKILL.md boundary statements for both pairs (AC5), then a confirmatory Pair 2 eval before any delete/FOLD.
 2. **ADR: memory decomposition**: Blocks M3. Owner: engineering (needs design discussion).
 
 ## References

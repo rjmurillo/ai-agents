@@ -9,11 +9,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -53,40 +50,79 @@ def test_create_issue_with_body(mock_run, capsys):
 @patch("subprocess.run")
 def test_create_issue_with_labels(mock_run, capsys):
     mock_run.side_effect = [
-        _completed(rc=0),
-        _completed(stdout="https://github.com/o/r\n"),
-        _completed(stdout="https://github.com/o/r/issues/5\n"),
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="https://github.com/o/r/issues/5\n"),  # create
+        _completed(rc=0),  # edit --add-label
     ]
 
     rc = main(["--title", "Feature", "--labels", "enhancement,P2"])
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["issue_number"] == 5
+    edit_call = next(
+        (
+            call
+            for call in mock_run.call_args_list
+            if "edit" in call.args[0] and "--add-label" in call.args[0]
+        ),
+        None,
+    )
+    assert edit_call is not None, "expected gh issue edit --add-label call"
+    edit_kwargs = edit_call.kwargs
+    assert edit_kwargs["encoding"] == "utf-8"
+    assert edit_kwargs["errors"] == "replace"
 
 
 @patch("subprocess.run")
-def test_empty_title_fails(mock_run):
+def test_missing_label_emits_json_envelope_with_issue_number(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="https://github.com/o/r/issues/42\n"),  # create succeeds
+        _completed(rc=1, stderr="could not add label: 'ci' not found"),  # label fails
+    ]
+
+    rc = main(["--title", "Bug", "--labels", "bug,ci", "--output-format", "json"])
+
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "ApiError"
+    assert output["Data"]["issue_number"] == 42
+    assert output["Data"]["url"] == "https://github.com/o/r/issues/42"
+
+
+@patch("subprocess.run")
+def test_empty_title_fails(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
     ]
 
-    with pytest.raises(SystemExit) as exc_info:
-        main(["--title", "   "])
-    assert exc_info.value.code == 2
+    rc = main(["--title", "   ", "--output-format", "json"])
+    assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "InvalidParams"
 
 
 @patch("subprocess.run")
-def test_api_failure(mock_run):
+def test_api_failure(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),
         _completed(rc=1, stderr="API error"),
     ]
 
-    with pytest.raises(SystemExit) as exc_info:
-        main(["--title", "Test"])
-    assert exc_info.value.code == 3
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "ApiError"
+    create_kwargs = mock_run.call_args_list[2].kwargs
+    assert create_kwargs["encoding"] == "utf-8"
+    assert create_kwargs["errors"] == "replace"
 
 
 @patch("subprocess.run")
@@ -107,12 +143,75 @@ def test_body_file(mock_run, capsys, tmp_path):
 
 
 @patch("subprocess.run")
-def test_body_file_not_found(mock_run):
+def test_body_file_not_found(mock_run, capsys):
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),
     ]
 
-    with pytest.raises(SystemExit) as exc_info:
-        main(["--title", "Test", "--body-file", "/nonexistent/file.md"])
-    assert exc_info.value.code == 2
+    rc = main(["--title", "Test", "--body-file", "/nonexistent/file.md", "--output-format", "json"])
+    assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "NotFound"
+
+
+@patch("subprocess.run")
+def test_create_timeout_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        subprocess.TimeoutExpired(cmd=["gh", "issue", "create"], timeout=30),  # create hangs
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "Timeout"
+    assert "30s" in output["Error"]["Message"]
+
+
+@patch("subprocess.run")
+def test_label_edit_timeout_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="https://github.com/o/r/issues/7\n"),  # create succeeds
+        subprocess.TimeoutExpired(cmd=["gh", "issue", "edit"], timeout=30),  # edit hangs
+    ]
+
+    rc = main(["--title", "Test", "--labels", "bug", "--output-format", "json"])
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "Timeout"
+    assert "30s" in output["Error"]["Message"]
+    assert output["Data"]["issue_number"] == 7
+
+
+@patch("subprocess.run")
+def test_auth_failure_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=1),  # gh auth status fails → assert_gh_authenticated raises SystemExit(4)
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 4
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "AuthError"
+
+
+@patch("subprocess.run")
+def test_repo_resolve_failure_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth passes
+        _completed(rc=1),  # git remote get-url origin fails → get_repo_info returns None
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "InvalidParams"

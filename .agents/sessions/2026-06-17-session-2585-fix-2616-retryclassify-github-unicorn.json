@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2585,
+    "date": "2026-06-17",
+    "branch": "fix/2616-validate-pr-title-retry-unicorn",
+    "startingCommit": "ccf2020857",
+    "objective": "fix #2616 retry/classify GitHub Unicorn HTML failures in semantic PR title check"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena available; symbol/memory tools used (write_memory, deepwiki)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md retrieval rules and .claude/rules/* via context injection."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open issue handoff for #2616; HANDOFF.md not modified (read-only)."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github and session-init scripts; listed scripts/ci."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md, .claude/rules/* (injected each turn)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Applied ADR-006 (no logic in YAML), ADR-042 (Python), ADR-035 exit codes."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed topical worktree memories surfaced by hooks; wrote issue-2616 memory."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2616-validate-pr-title-retry-unicorn"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2616-validate-pr-title-retry-unicorn"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked; HEAD ccf2020857."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ccf2020857"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Session log workLog + protocolCompliance complete."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote tasks/issue-2616-semantic-pr-title-unicorn-classifier."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files authored this session; nothing to lint."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commits on fix/2616-validate-pr-title-retry-unicorn."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/ci/: 27 passed; workflow YAML parses OK."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-module fix; tracked inline, no stale tasks."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Lightweight fix; learnings captured in serena memory."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T13:50:59.299885+00:00",
+      "action": "Implemented classifier for semantic-pr-title-check (issue #2616) with TDD",
+      "evidence": "uv run pytest tests/ci/test_classify_semantic_title_result.py -q: 12 passed. Full tests/ci/: 27 passed. RED confirmed first (ModuleNotFoundError), GREEN after implementation, mutation (exit_code 1->0 on semantic failure) made 3 tests fail then restored to 27 passed."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
