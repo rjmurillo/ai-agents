@@ -63,6 +63,7 @@ if _LIB_DIR not in sys.path:
 
 from paths import resolve_artifact_root  # noqa: E402
 from session_init.git_helpers import get_git_info  # noqa: E402
+from session_init.session_structure import build_session_log  # noqa: E402
 from session_init.template_helpers import get_descriptive_keywords  # noqa: E402
 
 
@@ -194,50 +195,14 @@ def _build_session_data(
     objective: str,
     current_date: str,
 ) -> dict:
-    """Build the session JSON data structure."""
-    branch = git_info["branch"]
-    commit = git_info["commit"]
-    not_on_main = branch not in ("main", "master")
-
-    return {
-        "schemaVersion": "1.0",
-        "session": {
-            "number": session_number,
-            "date": current_date,
-            "branch": branch,
-            "startingCommit": commit,
-            "objective": objective or "[TODO: Describe objective]",
-        },
-        "protocolCompliance": {
-            "sessionStart": {
-                "serenaActivated": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "serenaInstructions": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "handoffRead": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "sessionLogCreated": {"level": "MUST", "Complete": True, "Evidence": "This file"},
-                "skillScriptsListed": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "usageMandatoryRead": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "constraintsRead": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "memoriesLoaded": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "branchVerified": {"level": "MUST", "Complete": True, "Evidence": branch},
-                "notOnMain": {"level": "MUST", "Complete": not_on_main, "Evidence": f"On {branch}"},
-                "gitStatusVerified": {"level": "SHOULD", "Complete": False, "Evidence": ""},
-                "startingCommitNoted": {"level": "SHOULD", "Complete": True, "Evidence": commit},
-            },
-            "sessionEnd": {
-                "checklistComplete": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "handoffPreserved": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "serenaMemoryUpdated": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "markdownLintRun": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "changesCommitted": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "validationPassed": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "tasksUpdated": {"level": "SHOULD", "Complete": False, "Evidence": ""},
-                "retrospectiveInvoked": {"level": "SHOULD", "Complete": False, "Evidence": ""},
-            },
-        },
-        "workLog": [],
-        "endingCommit": "",
-        "nextSteps": [],
-    }
+    """Build the session JSON data structure via the shared builder."""
+    return build_session_log(
+        branch=git_info["branch"],
+        commit=git_info["commit"],
+        session_number=session_number,
+        objective=objective,
+        current_date=current_date,
+    )
 
 
 def _write_session_file(

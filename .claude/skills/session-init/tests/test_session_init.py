@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from unittest import mock
 
 import pytest
@@ -34,9 +35,13 @@ def test_application_failed_error_is_exception():
 class TestGitHelpers:
     @pytest.fixture(autouse=True)
     def _setup_path(self):
-        import sys
-
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        path = os.path.join(os.path.dirname(__file__), "..")
+        if path not in sys.path:
+            sys.path.insert(0, path)
+            yield
+            sys.path.remove(path)
+        else:
+            yield
 
     def test_get_git_info_success(self):
         from session_init.git_helpers import get_git_info
@@ -365,9 +370,7 @@ class TestGeneratorsShareStructure:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         import importlib
-        import sys
-
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+        scripts_path = os.path.join(os.path.dirname(__file__), "..", "scripts")
         module_name = script_name[: -len(".py")]
         spec = importlib.util.spec_from_file_location(module_name, script)
         mod = importlib.util.module_from_spec(spec)
@@ -376,9 +379,11 @@ class TestGeneratorsShareStructure:
         if extra_args:
             argv.extend(extra_args)
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", side_effect=mock_run), pytest.MonkeyPatch.context() as mp:
+            mp.syspath_prepend(scripts_path)
             spec.loader.exec_module(mod)
-            result = mod.main([*argv, *(["--skip-validation"] if script_name == "new_session_log.py" else [])])
+            extra = ["--skip-validation"] if script_name == "new_session_log.py" else []
+            result = mod.main([*argv, *extra])
 
         assert result == 0
         json_files = list((tmp_path / ".agents" / "sessions").glob("*.json"))
