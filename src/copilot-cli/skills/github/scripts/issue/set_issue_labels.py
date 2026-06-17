@@ -122,7 +122,8 @@ def _label_exists(owner: str, repo: str, label_name: str) -> bool:
     result = subprocess.run(
         ["gh", "api", f"repos/{owner}/{repo}/labels/{encoded}"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return result.returncode == 0
@@ -150,7 +151,8 @@ def _create_label(
             "description=Auto-created by AI triage",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return result.returncode == 0
@@ -170,7 +172,8 @@ def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
             label_name,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return result.returncode == 0

@@ -12,12 +12,12 @@
    "serenaActivated": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "Serena LSP wedged (timeout=235); step fulfilled via Bash-view fallback per claude-model-patches.md. Code intelligence was obtained through fallback path, not preferred LSP activation."
+    "Evidence": "Context gate satisfied through documented fallback after Serena LSP timeout. AGENTS.md and matching rule files were loaded before code edits."
    },
    "serenaInstructions": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "initial_instructions unreachable via LSP; step fulfilled by reading AGENTS.md + .claude/rules/*.md directly as documented fallback. Retrieval succeeded via fallback path."
+    "Evidence": "Serena instruction intent satisfied through fallback context retrieval: AGENTS.md plus .claude/rules/*.md were read directly before implementation."
    },
    "handoffRead": {
     "level": "MUST",
@@ -84,7 +84,7 @@
    "serenaMemoryUpdated": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "uv run python -m pytest tests/skills/github/test_set_issue_labels.py tests/test_check_dual_priority_labels.py -> 21 passed"
+    "Evidence": "Episode memory generated for this session under .agents/memory/episodes/episode-2026-06-17-session-2586-fix-2623-priority-label-mutual.json."
    },
    "markdownLintRun": {
     "level": "MUST",
@@ -94,7 +94,7 @@
    "changesCommitted": {
     "level": "MUST",
     "Complete": true,
-    "Evidence": "uv run python -m pytest tests/skills/github/test_set_issue_labels.py tests/test_check_dual_priority_labels.py -> 21 passed"
+    "Evidence": "Commits 4af52f8f5, 08aecf757, 04f5734f6, 9b9b45fb6, and b56979c10 recorded implementation, session evidence, generated-copy sync, and main merge refresh."
    },
    "validationPassed": {
     "level": "MUST",
@@ -103,13 +103,13 @@
    },
    "tasksUpdated": {
     "level": "SHOULD",
-    "Complete": true,
-    "Evidence": "uv run python -m pytest tests/skills/github/test_set_issue_labels.py tests/test_check_dual_priority_labels.py -> 21 passed"
+    "Complete": false,
+    "Evidence": "No separate task artifact was created for this PR autofix pass."
    },
    "retrospectiveInvoked": {
     "level": "SHOULD",
-    "Complete": true,
-    "Evidence": "uv run python -m pytest tests/skills/github/test_set_issue_labels.py tests/test_check_dual_priority_labels.py -> 21 passed"
+    "Complete": false,
+    "Evidence": "No retrospective artifact was created for this scoped PR autofix pass."
    }
   }
  },
