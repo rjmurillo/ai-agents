@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2586,
+    "date": "2026-06-17",
+    "branch": "fix/2637-merge-pr-reject-unknown-state",
+    "startingCommit": "14bb688be5",
+    "objective": "fix #2637: merge_pr.py reject UNKNOWN mergeable/mergeStateStatus before direct (non --auto) merge"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena LSP server unavailable this session (markdown language server timed out at init); fell back to .serena/memories markdown per AGENTS.md fallback."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP down; followed .claude/rules/* and AGENTS.md directly as fallback."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No issue handoff for #2637; read issue body and discourse via get_issue_context.py and get_issue_comments.py."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file (session 2586)."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed .claude/skills/github/scripts/pr/ (merge_pr.py, test_pr_merge_ready.py, run_completion_gate.py, check_pr_live_state.py)."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/* (universal, python, canonical-source-mirror, release-it) injected into context."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-035 exit codes (3=external) and ADR-056 envelope honored in the fix."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical worktree memories surfaced by hook; wrote task memory issue-2637-merge-pr-reject-unknown.md."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2637-merge-pr-reject-unknown-state off 14bb688be5"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2637-merge-pr-reject-unknown-state"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked before branch creation."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "14bb688be5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items populated with evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Did not edit .agents/HANDOFF.md (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/tasks/issue-2637-merge-pr-reject-unknown.md written (Serena MCP down, markdown fallback)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix on changed md: 0 error(s). The memory file is under .serena/** (lint-excluded); no other .md changed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed merge_pr.py fix + test, plus copilot mirror, on fix/2637-merge-pr-reject-unknown-state."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest: 45 passed; ruff: All checks passed. Pre-push suite run before push."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Task memory written for issue #2637."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-issue fix; no retro warranted."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T15:23:00Z",
+      "action": "Confirmed root cause: merge_pr.py fetched mergeable/mergeStateStatus but only checked state (MERGED/CLOSED), so it merged on mergeable=UNKNOWN. Wrote failing test TestUnknownMergeStateRejection.",
+      "evidence": "RED: pytest reported 'DID NOT RAISE SystemExit'; envelope showed state MERGED on mergeable=UNKNOWN."
+    },
+    {
+      "timestamp": "2026-06-17T15:24:00Z",
+      "action": "Added _reject_unknown_merge_state() gated on not args.auto (exit 3, ApiError), mirrored test_pr_merge_ready.py 'Merge status is being calculated'. Applied identical change to copilot-cli mirror.",
+      "evidence": "GREEN: uv run pytest tests/test_merge_pr.py -> 45 passed in 0.22s. Mutation (UNKNOWN -> MUTANT) made the 2 reject tests fail (DID NOT RAISE SystemExit); restoring -> 45 passed. ruff: All checks passed."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}

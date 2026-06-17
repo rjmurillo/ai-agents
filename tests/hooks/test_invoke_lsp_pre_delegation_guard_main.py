@@ -255,6 +255,53 @@ class TestMainBlock:
         assert guard.main() == 2
 
 
+class TestMainLspRuntimeDownFailOpen:
+    """LSP_DOWN turns a would-be delegation block into ALLOW + one-time warning.
+
+    provider_available is config-only (autouse stub forces True here). When the
+    language server is actually down, the orchestrator cannot pre-resolve LSP
+    context, so blocking the delegation is pointless; allow it (issue #2622,
+    ADR-062 Section 5).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _isolated_marker(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+        monkeypatch.delenv("LSP_DOWN", raising=False)
+
+    def test_block_becomes_allow_when_lsp_down(
+        self, monkeypatch, mock_stdin: Callable[[str], None], capsys
+    ):
+        monkeypatch.setenv("LSP_DOWN", "true")
+        mock_stdin(
+            _stdin_json(
+                tool_name="Agent",
+                tool_input={
+                    "subagent_type": "implementer",
+                    "prompt": LONG_PROMPT_NO_CONTEXT,
+                },
+            )
+        )
+        assert guard.main() == 0
+        assert "LSP runtime is down" in capsys.readouterr().err
+
+    def test_lsp_up_still_blocks(
+        self, monkeypatch, mock_stdin: Callable[[str], None]
+    ):
+        # Negative control: LSP_DOWN unset, the delegation block still fires.
+        monkeypatch.delenv("LSP_DOWN", raising=False)
+        mock_stdin(
+            _stdin_json(
+                tool_name="Agent",
+                tool_input={
+                    "subagent_type": "implementer",
+                    "prompt": LONG_PROMPT_NO_CONTEXT,
+                },
+            )
+        )
+        assert guard.main() == 2
+
+
 # ---------------------------------------------------------------------------
 # main(): warn mode (never blocks)
 # ---------------------------------------------------------------------------

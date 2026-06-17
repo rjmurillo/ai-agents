@@ -51,6 +51,7 @@ def _glob_input(pattern: str) -> str:
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure env toggles do not leak between tests."""
     monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
+    monkeypatch.delenv("LSP_DOWN", raising=False)
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
 
 
@@ -201,9 +202,7 @@ class TestBuildGuidance:
         assert "find_symbol" in text
 
     def test_no_dashes(self):
-        text = guard.build_guidance(
-            "*UserService*", ["UserService"], ["serena", "native_lsp"]
-        )
+        text = guard.build_guidance("*UserService*", ["UserService"], ["serena", "native_lsp"])
         assert chr(0x2014) not in text  # em dash
         assert chr(0x2013) not in text  # en dash
 
@@ -260,6 +259,24 @@ class TestFailOpen:
         monkeypatch.setenv("SKIP_LSP_GATE", "true")
         mock_stdin(_glob_input("*UserService*"))
         assert guard.main() == 0
+
+    @patch("invoke_lsp_glob_guard.get_project_directory", return_value="/project")
+    @patch("invoke_lsp_glob_guard.detect_providers", return_value=["serena"])
+    def test_lsp_down_allows_and_warns(
+        self,
+        _mock_detect,
+        _mock_dir,
+        mock_stdin: Callable[[str], None],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys,
+    ):
+        monkeypatch.setenv("LSP_DOWN", "true")
+        warn_once = MagicMock(return_value=True)
+        monkeypatch.setattr(guard, "warn_once_lsp_down", warn_once)
+        mock_stdin(_glob_input("*UserService*"))
+        assert guard.main() == 0
+        warn_once.assert_called_once_with("lsp-glob-guard", "/project")
+        assert capsys.readouterr().out == ""
 
     def test_consumer_repo_skips(
         self, mock_stdin: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
@@ -371,9 +388,7 @@ class TestWarnMode:
 
 
 class TestRealLibWiring:
-    def test_real_detect_providers_blocks_bare_symbol(
-        self, mock_stdin: Callable[[str], None]
-    ):
+    def test_real_detect_providers_blocks_bare_symbol(self, mock_stdin: Callable[[str], None]):
         """Without mocking the lib, a bare symbol glob blocks in this repo.
 
         This repo configures python in .serena/project.yml and registers the

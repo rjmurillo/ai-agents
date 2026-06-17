@@ -672,6 +672,8 @@ def build_report_md(results: list[PairResult], *, model: str, run_id: str) -> st
     lines.extend(["", "## Per-Pair Detail", ""])
     for r in results:
         lines.extend(_render_pair_detail(r))
+    while lines and lines[-1] == "":
+        lines.pop()
     return "\n".join(lines) + "\n"
 
 

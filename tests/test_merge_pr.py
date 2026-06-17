@@ -311,6 +311,138 @@ class TestMain:
 
 
 # ---------------------------------------------------------------------------
+# Tests: UNKNOWN merge state rejection (issue #2637)
+# ---------------------------------------------------------------------------
+
+
+class TestUnknownMergeStateRejection:
+    """Reject UNKNOWN mergeable / mergeStateStatus before a direct merge.
+
+    Issue #2637: GitHub reports mergeable=UNKNOWN / mergeStateStatus=UNKNOWN
+    while recalculating mergeability after a base update. The completion gate
+    (test_pr_merge_ready.py) rejects this state ("Merge status is being
+    calculated"), but merge_pr.py merged anyway. A direct (non --auto) merge
+    must reject the UNKNOWN state with ADR-035 exit code 3 (external/transient).
+    --auto defers to GitHub's own gate and is exempt.
+    """
+
+    def test_unknown_mergeable_without_auto_exits_3(self, capsys):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "UNKNOWN",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        })
+        calls = []
+
+        def _side_effect(*args, **kwargs):
+            calls.append(args[0] if args else kwargs.get("args", []))
+            return _completed(stdout=state_json, rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run", side_effect=_side_effect,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--output-format", "json"])
+            assert exc.value.code == 3
+        # Only the state fetch ran; no merge was attempted.
+        assert len(calls) == 1
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Success"] is False
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert "calculated" in envelope["Error"]["Message"].lower()
+
+    def test_unknown_merge_state_status_without_auto_exits_3(self, capsys):
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "UNKNOWN", "headRefName": "feature",
+        })
+
+        def _side_effect(*args, **kwargs):
+            return _completed(stdout=state_json, rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run", side_effect=_side_effect,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50"])
+            assert exc.value.code == 3
+
+    def test_unknown_mergeable_with_auto_succeeds(self, capsys):
+        """--auto defers to GitHub's gate; UNKNOWN must not block it."""
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "UNKNOWN",
+            "mergeStateStatus": "UNKNOWN", "headRefName": "feature",
+        })
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run", side_effect=_side_effect,
+        ):
+            rc = main(["--pull-request", "50", "--auto"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["action"] == "auto-merge-enabled"
+
+    def test_ready_state_without_auto_merges(self, capsys):
+        """READY (MERGEABLE/CLEAN) still merges directly; no false block."""
+        state_json = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        })
+        call_count = 0
+
+        def _side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return _completed(stdout=state_json, rc=0)
+            return _completed(rc=0)
+
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run", side_effect=_side_effect,
+        ):
+            rc = main(["--pull-request", "50", "--strategy", "squash"])
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"]["action"] == "merged"
+
+
+# ---------------------------------------------------------------------------
 # Tests: get_allowed_merge_methods
 # ---------------------------------------------------------------------------
 
