@@ -126,8 +126,8 @@ def warn_once_lsp_down(guard_name: str, project_dir: str) -> bool:
         pass
 
     message = (
-        f"{guard_name}: LSP runtime is down ({LSP_DOWN_ENV} set); allowing native "
-        "tools (Read/Edit/Grep). LSP-first enforcement is paused until the "
+        f"{guard_name}: LSP runtime is down ({LSP_DOWN_ENV} set); allowing this "
+        "operation to continue. LSP-first enforcement is paused until the "
         "language server recovers."
     )
     print(message, file=sys.stderr)
