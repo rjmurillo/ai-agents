@@ -93,8 +93,8 @@
       },
       "changesCommitted": {
         "level": "MUST",
-        "Complete": false,
-        "Evidence": "Commit pending after this evidence entry (evidence-before-commit per session protocol)."
+        "Complete": true,
+        "Evidence": "Commit ea1d5f0f29: ADR draft, architect note, session log (3 files)."
       },
       "validationPassed": {
         "level": "MUST",
