@@ -247,6 +247,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.priority:
         all_labels.append({"name": f"priority:{args.priority}", "color": args.priority_color})
 
+    # Enforce priority mutual exclusivity in the incoming set (Issue #2623).
+    # If multiple priority labels are specified, keep only the last one.
+    # --priority is added last, so it takes precedence over --labels.
+    priority_indices = [
+        i for i, label_info in enumerate(all_labels)
+        if label_info["name"].lower().startswith(PRIORITY_PREFIX)
+    ]
+    if len(priority_indices) > 1:
+        for i in reversed(priority_indices[:-1]):
+            all_labels.pop(i)
+
     if not all_labels:
         print("No labels to apply.", file=sys.stderr)
         return 0
