@@ -1,6 +1,6 @@
 ---
 id: ADR-074
-status: proposed
+status: accepted
 date: 2026-06-17
 decision-makers: []
 supersedes: []
@@ -13,9 +13,11 @@ implemented: false
 
 ## Status
 
-Proposed. Requested by issue #2617 (labels `bug`, `enhancement`, `agent-security`, `area-workflows`, `priority:P1`, `automation`). Maintainer-approved DEFER on 2026-06-17 (issue comment 4726185340) that named the next gate as "an ADR + phased impl" plus "security-agent review required before merge".
+Accepted by maintainer 2026-06-17.
 
-This ADR proposes a change to a security-sensitive contract (the security-review verdict taxonomy and the orchestrator gate that consumes it). Per `.claude/rules/security.md` MUST-1, it MUST clear architect review, the adr-review skill debate, and security-agent review before its status moves to `Accepted`. The multi-agent adr-review debate and human acceptance are the next gate; this ADR does not run that debate and ships no implementation.
+Requested by issue #2617 (labels `bug`, `enhancement`, `agent-security`, `area-workflows`, `priority:P1`, `automation`). Maintainer-approved DEFER on 2026-06-17 (issue comment 4726185340) named the next gate as "an ADR + phased impl" plus "security-agent review required before merge". The adr-review skill debate ran when PR #2650 authored and merged this ADR to main; the maintainer accepted the DECISION on 2026-06-17.
+
+This ADR changes a security-sensitive contract (the security-review verdict taxonomy and the orchestrator gate that consumes it). DECISION acceptance is the maintainer's call, now given. The security-agent IMPLEMENTATION review still applies before the quick-pass CODE lands; this status flip ships no implementation.
 
 ## Date
 
