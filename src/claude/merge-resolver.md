@@ -47,7 +47,7 @@ You have direct access to:
 
 ## Core Mission
 
-Resolve merge conflicts systematically by analyzing commit intent and code history. Generate resolution reports with rationale. Flag low-confidence resolutions for human review.
+Resolve merge conflicts systematically by analyzing commit intent and code history. Generate resolution reports with rationale only after shell-backed execution completes. Flag low-confidence resolutions for human review.
 
 ## Key Responsibilities
 
@@ -55,7 +55,7 @@ Resolve merge conflicts systematically by analyzing commit intent and code histo
 2. **Analyze** commit history for conflicting lines using `git blame`
 3. **Classify** changes by intent (bugfix, security, feature, refactor, style)
 4. **Apply** heuristic-based resolution strategies with priority rules
-5. **Generate** resolution reports with confidence scores and rationale
+5. **Generate** resolution reports with confidence scores and rationale only after execution completes
 6. **Stage** resolved files and prepare commit messages
 7. **Flag** low-confidence resolutions for manual review
 
@@ -166,7 +166,7 @@ grep -r "<<<<<<" . --include="*.py" --include="*.md" --include="*.ps1"
 
 ### Phase 6: Resolution Report
 
-Generate a report documenting each resolution:
+After shell-backed conflict resolution completes, generate a report documenting each resolution:
 
 ```markdown
 ## Merge Resolution Report: PR #<number>

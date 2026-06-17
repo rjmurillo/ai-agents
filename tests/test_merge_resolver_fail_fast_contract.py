@@ -12,11 +12,11 @@ A plan is never a completion: an execution phase is only complete when a tool
 result in the same run proves it ran.
 
 This test pins that contract across the shared template, generated platform
-copies, the hand-maintained Claude source, and the skill. That prevents a future
-edit, manual sync, or regeneration from silently dropping it. If a platform path
-is added or removed, update ``AGENT_PATHS``.
+copies, installed agent copies, the hand-maintained Claude source, and the skill.
+That prevents a future edit, manual sync, or regeneration from silently dropping
+it. If a platform path is added or removed, update ``AGENT_PATHS``.
 
-Exit codes follow ADR-035 (pytest: 0 pass, 1 fail).
+Pytest controls this file's process exit code.
 """
 
 from __future__ import annotations
@@ -27,11 +27,14 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# The shared template generates VS Code and Copilot CLI copies via
+# The shared template generates VS Code and Copilot CLI source copies via
 # build/generate_agents.py. src/claude/merge-resolver.md is hand-maintained per
-# src/claude/AGENTS.md and must be synced manually.
+# src/claude/AGENTS.md. The .claude and .github installed copies are
+# hand-maintained install siblings and must be synced manually.
 AGENT_PATHS: tuple[Path, ...] = (
     REPO_ROOT / "templates/agents/merge-resolver.shared.md",
+    REPO_ROOT / ".claude/agents/merge-resolver.md",
+    REPO_ROOT / ".github/agents/merge-resolver.agent.md",
     REPO_ROOT / "src/claude/merge-resolver.md",
     REPO_ROOT / "src/copilot-cli/agents/merge-resolver.agent.md",
     REPO_ROOT / "src/vs-code-agents/merge-resolver.agent.md",
@@ -43,6 +46,7 @@ SKILL_PATH = REPO_ROOT / ".claude/skills/merge-resolver/SKILL.md"
 # behavioral requirement from issue #2646; matching is case-insensitive on the
 # rendered text so heading-case normalization does not break the assertion.
 PRECONDITION_HEADING = "execution capability precondition"
+PHASE_1_HEADING = "phase 1: context gathering"
 BLOCKED_FAIL_FAST = "return immediately with status [blocked]"
 NO_PLAN_AS_COMPLETION = "a plan is not a completion"
 ROUTE_BACK_TO_ORCHESTRATOR = "route execution back to the orchestrator"
@@ -62,9 +66,19 @@ def _read(path: Path) -> str:
 def test_carries_execution_capability_precondition(path: Path) -> None:
     """The fail-fast precondition heading appears before any merge work."""
     text = _read(path)
-    assert PRECONDITION_HEADING in text, (
+    precondition_index = text.find(PRECONDITION_HEADING)
+    phase_1_index = text.find(PHASE_1_HEADING)
+    assert precondition_index >= 0, (
         f"{path.relative_to(REPO_ROOT)} is missing the execution-capability "
         "precondition heading (issue #2646)"
+    )
+    assert phase_1_index >= 0, (
+        f"{path.relative_to(REPO_ROOT)} is missing the Phase 1 context heading "
+        "(issue #2646)"
+    )
+    assert precondition_index < phase_1_index, (
+        f"{path.relative_to(REPO_ROOT)} must place the execution-capability "
+        "precondition before Phase 1 merge work (issue #2646)"
     )
 
 

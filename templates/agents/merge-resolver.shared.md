@@ -103,7 +103,7 @@ For each manually-resolved conflict, analyze git blame and commit messages:
 
 ### Phase 6: Resolution Report
 
-Generate a report with:
+After shell-backed conflict resolution completes, generate a report with:
 
 - Files resolved (auto vs manual)
 - Strategy applied per file
