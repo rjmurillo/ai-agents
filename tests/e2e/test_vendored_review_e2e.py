@@ -147,7 +147,7 @@ def build_vendored_plugin(target: Path) -> Path:
     if CLAUDE_MD.exists():
         shutil.copy2(CLAUDE_MD, target / "CLAUDE.md")
 
-    manifest_dir = target / ".claude-plugin"
+    manifest_dir = target_claude / ".claude-plugin"
     manifest_dir.mkdir(exist_ok=True)
     (manifest_dir / "plugin.json").write_text(
         json.dumps(
@@ -359,7 +359,7 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
 def test_build_vendored_plugin_produces_loadable_tree(tmp_path: Path) -> None:
     """The fixture builder ships the review skill, lib, and a plugin manifest."""
     root = build_vendored_plugin(tmp_path / "p")
-    assert (root / ".claude-plugin" / "plugin.json").is_file()
+    assert (root / ".claude" / ".claude-plugin" / "plugin.json").is_file()
     assert (root / ".claude" / "skills" / "review" / "SKILL.md").is_file()
     assert (
         root / ".claude" / "lib" / "ai_review_common" / "verdict.py"
