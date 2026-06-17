@@ -13,18 +13,20 @@ instead of waiting for an advisory drift report nobody reads.
 
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-_SCRIPT = REPO_ROOT / "build" / "scripts" / "detect_agent_drift.py"
+_SCRIPTS_PATH = str(REPO_ROOT / "build" / "scripts")
 
-_spec = importlib.util.spec_from_file_location("detect_agent_drift", _SCRIPT)
-assert _spec is not None and _spec.loader is not None
-drift = importlib.util.module_from_spec(_spec)
-sys.modules["detect_agent_drift"] = drift
-_spec.loader.exec_module(drift)
+sys.path.insert(0, _SCRIPTS_PATH)
+try:
+    import detect_agent_drift as drift
+except ImportError as e:
+    raise ImportError("Failed to import detect_agent_drift from build/scripts") from e
+finally:
+    if _SCRIPTS_PATH in sys.path:
+        sys.path.remove(_SCRIPTS_PATH)
 
 _TEMPLATES = REPO_ROOT / "templates" / "agents"
 _CLAUDE_INSTALL = REPO_ROOT / ".claude" / "agents"

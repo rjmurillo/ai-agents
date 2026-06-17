@@ -89,12 +89,12 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 --fix .github/agents/critic.agent.md -> 0 error(s); .github/agents/**/*.agent.md is excluded by config (0 files linted)."
+        "Evidence": "npx markdownlint-cli2 --fix .github/agents/critic.agent.md -> exit 0, 0 files linted. The only changed Markdown file (.github/agents/critic.agent.md) is excluded by the pre-existing `ignores: .github/agents/**/*.agent.md` entry in .markdownlint-cli2.yaml (added in PR #847, tracked separately). No in-scope Markdown files were modified in this session; lint N/A."
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Pending commit in this session (see git log)."
+        "Evidence": "Two commits created in this session: 5888e26e4 (fix(critic): reconcile stale .github/agents/critic.agent.md to canonical) and 1448e5157 (fix(tests): strengthen critic parity tests to catch actual body drift)."
       },
       "validationPassed": {
         "level": "MUST",
@@ -124,6 +124,6 @@
       ]
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "1448e5157",
   "nextSteps": []
 }
