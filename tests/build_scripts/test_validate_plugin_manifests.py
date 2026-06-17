@@ -8,8 +8,11 @@ plus the Claude-specific manifest regression from issue #1833.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -109,6 +112,28 @@ def test_hooks_string_path_no_traversal(tmp_path: Path) -> None:
     target = _write(tmp_path, {"name": "p", "hooks": "./../hooks.json"})
     errors = vpm.validate_manifest(target)
     assert any("'..'" in e for e in errors)
+
+
+def test_hooks_string_ref_rejects_symlink_escape(tmp_path: Path) -> None:
+    """Resolved hooks path must stay inside the plugin root."""
+    plugin_root = tmp_path / "plugin-root"
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir(parents=True)
+    manifest = plugin_dir / "plugin.json"
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
+    outside = tmp_path / "outside-hooks.json"
+    outside.write_text(
+        json.dumps({"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}}),
+        encoding="utf-8",
+    )
+    try:
+        os.symlink(outside, plugin_root / "hooks.json")
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    errors = vpm.validate_manifest(manifest)
+
+    assert any("escapes the plugin root" in e for e in errors)
 
 
 def test_manifest_read_error_returns_clean_message(tmp_path: Path) -> None:
@@ -383,6 +408,21 @@ def test_find_manifests_skips_worktrees(tmp_path: Path) -> None:
     found = vpm.find_manifests(tmp_path)
     assert len(found) == 1
     assert "worktrees" not in str(found[0])
+
+
+def test_find_manifests_skips_dot_worktrees(tmp_path: Path) -> None:
+    """Top-level worktree dir is `.worktrees` (dot-prefixed); it must be pruned
+    too. Regression for #2621: a broken manifest in a sibling .worktrees/ checkout
+    blocked unrelated pushes because the exclusion set listed only "worktrees"."""
+    repo_manifest = tmp_path / "a" / ".claude-plugin" / "plugin.json"
+    repo_manifest.parent.mkdir(parents=True)
+    repo_manifest.write_text("{}", encoding="utf-8")
+    dot_worktree = tmp_path / ".worktrees" / "sibling" / ".claude-plugin" / "plugin.json"
+    dot_worktree.parent.mkdir(parents=True)
+    dot_worktree.write_text("{ broken json", encoding="utf-8")
+    found = vpm.find_manifests(tmp_path)
+    assert len(found) == 1
+    assert ".worktrees" not in str(found[0])
 
 
 def test_find_manifests_skips_pytest_tmp(tmp_path: Path) -> None:

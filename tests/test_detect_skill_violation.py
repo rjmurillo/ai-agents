@@ -225,6 +225,28 @@ class TestGetAllFiles:
         assert "worktrees" in SKIP_DIRS
         assert ".venv" in SKIP_DIRS
 
+    def test_skip_dirs_registers_dot_worktrees(self) -> None:
+        """SKIP_DIRS contains the dot-prefixed top-level git-worktree root.
+
+        os.walk prunes by basename. The repo top-level worktree root is
+        ".worktrees" (dot-prefixed), distinct from .claude/worktrees. Without
+        ".worktrees" the scanner descended into 40+ sibling checkouts and the
+        full scan exceeded the 30s budget (#2047 / #2621).
+        """
+        assert ".worktrees" in SKIP_DIRS
+
+    def test_prunes_top_level_dot_worktrees(self, tmp_path: Path) -> None:
+        """A top-level .worktrees/ sibling checkout is pruned, not scanned."""
+        wt = tmp_path / ".worktrees" / "pr-x" / "scripts"
+        wt.mkdir(parents=True)
+        (wt / "copy.py").write_text("gh pr create")
+        real = tmp_path / "scripts"
+        real.mkdir()
+        (real / "real.py").write_text("# real")
+        result = get_all_files(tmp_path)
+        assert "scripts/real.py" in result
+        assert not any("copy.py" in f for f in result)
+
 
 class TestCheckFileForViolations:
     """Tests for check_file_for_violations function."""

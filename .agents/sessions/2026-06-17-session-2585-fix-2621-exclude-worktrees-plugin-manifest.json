@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2585,
+    "date": "2026-06-17",
+    "branch": "fix/2621-manifest-validator-worktrees-scope",
+    "startingCommit": "ccf2020857",
+    "objective": "Fix #2621: exclude .worktrees from plugin-manifest validator discovery (keystone unblock for pushes)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "mcp__serena__initial_instructions invoked; project ai-agents activated this session"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena Instructions Manual read via initial_instructions"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md auto-loaded at SessionStart (read-only dashboard)"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ls .claude/skills/github/scripts/issue/ and pr/ enumerated"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-007 retrieval-led reasoning followed; usage-mandatory in memory-index"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/rules/* loaded at SessionStart; PROJECT-CONSTRAINTS honored"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "memory-index reviewed; read adr-retroactive-amendment-criteria and others"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2621-manifest-validator-worktrees-scope"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2621-manifest-validator-worktrees-scope"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ccf2020857"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart + sessionEnd MUSTs populated with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory tasks/issue-2621-worktrees-manifest-scope"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix over staged md -> 0 files, 0 errors (no md changed)"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This commit (fix #2621)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/build_scripts/test_validate_plugin_manifests.py -> 40 passed; validator exit 0"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Fix #2621: add '.worktrees' to excluded_dirs in build/scripts/validate_plugin_manifests.py find_manifests. Ran: uv run pytest tests/build_scripts/test_validate_plugin_manifests.py -> 40 passed. Mutation check: removing '.worktrees' makes new test fail (finds 2 manifests including the .worktrees one); restoring passes. Validator over repo -> exit 0, 3 manifests valid, 0 .worktrees paths.",
+      "files": [
+        "build/scripts/validate_plugin_manifests.py",
+        "tests/build_scripts/test_validate_plugin_manifests.py"
+      ],
+      "status": "complete",
+      "evidence": "pytest: 40 passed in 0.24s; mutation-checked; validator exit 0"
+    },
+    {
+      "action": "Same root cause as #2621 in scripts/detect_skill_violation.py SKIP_DIRS: pruned basename 'worktrees' but not dot-prefixed '.worktrees', so the scan walked 40+ sibling checkouts -> 33.9s, failing the 30s budget perf test (#2047) that hard-gates pre-push. Added '.worktrees' to SKIP_DIRS. Measured scan 33.9s -> 1.0s. Added regression tests test_skip_dirs_registers_dot_worktrees + test_prunes_top_level_dot_worktrees (mutation-checked: fail when '.worktrees' removed). uv run pytest -k worktree -> 5 passed.",
+      "files": [
+        "scripts/detect_skill_violation.py",
+        "tests/test_detect_skill_violation.py"
+      ],
+      "status": "complete",
+      "evidence": "scan 33.9s->1.0s; pytest 5 passed; mutation-checked; fixes #2047 perf test"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}

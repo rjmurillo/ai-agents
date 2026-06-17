@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2586,
+    "date": "2026-06-17",
+    "branch": "fix/2631-reviewer-stats-graphql-retry",
+    "startingCommit": "14bb688be5",
+    "objective": "fix #2631 bounded GraphQL retry on transient 5xx/429 in gh_graphql for Update Reviewer Signal Stats workflow"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active but language-server manager down (markdown LSP init timeout 235s); symbol tools unavailable this session, navigation via sed/grep with LSP_GATE_MODE=warn advisory"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "initial_instructions unavailable (LSP manager not initialized); proceeded with AGENTS.md + rules context"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No HANDOFF action required; isolated worktree for issue #2631 autofix"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill get_issue_context.py and session-init new_session_log.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/rules/* loaded via context (release-it.md, ci-scripts.md, code-quality.md)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "release-it.md integration-point retry rule and ADR-006 thin-workflow rule applied"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Relevant corrections surfaced by PreToolUse hook (uv run python, byte-level verification)"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2631-reviewer-stats-graphql-retry"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2631-reviewer-stats-graphql-retry"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status: 3 source files changed (api.py canonical+lib, test_github_core.py)"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "14bb688be5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix + regression tests + sync + gh act dry-run + mutation test complete"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena write_memory unavailable (LSP manager down); decision recorded in code comment in gh_graphql per search-before-building fallback"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files changed in the fix; markdownlint not required for code-only change"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "See endingCommit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest 220 passed; gh act dry-run job succeeded; mutation test confirmed guard bites"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T14:50:00Z",
+      "action": "Implement bounded GraphQL retry on transient 5xx/429 in gh_graphql (issue #2631)",
+      "evidence": "TDD red->green: 6 new retry tests in tests/test_github_core.py::TestGhGraphQL. Command: uv run python -m pytest tests/test_github_core.py tests/test_update_reviewer_signal_stats.py -q result: 220 passed. Mutation test: disabling _is_transient_graphql_error returned False -> 3 retry tests failed (guard bites), restored -> 11 passed. act verification: gh act -W .github/workflows/update-reviewer-stats.yml -j update-stats -n result: DRYRUN Job succeeded (real run needs secrets.BOT_PAT + live GraphQL, so retry contract verified by unit test). Complexity: gh_graphql ~7, helpers <=4, all <=60 lines.",
+      "files": [
+        "scripts/github_core/api.py",
+        ".claude/lib/github_core/api.py",
+        "tests/test_github_core.py"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
