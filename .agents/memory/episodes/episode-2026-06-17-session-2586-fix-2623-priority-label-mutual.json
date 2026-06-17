@@ -1,0 +1,35 @@
+{
+  "id": "episode-2026-06-17-session-2586-fix-2623-priority-label-mutual",
+  "session": "2026-06-17-session-2586-fix-2623-priority-label-mutual",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "fix #2623 priority label mutual exclusivity + dual-priority validator (part 1); flag sweep-intent governance (part 2) for ADR",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Implemented #2623 part 1: priority-label mutual exclusivity in set_issue_labels.py + check_dual_priority_labels.py validator. TDD red/green/mutate/restore.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "test",
+      "content": "uv run python -m pytest tests/skills/github/test_set_issue_labels.py tests/test_check_dual_priority_labels.py -> 21 passed. pytest result: 21 passed in 0.20s. Mutation of compute_priority_removals (not in -> in) caused 3 tests to fail, restored to passed. Mutation of dual-priority threshold (<=1 -> <=2) caused 1 test to fail, restored to passed.",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 0,
+    "files_changed": 2
+  },
+  "lessons": []
+}
