@@ -61,11 +61,7 @@ _PIN_RE = re.compile(
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$")
 
 _DEFAULT_ACTION = (
-    Path(__file__).resolve().parents[2]
-    / ".github"
-    / "actions"
-    / "ai-review"
-    / "action.yml"
+    Path(__file__).resolve().parents[2] / ".github" / "actions" / "ai-review" / "action.yml"
 )
 
 
@@ -92,9 +88,7 @@ def extract_pinned_version(action_path: Path) -> str:
     text = action_path.read_text(encoding="utf-8")
     match = _PIN_RE.search(text)
     if not match:
-        raise VersionPinError(
-            f"no COPILOT_VERSION pin found in {action_path}"
-        )
+        raise VersionPinError(f"no COPILOT_VERSION pin found in {action_path}")
     return match.group(1)
 
 
@@ -106,7 +100,7 @@ def check_action(action_path: Path) -> int:
             resolved_path = (repo_root / action_path).resolve()
             resolved_path.relative_to(repo_root)
             action_path = resolved_path
-        except (ValueError, RuntimeError):
+        except ValueError, RuntimeError:
             print(
                 f"::error::Path traversal attempt detected: {action_path}",
                 file=sys.stderr,

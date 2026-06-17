@@ -15,12 +15,18 @@ from pathlib import Path
 import pytest
 
 _MODULE_DIR = str(Path(__file__).resolve().parents[1] / "scripts" / "validation")
+# Capture the occurrence count before our insert so the regression test can
+# compare counts rather than absolute presence. Other test files in the repo
+# also insert scripts/validation without cleanup; an absolute "not in" check
+# becomes a false failure when those tests run in the same pytest session.
+_path_count_before = sys.path.count(_MODULE_DIR)
 sys.path.insert(0, _MODULE_DIR)
 try:
     import check_copilot_version_pin as mod
 finally:
     if _MODULE_DIR in sys.path:
         sys.path.remove(_MODULE_DIR)
+_path_count_after = sys.path.count(_MODULE_DIR)
 
 
 def _write_action(tmp_path: Path, version_line: str) -> Path:
@@ -85,11 +91,7 @@ def test_repo_action_pin_is_clean() -> None:
     version (e.g. reverts to 0.0.397) before the change reaches CI.
     """
     repo_action = (
-        Path(__file__).resolve().parents[1]
-        / ".github"
-        / "actions"
-        / "ai-review"
-        / "action.yml"
+        Path(__file__).resolve().parents[1] / ".github" / "actions" / "ai-review" / "action.yml"
     )
     assert mod.check_action(repo_action) == mod.EXIT_OK
 
@@ -99,8 +101,14 @@ def test_main_default_targets_repo_action() -> None:
 
 
 def test_sys_path_is_clean_after_import() -> None:
-    """The try/finally block must remove _MODULE_DIR from sys.path after import."""
-    assert _MODULE_DIR not in sys.path
+    """The try/finally block must not permanently add _MODULE_DIR to sys.path.
+
+    Compares occurrence counts captured at module import time rather than
+    checking absolute presence. Other test files add scripts/validation to
+    sys.path without cleanup; an absolute ``not in`` check would be a false
+    failure whenever those tests run in the same session.
+    """
+    assert _path_count_after == _path_count_before
 
 
 def test_path_traversal_rejected() -> None:
