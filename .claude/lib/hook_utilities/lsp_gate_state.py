@@ -72,6 +72,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 # Gate thresholds (ADR-062 Section 3; canonical names the guards consume).
 NAV_REQUIRED = 2
@@ -124,7 +125,7 @@ def state_path(cwd: str) -> Path:
     return _state_dir() / f"lsp-gate-{_cwd_key(cwd)}.json"
 
 
-def _default_state(cwd: str) -> dict:
+def _default_state(cwd: str) -> dict[str, Any]:
     """Return the needs-warmup default state for ``cwd`` (kit default shape)."""
     return {
         "cwd": cwd,
@@ -136,7 +137,7 @@ def _default_state(cwd: str) -> dict:
     }
 
 
-def read_state(cwd: str) -> dict:
+def read_state(cwd: str) -> dict[str, Any]:
     """Read gate state for ``cwd``. Never raises.
 
     A missing or unreadable or malformed state file returns the needs-warmup
@@ -155,7 +156,7 @@ def read_state(cwd: str) -> dict:
     return _normalize_state(data, cwd)
 
 
-def _normalize_state(data: dict, cwd: str) -> dict:
+def _normalize_state(data: dict[str, Any], cwd: str) -> dict[str, Any]:
     """Coerce a loaded state dict to the canonical shape and types."""
     read_files = data.get("read_files")
     if not isinstance(read_files, list):
@@ -183,7 +184,7 @@ def _coerce_int(value: object) -> int:
     return result if result >= 0 else 0
 
 
-def write_state(cwd: str, state: dict) -> bool:
+def write_state(cwd: str, state: dict[str, Any]) -> bool:
     """Persist ``state`` for ``cwd``. Never raises. Returns success.
 
     Creates the state directory if needed. On any filesystem error returns
@@ -213,7 +214,7 @@ def reset_state(cwd: str) -> bool:
     return True
 
 
-def record_warmup(cwd: str) -> dict:
+def record_warmup(cwd: str) -> dict[str, Any]:
     """Record that the first warmup LSP call happened. Returns the new state.
 
     Mirrors the kit's ``if (!existing.warmup_done)`` branch: sets the flag and
@@ -226,7 +227,7 @@ def record_warmup(cwd: str) -> dict:
     return state
 
 
-def record_nav(cwd: str) -> dict:
+def record_nav(cwd: str) -> dict[str, Any]:
     """Record one LSP navigation call. Returns the new state.
 
     Mirrors the kit's tracker: the first qualifying LSP call performs warmup
@@ -416,7 +417,7 @@ def normalize_path(file_path: str, cwd: str) -> str:
         return file_path
 
 
-def record_read(cwd: str, file_path: str) -> dict:
+def record_read(cwd: str, file_path: str) -> dict[str, Any]:
     """Record a gated Read of ``file_path``. Returns the new state.
 
     Appends the file to ``read_files`` (deduplicated by normalized path) and
