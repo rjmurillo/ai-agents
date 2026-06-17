@@ -9,7 +9,6 @@ every fail-open degrade path (filesystem error never raises).
 from __future__ import annotations
 
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -81,7 +80,7 @@ class TestFailOpen:
         assert emitted is True
         assert "LSP runtime is down" in capsys.readouterr().err
 
-    def test_state_dir_falls_back_when_home_raises(self, monkeypatch):
+    def test_state_dir_falls_back_when_home_raises(self, monkeypatch, tmp_path):
         """_state_dir() uses tempfile.gettempdir() when XDG_STATE_HOME is absent
         and Path.home() raises RuntimeError (sandboxed/CI/no-homedir environments).
         """
@@ -90,11 +89,13 @@ class TestFailOpen:
 
         monkeypatch.delenv("XDG_STATE_HOME", raising=False)
         monkeypatch.setattr(Path, "home", staticmethod(_raise))
+        # Route tempfile fallback to tmp_path to keep tests hermetic
+        monkeypatch.setattr(lsp_health.tempfile, "gettempdir", lambda: str(tmp_path))
         state = lsp_health._state_dir()
-        assert str(state).startswith(tempfile.gettempdir())
+        assert str(state).startswith(str(tmp_path))
         assert state.name == lsp_health._STATE_SUBDIR
 
-    def test_warn_once_never_raises_when_home_fails(self, monkeypatch, capsys):
+    def test_warn_once_never_raises_when_home_fails(self, monkeypatch, tmp_path, capsys):
         """warn_once_lsp_down() falls back gracefully when Path.home() raises
         RuntimeError; the warning is still emitted (fail-open, never raises).
         """
@@ -103,6 +104,8 @@ class TestFailOpen:
 
         monkeypatch.delenv("XDG_STATE_HOME", raising=False)
         monkeypatch.setattr(Path, "home", staticmethod(_raise))
+        # Route tempfile fallback to tmp_path to avoid stale markers from prior runs
+        monkeypatch.setattr(lsp_health.tempfile, "gettempdir", lambda: str(tmp_path))
         emitted = lsp_health.warn_once_lsp_down("lsp-read-guard", str(REPO_ROOT))
         assert emitted is True
         assert "LSP runtime is down" in capsys.readouterr().err
