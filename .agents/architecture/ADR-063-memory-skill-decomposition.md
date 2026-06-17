@@ -2,9 +2,14 @@
 
 ## Status
 
-Proposed
+Accepted
 
-status: proposed
+Accepted by maintainer 2026-06-17. The maintainer authorization satisfies the
+adr-review gate for this status flip; this acceptance records the human decision
+and does not append a fabricated debate log. Architect-review record:
+`.agents/critique/ADR-063-debate-log.md`.
+
+status: accepted
 
 ## Date
 
