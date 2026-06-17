@@ -122,6 +122,15 @@
       ],
       "status": "complete",
       "evidence": "pytest: 40 passed in 0.24s; mutation-checked; validator exit 0"
+    },
+    {
+      "action": "Same root cause as #2621 in scripts/detect_skill_violation.py SKIP_DIRS: pruned basename 'worktrees' but not dot-prefixed '.worktrees', so the scan walked 40+ sibling checkouts -> 33.9s, failing the 30s budget perf test (#2047) that hard-gates pre-push. Added '.worktrees' to SKIP_DIRS. Measured scan 33.9s -> 1.0s. Added regression tests test_skip_dirs_registers_dot_worktrees + test_prunes_top_level_dot_worktrees (mutation-checked: fail when '.worktrees' removed). uv run pytest -k worktree -> 5 passed.",
+      "files": [
+        "scripts/detect_skill_violation.py",
+        "tests/test_detect_skill_violation.py"
+      ],
+      "status": "complete",
+      "evidence": "scan 33.9s->1.0s; pytest 5 passed; mutation-checked; fixes #2047 perf test"
     }
   ],
   "endingCommit": "",

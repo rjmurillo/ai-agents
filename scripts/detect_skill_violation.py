@@ -62,11 +62,13 @@ VALID_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 #
 # These directories hold no source the scanner needs and dominate the cost
 # as the checkout grows. os.walk prunes by directory basename, so the bare
-# name "worktrees" prunes the whole .claude/worktrees subtree. When the repo
+# name "worktrees" prunes the .claude/worktrees subtree and ".worktrees"
+# prunes the top-level git-worktree root (a 40+ checkout tree; #2047/#2621). When the repo
 # grows, add hot directories here rather than widening the walk.
 SKIP_DIRS = frozenset(
     {
         ".git",
+        ".worktrees",
         "node_modules",
         ".venv",
         "venv",
