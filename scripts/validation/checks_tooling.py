@@ -317,3 +317,21 @@ def validate_agent_drift(repo_root: Path) -> bool:
         ["pwsh", "-NoProfile", "-File", str(legacy)]
     )
     return exit_code == 0
+
+
+def validate_copilot_version_pin(repo_root: Path) -> bool:
+    """Guard the pinned @github/copilot CLI version (Issue #2630).
+
+    Thin wrapper over ``check_copilot_version_pin.check_action``: fails the gate
+    when the pin in ``.github/actions/ai-review/action.yml`` is missing,
+    unparseable, or on the known-bad list (seed: 0.0.397). The action is absent
+    in downstream installs, so SKIP rather than FAIL when it is not present.
+    """
+    from check_copilot_version_pin import EXIT_OK, check_action
+
+    action = repo_root / ".github" / "actions" / "ai-review" / "action.yml"
+    if not action.exists():
+        raise MissingScriptSkip(
+            "ai-review/action.yml not present (downstream install); nothing to pin-check"
+        )
+    return check_action(action) == EXIT_OK

@@ -221,6 +221,35 @@ def _fetch_pr_state(pr: int, repo_flag: str, output_format: str) -> dict:
     return json.loads(pr_result.stdout)
 
 
+def _reject_unknown_merge_state(pr_data: dict, pr: int, output_format: str) -> None:
+    """Reject a direct merge while GitHub is still calculating mergeability.
+
+    Issue #2637: after a base update, GitHub reports mergeable=UNKNOWN and
+    mergeStateStatus=UNKNOWN while it recalculates. The completion gate
+    (.claude/skills/github/scripts/pr/test_pr_merge_ready.py) rejects this
+    state with the reason "Merge status is being calculated" (its
+    ``_evaluate_pr_state`` appends that reason for ``mergeable == "UNKNOWN"``),
+    so a direct merge must reject it too instead of merging a PR its own gate
+    just refused. Exit code 3 (ADR-035 external/transient): the caller can
+    retry once GitHub settles. Callers that want auto-merge pass --auto, which
+    skips this check and hands the decision to GitHub's own gate.
+    """
+    mergeable = pr_data.get("mergeable") or ""
+    merge_state = pr_data.get("mergeStateStatus") or ""
+    if mergeable != "UNKNOWN" and merge_state != "UNKNOWN":
+        return
+    _emit_error(
+        f"PR #{pr} merge status is being calculated by GitHub "
+        f"(mergeable={mergeable or 'UNKNOWN'}, "
+        f"mergeStateStatus={merge_state or 'UNKNOWN'}). "
+        "Retry once it settles, or use --auto to defer to GitHub's gate.",
+        3,
+        "ApiError",
+        output_format,
+        pr,
+    )
+
+
 def _build_merge_args(args: argparse.Namespace, pr: int, repo_flag: str) -> list[str]:
     """Assemble the gh pr merge argv from parsed args."""
     merge_args = [
@@ -321,6 +350,11 @@ def main(argv: list[str] | None = None) -> int:
             output_format,
             pr,
         )
+
+    # Issue #2637: reject UNKNOWN mergeability on a direct merge. --auto is
+    # exempt: it hands the merge decision to GitHub's own gate.
+    if not args.auto:
+        _reject_unknown_merge_state(pr_data, pr, output_format)
 
     merge_args = _build_merge_args(args, pr, repo_flag)
     merge_result = subprocess.run(

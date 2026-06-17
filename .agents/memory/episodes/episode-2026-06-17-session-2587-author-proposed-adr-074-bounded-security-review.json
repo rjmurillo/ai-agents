@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-06-17-session-2587-author-proposed-adr-074-bounded-security-review",
+  "session": "2026-06-17-session-2587-author-proposed-adr-074-bounded-security-review",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Author Proposed ADR-074 for bounded security-review quick-pass mode (diff-scope classifier, budget watchdog, QUICK_PASS/NEEDS_DEEP verdicts) per issue #2617",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR-074 authoring + architect/adr-review routing decision",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validation evidence",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: e6d1f3d34a",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

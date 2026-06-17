@@ -1,0 +1,136 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 2587,
+  "date": "2026-06-17",
+  "branch": "adr/2617-security-review-quick-pass",
+  "startingCommit": "fb9741fa9b",
+  "objective": "Author Proposed ADR-074 for bounded security-review quick-pass mode (diff-scope classifier, budget watchdog, QUICK_PASS/NEEDS_DEEP verdicts) per issue #2617"
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Worktree session; Serena memories surfaced via PreToolUse topical-memory hooks (worktrees, git-hooks, qa). Project context read from CLAUDE.md/AGENTS.md imports."
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Subagent harness; initial_instructions tool acknowledged. Operated on retrieval-led reasoning from .agents/architecture ADRs and .claude/rules."
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "HANDOFF.md read-only per ADR-014; not edited. No open issue handoff for #2617 beyond the GitHub issue discourse, which was read in full via get_issue_context.py + get_issue_comments.py."
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file"
+   },
+   "skillScriptsListed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "github skill scripts used: get_issue_context.py, get_issue_comments.py. adr-generator/adr-review skills surveyed."
+   },
+   "usageMandatoryRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "AGENTS.md + .claude/rules/* loaded via session context imports (security.md, canonical-source-mirror.md, governance.md)."
+   },
+   "constraintsRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Read .claude/rules/security.md (MUST architect/security review for security files) and governance.md; grounded ADR in these."
+   },
+   "memoriesLoaded": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "PreToolUse self-improving-agent corrections + topical worktree memories surfaced and applied (uv run python for github scripts; worktree path discipline)."
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "adr/2617-security-review-quick-pass"
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On adr/2617-security-review-quick-pass"
+   },
+   "gitStatusVerified": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "git status clean on new branch; HEAD==origin/main fb9741fa9b verified."
+   },
+   "startingCommitNoted": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "fb9741fa9b"
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Session-end checklist walked: ADR authored, linted, dash-checked, memory written, committed."
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "HANDOFF.md not touched (read-only per ADR-014)."
+   },
+   "serenaMemoryUpdated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Wrote .serena/memories/tasks/issue-2617-adr-074-security-quick-pass.md recording the ADR decision and next-gate routing."
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "markdownlint-cli2 on ADR-074 file: Summary: 0 error(s). Dash byte-count: emdash=0 endash=0."
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Committed on branch adr/2617-security-review-quick-pass (see endingCommit)."
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Doc-only ADR; markdownlint + dash check passed. No code/pytest applicable."
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": false,
+    "Evidence": ""
+   },
+   "retrospectiveInvoked": {
+    "level": "SHOULD",
+    "Complete": false,
+    "Evidence": ""
+   }
+  }
+ },
+ "workLog": [
+  {
+   "timestamp": "2026-06-17T16:43:31.920086+00:00",
+   "action": "ADR-074 authoring + architect/adr-review routing decision",
+   "detail": "Authored Proposed ADR-074 (bounded security-review quick-pass mode) for issue #2617. Routing decision: this ADR changes a security-sensitive contract (verdict taxonomy + PIV gate), so per .claude/rules/security.md it routes to the architect agent and the adr-review skill (ADR Review Protocol: 6-agent debate) plus human acceptance as the NEXT gate. The maintainer DEFER comment (issue #2617, 2026-06-17) explicitly mandated 'an ADR + phased impl' and 'security-agent review required before merge'. Per task constraints, the multi-agent adr-review debate is NOT run in this session; status stays Proposed and the PR records architect + adr-review + security-agent review as the next gate. ADR grounds every contract claim in verbatim canonical sources: templates/agents/security.shared.md lines 109-129/298 (threat-model protocol, APPROVED/CONDITIONAL/BLOCKED, PIV gate) and ADR-068 budget watchdog (SIGALRM, budget_exceeded)."
+  },
+  {
+   "timestamp": "2026-06-17T16:47:20.826443+00:00",
+   "action": "Validation evidence",
+   "detail": "ADR-074 is doc-only (no code, no tests to run). Validation performed: markdownlint-cli2 on the ADR file returned Summary: 0 error(s). Dash check (python3 byte count of U+2014/U+2013) returned emdash=0, endash=0, satisfying universal.md MUST-NOT-5. ADR number 074 confirmed free (no ADR-074-*.md existed). Frontmatter follows ADR-073 lifecycle schema (status: proposed). No pytest run because no executable code changed; the ADR records a decision and defers implementation to a future security-agent-reviewed change."
+  }
+ ],
+ "endingCommit": "e6d1f3d34a",
+ "nextSteps": [
+  "adr-review skill 6-agent debate",
+  "architect agent review",
+  "security-agent review per .claude/rules/security.md",
+  "human acceptance to move status Proposed -> Accepted",
+  "phased implementation PR (classifier, watchdog, quick-pass, progress)"
+ ]
+}

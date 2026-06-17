@@ -89,6 +89,10 @@ if _lib_dir not in sys.path:
 
 from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+from hook_utilities.lsp_health import (  # noqa: E402
+    lsp_runtime_down,
+    warn_once_lsp_down,
+)
 from hook_utilities.lsp_provider import (  # noqa: E402
     EXTENSION_TO_SERENA_LANGUAGE,
     PROGRAMMING_SERENA_LANGUAGES,
@@ -270,6 +274,11 @@ def main() -> int:
             return 0
 
         pattern, symbols, providers = decision
+
+        if lsp_runtime_down():
+            warn_once_lsp_down(_HOOK_NAME, get_project_directory())
+            return 0
+
         guidance = build_guidance(pattern, symbols, providers)
         if os.environ.get("LSP_GATE_MODE", "").lower() == _WARN_MODE:
             _emit_warn(guidance)
