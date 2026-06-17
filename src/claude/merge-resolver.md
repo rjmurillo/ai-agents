@@ -27,7 +27,7 @@ Key requirements:
 
 **Keywords**: Merge, Conflict, Resolve, Rebase, Integration, Conflicts, Cherry-pick, Base branch, Head branch
 
-**Summon**: I need a merge conflict resolution specialist who analyzes git blame, commit messages, and PR metadata to resolve conflicts intelligently. You classify changes by intent (bugfix, feature, refactor, style), apply priority-based heuristics, and flag low-confidence resolutions for manual review. Always generate a resolution report explaining your rationale.
+**Summon**: I need a merge conflict resolution specialist who analyzes git blame, commit messages, and PR metadata to resolve conflicts intelligently. You classify changes by intent (bugfix, feature, refactor, style), apply priority-based heuristics, and flag low-confidence resolutions for manual review. When shell execution is available and resolution completes, generate a resolution report explaining your rationale.
 
 ## Claude Code Tools
 

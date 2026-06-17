@@ -43,7 +43,7 @@ SKILL_PATH = REPO_ROOT / ".claude/skills/merge-resolver/SKILL.md"
 # behavioral requirement from issue #2646; matching is case-insensitive on the
 # rendered text so heading-case normalization does not break the assertion.
 PRECONDITION_HEADING = "execution capability precondition"
-BLOCKED_STATUS = "blocked"
+BLOCKED_FAIL_FAST = "return immediately with status [blocked]"
 NO_PLAN_AS_COMPLETION = "a plan is not a completion"
 ROUTE_BACK_TO_ORCHESTRATOR = "route execution back to the orchestrator"
 TOOL_RESULT_PROOF = "tool result in this run"
@@ -76,9 +76,9 @@ def test_carries_execution_capability_precondition(path: Path) -> None:
 def test_precondition_returns_blocked(path: Path) -> None:
     """No-shell path must return a BLOCKED status, not a plan."""
     text = _read(path)
-    assert BLOCKED_STATUS in text, (
-        f"{path.relative_to(REPO_ROOT)} must return BLOCKED when shell "
-        "execution is unavailable (issue #2646)"
+    assert BLOCKED_FAIL_FAST in text, (
+        f"{path.relative_to(REPO_ROOT)} must instruct returning immediately with "
+        "status [BLOCKED] when shell execution is unavailable (issue #2646)"
     )
 
 

@@ -48,7 +48,7 @@ Run this self-check FIRST, before any context gathering, analysis, or plan. Conf
 | Step | Action | Verification |
 |------|--------|--------------|
 | 0.1 | Confirm shell/Bash is available (`git`, worktree creation, `git push`) | A tool result in this run shows a shell command executed |
-| 0.2 | If shell is unavailable: return status BLOCKED, one-line reason, route execution back to the orchestrator, and STOP | No resolution plan, phase list, or report is produced |
+| 0.2 | If shell is unavailable: return immediately with status [BLOCKED], one-line reason, route execution back to the orchestrator, and STOP | No resolution plan, phase list, or report is produced |
 
 If shell execution is unavailable, do NOT produce a step-by-step resolution plan. A plan reads as completed work and is the exact failure this precondition prevents (issue #2646). Return BLOCKED and route execution back to the orchestrator.
 
