@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2587,
+    "date": "2026-06-17",
+    "branch": "chore/1949-m4-overlap-eval",
+    "startingCommit": "fb9741fa9b",
+    "objective": "M4: live pairwise skill-overlap eval for #1949 (curating-memories x memory-enhancement, exploring-knowledge-graph x memory)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena memory topical hints surfaced via PreToolUse hooks; worktree-scoped LSP active. Read-led reasoning used (issue context, eval script, SKILL.md descriptions, plan file)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Operated under retrieval-led reasoning: read issue/comments, eval script classify_overlap logic, pairs file, plan Decision Log before acting."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Issue #1949 carries its own handoff trail in 8 comments (latest 2026-06-17 NEEDS-HUMAN). Read in full before acting."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used scripts/eval/eval-skill-overlap.py (the M4 evaluator) and github issue scripts; listed scripts/eval/ contents."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-first honored: github scripts for issue read/comment, eval harness for the run, no raw gh where a script exists."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Followed canonical-source-mirror (fixed generator not artifact), data-intensive-applications (content vs metadata SoR framing in analysis), evidence-rigor (no hand-curated verdicts)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "eval-harness-observations.md and knowledge-integration-observations.md surfaced and applied (env-from-.env, build_report_md path)."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "chore/1949-m4-overlap-eval"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On chore/1949-m4-overlap-eval"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at start on origin/main HEAD fb9741fa9b; branch created off it."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fb9741fa9b"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUSTs populated with honest evidence in this entry."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote decision memory m4-overlap-verdicts-1949 capturing live verdicts and the moderate-band reasoning."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 on .agents/analysis/skill-overlap-2026-06-17.md + REPORT.md = 0 errors after generator fix."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in atomic <=5-file commits, Refs #1949, Co-Authored-By trailer."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_eval_skill_overlap.py = 55 passed; mutate-confirm red/green/restore verified."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Plan M4 milestone, objectives checkbox, blocker #1, Decision Log updated."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #1949 + full discourse (8 comments). Confirmed blocker #1932 shipped (PR #2336), dry-run report at .agents/analysis/skill-overlap-2026-06-05.md, standing verdict NEEDS-HUMAN on missing ANTHROPIC_API_KEY.",
+      "result": "Found ANTHROPIC_API_KEY present in repo-root .env, unblocking the live run that prior triage called blocked."
+    },
+    {
+      "step": "Ran scripts/eval/eval-skill-overlap.py --dry-run on the two M4 pairs.",
+      "result": "2 pairs validated, 96 calls / ~$3.02 estimate, exit 0."
+    },
+    {
+      "step": "Ran the live scored eval (key sourced from .env), run-id m4-overlap-1949-2026-06-17, model claude-sonnet-4-6.",
+      "result": "Pair 1 curating-memories x memory-enhancement = DISTINCT. Pair 2 exploring-knowledge-graph x memory = SUBSUMED (memory covering). 96 API calls, exit 0. Artifacts at evals/reports/overlap-m4-overlap-1949-2026-06-17/."
+    },
+    {
+      "step": "Wrote scored analysis report .agents/analysis/skill-overlap-2026-06-17.md applying the 80/50 triage thresholds; Pair 2 60% one-way coverage lands in moderate band -> REWRITE boundary, not delete. Updated plan Decision Log (AC6).",
+      "result": "AC1, AC2, AC3, AC6 satisfied. AC4 (FOLD) not triggered. AC5 (boundary statements) queued as follow-up."
+    },
+    {
+      "step": "TDD-fixed a latent generator defect in build_report_md: trailing blank line produced MD012/MD047 lint failure in the committed REPORT.md. Wrote failing test test_build_report_md_ends_with_single_newline_no_double_blank, fixed writer to pop trailing empties, mutate-confirmed (red without fix, green with, restored).",
+      "result": "uv run pytest tests/test_eval_skill_overlap.py = 55 passed. markdownlint-cli2 on the regenerated REPORT.md + the analysis = 0 errors."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Follow-up PR (AC5): add explicit boundary statements to curating-memories + memory-enhancement SKILL.md, and to exploring-knowledge-graph + memory (memory=Tier1 flat recall + tier router; exploring=multi-hop relation traversal).",
+    "Confirmatory Pair 2 eval after the boundary rewrite: if cross-coverage drops below 50% the rewrite worked (KEEP both); if it stays >=80% exploring-knowledge-graph becomes a real FOLD candidate into memory's deep tier (AC4)."
+  ]
+}
