@@ -70,6 +70,17 @@ class TestStatePath:
         monkeypatch.setattr(lsp_gate_state.Path, "home", classmethod(lambda cls: fake_home))
         assert ".cache/ai-agents-lsp-gate" in str(state_path(_CWD))
 
+    def test_state_dir_falls_back_when_home_raises(self, monkeypatch, tmp_path):
+        def _raise():
+            raise RuntimeError("Cannot determine home directory")
+
+        monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+        monkeypatch.setattr(lsp_gate_state.Path, "home", staticmethod(_raise))
+        monkeypatch.setattr(lsp_gate_state.tempfile, "gettempdir", lambda: str(tmp_path))
+        path = state_path(_CWD)
+        key = lsp_gate_state._cwd_key(_CWD)
+        assert str(path) == f"{tmp_path}/.cache/ai-agents-lsp-gate/lsp-gate-{key}.json"
+
     def test_distinct_cwds_distinct_files(self):
         assert state_path("/a") != state_path("/b")
 
@@ -450,4 +461,3 @@ class TestHasConflictMarkersHelper:
         target = tmp_path / "f.py"
         target.write_text("<<<<<<< HEAD\n" + ("x = 1\n" * 100), encoding="utf-8")
         assert lsp_gate_state._has_conflict_markers(str(target)) is True
-

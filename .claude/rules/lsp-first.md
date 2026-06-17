@@ -59,6 +59,16 @@ re-activate it: `mcp__serena__activate_project` then
 an advisory. The guards fail open: when no LSP is reachable they allow the raw
 tool rather than block.
 
+When the language server is configured but down or uninitialized (for example a
+markdown LSP that times out at startup), `detect_providers` still reports the
+provider as available (it is a config-only check), so the read, grep, and
+pre-delegation guards would otherwise hard-block native Read/Edit/Grep. Set
+`LSP_DOWN=true` to signal the runtime is down: the guards then ALLOW native tools
+and emit a one-time warning instead of blocking, until the language server
+recovers (issue #2622). Unlike `SKIP_LSP_GATE` (which disables the gate
+entirely), `LSP_DOWN` only relaxes the gate while the LSP cannot serve symbol
+queries; it is the graceful-degradation path, not a kill switch.
+
 During a merge or rebase, the read gate bypasses automatically for issue #2454.
 Either of these conditions skips the gate for the in-flight file: (a)
 `MERGE_HEAD`, `rebase-merge`, or `rebase-apply` exists in the active git admin

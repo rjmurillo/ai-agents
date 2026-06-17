@@ -490,6 +490,74 @@ class TestEvaluateTiers:
 
 
 # ---------------------------------------------------------------------------
+# LSP runtime down: fail-open (issue #2622)
+# ---------------------------------------------------------------------------
+
+
+class TestLspRuntimeDownFailOpen:
+    """When the LSP runtime is down (LSP_DOWN set), the guard allows + warns once.
+
+    The markdown language server can time out at startup while config still lists
+    it, so detect_providers reports "available" and the guard would hard-block
+    Read/Edit/Grep. With the explicit LSP-down signal set, every block tier must
+    degrade to ALLOW with a one-time warning instead (ADR-062 Section 5).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _isolated_marker(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_warmup_block_allows_when_lsp_down(
+        self, mock_state, _mock_providers, monkeypatch, capsys
+    ):
+        monkeypatch.setenv("LSP_DOWN", "true")
+        mock_state.return_value = _state(warmup_done=False)
+        code, msg = guard.evaluate(PY_TARGET, str(REPO_ROOT))
+        assert code == 0
+        assert msg is None
+        assert "LSP runtime is down" in capsys.readouterr().err
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_hard_block_allows_when_lsp_down(
+        self, mock_state, _mock_providers, monkeypatch, capsys
+    ):
+        monkeypatch.setenv("LSP_DOWN", "true")
+        mock_state.return_value = _state(
+            warmup_done=True, nav_count=0, read_files=["a.py", "b.py", "c.py"]
+        )
+        code, msg = guard.evaluate(PY_TARGET, str(REPO_ROOT))
+        assert code == 0
+        assert msg is None
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_warning_emitted_once_across_calls(
+        self, mock_state, _mock_providers, monkeypatch, capsys
+    ):
+        monkeypatch.setenv("LSP_DOWN", "true")
+        mock_state.return_value = _state(warmup_done=False)
+        guard.evaluate(PY_TARGET, str(REPO_ROOT))
+        first = capsys.readouterr().err
+        guard.evaluate(PY_TARGET, str(REPO_ROOT))
+        second = capsys.readouterr().err
+        assert "LSP runtime is down" in first
+        assert "LSP runtime is down" not in second
+
+    @patch.object(guard, "detect_providers", return_value=["serena"])
+    @patch.object(guard, "read_state")
+    def test_lsp_up_still_blocks(self, mock_state, _mock_providers, monkeypatch):
+        # Negative control: with LSP_DOWN unset, the warmup tier still blocks.
+        monkeypatch.delenv("LSP_DOWN", raising=False)
+        mock_state.return_value = _state(warmup_done=False)
+        code, msg = guard.evaluate(PY_TARGET, str(REPO_ROOT))
+        assert code == 2
+        assert msg is not None
+
+
+# ---------------------------------------------------------------------------
 # main: dispatch, kill switch, fail-open paths
 # ---------------------------------------------------------------------------
 
