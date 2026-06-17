@@ -97,6 +97,7 @@ if _lib_dir not in sys.path:
 
 from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.lsp_gate_state import reset_state  # noqa: E402
+from hook_utilities.lsp_health import clear_lsp_down_marker  # noqa: E402
 
 
 def main() -> int:
@@ -114,9 +115,11 @@ def main() -> int:
         project_dir = get_project_directory()
 
         ok = reset_state(project_dir)
+        marker_ok = clear_lsp_down_marker(project_dir)
         mode = os.environ.get("LSP_GATE_MODE", "block")
         print(
-            f"lsp-session-reset: reset={ok} mode={mode} key=sha256(project_dir)[:16]",
+            f"lsp-session-reset: reset={ok} marker_cleared={marker_ok} "
+            f"mode={mode} key=sha256(project_dir)[:16]",
             file=sys.stderr,
         )
         return 0
