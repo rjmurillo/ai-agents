@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2586,
+    "date": "2026-06-17",
+    "branch": "fix/2641-regenerate-critic-github-agent",
+    "startingCommit": "14bb688be5",
+    "objective": "fix #2641 reconcile stale .github/agents/critic.agent.md to canonical (asymmetry framing); add critic install-parity drift regression test"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active this session; LSP language-server was degraded (markdown server timeout) so symbol reads fell back to file reads, noted in workLog."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP available; initial_instructions context loaded via session bootstrap."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue #2641 context + 5 comments via github skill scripts; build/AGENTS.md Hand-Maintained Agent Copies section read for the generator contract."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/get_issue_context.py and get_issue_comments.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/* (templates.md, claude-agents.md, universal.md) via injected CLAUDE.md context."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build/AGENTS.md generator contract + .claude/rules/templates.md, claude-agents.md reviewed."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed injected self-improving-agent corrections; wrote tasks/issue-2641-github-agents-critic-drift."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2641-regenerate-critic-github-agent"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2641-regenerate-critic-github-agent"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean on branch fix/2641-regenerate-critic-github-agent off 14bb688be5."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "14bb688be5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart MUSTs complete; fix verified by pytest + drift detector."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory tasks/issue-2641-github-agents-critic-drift."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "npx markdownlint-cli2 --fix .github/agents/critic.agent.md -> 0 error(s); .github/agents/**/*.agent.md is excluded by config (0 files linted)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Pending commit in this session (see git log)."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest tests/build_scripts/test_critic_install_parity.py -> 2 passed; detect_agent_drift.py critic install -> OK (100.0%); validate_install_parity.py exit 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T16:00:00Z",
+      "action": "Reconciled stale .github/agents/critic.agent.md to canonical .claude/agents/critic.md (asymmetry framing restored: 7 hits) and added install-parity regression test.",
+      "evidence": "Command: uv run python -m pytest tests/build_scripts/test_critic_install_parity.py -v | Result: 2 passed (pytest passed). test_critic_install_copies_are_in_parity passed; test_github_critic_carries_asymmetry_framing passed. Drift: detect_agent_drift.py -> critic [.claude/agents vs .github/agents]: OK (100.0% similar). Pre-fix baseline was DRIFT DETECTED (0.0%). Mutation test: stripping 'asymmetry' -> test went RED (0 hits), then restored to 7.",
+      "filesModified": [
+        ".github/agents/critic.agent.md",
+        "tests/build_scripts/test_critic_install_parity.py"
+      ]
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
