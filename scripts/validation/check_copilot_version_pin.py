@@ -46,7 +46,15 @@ EXIT_CONFIG = 2
 KNOWN_BAD_VERSIONS: frozenset[str] = frozenset({"0.0.397"})
 
 # The shell pin: COPILOT_VERSION="x.y.z" (single or double quoted).
-_PIN_RE = re.compile(r"""COPILOT_VERSION=["']([^"']+)["']""")
+# Anchored to a non-comment line start via ``^`` with ``re.MULTILINE``.
+# Leading whitespace and an optional ``export`` keyword are accepted so the
+# pattern works inside shell here-docs at any indentation level. This
+# prevents the guard from treating an old version cited in a comment (e.g.
+# ``# COPILOT_VERSION="0.0.397"  <- known-bad, do not use``) as the live pin.
+_PIN_RE = re.compile(
+    r"""^[ \t]*(?:export[ \t]+)?COPILOT_VERSION=["']([^"']+)["']""",
+    re.MULTILINE,
+)
 
 # Accept semver-ish versions: x.y.z with an optional -prerelease suffix
 # (npm publishes tags such as 1.0.62-2). Match the shapes this action pins.
@@ -92,6 +100,19 @@ def extract_pinned_version(action_path: Path) -> str:
 
 def check_action(action_path: Path) -> int:
     """Validate the pin in ``action_path`` and return an exit code."""
+    if not action_path.is_absolute():
+        repo_root = Path(__file__).resolve().parents[2]
+        try:
+            resolved_path = (repo_root / action_path).resolve()
+            resolved_path.relative_to(repo_root)
+            action_path = resolved_path
+        except (ValueError, RuntimeError):
+            print(
+                f"::error::Path traversal attempt detected: {action_path}",
+                file=sys.stderr,
+            )
+            return EXIT_LOGIC
+
     if not action_path.exists():
         print(f"::error::action file not found: {action_path}", file=sys.stderr)
         return EXIT_CONFIG

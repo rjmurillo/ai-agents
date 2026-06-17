@@ -9,21 +9,18 @@ PR-comment-processing step of the PR Maintenance workflow.
 
 from __future__ import annotations
 
-import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
 
-_MODULE_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "scripts"
-    / "validation"
-    / "check_copilot_version_pin.py"
-)
-_spec = importlib.util.spec_from_file_location("check_copilot_version_pin", _MODULE_PATH)
-assert _spec and _spec.loader
-mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(mod)
+_MODULE_DIR = str(Path(__file__).resolve().parents[1] / "scripts" / "validation")
+sys.path.insert(0, _MODULE_DIR)
+try:
+    import check_copilot_version_pin as mod
+finally:
+    if _MODULE_DIR in sys.path:
+        sys.path.remove(_MODULE_DIR)
 
 
 def _write_action(tmp_path: Path, version_line: str) -> Path:
@@ -99,3 +96,41 @@ def test_repo_action_pin_is_clean() -> None:
 
 def test_main_default_targets_repo_action() -> None:
     assert mod.main([]) == mod.EXIT_OK
+
+
+def test_sys_path_is_clean_after_import() -> None:
+    """The try/finally block must remove _MODULE_DIR from sys.path after import."""
+    assert _MODULE_DIR not in sys.path
+
+
+def test_path_traversal_rejected() -> None:
+    """A relative path that escapes the repo root must return EXIT_LOGIC."""
+    assert mod.check_action(Path("../../../etc/passwd")) == mod.EXIT_LOGIC
+
+
+def test_pin_not_matched_in_comment(tmp_path: Path) -> None:
+    """A COPILOT_VERSION in a comment must not shadow a real pin on a later line."""
+    action = tmp_path / "action.yml"
+    action.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - run: |\n"
+        '        # COPILOT_VERSION="0.0.397"\n'
+        '        COPILOT_VERSION="1.0.63"\n',
+        encoding="utf-8",
+    )
+    assert mod.extract_pinned_version(action) == "1.0.63"
+
+
+def test_extract_raises_when_pin_only_in_comment(tmp_path: Path) -> None:
+    """If COPILOT_VERSION only appears in a comment the guard must raise."""
+    action = tmp_path / "action.yml"
+    action.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - run: |\n"
+        '        # COPILOT_VERSION="0.0.397"  <- known-bad, do not reuse\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(mod.VersionPinError):
+        mod.extract_pinned_version(action)
