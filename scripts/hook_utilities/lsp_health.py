@@ -47,6 +47,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # Env signal: the explicit "the LSP runtime is down/uninitialized" flag. Mirrors
@@ -73,11 +74,20 @@ def lsp_runtime_down() -> bool:
 def _state_dir() -> Path:
     """Return the user-scoped state directory, outside the git working tree.
 
-    Honors ``$XDG_STATE_HOME`` when set, else ``~/.cache``. Mirrors
-    ``lsp_gate_state._state_dir`` so the marker never lands in the repo tree.
+    Honors ``$XDG_STATE_HOME`` when set, else ``~/.cache``. Falls back to
+    ``tempfile.gettempdir()`` when both are unavailable (e.g. sandboxed or
+    CI environments where ``Path.home()`` raises ``RuntimeError`` because the
+    running user has no home directory). Mirrors ``lsp_gate_state._state_dir``
+    so the marker never lands in the repo tree.
     """
     xdg = os.environ.get("XDG_STATE_HOME", "").strip()
-    base = Path(xdg) if xdg else Path.home() / ".cache"
+    if xdg:
+        base = Path(xdg)
+    else:
+        try:
+            base = Path.home() / ".cache"
+        except RuntimeError:
+            base = Path(tempfile.gettempdir()) / ".cache"
     return base / _STATE_SUBDIR
 
 
@@ -100,8 +110,10 @@ def warn_once_lsp_down(guard_name: str, project_dir: str) -> bool:
 
     Writes a per-cwd marker the first time it warns; subsequent calls observe
     the marker and stay silent (the issue's "one-time warning instead of
-    repeated hard blocks"). Returns True when this call emitted the warning,
-    False when it was already emitted or the marker could not be written.
+    repeated hard blocks"). Returns True when this call emitted the warning
+    (regardless of whether the dedup marker was successfully persisted).
+    Returns False when the warning was already emitted this session (marker
+    exists) or when the marker existence check itself fails (OSError).
 
     Any filesystem error degrades to NOT emitting on the failed call rather than
     raising; a navigation gate must never wedge a turn (release-it.md).
