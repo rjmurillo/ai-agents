@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2586,
+    "date": "2026-06-17",
+    "branch": "fix/2630-pr-maintenance-copilot-version-bump",
+    "startingCommit": "14bb688be5",
+    "objective": "fix #2630: bump pinned @github/copilot off known-bad 0.0.397 (invalid session id) in ai-review action; add version-guard regression check"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active this session (write_memory decision-copilot-cli-version-pin-2630 succeeded)."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Operating under AGENTS.md Serena-init contract; memory tooling reachable."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open issue handoff for #2630; issue body + /tmp/workflow_triage.json (pr_maintenance) read at session start."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/get_issue_context.py and session-init/session scripts."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + .claude/rules/* loaded via system context; ci-scripts.md, security.md, universal.md applied."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ADR-006 (logic in Python module), ADR-042 (Python-first), ADR-044 (copilot pin), AGENTS.md pin-to-SHA boundary applied."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse memory hints surfaced each turn; topical worktree memories noted."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2630-pr-maintenance-copilot-version-bump"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2630-pr-maintenance-copilot-version-bump"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status / branch verified clean off origin/main before work."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "14bb688be5"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUSTs populated with evidence below."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not edited (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory decision-copilot-cli-version-pin-2630 (version-bump decision + ADR-044 exit-path reasoning)."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files changed in this fix (code + workflow + test only); markdownlint not applicable."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix + guard committed on fix/2630 (action.yml pin, check_copilot_version_pin.py, checks_tooling.py, pre_pr.py, test); session log committed in a follow-on atomic commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pytest 9 passed; ruff clean; gh act dry-run rc=0; pre_pr Copilot-pin check OK."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Confirm root cause",
+      "detail": "Issue #2630: .github/actions/ai-review/action.yml:159 pinned COPILOT_VERSION=0.0.397, which npm flags deprecated for invalid session id errors; the PR-comment step in pr-maintenance.yml runs the ai-review composite action and fails."
+    },
+    {
+      "step": "Fix",
+      "detail": "Bumped COPILOT_VERSION 0.0.397 -> 1.0.63 (npm latest, not deprecated, frontmatter regression resolved upstream). Verified locally: npm install -g @github/copilot@1.0.63 then `copilot --no-auto-update -p 'say OK'` against analyst.agent.md (carries argument-hint) -> exit 0, no unsupported-field warnings."
+    },
+    {
+      "step": "Regression guard (TDD)",
+      "detail": "Wrote failing test first (tests/test_check_copilot_version_pin.py), then scripts/validation/check_copilot_version_pin.py. pytest result: 9 passed. Command: `uv run python -m pytest tests/test_check_copilot_version_pin.py -q` -> 9 passed."
+    },
+    {
+      "step": "Mutation test",
+      "detail": "Reverted action pin to 0.0.397: guard CLI exited rc=1 and test_repo_action_pin_is_clean FAILED (guard bites). Restored to 1.0.63: rc=0, all pass. Confirms the guard catches the known-bad regression."
+    },
+    {
+      "step": "Wire guard into pre-push gate",
+      "detail": "checks_tooling.validate_copilot_version_pin + pre_pr.py 'Copilot CLI Version Pin' step. Smoke: `uv run python -c 'import pre_pr; pre_pr.validate_copilot_version_pin(Path(\".\"))'` -> COPILOT_VERSION pin OK: 1.0.63. ruff: All checks passed."
+    },
+    {
+      "step": "Workflow local verification",
+      "detail": "gh act dry-run `gh act schedule -W .github/workflows/pr-maintenance.yml -j process-prs -n` parsed and ran the graph (discover-prs success; process-prs matrix empty offline as expected). run_workflow_local_test.py on the changed workflow+action ran under act; the Process-PR-comments step itself needs COPILOT_GITHUB_TOKEN + live Copilot API, which act cannot supply, so that step is verified by the unit tests + the local 1.0.63 install/run instead."
+    }
+  ],
+  "endingCommit": "14bb688be5b5a33620597fb128b49dea86c758b0",
+  "nextSteps": [
+    "Open PR for #2630.",
+    "Flag to maintainer: amend ADR-044 to record the 1.0.63 upgrade (ADR work, Ask First, out of scope for this bug-fix PR)."
+  ]
+}
