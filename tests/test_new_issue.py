@@ -154,3 +154,64 @@ def test_body_file_not_found(mock_run, capsys):
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False
     assert output["Error"]["Type"] == "NotFound"
+
+
+@patch("subprocess.run")
+def test_create_timeout_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        subprocess.TimeoutExpired(cmd=["gh", "issue", "create"], timeout=30),  # create hangs
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "Timeout"
+    assert "30s" in output["Error"]["Message"]
+
+
+@patch("subprocess.run")
+def test_label_edit_timeout_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth
+        _completed(stdout="https://github.com/o/r\n"),  # remote
+        _completed(stdout="https://github.com/o/r/issues/7\n"),  # create succeeds
+        subprocess.TimeoutExpired(cmd=["gh", "issue", "edit"], timeout=30),  # edit hangs
+    ]
+
+    rc = main(["--title", "Test", "--labels", "bug", "--output-format", "json"])
+    assert rc == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "Timeout"
+    assert "30s" in output["Error"]["Message"]
+    assert output["Data"]["issue_number"] == 7
+
+
+@patch("subprocess.run")
+def test_auth_failure_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=1),  # gh auth status fails → assert_gh_authenticated raises SystemExit(4)
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 4
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "AuthError"
+
+
+@patch("subprocess.run")
+def test_repo_resolve_failure_emits_json_envelope(mock_run, capsys):
+    mock_run.side_effect = [
+        _completed(rc=0),  # auth passes
+        _completed(rc=1),  # git remote get-url origin fails → get_repo_info returns None
+    ]
+
+    rc = main(["--title", "Test", "--output-format", "json"])
+    assert rc == 2
+    output = json.loads(capsys.readouterr().out)
+    assert output["Success"] is False
+    assert output["Error"]["Type"] == "InvalidParams"

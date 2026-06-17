@@ -14,6 +14,8 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import os
 import re
 import subprocess
@@ -112,13 +114,26 @@ def _apply_labels(
     for lbl in label_list:
         gh_args.extend(["--add-label", lbl])
 
-    result = subprocess.run(
-        gh_args,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            "gh issue edit timed out after 30s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="new_issue.py",
+            extra={"issue_number": issue_number, "url": url},
+        )
+        return 3
+
     if result.returncode == 0:
         return None
 
@@ -138,8 +153,35 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
+    try:
+        assert_gh_authenticated()
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 4
+        write_skill_error(
+            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+            code,
+            error_type="AuthError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return code
+
+    _stderr_buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(_stderr_buf):
+            resolved = resolve_repo_params(args.owner, args.repo)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+        message = _stderr_buf.getvalue().strip() or "Could not resolve repository parameters."
+        write_skill_error(
+            message,
+            code,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return code
+
     owner, repo = resolved.owner, resolved.repo
 
     if not args.title or not args.title.strip():
@@ -171,13 +213,24 @@ def main(argv: list[str] | None = None) -> int:
     if body and body.strip():
         gh_args.extend(["--body", body])
 
-    result = subprocess.run(
-        gh_args,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            "gh issue create timed out after 30s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
 
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
