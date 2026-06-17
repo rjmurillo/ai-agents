@@ -128,8 +128,12 @@ def test_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
 
 
 def test_gh_missing_is_exit_3(monkeypatch, tmp_path):
+    # On a normal (non-container) box, a missing gh CLI is a real tool gap and
+    # blocks at exit 3. The container-downgrade seam is pinned off so the test
+    # is deterministic regardless of the host env (Issue #2548, item 3).
     monkeypatch.setattr(w, "_have", lambda tool: tool == "actionlint")
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
@@ -137,14 +141,77 @@ def test_gh_missing_is_exit_3(monkeypatch, tmp_path):
 
 
 def test_gh_act_extension_missing_is_exit_3(monkeypatch, tmp_path):
-    # gh is present but the act extension is not -> exit 3 before dry-run.
+    # gh is present but the act extension is not -> exit 3 before dry-run on a
+    # normal box. The container-downgrade seam is pinned off (Issue #2548).
     monkeypatch.setattr(w, "_have", lambda tool: True)
     monkeypatch.setattr(w, "_gh_act_available", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
     assert "gh act extension" in r.note
+
+
+def test_gh_act_missing_in_remote_container_downgrades_to_warning(
+    monkeypatch, tmp_path
+):
+    # gh act unavailable inside a remote container (CLAUDECODE set, no CI) must
+    # not block the push: it degrades to a logged warning (exit 0). Item 3 of
+    # issue #2548.
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_gh_act_available", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert r.degraded is True
+    assert "gh act" in r.note
+
+
+def test_gh_act_missing_in_ci_still_blocks_even_with_container_signal(
+    monkeypatch, tmp_path
+):
+    # In CI, gh act is provisioned, so a missing extension is a real failure.
+    # The CI marker overrides the container signal: hard exit 3, never degraded.
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_gh_act_available", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CI", "true")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert r.degraded is False
+
+
+def test_gh_missing_in_remote_container_downgrades_to_warning(monkeypatch, tmp_path):
+    # The downgrade also covers a missing gh CLI: the container cannot install
+    # the act extension without an authenticated gh, so a warning is correct.
+    monkeypatch.setattr(w, "_have", lambda tool: tool == "actionlint")
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 0
+    assert r.degraded is True
+
+
+def test_gh_act_missing_without_container_signal_still_exit_3(monkeypatch, tmp_path):
+    # No container signal and no CI: a local dev box missing the extension is a
+    # real tool gap and must keep blocking at exit 3.
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_gh_act_available", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    r = w.run_local_test([WF], tmp_path)
+    assert r.exit_code == 3
+    assert r.degraded is False
 
 
 def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
