@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2587,
+    "date": "2026-06-17",
+    "branch": "worktree-wf_5f238b69-ef5-3",
+    "startingCommit": "fb9741fa9b",
+    "objective": "Wave-2 structural triage of remaining ~47 skills for issue #1950: classify each keep/merge/retire/improve with one-line rationale; post as issue comment"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree session; Serena memories surfaced via PreToolUse hooks (knowledge-integration, github-pr1873). No live activate_project call needed for read-only triage."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Hook-injected memory context used in lieu of explicit initial_instructions for this read-only report task."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read-only per ADR-014; not edited."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill scripts (get_issue_context.py, get_issue_comments.py, post_issue_comment.py) via uv run python."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed .agents/plans/active/PLAN-skill-catalog-triage-action-slate.md and skill-triage-2026-05-09.md / skill-overlap-2026-06-05.md for prior art."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PROJECT-CONSTRAINTS surfaced via CLAUDE.md import; universal.md dash rule applied (verified 0 dashes)."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse hook injected relevant Serena memory observations each turn; reviewed eval-harness and knowledge-integration observations."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "worktree-wf_5f238b69-ef5-3"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On worktree-wf_5f238b69-ef5-3"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short run; only report file + session log staged."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "fb9741fa9b"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Triage report produced, comment posted (id 4732536886), report committed."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md untouched (ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ""
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ""
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ""
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ""
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ""
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T15:57:39.480908+00:00",
+      "action": "Wave-2 structural skill triage for #1950",
+      "evidence": "Classified 73 skills (KEEP/MERGE/RETIRE/IMPROVE) from static evidence. Validation: no pytest run (no code changed; report-only deliverable). markdownlint-cli2 passed; dash check passed (0 em/en). Comment posted to #1950 (id 4732536886, Success:true). AC1/AC2 live evals blocked: ANTHROPIC_API_KEY UNSET (verified). Report at .agents/analysis/skill-triage-wave2-2026-06-17.md.",
+      "result": "passed"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
