@@ -58,7 +58,7 @@ A pure function `classify_diff_scope(file_count, lines_changed) -> tier` maps a 
 | large | <= 50 | <= 5000 | full | 300 s |
 | extra-large | > 50 | > 5000 | full | no cap |
 
-A diff that exceeds either bound of a tier promotes to the next tier (a 3-file, 900-line diff is `medium`, not `small`). The caller MAY override the tier with an explicit `--tier` flag and MAY force the full review with `--depth full`. The classifier selects a default; it never overrides an explicit caller request for a deeper review.
+A diff that exceeds either bound of a tier promotes to the next tier (a 3-file, 900-line diff is `medium`, not `small`). The caller MAY override the tier upward (to a larger tier) with an explicit `--tier` flag to force a deeper review, but MUST NOT override to a smaller tier than the classifier determines. The caller MAY force the full review with `--depth full`. The classifier selects a default; it never overrides an explicit caller request for a deeper review.
 
 ### 2. Budget watchdog
 
