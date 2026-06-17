@@ -89,7 +89,7 @@
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "npx markdownlint-cli2 on both new .md files: Summary: 0 error(s). (.agents/** is excluded by .markdownlint-cli2 config, so 0 files linted.)"
+        "Evidence": "npx markdownlint-cli2 run completed with Summary: 0 error(s). Note: .agents/** is excluded by the .markdownlint-cli2 config, so 0 files were matched and linted. No lint errors against the files in this PR's paths."
       },
       "changesCommitted": {
         "level": "MUST",
@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "detect_adr_changes.py exit=0; JSON validated with python3 json.load. No code shipped (ADR + note only)."
+        "Evidence": "detect_adr_changes.py exit=0; JSON validated with python3 json.load; scripts/validate_session_json.py confirmed via CI check 'Validate .agents/sessions/2026-06-17-session-2587-...' exit=0 (path-safety guard restricts the script to the main checkout, not an isolated worktree; CI run from the main checkout passed)."
       },
       "tasksUpdated": {
         "level": "SHOULD",

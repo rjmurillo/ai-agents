@@ -7,15 +7,15 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
-staging-note: >-
-  Draft staging copy of the proposed ADR-074. The canonical path
-  .agents/architecture/ADR-074-pr-autofix-branch-ownership-lease.md is guarded
-  by the ADR architect PreToolUse gate (invoke_adr_architect_gate.py), which
-  reads architect-review evidence from CLAUDE_PROJECT_DIR (the main checkout)
-  and cannot see worktree-local evidence. Satisfying it requires the architect
-  subagent or the full 6-agent adr-review debate. Rename this file to the
-  canonical ADR-074 path after adr-review runs in a non-isolated checkout.
 ---
+
+> [!NOTE]
+> Draft staging copy of ADR-074. The canonical path
+> `.agents/architecture/ADR-074-pr-autofix-branch-ownership-lease.md` is guarded
+> by the BLOCKING ADR architect PreToolUse gate, which reads architect-review
+> evidence from `CLAUDE_PROJECT_DIR` (the main checkout) and cannot see
+> worktree-local evidence. Rename this file to the canonical ADR-074 path after
+> the adr-review debate runs in a non-isolated checkout.
 
 # ADR-074: PR-Autofix Branch-Ownership Lease
 
@@ -77,7 +77,7 @@ expires_at: <RFC3339-UTC>        # acquired_at + TTL
 base_sha: <40-hex>               # PR head.sha the holder fetched before acquiring
 ```
 
-One PR carries at most one live lease comment. Acquire updates (edits) the existing lease comment or creates it if absent; release edits it to a tombstone (`owner: none`, `expires_at` in the past). The marker `<!-- PR-AUTOFIX-LEASE -->` makes the comment findable by a single timeline scan, exactly as `check_pr_live_state.py` scans the timeline today.
+The **latest non-expired marker comment wins**: acquire scans the PR timeline for `<!-- PR-AUTOFIX-LEASE -->` comments and treats the most-recent one whose `expires_at` is still in the future as the live lease. When no live lease is found, acquire posts a new marker comment to claim ownership. When the current actor authored the existing live lease comment, it may edit it in place instead (for example, to renew). Release writes a tombstone (`owner: none`, `expires_at` in the past) by editing the actor's own comment; when the actor cannot edit the existing marker (different token owner), it posts a new tombstone comment, and the most-recent rule then naturally yields to the tombstone on the next scan. The marker `<!-- PR-AUTOFIX-LEASE -->` makes all lease comments findable by a single timeline scan, exactly as `check_pr_live_state.py` scans the timeline today.
 
 This choice satisfies acceptance criterion 3 directly: "The PR timeline records which automation owns the current fix loop." The lease *is* a timeline record.
 

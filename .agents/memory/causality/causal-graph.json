@@ -6368,6 +6368,204 @@
         "episode-2026-06-11-session-2384"
       ],
       "created": "2026-06-11T19:10:16.662863+00:00"
+    },
+    {
+      "id": "867335eec624",
+      "type": "outcome",
+      "label": "Outcome: success - Reconcile ADR-008 with ADR-066 per repo owner directive: amend ADR-008 superseded fail-open passages to point at ADR-066. Architect review completed via Task(subagent_type='architect'): REQUEST CHANGES then approved with two fixes (heading wording, Stop-hook D2 clause). Also: PR 2556 babysitting (review fixes, deterministic tests, 0.5.174 bump).",
+      "episodes": [
+        "episode-2026-06-11-session-2385"
+      ],
+      "created": "2026-06-17T17:45:37.578810+00:00"
+    },
+    {
+      "id": "e29ad1bc4990",
+      "type": "milestone",
+      "label": "milestone: Finished the #2050 printed-hint portability fix: set_pr_auto_merge.py and new_slash_command.py now derive sibling-script paths from Path(__file__) instead of hardcoding .claude/skills/... Verified ruff clean and 18+25 tests pass; regenerated copilot mirrors; bumped both plugin manifests to 0.5.191; opened PR #2606 (Refs #2050).",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.578884+00:00"
+    },
+    {
+      "id": "fe22d534fe8a",
+      "type": "milestone",
+      "label": "milestone: Cleared CI failures on open PRs. #2596: added the two missing install-parity self-host copies (.claude/agents/roadmap.md, .github/agents/roadmap.agent.md) with the Outcome Review and fixed two pre-existing em-dashes in the .github copy. #2602 and #2606: rephrased PR-description path tokens (chestertons investigate path, *.py/*.sh/*.ps1 glob, merge_pr.py/validate_slash_command.py references) that tripped the description-vs-diff validator. All three returned to green.",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.578911+00:00"
+    },
+    {
+      "id": "fa21c3b3481a",
+      "type": "milestone",
+      "label": "milestone: Posted the #2583 governance determination (merited; repo-wide ADR-schema + gate change hits the Ask-First Architecture/New-ADRs constraint; recommended a phased additive rollout). Corrected the post_issue_comment.py flag from --comment to --body-file after an initial silent exit-2.",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.578936+00:00"
+    },
+    {
+      "id": "daf084b980a1",
+      "type": "milestone",
+      "label": "milestone: At the owner's direction (ask_user: adr_2583), authored proposed ADR-073 via the adr-generator skill: next number 073, canonical .agents/architecture format, prose status, no auto-generated header. Passed G4 checks (no dashes, unique number, all required sections).",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.578961+00:00"
+    },
+    {
+      "id": "c992706b9a80",
+      "type": "milestone",
+      "label": "milestone: Ran adr-review: six parallel sub-agents (architect, critic, independent-thinker, security, analyst, high-level-advisor) on the Zimmermann checklist. Agents run in a sibling worktree and could not open the uncommitted file, so three returned procedural BLOCKs while still giving substantive notes; the analyst ran real evidence checks. Verified two flagged claims directly: detect_adr_changes.py exists and already parses status: (refutes the phantom-consumer P0), and adr-best-practices.md line 42 authorizes the optional implemented field (refutes the no-precedent P0).",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.578986+00:00"
+    },
+    {
+      "id": "a69e8c526c6a",
+      "type": "milestone",
+      "label": "milestone: Phase 3 resolution: revised ADR-073 to incorporate the valid P1 findings: scope committed to Phase 1 only with backfill/gate deferred and consumer-gated; status:accepted bound to an adr-review artifact; explainer made display-only/no-auto-fetch; yq example replaced with python-frontmatter (ADR-042); backfill acknowledged as non-mechanical (ADR-072/ADR-055 triage); minimal status-only alternative added; yaml.safe_load + bidirectional supersession mandated; drift reconciliation defined (ADR-066). Wrote the debate log to .agents/critique/ADR-073-debate-log.md. ADR remains Proposed pending human acceptance.",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.579011+00:00"
+    },
+    {
+      "id": "c5fcbb986cbf",
+      "type": "milestone",
+      "label": "milestone: PR #2607 autofix: resolved the remaining review thread by removing unsupported yq parseability and query-specific fallback wording from ADR-073. The ADR now names Python frontmatter tooling and agents as parse targets, and defaults missing frontmatter to proposed during migration. Updated the debate log with the post-review thread resolution and reran validate_session_json.py plus pre_pr.py successfully.",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.579035+00:00"
+    },
+    {
+      "id": "9f563e500495",
+      "type": "outcome",
+      "label": "Outcome: success - Autopilot sweep of 40 open issues, continuation. This session: shipped the #2050 printed-hint portability fix (PR #2606); cleared CI failures on open PRs #2596/#2602/#2606 (install-parity copies, em-dash cleanup, PR-description path false-positives); posted the #2583 governance determination; then, at the owner's direction, authored proposed ADR-073 (machine-readable ADR lifecycle frontmatter) and ran the 6-agent adr-review, revising the ADR to incorporate the P1 findings.",
+      "episodes": [
+        "episode-2026-06-13-session-2583-adr-073-lifecycle-frontmatter"
+      ],
+      "created": "2026-06-17T17:45:37.579060+00:00"
+    },
+    {
+      "id": "fa34c5f9404e",
+      "type": "milestone",
+      "label": "milestone: Fix #2614: get_pr_checks marked a SKIPPED required check as pending. Root cause: dedupe_checks ORs IsPending onto the winner from a stale StatusContext-PENDING sibling, and extract_required_check_lists (scripts/github_core/checks_rollup.py) appended to PendingRequiredChecks on IsPending alone. Fix: guard the pending append with `and not check.get('IsPassing')` so a completed-passing (incl SKIPPED) required check is not listed as pending, matching test_pr_merge_ready.py. Synced 3 github_core copies (scripts/, .claude/lib/, src/copilot-cli/lib/) via scripts/sync_plugin_lib.py + build_all.py --platform copilot-cli. TDD: wrote failing test test_skipped_winner_with_pending_sibling_excluded_from_required (RED: pending_required=['Run Python Tests']), applied fix, GREEN. Mutation (revert guard) -> test failed as expected, restored. Considered the deeper dedupe-layer fix but it broke 4 existing wait-polling contract tests (test_passing_supersedes_pending_but_keeps_pending_signal etc.), so kept the sanctioned minimal extract-layer guard. Test command: uv run pytest tests/test_get_pr_checks.py -q -> 77 passed. Related: uv run pytest tests/ -k 'pr_checks or merge_ready or checks_rollup' -> 123 passed.",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2614-get_pr_checks-marks-skipped"
+      ],
+      "created": "2026-06-17T17:45:37.579132+00:00"
+    },
+    {
+      "id": "1834a1cda4b4",
+      "type": "test",
+      "label": "test: Fix #2614: get_pr_checks marked a SKIPPED required check as pending. Root cause: dedupe_checks ORs IsPending onto the winner from a stale StatusContext-PENDING sibling, and extract_required_check_lists (scripts/github_core/checks_rollup.py) appended to PendingRequiredChecks on IsPending alone. Fix: guard the pending append with `and not check.get('IsPassing')` so a completed-passing (incl SKIPPED) required check is not listed as pending, matching test_pr_merge_ready.py. Synced 3 github_core copies (scripts/, .claude/lib/, src/copilot-cli/lib/) via scripts/sync_plugin_lib.py + build_all.py --platform copilot-cli. TDD: wrote failing test test_skipped_winner_with_pending_sibling_excluded_from_required (RED: pending_required=['Run Python Tests']), applied fix, GREEN. Mutation (revert guard) -> test failed as expected, restored. Considered the deeper dedupe-layer fix but it broke 4 existing wait-polling contract tests (test_passing_supersedes_pending_but_keeps_pending_signal etc.), so kept the sanctioned minimal extract-layer guard. Test command: uv run pytest tests/test_get_pr_checks.py -q -> 77 passed. Related: uv run pytest tests/ -k 'pr_checks or merge_ready or checks_rollup' -> 123 passed.",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2614-get_pr_checks-marks-skipped"
+      ],
+      "created": "2026-06-17T17:45:37.579159+00:00"
+    },
+    {
+      "id": "46ec296317e1",
+      "type": "commit",
+      "label": "commit: Commit: 423152fb9",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2614-get_pr_checks-marks-skipped"
+      ],
+      "created": "2026-06-17T17:45:37.579184+00:00"
+    },
+    {
+      "id": "6c3453152d60",
+      "type": "outcome",
+      "label": "Outcome: success - fix #2614 get_pr_checks marks skipped required checks as pending",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2614-get_pr_checks-marks-skipped"
+      ],
+      "created": "2026-06-17T17:45:37.579210+00:00"
+    },
+    {
+      "id": "ff551770132b",
+      "type": "milestone",
+      "label": "milestone: Fix #2621: add '.worktrees' to excluded_dirs in build/scripts/validate_plugin_manifests.py find_manifests. Ran: uv run pytest tests/build_scripts/test_validate_plugin_manifests.py -> 40 passed. Mutation check: removing '.worktrees' makes new test fail (finds 2 manifests including the .worktrees one); restoring passes. Validator over repo -> exit 0, 3 manifests valid, 0 .worktrees paths.",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2621-exclude-worktrees-plugin-manifest"
+      ],
+      "created": "2026-06-17T17:45:37.579274+00:00"
+    },
+    {
+      "id": "a00cacdbb4f0",
+      "type": "test",
+      "label": "test: pytest: 40 passed in 0.24s; mutation-checked; validator exit 0",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2621-exclude-worktrees-plugin-manifest"
+      ],
+      "created": "2026-06-17T17:45:37.579300+00:00"
+    },
+    {
+      "id": "4e598d8485be",
+      "type": "milestone",
+      "label": "milestone: Same root cause as #2621 in scripts/detect_skill_violation.py SKIP_DIRS: pruned basename 'worktrees' but not dot-prefixed '.worktrees', so the scan walked 40+ sibling checkouts -> 33.9s, failing the 30s budget perf test (#2047) that hard-gates pre-push. Added '.worktrees' to SKIP_DIRS. Measured scan 33.9s -> 1.0s. Added regression tests test_skip_dirs_registers_dot_worktrees + test_prunes_top_level_dot_worktrees (mutation-checked: fail when '.worktrees' removed). uv run pytest -k worktree -> 5 passed.",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2621-exclude-worktrees-plugin-manifest"
+      ],
+      "created": "2026-06-17T17:45:37.579325+00:00"
+    },
+    {
+      "id": "6b52b9729318",
+      "type": "test",
+      "label": "test: scan 33.9s->1.0s; pytest 5 passed; mutation-checked; fixes #2047 perf test",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2621-exclude-worktrees-plugin-manifest"
+      ],
+      "created": "2026-06-17T17:45:37.579349+00:00"
+    },
+    {
+      "id": "c8ad2e9d5bf9",
+      "type": "outcome",
+      "label": "Outcome: success - Fix #2621: exclude .worktrees from plugin-manifest validator discovery (keystone unblock for pushes)",
+      "episodes": [
+        "episode-2026-06-17-session-2585-fix-2621-exclude-worktrees-plugin-manifest"
+      ],
+      "created": "2026-06-17T17:45:37.579374+00:00"
+    },
+    {
+      "id": "50303c614cee",
+      "type": "milestone",
+      "label": "milestone: Read issue #2615 and full discourse; searched .agents/architecture ADRs and check_pr_live_state.py for prior art",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-17T17:45:37.579433+00:00"
+    },
+    {
+      "id": "86ab2b5b9caf",
+      "type": "milestone",
+      "label": "milestone: Authored Proposed ADR-074 (PR-comment lease, 15-min TTL, fail-open, advisory beside the SHA gate) following ADR-073 format model; authored single-reviewer architect design-review note",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-17T17:45:37.579459+00:00"
+    },
+    {
+      "id": "49b31598f8b7",
+      "type": "milestone",
+      "label": "milestone: Attempted Write to canonical .agents/architecture/ADR-074-*.md path",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-17T17:45:37.579484+00:00"
+    },
+    {
+      "id": "9502f9af2cf5",
+      "type": "outcome",
+      "label": "Outcome: success - Author Proposed ADR-074 for remote/local pr-autofix coordination lease (storage, TTL, fail-open) per issue #2615",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-17T17:45:37.579509+00:00"
     }
   ],
   "patterns": [
@@ -6417,7 +6615,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 26,
+      "occurrences": 27,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -6426,7 +6624,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 52,
+      "occurrences": 54,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -6435,7 +6633,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 104,
+      "occurrences": 108,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -6444,7 +6642,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 156,
+      "occurrences": 162,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -6454,7 +6652,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -6462,7 +6660,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -6470,7 +6668,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -6478,7 +6676,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -6486,7 +6684,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -6494,7 +6692,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -6502,7 +6700,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -6510,7 +6708,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -6518,7 +6716,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -6526,7 +6724,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -6534,7 +6732,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -6542,7 +6740,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -6550,7 +6748,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -6558,7 +6756,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -6566,7 +6764,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -6574,7 +6772,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -6582,7 +6780,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -6590,7 +6788,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -6598,7 +6796,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -6606,7 +6804,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -6614,7 +6812,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -6622,7 +6820,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -6630,7 +6828,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -6638,7 +6836,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -6646,7 +6844,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -6654,7 +6852,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -6662,7 +6860,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -6670,7 +6868,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -6678,7 +6876,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -6686,7 +6884,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -6694,7 +6892,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -6702,7 +6900,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -6710,7 +6908,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -6718,7 +6916,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -6726,7 +6924,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -6734,7 +6932,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -6742,7 +6940,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -6750,7 +6948,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -6758,7 +6956,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -6766,7 +6964,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 26,
+      "evidence_count": 27,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
