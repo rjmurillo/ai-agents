@@ -61,7 +61,11 @@ def test_create_issue_with_labels(mock_run, capsys):
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["issue_number"] == 5
-    edit_kwargs = mock_run.call_args_list[3].kwargs
+    edit_call = next(
+        call for call in mock_run.call_args_list
+        if "edit" in call.args[0] and "--add-label" in call.args[0]
+    )
+    edit_kwargs = edit_call.kwargs
     assert edit_kwargs["encoding"] == "utf-8"
     assert edit_kwargs["errors"] == "replace"
 
