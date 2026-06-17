@@ -10,8 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -62,9 +61,14 @@ def test_create_issue_with_labels(mock_run, capsys):
     output = json.loads(capsys.readouterr().out)
     assert output["Data"]["issue_number"] == 5
     edit_call = next(
-        call for call in mock_run.call_args_list
-        if "edit" in call.args[0] and "--add-label" in call.args[0]
+        (
+            call
+            for call in mock_run.call_args_list
+            if "edit" in call.args[0] and "--add-label" in call.args[0]
+        ),
+        None,
     )
+    assert edit_call is not None, "expected gh issue edit --add-label call"
     edit_kwargs = edit_call.kwargs
     assert edit_kwargs["encoding"] == "utf-8"
     assert edit_kwargs["errors"] == "replace"
@@ -145,8 +149,7 @@ def test_body_file_not_found(mock_run, capsys):
         _completed(stdout="https://github.com/o/r\n"),
     ]
 
-    rc = main(["--title", "Test", "--body-file", "/nonexistent/file.md",
-               "--output-format", "json"])
+    rc = main(["--title", "Test", "--body-file", "/nonexistent/file.md", "--output-format", "json"])
     assert rc == 2
     output = json.loads(capsys.readouterr().out)
     assert output["Success"] is False

@@ -5,8 +5,8 @@ Supports both inline body text and file-based body content.
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
-    2 - Usage/configuration error (invalid args, file not found)
+    1 - Logic failure after argument parsing
+    2 - Usage/configuration error (invalid CLI args, file not found)
     3 - External error (API failure)
     4 - Auth error (not authenticated)
 """
@@ -144,8 +144,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.title or not args.title.strip():
         write_skill_error(
-            "Title cannot be empty.", 2,
-            error_type="InvalidParams", output_format=fmt, script_name="new_issue.py",
+            "Title cannot be empty.",
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
         )
         return 2
 
@@ -154,8 +157,11 @@ def main(argv: list[str] | None = None) -> int:
         body_path = Path(args.body_file)
         if not body_path.exists():
             write_skill_error(
-                f"Body file not found: {args.body_file}", 2,
-                error_type="NotFound", output_format=fmt, script_name="new_issue.py",
+                f"Body file not found: {args.body_file}",
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="new_issue.py",
             )
             return 2
         body = body_path.read_text(encoding="utf-8")
@@ -176,8 +182,11 @@ def main(argv: list[str] | None = None) -> int:
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
         write_skill_error(
-            f"Failed to create issue: {error_str}", 3,
-            error_type="ApiError", output_format=fmt, script_name="new_issue.py",
+            f"Failed to create issue: {error_str}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="new_issue.py",
         )
         return 3
 
@@ -185,8 +194,11 @@ def main(argv: list[str] | None = None) -> int:
     match = re.search(r"issues/(\d+)", output_text)
     if not match:
         write_skill_error(
-            f"Could not parse issue number from result: {output_text}", 3,
-            error_type="ApiError", output_format=fmt, script_name="new_issue.py",
+            f"Could not parse issue number from result: {output_text}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="new_issue.py",
         )
         return 3
 
@@ -207,11 +219,13 @@ def main(argv: list[str] | None = None) -> int:
         script_name="new_issue.py",
     )
 
-    _write_github_output({
-        "success": "true",
-        "issue_number": str(issue_number),
-        "issue_url": output_text,
-    })
+    _write_github_output(
+        {
+            "success": "true",
+            "issue_number": str(issue_number),
+            "issue_url": output_text,
+        }
+    )
 
     return 0
 
