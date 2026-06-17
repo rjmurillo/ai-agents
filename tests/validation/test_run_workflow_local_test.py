@@ -214,6 +214,23 @@ def test_gh_act_missing_without_container_signal_still_exit_3(monkeypatch, tmp_p
     assert r.degraded is False
 
 
+def test_plain_docker_marker_does_not_downgrade(monkeypatch, tmp_path):
+    """A local Docker/devcontainer environment should still report a tool gap."""
+    monkeypatch.setattr(w, "_have", lambda tool: True)
+    monkeypatch.setattr(w, "_gh_act_available", lambda: False)
+    monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
+    monkeypatch.setattr(w.Path, "exists", lambda self: str(self) == "/.dockerenv")
+    monkeypatch.delenv(w._BYPASS_ENV, raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.delenv("CODESPACES", raising=False)
+
+    r = w.run_local_test([WF], tmp_path)
+
+    assert r.exit_code == 3
+    assert r.degraded is False
+
+
 def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
     # Dry-run passes (no daemon needed); the full stage needs Docker -> exit 3.
     # docker is installed but the daemon is down -> "not running" note.

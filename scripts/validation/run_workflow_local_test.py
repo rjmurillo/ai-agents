@@ -25,13 +25,12 @@ genuinely cannot run under act (secrets, ARM-only runners): set
 ``SKIP_WORKFLOW_LOCAL_TEST=true``; the bypass is logged, not hidden.
 
 One gap degrades instead of blocking: when ``gh`` or the ``gh act`` extension is
-unavailable inside a remote/managed container (Claude web containers, GitHub
-Codespaces, or any Docker container, detected by env markers and
-``/.dockerenv``), the gate returns exit 0 with ``degraded=True`` and a logged
-warning. Such a container cannot provision ``gh act`` (its ``gh`` is
-unauthenticated), so blocking every workflow-touching push there is friction,
-not safety. A truthy ``CI`` marker overrides the container signal, so CI, where
-``gh act`` is provisioned, keeps the hard exit 3 (Issue #2548, item 3).
+unavailable inside a managed remote container (Claude web containers or GitHub
+Codespaces, detected by env markers), the gate returns exit 0 with
+``degraded=True`` and a logged warning. Such an environment may not be able to
+provision ``gh act``, so blocking every workflow-touching push there is friction,
+not safety. A truthy ``CI`` marker overrides the managed-container signal, so CI,
+where ``gh act`` is provisioned, keeps the hard exit 3 (Issue #2548, item 3).
 
 CLI
 ---
@@ -72,15 +71,14 @@ _BYPASS_ENV = "SKIP_WORKFLOW_LOCAL_TEST"
 # accepts "1" and "true").
 _TRUTHY = {"1", "true"}
 
-# Env markers that identify a remote/managed container where the developer
-# cannot provision ``gh act`` (the container's ``gh`` is unauthenticated, so the
-# extension cannot install). Observed on Claude web containers, which always set
-# ``CLAUDECODE``, and GitHub Codespaces. In such an environment a missing
+# Env markers that identify managed remote containers where the developer may
+# not be able to provision ``gh act``. Observed on Claude web containers, which
+# set ``CLAUDECODE``, and GitHub Codespaces. In such environments a missing
 # ``gh act`` is an environment gap, not a code defect, so the gate degrades to a
 # logged warning instead of blocking the push (Issue #2548, item 3). The same
 # gate keeps its hard failure in CI, where ``gh act`` is provisioned: the ``CI``
-# marker (set to a truthy value by GitHub Actions) overrides the container
-# signal in :func:`_is_remote_container`.
+# marker (set to a truthy value by GitHub Actions) overrides the managed
+# container signal in :func:`_is_remote_container`.
 _REMOTE_CONTAINER_ENV_MARKERS = ("CLAUDECODE", "CODESPACES")
 _CI_ENV = "CI"
 
@@ -172,16 +170,13 @@ def _is_remote_container() -> bool:
 
     A truthy ``CI`` marker overrides every container signal: CI provisions
     ``gh act``, so a gap there is a real failure and must keep blocking. Outside
-    CI, any of the remote-container env markers (``CLAUDECODE``, ``CODESPACES``)
-    or a Docker container marker (``/.dockerenv``) identifies an environment
-    where the ``gh act`` gap is expected and the gate should degrade rather than
-    block (Issue #2548, item 3).
+    CI, the managed remote-container env markers (``CLAUDECODE``, ``CODESPACES``)
+    identify environments where the ``gh act`` gap is expected and the gate
+    should degrade rather than block (Issue #2548, item 3).
     """
     if _env_truthy(_CI_ENV):
         return False
-    if any(_env_truthy(marker) for marker in _REMOTE_CONTAINER_ENV_MARKERS):
-        return True
-    return Path("/.dockerenv").exists()
+    return any(_env_truthy(marker) for marker in _REMOTE_CONTAINER_ENV_MARKERS)
 
 
 def _run(
