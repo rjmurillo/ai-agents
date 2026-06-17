@@ -139,7 +139,7 @@
       "result": "All 5 threads resolved. Validate PR re-run pending."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "eb367099e",
   "nextSteps": [
     "Monitor Validate PR re-run; expect PASS on all gates.",
     "Enable squash auto-merge once only branch protection remains."
