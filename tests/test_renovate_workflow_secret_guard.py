@@ -1,16 +1,21 @@
 """Regression test for #2551.
 
 The "Renovate" job in `.github/workflows/dependabot-approve-and-auto-merge.yml`
-silently fails when `secrets.GH_ACTIONS_PR_WRITE` resolves to an empty string
-at run time (PAT expired, rotated, or renamed). The visible failure is
-`gh: To use GitHub CLI in a GitHub Actions workflow, set the GH_TOKEN
-environment variable.` which does not tell an operator that the actual root
-cause is a missing repository secret.
+silently failed because its PAT secret resolved to an empty string at run time.
+The root cause was a bespoke secret name `GH_ACTIONS_PR_WRITE` that was never
+provisioned in repository settings; it appeared in this single workflow and
+nowhere else. #2551 repoints the workflow at `BOT_PAT`, the canonical write PAT
+(the `rjmurillo-bot` service account, established by ADR-026 Decision 5 and used
+by 11 other write workflows). `BOT_PAT` is already provisioned and authenticates
+with a real-user identity that satisfies branch rulesets. The visible failure
+before the fix was `gh: To use GitHub CLI in a GitHub Actions workflow, set the
+GH_TOKEN environment variable.` which did not tell an operator the root cause
+was a missing repository secret.
 
 Evidence:
 https://github.com/rjmurillo/ai-agents/actions/runs/27254832120/job/79190113142
 
-This test asserts every job that depends on `GH_ACTIONS_PR_WRITE` runs a
+This test asserts every job that depends on the PAT secret runs a
 preflight guard that:
 
   1. Fails fast (exit 1) when the secret is empty.
@@ -36,7 +41,7 @@ WORKFLOW = (
     / "dependabot-approve-and-auto-merge.yml"
 )
 
-PAT_SECRET = "GH_ACTIONS_PR_WRITE"
+PAT_SECRET = "BOT_PAT"
 
 
 @pytest.fixture(scope="module")
@@ -66,7 +71,7 @@ def _job_uses_pat(job: dict) -> bool:
 
 
 def _jobs_requiring_pat(workflow: dict) -> dict[str, dict]:
-    """Return jobs whose steps depend on the GH_ACTIONS_PR_WRITE PAT."""
+    """Return jobs whose steps depend on the BOT_PAT secret."""
     jobs = workflow.get("jobs") or {}
     return {name: job for name, job in jobs.items() if _job_uses_pat(job)}
 
@@ -76,7 +81,7 @@ def _preflight_step(job: dict) -> dict | None:
 
     A guard step MUST:
 
-      * reference `GH_ACTIONS_PR_WRITE` in `env`,
+      * reference `BOT_PAT` in `env`,
       * test the variable for emptiness in `run` (e.g. `[ -z "$..." ]`),
       * emit a `::error::` annotation so the failure surfaces in the UI,
       * exit non-zero.
@@ -101,7 +106,7 @@ def _preflight_step(job: dict) -> dict | None:
 
 
 def test_renovate_job_uses_pat(workflow: dict) -> None:
-    """Sanity: the Renovate job still depends on GH_ACTIONS_PR_WRITE.
+    """Sanity: the Renovate job still depends on BOT_PAT.
 
     If this fails, the workflow no longer needs the PAT and the rest of the
     suite should be deleted or rewritten. Without this assertion the guard
@@ -109,17 +114,17 @@ def test_renovate_job_uses_pat(workflow: dict) -> None:
     """
     job = workflow["jobs"]["renovate"]
     assert _job_uses_pat(job), (
-        "Renovate job no longer references GH_ACTIONS_PR_WRITE; either the "
+        "Renovate job no longer references BOT_PAT; either the "
         "PAT is no longer needed (delete this test) or the secret was renamed "
         "(update PAT_SECRET in this file). See #2551."
     )
 
 
 def test_dependabot_job_uses_pat(workflow: dict) -> None:
-    """Sanity: the Dependabot job still depends on GH_ACTIONS_PR_WRITE."""
+    """Sanity: the Dependabot job still depends on BOT_PAT."""
     job = workflow["jobs"]["dependabot"]
     assert _job_uses_pat(job), (
-        "Dependabot job no longer references GH_ACTIONS_PR_WRITE. Update "
+        "Dependabot job no longer references BOT_PAT. Update "
         "PAT_SECRET or delete this test. See #2551."
     )
 
@@ -128,7 +133,7 @@ def test_dependabot_job_uses_pat(workflow: dict) -> None:
 def test_job_has_preflight_secret_guard(workflow: dict, job_name: str) -> None:
     """Positive: every PAT-using job runs a preflight guard.
 
-    The guard checks that GH_ACTIONS_PR_WRITE is non-empty, emits a
+    The guard checks that BOT_PAT is non-empty, emits a
     `::error::` annotation, and exits 1. This prevents the cryptic
     `gh: To use GitHub CLI ... set the GH_TOKEN environment variable.`
     failure mode documented in #2551.
@@ -205,10 +210,10 @@ def test_yaml_null_env_does_not_crash_guard_detection() -> None:
                     {"name": "noop", "uses": "actions/checkout@v5", "env": None},
                     {
                         "name": "guard",
-                        "env": {"PAT": "${{ secrets.GH_ACTIONS_PR_WRITE }}"},
+                        "env": {"PAT": "${{ secrets.BOT_PAT }}"},
                         "run": (
                             'if [ -z "$PAT" ]; then\n'
-                            '  echo "::error::secrets.GH_ACTIONS_PR_WRITE is '
+                            '  echo "::error::secrets.BOT_PAT is '
                             'empty; admin must rotate the PAT"\n'
                             "  exit 1\n"
                             "fi\n"
