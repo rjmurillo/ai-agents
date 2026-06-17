@@ -1,8 +1,10 @@
 """Canonical: scripts/hook_utilities/lsp_health.py. Sync via scripts/sync_plugin_lib.py.
 
-Canonical module. Plugin-distributed copy at
-``.claude/lib/hook_utilities/lsp_health.py``; run
-``python3 scripts/sync_plugin_lib.py`` to sync.
+Canonical source path: ``scripts/hook_utilities/lsp_health.py``.
+Synced distribution paths:
+``.claude/lib/hook_utilities/lsp_health.py`` and
+``src/copilot-cli/lib/hook_utilities/lsp_health.py``. Run
+``python3 scripts/sync_plugin_lib.py`` to sync the distribution copies.
 
 WHY THIS EXISTS (issue #2622)
 -----------------------------
@@ -108,22 +110,25 @@ def _marker_path(project_dir: str) -> Path:
 def warn_once_lsp_down(guard_name: str, project_dir: str) -> bool:
     """Emit the LSP-down fail-open warning at most once per session. Never raises.
 
-    Writes a per-cwd marker the first time it warns; subsequent calls observe
-    the marker and stay silent (the issue's "one-time warning instead of
-    repeated hard blocks"). Returns True when this call emitted the warning
-    (regardless of whether the dedup marker was successfully persisted).
+    Claims a per-cwd marker with exclusive create before it warns; subsequent
+    calls observe the marker and stay silent (the issue's "one-time warning
+    instead of repeated hard blocks"). Returns True when this call emitted the
+    warning (regardless of whether the dedup marker was successfully persisted).
     Returns False when the warning was already emitted this session (marker
     exists).
 
     Any marker filesystem error degrades to emitting without persistence rather
     than raising; a navigation gate must never wedge a turn (release-it.md).
     """
-    marker = _marker_path(project_dir)
     try:
-        if marker.exists():
-            return False
+        marker = _marker_path(project_dir)
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        with marker.open("x", encoding="utf-8") as fh:
+            fh.write("1")
+    except FileExistsError:
+        return False
     except OSError, ValueError:
-        pass
+        marker = None
 
     message = (
         f"{guard_name}: LSP runtime is down ({LSP_DOWN_ENV} set); allowing this "
@@ -131,14 +136,6 @@ def warn_once_lsp_down(guard_name: str, project_dir: str) -> bool:
         "language server recovers."
     )
     print(message, file=sys.stderr)
-
-    try:
-        marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.write_text("1", encoding="utf-8")
-    except OSError, ValueError:
-        # Could not persist the marker: we already printed once, so degrade to
-        # "warned" semantics for this call but allow a future call to warn again.
-        return True
     return True
 
 

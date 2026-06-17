@@ -56,6 +56,14 @@ class TestWarnOnce:
         assert emitted is False
         assert capsys.readouterr().err == ""
 
+    def test_existing_marker_is_silent(self, capsys):
+        marker = lsp_health._marker_path(str(REPO_ROOT))
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("1", encoding="utf-8")
+        emitted = lsp_health.warn_once_lsp_down("lsp-read-guard", str(REPO_ROOT))
+        assert emitted is False
+        assert capsys.readouterr().err == ""
+
     def test_clear_marker_re_enables_warning(self, capsys):
         lsp_health.warn_once_lsp_down("lsp-read-guard", str(REPO_ROOT))
         capsys.readouterr()

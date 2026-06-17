@@ -1,8 +1,7 @@
 """Canonical: scripts/hook_utilities/lsp_health.py. Sync via scripts/sync_plugin_lib.py.
 
-Canonical module. Plugin-distributed copy at
-``.claude/lib/hook_utilities/lsp_health.py``; run
-``python3 scripts/sync_plugin_lib.py`` to sync.
+Synced copy. Canonical source path: ``scripts/hook_utilities/lsp_health.py``.
+Run ``python3 scripts/sync_plugin_lib.py`` to update this distribution copy.
 
 WHY THIS EXISTS (issue #2622)
 -----------------------------
