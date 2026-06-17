@@ -84,32 +84,32 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "SKIPPED: read-only triage session, no new cross-session context created"
       },
       "markdownLintRun": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "markdownlint-cli2 passed; dash check passed (0 em/en)"
       },
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Commit SHA: 41807cb02"
       },
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "SKIPPED: report-only deliverable, no code changes requiring validation"
       },
       "tasksUpdated": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "Triage task completed; posted to issue #1950"
       },
       "retrospectiveInvoked": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": ""
+        "Evidence": "SKIPPED: single-purpose triage session"
       }
     }
   },
@@ -121,6 +121,6 @@
       "result": "passed"
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "41807cb02",
   "nextSteps": []
 }
