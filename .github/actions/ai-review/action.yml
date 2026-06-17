@@ -154,9 +154,14 @@ runs:
       run: |
         set -e  # Exit on any error
 
-        # Pin to 0.0.397 (last known good version before frontmatter regression)
-        # See: github/copilot-cli#1195, ADR-044
-        COPILOT_VERSION="0.0.397"
+        # Pin to 1.0.63 (current npm 'latest'). 0.0.397 is npm-deprecated for
+        # "invalid session id errors" and broke the PR-comment step (Issue #2630).
+        # The frontmatter regression that drove the 0.0.397 pin (model,
+        # argument-hint, handoffs rejected) is resolved upstream; agents carrying
+        # argument-hint load clean on 1.0.63. ADR-044 documented exit path:
+        # "When the regression is fixed, evaluate upgrading."
+        # See: github/copilot-cli#1195, ADR-044, Issue #2630
+        COPILOT_VERSION="1.0.63"
         echo "Installing GitHub Copilot CLI@${COPILOT_VERSION}..."
         if ! npm install -g "@github/copilot@${COPILOT_VERSION}"; then
           echo "::error::Failed to install GitHub Copilot CLI@${COPILOT_VERSION}"

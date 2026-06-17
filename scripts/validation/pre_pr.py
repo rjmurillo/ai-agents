@@ -90,6 +90,7 @@ from checks_tooling import (  # noqa: E402, F401
     _find_latest_session_log,
     _markdown_lint_targets,
     validate_agent_drift,
+    validate_copilot_version_pin,
     validate_markdown_lint,
     validate_path_normalization,
     validate_pester_tests,
@@ -285,6 +286,14 @@ def main(argv: list[str] | None = None) -> int:
         "Workflow YAML Validation",
         state,
         lambda: validate_workflow_yaml(repo_root),
+    )
+
+    # 3.55 Copilot CLI Version Pin (Issue #2630). Fails when the pinned
+    # @github/copilot version is missing, unparseable, or known-bad (0.0.397).
+    run_validation(
+        "Copilot CLI Version Pin",
+        state,
+        lambda: validate_copilot_version_pin(repo_root),
     )
 
     # 3.6 Design Review Frontmatter
