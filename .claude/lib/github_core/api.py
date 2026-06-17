@@ -340,9 +340,13 @@ def gh_graphql(query: str, variables: dict | None = None) -> dict:
         if result.returncode == 0:
             return _parse_graphql_response(result.stdout)
 
+        # Check transient status against raw output BEFORE extraction (issue #2631).
+        # _extract_graphql_error may strip HTTP status from messages like
+        # '{"message": "..."} (HTTP 504)', so transient detection must use raw text.
+        raw_error = result.stderr.strip() or result.stdout.strip()
         error_msg = _extract_graphql_error(result)
         is_last = attempt == _GRAPHQL_MAX_ATTEMPTS
-        if not is_last and _is_transient_graphql_error(error_msg):
+        if not is_last and _is_transient_graphql_error(raw_error):
             backoff = _GRAPHQL_BACKOFF_BASE_SECONDS ** (attempt - 1)
             logger.warning(
                 "Transient GraphQL failure (attempt %d/%d), retrying in %.1fs: %s",
