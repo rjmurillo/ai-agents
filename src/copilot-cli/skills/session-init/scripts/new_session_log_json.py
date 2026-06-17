@@ -26,6 +26,9 @@ _WORKSPACE = os.environ.get(
     "GITHUB_WORKSPACE",
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")),
 )
+_SESSION_INIT_DIR = os.path.join(os.path.dirname(__file__), "..")
+if _SESSION_INIT_DIR not in sys.path:
+    sys.path.insert(0, _SESSION_INIT_DIR)
 
 
 def _resolve_paths_lib_dir() -> str:
@@ -55,6 +58,7 @@ if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 
 from paths import resolve_artifact_root  # noqa: E402
+from session_init.session_structure import build_session_log  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,19 +66,24 @@ def build_parser() -> argparse.ArgumentParser:
         description="Create a new session log in JSON format.",
     )
     parser.add_argument(
-        "--session-number", type=int, default=0,
+        "--session-number",
+        type=int,
+        default=0,
         help="Session number. Auto-detects from existing files if not provided.",
     )
     parser.add_argument(
-        "--objective", default="",
+        "--objective",
+        default="",
         help="Session objective description.",
     )
     parser.add_argument(
-        "--trace-id", default="",
+        "--trace-id",
+        default="",
         help="Trace correlation ID (UUID) for multi-agent execution graphs.",
     )
     parser.add_argument(
-        "--parent-session-id", default="",
+        "--parent-session-id",
+        default="",
         help="Parent session identifier (YYYY-MM-DD-session-N) for call graph reconstruction.",
     )
     return parser
@@ -83,7 +92,10 @@ def build_parser() -> argparse.ArgumentParser:
 def _get_branch() -> str:
     result = subprocess.run(
         ["git", "branch", "--show-current"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return "unknown"
@@ -93,7 +105,10 @@ def _get_branch() -> str:
 def _get_commit() -> str:
     result = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return "unknown"
@@ -108,7 +123,10 @@ def _get_repo_root() -> str:
     # Canonical reference: scripts/github_core/repo.py::get_repo_root.
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return _WORKSPACE
@@ -160,56 +178,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    objective = args.objective
-    trace_id = args.trace_id
-    parent_session_id = args.parent_session_id
-    not_on_main = branch not in ("main", "master")
-
-    session_metadata: dict[str, Any] = {
-        "number": session_number,
-        "date": current_date,
-        "branch": branch,
-        "startingCommit": commit,
-        "objective": objective if objective else "[TODO: Describe objective]",
-    }
-    if trace_id:
-        session_metadata["traceId"] = trace_id
-    if parent_session_id:
-        session_metadata["parentSessionId"] = parent_session_id
-
-    session: dict[str, Any] = {
-        "schemaVersion": "1.0",
-        "session": session_metadata,
-        "protocolCompliance": {
-            "sessionStart": {
-                "serenaActivated": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "serenaInstructions": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "handoffRead": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "sessionLogCreated": {"level": "MUST", "Complete": True, "Evidence": "This file"},
-                "skillScriptsListed": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "usageMandatoryRead": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "constraintsRead": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "memoriesLoaded": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "branchVerified": {"level": "MUST", "Complete": True, "Evidence": branch},
-                "notOnMain": {"level": "MUST", "Complete": not_on_main, "Evidence": f"On {branch}"},
-                "gitStatusVerified": {"level": "SHOULD", "Complete": False, "Evidence": ""},
-                "startingCommitNoted": {"level": "SHOULD", "Complete": True, "Evidence": commit},
-            },
-            "sessionEnd": {
-                "checklistComplete": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "handoffPreserved": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "serenaMemoryUpdated": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "markdownLintRun": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "changesCommitted": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "validationPassed": {"level": "MUST", "Complete": False, "Evidence": ""},
-                "tasksUpdated": {"level": "SHOULD", "Complete": False, "Evidence": ""},
-                "retrospectiveInvoked": {"level": "SHOULD", "Complete": False, "Evidence": ""},
-            },
-        },
-        "workLog": [],
-        "endingCommit": "",
-        "nextSteps": [],
-    }
+    session: dict[str, Any] = build_session_log(
+        branch=branch,
+        commit=commit,
+        session_number=session_number,
+        objective=args.objective,
+        current_date=current_date,
+        trace_id=args.trace_id,
+        parent_session_id=args.parent_session_id,
+    )
 
     # Atomic file creation with collision retry (CWE-362)
     json_content = json.dumps(session, indent=2) + "\n"

@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-06-17-session-2586-fix-2641-reconcile-stale-githubagentscriticagentmd",
+  "session": "2026-06-17-session-2586-fix-2641-reconcile-stale-githubagentscriticagentmd",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "fix #2641 reconcile stale .github/agents/critic.agent.md to canonical (asymmetry framing); add critic install-parity drift regression test",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reconciled stale .github/agents/critic.agent.md to canonical .claude/agents/critic.md (asymmetry framing restored: 7 hits) and added install-parity regression test.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Command: uv run python -m pytest tests/build_scripts/test_critic_install_parity.py -v | Result: 2 passed (pytest passed). test_critic_install_copies_are_in_parity passed; test_github_critic_carries_asymmetry_framing passed. Drift: detect_agent_drift.py -> critic [.claude/agents vs .github/agents]: OK (100.0% similar). Pre-fix baseline was DRIFT DETECTED (0.0%). Mutation test: stripping 'asymmetry' -> test went RED (0 hits), then restored to 7.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1448e5157",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 3
+  },
+  "lessons": []
+}

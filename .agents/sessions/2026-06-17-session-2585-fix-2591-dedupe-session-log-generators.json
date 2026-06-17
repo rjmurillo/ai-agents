@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2585,
+    "date": "2026-06-17",
+    "branch": "fix/2591-session-log-generator-dedupe",
+    "startingCommit": "ccf2020857",
+    "objective": "fix #2591 dedupe session-log generators via shared builder"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active; write_memory succeeded"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed AGENTS.md Serena init; memories topical-loaded via hooks"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue #2591 context + comments; no open issue handoff"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed session-init scripts dir; reviewed both generators"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules + AGENTS.md boundaries this session"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Reviewed refactoring.md, testing.md, python.md rules"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical worktree memories surfaced by PreToolUse hooks"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2591-session-log-generator-dedupe"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2591-session-log-generator-dedupe"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status checked; clean baseline before edits"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ccf2020857"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUSTs reviewed and populated honestly"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not edited (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote tasks/issue-2591-session-log-generator-dedupe"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files authored or changed; markdownlint not applicable"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed source+tests on fix/2591 branch (ending b522a82fe5)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest test_session_init.py -> 22 passed; validate_session_json.py schema-pass"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "No task tracker entries for this issue"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-issue fix; no retro required"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T14:00:00Z",
+      "action": "Extracted shared session-log builder (session_structure.build_session_log); routed both new_session_log.py and new_session_log_json.py through it (Issue #2591). Added drift-guard tests.",
+      "evidence": "uv run pytest .claude/skills/session-init/tests/test_session_init.py -q -> 22 passed. TDD: RED (ModuleNotFoundError on session_init.session_structure) then GREEN after builder added; mutation (renamed serenaActivated key) made test_build_session_log_protocol_compliance_keys fail, restored to 22 passed."
+    }
+  ],
+  "endingCommit": "b522a82fe5",
+  "nextSteps": [
+    "Open PR for #2591",
+    "Note keystone commits in PR body until #2621 merges"
+  ]
+}
