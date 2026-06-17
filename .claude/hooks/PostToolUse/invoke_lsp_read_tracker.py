@@ -54,6 +54,7 @@ if _lib_dir not in sys.path:
 from hook_utilities import get_project_directory  # noqa: E402
 from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
 from hook_utilities.lsp_gate_state import is_gated_target, record_read  # noqa: E402
+from hook_utilities.lsp_health import lsp_runtime_down  # noqa: E402
 from hook_utilities.lsp_provider import SYMBOLS_OVERVIEW, detect_providers  # noqa: E402
 
 
@@ -64,6 +65,13 @@ def main() -> int:
 
     try:
         if os.environ.get("SKIP_LSP_GATE", "").strip().lower() == "true":
+            return 0
+
+        # Symmetric with the PreToolUse guard: when LSP_DOWN is set, reads are
+        # allowed without gating, so we must not track them either. Otherwise
+        # tier state advances during degraded mode and hard-blocks resume when
+        # the LSP recovers (issue #2622).
+        if lsp_runtime_down():
             return 0
 
         if sys.stdin.isatty():

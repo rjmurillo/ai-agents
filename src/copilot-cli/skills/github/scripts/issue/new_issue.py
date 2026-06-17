@@ -5,8 +5,8 @@ Supports both inline body text and file-based body content.
 
 Exit codes follow ADR-035:
     0 - Success
-    1 - Invalid parameters / logic error
-    2 - File not found
+    1 - Logic failure after argument parsing
+    2 - Usage/configuration error (invalid CLI args, file not found)
     3 - External error (API failure)
     4 - Auth error (not authenticated)
 """
@@ -14,6 +14,8 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import os
 import re
 import subprocess
@@ -38,12 +40,12 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (  # noqa: E402
     assert_gh_authenticated,
-    error_and_exit,
     resolve_repo_params,
 )
 from github_core.output import (  # noqa: E402
     add_output_format_arg,
     get_output_format,
+    write_skill_error,
     write_skill_output,
 )
 
@@ -82,22 +84,145 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _apply_labels(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    url: str,
+    labels: str,
+    fmt: str,
+) -> int | None:
+    """Apply labels to an already-created issue.
+
+    Label application runs as a separate ``gh issue edit`` call so a missing
+    label does not lose the created issue. On failure, emit the standard error
+    envelope carrying the issue number and URL so automation can repair labels
+    rather than re-create the issue.
+
+    Returns:
+        ``None`` on success (or when no labels were requested), otherwise the
+        exit code to return from ``main``.
+    """
+    if not labels or not labels.strip():
+        return None
+
+    label_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
+    if not label_list:
+        return None
+
+    gh_args = ["gh", "issue", "edit", str(issue_number), "--repo", f"{owner}/{repo}"]
+    for lbl in label_list:
+        gh_args.extend(["--add-label", lbl])
+
+    try:
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            "gh issue edit timed out after 30s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="new_issue.py",
+            extra={"issue_number": issue_number, "url": url},
+        )
+        return 3
+
+    if result.returncode == 0:
+        return None
+
+    error_str = result.stderr.strip() or result.stdout.strip()
+    write_skill_error(
+        f"Issue #{issue_number} created but label application failed: {error_str}",
+        3,
+        error_type="ApiError",
+        output_format=fmt,
+        script_name="new_issue.py",
+        extra={"issue_number": issue_number, "url": url},
+    )
+    return 3
+
+
+def _resolve_auth_and_repo(
+    owner: str,
+    repo: str,
+    fmt: str,
+) -> tuple[str, str] | int:
+    """Assert authentication and resolve owner/repo, emitting JSON envelopes on failure.
+
+    Returns:
+        ``(owner, repo)`` on success, or an int exit code after writing the
+        error envelope so ``main`` can propagate it immediately.
+    """
+    try:
+        assert_gh_authenticated()
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 4
+        write_skill_error(
+            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
+            code,
+            error_type="AuthError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return code
+
+    _stderr_buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(_stderr_buf):
+            resolved = resolve_repo_params(owner, repo)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+        message = _stderr_buf.getvalue().strip() or "Could not resolve repository parameters."
+        write_skill_error(
+            message,
+            code,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return code
+
+    return resolved.owner, resolved.repo
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
 
-    assert_gh_authenticated()
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner, repo = resolved.owner, resolved.repo
+    auth_result = _resolve_auth_and_repo(args.owner, args.repo, fmt)
+    if isinstance(auth_result, int):
+        return auth_result
+    owner, repo = auth_result
 
     if not args.title or not args.title.strip():
-        error_and_exit("Title cannot be empty.", 2)
+        write_skill_error(
+            "Title cannot be empty.",
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 2
 
     body = args.body
     if args.body_file:
         body_path = Path(args.body_file)
         if not body_path.exists():
-            error_and_exit(f"Body file not found: {args.body_file}", 2)
+            write_skill_error(
+                f"Body file not found: {args.body_file}",
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="new_issue.py",
+            )
+            return 2
         body = body_path.read_text(encoding="utf-8")
 
     gh_args = ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", args.title]
@@ -105,21 +230,53 @@ def main(argv: list[str] | None = None) -> int:
     if body and body.strip():
         gh_args.extend(["--body", body])
 
-    if args.labels and args.labels.strip():
-        gh_args.extend(["--label", args.labels])
-
-    result = subprocess.run(gh_args, capture_output=True, text=True, check=False)
+    try:
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            "gh issue create timed out after 30s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
 
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        error_and_exit(f"Failed to create issue: {error_str}", 3)
+        write_skill_error(
+            f"Failed to create issue: {error_str}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
 
     output_text = result.stdout.strip()
     match = re.search(r"issues/(\d+)", output_text)
     if not match:
-        error_and_exit(f"Could not parse issue number from result: {output_text}", 3)
+        write_skill_error(
+            f"Could not parse issue number from result: {output_text}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
 
     issue_number = int(match.group(1))
+
+    label_error = _apply_labels(owner, repo, issue_number, output_text, args.labels, fmt)
+    if label_error is not None:
+        return label_error
 
     write_skill_output(
         {
@@ -132,11 +289,13 @@ def main(argv: list[str] | None = None) -> int:
         script_name="new_issue.py",
     )
 
-    _write_github_output({
-        "success": "true",
-        "issue_number": str(issue_number),
-        "issue_url": output_text,
-    })
+    _write_github_output(
+        {
+            "success": "true",
+            "issue_number": str(issue_number),
+            "issue_url": output_text,
+        }
+    )
 
     return 0
 

@@ -143,11 +143,17 @@
       "timestamp": "2026-06-17T17:50:00Z",
       "action": "test_pr_merge_ready: DIRTY (causal-graph.json conflict with main); merge in progress",
       "result": "Session log committed to branch before merge to satisfy hook branch-specific file filter"
+    },
+    {
+      "timestamp": "2026-06-17T17:58:00Z",
+      "action": "Merged origin/main (11 commits ahead); resolved causal-graph.json conflict with --theirs (upstream wins; hook regenerates on next commit)",
+      "result": "Merge commit staged; CI will re-run Validate PR check"
     }
   ],
-  "endingCommit": "6a3b39e45",
+  "endingCommit": "merge-in-progress",
   "nextSteps": [
-    "Push merge commit; CI re-run should show Validate PR PASS",
-    "run_completion_gate.py after CI"
+    "CI re-run after push: Validate PR should pass (PR body fixed)",
+    "run_completion_gate.py",
+    "set_pr_auto_merge.py squash if only branch protection remains"
   ]
 }

@@ -308,6 +308,10 @@ def _original_main(stdin_bytes):
         read_state,
     )
     from hook_utilities.guards import skip_if_consumer_repo  # noqa: E402
+    from hook_utilities.lsp_health import (  # noqa: E402
+        lsp_runtime_down,
+        warn_once_lsp_down,
+    )
 
     _SKIP_ENV = "SKIP_LSP_GATE"
     _MODE_ENV = "LSP_GATE_MODE"
@@ -406,6 +410,16 @@ def _original_main(stdin_bytes):
         providers = detect_providers(file_path, SYMBOLS_OVERVIEW, project_dir)
         if not providers:
             _note(f"no overview provider, allow: {file_path}")
+            return 0, None
+
+        # Runtime fail-open (issue #2622): detect_providers is config-only, so it
+        # still reports "available" when the language server timed out at startup
+        # (ADR-062 Section 8, "configured != active"). If the LSP runtime is down,
+        # degrade to ALLOW with a one-time warning rather than hard-block native
+        # Read/Edit/Grep (ADR-062 Section 5, release-it.md graceful degradation).
+        if lsp_runtime_down():
+            warn_once_lsp_down("lsp-read-guard", project_dir)
+            _note(f"lsp runtime down, allow: {file_path}")
             return 0, None
 
         state = read_state(project_dir)

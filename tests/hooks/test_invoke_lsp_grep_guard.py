@@ -54,6 +54,7 @@ def _grep_input(pattern: str, *, path: str = "", glob: str = "") -> str:
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure env toggles do not leak between tests."""
     monkeypatch.delenv("SKIP_LSP_GATE", raising=False)
+    monkeypatch.delenv("LSP_DOWN", raising=False)
     monkeypatch.delenv("LSP_GATE_MODE", raising=False)
 
 
@@ -128,9 +129,7 @@ class TestFindCodeSymbols:
         assert guard.find_code_symbols(" SessionManager | ") == ["SessionManager"]
 
     def test_snake_case_function_symbol(self):
-        assert guard.find_code_symbols("find_referencing_symbols") == [
-            "find_referencing_symbols"
-        ]
+        assert guard.find_code_symbols("find_referencing_symbols") == ["find_referencing_symbols"]
 
 
 # ---------------------------------------------------------------------------
@@ -205,9 +204,7 @@ class TestFailOpen:
         assert guard.main() == 0
 
     def test_wrong_tool_name_allows(self, mock_stdin: Callable[[str], None]):
-        mock_stdin(
-            json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}})
-        )
+        mock_stdin(json.dumps({"tool_name": "Bash", "tool_input": {"command": "ls"}}))
         assert guard.main() == 0
 
     def test_non_dict_tool_input_allows(self, mock_stdin: Callable[[str], None]):
@@ -243,6 +240,24 @@ class TestFailOpen:
         monkeypatch.setenv("SKIP_LSP_GATE", "TRUE")
         mock_stdin(_grep_input("SessionManager", glob="*.py"))
         assert guard.main() == 0
+
+    @patch("invoke_lsp_grep_guard.get_project_directory", return_value="/project")
+    @patch("invoke_lsp_grep_guard.detect_providers", return_value=["serena"])
+    def test_lsp_down_allows_and_warns(
+        self,
+        _mock_detect,
+        _mock_dir,
+        mock_stdin: Callable[[str], None],
+        monkeypatch: pytest.MonkeyPatch,
+        capsys,
+    ):
+        monkeypatch.setenv("LSP_DOWN", "true")
+        warn_once = MagicMock(return_value=True)
+        monkeypatch.setattr(guard, "warn_once_lsp_down", warn_once)
+        mock_stdin(_grep_input("SessionManager", glob="*.py"))
+        assert guard.main() == 0
+        warn_once.assert_called_once_with("lsp-grep-guard", "/project")
+        assert capsys.readouterr().out == ""
 
     def test_consumer_repo_skips(
         self, mock_stdin: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
@@ -375,9 +390,7 @@ class TestResolveInRepo:
         assert guard._resolve_in_repo("/tmp/elsewhere") is None
 
     def test_parent_escape_returns_none(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setattr(
-            guard, "get_project_directory", lambda: str(HOOK_DIR.parent)
-        )
+        monkeypatch.setattr(guard, "get_project_directory", lambda: str(HOOK_DIR.parent))
         assert guard._resolve_in_repo("../../../../etc") is None
 
 
@@ -418,9 +431,7 @@ class TestRepoWideGating:
         # get_project_directory is left real so `scripts/` resolves on disk and
         # passes the is_dir() directory-scope check.
         repo_root = Path(__file__).resolve().parents[2]
-        with patch(
-            "invoke_lsp_grep_guard.get_project_directory", return_value=str(repo_root)
-        ):
+        with patch("invoke_lsp_grep_guard.get_project_directory", return_value=str(repo_root)):
             mock_stdin(_grep_input("SessionManager", path="scripts"))
             assert guard.main() == 2
 
@@ -499,9 +510,7 @@ class TestWarnMode:
 
 
 class TestRealLibWiring:
-    def test_real_detect_providers_blocks_py_glob(
-        self, mock_stdin: Callable[[str], None]
-    ):
+    def test_real_detect_providers_blocks_py_glob(self, mock_stdin: Callable[[str], None]):
         """Without mocking the lib, a code symbol on *.py blocks in this repo.
 
         This repo configures python in .serena/project.yml and registers the

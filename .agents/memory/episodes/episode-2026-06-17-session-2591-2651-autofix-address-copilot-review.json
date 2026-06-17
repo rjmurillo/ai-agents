@@ -61,6 +61,14 @@
       "content": "Commit: 6a3b39e45",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Merged origin/main (11 commits ahead); resolved causal-graph.json conflict with --theirs (upstream wins; hook regenerates on next commit)",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

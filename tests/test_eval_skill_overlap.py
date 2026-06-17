@@ -565,6 +565,16 @@ def test_build_report_md_renders_prune_fold_table():
     assert "Per-Pair Detail" in md
 
 
+def test_build_report_md_ends_with_single_newline_no_double_blank():
+    # Act
+    md = eso.build_report_md([_sample_result()], model="m", run_id="rid")
+
+    # Assert: exactly one trailing newline (MD047) and no double blank at EOF (MD012).
+    assert md.endswith("\n")
+    assert not md.endswith("\n\n")
+    assert "\n\n\n" not in md
+
+
 def test_write_reports_produces_matrix_and_report(tmp_path):
     # Act
     out_dir = eso.write_reports(
