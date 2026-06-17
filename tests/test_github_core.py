@@ -985,7 +985,7 @@ class TestFetchStatus:
         unlike a bare-string sentinel which would silently miss.
         """
         with pytest.raises(AttributeError):
-            _ = FetchStatus.OK_TYPO  # type: ignore[attr-defined]
+            _ = getattr(FetchStatus, "OK_TYPO")
 
 
 class TestCountUnresolvedThreads:
