@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from test_helpers import make_completed_process
 
 # Ensure importability
@@ -27,6 +26,7 @@ def _mock_repo():
 @pytest.fixture
 def _import_module():
     import importlib
+
     mod_name = "set_issue_labels"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -43,12 +43,15 @@ class TestSetIssueLabels:
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
             patch("set_issue_labels._get_issue_labels", return_value=[]),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(),  # _label_exists for "bug"
-                make_completed_process(),  # _apply_label for "bug"
-                make_completed_process(),  # _label_exists for "P1"
-                make_completed_process(),  # _apply_label for "P1"
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(),  # _label_exists for "bug"
+                    make_completed_process(),  # _apply_label for "bug"
+                    make_completed_process(),  # _label_exists for "P1"
+                    make_completed_process(),  # _apply_label for "P1"
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--labels", "bug", "P1"])
         assert rc == 0
@@ -63,11 +66,14 @@ class TestSetIssueLabels:
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
             patch("set_issue_labels._get_issue_labels", return_value=[]),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(returncode=1),   # _label_exists fails
-                make_completed_process(),                # _create_label succeeds
-                make_completed_process(),                # _apply_label succeeds
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(returncode=1),  # _label_exists fails
+                    make_completed_process(),  # _create_label succeeds
+                    make_completed_process(),  # _apply_label succeeds
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--labels", "new-label"])
         assert rc == 0
@@ -81,10 +87,13 @@ class TestSetIssueLabels:
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
             patch("set_issue_labels._get_issue_labels", return_value=[]),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(),  # _label_exists
-                make_completed_process(),  # _apply_label
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(),  # _label_exists
+                    make_completed_process(),  # _apply_label
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--priority", "P1"])
         assert rc == 0
@@ -116,10 +125,13 @@ class TestSetIssueLabels:
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
             patch("set_issue_labels._get_issue_labels", return_value=[]),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(returncode=1),                     # _label_exists fails
-                make_completed_process(returncode=1, stderr="err"),       # _create_label fails
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(returncode=1),  # _label_exists fails
+                    make_completed_process(returncode=1, stderr="err"),  # _create_label fails
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--labels", "broken"])
@@ -132,10 +144,13 @@ class TestSetIssueLabels:
             patch("set_issue_labels.assert_gh_authenticated"),
             patch("set_issue_labels.resolve_repo_params", return_value=_mock_repo()),
             patch("set_issue_labels._get_issue_labels", return_value=[]),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(),  # _label_exists for "good"
-                make_completed_process(),  # _apply_label for "good"
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(),  # _label_exists for "good"
+                    make_completed_process(),  # _apply_label for "good"
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--labels", "good", "  ", ""])
         assert rc == 0
@@ -193,11 +208,14 @@ class TestPriorityMutualExclusion:
                 "set_issue_labels._get_issue_labels",
                 return_value=["bug", "priority:P2"],
             ),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(),  # _remove_label for "priority:P2"
-                make_completed_process(),  # _label_exists for "priority:P1"
-                make_completed_process(),  # _apply_label for "priority:P1"
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(),  # _remove_label for "priority:P2"
+                    make_completed_process(),  # _label_exists for "priority:P1"
+                    make_completed_process(),  # _apply_label for "priority:P1"
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--priority", "P1"])
         assert rc == 0

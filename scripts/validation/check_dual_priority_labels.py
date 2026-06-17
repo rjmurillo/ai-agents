@@ -64,8 +64,7 @@ def find_priority_labels(label_names: list[str]) -> list[str]:
     matches = [
         name
         for name in label_names
-        if isinstance(name, str)
-        and name.lower().startswith(PRIORITY_PREFIX)
+        if isinstance(name, str) and name.lower().startswith(PRIORITY_PREFIX)
     ]
     return sorted(matches)
 
@@ -125,19 +124,13 @@ def _fetch_labels(kind: str, number: int) -> tuple[int, list[str] | None, str]:
 
     labels_field = payload.get("labels")
     labels = labels_field if isinstance(labels_field, list) else []
-    names = [
-        item.get("name")
-        for item in labels
-        if isinstance(item, dict) and item.get("name")
-    ]
+    names = [item.get("name") for item in labels if isinstance(item, dict) and item.get("name")]
     return EXIT_OK, names, ""
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "Exit 1 when an issue/PR carries more than one priority:* label."
-        )
+        description=("Exit 1 when an issue/PR carries more than one priority:* label.")
     )
     parser.add_argument(
         "--labels",
@@ -145,12 +138,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Label names to check directly (no network).",
     )
-    parser.add_argument(
-        "--issue", type=int, default=0, help="Issue number to fetch via gh."
-    )
-    parser.add_argument(
-        "--pr", type=int, default=0, help="PR number to fetch via gh."
-    )
+    parser.add_argument("--issue", type=int, default=0, help="Issue number to fetch via gh.")
+    parser.add_argument("--pr", type=int, default=0, help="PR number to fetch via gh.")
     return parser
 
 

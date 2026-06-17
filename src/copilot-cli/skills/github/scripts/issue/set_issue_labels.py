@@ -53,7 +53,8 @@ PRIORITY_PREFIX = "priority:"
 
 
 def compute_priority_removals(
-    existing: list[str], incoming: list[str],
+    existing: list[str],
+    incoming: list[str],
 ) -> list[str]:
     """Return existing ``priority:*`` labels to remove for mutual exclusivity.
 
@@ -129,16 +130,25 @@ def _label_exists(owner: str, repo: str, label_name: str) -> bool:
 
 
 def _create_label(
-    owner: str, repo: str, label_name: str, color: str,
+    owner: str,
+    repo: str,
+    label_name: str,
+    color: str,
 ) -> bool:
     """Create a label in the repository. Returns True on success."""
     result = subprocess.run(
         [
-            "gh", "api", f"repos/{owner}/{repo}/labels",
-            "-X", "POST",
-            "-f", f"name={label_name}",
-            "-f", f"color={color}",
-            "-f", "description=Auto-created by AI triage",
+            "gh",
+            "api",
+            f"repos/{owner}/{repo}/labels",
+            "-X",
+            "POST",
+            "-f",
+            f"name={label_name}",
+            "-f",
+            f"color={color}",
+            "-f",
+            "description=Auto-created by AI triage",
         ],
         capture_output=True,
         text=True,
@@ -151,9 +161,14 @@ def _apply_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
     """Apply a label to an issue. Returns True on success."""
     result = subprocess.run(
         [
-            "gh", "issue", "edit", str(issue),
-            "--repo", f"{owner}/{repo}",
-            "--add-label", label_name,
+            "gh",
+            "issue",
+            "edit",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
+            "--add-label",
+            label_name,
         ],
         capture_output=True,
         text=True,
@@ -172,9 +187,14 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
     """
     result = subprocess.run(
         [
-            "gh", "issue", "view", str(issue),
-            "--repo", f"{owner}/{repo}",
-            "--json", "labels",
+            "gh",
+            "issue",
+            "view",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            "labels",
         ],
         capture_output=True,
         encoding="utf-8",
@@ -189,20 +209,21 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
         return []
     labels_field = payload.get("labels")
     labels = labels_field if isinstance(labels_field, list) else []
-    return [
-        item.get("name")
-        for item in labels
-        if isinstance(item, dict) and item.get("name")
-    ]
+    return [item.get("name") for item in labels if isinstance(item, dict) and item.get("name")]
 
 
 def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
     """Remove a label from an issue. Returns True on success."""
     result = subprocess.run(
         [
-            "gh", "issue", "edit", str(issue),
-            "--repo", f"{owner}/{repo}",
-            "--remove-label", label_name,
+            "gh",
+            "issue",
+            "edit",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
+            "--remove-label",
+            label_name,
         ],
         capture_output=True,
         encoding="utf-8",
@@ -213,7 +234,10 @@ def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
 
 
 def _reconcile_priorities(
-    owner: str, repo: str, issue: int, incoming: list[str],
+    owner: str,
+    repo: str,
+    issue: int,
+    incoming: list[str],
 ) -> list[str]:
     """Remove existing priority labels that conflict with the incoming set.
 
@@ -253,7 +277,8 @@ def main(argv: list[str] | None = None) -> int:
     # If multiple priority labels are specified, keep only the last one.
     # --priority is added last, so it takes precedence over --labels.
     priority_indices = [
-        i for i, label_info in enumerate(all_labels)
+        i
+        for i, label_info in enumerate(all_labels)
         if label_info["name"].lower().startswith(PRIORITY_PREFIX)
     ]
     if len(priority_indices) > 1:

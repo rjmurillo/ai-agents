@@ -13,15 +13,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 _project_root = Path(__file__).resolve().parents[1]
-_script_path = (
-    _project_root / "scripts" / "validation" / "check_dual_priority_labels.py"
-)
+_script_path = _project_root / "scripts" / "validation" / "check_dual_priority_labels.py"
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location(
-        "check_dual_priority_labels", _script_path
-    )
+    spec = importlib.util.spec_from_file_location("check_dual_priority_labels", _script_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -43,9 +39,10 @@ class TestFindPriorityLabels:
 
     def test_two_priority_labels_returns_both_sorted(self):
         # Order is deterministic (sorted) so the message is stable.
-        assert mod.find_priority_labels(
-            ["priority:P2", "bug", "priority:P1"]
-        ) == ["priority:P1", "priority:P2"]
+        assert mod.find_priority_labels(["priority:P2", "bug", "priority:P1"]) == [
+            "priority:P1",
+            "priority:P2",
+        ]
 
     def test_case_insensitive_prefix_match(self):
         # GitHub label names are case-sensitive, but the prefix check must not
@@ -136,9 +133,7 @@ class TestFetchLabelsGhFailureModes:
         assert "exit 1" in status
 
     def test_gh_bad_json_returns_external_error(self):
-        proc = subprocess.CompletedProcess(
-            args=["gh"], returncode=0, stdout="not-json", stderr=""
-        )
+        proc = subprocess.CompletedProcess(args=["gh"], returncode=0, stdout="not-json", stderr="")
         with patch("check_dual_priority_labels._run_gh_view", return_value=proc):
             err_code, names, status = mod._fetch_labels("issue", 1)
         assert err_code == mod.EXIT_EXTERNAL
@@ -147,9 +142,7 @@ class TestFetchLabelsGhFailureModes:
 
     def test_gh_success_returns_label_names(self):
         payload = '{"labels": [{"name": "priority:P1"}, {"name": "bug"}]}'
-        proc = subprocess.CompletedProcess(
-            args=["gh"], returncode=0, stdout=payload, stderr=""
-        )
+        proc = subprocess.CompletedProcess(args=["gh"], returncode=0, stdout=payload, stderr="")
         with patch("check_dual_priority_labels._run_gh_view", return_value=proc):
             err_code, names, status = mod._fetch_labels("issue", 1)
         assert err_code == mod.EXIT_OK
