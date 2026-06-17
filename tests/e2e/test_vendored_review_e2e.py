@@ -164,11 +164,11 @@ def build_vendored_plugin(target: Path) -> Path:
 
 
 def make_synthetic_diff_repo(repo: Path) -> str:
-    """Create a git repo with one committed file and one staged one-line change.
+    """Create a git repo with a committed change that /review can evaluate.
 
-    Returns the relative path of the changed file. `/review HEAD` evaluates the
-    staged diff, so the change is staged (not committed) to give the review a
-    concrete, bounded change set to assess.
+    Returns the relative path of the changed file. The change is committed and
+    a fake origin/main ref is created so `/review` can compute the three-dot
+    diff via `git diff origin/main...HEAD`.
     """
     repo.mkdir(parents=True, exist_ok=True)
     env = {
@@ -198,13 +198,17 @@ def make_synthetic_diff_repo(repo: Path) -> str:
     )
     _git("add", "widget.py")
     _git("commit", "-q", "-m", "feat: add")
-    # Staged one-line change: introduce a subtract helper.
+    # Create a fake origin/main ref at the initial commit so /review can
+    # compute the three-dot diff via `git diff origin/main...HEAD`.
+    _git("update-ref", "refs/remotes/origin/main", "HEAD")
+    # Committed change: introduce a subtract helper.
     target.write_text(
         "def add(a, b):\n    return a + b\n\n\ndef subtract(a, b):\n"
         "    return a - b\n",
         encoding="utf-8",
     )
     _git("add", "widget.py")
+    _git("commit", "-q", "-m", "feat: subtract helper")
     return "widget.py"
 
 
@@ -265,6 +269,11 @@ def count_verdict_rows(output: str) -> int:
     return len(_ROW_RE.findall(output))
 
 
+def extract_distinct_verdict_axes(output: str) -> set[str]:
+    """Extract distinct axis names from findings-table verdict rows."""
+    return {m.group("axis") for m in _ROW_RE.finditer(output)}
+
+
 def extract_final_verdict_line(output: str) -> str | None:
     """Return the merged FINAL VERDICT token, or None if absent."""
     match = _FINAL_RE.search(output)
@@ -320,12 +329,12 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
 
     output = run.stdout
 
-    # 2. a verdict row per discovered axis.
-    rows = count_verdict_rows(output)
-    assert rows >= expected_rows, (
-        f"expected at least {expected_rows} verdict rows (canonical axes + "
-        f"chained skills), found {rows}. A short count means an axis failed "
-        f"to load or chain in the vendored install. "
+    # 2. one distinct verdict row per discovered axis.
+    distinct_axes = extract_distinct_verdict_axes(output)
+    assert len(distinct_axes) >= expected_rows, (
+        f"expected at least {expected_rows} distinct axis verdict rows (canonical axes + "
+        f"chained skills), found {len(distinct_axes)} distinct axes: {sorted(distinct_axes)}. "
+        f"A short count means an axis failed to load or chain in the vendored install. "
         f"output_tail={output[-1500:]!r}"
     )
 
@@ -383,29 +392,40 @@ def test_discovered_axis_count_matches_canonical_plus_chained(
     assert count >= 9
 
 
-def test_synthetic_diff_repo_has_staged_change(tmp_path: Path) -> None:
-    """The synthetic repo carries exactly one staged file with a diff."""
+def test_synthetic_diff_repo_has_committed_change(tmp_path: Path) -> None:
+    """The synthetic repo carries a committed change visible to three-dot diff."""
     repo = tmp_path / "r"
     changed = make_synthetic_diff_repo(repo)
-    staged = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+    # Verify origin/main ref exists for three-dot diff
+    ref_check = subprocess.run(
+        ["git", "rev-parse", "--verify", "refs/remotes/origin/main"],
         cwd=repo,
         check=True,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
     )
-    names = [line for line in staged.stdout.splitlines() if line.strip()]
-    assert names == [changed], f"expected staged change {changed!r}, got {names!r}"
+    assert ref_check.returncode == 0, "origin/main ref not created"
+    # Verify the change appears in the three-dot diff
     diff = subprocess.run(
-        ["git", "diff", "--cached"],
+        ["git", "diff", "origin/main...HEAD", "--name-only"],
         cwd=repo,
         check=True,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
     )
-    assert "subtract" in diff.stdout, "staged diff missing the expected change"
+    names = [line for line in diff.stdout.splitlines() if line.strip()]
+    assert names == [changed], f"expected committed change {changed!r}, got {names!r}"
+    diff_content = subprocess.run(
+        ["git", "diff", "origin/main...HEAD"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert "subtract" in diff_content.stdout, "committed diff missing the expected change"
 
 
 def test_count_verdict_rows_parses_findings_table() -> None:
