@@ -30,6 +30,7 @@ _TEMPLATES = REPO_ROOT / "templates" / "agents"
 _CLAUDE_INSTALL = REPO_ROOT / ".claude" / "agents"
 _GITHUB_INSTALL = REPO_ROOT / ".github" / "agents"
 _CRITIC_GITHUB = _GITHUB_INSTALL / "critic.agent.md"
+_CRITIC_CLAUDE = _CLAUDE_INSTALL / "critic.md"
 
 
 def _critic_install_result() -> object:
@@ -47,7 +48,19 @@ def _critic_install_result() -> object:
 
 
 def test_critic_install_copies_are_in_parity() -> None:
-    """`.claude/agents/critic.md` and `.github/agents/critic.agent.md` must not drift."""
+    """`.claude/agents/critic.md` and `.github/agents/critic.agent.md` must not drift.
+
+    The section-based comparison in ``compare_agent`` uses legacy section names
+    (e.g., 'Core Mission', 'Key Responsibilities') that do not appear in the
+    reconciled critic files, which use the asymmetry-era structure ('Reviewer
+    Asymmetry', 'Core Behavior', etc.). When no sections match, the comparison
+    defaults to 100% and 'OK', bypassing the semantic check.
+
+    To guard against body drift, this test performs a full-content comparison
+    after frontmatter removal using the same Jaccard similarity measure. The
+    threshold of 90% ensures meaningful parity while allowing minor formatting
+    differences.
+    """
     result = _critic_install_result()
     assert result.status == "OK", (
         f"critic install drift: status={result.status!r}, "
@@ -55,12 +68,32 @@ def test_critic_install_copies_are_in_parity() -> None:
         f"drifting_sections={result.drifting_sections}"
     )
 
+    claude_body = drift.remove_yaml_frontmatter(
+        _CRITIC_CLAUDE.read_text(encoding="utf-8")
+    )
+    github_body = drift.remove_yaml_frontmatter(
+        _CRITIC_GITHUB.read_text(encoding="utf-8")
+    )
+    body_similarity = drift.calculate_similarity(
+        drift.normalize_content(claude_body),
+        drift.normalize_content(github_body),
+    )
+    assert body_similarity >= 90.0, (
+        f"critic full-body similarity is {body_similarity}%, expected >= 90%; "
+        "the install copies have drifted semantically"
+    )
+
 
 def test_github_critic_carries_asymmetry_framing() -> None:
-    """The deployed GitHub critic copy must carry the reviewer-asymmetry framing."""
+    """The deployed GitHub critic copy must carry the reviewer-asymmetry framing.
+
+    The threshold of 5 guards against partial erosion: the reconciled file has 7
+    occurrences (section header, multiple inline references), so requiring at least
+    5 ensures the core framing cannot be mostly removed without CI failure.
+    """
     text = _CRITIC_GITHUB.read_text(encoding="utf-8")
     hits = text.lower().count("asymmetry")
-    assert hits >= 2, (
+    assert hits >= 5, (
         f".github/agents/critic.agent.md has {hits} 'asymmetry' hits; "
-        "expected the reviewer-asymmetry framing from the canonical template"
+        "expected >= 5 to guard the reviewer-asymmetry framing from the canonical template"
     )
