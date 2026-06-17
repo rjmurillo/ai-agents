@@ -94,12 +94,13 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 # --- Provider registry (adapted per the divergence section above) ----------
 # Each provider maps abstract navigation intents to concrete tool names, and
 # declares which capabilities it offers. ``None`` means the provider does not
 # offer that intent.
-PROVIDERS: dict[str, dict] = {
+PROVIDERS: dict[str, dict[str, Any]] = {
     "serena": {
         "label": "Serena",
         "prefix": "mcp__serena__",
@@ -195,7 +196,7 @@ NATIVE_LSP_CODE_EXTENSIONS: frozenset[str] = frozenset(
 )
 
 
-def _read_json_silent(file_path: Path) -> dict | None:
+def _read_json_silent(file_path: Path) -> dict[str, Any] | None:
     """Read and parse a JSON file, returning None on any failure.
 
     Mirrors the kit's ``readJsonSilent`` (``detect-lsp-provider.js:88-95``):
@@ -204,7 +205,8 @@ def _read_json_silent(file_path: Path) -> dict | None:
     try:
         if not file_path.is_file():
             return None
-        return json.loads(file_path.read_text(encoding="utf-8"))
+        data: dict[str, Any] = json.loads(file_path.read_text(encoding="utf-8"))
+        return data
     except (OSError, ValueError):
         return None
 
