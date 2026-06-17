@@ -95,8 +95,9 @@ Acquire (`acquire_lease`):
 
 1. Fetch the PR `head.sha` and the lease comment in one read.
 2. If a live lease exists (`expires_at` in the future) and its `owner`/`session` is not this loop, return `SKIP` with reason `held-by:<owner>` and the `expires_at` so the caller knows when to retry.
-3. If no live lease exists (absent, tombstoned, or expired), write the lease comment with this loop's identity, `acquired_at=now`, `expires_at=now+15m`, and `base_sha=<the head.sha just fetched>`. Return `ACT`.
-4. **Fail open.** If the read or write fails (API error, auth error, malformed existing comment), log the failure and return `ACT` with reason `lease-store-unavailable`. The loop proceeds; the SHA gate is the backstop.
+3. If a live lease exists and its `owner`/`session` matches this loop (self-renewal), update the lease comment with a new `expires_at=now+15m` and `base_sha=<the head.sha just fetched>`. Return `ACT`.
+4. If no live lease exists (absent, tombstoned, expired, or malformed/unparseable), write the lease comment with this loop's identity, `acquired_at=now`, `expires_at=now+15m`, and `base_sha=<the head.sha just fetched>`. Return `ACT`. A malformed lease is treated as "no live lease" and overwritten (see Security).
+5. **Fail open.** If the read or write fails (API error, auth error), log the failure and return `ACT` with reason `lease-store-unavailable`. The loop proceeds; the SHA gate is the backstop.
 
 Push-time guard (unchanged plus one addition):
 
@@ -105,7 +106,7 @@ Push-time guard (unchanged plus one addition):
 
 Release (`release_lease`): edit the lease comment to a tombstone. Release is best-effort; a missed release is covered by TTL expiry.
 
-Because the store has no atomic CAS, two loops can both pass step 2 and both write in step 3 (a true race in the milliseconds between read and write). This is acceptable: the loser's write simply overwrites the winner's lease comment, both believe they hold the lease, and the SHA gate still prevents the dangerous push. The lease reduces collisions in the overwhelmingly common case (loops staggered by seconds or minutes); it does not claim to eliminate the sub-second race, and the safety gate does not depend on it doing so.
+Because the store has no atomic CAS, two loops can both pass step 2 and both write in step 4 (a true race in the milliseconds between read and write). This is acceptable: the loser's write simply overwrites the winner's lease comment, both believe they hold the lease, and the SHA gate still prevents the dangerous push. The lease reduces collisions in the overwhelmingly common case (loops staggered by seconds or minutes); it does not claim to eliminate the sub-second race, and the safety gate does not depend on it doing so.
 
 ### 4. Owner and session identity
 
@@ -141,7 +142,7 @@ The maintainer's #2615 evaluation confirmed by search that no lease, branch-owne
 
 - **Has the original problem changed?** The safety problem has not. A new, distinct problem (wasted work plus conflict-resolution cost from uncoordinated loops) is now evidenced by PR #2611. The SHA gate does not address it because it is not a coordination mechanism.
 - **Is there a better solution now?** Yes. `check_pr_live_state.py` established a reusable ACT/SKIP pre-action probe pattern. A lease check fits that pattern exactly, so the coordination layer can be added without inventing new machinery.
-- **What are the risks of change?** A fail-closed lease could turn a comment-store outage into a workflow outage. Mitigated by the mandatory fail-open semantics (part 3, step 4). A lease that callers trust as a hard lock would create a false safety story. Mitigated by keeping the SHA gate as the only hard boundary and documenting the lease as advisory.
+- **What are the risks of change?** A fail-closed lease could turn a comment-store outage into a workflow outage. Mitigated by the mandatory fail-open semantics (part 3, step 5). A lease that callers trust as a hard lock would create a false safety story. Mitigated by keeping the SHA gate as the only hard boundary and documenting the lease as advisory.
 
 ## Rationale
 
@@ -208,7 +209,7 @@ The lease comment is untrusted input read from the PR timeline, so the acquire p
 Phased rollout, each phase a separate PR.
 
 1. **Phase 0 (this ADR).** Decision recorded; full adr-review debate and human acceptance pending.
-2. **Phase 1 (local-only).** Ship the lease helpers and wire them into local `pr-autofix`. Acquire before fix work, release after push (or on early exit). Fail open on any store error. pytest covers: live lease held by another owner returns SKIP; expired lease returns ACT and overwrites; missing lease returns ACT; malformed lease returns ACT (fail-open); store error returns ACT (fail-open); `base_sha` mismatch at push time triggers re-sync. Document in `pr-autofix.md` and `autonomous-pr-monitor.md`.
+2. **Phase 1 (local-only).** Ship the lease helpers and wire them into local `pr-autofix`. Acquire before fix work, release after push (or on early exit). Fail open on any store error. pytest covers: live lease held by another owner returns SKIP; expired lease returns ACT and overwrites; missing lease returns ACT; malformed lease returns ACT and overwrites (treated as "no live lease"); self-renewal of own live lease returns ACT and extends `expires_at`; store error returns ACT (fail-open); `base_sha` mismatch at push time triggers re-sync. Document in `pr-autofix.md` and `autonomous-pr-monitor.md`.
 3. **Phase 2 (remote integration, gated).** After a BOT_PAT permissions audit confirms the remote loop can read and write lease comments, teach the remote routine to acquire/check the lease before pushing. Do not start until the audit passes.
 
 **Success metric.** A `pr-autofix` collision rate on shared branches that drops measurably after Phase 1 for two-local-session cases, and after Phase 2 for local-vs-remote-CI cases, with zero force-push overwrites in either phase (the SHA gate guarantee preserved). If Phase 2's audit fails, Phase 1 still stands as the committed, shippable slice.
