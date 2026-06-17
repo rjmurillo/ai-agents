@@ -69,6 +69,14 @@
       "content": "Merged origin/main (11 commits ahead); resolved causal-graph.json conflict with --theirs (upstream wins; hook regenerates on next commit)",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fixed 2 new Copilot threads posted after push (17:51Z): (1) tombstone inconsistency - changed rule to \"latest marker wins\" so expired tombstone correctly signals free; (2) MAX_TTL enforcement missing - added parse-time rejection of expires_at > acquired_at+15m in Security section",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {

@@ -148,9 +148,14 @@
       "timestamp": "2026-06-17T17:58:00Z",
       "action": "Merged origin/main (11 commits ahead); resolved causal-graph.json conflict with --theirs (upstream wins; hook regenerates on next commit)",
       "result": "Merge commit staged; CI will re-run Validate PR check"
+    },
+    {
+      "timestamp": "2026-06-17T18:02:00Z",
+      "action": "Fixed 2 new Copilot threads posted after push (17:51Z): (1) tombstone inconsistency - changed rule to \"latest marker wins\" so expired tombstone correctly signals free; (2) MAX_TTL enforcement missing - added parse-time rejection of expires_at > acquired_at+15m in Security section",
+      "result": "ADR lines 80, 190-193 updated; 0 em-dashes; Validate PR re-checked"
     }
   ],
-  "endingCommit": "merge-in-progress",
+  "endingCommit": "pending-push",
   "nextSteps": [
     "CI re-run after push: Validate PR should pass (PR body fixed)",
     "run_completion_gate.py",
