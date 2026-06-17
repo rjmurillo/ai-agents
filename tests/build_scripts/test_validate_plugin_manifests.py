@@ -8,8 +8,11 @@ plus the Claude-specific manifest regression from issue #1833.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -109,6 +112,28 @@ def test_hooks_string_path_no_traversal(tmp_path: Path) -> None:
     target = _write(tmp_path, {"name": "p", "hooks": "./../hooks.json"})
     errors = vpm.validate_manifest(target)
     assert any("'..'" in e for e in errors)
+
+
+def test_hooks_string_ref_rejects_symlink_escape(tmp_path: Path) -> None:
+    """Resolved hooks path must stay inside the plugin root."""
+    plugin_root = tmp_path / "plugin-root"
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir(parents=True)
+    manifest = plugin_dir / "plugin.json"
+    manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
+    outside = tmp_path / "outside-hooks.json"
+    outside.write_text(
+        json.dumps({"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "x"}]}]}}),
+        encoding="utf-8",
+    )
+    try:
+        os.symlink(outside, plugin_root / "hooks.json")
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+
+    errors = vpm.validate_manifest(manifest)
+
+    assert any("escapes the plugin root" in e for e in errors)
 
 
 def test_manifest_read_error_returns_clean_message(tmp_path: Path) -> None:

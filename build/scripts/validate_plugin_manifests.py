@@ -203,8 +203,10 @@ def _validate_hooks_string_ref(value: str, manifest_dir: Path | None) -> list[st
         return errors
     # The plugin root is the directory containing .claude-plugin/, i.e.
     # the parent of manifest_dir. Hook string refs are relative to root.
-    plugin_root = manifest_dir.parent
+    plugin_root = manifest_dir.parent.resolve()
     referenced = (plugin_root / value).resolve()
+    if not referenced.is_relative_to(plugin_root):
+        return [f"`hooks`: path '{value}' escapes the plugin root directory"]
     if not referenced.exists():
         return errors  # Don't fail if path is just unresolvable here.
     try:
@@ -214,7 +216,7 @@ def _validate_hooks_string_ref(value: str, manifest_dir: Path | None) -> list[st
     return _validate_referenced_hooks_doc(value, inner)
 
 
-def _validate_hooks_inline(value: dict) -> list[str]:
+def _validate_hooks_inline(value: dict[str, object]) -> list[str]:
     """Validate an inline `hooks` object mapping event names to matcher groups."""
     inline_errors: list[str] = []
     for event, entries in value.items():
@@ -251,7 +253,7 @@ def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str
     return _validate_hooks_inline(value)
 
 
-def _validate_manifest_data(data: dict, path: Path) -> list[str]:
+def _validate_manifest_data(data: dict[str, object], path: Path) -> list[str]:
     """Validate the parsed manifest object. Returns list of error messages.
 
     Split out of validate_manifest so each stays within the cyclomatic-complexity
@@ -260,12 +262,13 @@ def _validate_manifest_data(data: dict, path: Path) -> list[str]:
     errors: list[str] = []
 
     missing = REQUIRED_KEYS - data.keys()
+    name = data.get("name")
     if missing:
         errors.append(f"Missing required keys: {sorted(missing)}")
-    elif not isinstance(data.get("name"), str) or not data["name"].strip():
+    elif not isinstance(name, str) or not name.strip():
         errors.append(
             "`name`: must be a non-empty string "
-            f"(got {type(data.get('name')).__name__})"
+            f"(got {type(name).__name__})"
         )
 
     unknown = set(data.keys()) - ALLOWED_KEYS
