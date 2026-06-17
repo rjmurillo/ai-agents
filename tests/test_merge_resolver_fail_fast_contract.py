@@ -11,11 +11,10 @@ analysis that reads as completion, and route execution back to the orchestrator.
 A plan is never a completion: an execution phase is only complete when a tool
 result in the same run proves it ran.
 
-This test pins that contract across the template (source of truth), every
-generated platform copy, and the skill, so a future edit or regeneration cannot
-silently drop it. If a platform path is added or removed, update
-``AGENT_PATHS``; the generator
-(``build/generate_agents.py``) keeps these copies in lockstep with the template.
+This test pins that contract across the shared template, generated platform
+copies, the hand-maintained Claude source, and the skill. That prevents a future
+edit, manual sync, or regeneration from silently dropping it. If a platform path
+is added or removed, update ``AGENT_PATHS``.
 
 Exit codes follow ADR-035 (pytest: 0 pass, 1 fail).
 """
@@ -28,8 +27,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# Template is the source of truth (.claude/rules/templates.md, claude-agents.md);
-# the rest are generated copies kept in parity by build/generate_agents.py.
+# The shared template generates VS Code and Copilot CLI copies via
+# build/generate_agents.py. src/claude/merge-resolver.md is hand-maintained per
+# src/claude/AGENTS.md and must be synced manually.
 AGENT_PATHS: tuple[Path, ...] = (
     REPO_ROOT / "templates/agents/merge-resolver.shared.md",
     REPO_ROOT / "src/claude/merge-resolver.md",
