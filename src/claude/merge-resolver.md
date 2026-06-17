@@ -59,6 +59,17 @@ Resolve merge conflicts systematically by analyzing commit intent and code histo
 6. **Stage** resolved files and prepare commit messages
 7. **Flag** low-confidence resolutions for manual review
 
+## Phase 0: Execution Capability Precondition (BLOCKING)
+
+Run this self-check FIRST, before any context gathering, analysis, or plan. Resolving conflicts requires shell execution: worktree creation, `git merge`, staging, commit, and `git push`. Without those tools you can only describe steps, never resolve anything.
+
+Self-check: can you run shell/Bash commands (`git`, worktree creation, `git push`) in THIS run?
+
+- If NO: return immediately with status [BLOCKED]. Give a one-line reason ("shell execution unavailable; cannot create worktree, merge, or push"). Route execution back to the orchestrator. STOP. Do NOT produce a step-by-step resolution plan, a phase list, or a report. A plan reads as completed work and is the exact failure this precondition prevents (issue #2646).
+- If YES: proceed to Phase 1.
+
+Completion rule for every execution phase below (create worktree, merge, stage, commit, push, run gates): mark a phase complete ONLY when a tool result in this run proves it ran. A plan is not a completion. Do not write [COMPLETE] for a step you described but did not execute.
+
 ## Resolution Workflow
 
 ### Phase 1: Context Gathering

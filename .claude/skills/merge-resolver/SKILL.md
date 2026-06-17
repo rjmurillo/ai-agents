@@ -1,6 +1,6 @@
 ---
 name: merge-resolver
-version: 2.1.0
+version: 2.2.0
 description: Resolve merge conflicts by analyzing git history and commit intent. Handles PR conflicts, branch conflicts, and session file conflicts with automated resolution for known patterns. Use when you say "resolve merge conflicts", "fix conflicts on this branch", "PR has conflicts with main", "can't merge due to conflicts", or "resolve PR conflicts". Do NOT use for rebasing, cherry-picking, or complex history rewrites (use git-advanced-workflows).
 license: MIT
 model: claude-opus-4-6
@@ -40,6 +40,19 @@ python3 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py \
 | `resolve PR conflicts` | Resolve conflicts for a specific PR number |
 
 ## Process
+
+### Phase 0: Execution Capability Precondition (BLOCKING)
+
+Run this self-check FIRST, before any context gathering, analysis, or plan. Conflict resolution requires shell execution: worktree creation, `git merge`, staging, commit, and `git push`. Without those tools you can only describe steps, never resolve anything.
+
+| Step | Action | Verification |
+|------|--------|--------------|
+| 0.1 | Confirm shell/Bash is available (`git`, worktree creation, `git push`) | A tool result in this run shows a shell command executed |
+| 0.2 | If shell is unavailable: return status BLOCKED, one-line reason, route execution back to the orchestrator, and STOP | No resolution plan, phase list, or report is produced |
+
+If shell execution is unavailable, do NOT produce a step-by-step resolution plan. A plan reads as completed work and is the exact failure this precondition prevents (issue #2646). Return BLOCKED and route execution back to the orchestrator.
+
+**Completion rule (applies to every execution phase below)**: mark a phase complete ONLY when a tool result in this run proves it ran. A plan is not a completion. Never report "create worktree", "merge", "push", or "run gates" as complete from instructions alone.
 
 ### Phase 1: Context Gathering
 
