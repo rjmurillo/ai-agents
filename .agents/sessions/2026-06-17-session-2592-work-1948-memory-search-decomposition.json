@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py: 28 validations, 24 passed, 0 failed (4 not applicable to this diff). Plugin Version Bump PASS. memory-search tests: 10 passed."
+        "Evidence": "pre_pr.py all gates PASS after bumping .claude/.claude-plugin/plugin.json 0.5.205 -> 0.5.206 (memory-search skill is plugin source; AGENTS.md requires the bump). memory-search tests: 10 passed."
       },
       "tasksUpdated": {
         "level": "SHOULD",
