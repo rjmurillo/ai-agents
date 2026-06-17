@@ -58,11 +58,12 @@ import re
 import sys
 from pathlib import Path
 
-# Upstream-only runtime path prefixes. Mirrors UPSTREAM_PATTERNS in
-# check_skill_portability.py, minus the ``.claude/skills/`` pattern: in prose a
-# bare reference to a sibling skill by ``.claude/skills/`` resolves through the
-# install root, so it is not an upstream-only dependency. ``.agents/``,
-# ``.claude/lib/``, and ``.claude/review-axes/`` have no consumer-side analogue.
+# Upstream-only runtime path prefixes. Companion to check_skill_portability.py
+# which covers script files; this validator covers .md files. The .claude/skills/
+# pattern is excluded here: in prose a bare reference to a sibling skill by
+# ``.claude/skills/`` resolves through the install root, so it is not an
+# upstream-only dependency. ``.agents/``, ``.claude/lib/``, and
+# ``.claude/review-axes/`` have no consumer-side analogue.
 UPSTREAM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?<![\\\w.])\.agents(?:[\\/]+|['\"]|$)", re.IGNORECASE),
     re.compile(r"(?<![\\\w.])\.claude[\\/]+lib(?:[\\/]+|['\"]|$)", re.IGNORECASE),
