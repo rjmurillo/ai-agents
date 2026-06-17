@@ -121,7 +121,13 @@ def resolve_executable(
     is_windows = os.name == "nt" if windows is None else windows
     if not is_windows:
         return name
-    resolved = _resolve_windows(name, dict(os.environ) if env is None else env)
+    env_source = os.environ if env is None else env
+    # Normalize keys to uppercase: on Windows env vars are case-insensitive
+    # but a plain Python dict is not. dict(os.environ) on a Windows host may
+    # store the path variable as 'Path' (mixed-case). Uppercase normalization
+    # ensures lookups for 'PATH' and 'PATHEXT' work regardless of key casing.
+    upper_env = {k.upper(): v for k, v in env_source.items()}
+    resolved = _resolve_windows(name, upper_env)
     if resolved is None:
         raise FileNotFoundError(
             f"Executable {name!r} not found on PATH "

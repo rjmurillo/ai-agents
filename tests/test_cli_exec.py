@@ -19,6 +19,7 @@ and reaches into ``_winapi``, absent on Linux).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -131,6 +132,30 @@ def test_default_platform_detection_uses_os_name(
     assert resolve_executable("claude") == "claude"
 
 
+def test_windows_mixed_case_env_keys_normalized(tmp_path: Path) -> None:
+    """Mixed-case env keys such as ``Path`` / ``Pathext`` resolve correctly.
+
+    On Windows, ``dict(os.environ)`` is a plain case-sensitive Python dict
+    whose path variable may be stored as ``Path`` (mixed-case) rather than
+    ``PATH``. Without key normalization, the lookup ``env.get("PATH")``
+    returns ``None`` and the resolver finds nothing.  The fix upper-cases all
+    keys before passing the dict to ``_resolve_windows``, so the resolver is
+    robust regardless of how the caller obtained the environment mapping.
+    """
+    bin_dir = tmp_path / "npm"
+    bin_dir.mkdir()
+    (bin_dir / "copilot.cmd").write_text("@echo off\n", encoding="utf-8")
+
+    mixed_env = {
+        "Path": str(bin_dir),
+        "Pathext": ".COM;.EXE;.BAT;.CMD",
+    }
+    resolved = resolve_executable("copilot", windows=True, env=mixed_env)
+
+    assert Path(resolved).name == "copilot.cmd"
+    assert Path(resolved).parent == bin_dir
+
+
 def test_e2e_launchers_route_through_resolver() -> None:
     """The CLI hook e2e must launch the CLIs through ``resolve_executable``.
 
@@ -154,6 +179,18 @@ def test_e2e_launchers_route_through_resolver() -> None:
         assert f'[resolve_executable("{cli}")' in e2e_source, (
             f"e2e must launch {cli!r} via resolve_executable, not a bare name"
         )
-        assert f'["{cli}", ' not in e2e_source, (
+        # Regex catches bare-name launches regardless of quote style
+        # (single/double), whitespace/newlines, or list vs. tuple argv form.
+        # The trailing comma inside the brackets is the discriminator: it marks
+        # "at least one more argument" and distinguishes a real launch from the
+        # intentional single-element ``CompletedProcess(["copilot"], ...)``
+        # diagnostic stub that has no comma inside the list brackets.
+        # ``subprocess\.(?:run|Popen)`` is anchored so CompletedProcess
+        # constructions are never matched.
+        bare_launch = re.compile(
+            r"""subprocess\.(?:run|Popen)\s*\(\s*[\[(]\s*['"]""" + re.escape(cli) + r"""['"]\s*,""",
+            re.DOTALL,
+        )
+        assert not bare_launch.search(e2e_source), (
             f"e2e has a bare-name {cli!r} launch; route it through resolve_executable (#2629)"
         )
