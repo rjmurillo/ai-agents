@@ -65,16 +65,16 @@ def compute_priority_removals(
     Returns an empty list when ``incoming`` carries no priority label: this
     function never touches priorities the caller did not ask to change.
     """
-    incoming_priorities = {
-        name for name in incoming if name.lower().startswith(PRIORITY_PREFIX)
+    incoming_priorities_lower = {
+        name.lower() for name in incoming if name.lower().startswith(PRIORITY_PREFIX)
     }
-    if not incoming_priorities:
+    if not incoming_priorities_lower:
         return []
     return [
         name
         for name in existing
         if name.lower().startswith(PRIORITY_PREFIX)
-        and name not in incoming_priorities
+        and name.lower() not in incoming_priorities_lower
     ]
 
 
@@ -177,7 +177,8 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
             "--json", "labels",
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if result.returncode != 0:
@@ -204,7 +205,8 @@ def _remove_label(owner: str, repo: str, issue: int, label_name: str) -> bool:
             "--remove-label", label_name,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return result.returncode == 0

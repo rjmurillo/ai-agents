@@ -10,12 +10,20 @@ mutually exclusive at write time) lives in
 ``.claude/skills/github/scripts/issue/set_issue_labels.py``.
 
 The ``priority:`` prefix and the ``P0..P3`` values match the canonical
-producer ``set_issue_labels.py``, which writes ``priority:{P0|P1|P2|P3}`` via
-its ``VALID_PRIORITIES = ("P0", "P1", "P2", "P3")`` and
-``f"priority:{args.priority}"`` formatting. This validator intentionally
-matches on the ``priority:`` PREFIX only (not the exact P0..P3 suffix) so that
-a malformed or legacy priority label (for example ``priority:high``) is still
-counted as a priority label and flagged when it collides with another.
+producer ``.claude/skills/github/scripts/issue/set_issue_labels.py``, which
+writes ``priority:{P0|P1|P2|P3}`` via its
+``VALID_PRIORITIES = ("P0", "P1", "P2", "P3")`` constant and
+``f"priority:{args.priority}"`` formatting. The ``PRIORITY_PREFIX``
+constant is ``"priority:"`` in both files.
+
+Stricter/looser/different than canonical
+-----------------------------------------
+This validator is intentionally **looser** on the suffix: it matches any label
+whose name starts with ``"priority:"`` (case-insensitive), not only the
+``P0..P3`` values listed in ``VALID_PRIORITIES``. Reason: a malformed or
+legacy priority label (for example ``priority:high`` stamped by a non-canonical
+tool) must still be counted and flagged when it collides with another priority
+label. Restricting to ``P0..P3`` would silently miss those collisions.
 
 Exit codes (ADR-035):
     0 - at most one priority label present (clean)
@@ -67,8 +75,9 @@ def evaluate(label_names: list[str], target: str) -> tuple[int, str]:
     priority_labels = find_priority_labels(label_names)
     count = len(priority_labels)
     if count <= 1:
+        label_word = "priority label" if count == 1 else "priority labels"
         suffix = f" ({priority_labels[0]})" if count == 1 else ""
-        return EXIT_OK, f"OK: {target} has {count} priority label{suffix}"
+        return EXIT_OK, f"OK: {target} has {count} {label_word}{suffix}"
     joined = ", ".join(priority_labels)
     return (
         EXIT_DUAL,

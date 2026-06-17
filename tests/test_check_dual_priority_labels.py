@@ -7,8 +7,10 @@ Covers the pure decision function ``find_priority_labels`` and the CLI
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 _project_root = Path(__file__).resolve().parents[1]
 _script_path = (
@@ -78,3 +80,94 @@ class TestMainWithExplicitLabels:
     def test_no_labels_exits_zero(self):
         rc = mod.main(["--labels"])
         assert rc == 0
+
+
+class TestEvaluatePluralization:
+    """Output message pluralizes 'priority label(s)' correctly."""
+
+    def test_zero_priority_labels_uses_plural(self, capsys):
+        exit_code, status = mod.evaluate([], "issue #1")
+        assert exit_code == mod.EXIT_OK
+        assert "0 priority labels" in status
+
+    def test_one_priority_label_uses_singular(self, capsys):
+        exit_code, status = mod.evaluate(["priority:P1"], "issue #1")
+        assert exit_code == mod.EXIT_OK
+        assert "1 priority label" in status
+        assert "1 priority labels" not in status
+
+    def test_two_priority_labels_uses_plural_in_fail(self, capsys):
+        exit_code, status = mod.evaluate(["priority:P1", "priority:P2"], "issue #1")
+        assert exit_code == mod.EXIT_DUAL
+        assert "2 priority labels" in status
+
+
+class TestFetchLabelsGhFailureModes:
+    """gh-backed path: _fetch_labels fails closed on every gh error mode."""
+
+    def test_gh_not_found_returns_external_error(self):
+        with patch(
+            "check_dual_priority_labels._run_gh_view",
+            side_effect=FileNotFoundError("gh not found"),
+        ):
+            err_code, names, status = mod._fetch_labels("issue", 1)
+        assert err_code == mod.EXIT_EXTERNAL
+        assert names is None
+        assert "not found" in status.lower()
+
+    def test_gh_timeout_returns_external_error(self):
+        with patch(
+            "check_dual_priority_labels._run_gh_view",
+            side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=15),
+        ):
+            err_code, names, status = mod._fetch_labels("issue", 1)
+        assert err_code == mod.EXIT_EXTERNAL
+        assert names is None
+        assert "timed out" in status.lower()
+
+    def test_gh_nonzero_exit_returns_external_error(self):
+        proc = subprocess.CompletedProcess(
+            args=["gh"], returncode=1, stdout="", stderr="auth error"
+        )
+        with patch("check_dual_priority_labels._run_gh_view", return_value=proc):
+            err_code, names, status = mod._fetch_labels("issue", 1)
+        assert err_code == mod.EXIT_EXTERNAL
+        assert names is None
+        assert "exit 1" in status
+
+    def test_gh_bad_json_returns_external_error(self):
+        proc = subprocess.CompletedProcess(
+            args=["gh"], returncode=0, stdout="not-json", stderr=""
+        )
+        with patch("check_dual_priority_labels._run_gh_view", return_value=proc):
+            err_code, names, status = mod._fetch_labels("issue", 1)
+        assert err_code == mod.EXIT_EXTERNAL
+        assert names is None
+        assert "unparseable" in status.lower()
+
+    def test_gh_success_returns_label_names(self):
+        payload = '{"labels": [{"name": "priority:P1"}, {"name": "bug"}]}'
+        proc = subprocess.CompletedProcess(
+            args=["gh"], returncode=0, stdout=payload, stderr=""
+        )
+        with patch("check_dual_priority_labels._run_gh_view", return_value=proc):
+            err_code, names, status = mod._fetch_labels("issue", 1)
+        assert err_code == mod.EXIT_OK
+        assert names == ["priority:P1", "bug"]
+        assert status == ""
+
+    def test_main_with_issue_flag_propagates_gh_failure(self, capsys):
+        with patch(
+            "check_dual_priority_labels._run_gh_view",
+            side_effect=FileNotFoundError("gh not found"),
+        ):
+            rc = mod.main(["--issue", "99"])
+        assert rc == mod.EXIT_EXTERNAL
+        out = capsys.readouterr().out
+        assert "FAIL" in out
+
+    def test_main_no_source_returns_config_error(self, capsys):
+        rc = mod.main([])
+        assert rc == mod.EXIT_CONFIG
+        out = capsys.readouterr().out
+        assert "FAIL" in out
