@@ -39,7 +39,7 @@ from scripts.github_core import (
     safe_log_str,
     update_issue_comment,
 )
-from scripts.github_core.api import _403_PATTERN
+from scripts.github_core.api import _403_PATTERN, _retry_after_delay
 from scripts.github_core import bot_config
 from scripts.github_core.bot_config import _DEFAULT_BOTS
 from tests.mock_fidelity import assert_mock_keys_match
@@ -517,6 +517,102 @@ class TestGhGraphQL:
                 gh_graphql("query { ... }")
 
 
+    def test_retries_transient_504_then_succeeds(self):
+        """A transient HTTP 504 followed by success returns data (issue #2631)."""
+        ok = json.dumps({"data": {"viewer": {"login": "u"}}})
+        responses = [
+            _completed(rc=1, stderr="gh: We couldn't respond in time. (HTTP 504)"),
+            _completed(stdout=ok),
+        ]
+        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
+            "subprocess.run", side_effect=responses
+        ) as run_mock:
+            result = gh_graphql("query { viewer { login } }")
+        assert result == {"viewer": {"login": "u"}}
+        assert run_mock.call_count == 2
+        assert sleep_mock.call_count == 1
+
+    def test_retries_exhausted_on_persistent_504_raises(self):
+        """Three consecutive 504s exhaust the bounded retry and raise (issue #2631)."""
+        resp = _completed(rc=1, stderr="gh: timeout (HTTP 504)")
+        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
+            "subprocess.run", return_value=resp
+        ) as run_mock:
+            with pytest.raises(RuntimeError, match="GraphQL request failed"):
+                gh_graphql("query { viewer { login } }")
+        assert run_mock.call_count == 3
+        assert sleep_mock.call_count == 2
+
+    def test_retries_on_502_503_500_and_429(self):
+        """Each transient 5xx and 429 retries then succeeds (issue #2631)."""
+        ok = json.dumps({"data": {}})
+        for code in ("500", "502", "503", "429"):
+            responses = [
+                _completed(rc=1, stderr=f"server error (HTTP {code})"),
+                _completed(stdout=ok),
+            ]
+            with patch("scripts.github_core.api.time.sleep"), patch(
+                "subprocess.run", side_effect=responses
+            ) as run_mock:
+                gh_graphql("query { x }")
+            assert run_mock.call_count == 2, code
+
+    def test_permanent_404_does_not_retry(self):
+        """A permanent client error (404, not 5xx/429) fails fast without retry."""
+        resp = _completed(rc=1, stderr="gh: Not Found (HTTP 404)")
+        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
+            "subprocess.run", return_value=resp
+        ) as run_mock:
+            with pytest.raises(RuntimeError, match="GraphQL request failed"):
+                gh_graphql("query { x }")
+        assert run_mock.call_count == 1
+        assert sleep_mock.call_count == 0
+
+    def test_graphql_level_error_does_not_retry(self):
+        """A GraphQL-level error (HTTP 200 with errors) is permanent, no retry."""
+        resp = _completed(
+            stdout=json.dumps({"data": None, "errors": [{"message": "Bad"}]})
+        )
+        with patch("scripts.github_core.api.time.sleep") as sleep_mock, patch(
+            "subprocess.run", return_value=resp
+        ) as run_mock:
+            with pytest.raises(RuntimeError, match="GraphQL errors"):
+                gh_graphql("query { x }")
+        assert run_mock.call_count == 1
+        assert sleep_mock.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# API: _retry_after_delay
+# ---------------------------------------------------------------------------
+
+
+class TestRetryAfterDelay:
+    def test_retry_after_header_overrides_backoff(self):
+        """Retry-After: N in error text returns N, not the backoff."""
+        delay = _retry_after_delay("gh: rate limited (HTTP 429)\nRetry-After: 42", 2.0)
+        assert delay == 42.0
+
+    def test_retry_after_case_insensitive(self):
+        """Header matching is case-insensitive."""
+        delay = _retry_after_delay("retry-after: 10", 5.0)
+        assert delay == 10.0
+
+    def test_no_retry_after_uses_jitter(self):
+        """Without Retry-After, the returned delay is in [0, backoff]."""
+        backoff = 4.0
+        delays = [_retry_after_delay("server error (HTTP 503)", backoff) for _ in range(20)]
+        assert all(0.0 <= d <= backoff for d in delays), delays
+        # Jitter must not always return the same value (probability of 20 identical
+        # draws from uniform(0, 4) is negligible).
+        assert len(set(delays)) > 1, "jitter produced identical values - check random source"
+
+    def test_no_retry_after_empty_text(self):
+        """Empty error text returns a value in [0, backoff]."""
+        delay = _retry_after_delay("", 2.0)
+        assert 0.0 <= delay <= 2.0
+
+
 # ---------------------------------------------------------------------------
 # API: get_all_prs_with_comments
 # ---------------------------------------------------------------------------
@@ -920,7 +1016,7 @@ class TestFetchStatus:
         unlike a bare-string sentinel which would silently miss.
         """
         with pytest.raises(AttributeError):
-            _ = FetchStatus.OK_TYPO  # type: ignore[attr-defined]
+            _ = getattr(FetchStatus, "OK_TYPO")
 
 
 class TestCountUnresolvedThreads:
