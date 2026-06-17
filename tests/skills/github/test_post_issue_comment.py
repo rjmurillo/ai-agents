@@ -147,12 +147,15 @@ class TestPostIssueComment:
             rc = mod.main(["--issue", "1", "--body", "body"])
         assert rc == 0
 
-    def test_marker_list_none_stdout_does_not_crash(self, _import_module):
+    def test_marker_list_none_stdout_does_not_crash(self, _import_module, capsys):
         # Regression for issue #2657: on Windows the comments-list call decoded
-        # gh's UTF-8 with cp1252, the stdout reader thread died, and stdout came
-        # back None with returncode 0. Feeding None to json.loads crashed with
-        # TypeError. The marker path must guard stdout and fall through to
-        # posting a new comment. (First mock call = list comments, second = POST.)
+        # gh's UTF-8 with cp1252, the stdout reader thread died on an undecodable
+        # byte, and stdout came back None with returncode 0 (observed in repro).
+        # Feeding None to json.loads crashed with TypeError. The marker path must
+        # guard stdout and fall through to posting a new comment.
+        # First mock call = list comments (None), second = POST (valid).
+        # Negative control: on the pre-fix code (`if returncode == 0:` with no
+        # stdout guard) the first call raises TypeError and rc is never returned.
         mod = _import_module
         response = {"id": 101, "html_url": "https://example.com/c"}
         with (
@@ -161,35 +164,81 @@ class TestPostIssueComment:
             patch("subprocess.run", side_effect=[
                 make_completed_process(stdout=None, returncode=0),
                 make_completed_process(stdout=json.dumps(response), returncode=0),
-            ]),
+            ]) as mock_run,
         ):
             rc = mod.main(["--issue", "1", "--body", "b", "--marker", "M"])
         assert rc == 0
+        # Prove it fell through to actually POST the comment, not just avoid a crash.
+        assert mock_run.call_count == 2
+        result = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+        assert result["Success"] is True
+        assert result["Data"]["comment_id"] == 101
+        assert result["Data"]["skipped"] is False
 
 
 class TestSubprocessEncoding:
-    """Lock the issue #2657 fix: gh subprocess calls must declare UTF-8.
+    """Lock the issue #2657 fix: every gh/git subprocess call decodes as UTF-8.
 
     Bare ``text=True`` decodes with the OS locale codec (cp1252 on Windows),
-    which corrupts or drops gh's UTF-8 output. Every gh/git subprocess call in
-    the comment path and the shared api helper must pass ``encoding="utf-8"``.
+    which kills the reader thread on an undecodable byte (stdout -> None) or
+    silently mojibakes gh's UTF-8 output. The contract is that every
+    ``subprocess.run`` call in these files passes ``encoding="utf-8"`` AND
+    ``errors="replace"`` (the pattern ``gh_graphql`` established).
+
+    This parses the AST and checks each call independently, rather than scanning
+    for a substring, per .claude/rules/canonical-source-mirror.md (a substring
+    scan false-passes when one call is correct and another is bare, and
+    false-fails on the literal appearing in a comment).
     """
 
-    def test_post_issue_comment_has_no_bare_text_true(self):
+    _FILES = [
+        ".claude/lib/github_core/api.py",
+        ".claude/skills/github/scripts/issue/post_issue_comment.py",
+    ]
+
+    @staticmethod
+    def _kw(call, name):
+        for kw in call.keywords:
+            if kw.arg == name:
+                return kw.value
+        return None
+
+    def _subprocess_run_calls(self, tree):
+        import ast
+
+        calls = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr == "run"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "subprocess"
+            ):
+                calls.append(node)
+        return calls
+
+    @pytest.mark.parametrize("rel", _FILES)
+    def test_every_subprocess_run_declares_utf8(self, rel):
+        import ast
         from pathlib import Path
 
         repo_root = Path(__file__).resolve().parents[3]
-        src = (
-            repo_root
-            / ".claude/skills/github/scripts/issue/post_issue_comment.py"
-        ).read_text(encoding="utf-8")
-        assert "text=True" not in src
-        assert 'encoding="utf-8"' in src
-
-    def test_github_core_api_has_no_bare_text_true(self):
-        from pathlib import Path
-
-        repo_root = Path(__file__).resolve().parents[3]
-        src = (repo_root / ".claude/lib/github_core/api.py").read_text(encoding="utf-8")
-        assert "text=True" not in src
-        assert 'encoding="utf-8"' in src
+        tree = ast.parse((repo_root / rel).read_text(encoding="utf-8"))
+        calls = self._subprocess_run_calls(tree)
+        assert calls, f"expected subprocess.run calls in {rel}"
+        for call in calls:
+            encoding = self._kw(call, "encoding")
+            errors = self._kw(call, "errors")
+            assert (
+                isinstance(encoding, ast.Constant) and encoding.value == "utf-8"
+            ), f"{rel}:{call.lineno} subprocess.run missing encoding=\"utf-8\""
+            assert (
+                isinstance(errors, ast.Constant) and errors.value == "replace"
+            ), f"{rel}:{call.lineno} subprocess.run missing errors=\"replace\""
+            assert self._kw(call, "text") is None, (
+                f"{rel}:{call.lineno} subprocess.run still passes text= "
+                "(use encoding/errors instead)"
+            )
