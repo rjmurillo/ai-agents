@@ -136,6 +136,36 @@ class TestPostIssueComment:
                 mod.main(["--issue", "1", "--body", "body"])
         assert exc.value.code == 3
 
+    def test_post_timeout_exits_3(self, _import_module):
+        # A hung gh on the POST call must surface as an external-error exit (3),
+        # not block the script indefinitely (Copilot review on PR #2659).
+        mod = _import_module
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=subprocess.TimeoutExpired(
+                cmd=["gh"], timeout=30,
+            )),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--body", "body"])
+        assert exc.value.code == 3
+
+    def test_marker_list_timeout_exits_3(self, _import_module):
+        # A hung gh on the comments-list (marker) call must exit 3 rather than
+        # wedge a CI or hook run (Copilot review on PR #2659).
+        mod = _import_module
+        with (
+            patch("post_issue_comment.assert_gh_authenticated"),
+            patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
+            patch("subprocess.run", side_effect=subprocess.TimeoutExpired(
+                cmd=["gh"], timeout=30,
+            )),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                mod.main(["--issue", "1", "--body", "body", "--marker", "M"])
+        assert exc.value.code == 3
+
     def test_json_parse_error_returns_success(self, _import_module):
         mod = _import_module
         with (
