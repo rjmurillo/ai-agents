@@ -201,6 +201,10 @@ class TestSubprocessEncoding:
         "scripts/github_core/api.py",
         ".claude/lib/github_core/api.py",
         ".claude/skills/github/scripts/issue/post_issue_comment.py",
+        # Shipped Copilot CLI mirrors: enforce the contract on what ships, not
+        # just the canonical, so a desynced mirror is caught by the test itself.
+        "src/copilot-cli/lib/github_core/api.py",
+        "src/copilot-cli/skills/github/scripts/issue/post_issue_comment.py",
     ]
 
     @staticmethod
