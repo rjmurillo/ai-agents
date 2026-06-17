@@ -80,13 +80,8 @@ _MARKER_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# Fenced code blocks: ``` or ~~~ opening, same fence char closing. Non-greedy,
-# multiline. Example commands inside a fence are illustrative, not runtime
-# instructions, so their paths do not count.
-_FENCE_PATTERN = re.compile(
-    r"^(?P<fence>`{3,}|~{3,}).*?\n.*?^(?P=fence)\s*$",
-    re.DOTALL | re.MULTILINE,
-)
+# Regex to detect a fenced code block opening line.
+_FENCE_OPEN_PATTERN = re.compile(r"^(`{3,}|~{3,})")
 
 # Inline code spans: `...`. Illustrative, not a directive.
 _INLINE_CODE_PATTERN = re.compile(r"`[^`\n]*`")
@@ -111,8 +106,39 @@ def has_portability_marker(text: str) -> bool:
 
 
 def _strip_code(text: str) -> str:
-    """Remove fenced code blocks and inline code spans, leaving prose."""
-    without_fences = _FENCE_PATTERN.sub("\n", text)
+    """Remove fenced code blocks and inline code spans, leaving prose.
+
+    Uses line-by-line processing to correctly handle nested fence examples
+    (e.g., a code block that itself contains triple-backtick lines).
+    A closing fence must use the same character and be at least as long
+    as the opening fence, per CommonMark spec.
+    """
+    lines = text.split("\n")
+    result_lines: list[str] = []
+    fence_char: str | None = None
+    fence_len = 0
+
+    for line in lines:
+        if fence_char is None:
+            match = _FENCE_OPEN_PATTERN.match(line)
+            if match:
+                fence_char = match.group(1)[0]
+                fence_len = len(match.group(1))
+                result_lines.append("")
+            else:
+                result_lines.append(line)
+        else:
+            close_pattern = re.compile(
+                r"^" + re.escape(fence_char) + r"{" + str(fence_len) + r",}\s*$"
+            )
+            if close_pattern.match(line):
+                fence_char = None
+                fence_len = 0
+                result_lines.append("")
+            else:
+                result_lines.append("")
+
+    without_fences = "\n".join(result_lines)
     return _INLINE_CODE_PATTERN.sub(" ", without_fences)
 
 
@@ -128,10 +154,14 @@ def count_upstream_refs(text: str) -> int:
 
 
 def count_file_refs(text: str) -> int:
-    """Marker-aware per-file count: 0 when the file self-declares, else the count."""
-    if has_portability_marker(text):
+    """Marker-aware per-file count: 0 when the file self-declares, else the count.
+
+    The opt-out marker is only recognized in prose (not inside code blocks).
+    """
+    prose = _strip_code(text)
+    if has_portability_marker(prose):
         return 0
-    return count_upstream_refs(text)
+    return sum(len(pat.findall(prose)) for pat in UPSTREAM_PATTERNS)
 
 
 def scan_skill_markdown(skills_dir: Path) -> dict[str, int]:
