@@ -95,6 +95,31 @@ def validate_vendor_portability(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_skill_md_portability(repo_root: Path) -> bool:
+    """Fail when a skill .md adds a new upstream-only path reference (Issue #2050).
+
+    Wraps ``scripts/validation/check_skill_md_portability.py``, the Markdown
+    counterpart to the script-only ``check_vendor_portability.py`` /
+    ``check_skill_portability.py`` ratchets. The script exits 0 when there is no
+    drift against ``skill_md_portability_baseline.json``, 1 when a .md file
+    exceeds its baseline (or a previously-clean file introduces references), and
+    2 on a configuration error. Exit 1 and 2 are both hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_skill_md_portability.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_skill_md_portability.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
+
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 

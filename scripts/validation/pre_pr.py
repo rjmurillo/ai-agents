@@ -81,6 +81,7 @@ from checks_spec import (  # noqa: E402, F401
     validate_build_gates,
     validate_canonical_citations,
     validate_orchestrator_citations,
+    validate_skill_md_portability,
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
@@ -322,6 +323,13 @@ def main(argv: list[str] | None = None) -> int:
         "Vendor Portability",
         state,
         lambda: validate_vendor_portability(repo_root),
+    )
+
+    # 3.765 Skill Markdown Vendor Portability (.md path refs; Issue #2050)
+    run_validation(
+        "Skill Markdown Portability",
+        state,
+        lambda: validate_skill_md_portability(repo_root),
     )
 
     # 3.77 Sync Registry Provenance (Issue #1909)
