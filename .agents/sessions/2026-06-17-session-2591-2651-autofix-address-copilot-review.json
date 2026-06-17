@@ -4,7 +4,7 @@
     "number": 2591,
     "date": "2026-06-17",
     "branch": "adr/2615-pr-autofix-lease",
-    "startingCommit": "6a3b39e45",
+    "startingCommit": "2155a2ad7",
     "objective": "PR #2651 autofix: address 4 copilot review threads (ADR-073 schema, lease contract, session evidence); merge main to resolve causal-graph conflict"
   },
   "protocolCompliance": {
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "6a3b39e45"
+        "Evidence": "2155a2ad7"
       }
     },
     "sessionEnd": {

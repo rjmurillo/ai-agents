@@ -66,7 +66,7 @@ The decision has five binding parts.
 
 ### 1. Lease storage: a marker comment on the PR
 
-The lease lives as a single hidden-marker comment on the PR, in the same store as `check_pr_live_state.py` already reads (the PR timeline). The comment body carries a machine-parseable block:
+The lease lives in hidden-marker comments on the PR, in the same store as `check_pr_live_state.py` already reads (the PR timeline). Each marker comment body carries a machine-parseable block:
 
 ```text
 <!-- PR-AUTOFIX-LEASE -->
