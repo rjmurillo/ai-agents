@@ -20,6 +20,7 @@ counted as a priority label and flagged when it collides with another.
 Exit codes (ADR-035):
     0 - at most one priority label present (clean)
     1 - more than one priority label present (logic failure: contradiction)
+    2 - usage/configuration error (missing required argument)
     3 - external error (gh unavailable / API failure / not authenticated)
 
 stdout carries a single human-readable status line, for example
@@ -40,6 +41,7 @@ GH_TIMEOUT_SECONDS = 15
 
 EXIT_OK = 0
 EXIT_DUAL = 1
+EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 
@@ -157,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
         kind, number = "pr", args.pr
     else:
         print("FAIL: provide --labels, --issue, or --pr")
-        return EXIT_EXTERNAL
+        return EXIT_CONFIG
 
     err_code, names, err_status = _fetch_labels(kind, number)
     if names is None:
