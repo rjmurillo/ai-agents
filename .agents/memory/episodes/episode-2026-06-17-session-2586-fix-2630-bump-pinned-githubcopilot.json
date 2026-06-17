@@ -1,0 +1,75 @@
+{
+  "id": "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot",
+  "session": "2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "fix #2630: bump pinned @github/copilot off known-bad 0.0.397 (invalid session id) in ai-review action; add version-guard regression check",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirm root cause",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regression guard (TDD)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Mutation test",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wire guard into pre-push gate",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Workflow local verification",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 14bb688be5b5a33620597fb128b49dea86c758b0",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
