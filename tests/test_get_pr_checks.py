@@ -1495,6 +1495,52 @@ class TestSupersededCheckRuns:
         assert names.count("Validate PR") == 1
         assert names.count("Validate PR title") == 1
 
+    def test_skipped_winner_with_pending_sibling_excluded_from_required(
+        self, capsys
+    ):
+        """Issue #2614: a required check whose dedupe winner is COMPLETED with
+        Conclusion=SKIPPED must be excluded from PendingRequiredChecks, even
+        when a stale sibling row for the same name is PENDING.
+
+        Reproduces PR #2611: ``Run Python Tests`` published a CheckRun
+        (COMPLETED/SKIPPED) and a StatusContext (PENDING) on the same commit.
+        dedupe_checks ORs IsPending onto the winner, so the SKIPPED winner
+        carried IsPending=true; before the fix the name was listed in
+        PendingRequiredChecks while test_pr_merge_ready.py treated the same
+        skipped check as non-blocking, so the two helpers disagreed. After the
+        fix, extract_required_check_lists classifies a passing (including
+        SKIPPED) required check as non-pending. The IsPending OR on the row is
+        retained for wait polling, so the aggregate PendingCount still reflects
+        the stale sibling; the acceptance criterion is PendingRequiredChecks.
+        """
+        nodes = [
+            _check_run_node("Run Python Tests", "COMPLETED", "SKIPPED"),
+            {
+                "__typename": "StatusContext",
+                "context": "Run Python Tests",
+                "state": "PENDING",
+                "targetUrl": "",
+                "isRequired": True,
+            },
+        ]
+        with patch(
+            "get_pr_checks.assert_gh_authenticated",
+        ), patch(
+            "get_pr_checks.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "get_pr_checks.gh_graphql",
+            return_value=_rollup_response(nodes),
+        ):
+            rc = main(["--pull-request", "2611", "--required-only"])
+        output = json.loads(capsys.readouterr().out)
+        data = output["Data"]
+        # The skipped required check is no longer reported as pending-required.
+        assert data["PendingRequiredChecks"] == []
+        # Exit code does not block on the stale pending sibling: no required
+        # check is failing and none is pending-required.
+        assert rc == 0
+
     def test_dual_row_required_or_semantics(self, capsys):
         """Issue #2325: When a check name has both CheckRun (not required) and
         StatusContext (required), --required-only should include it because any
@@ -1545,7 +1591,7 @@ class TestSupersededCheckRuns:
            "get_pr_checks.gh_graphql",
            return_value=_rollup_response(nodes),
         ):
-           rc = main(["--pull-request", "2325", "--required-only"])
+           main(["--pull-request", "2325", "--required-only"])
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
         assert data["PendingCount"] == 2
@@ -1577,7 +1623,7 @@ class TestSupersededCheckRuns:
            "get_pr_checks.gh_graphql",
            return_value=_rollup_response(nodes),
         ):
-           rc = main(["--pull-request", "2325", "--required-only"])
+           main(["--pull-request", "2325", "--required-only"])
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
         # Should have both failed and pending required checks visible.
