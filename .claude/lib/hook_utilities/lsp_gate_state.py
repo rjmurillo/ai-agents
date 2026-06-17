@@ -70,6 +70,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 
 # Gate thresholds (ADR-062 Section 3; canonical names the guards consume).
@@ -83,10 +84,19 @@ _STATE_SUBDIR = "ai-agents-lsp-gate"
 def _state_dir() -> Path:
     """Return the user-scoped state directory, outside the git working tree.
 
-    Honors ``$XDG_STATE_HOME`` when set, else ``~/.cache``. Never the repo tree.
+    Honors ``$XDG_STATE_HOME`` when set, else ``~/.cache``. Falls back to
+    ``tempfile.gettempdir()`` when both are unavailable (e.g. sandboxed or
+    CI environments where ``Path.home()`` raises ``RuntimeError`` because the
+    running user has no home directory). Never the repo tree.
     """
     xdg = os.environ.get("XDG_STATE_HOME", "").strip()
-    base = Path(xdg) if xdg else Path.home() / ".cache"
+    if xdg:
+        base = Path(xdg)
+    else:
+        try:
+            base = Path.home() / ".cache"
+        except RuntimeError:
+            base = Path(tempfile.gettempdir()) / ".cache"
     return base / _STATE_SUBDIR
 
 
