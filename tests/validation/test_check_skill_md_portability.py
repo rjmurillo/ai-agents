@@ -80,6 +80,27 @@ class TestCodeBlockAndInlineStripping:
         text = "~~~\n.agents/foo\n~~~\nReal .claude/lib/bar here.\n"
         assert cmp.count_upstream_refs(text) == 1
 
+    def test_indented_fences_are_stripped(self) -> None:
+        # CommonMark allows 0-3 spaces of indentation on fence markers.
+        text = (
+            "   ```bash\n"
+            "   .agents/foo\n"
+            "   ```\n"
+            "Real .claude/lib/bar here.\n"
+        )
+        assert cmp.count_upstream_refs(text) == 1
+
+    def test_indented_fence_marker_not_opted_out(self) -> None:
+        # A marker inside an indented code block must not opt the file out.
+        text = (
+            "   ```\n"
+            "   <!-- vendor-portability: example -->\n"
+            "   ```\n"
+            "This prose references .agents/sessions/.\n"
+        )
+        assert cmp.has_portability_marker(text) is False
+        assert cmp.count_file_refs(text) == 1
+
 
 class TestVendorPortabilityMarker:
     def test_marker_suppresses_all_refs_in_file(self) -> None:

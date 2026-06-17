@@ -44,7 +44,7 @@ Baseline ratchet:
 
 Scope: ``*.md`` under ``.claude/skills/``.
 
-EXIT CODES (per .agents/architecture/ADR-035-exit-code-standardization.md):
+Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
   1 - drift detected (a file exceeds its baseline or a new file offends)
   2 - configuration error (skills dir missing, baseline unreadable)
@@ -80,8 +80,8 @@ _MARKER_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# Regex to detect a fenced code block opening line.
-_FENCE_OPEN_PATTERN = re.compile(r"^(`{3,}|~{3,})")
+# Regex to detect a fenced code block opening line (CommonMark: 0-3 spaces indent allowed).
+_FENCE_OPEN_PATTERN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
 
 # Inline code spans: `...`. Illustrative, not a directive.
 _INLINE_CODE_PATTERN = re.compile(r"`[^`\n]*`")
@@ -133,7 +133,7 @@ def _strip_code(text: str) -> str:
                 result_lines.append(line)
         else:
             close_pattern = re.compile(
-                r"^" + re.escape(fence_char) + r"{" + str(fence_len) + r",}\s*$"
+                r"^[ \t]{0,3}" + re.escape(fence_char) + r"{" + str(fence_len) + r",}\s*$"
             )
             if close_pattern.match(line):
                 fence_char = None
@@ -318,6 +318,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Skills dir not found: {skills_dir}", file=sys.stderr)
         return 2
     baseline_path = _resolve_baseline_path(root, args.baseline)
+    if baseline_path == Path(""):
+        print(
+            f"--baseline path is outside the repository root, rejecting: {args.baseline}",
+            file=sys.stderr,
+        )
+        return 2
 
     try:
         current = scan_skill_markdown(skills_dir)
