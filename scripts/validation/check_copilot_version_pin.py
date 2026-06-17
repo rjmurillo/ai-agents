@@ -84,12 +84,22 @@ def extract_pinned_version(action_path: Path) -> str:
 
     Raises ``VersionPinError`` when no pin is present so a silently dropped pin
     fails the guard rather than passing vacuously.
+
+    Also raises ``VersionPinError`` when multiple pins are found. Bash executes
+    the last assignment before ``npm install``, so if this guard only checked
+    the first match, a later known-bad pin could pass validation yet still be
+    installed. Requiring exactly one pin avoids this ambiguity.
     """
     text = action_path.read_text(encoding="utf-8")
-    match = _PIN_RE.search(text)
-    if not match:
+    matches = _PIN_RE.findall(text)
+    if not matches:
         raise VersionPinError(f"no COPILOT_VERSION pin found in {action_path}")
-    return match.group(1)
+    if len(matches) > 1:
+        raise VersionPinError(
+            f"multiple COPILOT_VERSION pins found in {action_path}: {matches}. "
+            f"Remove duplicates to avoid ambiguity (bash uses the last assignment)."
+        )
+    return matches[0]
 
 
 def check_action(action_path: Path) -> int:

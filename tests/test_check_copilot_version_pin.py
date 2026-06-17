@@ -142,3 +142,37 @@ def test_extract_raises_when_pin_only_in_comment(tmp_path: Path) -> None:
     )
     with pytest.raises(mod.VersionPinError):
         mod.extract_pinned_version(action)
+
+
+def test_multiple_pins_raises(tmp_path: Path) -> None:
+    """Multiple COPILOT_VERSION assignments must raise to avoid ambiguity.
+
+    Bash executes the last assignment before npm install, so if this guard only
+    checked the first match, a later known-bad pin could pass validation yet
+    still be installed. Requiring exactly one pin catches careless edits.
+    """
+    action = tmp_path / "action.yml"
+    action.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - run: |\n"
+        '        COPILOT_VERSION="1.0.63"\n'
+        '        COPILOT_VERSION="0.0.397"\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(mod.VersionPinError, match="multiple COPILOT_VERSION pins"):
+        mod.extract_pinned_version(action)
+
+
+def test_multiple_pins_check_action_fails(tmp_path: Path) -> None:
+    """check_action must return EXIT_LOGIC when multiple pins are found."""
+    action = tmp_path / "action.yml"
+    action.write_text(
+        "runs:\n"
+        "  steps:\n"
+        "    - run: |\n"
+        '        COPILOT_VERSION="1.0.63"\n'
+        '        COPILOT_VERSION="0.0.397"\n',
+        encoding="utf-8",
+    )
+    assert mod.check_action(action) == mod.EXIT_LOGIC
