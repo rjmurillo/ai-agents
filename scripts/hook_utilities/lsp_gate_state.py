@@ -109,7 +109,7 @@ def _cwd_key(cwd: str) -> str:
     """
     try:
         normalized = str(Path(cwd).resolve())
-    except OSError, ValueError:
+    except (OSError, ValueError):
         normalized = cwd
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     return digest[:16]
@@ -148,7 +148,7 @@ def read_state(cwd: str) -> dict:
     try:
         raw = path.read_text(encoding="utf-8")
         data = json.loads(raw)
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return default
     if not isinstance(data, dict):
         return default
@@ -178,7 +178,7 @@ def _coerce_int(value: object) -> int:
         return 0
     try:
         result = int(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return 0
     return result if result >= 0 else 0
 
@@ -258,7 +258,7 @@ def _resolve_git_dir(project_dir: str) -> Path | None:
         if not git_path.is_file():
             return None
         content = git_path.read_text(encoding="utf-8").strip()
-    except OSError, UnicodeError, ValueError:
+    except (OSError, UnicodeError, ValueError):
         return None
 
     if not content.startswith("gitdir:"):
@@ -272,7 +272,7 @@ def _resolve_git_dir(project_dir: str) -> Path | None:
         git_dir = git_path.parent / git_dir
     try:
         return git_dir.resolve()
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return None
 
 
@@ -300,7 +300,7 @@ def _merge_in_progress(project_dir: str) -> bool:
         for marker in ("MERGE_HEAD", "rebase-merge", "rebase-apply"):
             if (git_dir / marker).exists():
                 return True
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return False
     return False
 
@@ -324,7 +324,7 @@ def _has_conflict_markers(file_path: str) -> bool:
     try:
         with open(file_path, "rb") as fh:
             raw = fh.read(_CONFLICT_MARKER_SCAN_BYTES)
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return False
     try:
         text = raw.decode("utf-8", errors="strict")
@@ -359,7 +359,7 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
         if not candidate.is_absolute():
             candidate = root / candidate
         resolved = candidate.resolve()
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return False
 
     # Out-of-repo targets are never gated.
@@ -373,7 +373,7 @@ def is_gated_target(file_path: str, project_dir: str) -> bool:
             tmp_root = Path(tmpdir).resolve()
             if tmp_root == resolved or tmp_root in resolved.parents:
                 return False
-        except OSError, ValueError:
+        except (OSError, ValueError):
             return False
 
     # Dotfiles and dot-directory members (.serena/, .git/, .agents/, ...) are
@@ -412,7 +412,7 @@ def normalize_path(file_path: str, cwd: str) -> str:
         if not candidate.is_absolute():
             candidate = Path(cwd) / candidate
         return str(candidate.resolve())
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return file_path
 
 
