@@ -181,21 +181,61 @@ def test_write_audit_writes_when_clean(tmp_path: Path) -> None:
 # .claude/ guard (REQ-003-010) ----------------------------------------------
 
 
-def test_assert_no_claude_writes_returns_offending(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(
-        build_all,
-        "_git_diff_paths",
-        lambda repo_root: [".claude/agents/x.md", "src/foo.txt"],
+def test_assert_no_claude_writes_flags_generator_created_path(tmp_path: Path) -> None:
+    """A .claude/ file created AFTER the snapshot is a generator write."""
+    claude = tmp_path / ".claude" / "agents"
+    claude.mkdir(parents=True)
+    baseline = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.CLAUDE_GUARD_PREFIX
     )
-    bad = build_all.assert_no_claude_writes(tmp_path)
-    assert bad == [".claude/agents/x.md"]
+    # Generator writes a new file after the snapshot.
+    (claude / "leak.md").write_text("generated", encoding="utf-8")
+    bad = build_all.assert_no_claude_writes(tmp_path, baseline)
+    assert bad == [".claude/agents/leak.md"]
 
 
-def test_assert_no_claude_writes_clean(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: ["src/foo.txt"])
-    assert build_all.assert_no_claude_writes(tmp_path) == []
+def test_assert_no_claude_writes_flags_generator_modified_path(tmp_path: Path) -> None:
+    """A .claude/ file whose bytes change after the snapshot is a write."""
+    claude = tmp_path / ".claude" / "agents"
+    claude.mkdir(parents=True)
+    target = claude / "x.md"
+    target.write_text("original", encoding="utf-8")
+    baseline = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.CLAUDE_GUARD_PREFIX
+    )
+    target.write_text("mutated by generator", encoding="utf-8")
+    assert build_all.assert_no_claude_writes(tmp_path, baseline) == [
+        ".claude/agents/x.md"
+    ]
+
+
+def test_assert_no_claude_writes_ignores_presync_dirty_lib(tmp_path: Path) -> None:
+    """A legitimate .claude/lib sync that predates the snapshot must pass.
+
+    Reproduces issue #2613: sync_plugin_lib.py updates
+    .claude/lib/hook_utilities/guards.py BEFORE build_all runs. The
+    snapshot captures that already-dirty state, so no generator write is
+    attributed to it and the guard returns clean.
+    """
+    lib = tmp_path / ".claude" / "lib" / "hook_utilities"
+    lib.mkdir(parents=True)
+    # Pre-build sync already wrote the file before the snapshot is taken.
+    (lib / "guards.py").write_text("def synced(): ...\n", encoding="utf-8")
+    baseline = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.CLAUDE_GUARD_PREFIX
+    )
+    # Generators run and touch nothing under .claude/.
+    assert build_all.assert_no_claude_writes(tmp_path, baseline) == []
+
+
+def test_assert_no_claude_writes_clean_when_unchanged(tmp_path: Path) -> None:
+    claude = tmp_path / ".claude" / "skills"
+    claude.mkdir(parents=True)
+    (claude / "a.md").write_text("a", encoding="utf-8")
+    baseline = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.CLAUDE_GUARD_PREFIX
+    )
+    assert build_all.assert_no_claude_writes(tmp_path, baseline) == []
 
 
 # _build_skills missing-stanza handling --------------------------------------
@@ -380,17 +420,49 @@ def test_run_returns_2_when_check_finds_drift(
     assert rc == 2
 
 
-def test_run_returns_2_when_claude_write_detected(
+def test_run_returns_2_when_generator_writes_claude(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        build_all,
-        "_git_diff_paths",
-        lambda repo_root: [".claude/agents/leak.md"],
-    )
+    """A generator that writes under .claude/ during the run trips REQ-003-010."""
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    def _leaky_agents(repo_root, cfg, platform):  # type: ignore[no-untyped-def]
+        # Misbehaving generator writes under .claude/ after the snapshot.
+        leak = Path(repo_root) / ".claude" / "agents" / "leak.md"
+        leak.parent.mkdir(parents=True, exist_ok=True)
+        leak.write_text("generated\n", encoding="utf-8")
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", _leaky_agents)
+    rc = build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+    assert rc == 2
+
+
+def test_run_returns_0_when_claude_lib_synced_before_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #2613: a pre-build .claude/lib sync must NOT trip REQ-003-010.
+
+    The file under .claude/lib is already dirty before run() snapshots
+    .claude/. No generator touches it, so the guard returns clean and the
+    build exits 0.
+    """
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    # Simulate sync_plugin_lib.py having already updated .claude/lib.
+    lib = repo / ".claude" / "lib" / "hook_utilities"
+    lib.mkdir(parents=True)
+    (lib / "guards.py").write_text("def synced(): ...\n", encoding="utf-8")
     _write_platform_with_skills(repo, provider="copilot-cli")
     monkeypatch.setattr(
         build_all,
@@ -402,7 +474,7 @@ def test_run_returns_2_when_claude_write_detected(
     rc = build_all.run(
         repo, platform=None, check=False, clean=False, audit_format="md"
     )
-    assert rc == 2
+    assert rc == 0
 
 
 def test_run_clean_purges_only_skill_outputs(tmp_path: Path) -> None:

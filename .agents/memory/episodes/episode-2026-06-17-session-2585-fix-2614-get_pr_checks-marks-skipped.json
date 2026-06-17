@@ -1,0 +1,43 @@
+{
+  "id": "episode-2026-06-17-session-2585-fix-2614-get_pr_checks-marks-skipped",
+  "session": "2026-06-17-session-2585-fix-2614-get_pr_checks-marks-skipped",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "fix #2614 get_pr_checks marks skipped required checks as pending",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix #2614: get_pr_checks marked a SKIPPED required check as pending. Root cause: dedupe_checks ORs IsPending onto the winner from a stale StatusContext-PENDING sibling, and extract_required_check_lists (scripts/github_core/checks_rollup.py) appended to PendingRequiredChecks on IsPending alone. Fix: guard the pending append with `and not check.get('IsPassing')` so a completed-passing (incl SKIPPED) required check is not listed as pending, matching test_pr_merge_ready.py. Synced 3 github_core copies (scripts/, .claude/lib/, src/copilot-cli/lib/) via scripts/sync_plugin_lib.py + build_all.py --platform copilot-cli. TDD: wrote failing test test_skipped_winner_with_pending_sibling_excluded_from_required (RED: pending_required=['Run Python Tests']), applied fix, GREEN. Mutation (revert guard) -> test failed as expected, restored. Considered the deeper dedupe-layer fix but it broke 4 existing wait-polling contract tests (test_passing_supersedes_pending_but_keeps_pending_signal etc.), so kept the sanctioned minimal extract-layer guard. Test command: uv run pytest tests/test_get_pr_checks.py -q -> 77 passed. Related: uv run pytest tests/ -k 'pr_checks or merge_ready or checks_rollup' -> 123 passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "test",
+      "content": "Fix #2614: get_pr_checks marked a SKIPPED required check as pending. Root cause: dedupe_checks ORs IsPending onto the winner from a stale StatusContext-PENDING sibling, and extract_required_check_lists (scripts/github_core/checks_rollup.py) appended to PendingRequiredChecks on IsPending alone. Fix: guard the pending append with `and not check.get('IsPassing')` so a completed-passing (incl SKIPPED) required check is not listed as pending, matching test_pr_merge_ready.py. Synced 3 github_core copies (scripts/, .claude/lib/, src/copilot-cli/lib/) via scripts/sync_plugin_lib.py + build_all.py --platform copilot-cli. TDD: wrote failing test test_skipped_winner_with_pending_sibling_excluded_from_required (RED: pending_required=['Run Python Tests']), applied fix, GREEN. Mutation (revert guard) -> test failed as expected, restored. Considered the deeper dedupe-layer fix but it broke 4 existing wait-polling contract tests (test_passing_supersedes_pending_but_keeps_pending_signal etc.), so kept the sanctioned minimal extract-layer guard. Test command: uv run pytest tests/test_get_pr_checks.py -q -> 77 passed. Related: uv run pytest tests/ -k 'pr_checks or merge_ready or checks_rollup' -> 123 passed.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 423152fb9",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}

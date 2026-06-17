@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2585,
+    "date": "2026-06-17",
+    "branch": "fix/2614-get-pr-checks-skipped-pending",
+    "startingCommit": "ccf2020857",
+    "objective": "fix #2614 get_pr_checks marks skipped required checks as pending"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active; wrote memory tasks/issue-2614-skipped-required-not-pending"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Operated under AGENTS.md Serena init contract; LSP-first guards active this session"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read /tmp/fix_2614.json triage plan and issue #2614 context/comments via get_issue_context.py"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file (new_session_log.py session 2585)"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used .claude/skills/github/scripts/issue/* and pr/* via uv run python"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read AGENTS.md, CLAUDE.md, and .claude/rules/* loaded in context"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules code-quality, python, release-it, canonical-source-mirror"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical worktree + pr-review memories surfaced via hooks; reviewed before edits"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2614-get-pr-checks-skipped-pending off HEAD ccf2020857"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2614-get-pr-checks-skipped-pending"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "ccf2020857"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart/sessionEnd MUSTs populated with evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote tasks/issue-2614-skipped-required-not-pending"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No .md files changed in this fix; markdownlint not applicable"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on fix branch; see endingCommit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run pytest tests/test_get_pr_checks.py -q -> 77 passed; -k pr_checks or merge_ready or checks_rollup -> 123 passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-issue fix; no multi-task tracker used"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Reflection captured inline in Serena memory; no separate retro for an S-size single-line fix"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17T13:45:00Z",
+      "entry": "Fix #2614: get_pr_checks marked a SKIPPED required check as pending. Root cause: dedupe_checks ORs IsPending onto the winner from a stale StatusContext-PENDING sibling, and extract_required_check_lists (scripts/github_core/checks_rollup.py) appended to PendingRequiredChecks on IsPending alone. Fix: guard the pending append with `and not check.get('IsPassing')` so a completed-passing (incl SKIPPED) required check is not listed as pending, matching test_pr_merge_ready.py. Synced 3 github_core copies (scripts/, .claude/lib/, src/copilot-cli/lib/) via scripts/sync_plugin_lib.py + build_all.py --platform copilot-cli. TDD: wrote failing test test_skipped_winner_with_pending_sibling_excluded_from_required (RED: pending_required=['Run Python Tests']), applied fix, GREEN. Mutation (revert guard) -> test failed as expected, restored. Considered the deeper dedupe-layer fix but it broke 4 existing wait-polling contract tests (test_passing_supersedes_pending_but_keeps_pending_signal etc.), so kept the sanctioned minimal extract-layer guard. Test command: uv run pytest tests/test_get_pr_checks.py -q -> 77 passed. Related: uv run pytest tests/ -k 'pr_checks or merge_ready or checks_rollup' -> 123 passed."
+    }
+  ],
+  "endingCommit": "423152fb9",
+  "nextSteps": []
+}

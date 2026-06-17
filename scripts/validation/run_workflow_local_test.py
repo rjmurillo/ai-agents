@@ -24,6 +24,14 @@ block with an actionable message. A documented bypass exists for workflows that
 genuinely cannot run under act (secrets, ARM-only runners): set
 ``SKIP_WORKFLOW_LOCAL_TEST=true``; the bypass is logged, not hidden.
 
+One gap degrades instead of blocking: when ``gh`` or the ``gh act`` extension is
+unavailable inside a managed remote container (Claude web containers or GitHub
+Codespaces, detected by env markers), the gate returns exit 0 with
+``degraded=True`` and a logged warning. Such an environment may not be able to
+provision ``gh act``, so blocking every workflow-touching push there is friction,
+not safety. A truthy ``CI`` marker overrides the managed-container signal, so CI,
+where ``gh act`` is provisioned, keeps the hard exit 3 (Issue #2548, item 3).
+
 CLI
 ---
 
@@ -62,6 +70,17 @@ _BYPASS_ENV = "SKIP_WORKFLOW_LOCAL_TEST"
 # env flags (see BUNDLE_CHECK_ENFORCED in scripts/validation/pre_pr.py, which
 # accepts "1" and "true").
 _TRUTHY = {"1", "true"}
+
+# Env markers that identify managed remote containers where the developer may
+# not be able to provision ``gh act``. Observed on Claude web containers, which
+# set ``CLAUDECODE``, and GitHub Codespaces. In such environments a missing
+# ``gh act`` is an environment gap, not a code defect, so the gate degrades to a
+# logged warning instead of blocking the push (Issue #2548, item 3). The same
+# gate keeps its hard failure in CI, where ``gh act`` is provisioned: the ``CI``
+# marker (set to a truthy value by GitHub Actions) overrides the managed
+# container signal in :func:`_is_remote_container`.
+_REMOTE_CONTAINER_ENV_MARKERS = ("CLAUDECODE", "CODESPACES")
+_CI_ENV = "CI"
 
 # Only GitHub Actions workflow files can run under ``gh act``. Custom actions
 # under ``.github/actions/`` and any other path are filtered out before the act
@@ -119,6 +138,7 @@ class Report:
     exit_code: int
     stages: list[StageResult] = field(default_factory=list)
     bypassed: bool = False
+    degraded: bool = False
     note: str = ""
 
 
@@ -139,6 +159,24 @@ def _gh_act_available() -> bool:
     """True when the ``gh act`` extension is installed."""
     rc, _, _ = _run(["gh", "act", "--help"], timeout=20)
     return rc == 0
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in _TRUTHY
+
+
+def _is_remote_container() -> bool:
+    """True in a remote/managed container that cannot provision ``gh act``.
+
+    A truthy ``CI`` marker overrides every container signal: CI provisions
+    ``gh act``, so a gap there is a real failure and must keep blocking. Outside
+    CI, the managed remote-container env markers (``CLAUDECODE``, ``CODESPACES``)
+    identify environments where the ``gh act`` gap is expected and the gate
+    should degrade rather than block (Issue #2548, item 3).
+    """
+    if _env_truthy(_CI_ENV):
+        return False
+    return any(_env_truthy(marker) for marker in _REMOTE_CONTAINER_ENV_MARKERS)
 
 
 def _run(
@@ -380,6 +418,29 @@ def _act_full_stage(files: Sequence[str], repo_root: Path) -> StageResult:
 # --- Orchestration -------------------------------------------------------
 
 
+def _gh_act_gap_report(report: Report, tool_note: str) -> Report:
+    """Resolve a missing-``gh``/``gh act`` gap into a blocking or degraded Report.
+
+    In a remote container (see :func:`_is_remote_container`) the gap is an
+    environment limitation, not a code defect, so the gate degrades to a logged
+    warning (exit 0, ``degraded=True``) and the push proceeds. Everywhere else
+    the gap stays a blocking tool-unavailable failure (exit 3). The bypass hint
+    in ``tool_note`` is preserved either way (Issue #2548, item 3).
+    """
+    if _is_remote_container():
+        report.exit_code = 0
+        report.degraded = True
+        report.note = (
+            f"{tool_note} Remote container detected; gh act cannot be "
+            "provisioned here, so this gate is downgraded to a warning. CI "
+            "still runs the full workflow check."
+        )
+        return report
+    report.exit_code = 3
+    report.note = tool_note
+    return report
+
+
 def run_local_test(
     workflow_files: Sequence[str],
     repo_root: Path,
@@ -432,16 +493,16 @@ def run_local_test(
     # Stage 2 (dry-run) needs gh act but not a running Docker daemon: act -n
     # only plans the run.
     if not _have("gh"):
-        report.exit_code = 3
-        report.note = f"gh CLI not installed. Install it or set {_BYPASS_ENV}=true."
-        return report
-    if not _gh_act_available():
-        report.exit_code = 3
-        report.note = (
-            "gh act extension not installed. Install it via "
-            f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true."
+        return _gh_act_gap_report(
+            report,
+            f"gh CLI not installed. Install it or set {_BYPASS_ENV}=true.",
         )
-        return report
+    if not _gh_act_available():
+        return _gh_act_gap_report(
+            report,
+            "gh act extension not installed. Install it via "
+            f"'gh extension install nektos/gh-act' or set {_BYPASS_ENV}=true.",
+        )
 
     worktree_error = _unsupported_worktree_gitdir_error(repo_root)
     if worktree_error is not None:
@@ -484,6 +545,8 @@ def run_local_test(
 def _format_text(report: Report) -> str:
     if report.bypassed:
         return f"workflow-local-test: BYPASSED ({report.note})"
+    if report.degraded:
+        return f"workflow-local-test: DEGRADED\n  {report.note}"
     if report.exit_code == 2:
         return f"workflow-local-test: CONFIG ERROR\n  {report.note}"
     if report.exit_code == 3:
@@ -506,6 +569,7 @@ def _format_json(report: Report) -> str:
         {
             "exit_code": report.exit_code,
             "bypassed": report.bypassed,
+            "degraded": report.degraded,
             "note": report.note,
             "stages": [
                 {"stage": s.stage, "ok": s.ok, "detail": s.detail} for s in report.stages
