@@ -36,7 +36,7 @@ Machine-readable opt-out (the issue's acceptance criterion):
   depends on" without forcing a migration the maintainer has consciously
   deferred. The marker is a deliberate, reviewable act; silent prose is not.
 
-Baseline ratchet (mirrors check_skill_portability.py):
+Baseline ratchet:
   Every current offender is grandfathered in ``skill_md_portability_baseline.json``.
   The check FAILS only when a file's count rises above its baseline (new drift)
   or a previously-clean file introduces references. It REPORTS when counts drop
@@ -101,8 +101,12 @@ def _repo_root(start: Path) -> Path:
 
 
 def has_portability_marker(text: str) -> bool:
-    """Return True if the file self-declares its upstream path dependencies."""
-    return _MARKER_PATTERN.search(text) is not None
+    """Return True if the file self-declares its upstream path dependencies.
+
+    Strips fenced and inline code first so that a marker inside a code example
+    is not treated as the real opt-out declaration.
+    """
+    return _MARKER_PATTERN.search(_strip_code(text)) is not None
 
 
 def _strip_code(text: str) -> str:
@@ -158,9 +162,9 @@ def count_file_refs(text: str) -> int:
 
     The opt-out marker is only recognized in prose (not inside code blocks).
     """
-    prose = _strip_code(text)
-    if has_portability_marker(prose):
+    if has_portability_marker(text):
         return 0
+    prose = _strip_code(text)
     return sum(len(pat.findall(prose)) for pat in UPSTREAM_PATTERNS)
 
 
@@ -272,9 +276,14 @@ def _resolve_root(repo_root: Path | None) -> Path:
 def _resolve_baseline_path(root: Path, baseline: Path | None) -> Path:
     if baseline is None:
         return root / "scripts" / "validation" / _DEFAULT_BASELINE_NAME
-    if baseline.is_absolute():
-        return baseline
-    return root / baseline
+    resolved = (
+        baseline.expanduser().resolve()
+        if baseline.is_absolute()
+        else (root / baseline).expanduser().resolve()
+    )
+    if not resolved.is_relative_to(root.resolve()):
+        return Path("")
+    return resolved
 
 
 def _write_baseline(baseline_path: Path, current: dict[str, int]) -> int:

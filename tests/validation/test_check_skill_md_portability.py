@@ -100,6 +100,26 @@ class TestVendorPortabilityMarker:
         assert cmp.has_portability_marker(text) is False
         assert cmp.count_file_refs(text) == 2
 
+    def test_marker_inside_fenced_code_does_not_suppress(self) -> None:
+        # A marker shown only inside a code block must not opt the file out.
+        text = (
+            "```\n"
+            "<!-- vendor-portability: example -->\n"
+            "```\n"
+            "This prose references .agents/sessions/ which must still be counted.\n"
+        )
+        assert cmp.has_portability_marker(text) is False
+        assert cmp.count_file_refs(text) == 1
+
+    def test_marker_inside_inline_code_does_not_suppress(self) -> None:
+        # Same rule for inline code spans.
+        text = (
+            "Use `<!-- vendor-portability: ok -->` in your file header.\n"
+            "But this prose still references .agents/sessions/ without declaring.\n"
+        )
+        assert cmp.has_portability_marker(text) is False
+        assert cmp.count_file_refs(text) == 1
+
 
 class TestScan:
     def _skill_md(self, root: Path, rel: str, body: str) -> None:
@@ -196,6 +216,24 @@ class TestMainCli:
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         assert rc == 0
+
+    def test_baseline_path_traversal_returns_empty(self, tmp_path: Path) -> None:
+        # A --baseline argument escaping the repo root must resolve to Path("")
+        # and cause a config error (exit 2), not read an arbitrary file.
+        root = tmp_path / "repo"
+        root.mkdir()
+        (root / ".claude" / "skills").mkdir(parents=True)
+        traversal = Path("../../etc/passwd")
+        result = cmp._resolve_baseline_path(root, traversal)
+        assert result == Path(""), "path traversal must return empty Path"
+
+    def test_absolute_baseline_outside_root_returns_empty(self, tmp_path: Path) -> None:
+        root = tmp_path / "repo"
+        root.mkdir()
+        outside = tmp_path / "outside.json"
+        outside.write_text("{}", encoding="utf-8")
+        result = cmp._resolve_baseline_path(root, outside)
+        assert result == Path(""), "absolute path outside root must return empty Path"
 
 
 class TestCommittedRepoHasNoDrift:
