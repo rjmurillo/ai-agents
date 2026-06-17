@@ -190,10 +190,14 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
     if args.marker:
         marker_html = f"<!-- {args.marker} -->"
 
-        comments_result = subprocess.run(
-            ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}/comments"],
-            capture_output=True, encoding="utf-8", errors="replace", check=False,
-        )
+        try:
+            comments_result = subprocess.run(
+                ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}/comments"],
+                capture_output=True, encoding="utf-8", errors="replace",
+                check=False, timeout=30,
+            )
+        except subprocess.TimeoutExpired:
+            error_and_exit("Timed out (30s) listing issue comments via gh.", 3)
 
         # Guard stdout: under locale text mode on Windows, gh's UTF-8 JSON was
         # decoded with cp1252, the reader thread died on a non-cp1252 byte, and
@@ -264,19 +268,23 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901 - faithful port of
 
     # Post new comment
     payload = json.dumps({"body": body})
-    result = subprocess.run(
-        [
-            "gh", "api",
-            f"repos/{owner}/{repo}/issues/{issue}/comments",
-            "-X", "POST",
-            "--input", "-",
-        ],
-        input=payload,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api",
+                f"repos/{owner}/{repo}/issues/{issue}/comments",
+                "-X", "POST",
+                "--input", "-",
+            ],
+            input=payload,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        error_and_exit("Timed out (30s) posting comment via gh.", 3)
 
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
