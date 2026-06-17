@@ -294,7 +294,7 @@ File: .agents/sessions/2026-02-07-session-05.json
 
 ## Vendored install
 
-<!-- vendor-portability: declared. This skill writes session logs under .agents/sessions/ and reads .agents/SESSION-PROTOCOL.md. Both are upstream-only; a consumer repo without them gets "[FAIL] No session log found in .agents/sessions/", not a silent no-op. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes session logs under .agents/sessions/. A consumer repo without that path gets "[FAIL] No session log found in .agents/sessions/", not a silent no-op. Issue #2050. -->
 
 This skill depends on upstream-only paths. In a vendored install (a consumer
 repo that is not `rjmurillo/ai-agents`) these paths do not exist:
@@ -302,7 +302,7 @@ repo that is not `rjmurillo/ai-agents`) these paths do not exist:
 | Path | Direction | Behavior when absent |
 |------|-----------|----------------------|
 | `.agents/sessions/` | write (session logs) | The completion script prints `[FAIL] No session log found in .agents/sessions/` and exits non-zero. Create the directory or set the session path explicitly. |
-| `.agents/SESSION-PROTOCOL.md` | read (requirements) | The protocol reference link is informational; absence does not block the skill. |
+| `.agents/SESSION-PROTOCOL.md` | reference only | The protocol reference link is informational; absence does not block the skill. |
 
 The HTML comment above is the machine-readable declaration the
 `check_skill_md_portability.py` validator (Issue #2050) reads to confirm this

@@ -9,8 +9,8 @@ fails on new drift, and honors a machine-readable ``vendor-portability`` HTML
 comment that lets a skill declare a documented path dependency (the issue's
 acceptance criterion: declare paths in a machine-readable section of SKILL.md).
 
-These tests cover the counting/scan/diff units, the opt-out marker, the
-code-block / inline-code stripping, and assert the committed repo has no drift
+These tests cover the counting/scan/diff units, the opt-out marker, fenced-code
+stripping, inline-code path counting, and assert the committed repo has no drift
 against its baseline.
 """
 
@@ -59,7 +59,7 @@ class TestCountUpstreamRefs:
         assert cmp.count_upstream_refs(text) == 0
 
 
-class TestCodeBlockAndInlineStripping:
+class TestCodeBlockAndInlineHandling:
     def test_ignores_fenced_code_blocks(self) -> None:
         text = (
             "Prose before.\n\n"
@@ -72,9 +72,9 @@ class TestCodeBlockAndInlineStripping:
         # Only the prose-level path counts; fenced example commands are skipped.
         assert cmp.count_upstream_refs(text) == 1
 
-    def test_ignores_inline_code_spans(self) -> None:
+    def test_counts_inline_code_spans(self) -> None:
         text = "See `.agents/sessions/` for examples; write to .agents/analysis/y.md.\n"
-        assert cmp.count_upstream_refs(text) == 1
+        assert cmp.count_upstream_refs(text) == 2
 
     def test_tilde_fences_are_stripped(self) -> None:
         text = "~~~\n.agents/foo\n~~~\nReal .claude/lib/bar here.\n"
