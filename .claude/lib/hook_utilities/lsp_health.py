@@ -97,7 +97,7 @@ def _cwd_key(project_dir: str) -> str:
     """Return a stable per-cwd key: sha256(resolved cwd) truncated to 16 hex."""
     try:
         normalized = str(Path(project_dir).resolve())
-    except OSError, ValueError:
+    except (OSError, ValueError):
         normalized = project_dir
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
 
@@ -127,7 +127,7 @@ def warn_once_lsp_down(guard_name: str, project_dir: str) -> bool:
             fh.write("1")
     except FileExistsError:
         return False
-    except OSError, ValueError:
+    except (OSError, ValueError):
         marker = None
 
     message = (
@@ -147,6 +147,6 @@ def clear_lsp_down_marker(project_dir: str) -> bool:
     """
     try:
         _marker_path(project_dir).unlink(missing_ok=True)
-    except OSError, ValueError:
+    except (OSError, ValueError):
         return False
     return True
