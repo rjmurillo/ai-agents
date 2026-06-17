@@ -234,9 +234,9 @@ def _sessions_dir(tmp_path):
 class TestSessionStructure:
     @pytest.fixture(autouse=True)
     def _setup_path(self):
-        import sys
-
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.syspath_prepend(os.path.join(os.path.dirname(__file__), ".."))
+            yield
 
     def test_build_session_log_top_level_shape(self):
         from session_init.session_structure import build_session_log
@@ -359,7 +359,10 @@ class TestGeneratorsShareStructure:
 
     def _emit(self, tmp_path, script_name, extra_args=None):
         script = os.path.join(
-            os.path.dirname(__file__), "..", "scripts", script_name,
+            os.path.dirname(__file__),
+            "..",
+            "scripts",
+            script_name,
         )
 
         def mock_run(cmd, **kwargs):
@@ -375,6 +378,7 @@ class TestGeneratorsShareStructure:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         import importlib
+
         scripts_path = os.path.join(os.path.dirname(__file__), "..", "scripts")
         module_name = script_name[: -len(".py")]
         spec = importlib.util.spec_from_file_location(module_name, script)
@@ -438,7 +442,10 @@ class TestNewSessionLog:
         sessions_dir.mkdir(parents=True)
 
         script = os.path.join(
-            os.path.dirname(__file__), "..", "scripts", "new_session_log.py",
+            os.path.dirname(__file__),
+            "..",
+            "scripts",
+            "new_session_log.py",
         )
 
         fake_git = {
@@ -456,6 +463,7 @@ class TestNewSessionLog:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         import importlib
+
         spec = importlib.util.spec_from_file_location("new_session_log", script)
         mod = importlib.util.module_from_spec(spec)
         scripts_path = os.path.join(os.path.dirname(__file__), "..", "scripts")
@@ -463,11 +471,15 @@ class TestNewSessionLog:
         with mock.patch("subprocess.run", side_effect=mock_run), pytest.MonkeyPatch.context() as mp:
             mp.syspath_prepend(scripts_path)
             spec.loader.exec_module(mod)
-            result = mod.main([
-                "--session-number", "1",
-                "--objective", "Test session",
-                "--skip-validation",
-            ])
+            result = mod.main(
+                [
+                    "--session-number",
+                    "1",
+                    "--objective",
+                    "Test session",
+                    "--skip-validation",
+                ]
+            )
 
         assert result == 0
         json_files = list(sessions_dir.glob("*.json"))
@@ -490,7 +502,10 @@ class TestNewSessionLogJson:
         sessions_dir.mkdir(parents=True)
 
         script = os.path.join(
-            os.path.dirname(__file__), "..", "scripts", "new_session_log_json.py",
+            os.path.dirname(__file__),
+            "..",
+            "scripts",
+            "new_session_log_json.py",
         )
 
         def mock_run(cmd, **kwargs):
@@ -506,6 +521,7 @@ class TestNewSessionLogJson:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         import importlib
+
         spec = importlib.util.spec_from_file_location("new_session_log_json", script)
         mod = importlib.util.module_from_spec(spec)
         scripts_path = os.path.join(os.path.dirname(__file__), "..", "scripts")
@@ -513,10 +529,14 @@ class TestNewSessionLogJson:
         with mock.patch("subprocess.run", side_effect=mock_run), pytest.MonkeyPatch.context() as mp:
             mp.syspath_prepend(scripts_path)
             spec.loader.exec_module(mod)
-            result = mod.main([
-                "--session-number", "5",
-                "--objective", "JSON test",
-            ])
+            result = mod.main(
+                [
+                    "--session-number",
+                    "5",
+                    "--objective",
+                    "JSON test",
+                ]
+            )
 
         assert result == 0
         json_files = list(sessions_dir.glob("*.json"))

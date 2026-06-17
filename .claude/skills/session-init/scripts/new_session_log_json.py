@@ -26,7 +26,9 @@ _WORKSPACE = os.environ.get(
     "GITHUB_WORKSPACE",
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "..")),
 )
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+_SESSION_INIT_DIR = os.path.join(os.path.dirname(__file__), "..")
+if _SESSION_INIT_DIR not in sys.path:
+    sys.path.insert(0, _SESSION_INIT_DIR)
 
 
 def _resolve_paths_lib_dir() -> str:
@@ -64,19 +66,24 @@ def build_parser() -> argparse.ArgumentParser:
         description="Create a new session log in JSON format.",
     )
     parser.add_argument(
-        "--session-number", type=int, default=0,
+        "--session-number",
+        type=int,
+        default=0,
         help="Session number. Auto-detects from existing files if not provided.",
     )
     parser.add_argument(
-        "--objective", default="",
+        "--objective",
+        default="",
         help="Session objective description.",
     )
     parser.add_argument(
-        "--trace-id", default="",
+        "--trace-id",
+        default="",
         help="Trace correlation ID (UUID) for multi-agent execution graphs.",
     )
     parser.add_argument(
-        "--parent-session-id", default="",
+        "--parent-session-id",
+        default="",
         help="Parent session identifier (YYYY-MM-DD-session-N) for call graph reconstruction.",
     )
     return parser
@@ -85,7 +92,10 @@ def build_parser() -> argparse.ArgumentParser:
 def _get_branch() -> str:
     result = subprocess.run(
         ["git", "branch", "--show-current"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return "unknown"
@@ -95,7 +105,10 @@ def _get_branch() -> str:
 def _get_commit() -> str:
     result = subprocess.run(
         ["git", "rev-parse", "--short", "HEAD"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return "unknown"
@@ -110,7 +123,10 @@ def _get_repo_root() -> str:
     # Canonical reference: scripts/github_core/repo.py::get_repo_root.
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return _WORKSPACE
