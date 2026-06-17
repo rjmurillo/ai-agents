@@ -15,6 +15,7 @@ import sys
 import warnings
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 _GIT_COMMIT_PATTERN = re.compile(r"(?:^|\s)git\s+(commit|ci)")
 _GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
@@ -265,7 +266,7 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
     return _newest_by_mtime(yesterday_candidates)
 
 
-def coerce_to_list(value) -> list:
+def coerce_to_list(value) -> list[Any]:
     """Normalize work/outcomes to a list, regardless of session schema shape.
 
     Session logs in this repo have used several shapes over time:
@@ -298,7 +299,7 @@ def coerce_to_list(value) -> list:
     return []
 
 
-def format_work_item(item: dict) -> str:
+def format_work_item(item: dict[str, Any]) -> str:
     """Format a work item dict into a human-readable string.
 
     Supports multiple session schemas:
