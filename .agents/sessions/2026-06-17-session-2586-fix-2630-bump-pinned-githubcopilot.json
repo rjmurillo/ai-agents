@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pytest 9 passed; ruff clean; gh act dry-run rc=0; pre_pr Copilot-pin check OK."
+        "Evidence": "`uv run pytest tests/test_check_copilot_version_pin.py -q` passed; ruff clean; gh act dry-run rc=0; pre_pr Copilot-pin check OK."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -124,7 +124,7 @@
     },
     {
       "step": "Regression guard (TDD)",
-      "detail": "Wrote failing test first (tests/test_check_copilot_version_pin.py), then scripts/validation/check_copilot_version_pin.py. pytest result: 9 passed. Command: `uv run python -m pytest tests/test_check_copilot_version_pin.py -q` -> 9 passed."
+      "detail": "Wrote failing test first (tests/test_check_copilot_version_pin.py), then scripts/validation/check_copilot_version_pin.py. Command: `uv run pytest tests/test_check_copilot_version_pin.py -q` passed."
     },
     {
       "step": "Mutation test",
