@@ -1,6 +1,7 @@
 """Tests for post_issue_comment.py."""
 
 import json
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -162,7 +163,10 @@ class TestPostIssueComment:
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", side_effect=[
-                make_completed_process(stdout=None, returncode=0),
+                # Construct CompletedProcess directly: make_completed_process is
+                # typed stdout: str, but this regression needs the genuine
+                # stdout=None the Windows decode failure produces.
+                subprocess.CompletedProcess(args=["gh"], returncode=0, stdout=None, stderr=""),
                 make_completed_process(stdout=json.dumps(response), returncode=0),
             ]) as mock_run,
         ):
@@ -192,6 +196,9 @@ class TestSubprocessEncoding:
     """
 
     _FILES = [
+        # Canonical source first: a bare text=True here is overwritten into the
+        # mirrors on the next sync, so the source of truth must be validated too.
+        "scripts/github_core/api.py",
         ".claude/lib/github_core/api.py",
         ".claude/skills/github/scripts/issue/post_issue_comment.py",
     ]
