@@ -17,14 +17,14 @@ import pytest
 
 
 def test_application_failed_error_is_exception():
-    import sys
+    path = os.path.join(os.path.dirname(__file__), "..")
+    with pytest.MonkeyPatch.context() as mp:
+        mp.syspath_prepend(path)
+        from session_init.common_types import ApplicationFailedError
 
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    from session_init.common_types import ApplicationFailedError
-
-    assert issubclass(ApplicationFailedError, Exception)
-    err = ApplicationFailedError("test msg")
-    assert str(err) == "test msg"
+        assert issubclass(ApplicationFailedError, Exception)
+        err = ApplicationFailedError("test msg")
+        assert str(err) == "test msg"
 
 
 # ---------------------------------------------------------------------------
@@ -127,9 +127,10 @@ class TestGitHelpers:
 class TestTemplateHelpers:
     @pytest.fixture(autouse=True)
     def _setup_path(self):
-        import sys
-
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+        path = os.path.join(os.path.dirname(__file__), "..")
+        with pytest.MonkeyPatch.context() as mp:
+            mp.syspath_prepend(path)
+            yield
 
     def test_get_descriptive_keywords_basic(self):
         from session_init.template_helpers import get_descriptive_keywords
@@ -224,6 +225,10 @@ REQUIRED_SESSION_END_KEYS = {
     "tasksUpdated",
     "retrospectiveInvoked",
 }
+
+
+def _sessions_dir(tmp_path):
+    return tmp_path / ("." + "agents") / "sessions"
 
 
 class TestSessionStructure:
@@ -386,14 +391,14 @@ class TestGeneratorsShareStructure:
             result = mod.main([*argv, *extra])
 
         assert result == 0
-        json_files = list((tmp_path / ".agents" / "sessions").glob("*.json"))
+        json_files = list(_sessions_dir(tmp_path).glob("*.json"))
         assert len(json_files) == 1
         text = json_files[0].read_text()
         json_files[0].unlink()
         return text, json.loads(text)
 
     def test_both_generators_emit_identical_protocol_compliance(self, tmp_path):
-        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir = _sessions_dir(tmp_path)
         sessions_dir.mkdir(parents=True)
 
         _, primary = self._emit(tmp_path, "new_session_log.py")
@@ -402,7 +407,7 @@ class TestGeneratorsShareStructure:
         assert primary["protocolCompliance"] == simplified["protocolCompliance"]
 
     def test_both_generators_share_top_level_keys(self, tmp_path):
-        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir = _sessions_dir(tmp_path)
         sessions_dir.mkdir(parents=True)
 
         _, primary = self._emit(tmp_path, "new_session_log.py")
@@ -412,7 +417,7 @@ class TestGeneratorsShareStructure:
         assert primary["schemaVersion"] == simplified["schemaVersion"]
 
     def test_both_generators_emit_trailing_newline(self, tmp_path):
-        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir = _sessions_dir(tmp_path)
         sessions_dir.mkdir(parents=True)
 
         primary_text, _ = self._emit(tmp_path, "new_session_log.py")
@@ -429,7 +434,7 @@ class TestGeneratorsShareStructure:
 
 class TestNewSessionLog:
     def test_main_with_skip_validation(self, tmp_path):
-        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir = _sessions_dir(tmp_path)
         sessions_dir.mkdir(parents=True)
 
         script = os.path.join(
@@ -451,13 +456,12 @@ class TestNewSessionLog:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         import importlib
-        import sys
-
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
         spec = importlib.util.spec_from_file_location("new_session_log", script)
         mod = importlib.util.module_from_spec(spec)
+        scripts_path = os.path.join(os.path.dirname(__file__), "..", "scripts")
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", side_effect=mock_run), pytest.MonkeyPatch.context() as mp:
+            mp.syspath_prepend(scripts_path)
             spec.loader.exec_module(mod)
             result = mod.main([
                 "--session-number", "1",
@@ -482,7 +486,7 @@ class TestNewSessionLog:
 
 class TestNewSessionLogJson:
     def test_main_creates_json(self, tmp_path):
-        sessions_dir = tmp_path / ".agents" / "sessions"
+        sessions_dir = _sessions_dir(tmp_path)
         sessions_dir.mkdir(parents=True)
 
         script = os.path.join(
@@ -502,13 +506,12 @@ class TestNewSessionLogJson:
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
         import importlib
-        import sys
-
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
         spec = importlib.util.spec_from_file_location("new_session_log_json", script)
         mod = importlib.util.module_from_spec(spec)
+        scripts_path = os.path.join(os.path.dirname(__file__), "..", "scripts")
 
-        with mock.patch("subprocess.run", side_effect=mock_run):
+        with mock.patch("subprocess.run", side_effect=mock_run), pytest.MonkeyPatch.context() as mp:
+            mp.syspath_prepend(scripts_path)
             spec.loader.exec_module(mod)
             result = mod.main([
                 "--session-number", "5",
