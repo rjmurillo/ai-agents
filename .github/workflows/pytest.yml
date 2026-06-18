@@ -100,6 +100,21 @@ jobs:
           enable-pester: false
           enable-git-hooks: false
 
+      # Issue #2655: blocking parse gate. PR #2640 shipped PEP 758 syntax
+      # (unparenthesized except tuples) that Python 3.14 accepts but 3.13 and
+      # earlier reject; the CLI runs hooks under the host interpreter, so it
+      # wedged on older hosts. Nothing caught it because the dev/CI target is
+      # 3.14 (where it is valid), ruff E999 is report-only below and exempts the
+      # generated src/copilot-cli mirrors, and pytest only fails when a collected
+      # test imports the broken module. This step parses every tracked .py at the
+      # declared support floor (pyproject requires-python) via ast feature_version
+      # and blocks on any failure, even though this runner is 3.14. It is separate
+      # from the ruff style backlog: a parse failure is a zero-false-positive
+      # defect. Keep it BEFORE the ruff step and do NOT add continue-on-error.
+      - name: Validate Python syntax (blocking)
+        if: steps.should-run.outputs.skip != 'true'
+        run: python scripts/validation/validate_python_syntax.py
+
       # Issue #2194: ruff is configured in pyproject.toml ([tool.ruff]) but no CI
       # workflow ran it. The repository has a pre-existing backlog of 2026 ruff
       # findings (measured 2026-06-01 with ruff>=0.15.14), so this step is

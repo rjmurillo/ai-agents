@@ -76,6 +76,7 @@ def test_priority_label(mock_run, capsys):
         _completed(rc=1),  # priority label doesn't exist
         _completed(rc=0),  # create priority label
         _completed(rc=0),  # apply priority label
+        _completed(stdout='{"labels": []}', rc=0),  # _get_issue_labels for reconcile
     ]
 
     rc = main(["--issue", "1", "--priority", "P1"])

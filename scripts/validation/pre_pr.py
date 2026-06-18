@@ -111,6 +111,7 @@ from validate_design_review import (  # noqa: E402, F401
     _VALID_STATUSES,
     validate_design_review_frontmatter,
 )
+from validate_python_syntax import validate_python_syntax  # noqa: E402, F401
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402, F401
 
 
@@ -255,6 +256,18 @@ def main(argv: list[str] | None = None) -> int:
 
     state = ValidationState()
     start_time = time.monotonic()
+
+    # 0. Python Syntax (issue #2655). Blocking parse gate over every tracked
+    # .py file. A SyntaxError in a hook module wedges the CLI (PreToolUse
+    # dispatcher fails closed on import), and ruff/pytest never caught PR #2640
+    # because ruff is advisory and nothing imports those modules. Runs first
+    # and fast so the cheapest, highest-impact defect is caught before anything
+    # slower.
+    run_validation(
+        "Python Syntax (compile gate)",
+        state,
+        lambda: validate_python_syntax(repo_root),
+    )
 
     # 1. Session End
     run_validation(
