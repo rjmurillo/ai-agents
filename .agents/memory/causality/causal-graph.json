@@ -6710,6 +6710,492 @@
         "episode-2026-06-17-session-2588-pr-autofix-2649"
       ],
       "created": "2026-06-17T17:10:24.993455+00:00"
+    },
+    {
+      "id": "9e85c6ea05bb",
+      "type": "milestone",
+      "label": "milestone: Implemented #2623 part 1: priority-label mutual exclusivity in set_issue_labels.py + check_dual_priority_labels.py validator. TDD red/green/mutate/restore.",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2623-priority-label-mutual"
+      ],
+      "created": "2026-06-18T13:58:17.881117+00:00"
+    },
+    {
+      "id": "4b8abbe86a45",
+      "type": "test",
+      "label": "test: uv run python -m pytest tests/skills/github/test_set_issue_labels.py tests/test_check_dual_priority_labels.py -> 21 passed. pytest result: 21 passed in 0.20s. Mutation of compute_priority_removals (not in -> in) caused 3 tests to fail, restored to passed. Mutation of dual-priority threshold (<=1 -> <=2) caused 1 test to fail, restored to passed.",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2623-priority-label-mutual"
+      ],
+      "created": "2026-06-18T13:58:17.881160+00:00"
+    },
+    {
+      "id": "5dc99d03f7ba",
+      "type": "outcome",
+      "label": "Outcome: success - fix #2623 priority label mutual exclusivity + dual-priority validator (part 1); flag sweep-intent governance (part 2) for ADR",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2623-priority-label-mutual"
+      ],
+      "created": "2026-06-18T13:58:17.881196+00:00"
+    },
+    {
+      "id": "89b498bde057",
+      "type": "milestone",
+      "label": "milestone: Confirm root cause",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881289+00:00"
+    },
+    {
+      "id": "5b58207b295e",
+      "type": "milestone",
+      "label": "milestone: Fix",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881319+00:00"
+    },
+    {
+      "id": "dd89da7ec938",
+      "type": "milestone",
+      "label": "milestone: Regression guard (TDD)",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881345+00:00"
+    },
+    {
+      "id": "9d7776fda58b",
+      "type": "milestone",
+      "label": "milestone: Mutation test",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881375+00:00"
+    },
+    {
+      "id": "4889677c397b",
+      "type": "milestone",
+      "label": "milestone: Wire guard into pre-push gate",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881401+00:00"
+    },
+    {
+      "id": "f6e1db38204e",
+      "type": "milestone",
+      "label": "milestone: Workflow local verification",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881427+00:00"
+    },
+    {
+      "id": "d8b9996ebfd7",
+      "type": "commit",
+      "label": "commit: Commit: 14bb688be5b5a33620597fb128b49dea86c758b0",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881453+00:00"
+    },
+    {
+      "id": "654a82e6b328",
+      "type": "outcome",
+      "label": "Outcome: success - fix #2630: bump pinned @github/copilot off known-bad 0.0.397 (invalid session id) in ai-review action; add version-guard regression check",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2630-bump-pinned-githubcopilot"
+      ],
+      "created": "2026-06-18T13:58:17.881479+00:00"
+    },
+    {
+      "id": "fc1b136a1377",
+      "type": "milestone",
+      "label": "milestone: Reconciled stale .github/agents/critic.agent.md to canonical .claude/agents/critic.md (asymmetry framing restored: 7 hits) and added install-parity regression test.",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2641-reconcile-stale-githubagentscriticagentmd"
+      ],
+      "created": "2026-06-18T13:58:17.881550+00:00"
+    },
+    {
+      "id": "73e54f10d238",
+      "type": "test",
+      "label": "test: Command: uv run python -m pytest tests/build_scripts/test_critic_install_parity.py -v | Result: 2 passed (pytest passed). test_critic_install_copies_are_in_parity passed; test_github_critic_carries_asymmetry_framing passed. Drift: detect_agent_drift.py -> critic [.claude/agents vs .github/agents]: OK (100.0% similar). Pre-fix baseline was DRIFT DETECTED (0.0%). Mutation test: stripping 'asymmetry' -> test went RED (0 hits), then restored to 7.",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2641-reconcile-stale-githubagentscriticagentmd"
+      ],
+      "created": "2026-06-18T13:58:17.881578+00:00"
+    },
+    {
+      "id": "df68318ee86c",
+      "type": "commit",
+      "label": "commit: Commit: 1448e5157",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2641-reconcile-stale-githubagentscriticagentmd"
+      ],
+      "created": "2026-06-18T13:58:17.881604+00:00"
+    },
+    {
+      "id": "fa697bea6454",
+      "type": "outcome",
+      "label": "Outcome: success - fix #2641 reconcile stale .github/agents/critic.agent.md to canonical (asymmetry framing); add critic install-parity drift regression test",
+      "episodes": [
+        "episode-2026-06-17-session-2586-fix-2641-reconcile-stale-githubagentscriticagentmd"
+      ],
+      "created": "2026-06-18T13:58:17.881632+00:00"
+    },
+    {
+      "id": "828c9be63708",
+      "type": "milestone",
+      "label": "milestone: ADR-074 authoring + architect/adr-review routing decision",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-bounded-security-review"
+      ],
+      "created": "2026-06-18T13:58:17.881746+00:00"
+    },
+    {
+      "id": "acc01103f393",
+      "type": "milestone",
+      "label": "milestone: Validation evidence",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-bounded-security-review"
+      ],
+      "created": "2026-06-18T13:58:17.881787+00:00"
+    },
+    {
+      "id": "3724d42e17f2",
+      "type": "commit",
+      "label": "commit: Commit: e6d1f3d34a",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-bounded-security-review"
+      ],
+      "created": "2026-06-18T13:58:17.881825+00:00"
+    },
+    {
+      "id": "21be9e5f89d8",
+      "type": "outcome",
+      "label": "Outcome: success - Author Proposed ADR-074 for bounded security-review quick-pass mode (diff-scope classifier, budget watchdog, QUICK_PASS/NEEDS_DEEP verdicts) per issue #2617",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-bounded-security-review"
+      ],
+      "created": "2026-06-18T13:58:17.881864+00:00"
+    },
+    {
+      "id": "50303c614cee",
+      "type": "milestone",
+      "label": "milestone: Read issue #2615 and full discourse; searched .agents/architecture ADRs and check_pr_live_state.py for prior art",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-18T13:58:17.881966+00:00"
+    },
+    {
+      "id": "86ab2b5b9caf",
+      "type": "milestone",
+      "label": "milestone: Authored Proposed ADR-074 (PR-comment lease, 15-min TTL, fail-open, advisory beside the SHA gate) following ADR-073 format model; authored single-reviewer architect design-review note",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-18T13:58:17.881996+00:00"
+    },
+    {
+      "id": "49b31598f8b7",
+      "type": "milestone",
+      "label": "milestone: Attempted Write to canonical .agents/architecture/ADR-074-*.md path",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-18T13:58:17.882023+00:00"
+    },
+    {
+      "id": "9502f9af2cf5",
+      "type": "outcome",
+      "label": "Outcome: success - Author Proposed ADR-074 for remote/local pr-autofix coordination lease (storage, TTL, fail-open) per issue #2615",
+      "episodes": [
+        "episode-2026-06-17-session-2587-author-proposed-adr-074-remotelocal-pr-autofix"
+      ],
+      "created": "2026-06-18T13:58:17.882050+00:00"
+    },
+    {
+      "id": "a8c9f52aeb1a",
+      "type": "commit",
+      "label": "commit: Commit: eb367099e",
+      "episodes": [
+        "episode-2026-06-17-session-2588-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.882725+00:00"
+    },
+    {
+      "id": "15e37f931024",
+      "type": "milestone",
+      "label": "milestone: Read AGENTS.md, AGENT-INSTRUCTIONS.md, CLAUDE.md, HANDOFF.md. Fetched live PR state and all 9 review threads via GraphQL.",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.882868+00:00"
+    },
+    {
+      "id": "a99a25d5789d",
+      "type": "milestone",
+      "label": "milestone: Root cause analysis of 4 threads.",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.882905+00:00"
+    },
+    {
+      "id": "85bfa1afc0f2",
+      "type": "milestone",
+      "label": "milestone: Edited REPORT.md lines 12 and 26: replaced 'Prune candidate...deletion candidate' with 'Script classification: SUBSUMED (moderate-band, 60% one-way coverage). Triage action: rewrite boundary + confirmatory eval; deletion not triggered on this evidence.'",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.882942+00:00"
+    },
+    {
+      "id": "0c4550094119",
+      "type": "milestone",
+      "label": "milestone: Edited matrix.json recommendation field for Pair 2: same non-prescriptive language (DELETE/FOLD not triggered). JSON round-tripped cleanly.",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.882985+00:00"
+    },
+    {
+      "id": "e65d13f419e4",
+      "type": "milestone",
+      "label": "milestone: Edited .agents/analysis/skill-overlap-2026-06-17.md Verdicts table line 31 (Pair 2 Script recommendation cell): 'Prune candidate...' -> 'Script: SUBSUMED (moderate-band). Action: rewrite boundary + confirmatory eval.'",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.883018+00:00"
+    },
+    {
+      "id": "04d0ad904db8",
+      "type": "milestone",
+      "label": "milestone: Added QA addendum to .agents/qa/pr-2649-m4-overlap-eval.md documenting round-2 fix.",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.883046+00:00"
+    },
+    {
+      "id": "70ca2850f72d",
+      "type": "milestone",
+      "label": "milestone: Created this session log. Committed docs(eval) + chore(session) atomically. Pushed to origin. Replied to and resolved 4 threads.",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.883074+00:00"
+    },
+    {
+      "id": "e8112307afea",
+      "type": "commit",
+      "label": "commit: Commit: 14413ad23",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.883117+00:00"
+    },
+    {
+      "id": "46333f851cd6",
+      "type": "outcome",
+      "label": "Outcome: success - PR #2649 autofix round 2: resolve 4 fresh copilot-pull-request-reviewer threads. Root cause: SUBSUMED recommendation text in REPORT.md, matrix.json, and analysis doc used 'deletion candidate' language that conflicts with the PR's stated moderate-band triage action (rewrite boundary + confirmatory eval).",
+      "episodes": [
+        "episode-2026-06-17-session-2589-pr-autofix-2649"
+      ],
+      "created": "2026-06-18T13:58:17.883157+00:00"
+    },
+    {
+      "id": "f4a5f7ed8f17",
+      "type": "milestone",
+      "label": "milestone: Live-state gate: PR 2651 OPEN, 0 superseded commits, ACT",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883272+00:00"
+    },
+    {
+      "id": "12536cafc5c8",
+      "type": "milestone",
+      "label": "milestone: Retrieved 4 unresolved threads + Validate PR FAILURE logs (9 CRITICAL)",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883311+00:00"
+    },
+    {
+      "id": "ddecdab66e29",
+      "type": "milestone",
+      "label": "milestone: Fixed ADR frontmatter, lease contract, session evidence x2; removed em-dash",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883340+00:00"
+    },
+    {
+      "id": "509d7986cd20",
+      "type": "milestone",
+      "label": "milestone: Updated PR body via GitHub REST API (9 Validate PR failures fixed)",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883367+00:00"
+    },
+    {
+      "id": "eee9c94da524",
+      "type": "milestone",
+      "label": "milestone: Pushed; replied+resolved all 4 threads via add_pr_review_thread_reply.py --resolve",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883394+00:00"
+    },
+    {
+      "id": "26835e4d95dd",
+      "type": "milestone",
+      "label": "milestone: test_pr_merge_ready: DIRTY (causal-graph.json conflict with main); merge in progress",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883421+00:00"
+    },
+    {
+      "id": "be4c6f852799",
+      "type": "commit",
+      "label": "commit: Commit: 6a3b39e45",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883448+00:00"
+    },
+    {
+      "id": "b9e45069faad",
+      "type": "milestone",
+      "label": "milestone: Merged origin/main (11 commits ahead); resolved causal-graph.json conflict with --theirs (upstream wins; hook regenerates on next commit)",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883475+00:00"
+    },
+    {
+      "id": "1d97c5edb9c8",
+      "type": "milestone",
+      "label": "milestone: Fixed 2 new Copilot threads posted after push (17:51Z): (1) tombstone inconsistency - changed rule to \"latest marker wins\" so expired tombstone correctly signals free; (2) MAX_TTL enforcement missing - added parse-time rejection of expires_at > acquired_at+15m in Security section",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883504+00:00"
+    },
+    {
+      "id": "6a4f8b741d0f",
+      "type": "outcome",
+      "label": "Outcome: success - PR #2651 autofix: address 4 copilot review threads (ADR-073 schema, lease contract, session evidence); merge main to resolve causal-graph conflict",
+      "episodes": [
+        "episode-2026-06-17-session-2591-2651-autofix-address-copilot-review"
+      ],
+      "created": "2026-06-18T13:58:17.883548+00:00"
+    },
+    {
+      "id": "72a36ff1e969",
+      "type": "milestone",
+      "label": "milestone: Read issue #2665 via get_issue_context.py",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883678+00:00"
+    },
+    {
+      "id": "5d0645051e63",
+      "type": "milestone",
+      "label": "milestone: Read skill-description-trigger-standard.md SKIP-clause format",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883711+00:00"
+    },
+    {
+      "id": "9669e5b9a6cb",
+      "type": "milestone",
+      "label": "milestone: Updated security-review/SKILL.md",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883738+00:00"
+    },
+    {
+      "id": "a55d926c3a43",
+      "type": "milestone",
+      "label": "milestone: Updated threat-modeling/SKILL.md",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883766+00:00"
+    },
+    {
+      "id": "ceb0878d0dbc",
+      "type": "milestone",
+      "label": "milestone: Regenerated copilot-cli mirrors via build_all.py",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883793+00:00"
+    },
+    {
+      "id": "e97f67a31aeb",
+      "type": "milestone",
+      "label": "milestone: Bumped plugin.json",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883820+00:00"
+    },
+    {
+      "id": "be7ddb2f0d29",
+      "type": "milestone",
+      "label": "milestone: Ran skill frontmatter validator",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883848+00:00"
+    },
+    {
+      "id": "65b6218c46f9",
+      "type": "commit",
+      "label": "commit: Commit: 6bbd69d7",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883875+00:00"
+    },
+    {
+      "id": "a86234b21370",
+      "type": "outcome",
+      "label": "Outcome: success - Issue #2665: add reciprocal Do-NOT-use boundary between security-review and threat-modeling skill descriptions, bump security-review version, bump plugin.json",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:58:17.883902+00:00"
+    },
+    {
+      "id": "ecac6c8bbfe0",
+      "type": "milestone",
+      "label": "milestone: Fixed post-review episode metric",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:59:04.558129+00:00"
+    },
+    {
+      "id": "7b084886701d",
+      "type": "commit",
+      "label": "commit: Commit: 0936466a",
+      "episodes": [
+        "episode-2026-06-18-session-2592-work-2665-security-review-boundary"
+      ],
+      "created": "2026-06-18T13:59:04.558166+00:00"
     }
   ],
   "patterns": [
@@ -6759,7 +7245,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 27,
+      "occurrences": 29,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -6768,7 +7254,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 54,
+      "occurrences": 58,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -6777,7 +7263,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 108,
+      "occurrences": 116,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -6786,7 +7272,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 162,
+      "occurrences": 174,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -6796,7 +7282,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -6804,7 +7290,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -6812,7 +7298,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -6820,7 +7306,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -6828,7 +7314,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -6836,7 +7322,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -6844,7 +7330,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -6852,7 +7338,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -6860,7 +7346,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -6868,7 +7354,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -6876,7 +7362,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -6884,7 +7370,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -6892,7 +7378,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -6900,7 +7386,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -6908,7 +7394,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -6916,7 +7402,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -6924,7 +7410,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -6932,7 +7418,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -6940,7 +7426,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -6948,7 +7434,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -6956,7 +7442,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -6964,7 +7450,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -6972,7 +7458,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -6980,7 +7466,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -6988,7 +7474,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -6996,7 +7482,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -7004,7 +7490,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -7012,7 +7498,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -7020,7 +7506,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -7028,7 +7514,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -7036,7 +7522,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -7044,7 +7530,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -7052,7 +7538,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -7060,7 +7546,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -7068,7 +7554,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -7076,7 +7562,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -7084,7 +7570,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -7092,7 +7578,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -7100,7 +7586,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -7108,7 +7594,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 27,
+      "evidence_count": 29,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]

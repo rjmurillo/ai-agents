@@ -141,8 +141,12 @@
     {
       "action": "Ran skill frontmatter validator",
       "result": "Both changed skills passed."
+    },
+    {
+      "action": "Fixed post-review episode metric",
+      "result": "Set files_changed to 8 after Copilot flagged the generated episode metric as stale."
     }
   ],
-  "endingCommit": "6bbd69d7",
+  "endingCommit": "0936466a",
   "nextSteps": []
 }
