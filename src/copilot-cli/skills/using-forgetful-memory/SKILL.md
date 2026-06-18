@@ -184,7 +184,7 @@ Use this skill when:
 - Choosing importance scores for new memories
 - Understanding Forgetful tool parameters
 
-Use [curating-memories](../curating-memories/SKILL.md) instead when:
+Use [memory-enhancement](../memory-enhancement/SKILL.md) instead when:
 
 - Updating or marking existing memories obsolete
 - Building links between existing memories

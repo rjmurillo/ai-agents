@@ -140,8 +140,7 @@ attribution, to the caller.
 | Skill | When to Use Instead |
 |-------|---------------------|
 | `memory` | Router for episode extraction, causal graph, health, or maintenance |
-| `memory-enhancement` | Add citations, verify code references, track confidence |
-| `curating-memories` | Memory maintenance (obsolete, deduplicate, link) |
+| `memory-enhancement` | Add citations, verify code references, track confidence, maintain memories (obsolete, deduplicate, link) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal beyond Tier 1 search |
 
 ## Troubleshooting

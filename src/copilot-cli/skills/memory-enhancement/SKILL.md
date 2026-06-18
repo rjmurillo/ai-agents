@@ -1,14 +1,14 @@
 ---
 name: memory-enhancement
-version: 1.0.0
+version: 1.1.0
 description: >
-  Manage memory citations, verify code references, and track confidence scores. Use when adding citations to memories, checking memory health, or verifying code references are still valid.
-  Use when you say "add a citation", "verify this memory's code refs", "check memory health".
+  Manage memory citations, verify code references, track confidence scores, and curate Forgetful memories (update, mark obsolete, link, deduplicate). Use when adding citations to memories, checking memory health, verifying code references are still valid, updating outdated memories, marking obsolete content, or linking related knowledge.
+  Use when you say "add a citation", "verify this memory's code refs", "check memory health", "how do I update a memory", "how do I mark a memory obsolete", "how do I link related memories".
   Do NOT use for searching or creating memories (use memory) or for documentary reports (use memory-documentary).
 license: MIT
 model: claude-sonnet-4-6
 metadata:
-  domains: [memory, citations, verification]
+  domains: [memory, citations, verification, curation]
   type: utility
   adr: ADR-007, ADR-037
 ---
@@ -23,6 +23,9 @@ Manage citations, verify code references, and track confidence scores for Serena
 - `verify memory citations` - Check if code references are still valid
 - `check memory health` - Generate staleness report across all memories
 - `update memory confidence` - Recalculate trust score based on verification
+- `update a memory` - Patch outdated Forgetful memory content (see Forgetful Curation)
+- `mark a memory obsolete` - Soft-delete a superseded Forgetful memory (see Forgetful Curation)
+- `link related memories` - Build bidirectional knowledge-graph links (see Forgetful Curation)
 
 ## Quick Reference
 
@@ -205,11 +208,107 @@ Generates comprehensive report with:
 | Adding duplicate citations | Clutters frontmatter | CLI automatically updates existing citations |
 | Forgetting to verify after refactoring | Citations go stale silently | Run `verify-all` regularly or in CI |
 
+## Forgetful Curation
+
+Citations and confidence (above) keep Serena memories honest. This section keeps
+Forgetful memories honest: update outdated content, mark superseded memories
+obsolete, link related knowledge, and consolidate duplicates. Active curation
+stops stale entries from polluting search results.
+
+### When to update a memory
+
+Use `update_memory` when information needs correction, importance changes, content
+needs refinement, or links to projects/artifacts/documents change.
+
+```javascript
+execute_forgetful_tool("update_memory", {
+  "memory_id": <id>,
+  "content": "Updated content...",
+  "importance": 8
+})
+```
+
+Only specified fields change (PATCH semantics).
+
+### When to mark obsolete
+
+Use `mark_memory_obsolete` when a memory is outdated, contradicted by newer
+information, references code/features that no longer exist, or was created in error.
+
+```javascript
+execute_forgetful_tool("mark_memory_obsolete", {
+  "memory_id": <id>,
+  "reason": "Superseded by new architecture decision",
+  "superseded_by": <new_memory_id>  // optional
+})
+```
+
+Obsolete memories are soft-deleted: preserved for audit, hidden from queries.
+
+### When to link memories
+
+Use `link_memories` for relationships auto-linking missed: cross-project
+connections, decisions to implementations, non-obvious conceptual links.
+
+```javascript
+execute_forgetful_tool("link_memories", {
+  "memory_id": <source_id>,
+  "related_ids": [<target_id_1>, <target_id_2>]
+})
+```
+
+Links are bidirectional (A and B created automatically). Forgetful auto-links
+semantically similar memories (similarity >= 0.7) at creation; check
+`similar_memories` in the create response to see what was auto-linked.
+
+### Curation workflow
+
+When creating a new memory, check its impact on existing knowledge:
+
+1. **Query related memories** with `query_memory` on the new memory's topic (k=5).
+2. **Analyze each result** and choose an action:
+
+   | Situation | Action |
+   |-----------|--------|
+   | Existing memory still accurate | Link to it |
+   | Existing memory has minor gaps | Update it |
+   | Existing memory is now wrong | Mark obsolete, create new |
+   | Existing memory is partially valid | Create new, link both |
+
+3. **Present the plan to the user** before executing (create, mark obsolete, link).
+4. **Execute and report** all changes after the user confirms.
+
+### Signs of poor curation
+
+- Multiple similar memories on the same topic (deduplicate).
+- Memories referencing deleted code (mark obsolete).
+- Contradictory memories (resolve the conflict).
+- Low-importance memories (importance < 6) accumulating.
+- Orphaned memories with no links (link or remove).
+
+### Curation anti-patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Deleting memories instead of marking obsolete | Loses audit trail | `mark_memory_obsolete` with reason |
+| Creating duplicates of existing memories | Pollutes search results | Query first, update existing if found |
+| Linking everything to everything | Dilutes relationship signal | Link only semantically meaningful connections |
+| Skipping user confirmation on curation plans | May obsolete valuable content | Present plan and wait for approval |
+| Ignoring low-importance accumulation | Degrades search quality over time | Periodically review and cull sub-6 importance |
+
+### Curation verification
+
+- [ ] Paste the `update_memory` response showing the memory ID and updated fields (not a claim).
+- [ ] Obsolete memories have a non-empty `reason` in the `mark_memory_obsolete` response (paste it).
+- [ ] Paste the `link_memories` response confirming both directions created.
+- [ ] `query_memory` on the consolidated topic returns exactly 1 active result (paste the count).
+- [ ] Curation changes were confirmed by the user before execution.
+
 ## Integration with Existing Skills
 
 - **reflect** - Auto-capture citations from learnings that reference code
-- **memory** - Verify citations during memory search
-- **curating-memories** - Update citations when memories change
+- **memory** - Verify citations during memory search; create new memories from scratch
+- **exploring-knowledge-graph** - Traverse entity relationships for comprehensive context
 - **qa** - Run verification as part of test strategy
 
 ### Phase 5: Health Reporting
