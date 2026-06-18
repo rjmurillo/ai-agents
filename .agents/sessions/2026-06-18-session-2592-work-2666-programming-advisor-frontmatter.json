@@ -12,7 +12,7 @@
       "serenaActivated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Follow-up pr-autofix pass loaded the Serena tool manual with serena-initial_instructions while continuing this PR fix; no separate activate_project tool is exposed in this Copilot session."
+        "Evidence": "Follow-up pr-autofix context had Serena MCP available; this Copilot runtime exposes serena-initial_instructions and memory tools but no separate activate_project tool."
       },
       "serenaInstructions": {
         "level": "MUST",
