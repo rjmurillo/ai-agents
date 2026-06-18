@@ -1,0 +1,59 @@
+{
+  "id": "episode-2026-06-18-session-2592-work-2664-reflect-progressive-disclosure",
+  "session": "2026-06-18-session-2592-work-2664-reflect-progressive-disclosure",
+  "timestamp": "2026-06-18T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Work on 2664 reflect progressive disclosure",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Split reflect/SKILL.md via progressive disclosure",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated copilot-cli mirror",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validated",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "error",
+      "content": "Validated     pre_pr Passed 25 Failed 0",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 1ad8252a4",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 25,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 4
+  },
+  "lessons": []
+}
