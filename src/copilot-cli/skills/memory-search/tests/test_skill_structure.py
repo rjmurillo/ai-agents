@@ -24,8 +24,8 @@ import pytest
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SKILL_MD = SKILL_DIR / "SKILL.md"
 
-_FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
-_VENDOR_FORBIDDEN = re.compile(r"\.agents/|\.serena/|\.github/")
+_FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
+_VENDOR_FORBIDDEN = re.compile(r"(?<![\w/])(?:\.agents|\.serena|\.github)/", re.IGNORECASE)
 _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")
 
 

@@ -10,7 +10,7 @@ description: Tier 1 semantic memory search across Serena and Forgetful with
 license: MIT
 model: claude-sonnet-4-6
 metadata:
-  adr: ADR-007, ADR-037, ADR-063
+  adr: ADR-007, ADR-037, ADR-038, ADR-056, ADR-063
   type: operation
   parent: memory
 ---
@@ -143,3 +143,28 @@ attribution, to the caller.
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `curating-memories` | Memory maintenance (obsolete, deduplicate, link) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal beyond Tier 1 search |
+
+## Troubleshooting
+
+| Symptom | Cause | Recovery |
+|---------|-------|----------|
+| Zero results | Query too narrow or memory index empty | Broaden query terms; verify memory index contains relevant entries |
+| Forgetful unreachable | MCP server down or not configured | Use `--lexical-only` fallback; search continues with Serena only |
+| Slow response | Large memory corpus or network latency | Consider query pagination; check Forgetful server health |
+| Partial results | Token budget hit mid-retrieval | Results include coverage note; caller decides whether to continue |
+
+## Extension Points
+
+| Extension | How to Add |
+|-----------|------------|
+| New memory tier | Create sibling sub-skill (e.g., `memory-episode`); register in `memory` router |
+| Custom search backend | Implement script matching `search_memory.py` interface; update skill to invoke |
+| Result post-processing | Chain output through `memory-enhancement` for citations or confidence scoring |
+
+## References
+
+- ADR-007: Memory system architecture
+- ADR-037: Memory tier boundaries
+- ADR-038: Episodic memory structure
+- ADR-056: Memory progressive disclosure
+- ADR-063: Memory skill decomposition (this extraction)
