@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "pre_pr.py: Total 29, Passed 25, Failed 0, Skipped 4. RESULT: All validations passed. skill_frontmatter.py PASS on canonical."
+        "Evidence": "pre_pr.py completed successfully: Total 29, Passed 25, Skipped 4. skill_frontmatter.py PASS on canonical."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -139,6 +139,6 @@
       "result": "All validations passed (25 passed, 0 failed, 4 skipped)."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "435ab3bb",
   "nextSteps": []
 }
