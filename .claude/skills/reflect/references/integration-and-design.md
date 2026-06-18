@@ -73,10 +73,10 @@ mcp__serena__write_memory(memory_file_name="github-observations", memory_content
 
 ## Extension Points
 
-1. **Curating memories** – route conflicting or stale learnings to `curating-memories` for consolidation.
-2. **Memory skill** – use `memory` skill for search/recall before proposing redundant learnings.
-3. **Forgetful** – optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
-4. **Session log fixer** – after reflection, ensure the session log captures the learning summary via `session-log-fixer`.
+1. **Curating memories**: route conflicting or stale learnings to `curating-memories` for consolidation.
+2. **Memory skill**: use `memory` skill for search/recall before proposing redundant learnings.
+3. **Forgetful**: optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
+4. **Session log fixer**: after reflection, ensure the session log captures the learning summary via `session-log-fixer`.
 
 ## Related
 
