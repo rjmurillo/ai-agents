@@ -2,7 +2,7 @@
 name: threat-modeling
 version: 1.0.0
 model: claude-sonnet-4-6
-description: Structured security analysis using OWASP Four-Question Framework and STRIDE methodology. Generates threat matrices with risk ratings, mitigations, and prioritization. Use for attack surface analysis, security architecture review, or when asking what can go wrong.
+description: Structured security analysis using OWASP Four-Question Framework and STRIDE methodology. Generates threat matrices with risk ratings, mitigations, and prioritization. Use for attack surface analysis, security architecture review, or when asking what can go wrong. Do NOT use for per-change diff or snippet risk review; use security-review instead.
 license: MIT
 ---
 

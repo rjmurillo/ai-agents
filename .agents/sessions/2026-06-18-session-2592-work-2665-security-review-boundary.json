@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2592,
+    "date": "2026-06-18",
+    "branch": "fix/2665-security-review-boundary-version",
+    "startingCommit": "eff30e3ab4",
+    "objective": "Issue #2665: add reciprocal Do-NOT-use boundary between security-review and threat-modeling skill descriptions, bump security-review version, bump plugin.json"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active in worktree; topical memory injected on edits (worktrees memories surfaced)"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena initial instructions in effect; LSP-first guard enforced reads"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open HANDOFF.md content for this isolated task; issue #2665 body read via get_issue_context.py"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file, created via new_session_log.py --skip-validation"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located new_session_log.py, skill_frontmatter.py, validate_skill_format.py, build_all.py via find"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .agents/governance/skill-description-trigger-standard.md SKIP-clause section (lines 70-100)"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md and .claude/rules/* injected each turn; canonical-source-mirror and claude-agents rules reviewed"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse memory hooks surfaced worktree, github-pr1873, eval-harness observations"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2665-security-review-boundary-version"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2665-security-review-boundary-version, branched off origin/main HEAD eff30e3ab4"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short showed only the 4 SKILL.md files plus plugin.json"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "eff30e3ab4"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-start and session-end MUSTs populated with honest evidence"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not edited (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory tasks/issue-2665-skill-boundary.md documenting the reciprocal SKIP-clause edit"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on changed SKILL.md files; no changed-md errors"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Conventional commit Fixes #2665 with Co-Authored-By trailer"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "skill_frontmatter.py PASS for both skills; pre_pr.py All validations passed"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-task issue; no task tracker entries required"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-file doc change; retrospective not warranted"
+      }
+    }
+  },
+  "workLog": [
+    "Read issue #2665 via get_issue_context.py",
+    "Read skill-description-trigger-standard.md SKIP-clause format (reciprocal Do NOT use for X; use Y instead)",
+    "security-review/SKILL.md: bumped version 0.1.0 -> 0.1.1, added SKIP clause routing STRIDE attack-surface analysis to threat-modeling",
+    "threat-modeling/SKILL.md: added reciprocal SKIP clause routing per-change diff/snippet risk review to security-review",
+    "Regenerated copilot-cli mirrors via build_all.py",
+    "Bumped plugin.json 0.5.207 -> 0.5.208 (plugin skill source changed, #2118)",
+    "Ran skill_frontmatter validator: both skills PASS"
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
