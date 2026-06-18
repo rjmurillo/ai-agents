@@ -13,7 +13,7 @@ SKILL.md keeps a short summary and points here.
 | `improve skill {name}` | Target specific skill memory |
 | `what did we learn` | Review and store patterns |
 
-Also monitor user phrasing such as "what if...", "ensure", or "don't forget". These phrases should immediately route into the MEDIUM trigger tables below.
+Also monitor user phrasing such as "what if...", "ensure", or "don't forget". These phrases should route into the MEDIUM trigger table below and be batched until multiple edge-case signals appear.
 
 ### 🔴 HIGH Priority Triggers (Invoke Immediately)
 
@@ -56,7 +56,7 @@ Also monitor user phrasing such as "what if...", "ensure", or "don't forget". Th
 
 1. **User says "no"** → Invoke reflect NOW (captures correction)
 2. **User says "perfect"** → Invoke reflect NOW (captures success pattern)
-3. **User asks "what if"** → Invoke reflect NOW (captures edge case)
+3. **Multiple "what if" or edge-case signals appear** → Invoke reflect (captures scenario patterns)
 4. **You used multiple skills** → Invoke reflect at END (captures all learnings)
 5. **User corrected your output** → Invoke reflect IMMEDIATELY (critical learning)
 

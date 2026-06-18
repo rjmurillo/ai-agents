@@ -72,7 +72,7 @@ Locate the skill-based memory to update:
 
 ### Phase 2: Analyze the Conversation
 
-Scan the conversation for learning signals at four confidence levels: HIGH
+Scan the conversation for learning signals at three confidence levels: HIGH
 (corrections), MEDIUM (success patterns, edge cases), and LOW (preferences).
 Only propose changes when the confidence threshold is met (>=1 HIGH, >=2 MED,
 or >=3 LOW signals).
