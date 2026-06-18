@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2592,
+    "date": "2026-06-18",
+    "branch": "fix/2666-programming-advisor-frontmatter-version",
+    "startingCommit": "eff30e3ab4",
+    "objective": "Fix #2666: add missing top-level version field to programming-advisor SKILL.md frontmatter"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical Serena memory surfaced via PreToolUse hooks (worktrees, skill frontmatter standards); project memories read inline. No explicit activate_project call in this isolated worktree subagent run."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instruction manual content delivered via system MCP instructions; skill frontmatter standards memory consulted before edit."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Single-issue triage task in isolated worktree; no HANDOFF.md handoff applies. Issue #2666 body read via get_issue_context.py."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Created via new_session_log.py --skip-validation: .agents/sessions/2026-06-18-session-2592-work-2666-programming-advisor-frontmatter.json"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Located new_session_log.py under .claude/skills/session-init/scripts/; identified skill_frontmatter.py and build_all.py validators."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/skills/CLAUDE.md frontmatter standards (top-level version/model required, not nested under metadata)."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/rules/claude-agents.md MUST-2 (skill schema requires name, version, description) and skills/CLAUDE.md validation rules."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "PreToolUse self-improving-agent corrections loaded each call (github uv-run, worktree isolation, skill references conventions, markdownlint scoping)."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2666-programming-advisor-frontmatter-version (git branch --show-current)"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2666-programming-advisor-frontmatter-version, branched off origin/main eff30e3ab4"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status --short showed only the two SKILL.md edits plus the new session log."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "eff30e3ab4 (origin/main HEAD)"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session-end MUSTs populated with honest evidence below."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not touched (read-only per ADR-014); no edits to .agents/HANDOFF.md."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory tasks/issue-2666-programming-advisor-frontmatter-version recording the fix and generator behavior."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on both SKILL.md paths: 0 error(s). Skill SKILL.md paths are config-ignored (intentional), so 0 files linted; pre_pr.py Markdown Linting validation PASSED."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Conventional commit Fixes #2666 with Co-Authored-By trailer; canonical+mirror in separate generated-output commit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py: Total 29, Passed 25, Failed 0, Skipped 4. RESULT: All validations passed. skill_frontmatter.py PASS on canonical."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-task triage; tracked inline. No external task board."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Trivial deterministic frontmatter fix; retrospective not warranted."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "step": "Read issue #2666 via get_issue_context.py",
+      "result": "Acceptance: programming-advisor/SKILL.md frontmatter has top-level version; frontmatter validation passes; no other change."
+    },
+    {
+      "step": "Branched fix/2666-programming-advisor-frontmatter-version off origin/main eff30e3ab4",
+      "result": "Branch created."
+    },
+    {
+      "step": "Added top-level version: 1.0.0 to .claude/skills/programming-advisor/SKILL.md (matching the existing nested metadata.version)",
+      "result": "One-line insertion."
+    },
+    {
+      "step": "Ran skill_frontmatter.py --changed-files on canonical",
+      "result": "[PASS] Frontmatter is valid."
+    },
+    {
+      "step": "Regenerated mirrors via build/scripts/build_all.py",
+      "result": "Only src/copilot-cli/skills/programming-advisor/SKILL.md changed (top-level version propagated). No other drift."
+    },
+    {
+      "step": "Ran pre_pr.py",
+      "result": "All validations passed (25 passed, 0 failed, 4 skipped)."
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
