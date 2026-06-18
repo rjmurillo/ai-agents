@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2594,
+    "date": "2026-06-18",
+    "branch": "fix/2663-retire-curating-memories-skill",
+    "startingCommit": "7a709ddf98",
+    "objective": "RETIRE/fold curating-memories into memory-enhancement (issue #2663, eval #1949 SUBSUMED)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree isolated session; Serena topical worktree memories surfaced via PreToolUse hook (issue-2621, git-hooks-005, qa-007). LSP/symbol guard active."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md + rules auto-loaded into context; retrieval-led reasoning applied (read SKILL.md + validators before edits)."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue #2663 context via get_issue_context.py; scope and acceptance criteria parsed."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "new_session_log.py --skip-validation created session 2594."
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Enumerated orphan-ref-validator scripts, build/scripts validators, generate_skills.py, validate_plugin_version_bump.py."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read orphan-ref-validator/SKILL.md, memory-enhancement/SKILL.md, curating-memories/SKILL.md, marketplace-counters.yaml before changes."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skill-catalog rules + AGENTS.md boundaries + canonical-source-mirror.md applied; plugin bump rule (#2118) honored."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree-scoped Serena memories surfaced by hook; eval episode #1949 read at .agents/memory/episodes/episode-2026-06-17-session-2587-live-pairwise-skill-overlap-eval-1949.json."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2663-retire-curating-memories-skill off origin/main HEAD 7a709ddf98."
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "git rev-parse --abbrev-ref HEAD => fix/2663-retire-curating-memories-skill."
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status reviewed at start; clean worktree before edits."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "7a709ddf98"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All session MUST items populated with honest evidence in this log."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Did not edit .agents/HANDOFF.md (read-only per ADR-014)."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory skills/triage-2663-retire-curating-memories.md documenting the SUBSUMED fold decision."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting [PASS] in 0.57s over changed md; full suite RESULT: All validations passed."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Atomic commits <=5 files; generated-output commit separated from source commit. Conventional commit Fixes #2663."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py: Total 29, Passed 25, Failed 0, Skipped 4. RESULT: All validations passed. test_skill_registry 29 passed; orphan-ref tests 82 passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #2663 acceptance tracked: skill removed, unique content folded, drift+count green, eval #1949 cited."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-purpose tech-debt fold; no failure to retrospect. Learnings captured in serena memory instead."
+      }
+    }
+  },
+  "workLog": [
+    "Read issue #2663 + live overlap eval episode #1949 (SUBSUMED verdict, curating-memories own-delta -0.25, cross-delta -0.25).",
+    "Folded unique Forgetful curation guidance (update_memory, mark_memory_obsolete, link_memories, curation workflow, anti-patterns, verification) into memory-enhancement/SKILL.md as a new Forgetful Curation section; bumped frontmatter 1.0.0 to 1.1.0, expanded description plus triggers.",
+    "Deleted .claude/skills/curating-memories/ and src/copilot-cli/skills/curating-memories/ (no scripts to preserve; SKILL.md only).",
+    "Repointed routing references in exploring-knowledge-graph, using-forgetful-memory, memory-search, memory, reflect SKILL.md and docs/skill-reference.md to memory-enhancement; updated test_skill_registry.py categorize sample.",
+    "Regenerated copilot-cli mirrors via build_all.py; bumped .claude and src/copilot-cli plugin.json 0.5.208 to 0.5.209 (src/claude unaffected, skills not generated there).",
+    "Validators green: orphan-ref (no new refs; pre-existing baseline debt untouched), agent drift unchanged (11 baseline, skills are not agents), plugin version bump OK, plugin manifests OK, pre_pr.py All validations passed."
+  ],
+  "endingCommit": "",
+  "nextSteps": [
+    "Open PR with Fixes #2663, cite eval #1949 SUBSUMED evidence."
+  ]
+}
