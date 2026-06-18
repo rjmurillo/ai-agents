@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2592,
+    "date": "2026-06-18",
+    "branch": "fix/2664-reflect-progressive-disclosure",
+    "startingCommit": "eff30e3ab4",
+    "objective": "Work on 2664 reflect progressive disclosure"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena MCP active in worktree; initial_instructions loaded by harness at session start"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena instructions manual loaded via harness MCP init"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md present and read; no blocking handoff for issue 2664"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/taste-lints, SkillForge, github scripts; used taste_lints.py, skill_size.py, validate-skill.py"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read .claude/skills/CLAUDE.md (skill conventions) and CLAUDE.md/AGENTS.md auto-loaded"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read issue 2664 acceptance criteria, .claude/skills/CLAUDE.md size limits, claude-agents.md rule"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "knowledge-integration-observations memories surfaced by hook: references/ demand-loaded, See references/X.md pointers required"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/2664-reflect-progressive-disclosure"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/2664-reflect-progressive-disclosure"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "git status clean at start on eff30e3ab4; only session log untracked"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "eff30e3ab4"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Refactor complete: SKILL.md 629 to 140 lines, 5 references files created, mirror regenerated"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md not modified (read-only per ADR-014)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory tasks/issue-2664-reflect-progressive-disclosure (see commit)"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py Markdown Linting gate PASS (0.46s); markdownlint-cli2 config excludes .claude/skills/** by design"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed on fix/2664-reflect-progressive-disclosure (see endingCommit)"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py RESULT: All validations passed (25 PASS, 0 FAIL, 4 not-applicable). taste-lints file-size on SKILL.md: no violations. validate-skill.py reflect: EXIT 0."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Single-task refactor tracked via issue 2664"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Split reflect/SKILL.md via progressive disclosure",
+      "detail": "Moved trigger tables, Phase 2 detection, Phase 3-4 persistence, decision tree/examples/use-cases/anti-patterns, and integration/design into 5 references/ files. SKILL.md reduced 629->140 lines with explicit 'See references/X.md' pointers at each step.",
+      "evidence": "wc -l SKILL.md = 140; taste-lints file-size no violations"
+    },
+    {
+      "action": "Regenerated copilot-cli mirror",
+      "detail": "build_all.py --platform copilot-cli; mirror SKILL.md 140 lines + references propagated",
+      "evidence": "build_all BUILD_EXIT=0; Agent Drift Detection PASS"
+    },
+    {
+      "action": "Validated",
+      "detail": "pre_pr.py all gates pass; SkillForge validate-skill.py exit 0 (warnings only, expected from disclosure split)",
+      "evidence": "pre_pr Passed 25 Failed 0"
+    }
+  ],
+  "endingCommit": "",
+  "nextSteps": []
+}
