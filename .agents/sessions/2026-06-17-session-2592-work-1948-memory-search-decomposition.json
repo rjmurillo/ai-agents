@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 2592,
+    "date": "2026-06-17",
+    "branch": "feat/1948-memory-search-decomposition",
+    "startingCommit": "37f78d60d1",
+    "objective": "Work on 1948 memory search decomposition"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Worktree session; Serena memory topical hooks surfaced worktree/qa memories on edit. Fallback per AGENTS.md: .serena/memories/ read on demand."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project conventions loaded via auto-injected CLAUDE.md/AGENTS.md and .claude/rules/*.md context."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No open issue handoff for #1948 in .agents/sessions/handoffs; task brief is the authoritative handoff."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Listed .claude/skills/memory/scripts and memory sibling skills (memory-enhancement, curating-memories, exploring-knowledge-graph)."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Used github skill script get_issue_context.py for #1948 instead of raw gh; skill-first guard enforced."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Read ADR-063, ADR-007/037/038/056 references, claude-agents.md and skill CLAUDE.md rules via auto-injected context."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Topical worktree/qa/git memories surfaced by edit hooks; knowledge-integration references/ memory consulted."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/1948-memory-search-decomposition"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/1948-memory-search-decomposition"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "37f78d60d1"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All sessionStart and sessionEnd MUSTs populated with honest evidence."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not edited (read-only per ADR-014); no open issue handoff for #1948."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Wrote serena memory tasks/adr-063-memory-search-decomposition-phase1 via mcp__serena__write_memory."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "markdownlint-cli2 run on changed md; .claude/skills/** and .agents/** are repo-ignored, so 0 files linted 0 errors. skill_size.py --changed-files PASS (1/1, memory-search/SKILL.md 145 lines)."
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Committed in <=5-file atomic commits; see endingCommit."
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "pre_pr.py all gates PASS after bumping .claude/.claude-plugin/plugin.json 0.5.205 -> 0.5.206 (memory-search skill is plugin source; AGENTS.md requires the bump). memory-search tests: 10 passed."
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "TaskUpdate marked ADR flip and Phase 1 complete as each finished."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Single-slice scoped task; learnings captured in serena memory instead of a full retro."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "timestamp": "2026-06-17",
+      "action": "ADR-063 acceptance authorization (ADR Review Protocol)",
+      "detail": "Maintainer accepted ADR-063 (memory-skill-decomposition) on 2026-06-17. This maintainer authorization satisfies the ADR Review Protocol gate for the status flip from proposed to accepted; the architect agent debate-round artifacts are superseded by the explicit human decision per AGENTS.md Ask-First authority. No fabricated debate log is appended. Recorded as architect-review evidence so the routing gate reflects the real authorization, not a manufactured one."
+    },
+    {
+      "timestamp": "2026-06-17",
+      "action": "Phase 1 scope decision per ADR-063 Decision",
+      "detail": "ADR-063 Decision point 1 binds the split axis to operation, not tier (overriding issue #1948 body probable-shape tier guess). Smallest reversible slice the ADR explicitly commits to: extract the Tier 1 search operation into a memory-search sub-skill while memory survives as the thin router (Decision points 1, 2, 5). The router-vs-dedicated-sibling location of the Memory-First Gate (Decision point 3) is left open by the ADR for later debate, so Phase 1 does not touch it. Remainder (episode/causal/maintenance sub-skills, gate location, eval/mirror regen, AC4-AC10) flagged in PR body. Refs #1948, not Fixes."
+    }
+  ],
+  "endingCommit": "08fdc045afa58d3f0e628ee3f5cbd903fb6d2f9c",
+  "nextSteps": [
+    "Phase 2 of #1948: decide Memory-First Gate location (ADR-063 Decision point 3, router vs memory-gate sibling).",
+    "Add episode/causal/maintenance operation sub-skills.",
+    "Regenerate tests/evals/skills/triage-prompts.json (AC5) and rerun eval-knowledge-integration kill gate (AC6).",
+    "Regenerate src/copilot-cli/skills mirror (AC7); full memory*/ vendor-ref sweep (AC8)."
+  ]
+}

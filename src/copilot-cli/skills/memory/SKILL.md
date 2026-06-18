@@ -387,6 +387,7 @@ Return structured results to the caller with source attribution.
 
 | Skill | When to Use Instead |
 |-------|---------------------|
+| `memory-search` | Tier 1 search only; smaller context than the full router (ADR-063) |
 | `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |
 | `curating-memories` | Memory maintenance (obsolete, deduplicate) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal |
