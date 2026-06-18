@@ -282,7 +282,7 @@ What do you need?
 These conventions govern writing a new Serena memory and registering it in its
 domain index. They are the load-bearing rules absorbed from the former `memory`
 agent (Issue #2102). For obsolete-marking, deduplication, and bidirectional
-linking, use the `curating-memories` skill.
+linking, use the `memory-enhancement` skill.
 
 ### Naming
 
@@ -389,5 +389,5 @@ Return structured results to the caller with source attribution.
 |-------|---------------------|
 | `memory-search` | Tier 1 search only; smaller context than the full router (ADR-063) |
 | `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |
-| `curating-memories` | Memory maintenance (obsolete, deduplicate) |
+| `memory-enhancement` | Memory maintenance (obsolete, deduplicate, link), citations, confidence |
 | `exploring-knowledge-graph` | Multi-hop graph traversal |

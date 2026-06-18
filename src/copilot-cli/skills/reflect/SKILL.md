@@ -581,11 +581,11 @@ mcp__serena__write_memory(memory_file_name="github-observations", memory_content
 - **Serena MCP** remains the canonical record. Every learning is persisted to the `{skill}-observations.md` file.
 - **Forgetful** is optional and used for semantic lookup only. When storing supporting context, tag the entry with `skill-{name}` and reference the Serena sidecar instead of duplicating the content.
 
-### Relationship to `curating-memories`
+### Relationship to `memory-enhancement`
 
-- `curating-memories` = general-purpose maintenance of any memory artifact (linking, pruning, marking obsolete).
+- `memory-enhancement` = general-purpose maintenance of any memory artifact (linking, pruning, marking obsolete) plus citations and confidence.
 - `reflect` = targeted retrospective that feeds those artifacts with new learnings.
-- When a sidecar accumulates conflicting guidance, route the file to `curating-memories` for cleanup.
+- When a sidecar accumulates conflicting guidance, route the file to `memory-enhancement` for cleanup.
 
 ### Session Protocol Integration
 
@@ -597,7 +597,7 @@ mcp__serena__write_memory(memory_file_name="github-observations", memory_content
 
 ## Extension Points
 
-1. **Curating memories** – route conflicting or stale learnings to `curating-memories` for consolidation.
+1. **Curating memories**: route conflicting or stale learnings to `memory-enhancement` for consolidation.
 2. **Memory skill** – use `memory` skill for search/recall before proposing redundant learnings.
 3. **Forgetful** – optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
 4. **Session log fixer** – after reflection, ensure the session log captures the learning summary via `session-log-fixer`.
@@ -608,7 +608,7 @@ mcp__serena__write_memory(memory_file_name="github-observations", memory_content
 |-------|--------------|
 | `memory` | Skill memories are part of Tier 1 |
 | `using-forgetful-memory` | Alternative storage for skill learnings |
-| `curating-memories` | For maintaining/pruning skill memories |
+| `memory-enhancement` | For maintaining/pruning skill memories |
 | `retrospective` | Full session retrospective (this is mini version) |
 
 ---
