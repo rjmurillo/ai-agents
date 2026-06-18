@@ -127,7 +127,7 @@
       "detail": "npx markdownlint-cli2 --fix run on ADR-074; output validated clean. markdownlint evidence recorded here before commit."
     }
   ],
-  "endingCommit": "",
+  "endingCommit": "ad4db8865",
   "nextSteps": [
     "Security-agent IMPLEMENTATION review of the quick-pass code before it lands (separate change set)."
   ]

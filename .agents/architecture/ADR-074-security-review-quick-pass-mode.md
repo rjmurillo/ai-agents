@@ -15,7 +15,7 @@ implemented: false
 
 Accepted by maintainer 2026-06-17.
 
-Requested by issue #2617 (labels `bug`, `enhancement`, `agent-security`, `area-workflows`, `priority:P1`, `automation`). Maintainer-approved DEFER on 2026-06-17 (issue comment 4726185340) named the next gate as "an ADR + phased impl" plus "security-agent review required before merge". The adr-review skill debate ran when PR #2650 authored and merged this ADR to main; the maintainer accepted the DECISION on 2026-06-17.
+Requested by issue #2617 (labels `bug`, `enhancement`, `agent-security`, `area-workflows`, `priority:P1`, `automation`). Maintainer-approved DEFER on 2026-06-17 (issue comment 4726185340) named the next gate as "an ADR + phased impl" plus "security-agent review required before merge". The adr-review skill debate ran when PR #2650 authored and merged this ADR to main. Issue #2617 was closed as completed on 2026-06-17, and this PR records that lifecycle acceptance in the ADR metadata.
 
 This ADR changes a security-sensitive contract (the security-review verdict taxonomy and the orchestrator gate that consumes it). DECISION acceptance is the maintainer's call, now given. The security-agent IMPLEMENTATION review still applies before the quick-pass CODE lands; this status flip ships no implementation.
 
