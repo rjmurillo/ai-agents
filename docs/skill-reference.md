@@ -76,15 +76,11 @@ Unified four-tier memory system for AI agents. Supports semantic search, knowled
 
 ### memory-enhancement
 
-Manages memory citations, verifies code references, and tracks content freshness across the knowledge base.
+Manages memory citations, verifies code references, tracks content freshness, and curates Forgetful memories (update, mark obsolete, link, deduplicate) across the knowledge base.
 
 ### memory-documentary
 
 Generates evidence-based documentary reports by searching across the full memory system. Synthesizes findings from multiple memory tiers.
-
-### curating-memories
-
-Guidance for maintaining memory quality through curation. Covers deduplication, freshness scoring, and relevance assessment.
 
 ### exploring-knowledge-graph
 

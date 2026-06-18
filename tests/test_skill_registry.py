@@ -104,7 +104,7 @@ class TestCategorizeSkill:
 
     def test_memory_category(self) -> None:
         """Assigns memory category for memory keywords."""
-        assert categorize_skill("curating-memories", "manage memory") == "memory"
+        assert categorize_skill("memory-enhancement", "manage memory") == "memory"
 
     def test_analysis_category(self) -> None:
         """Assigns analysis category for analysis keywords."""
