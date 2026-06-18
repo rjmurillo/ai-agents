@@ -1,0 +1,83 @@
+{
+  "id": "episode-2026-06-18-session-2592-work-2665-security-review-boundary",
+  "session": "2026-06-18-session-2592-work-2665-security-review-boundary",
+  "timestamp": "2026-06-18T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Issue #2665: add reciprocal Do-NOT-use boundary between security-review and threat-modeling skill descriptions, bump security-review version, bump plugin.json",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #2665 via get_issue_context.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read skill-description-trigger-standard.md SKIP-clause format",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated security-review/SKILL.md",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Updated threat-modeling/SKILL.md",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated copilot-cli mirrors via build_all.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped plugin.json",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran skill frontmatter validator",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 6bbd69d7",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
