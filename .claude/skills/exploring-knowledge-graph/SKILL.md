@@ -130,7 +130,7 @@ Use [using-forgetful-memory](../using-forgetful-memory/SKILL.md) instead when:
 - Creating or querying individual memories
 - Simple semantic search is sufficient
 
-Use [curating-memories](../curating-memories/SKILL.md) instead when:
+Use [memory-enhancement](../memory-enhancement/SKILL.md) instead when:
 
 - Updating, obsoleting, or linking specific memories
 - Cleaning up duplicate or stale content
