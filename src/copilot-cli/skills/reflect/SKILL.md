@@ -409,143 +409,17 @@ User says "reflect" or similar?
 
 ---
 
-## Examples
+## Examples and Use Cases
 
-### Example 1: Correction Detected
+See `references/examples.md` for worked signal-to-learning examples (correction, success, edge case).
 
-```text
-Conversation:
-User: "Create a PR for this change"
-Agent: [runs gh pr create directly]
-User: "No, use the github skill script!"
-
-Analysis:
-[HIGH] + Add constraint: "Always use .claude/skills/github/ scripts for PR operations"
-  Source: User correction - "No, use the github skill script!"
-```
-
-### Example 2: Success Pattern
-
-```text
-Conversation:
-User: "Add error handling"
-Agent: [adds try/catch with specific error types]
-User: "Perfect! That's exactly what I wanted"
-
-Analysis:
-[MED] + Add preference: "Use specific error types in catch blocks, not generic [Exception]"
-  Source: User approval after seeing specific error types
-```
-
-### Example 3: Edge Case Discovery
-
-```text
-Conversation:
-User: "Run the build"
-Agent: [runs build command]
-User: "Wait, what if the node_modules folder doesn't exist?"
-
-Analysis:
-[MED] + Add edge case: "Check for node_modules existence before build"
-  Source: User question about missing dependencies
-```
+See `references/use-cases.md` for per-skill-type learning patterns (code review, API design, testing, documentation).
 
 ---
 
-## Use Cases
+## Anti-Patterns and Integration
 
-### 1. Code Review Skills
-
-Capture learnings about code review patterns:
-
-- **Style guide rules**: User corrections on formatting, naming, structure
-- **Security patterns**: Security vulnerabilities caught, OWASP patterns enforced
-- **Severity levels**: When issues are P0 vs P1 vs P2
-- **False positives**: Patterns that look like issues but aren't
-
-**Example memory**: `.serena/memories/code-review-observations.md`
-
-### 2. API Design Skills
-
-Track API design decisions:
-
-- **Naming conventions**: REST endpoint patterns, verb choices
-- **Error formats**: HTTP status codes, error response structure
-- **Auth patterns**: OAuth, JWT, API key patterns
-- **Versioning style**: URL versioning, header versioning
-
-**Example memory**: `.serena/memories/api-design-observations.md`
-
-### 3. Testing Skills
-
-Remember testing preferences:
-
-- **Coverage targets**: Minimum % required, critical paths
-- **Mocking patterns**: When to mock vs integration test
-- **Assertion styles**: Preferred assertion libraries, patterns
-- **Test naming**: Convention for test method names
-
-**Example memory**: `.serena/memories/testing-observations.md`
-
-### 4. Documentation Skills
-
-Learn documentation patterns:
-
-- **Structure/format**: Section order, heading levels
-- **Code examples**: Real vs pseudo-code, language choice
-- **Tone preferences**: Formal vs casual, active vs passive voice
-- **Diagram styles**: Mermaid vs ASCII, detail level
-
-**Example memory**: `.serena/memories/documentation-observations.md`
-
----
-
-## Anti-Patterns
-
-| Avoid | Why | Instead |
-|-------|-----|---------|
-| Applying without showing | User loses visibility | Always preview changes |
-| Overwriting existing learnings | Loses history | Append with timestamps |
-| Generic observations | Not actionable | Be specific and contextual |
-| Ignoring LOW confidence | Lose valuable patterns | Track for future validation |
-| Creating memory for one-off | Noise | Wait for repeated patterns |
-
----
-
-## Integration
-
-### With Session Protocol
-
-Run reflection at session end as part of retrospective:
-
-```text
-## Session End Checklist
-- [ ] Complete session log
-- [ ] Run skill reflection (if skills were used)
-- [ ] Update Serena memory
-- [ ] Commit changes
-```
-
-### With Memory Skill
-
-Skill memories integrate with the memory system:
-
-```bash
-# Search skill sidecar learnings
-python3 .claude/skills/memory/scripts/search_memory.py --query "github-observations constraints"
-
-# Read specific skill sidecar
-Read .serena/memories/github-observations.md
-```
-
-### With Serena
-
-If Serena MCP is available:
-
-```text
-mcp__serena__read_memory(memory_file_name="github-observations")
-mcp__serena__write_memory(memory_file_name="github-observations", memory_content="...")
-```
+See `references/integration.md` for the anti-patterns table and integration points (session protocol, memory skill, Serena).
 
 ---
 
@@ -561,46 +435,11 @@ mcp__serena__write_memory(memory_file_name="github-observations", memory_content
 
 ---
 
-## Design Decisions
+## Design Decisions and Extension Points
 
-### Agent Sidecar Naming: `{skill-name}-observations.md`
-
-**Decision**: Skill memories follow the ADR-007 sidecar pattern (e.g., `github-observations.md`).
-
-**Rationale**:
-
-- **ADR-007 Alignment**: Reuses the agent sidecar convention instead of inventing a parallel structure
-- **ADR-017 Compliance**: Keeps `{domain}-{description}` format while making "skill-sidecar" explicit
-- **Discovery**: Sidecars are now referenced in `memory-index.md`, preventing orphaned learnings
-- **Single Canonical Store**: Serena MCP and Git both write to the same file path, eliminating dual-governance ambiguity
-
-**Migration**: Rename `{skill}-observations.md` (or legacy `skill-{name}.md`) to `{skill}-observations.md` and update index references.
-
-### Serena vs Forgetful Roles
-
-- **Serena MCP** remains the canonical record. Every learning is persisted to the `{skill}-observations.md` file.
-- **Forgetful** is optional and used for semantic lookup only. When storing supporting context, tag the entry with `skill-{name}` and reference the Serena sidecar instead of duplicating the content.
-
-### Relationship to `curating-memories`
-
-- `curating-memories` = general-purpose maintenance of any memory artifact (linking, pruning, marking obsolete).
-- `reflect` = targeted retrospective that feeds those artifacts with new learnings.
-- When a sidecar accumulates conflicting guidance, route the file to `curating-memories` for cleanup.
-
-### Session Protocol Integration
-
-- Add "Run skill reflection if ≥3 distinct skills used" to the Session End checklist.
-- Document any manual sidecar edits (when Serena MCP is unavailable) in the session log before completion.
-- Invoke reflect immediately after the Stop hook highlights high-confidence learnings so the session log and sidecar stay in sync.
+See `references/design-decisions.md` for the rationale (sidecar naming, Serena vs Forgetful roles, relationship to `curating-memories`, session-protocol integration) and extension points.
 
 ---
-
-## Extension Points
-
-1. **Curating memories** – route conflicting or stale learnings to `curating-memories` for consolidation.
-2. **Memory skill** – use `memory` skill for search/recall before proposing redundant learnings.
-3. **Forgetful** – optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
-4. **Session log fixer** – after reflection, ensure the session log captures the learning summary via `session-log-fixer`.
 
 ## Related
 
