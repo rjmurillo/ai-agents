@@ -62,7 +62,7 @@
       "gitStatusVerified": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "git status --short showed only the 4 SKILL.md files plus plugin.json"
+        "Evidence": "git status --short showed only skill files and plugin manifest changes"
       },
       "startingCommitNoted": {
         "level": "SHOULD",
@@ -136,7 +136,7 @@
     },
     {
       "action": "Bumped plugin.json",
-      "result": "project-toolkit 0.5.211 to 0.5.212 because plugin skill source changed and main already carried 0.5.209."
+      "result": "project-toolkit 0.5.211 to 0.5.212 because plugin skill source changed and main already carried 0.5.211."
     },
     {
       "action": "Ran skill frontmatter validator",
@@ -144,7 +144,7 @@
     },
     {
       "action": "Fixed post-review episode metric",
-      "result": "Set files_changed to 9 after Copilot flagged the generated episode metric as stale."
+      "result": "Recorded 9 files changed after Copilot flagged the generated episode metric as stale."
     }
   ],
   "endingCommit": "0936466a",

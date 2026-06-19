@@ -7349,6 +7349,132 @@
         "episode-2026-06-18-session-2592-work-2664-reflect-progressive-disclosure"
       ],
       "created": "2026-06-19T13:53:17.360102+00:00"
+    },
+    {
+      "id": "f2a312c3dcc2",
+      "type": "milestone",
+      "label": "milestone: Read issue #2662: retire deprecated incoherence skill (absorbed by doc-accuracy)",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415756+00:00"
+    },
+    {
+      "id": "b34c4609dd5d",
+      "type": "milestone",
+      "label": "milestone: Found script lives at .claude/skills/incoherence/scripts/incoherence.py, not scripts/incoherence.py as issue assumed; no live invoker references it outside the skill bundle",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415790+00:00"
+    },
+    {
+      "id": "22ef55ac017f",
+      "type": "milestone",
+      "label": "milestone: Relocated incoherence.py to scripts/incoherence.py via git mv to preserve runnability per issue acceptance (scripts/incoherence.py still runnable)",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415818+00:00"
+    },
+    {
+      "id": "102ab9e735dd",
+      "type": "milestone",
+      "label": "milestone: Deleted canonical .claude/skills/incoherence/ (SKILL.md, references/DEVELOPMENT.md) and generated mirror src/copilot-cli/skills/incoherence/",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415845+00:00"
+    },
+    {
+      "id": "b5efa40eabe5",
+      "type": "milestone",
+      "label": "milestone: Repointed validation-authority SKILL.md Related-Skills row from incoherence to doc-accuracy (canonical + regenerated copilot mirror)",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415871+00:00"
+    },
+    {
+      "id": "c3eafb1ae2c4",
+      "type": "milestone",
+      "label": "milestone: Removed dead 'incoherence' category keyword from scripts/skill_registry.py (orphaned after skill deletion)",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415897+00:00"
+    },
+    {
+      "id": "0afdcb102ab2",
+      "type": "milestone",
+      "label": "milestone: Bumped plugin.json 0.5.207 -> 0.5.208 for both project-toolkit manifests (.claude + src/copilot-cli) per #2118",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415924+00:00"
+    },
+    {
+      "id": "173785621f5c",
+      "type": "milestone",
+      "label": "milestone: Regenerated platform artifacts via build/scripts/build_all.py",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415950+00:00"
+    },
+    {
+      "id": "b22ab69e8d53",
+      "type": "milestone",
+      "label": "milestone: Verified scripts/incoherence.py runs: step 1/22 DETECTION PARENT output, exit 0",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.415976+00:00"
+    },
+    {
+      "id": "bd066ef6c6ee",
+      "type": "milestone",
+      "label": "milestone: Validators: orphan-ref 49 findings (== baseline, zero incoherence; single-word name invisible to SKILL_REF_RE which requires a hyphen); marketplace count_claim findings zero; agent drift unchanged pre/post (11 pre-existing, none incoherence); plugin version bump PASS",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.416003+00:00"
+    },
+    {
+      "id": "cc1bcf1ed36d",
+      "type": "milestone",
+      "label": "milestone: Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0).",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.416029+00:00"
+    },
+    {
+      "id": "072c7faeaf79",
+      "type": "test",
+      "label": "test: Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0).",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.416056+00:00"
+    },
+    {
+      "id": "5c778d4179e5",
+      "type": "commit",
+      "label": "commit: Commit: fda295e9",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.416087+00:00"
+    },
+    {
+      "id": "0d3733512acc",
+      "type": "outcome",
+      "label": "Outcome: success - Work on 2662 retire incoherence skill",
+      "episodes": [
+        "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
+      ],
+      "created": "2026-06-19T16:33:45.416114+00:00"
     }
   ],
   "patterns": [
@@ -7398,7 +7524,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 30,
+      "occurrences": 31,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -7407,7 +7533,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 60,
+      "occurrences": 62,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -7416,7 +7542,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 120,
+      "occurrences": 124,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -7425,7 +7551,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 180,
+      "occurrences": 186,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -7435,7 +7561,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -7443,7 +7569,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -7451,7 +7577,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -7459,7 +7585,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -7467,7 +7593,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -7475,7 +7601,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -7483,7 +7609,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -7491,7 +7617,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -7499,7 +7625,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -7507,7 +7633,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -7515,7 +7641,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -7523,7 +7649,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -7531,7 +7657,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -7539,7 +7665,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -7547,7 +7673,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -7555,7 +7681,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -7563,7 +7689,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -7571,7 +7697,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -7579,7 +7705,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -7587,7 +7713,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -7595,7 +7721,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -7603,7 +7729,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -7611,7 +7737,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -7619,7 +7745,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -7627,7 +7753,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -7635,7 +7761,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -7643,7 +7769,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -7651,7 +7777,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -7659,7 +7785,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -7667,7 +7793,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -7675,7 +7801,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -7683,7 +7809,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -7691,7 +7817,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -7699,7 +7825,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -7707,7 +7833,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -7715,7 +7841,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -7723,7 +7849,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -7731,7 +7857,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -7739,7 +7865,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -7747,7 +7873,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 30,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]
