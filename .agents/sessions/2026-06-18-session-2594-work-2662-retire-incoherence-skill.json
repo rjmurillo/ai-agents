@@ -1,0 +1,131 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 2594,
+  "date": "2026-06-18",
+  "branch": "fix/2662-retire-incoherence-skill",
+  "startingCommit": "eff30e3ab4",
+  "objective": "Work on 2662 retire incoherence skill"
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Serena available via MCP; LSP-first navigation used (Read/Grep guard active); fallback to .serena/memories topical reads surfaced by hooks"
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "initial_instructions context loaded via AGENTS.md Serena Init; LSP guard enforced grep blocking on incoherence.py read"
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "No issue handoff present for #2662; HANDOFF.md not modified (read-only ADR-014)"
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file"
+   },
+   "skillScriptsListed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Enumerated .claude/skills/incoherence/scripts/incoherence.py and mirrors via find; confirmed no live invokers outside skill bundle"
+   },
+   "usageMandatoryRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "AGENTS.md + skill-catalog rules read; build_all.py regeneration path confirmed"
+   },
+   "constraintsRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Read AGENTS.md boundaries, canonical-source-mirror, generated-artifacts, claude-agents rules"
+   },
+   "memoriesLoaded": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Topical worktree memories surfaced by hooks (issue-2621 manifest scope, git-hooks-005); pr1873 uv-run guidance applied"
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "fix/2662-retire-incoherence-skill"
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On fix/2662-retire-incoherence-skill"
+   },
+   "gitStatusVerified": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "git status clean at start on worktree HEAD eff30e3ab4"
+   },
+   "startingCommitNoted": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "eff30e3ab4"
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "All sessionStart MUSTs populated with honest evidence; work complete"
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "HANDOFF.md untouched (read-only per ADR-014)"
+   },
+   "serenaMemoryUpdated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Wrote decision memory tasks/issue-2662-retire-incoherence (relocate script to scripts/incoherence.py; single-word skill name invisible to orphan-ref SKILL_REF_RE)"
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "pre_pr.py Markdown Linting PASS (0.57s); validation-authority/SKILL.md changed md linted clean"
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Committed across atomic commits <=5 files; generated output in separate commit"
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "pytest tests/ -k registry: 62 passed. pre_pr.py: 24 passed incl Plugin Version Bump, Agent Drift Detection, Markdown Linting. orphan-ref 49 findings == baseline, zero incoherence. scripts/incoherence.py smoke passed."
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": false,
+    "Evidence": ""
+   },
+   "retrospectiveInvoked": {
+    "level": "SHOULD",
+    "Complete": false,
+    "Evidence": ""
+   }
+  }
+ },
+ "workLog": [
+  "Read issue #2662: retire deprecated incoherence skill (absorbed by doc-accuracy)",
+  "Found script lives at .claude/skills/incoherence/scripts/incoherence.py, not scripts/incoherence.py as issue assumed; no live invoker references it outside the skill bundle",
+  "Relocated incoherence.py to scripts/incoherence.py via git mv to preserve runnability per issue acceptance (scripts/incoherence.py still runnable)",
+  "Deleted canonical .claude/skills/incoherence/ (SKILL.md, references/DEVELOPMENT.md) and generated mirror src/copilot-cli/skills/incoherence/",
+  "Repointed validation-authority SKILL.md Related-Skills row from incoherence to doc-accuracy (canonical + regenerated copilot mirror)",
+  "Removed dead 'incoherence' category keyword from scripts/skill_registry.py (orphaned after skill deletion)",
+  "Bumped plugin.json 0.5.207 -> 0.5.208 for both project-toolkit manifests (.claude + src/copilot-cli) per #2118",
+  "Regenerated platform artifacts via build/scripts/build_all.py",
+  "Verified scripts/incoherence.py runs: step 1/22 DETECTION PARENT output, exit 0",
+  "Validators: orphan-ref 49 findings (== baseline, zero incoherence; single-word name invisible to SKILL_REF_RE which requires a hyphen); marketplace count_claim findings zero; agent drift unchanged pre/post (11 pre-existing, none incoherence); plugin version bump PASS",
+  "Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0)."
+ ],
+ "endingCommit": "fda295e9",
+ "nextSteps": []
+}

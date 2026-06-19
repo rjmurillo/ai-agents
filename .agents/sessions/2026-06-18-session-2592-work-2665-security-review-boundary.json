@@ -136,7 +136,7 @@
     },
     {
       "action": "Bumped plugin.json",
-      "result": "project-toolkit 0.5.209 to 0.5.210 because plugin skill source changed and main already carried 0.5.209."
+      "result": "project-toolkit 0.5.211 to 0.5.212 because plugin skill source changed and main already carried 0.5.209."
     },
     {
       "action": "Ran skill frontmatter validator",
