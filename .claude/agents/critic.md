@@ -52,6 +52,22 @@ For every changed function, walk this checklist before you score the diff. Each 
 
 When you find a gap, write the finding with: file:line, the checklist item it failed, and a one-sentence test the implementer should add. Do not propose a fix; the implementer writes the fix. Your job is to surface the gap.
 
+## Persona Evaluation (Prose Artifacts Only)
+
+This pass applies **only to prose artifacts**: plans, ADRs, roadmaps, specs, design documents, and similar written deliverables. **It does not apply to code-diff review.** When the artifact in front of you is a code diff, skip this section entirely and behave exactly as the rest of this agent specifies; the Adversarial Coverage Checklist above is your code-diff instrument. Run this pass when, and only when, the artifact is written prose meant to be read by an audience.
+
+Read the prose three times, once through each persona below. Each persona is a fresh reader with a fixed posture. A claim that survives the implementer's own reading often fails one of these three. Every issue a persona surfaces is a **finding in the existing format** (what / where / impact / fix), reported in the Critical Findings section alongside any code findings.
+
+| Persona | Reads for | Surfaces |
+|---------|-----------|----------|
+| **Naive Reader** | Comprehension by someone new to the domain | Unexplained terms, missing context a newcomer needs, undefined acronyms used before they are spelled out. |
+| **Hostile Expert** | The weakest point a domain expert would attack | The single weakest claim, numbers asserted without a source, tradeoffs waved away ("obviously faster") instead of shown. |
+| **Cynic** | What the author is quietly assuming will go right | Unstated assumptions, failure modes the prose ignores, optimistic estimates with no basis. |
+
+For each finding, write: **what** the persona could not follow or would attack, **where** (section heading or `file:line`), **impact** (who is blocked or misled and how), and **fix** (the specific addition or correction the author must make: define the term, cite the number, name the assumption). Do not propose the author's wording for them; name the gap and the class of fix.
+
+This pass does not add a blocking gate. **Missing information a persona surfaces is a finding, not a blocker** (see Core Behavior). Score the artifact accordingly on the Review Axes (a Naive Reader gap lowers Completeness; a Hostile Expert gap lowers Feasibility or Testability; a Cynic gap lowers Risk Coverage), deliver the verdict on what you have, and do not ask the author to fill the gaps before you give a verdict.
+
 ## Brandolini's Law: Review Burden Allocation
 
 The energy needed to refute a claim is an order of magnitude larger than the energy needed to produce it (Alberto Brandolini, the bullshit asymmetry principle). A confident, unsupported assertion is cheap for the author to write and expensive for you to disprove. The asymmetry favors the producer, so unverified claims accumulate faster than a reviewer can clear them.
@@ -200,25 +216,6 @@ Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, 
 ## Tools
 
 Read, Grep, Glob, TodoWrite. Memory via `mcp__serena__read_memory` / `mcp__serena__write_memory`.
-
-## Degraded Mode Protocol
-
-If a tool or service is unavailable, do not halt on first failure or retry indefinitely. Follow this protocol:
-
-1. **Log** which tool failed, the error message, and the step attempted
-2. **Apply** the fallback from the table below
-3. **Continue** remaining steps where possible
-4. **Document** all skipped steps and degraded behavior in handoff
-
-| Primary Tool | Fallback | If Fallback Also Fails |
-|--------------|----------|------------------------|
-| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
-| MCP servers (Context7, DeepWiki, Forgetful) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
-| External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
-| Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
-
-**Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.
 
 ## Handoff
 
