@@ -82,6 +82,7 @@ from checks_spec import (  # noqa: E402, F401
     validate_canonical_citations,
     validate_orchestrator_citations,
     validate_skill_md_portability,
+    validate_skill_shells,
     validate_spec_contradiction,
     validate_spec_id_uniqueness,
     validate_sync_registry,
@@ -343,6 +344,15 @@ def main(argv: list[str] | None = None) -> int:
         "Skill Markdown Portability",
         state,
         lambda: validate_skill_md_portability(repo_root),
+    )
+
+    # 3.766 Skill Shell Detection (skill dir with tracked content but no
+    # SKILL.md; Issue #2677). Catches an "invisible" skill the catalog still
+    # counts after a prune removed its SKILL.md but left tracked files behind.
+    run_validation(
+        "Skill Shell Detection",
+        state,
+        lambda: validate_skill_shells(repo_root),
     )
 
     # 3.77 Sync Registry Provenance (Issue #1909)

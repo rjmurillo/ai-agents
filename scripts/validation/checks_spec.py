@@ -120,6 +120,32 @@ def validate_skill_md_portability(repo_root: Path) -> bool:
     return exit_code == 0
 
 
+def validate_skill_shells(repo_root: Path) -> bool:
+    """Fail when a skill dir has tracked content but no SKILL.md (Issue #2677).
+
+    Wraps ``scripts/validation/validate_skill_shells.py``. A "skill shell" is a
+    directory under ``.claude/skills/`` or ``src/copilot-cli/skills/`` that an
+    earlier prune left with tracked files but no ``SKILL.md``: the catalog reads
+    as if the skill still exists when it does not. The script keys on
+    git-tracked, non-``__pycache__`` content, so a working tree with only
+    untracked ``__pycache__`` cruft does not trip it. The script exits 0 when no
+    shells are found, 1 when one or more shells exist, and 2 on a configuration
+    error. Exit 1 and 2 are both hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "validate_skill_shells.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/validate_skill_shells.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return exit_code == 0
+
 def validate_sync_registry(repo_root: Path) -> bool:
     """Enforce that every shared lib package is registered for sync (Issue #1909).
 
