@@ -1,8 +1,8 @@
 ---
 name: security-review
-version: 0.1.0
+version: 0.1.1
 model: claude-sonnet-4-6
-description: Security review knowledge delivered as parent-inline context (the form-factor counterpart to the security agent). Threat-models a code change, scores risk with CWE/CVE evidence, and returns a verdict. Use to review a diff or snippet for vulnerabilities when you want the security knowledge inline rather than dispatched to a subagent.
+description: Security review knowledge delivered as parent-inline context (the form-factor counterpart to the security agent). Threat-models a code change, scores risk with CWE/CVE evidence, and returns a verdict. Use to review a diff or snippet for vulnerabilities when you want the security knowledge inline rather than dispatched to a subagent. Do NOT use for STRIDE attack-surface analysis of a system or architecture; use threat-modeling instead.
 license: MIT
 metadata:
   issue: "1875"
