@@ -57,7 +57,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TextIO
 
 # ---------------------------------------------------------------------------
 # API utilities (shared module). Imported lazily-friendly at module top per the
@@ -254,6 +254,155 @@ def recommend_action(verdict: OverlapVerdict, skill_a: str, skill_b: str) -> str
         ),
     }
     return actions[verdict]
+
+
+# ---------------------------------------------------------------------------
+# Retirement-claim guard (Issue #2676)
+#
+# The pair verdict is the only signal that authorizes a skill-RETIREMENT
+# (prune/fold) claim in a generated follow-up issue. DISTINCT means "keep
+# both" and MUST NOT produce a retire/fold claim. A prior generator emitted a
+# SUBSUMED retirement claim for a pair the cited report scored DISTINCT
+# (bogus #2663 / PR #2671). Before any generator emits a retirement claim for a
+# pair, it MUST validate the claimed verdict word against the machine-readable
+# report (matrix.json) it cites. On mismatch the claim is dropped.
+# ---------------------------------------------------------------------------
+
+# A cited machine-readable report, as the parsed matrix.json payload or a
+# path to the matrix.json file or its report directory.
+ReportRef = dict[str, Any] | str | Path
+
+
+class ReportVerdictError(ValueError):
+    """Raised when the cited machine-readable report cannot back a verdict claim.
+
+    Covers a malformed report, an unreadable report file, and a pair the report
+    never scored. Each case makes a retirement claim untrustworthy.
+    """
+
+
+def _coerce_report_payload(report: ReportRef) -> dict[str, Any]:
+    """Return the matrix.json payload as a dict from a dict, path, or directory.
+
+    The cited report may be passed as the already-parsed payload (a dict shaped
+    like build_matrix's output), a path to a matrix.json file, or a path to the
+    report directory that contains matrix.json. File access is the integration
+    point: an unreadable or non-JSON report raises ReportVerdictError rather
+    than letting a transport-shaped error leak into the verdict guard.
+    """
+    if isinstance(report, dict):
+        return report
+    if isinstance(report, (str, Path)):
+        path = Path(report)
+        if path.is_dir():
+            path = path / "matrix.json"
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise ReportVerdictError(f"Cannot read cited report at {path}: {exc}") from exc
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ReportVerdictError(f"Cited report at {path} is not valid JSON: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise ReportVerdictError(f"Cited report at {path} is not a JSON object.")
+        return payload
+    raise ReportVerdictError(
+        f"Unsupported report reference type {type(report).__name__!r}; "
+        "pass a matrix.json payload dict or a path to it."
+    )
+
+
+# Verdicts that authorize a skill-retirement (prune/fold) recommendation.
+# DISTINCT is deliberately absent: it means "keep both".
+RETIREMENT_VERDICTS: frozenset[str] = frozenset({"SUBSUMED", "OVERLAP"})
+
+
+def is_retirement_verdict(verdict: str) -> bool:
+    """True when the verdict authorizes a prune/fold retirement claim."""
+    return verdict in RETIREMENT_VERDICTS
+
+
+def load_report_verdicts(report: ReportRef) -> dict[frozenset[str], str]:
+    """Map each pair in a machine-readable report to its verdict word.
+
+    `report` is the matrix.json payload (a dict shaped like build_matrix's
+    output) or a path to that file. The key is an order-independent
+    frozenset({skill_a, skill_b}) so callers cite a pair in either order.
+    """
+    payload = _coerce_report_payload(report)
+    verdicts: dict[frozenset[str], str] = {}
+    for pair in payload.get("pairs", []):
+        try:
+            key = frozenset({pair["skill_a"], pair["skill_b"]})
+            verdicts[key] = pair["verdict"]
+        except (KeyError, TypeError) as exc:
+            raise ReportVerdictError(f"Malformed pair entry in report: {pair!r}") from exc
+    return verdicts
+
+
+def report_verdict_for_pair(report: ReportRef, skill_a: str, skill_b: str) -> str:
+    """Return the report's verdict word for a pair, order-independent.
+
+    Raises ReportVerdictError when the pair is absent from the report; a
+    retirement claim for a pair the report never scored is never trustworthy.
+    """
+    verdicts = load_report_verdicts(report)
+    key = frozenset({skill_a, skill_b})
+    if key not in verdicts:
+        raise ReportVerdictError(
+            f"Pair ({skill_a}, {skill_b}) is absent from the cited report."
+        )
+    return verdicts[key]
+
+
+def validate_retirement_claim(
+    skill_a: str,
+    skill_b: str,
+    claimed_verdict: str,
+    report: ReportRef,
+) -> bool:
+    """True only when a retirement claim for this pair is backed by the report.
+
+    A claim is honored only when the claimed verdict word (1) is a retirement
+    verdict and (2) matches the verdict the cited report records for the pair.
+    A DISTINCT report verdict, or any mismatch, returns False so the caller
+    drops the claim instead of emitting a bogus retirement issue.
+    """
+    if not is_retirement_verdict(claimed_verdict):
+        return False
+    report_verdict = report_verdict_for_pair(report, skill_a, skill_b)
+    return report_verdict == claimed_verdict
+
+
+def emit_retirement_claim(
+    skill_a: str,
+    skill_b: str,
+    claimed_verdict: str,
+    recommendation: str,
+    report: ReportRef,
+    *,
+    stream: TextIO = sys.stderr,
+) -> str | None:
+    """Return the retirement claim text only if the report backs the verdict.
+
+    This is the choke point a follow-up-issue generator MUST call before it
+    emits a SUBSUMED/OVERLAP (retire/fold) claim. On mismatch (for example the
+    body says SUBSUMED but the report says DISTINCT) it logs and returns None so
+    the generator skips the pair rather than creating a bogus retirement issue.
+    """
+    if validate_retirement_claim(skill_a, skill_b, claimed_verdict, report):
+        return recommendation
+    try:
+        actual = report_verdict_for_pair(report, skill_a, skill_b)
+    except ReportVerdictError:
+        actual = "MISSING"
+    print(
+        f"SKIP retirement claim for ({skill_a}, {skill_b}): claimed "
+        f"{claimed_verdict!r} but cited report verdict is {actual!r}.",
+        file=stream,
+    )
+    return None
 
 
 # ---------------------------------------------------------------------------
