@@ -285,4 +285,4 @@ def test_coerce_raises_on_non_json_report(tmp_path):
 def test_coerce_raises_on_unsupported_reference_type():
     # Edge: an int is neither a payload dict nor a path.
     with pytest.raises(eso.ReportVerdictError):
-        eso._coerce_report_payload(42)  # type: ignore[arg-type]
+        eso._coerce_report_payload(42)
