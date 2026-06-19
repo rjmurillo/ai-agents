@@ -38,8 +38,8 @@ Rationale behind the sidecar model. Load when changing reflect's storage or nami
 
 ## Extension Points
 
-1. **Curating memories** – route conflicting or stale learnings to `curating-memories` for consolidation.
-2. **Memory skill** – use `memory` skill for search/recall before proposing redundant learnings.
-3. **Forgetful** – optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
-4. **Session log fixer** – after reflection, ensure the session log captures the learning summary via `session-log-fixer`.
+1. **Curating memories** - route conflicting or stale learnings to `curating-memories` for consolidation.
+2. **Memory skill** - use `memory` skill for search/recall before proposing redundant learnings.
+3. **Forgetful** - optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
+4. **Session log fixer** - after reflection, ensure the session log captures the learning summary via `session-log-fixer`.
 
