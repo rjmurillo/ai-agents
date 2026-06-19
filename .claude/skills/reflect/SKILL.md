@@ -27,10 +27,10 @@ Analyze the current conversation and propose improvements to skill-based memorie
 | `improve skill {name}` | Target specific skill memory |
 | `what did we learn` | Review and store patterns |
 
-Three priority tiers drive invocation timing: HIGH (corrections, invoke
-immediately), MEDIUM (praise, edge cases, invoke after multiple), LOW
-(repeated patterns, invoke at session end). Invoke proactively, not only on
-explicit request: a user "no" or "perfect" is a HIGH signal.
+Three priority tiers drive invocation timing: HIGH (corrections and immediate
+fixes, invoke immediately), MEDIUM (praise, preferences, edge cases, and
+questions, invoke when the table threshold is met), LOW (repeated patterns and
+session-end consolidation). Invoke proactively, not only on explicit request.
 
 See [references/triggers.md](references/triggers.md) for the full priority-tiered
 trigger tables, the original trigger phrases, and the proactive-invocation

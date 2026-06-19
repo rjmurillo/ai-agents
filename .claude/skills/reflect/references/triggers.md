@@ -23,7 +23,7 @@ Also monitor user phrasing such as "what if...", "ensure", or "don't forget". Th
 | Chesterton's Fence | "you removed that without understanding" | Documents architectural decisions |
 | Immediate fixes | "debug", "root cause", "fix all" | Learns from errors in real-time |
 
-### 🟡 MEDIUM Priority Triggers (Invoke After Multiple)
+### 🟡 MEDIUM Priority Triggers (Invoke When Threshold Is Met)
 
 | Trigger | Example | Why Important |
 |---------|---------|---------------|

@@ -127,7 +127,7 @@
     {
       "action": "Validated",
       "detail": "pre_pr.py all gates pass; SkillForge validate-skill.py exit 0 (warnings only, expected from disclosure split)",
-      "evidence": "pre_pr Passed 25 Failed 0"
+      "evidence": "pre_pr passed all 25 gates with zero failures"
     }
   ],
   "endingCommit": "2bd82dee",
