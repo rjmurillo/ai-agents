@@ -136,7 +136,7 @@ MD013:
 |-------|--------------|
 | [style-enforcement](../style-enforcement/SKILL.md) | Enforces style rules that this skill governs |
 | [code-qualities-assessment](../code-qualities-assessment/SKILL.md) | Quality assessment, not validator config |
-| [incoherence](../incoherence/SKILL.md) | Detects contradictions between config and behavior |
+| [doc-accuracy](../doc-accuracy/SKILL.md) | Detects contradictions between docs and code (absorbed the retired incoherence skill) |
 
 ## Timelessness: 9/10
 
