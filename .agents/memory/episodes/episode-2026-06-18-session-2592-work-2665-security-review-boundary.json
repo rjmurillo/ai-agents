@@ -65,21 +65,13 @@
     {
       "id": "e008",
       "timestamp": "2026-06-18T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 6bbd69d7",
-      "caused_by": [],
-      "leads_to": []
-    },
-    {
-      "id": "e009",
-      "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "milestone",
       "content": "Fixed post-review episode metric",
       "caused_by": [],
       "leads_to": []
     },
     {
-      "id": "e010",
+      "id": "e009",
       "timestamp": "2026-06-18T00:00:00+00:00",
       "type": "commit",
       "content": "Commit: 0936466a",
@@ -93,7 +85,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 1,
-    "files_changed": 8
+    "files_changed": 9
   },
   "lessons": []
 }

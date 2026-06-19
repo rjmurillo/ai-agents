@@ -136,7 +136,7 @@
     },
     {
       "action": "Bumped plugin.json",
-      "result": "project-toolkit 0.5.207 to 0.5.208 because plugin skill source changed."
+      "result": "project-toolkit 0.5.209 to 0.5.210 because plugin skill source changed and main already carried 0.5.209."
     },
     {
       "action": "Ran skill frontmatter validator",
@@ -144,7 +144,7 @@
     },
     {
       "action": "Fixed post-review episode metric",
-      "result": "Set files_changed to 8 after Copilot flagged the generated episode metric as stale."
+      "result": "Set files_changed to 9 after Copilot flagged the generated episode metric as stale."
     }
   ],
   "endingCommit": "0936466a",
