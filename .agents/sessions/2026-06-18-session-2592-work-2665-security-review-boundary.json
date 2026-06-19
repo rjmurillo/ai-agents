@@ -136,7 +136,7 @@
     },
     {
       "action": "Bumped plugin.json",
-      "result": "project-toolkit 0.5.211 to 0.5.212 because plugin skill source changed and main already carried 0.5.211."
+      "result": "project-toolkit 0.5.212 to 0.5.213 because plugin skill source changed and main already carried 0.5.212."
     },
     {
       "action": "Ran skill frontmatter validator",
@@ -148,7 +148,7 @@
     },
     {
       "action": "Resolved post-2681 merge refresh",
-      "result": "Merged origin/main after the pr-comment-responder and programming-advisor branches landed; kept project-toolkit manifests at 0.5.212 and accepted the generated causal graph from main."
+      "result": "Merged origin/main after the pr-comment-responder and programming-advisor branches landed; set project-toolkit manifests to 0.5.213 and accepted the generated causal graph from main."
     }
   ],
   "endingCommit": "0936466a",

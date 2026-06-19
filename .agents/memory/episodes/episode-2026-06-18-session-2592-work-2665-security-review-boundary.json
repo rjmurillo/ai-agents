@@ -73,16 +73,16 @@
     {
       "id": "e009",
       "timestamp": "2026-06-18T00:00:00+00:00",
-      "type": "commit",
-      "content": "Commit: 0936466a",
+      "type": "milestone",
+      "content": "Resolved post-2681 merge refresh",
       "caused_by": [],
       "leads_to": []
     },
     {
       "id": "e010",
       "timestamp": "2026-06-18T00:00:00+00:00",
-      "type": "milestone",
-      "content": "Resolved post-2681 merge refresh",
+      "type": "commit",
+      "content": "Commit: 0936466a",
       "caused_by": [],
       "leads_to": []
     }
