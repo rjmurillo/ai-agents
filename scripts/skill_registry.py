@@ -138,7 +138,6 @@ def categorize_skill(name: str, description: str) -> str:
             "review",
             "assess",
             "audit",
-            "incoherence",
             "qualities",
         ],
         "documentation": ["doc", "explain", "coverage"],
