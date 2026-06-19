@@ -17,8 +17,9 @@ the existing nested `metadata.version: 1.0.0`. Did NOT touch nested `model`
 `src/copilot-cli/skills/programming-advisor/SKILL.md` (no vs-code-agents mirror).
 `build/scripts/build_all.py` propagated the top-level version to the mirror
 deterministically; the only changed mirror file was programming-advisor. The
-follow-up PR maintenance pass bumped both project-toolkit manifests to 0.5.208
-because the plugin skill sources changed and installs must re-sync.
+follow-up PR maintenance pass bumped both project-toolkit manifests to 0.5.210
+because the plugin skill sources changed, main already carried 0.5.209, and
+installs must re-sync.
 
 ## Validation
 - `scripts/validation/skill_frontmatter.py --changed-files <canonical>`: PASS.
