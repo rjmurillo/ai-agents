@@ -145,6 +145,10 @@
     {
       "action": "Fixed post-review episode metric",
       "result": "Recorded 9 files changed after Copilot flagged the generated episode metric as stale."
+    },
+    {
+      "action": "Resolved post-2681 merge refresh",
+      "result": "Merged origin/main after the pr-comment-responder and programming-advisor branches landed; kept project-toolkit manifests at 0.5.212 and accepted the generated causal graph from main."
     }
   ],
   "endingCommit": "0936466a",
