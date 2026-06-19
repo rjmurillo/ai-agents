@@ -205,6 +205,41 @@ for the threads that remain.
 
 See [references/workflow.md](references/workflow.md) for full phase details.
 
+## Scripts
+
+This skill ships one script under `scripts/`. The GitHub operations in the Tools
+table above (context extraction, PR metadata, comments, replies, reactions,
+thread resolution) live in the shared `github` skill, not here.
+
+### cluster_threads.py
+
+Phase 0 clusterer. Fetches unresolved PR review threads, clusters them by
+load-bearing token overlap, and emits a JSON report that flags clusters of 4 or
+more threads sharing one gist (a single-source-of-truth violation to fix at the
+framing root cause before the per-thread loop). See Phase 0 above for when to run
+it and how to act on the report.
+
+Invoke:
+
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/pr-comment-responder/scripts"
+
+# --owner and --repo are optional; inferred from git when omitted.
+uv run python "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER"
+
+# Offline: cluster threads from a repository-relative JSON file (skips the fetch).
+uv run python "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER" --threads-file path/to/threads.json
+```
+
+Exit codes (per ADR-035, copied from the script docstring):
+
+| Exit code | Meaning |
+|-----------|---------|
+| 0 | Report produced (warnings, if any, are in the JSON; not an error exit) |
+| 2 | Config/usage error (invalid parameters) |
+| 3 | Fetch failed (could not obtain a trustworthy thread snapshot) |
+| 4 | Auth error |
+
 ## Verification
 
 - [ ] All comments resolved (COMPLETE or WONTFIX)
