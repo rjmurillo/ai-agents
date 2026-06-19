@@ -1,0 +1,91 @@
+{
+  "id": "episode-2026-06-17-session-2593-continue-choreplugin-bump-project-toolkit-05205",
+  "session": "2026-06-17-session-2593-continue-choreplugin-bump-project-toolkit-05205",
+  "timestamp": "2026-06-17T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Continue: chore(plugin): bump project-toolkit 0.5.205 to 0.5.206 for memory-search skill",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduced 3 RED CI checks locally on PR #2658 head (7d712aaee1): Run Python Tests, Agent Drift Detection, Validate PR.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Full pytest surfaced 5 real failures: 3x test_adr_063 status (Proposed->Accepted), test_check_plugin_manifest_parity (version skew), test_check_skill_portability (ratchet).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "ADR-063 status tests: updated TestDraftStatusTriggersReview->TestAcceptedStatus to track the maintainer-accepted ADR (commit f21c8d4ad7 by rjmurillo, 2026-06-17). Deliberate behavior change per working-with-legacy-code.md, not test silencing.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Manifest parity: bumped src/copilot-cli/.claude-plugin/plugin.json 0.5.205->0.5.206 to match .claude canonical (the PR bumped only one mirror). Fixes manifest-parity drift sub-check AND test_check_plugin_manifest_parity.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Agent Drift: ran build/scripts/build_all.py to regenerate the Copilot CLI vendored mirror the PR omitted (src/copilot-cli/skills/memory-search/ created; src/copilot-cli/skills/memory/SKILL.md updated). Generation is idempotent (second run = no new diff).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Portability ratchet (#2050): ran check_skill_portability.py --update-baseline. Records memory-search test at 1 intrinsic delegation-path ref + ratchets 4 pre-existing improvements down. All tightening direction.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validate PR: pr_description.py flagged 5 reference paths as phantom change-claims. Edited PR body to silence via sanctioned mechanisms (Out-of-Scope prefix heading, ## Validation H2, drop inline reference path).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified: all 5 originally-failing tests pass; eval dry-run failure was induced by uncommitted working-tree state and resolves on commit.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-17T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 185b8fc28",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 7
+  },
+  "lessons": []
+}

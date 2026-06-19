@@ -96,25 +96,32 @@ class TestRequiredSections:
         assert "frequency" in lowered
 
 
-class TestDraftStatusTriggersReview:
-    def test_status_section_says_proposed(self, adr_text: str) -> None:
-        # The literal Status section must read Proposed (DRAFT), not Accepted.
+class TestAcceptedStatus:
+    # ADR-063 was accepted by the maintainer on 2026-06-17 (commit f21c8d4ad7,
+    # "docs(adr): accept ADR-063 memory-skill decomposition"). These assertions
+    # previously pinned the pre-acceptance "Proposed" state so the BLOCKING
+    # adr-review debate gate would fire. The maintainer-authorized acceptance is
+    # now recorded in the ADR Status section and the `status: accepted`
+    # frontmatter, so the gate is satisfied and the accepted state is the
+    # contract these tests pin.
+    def test_status_section_says_accepted(self, adr_text: str) -> None:
+        # The literal Status section must read Accepted after maintainer sign-off.
         parts = adr_text.split("## Status", 1)
         assert len(parts) > 1, "Missing '## Status' section"
         status_block = parts[1].split("##", 1)[0]
-        assert "Proposed" in status_block
-        assert "Accepted" not in status_block
+        assert "Accepted" in status_block
+        assert "Proposed" not in status_block
 
-    def test_detector_resolves_status_to_proposed(self, adr_text: str) -> None:
-        # The adr-review detector contract: no `status:` frontmatter line means
-        # the ADR is treated as "proposed", which fires the BLOCKING gate.
-        assert _resolve_status(adr_text) == "proposed"
+    def test_detector_resolves_status_to_accepted(self, adr_text: str) -> None:
+        # The adr-review detector contract: the `status: accepted` frontmatter
+        # line resolves to "accepted", satisfying the debate gate.
+        assert _resolve_status(adr_text) == "accepted"
 
-    def test_machine_readable_status_line_is_proposed(self, adr_text: str) -> None:
-        # Negative: `status: accepted` would bypass the debate gate too early.
+    def test_machine_readable_status_line_is_accepted(self, adr_text: str) -> None:
+        # The machine-readable status line records the maintainer acceptance.
         match = _STATUS_FRONTMATTER.search(adr_text)
         assert match is not None, "Missing machine-readable status line"
-        assert match.group(1).strip().lower() == "proposed"
+        assert match.group(1).strip().lower() == "accepted"
 
 
 class TestRequiredCrossReferences:

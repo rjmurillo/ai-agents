@@ -2,9 +2,14 @@
 
 ## Status
 
-Proposed
+Accepted
 
-status: proposed
+Accepted by maintainer 2026-06-17. The maintainer authorization satisfies the
+adr-review gate for this status flip; this acceptance records the human decision
+and does not append a fabricated debate log. Architect-review record:
+`.agents/critique/ADR-063-debate-log.md`.
+
+status: accepted
 
 ## Date
 
@@ -71,10 +76,9 @@ Decompose the monolithic `memory` skill into focused sub-skills split by
 operation, keep `memory` as a thin router that delegates, and preserve the
 `memory` skill name so existing callers do not break.
 
-This ADR codifies five binding points. It is a DRAFT (Proposed) and triggers
-the adr-review debate gate; the multi-agent debate and the human decision
-select among the alternatives below and may revise these points before the ADR
-moves to Accepted.
+This ADR codifies five binding points. The ADR was accepted after the
+multi-agent debate and maintainer decision recorded above. The points below are
+the accepted decision record for the first decomposition phase.
 
 1. **Split by operation, not by tier.** The recommended primary axis is the
    operation a caller invokes (search, episode extraction, causal-graph update,
