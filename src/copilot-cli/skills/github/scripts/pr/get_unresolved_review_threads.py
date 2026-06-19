@@ -202,6 +202,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--include-comments", action="store_true",
         help="Include the full comment list in each thread (not just the first)",
     )
+    parser.add_argument(
+        "--output-format", choices=["json", "human", "auto"], default="json",
+        help="Accepted for parity; this script always emits JSON (#2684).",
+    )
     return parser
 
 
