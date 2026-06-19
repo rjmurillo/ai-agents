@@ -66,11 +66,12 @@ if __package__ in (None, ""):
         render_envelope,
         render_error_envelope,
     )
-    from filters import is_known_kebab_word
+    from filters import is_known_kebab_word, is_known_single_word_skill
     from patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_count_claims,
         extract_script_refs,
+        extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
     )
@@ -90,11 +91,12 @@ else:
         render_envelope,
         render_error_envelope,
     )
-    from .filters import is_known_kebab_word
+    from .filters import is_known_kebab_word, is_known_single_word_skill
     from .patterns import (
         FILE_IGNORE_DIRECTIVE_RE,
         extract_count_claims,
         extract_script_refs,
+        extract_single_word_skill_refs,
         extract_skill_refs,
         extract_skill_script_refs,
     )
@@ -111,6 +113,7 @@ def _path_under(repo_root: Path, path: Path) -> str:
 
 
 _is_known_kebab_word = is_known_kebab_word
+_is_known_single_word_skill = is_known_single_word_skill
 
 
 def scan_file(
@@ -181,8 +184,19 @@ def scan_file(
 def _check_skill_refs(
     text: str, rel: str, known_skills: set[str], skill_catalog_present: bool
 ) -> tuple[list[Finding], int]:
-    """Emit skill_name findings for backticked kebab tokens that have no
-    matching ``.claude/skills/<name>/`` directory."""
+    """Emit skill_name findings for orphaned skill references.
+
+    Two reference shapes are checked:
+
+    - Hyphenated tokens (``alpha-skill``): every backticked kebab token is a
+      candidate, flagged when absent from ``.claude/skills/``.
+    - Single-word tokens (``incoherence``): a backticked single word is a
+      candidate only when it resolves to a live catalog entry (valid, no
+      finding) or is a curated known single-word skill name (flagged when
+      absent). Arbitrary backticked English words are ignored, so widening
+      detection to no-hyphen names does not flood false positives (issue
+      #2679).
+    """
     findings: list[Finding] = []
     refs_checked = 0
     for lineno, ref in extract_skill_refs(text):
@@ -191,27 +205,46 @@ def _check_skill_refs(
         refs_checked += 1
         if ref in known_skills:
             continue
-        severity: Severity = "critical" if skill_catalog_present else "warn"
-        recommendation = (
-            f"Skill `{ref}` not present at .claude/skills/. "
-            "Update reference, restore the skill, or remove the mention."
-            if skill_catalog_present
-            else (
-                f"Skill `{ref}` cannot be verified: .claude/skills/ "
-                "directory is absent (vendored install)."
-            )
-        )
         findings.append(
-            Finding(
-                kind="skill_name",
-                severity=severity,
-                target_file=rel,
-                line=lineno,
-                referenced_entity=ref,
-                recommendation=recommendation,
-            )
+            _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
+        )
+    for lineno, ref in extract_single_word_skill_refs(text):
+        if ref in known_skills or not _is_known_single_word_skill(ref):
+            continue
+        refs_checked += 1
+        findings.append(
+            _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )
     return findings, refs_checked
+
+
+def _skill_ref_finding(
+    ref: str, rel: str, lineno: int, skill_catalog_present: bool
+) -> Finding:
+    """Build a ``skill_name`` finding for an orphaned skill reference.
+
+    Severity is ``critical`` when the catalog is authoritative (present) and
+    ``warn`` when ``.claude/skills/`` is absent (vendored install): an absent
+    catalog cannot confirm the reference is genuinely orphaned.
+    """
+    severity: Severity = "critical" if skill_catalog_present else "warn"
+    recommendation = (
+        f"Skill `{ref}` not present at .claude/skills/. "
+        "Update reference, restore the skill, or remove the mention."
+        if skill_catalog_present
+        else (
+            f"Skill `{ref}` cannot be verified: .claude/skills/ "
+            "directory is absent (vendored install)."
+        )
+    )
+    return Finding(
+        kind="skill_name",
+        severity=severity,
+        target_file=rel,
+        line=lineno,
+        referenced_entity=ref,
+        recommendation=recommendation,
+    )
 
 
 def _check_script_refs(

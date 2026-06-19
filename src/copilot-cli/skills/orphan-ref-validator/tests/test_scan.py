@@ -59,6 +59,7 @@ BaselineError = _scan.BaselineError
 extract_count_claims = _scan.extract_count_claims
 extract_script_refs = _scan.extract_script_refs
 extract_skill_refs = _scan.extract_skill_refs
+extract_single_word_skill_refs = _scan.extract_single_word_skill_refs
 extract_skill_script_refs = _scan.extract_skill_script_refs
 _check_skill_script_refs = _scan._check_skill_script_refs
 enumerate_count = _scan.enumerate_count
@@ -897,6 +898,102 @@ class TestSkillScriptRefs:
         assert list(extract_skill_script_refs("`src/copilot-cli/skills/x/scripts/y.py`")) == [
             (1, "src/copilot-cli/skills/x/scripts/y.py")
         ]
+
+
+class TestSingleWordSkillRefs:
+    """Issue #2679: single-word (no-hyphen) skill names were invisible to
+    SKILL_REF_RE (which requires a hyphen), so deleting a single-word skill
+    produced zero orphan-ref findings even when prose still referenced it.
+
+    Detection is widened to single-word backticked tokens, but narrowed to
+    genuine skill references: a token is flagged only when it is a curated
+    known single-word skill name absent from the live catalog. Arbitrary
+    backticked English words are never flagged.
+    """
+
+    @pytest.fixture
+    def repo_with_single_word_skill(self, fake_repo: Path) -> Path:
+        """fake_repo plus a live single-word skill `review`."""
+        claude_dir = fake_repo / ".claude"
+        skill = claude_dir / "skills" / "review"
+        skill.mkdir()
+        (skill / "SKILL.md").write_text("# stub\n", encoding="utf-8")
+        return fake_repo
+
+    def test_extract_single_word_token_in_backticks(self):
+        refs = list(extract_single_word_skill_refs("Use `incoherence` here."))
+        assert (1, "incoherence") in refs
+
+    def test_extract_ignores_inline_word_outside_backticks(self):
+        assert list(extract_single_word_skill_refs("incoherence no ticks")) == []
+
+    def test_extract_does_not_double_count_hyphenated_token(self):
+        # A hyphenated span never matches as a single-word token: the regex has
+        # no hyphen group and the backtick must immediately follow the word.
+        assert list(extract_single_word_skill_refs("Use `alpha-skill`.")) == []
+
+    def test_retired_single_word_skill_flagged(self, fake_repo):
+        """A backticked retired single-word skill name absent from the catalog
+        yields a critical orphan finding (the #2662 `incoherence` case)."""
+        target = fake_repo / "docs" / "stale.md"
+        write(target, "Detection moved out of `incoherence` long ago.\n")
+        result = scan([target], fake_repo)
+        skill_findings = [f for f in result.findings if f.kind == "skill_name"]
+        assert len(skill_findings) == 1
+        assert skill_findings[0].referenced_entity == "incoherence"
+        assert skill_findings[0].severity == "critical"
+        assert result.verdict == "CRITICAL_FAIL"
+
+    def test_common_english_word_not_flagged(self, fake_repo):
+        """Ordinary backticked single words (not known skill names) are prose,
+        not skill references, and must never be flagged."""
+        target = fake_repo / "docs" / "prose.md"
+        write(
+            target,
+            "The `session` value and the `count` field control `output`.\n",
+        )
+        result = scan([target], fake_repo)
+        assert [f for f in result.findings if f.kind == "skill_name"] == []
+        assert result.verdict == "PASS"
+
+    def test_live_single_word_skill_not_flagged(self, repo_with_single_word_skill):
+        """A single-word skill present in the catalog is a valid reference and
+        produces no finding, even though `review` is also a common word."""
+        repo = repo_with_single_word_skill
+        target = repo / "docs" / "ok.md"
+        write(target, "Run the `review` skill before shipping.\n")
+        result = scan([target], repo)
+        assert [f for f in result.findings if f.kind == "skill_name"] == []
+        assert result.verdict == "PASS"
+
+    def test_hyphenated_behavior_unchanged(self, fake_repo):
+        """Hyphenated names keep the original behavior: a living kebab name is
+        clean, a dead one is critical."""
+        target = fake_repo / "docs" / "mixed.md"
+        write(target, "Use `alpha-skill` not `dead-skill`.\n")
+        result = scan([target], fake_repo)
+        bad = {
+            f.referenced_entity
+            for f in result.findings
+            if f.kind == "skill_name"
+        }
+        assert bad == {"dead-skill"}
+
+    def test_retired_single_word_skill_warns_when_catalog_absent(self, tmp_path):
+        """Without a skills catalog (vendored install), a retired
+        single-word reference downgrades to a non-blocking warn, mirroring the
+        hyphenated catalog-absent path."""
+        repo = tmp_path / "vendored"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        docs = repo / "docs"
+        write(docs / "x.md", "Use `incoherence` here.\n")
+        result = scan([docs], repo)
+        skill_findings = [f for f in result.findings if f.kind == "skill_name"]
+        assert len(skill_findings) == 1
+        assert skill_findings[0].referenced_entity == "incoherence"
+        assert skill_findings[0].severity == "warn"
+        assert result.verdict == "WARN"
 
 
 class TestBaselineSuppression:
