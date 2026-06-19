@@ -175,11 +175,13 @@ Invoke directly with `python3 .claude/skills/orphan-ref-validator/scripts/scan.p
 
 | Kind | Pattern | Source of truth |
 |---|---|---|
-| `skill_name` | `` `<kebab>` `` where `<kebab>` matches `[a-z][a-z0-9]*(?:-[a-z0-9]+)+` (at least one hyphen, no trailing hyphen) | `.claude/skills/<name>/SKILL.md` directories |
+| `skill_name` | `` `<kebab>` `` where `<kebab>` matches `[a-z][a-z0-9]*(?:-[a-z0-9]+)+` (at least one hyphen, no trailing hyphen); plus single-word `` `<word>` `` only when `<word>` is a curated known single-word skill name (`filters.py:KNOWN_SINGLE_WORD_SKILLS`) | `.claude/skills/<name>/SKILL.md` directories |
 | `script_path` | `` `(build/scripts\|scripts/validation\|scripts)/<path>.py` `` | file existence on disk |
 | `count_claim` | canonical `COUNT_PATTERN` from `validate_marketplace_counts.py` matching `<digits>\s+(specialized\s+agent\s+definition\|agent\s+definition\|agent\|slash\s+command\|lifecycle\s+hook\|reusable\s+skill)s?` (manifest files only) | working-tree enumeration via canonical strategies; **emission delegated to canonical validator in PR1** |
 
 Common kebab-case English phrases (`well-known`, `open-source`, `step-by-step`, etc.) are filtered to reduce false positives. The filter list lives in `filters.py:is_known_kebab_word`.
+
+Single-word (no-hyphen) skill names are detected separately: a backticked single word is treated as a skill reference only when it resolves to a live `.claude/skills/<name>/` directory (valid, no finding) or is a curated known single-word skill name in `filters.py:KNOWN_SINGLE_WORD_SKILLS` (flagged when absent). Arbitrary backticked English words are never flagged. Add a retired or renamed single-word skill to `KNOWN_SINGLE_WORD_SKILLS` so lingering references surface instead of going silent (issue #2679).
 
 ### Verdict logic
 
