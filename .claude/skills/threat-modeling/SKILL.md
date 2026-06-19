@@ -72,6 +72,10 @@ Use [pre-mortem](../pre-mortem/SKILL.md) instead when:
 
 - Identifying general project risks, not specifically security threats
 
+Use [security-review](../security-review/SKILL.md) instead when:
+
+- Reviewing a specific code diff or snippet for vulnerabilities before merge (per-change inline review, not architecture-level)
+
 ---
 
 ## Phase 1: Scope and Decompose

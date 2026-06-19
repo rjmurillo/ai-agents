@@ -1,8 +1,8 @@
 ---
 name: security-review
-version: 0.1.0
+version: 0.2.0
 model: claude-sonnet-4-6
-description: Security review knowledge delivered as parent-inline context (the form-factor counterpart to the security agent). Threat-models a code change, scores risk with CWE/CVE evidence, and returns a verdict. Use to review a diff or snippet for vulnerabilities when you want the security knowledge inline rather than dispatched to a subagent.
+description: Security review knowledge delivered as parent-inline context (the form-factor counterpart to the security agent). Threat-models a code change, scores risk with CWE/CVE evidence, and returns a verdict. Use to review a diff or snippet for vulnerabilities when you want the security knowledge inline rather than dispatched to a subagent. Do NOT use for architecture-level STRIDE attack-surface analysis of a new design or whole system (use threat-modeling).
 license: MIT
 metadata:
   issue: "1875"
@@ -60,6 +60,14 @@ defense. Every security-sensitive change gets reviewed before it ships.
 | `review this diff for security` | Threat-model changed code before merge. |
 | `inline security review` | Use skill context in the parent call instead of dispatching a subagent. |
 | `check CWE risk` | Map a suspected vulnerability to CWE and impact. |
+
+Use [threat-modeling](../threat-modeling/SKILL.md) instead when:
+
+- Doing architecture-level STRIDE analysis of a new design or whole system
+- Producing a threat matrix with risk ratings before code exists
+
+This skill reviews a specific code diff or snippet inline; threat-modeling
+analyzes a design's attack surface.
 
 ## Process
 
