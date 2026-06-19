@@ -126,6 +126,6 @@
   "Validators: orphan-ref 49 findings (== baseline, zero incoherence; single-word name invisible to SKILL_REF_RE which requires a hyphen); marketplace count_claim findings zero; agent drift unchanged pre/post (11 pre-existing, none incoherence); plugin version bump PASS",
   "Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0)."
  ],
- "endingCommit": "PENDING",
+ "endingCommit": "fda295e9",
  "nextSteps": []
 }

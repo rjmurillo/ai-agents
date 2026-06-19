@@ -1,0 +1,123 @@
+{
+  "id": "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill",
+  "session": "2026-06-18-session-2594-work-2662-retire-incoherence-skill",
+  "timestamp": "2026-06-18T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Work on 2662 retire incoherence skill",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #2662: retire deprecated incoherence skill (absorbed by doc-accuracy)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Found script lives at .claude/skills/incoherence/scripts/incoherence.py, not scripts/incoherence.py as issue assumed; no live invoker references it outside the skill bundle",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Relocated incoherence.py to scripts/incoherence.py via git mv to preserve runnability per issue acceptance (scripts/incoherence.py still runnable)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Deleted canonical .claude/skills/incoherence/ (SKILL.md, references/DEVELOPMENT.md) and generated mirror src/copilot-cli/skills/incoherence/",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Repointed validation-authority SKILL.md Related-Skills row from incoherence to doc-accuracy (canonical + regenerated copilot mirror)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Removed dead 'incoherence' category keyword from scripts/skill_registry.py (orphaned after skill deletion)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Bumped plugin.json 0.5.207 -> 0.5.208 for both project-toolkit manifests (.claude + src/copilot-cli) per #2118",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated platform artifacts via build/scripts/build_all.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified scripts/incoherence.py runs: step 1/22 DETECTION PARENT output, exit 0",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Validators: orphan-ref 49 findings (== baseline, zero incoherence; single-word name invisible to SKILL_REF_RE which requires a hyphen); marketplace count_claim findings zero; agent drift unchanged pre/post (11 pre-existing, none incoherence); plugin version bump PASS",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "test",
+      "content": "Test evidence: uv run python -m pytest tests/ -k 'skill_registry or registry' -> 62 passed, 12848 deselected. pre_pr.py 24 passed (Plugin Version Bump passed, Agent Drift Detection passed, Markdown Linting passed). scripts/incoherence.py smoke run passed (exit 0).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: fda295e9",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 2
+  },
+  "lessons": []
+}
