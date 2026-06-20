@@ -25,7 +25,7 @@ metadata:
 
 Before writing a single line of code, determine if the wheel already exists. Vibe coding burns tokens, time, and creates maintenance burden. Existing solutions often provide better quality, security patches, and community support.
 
-## Workflow
+## Process
 
 ### Step 1: Capture Intent
 
@@ -48,6 +48,8 @@ Before any web search, check whether the capability already exists in the curren
 - check existing dependencies (`package.json` / `requirements.txt` / `Cargo.toml` / `go.mod`) for a library already pulled in
 
 If an internal implementation exists, recommend **Leverage** (use as-is) or **Extend** (adapt it) before proposing a build or an external buy. Internal reuse beats both a new dependency and a rewrite.
+
+**Security-sensitive carve-out (overrides reuse-first):** For auth, crypto, payments, or any security-sensitive capability, do NOT apply reuse-first. Recommend a vetted, widely-used external provider over extending or reusing a homegrown implementation, even when internal prior-art exists and covers most of the requirement. Homegrown security code keeps audit, patching, and compliance liability (e.g. PCI) in-house and is the red flag in 9.5 ('you can't build it securely'). Reuse-first does not apply to security-sensitive code.
 
 #### 2b. External solutions
 
@@ -115,6 +117,7 @@ Recommend **internal reuse (Leverage/Extend)** when:
 - Capability already exists in repo or org codebase
 - Existing dependency already provides the functionality
 - Internal code covers ≥80% of the requirement (extend for the rest)
+- AND the capability is NOT security-sensitive (auth/crypto/payments). For security-sensitive needs, use the security-sensitive carve-out in Step 2a instead, even at ≥80% coverage.
 
 Recommend **existing solutions** when:
 
@@ -122,7 +125,7 @@ Recommend **existing solutions** when:
 - Mature library exists with >1K GitHub stars
 - SaaS solves it for <$20/mo
 - Common problem with well-tested solutions
-- Security-sensitive (auth, crypto, payments)
+- Security-sensitive (auth, crypto, payments). This overrides internal reuse-first. Prefer a vetted, widely-used external provider (e.g. Auth0/Clerk for auth, Stripe for payments) over extending or reusing a homegrown module, even when internal prior-art exists. The deciding rationale is the security-sensitive class itself (auth is never simple; you can't build it securely; homegrown payment code keeps PAN handling and PCI liability in-house), not coverage percentage.
 
 Recommend **vibe coding** when:
 
@@ -257,6 +260,14 @@ Warn users when they say:
 - "We can build it in a weekend" → You can't, securely
 - "We'll add security later" → Security debt is expensive
 - "It's cheaper long-term" → Usually false under 10K users
+
+## Verification
+
+- [ ] Internal prior-art was searched before external solutions.
+- [ ] Security-sensitive capabilities used the Step 2a carve-out instead of reuse-first.
+- [ ] Strategic decisions were handed to `buy-vs-build-framework`.
+- [ ] Recommendation table includes only options supported by search evidence.
+- [ ] Cost note uses the tactical estimate or delegates multi-year TCO.
 
 ## Response Template
 
