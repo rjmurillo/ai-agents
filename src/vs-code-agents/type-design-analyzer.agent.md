@@ -1,5 +1,5 @@
 ---
-description: 'Use this agent when you need expert analysis of type design in your codebase. Specifically use it: (1) when introducing a new type to ensure it follows best practices for encapsulation and invariant expression, (2) during pull request creation to review all types being added, (3) when refactoring existing types to improve their design quality. The agent will provide both qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.'
+description: Use this agent when you need expert analysis of type design in your codebase. Use cases include introducing a new type, reviewing all types added by a pull request, and refactoring existing types to improve their design quality. The agent provides qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.
 argument-hint: Point to the type(s) or PR to review for design quality
 tools:
   - vscode
