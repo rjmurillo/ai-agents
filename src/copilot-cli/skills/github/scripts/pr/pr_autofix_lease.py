@@ -43,14 +43,14 @@ ACT/SKIP convention):
 
 Stricter/looser/different than canonical
 ========================================
-Canonical sibling: `.claude/skills/github/scripts/pr/check_pr_live_state.py`.
+Canonical sibling: `check_pr_live_state.py` (sibling in this pr/ directory).
 That probe returns ``{"action": "ACT" | "SKIP", "reason": ...}`` and exits
 ``0`` on ACT / ``1`` on SKIP. This module mirrors that verdict shape and
 ACT/SKIP exit convention.
 
 Exit-code provenance (verified 2026-06-19 against the canonical files).
 The exit-1 = SKIP meaning is NOT from ADR-035. ADR-035
-(`.agents/architecture/ADR-035-exit-code-standardization.md`, the chosen
+(ADR-035 (exit-code standardization), the chosen
 option's table) defines exit 1 as "General error / Validation failure"
 (logic) and exit 2 as "Usage/configuration error". The 1 = SKIP meaning
 is `check_pr_live_state.py`'s own docstring convention (exit 0 = ACT,
@@ -117,7 +117,7 @@ logger = logging.getLogger(__name__)
 # Plugin-root resolution: matches sibling scripts (check_pr_live_state.py,
 # post_pr_comment_reply.py). When the script runs inside a deployed Claude
 # plugin, CLAUDE_PLUGIN_ROOT points at the plugin's installed path; when it
-# runs inside the repo (the case under test), we walk up to .claude/lib.
+# runs inside the repo (the case under test), we walk up to the lib root.
 # ---------------------------------------------------------------------------
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -336,7 +336,7 @@ def _comment_author(comment: dict) -> str:
 
     GitHub's REST issue-comments payload carries the authenticated author
     under ``user.login``. The canonical sibling that reads the same field
-    is `.claude/lib/github_core/api.py`
+    is github_core.api (under the lib root)
     ``get_trusted_source_comments`` (line 668:
     ``c.get("user", {}).get("login") in trusted_users``). A forger cannot
     set this field without the holder's credential, so it is the field
