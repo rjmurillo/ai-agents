@@ -43,13 +43,13 @@ Exit codes (ADR-035): 0 ok, 1 logic/runtime error, 2 config/usage error,
 from __future__ import annotations
 
 import argparse
-import http.client
 import json
 import os
 import shutil
 import subprocess
 import sys
 import time
+import http.client
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
