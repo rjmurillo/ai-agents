@@ -1,6 +1,6 @@
 ---
 name: type-design-analyzer
-description: 'Use this agent when you need expert analysis of type design in your codebase. Specifically use it: (1) when introducing a new type to ensure it follows best practices for encapsulation and invariant expression, (2) during pull request creation to review all types being added, (3) when refactoring existing types to improve their design quality. The agent will provide both qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.'
+description: Use this agent when you need expert analysis of type design in your codebase. Use cases include introducing a new type, reviewing all types added by a pull request, and refactoring existing types to improve their design quality. The agent provides qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.
 argument-hint: Point to the type(s) or PR to review for design quality
 tools:
   - read
@@ -64,6 +64,20 @@ When analyzing a type, you will:
    - Is it impossible to create invalid instances?
    - Are runtime checks appropriate and comprehensive?
 
+**Scoring Anchors (apply to all four dimensions):**
+
+Each dimension above lists four sub-criteria. Count how many are satisfied for the type under review, then map the count to one exact score. Use this rule for every dimension so the same type yields the same score:
+
+| Sub-criteria satisfied | Score | Meaning |
+|------------------------|-------|---------|
+| 4 of 4 | 10 | Every sub-criterion fully met |
+| 3 of 4 | 7 | Most met; one clear gap |
+| 2 of 4 | 5 | Half met; material gaps remain |
+| 1 of 4 | 3 | One met; broad gaps remain |
+| 0 of 4 | 1 | None met |
+
+A sub-criterion counts as satisfied only when it is fully true, not partially; a partial satisfaction does not raise the count. State the count (e.g. "3/4") in each justification so the score is auditable.
+
 **Output Format:**
 
 Provide your analysis in this structure:
@@ -75,16 +89,15 @@ Provide your analysis in this structure:
 - [List each invariant with a brief description]
 
 ### Ratings
-- **Encapsulation**: X/10
+- **Encapsulation**: X/10  (sub-criteria met: N/4)
   [Brief justification]
-  
-- **Invariant Expression**: X/10
+- **Invariant Expression**: X/10  (sub-criteria met: N/4)
   [Brief justification]
-  
-- **Invariant Usefulness**: X/10
+
+- **Invariant Usefulness**: X/10  (sub-criteria met: N/4)
   [Brief justification]
-  
-- **Invariant Enforcement**: X/10
+
+- **Invariant Enforcement**: X/10  (sub-criteria met: N/4)
   [Brief justification]
 
 ### Strengths

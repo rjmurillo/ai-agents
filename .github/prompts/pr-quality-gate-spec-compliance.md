@@ -48,7 +48,7 @@ This axis always runs first. Its outcome depends on whether a spec is linked:
 - WHEN no spec or acceptance criteria can be located, emit `UNKNOWN` (INCONCLUSIVE, not PASS). You cannot certify compliance against a spec that does not exist. Say so plainly and name where you looked. Do not invent acceptance criteria to grade against.
 - WHEN a spec is linked, evaluate the diff against each acceptance criterion and emit PASS, WARN, or CRITICAL_FAIL per the rules below.
 
-`UNKNOWN` (INCONCLUSIVE) is not a failure of the PR; it is the absence of evidence to certify it. The repo-owner batch decision on issue #1905 routes `UNKNOWN` through the same gate as `CRITICAL_FAIL`: Stage 2 does not run, and the reviewer is told a spec link is missing. The fix is to link the spec, then re-run `/review`.
+`UNKNOWN` (INCONCLUSIVE) is not a failure of the PR; it is the absence of evidence to certify it. `/review` preserves `UNKNOWN` as a Stage-1 verdict, continues to Stage 2, and then lets `merge_verdicts` combine it with the Stage-2 results. The reviewer is told no spec or acceptance criteria could be located, and real Stage-2 findings still surface. The fix is to link the spec or state acceptance criteria, then re-run `/review`.
 
 ## Reference Material
 
@@ -131,7 +131,7 @@ VERDICT: [PASS|WARN|CRITICAL_FAIL|UNKNOWN]
 MESSAGE: [Brief explanation. For INCONCLUSIVE, say UNKNOWN and name what was missing.]
 ```
 
-Note on INCONCLUSIVE: emit the parseable token `UNKNOWN` on the `VERDICT:` line, and write "INCONCLUSIVE" in the human-readable message. `/review` parses `UNKNOWN` via `extract_verdict` in `.claude/lib/ai_review_common/verdict.py`; the merge rules treat it as a non-PASS gate so Stage 2 is skipped. The shared verdict vocabulary has no separate `INCONCLUSIVE` token; reusing `UNKNOWN` keeps this axis from forking the merge module.
+Note on INCONCLUSIVE: emit the parseable token `UNKNOWN` on the `VERDICT:` line, and write "INCONCLUSIVE" in the human-readable message. The review orchestrator parses `UNKNOWN` via `extract_verdict` from the canonical verdict implementation at `scripts/ai_review_common/verdict.py` (vendored into plugin libraries); Stage 2 still runs, and the merge rules preserve UNKNOWN only when no WARN or failure verdict exists. The shared verdict vocabulary has no separate `INCONCLUSIVE` token; reusing `UNKNOWN` keeps this axis from forking the merge module.
 
 ## Critical Failure Triggers
 
