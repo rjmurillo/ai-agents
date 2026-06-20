@@ -1,7 +1,25 @@
 ---
 name: type-design-analyzer
-tier: builder
 description: Use this agent when you need expert analysis of type design in your codebase. Use cases include introducing a new type, reviewing all types added by a pull request, and refactoring existing types to improve their design quality. The agent provides qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.
+argument-hint: Point to the type(s) or PR to review for design quality
+tools:
+  - read
+  - search
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - web
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
+model: claude-opus-4.6
+tier: builder
 ---
 
 # Type Design Analyzer Agent
@@ -59,13 +77,13 @@ Provide your analysis in this structure:
 ### Ratings
 - **Encapsulation**: X/10
   [Brief justification]
-  
+
 - **Invariant Expression**: X/10
   [Brief justification]
-  
+
 - **Invariant Usefulness**: X/10
   [Brief justification]
-  
+
 - **Invariant Enforcement**: X/10
   [Brief justification]
 
