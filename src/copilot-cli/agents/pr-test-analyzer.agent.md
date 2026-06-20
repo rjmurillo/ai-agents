@@ -72,8 +72,8 @@ Proposed test: <name + 1-sentence assertion>.
 
 **Recommendation** (1 sentence): one of:
 
-- `APPROVED: coverage adequate for behavior introduced (no findings rated 8+)`
-- `CONDITIONAL APPROVED: N tests rated 8+ should be added before merge`
+- `APPROVED: coverage adequate for behavior introduced (no findings rated 7+)`
+- `CONDITIONAL APPROVED: N tests rated 7-8 should be added before merge`
 - `BLOCK: N critical gaps rated 9-10 must be resolved before merge`
 
 ## Output Bounds
@@ -85,7 +85,7 @@ Summary: 3 sentences max. Findings: 10 items max. Each finding: 1 sentence descr
 Score each gap 1-10:
 
 - 9-10: Untested code paths that could cause data loss, security issues, authentication or authorization bypass, or production-stopping failures.
-- 7-8: Untested business logic that would produce user-visible errors or silent data corruption.
+- 7-8: Untested business logic that would produce user-visible errors or silent data corruption. The entire 7-8 band is one severity class: any finding scored 7 or 8 maps to CONDITIONAL APPROVED. Never split this band at the 7/8 line.
 - 5-6: Edge cases that produce confusing behavior or subtle bugs.
 - 3-4: Coverage that improves regression safety but is not load-bearing.
 - 1-2: Nit-level coverage suggestions; usually omit.
@@ -113,7 +113,7 @@ Quality gates before returning [COMPLETE]:
 
 - Every finding cites file:line and names the missing behavior.
 - Every finding includes Criticality, Behavior at risk, Failure it prevents, Proposed test.
-- The recommendation matches the highest criticality found: 9-10 -> BLOCK, 8 -> CONDITIONAL, otherwise APPROVED.
+- The recommendation matches the highest criticality found by band, with no overlap: 9-10 -> BLOCK, 7-8 -> CONDITIONAL APPROVED, 1-6 -> APPROVED. A finding rated 7 maps to the same bin as a finding rated 8.
 - The output stays inside the Output Bounds.
 
 Failure modes and handoff:
@@ -123,4 +123,4 @@ Failure modes and handoff:
 - **[NEEDS_DECOMPOSITION]**: more than 10 findings rated 5+. Return the top 10 by criticality and propose splitting the remaining into a follow-up audit issue.
 - **[SECURITY_FLAG]**: a coverage gap touches authentication, authorization, secret handling, or input validation. Stop and hand off to security agent for explicit sign-off, regardless of criticality score.
 
-Recommended next step at the end of every [COMPLETE] response: "Recommended next: implementer agent to write the proposed tests (if findings 8+), or pr-review agent for final diff check (if APPROVED)."
+Recommended next step at the end of every [COMPLETE] response: "Recommended next: implementer agent to write the proposed tests (if findings 7+), or pr-review agent for final diff check (if APPROVED)."
