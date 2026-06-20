@@ -283,10 +283,12 @@ echo "exit=$?"   # must be 0; exit 10 means missing required sections (inventory
 - [ ] `pre-mortem.py` exited 0 (exit 10 = validation failed; exit 1 = invalid arguments; non-zero = blocked)
 - [ ] All 5 phases completed (Brief, Failure Announcement, Analysis, Collection, Mitigation)
 - [ ] Risk inventory generated with risk scores (Likelihood x Impact)
-- [ ] All Critical/High risks have mitigation strategies
+- [ ] All Critical/High risks have mitigation strategies, each with the full Prevention/Detection/Response triad (a prevention-only mitigation FAILS the gate and must be completed)
 - [ ] Each mitigation has Prevention, Detection, and Response
 - [ ] Action items assigned with owners and due dates
 - [ ] Review schedule established
+
+> **Gate rule:** `pre-mortem.py` exit 0 is necessary but not sufficient. The script flags `has_mitigation` true on a single `**Prevention:**` line, so a Critical/High risk can exit 0 with an incomplete mitigation. The gate still fails: every Critical/High mitigation MUST carry Prevention, Detection, and Response. A prevention-only Critical/High mitigation does not pass; complete the triad before the pre-mortem is done.
 
 ## Facilitation Tips
 
