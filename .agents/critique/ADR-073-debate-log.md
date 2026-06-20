@@ -118,3 +118,26 @@ P2 items (re-prioritize #2583; template completion criteria) are documented, non
 
 - high-level-advisor: still regards Phases 2 to 4 as discretionary; commits because the decision now explicitly defers them and makes the resting state Phase 1.
 - security: commits on the condition that the Phase 3 gate, when built, implements the `accepted`-binding and `explainer` no-fetch rules; if those are dropped at implementation time, the gate is security theater.
+
+---
+
+## Post-Acceptance Metadata Alignment Review (2026-06-20)
+
+PR #2692 updates ADR-073 metadata after shipping the Phase 1 implementation for
+#2583:
+
+- `implemented: false` to `implemented: true`
+- `## Date` from `2026-06-13` to `2026-06-19`
+
+Six reviewer positions:
+
+| Agent | Verdict | Rationale |
+|---|---|---|
+| architect | ACCEPT | Phase 1 ships in PR #2692; frontmatter and prose now agree. |
+| critic | ACCEPT | Metadata consistency fix; no decision, driver, or consequence change. |
+| independent-thinker | ACCEPT | Factually accurate post-implementation metadata update. |
+| security | ACCEPT | Non-executable metadata; no security attack surface. |
+| analyst | ACCEPT | Internal consistency restored; no semantic ADR change. |
+| high-level-advisor | ACCEPT | Minimal, reversible housekeeping update. |
+
+**Verdict: ACCEPT.** No P0 or P1 blockers.

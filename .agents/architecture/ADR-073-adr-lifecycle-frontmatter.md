@@ -6,7 +6,7 @@ decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-073: Machine-Readable ADR Lifecycle Frontmatter
@@ -21,7 +21,7 @@ Accepted 2026-06-19 by repo-owner authorization (rjmurillo), bound to the 6-agen
 
 ## Date
 
-2026-06-13
+2026-06-19
 
 ## Context
 

@@ -4,7 +4,7 @@
     "number": 2595,
     "date": "2026-06-20",
     "branch": "feat/adr-approvals-2583-2615",
-    "startingCommit": "042a217de",
+    "startingCommit": "64cb73edba",
     "objective": "Open-issue triage sweep: accept ADR-073 and ADR-076 (owner-authorized), ship #2583 frontmatter tooling and #2615 pr-autofix lease"
   },
   "protocolCompliance": {
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "042a217de"
+        "Evidence": "64cb73edba"
       }
     },
     "sessionEnd": {
@@ -143,7 +143,7 @@
       "outcome": "Episode metrics.commits now matches the three commit events in the extracted episode."
     }
   ],
-  "endingCommit": "680cd81d4",
+  "endingCommit": "48a1a8ed2",
   "nextSteps": [
     "Run /review and merge PRs #2683, #2685, and this ADR-approvals PR.",
     "Close #2686 (ADR-074 collision resolved).",
