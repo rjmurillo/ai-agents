@@ -70,9 +70,9 @@ Both sides change the same logic differently.
 
 **Resolution Priority:**
 
-1. Bugfix over feature
-2. More recent over older (if both are features)
-3. Better tested over untested
+1. Higher-priority intent wins: Security > Bugfix > Feature/Refactor > Style.
+2. Preserve Security over every lower-priority change; reapply the lower-priority change around it.
+3. For same-tier conflicts, prefer better-tested, then more recent.
 
 ```bash
 # Check test coverage for each version

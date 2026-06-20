@@ -95,7 +95,7 @@ Classify each side's changes to determine resolution priority.
 | Refactor | "refactor", "cleanup", "rename"; no behavior change | Medium (3) |
 | Style | "style", "format", "lint"; whitespace only | Lowest (4) |
 
-Priority is a strict total order: Security (1) > Bugfix (2) > Feature/Refactor (3) > Style (4). Intent priority is the PRIMARY sort key when two sides conflict. A Security change is NEVER dropped: if it cannot be cleanly combined with the other side, Security wins and the lower-priority change is reapplied around it. Recency and test coverage are tiebreakers ONLY between two changes in the same priority tier; they never let a lower-tier change beat a higher-tier one.
+Priority is a strict priority hierarchy: Security (1) > Bugfix (2) > Feature/Refactor (3) > Style (4). Intent priority is the PRIMARY sort key when two sides conflict. A Security change is NEVER dropped: if it cannot be cleanly combined with the other side, Security wins and the lower-priority change is reapplied around it. Recency and test coverage are tiebreakers ONLY between two changes in the same priority tier; they never let a lower-tier change beat a higher-tier one.
 
 ## Decision Framework
 
@@ -104,9 +104,9 @@ Priority is a strict total order: Security (1) > Bugfix (2) > Feature/Refactor (
 | Same intent, compatible changes | Merge both |
 | Bugfix vs feature | Bugfix wins; integrate feature around it |
 | Security vs anything else | Security wins and is preserved; reapply the other change around the security fix (never drop the security change) |
-| Same-tier conflict (e.g. Security vs Security, Bugfix vs Bugfix) | Combine if possible; else break the tie by better-tested, then more recent |
-| Conflicting logic, same tier | Tiebreak by better-tested, then more recent (recency only when both sides are the same priority tier) |
-| Style conflicts | Accept either; prefer consistency with surrounding code |
+| Higher-priority vs lower-priority tier (e.g. Bugfix vs Refactor) | Higher-priority wins; integrate the lower-priority change around it |
+| Same-tier conflict / Conflicting logic | Combine if possible; else break the tie by better-tested, then more recent |
+| Style vs Style conflicts | Accept either; prefer consistency with surrounding code |
 | Deletions vs modifications | Investigate why; deletion usually intentional |
 
 ## Session File Rules
