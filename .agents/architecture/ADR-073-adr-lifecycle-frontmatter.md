@@ -1,12 +1,23 @@
+---
+id: ADR-073
+status: accepted
+date: 2026-06-19
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-073: Machine-Readable ADR Lifecycle Frontmatter
 
 ## Status
 
-Proposed (revised after adr-review). Requested by issue #2583 (labels `agent-architect`, `agent-explainer`, `area-skills`, `priority:P1`, `adr-followup`).
+Accepted (2026-06-19). Requested by issue #2583 (labels `agent-architect`, `agent-explainer`, `area-skills`, `priority:P1`, `adr-followup`).
 
 A 6-agent adr-review debate ran on the first draft (architect, critic, independent-thinker, security, analyst, high-level-advisor; debate log at `.agents/critique/ADR-073-debate-log.md`). Consensus: DISAGREE-AND-COMMIT, no substantive blocks. This revision incorporates the P1 findings: scope is now committed only to Phase 1 (optional, unenforced fields) with backfill and the enum gate deferred and consumer-gated; `status: accepted` is bound to adr-review evidence; `explainer` is display-only and no-auto-fetch; the `yq` example was replaced with the repo's `python-frontmatter`; backfill is acknowledged as non-mechanical (triage for ADR-072, ADR-055); and the `implemented` precedent is cited precisely (adr-best-practices.md line 42).
 
-This ADR proposes a repo-wide change to how ADR state is recorded and MUST clear human approval before its status moves to `Accepted`. No tooling changes ship on this ADR alone.
+Accepted 2026-06-19 by repo-owner authorization (rjmurillo), bound to the 6-agent adr-review consensus evidence at `.agents/critique/ADR-073-debate-log.md` (DISAGREE-AND-COMMIT, no substantive blocks) per the Phase-3 acceptance gate. Phase-1 tooling (optional, unenforced lifecycle frontmatter) ships with this acceptance under #2583.
 
 ## Date
 

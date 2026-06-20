@@ -1,0 +1,51 @@
+{
+  "id": "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073",
+  "session": "2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073",
+  "timestamp": "2026-06-20T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Open-issue triage sweep: accept ADR-073 and ADR-076 (owner-authorized), ship #2583 frontmatter tooling and #2615 pr-autofix lease",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Triage 24+ open issues; fix 11 across PRs #2683/#2685; close 11 with justification; file 4 new issues.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Accept ADR-073 (owner-authorized) and ship #2583 lifecycle-frontmatter tooling.",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Resolve ADR-074 collision (#2686): renumber lease draft to ADR-076; run 6-agent debate (6 APPROVE-WITH-CHANGES, 0 BLOCK); apply must_fix; accept ADR-076; implement #2615 lease Phase-1 (80 tests, 97% cov).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0a56b9ee74",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 1,
+    "files_changed": 6
+  },
+  "lessons": []
+}
