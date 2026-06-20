@@ -107,7 +107,7 @@ class _FakeOpenAI:
 @pytest.fixture()
 def fake_openai(monkeypatch: pytest.MonkeyPatch) -> type[_FakeOpenAI]:
     module = types.ModuleType("openai")
-    module.OpenAI = _FakeOpenAI  # type: ignore[attr-defined]
+    module.__dict__["OpenAI"] = _FakeOpenAI
     monkeypatch.setitem(sys.modules, "openai", module)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     return _FakeOpenAI
