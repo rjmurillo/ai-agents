@@ -99,7 +99,7 @@
       "validationPassed": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Lease 80 tests pass, 97% coverage; adr skill_frontmatter PASS; 0 em/en dashes; ruff clean across changed .py."
+        "Evidence": "uv run pytest tests/validation tests/test_pr_autofix_lease.py tests/build_scripts: 165 passed; ruff clean; portability baseline 170."
       },
       "tasksUpdated": {
         "level": "SHOULD",
@@ -125,6 +125,10 @@
     {
       "task": "Resolve ADR-074 collision (#2686): renumber lease draft to ADR-076; run 6-agent debate (6 APPROVE-WITH-CHANGES, 0 BLOCK); apply must_fix; accept ADR-076; implement #2615 lease Phase-1 (80 tests, 97% cov).",
       "outcome": "done"
+    },
+    {
+      "task": "uv run pytest on portability/lease/catalog suites",
+      "outcome": "165 passed"
     }
   ],
   "endingCommit": "0a56b9ee74",

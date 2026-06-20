@@ -37,6 +37,22 @@
       "content": "Commit: 0a56b9ee74",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "uv run pytest on portability/lease/catalog suites",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "test",
+      "content": "165 passed",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
