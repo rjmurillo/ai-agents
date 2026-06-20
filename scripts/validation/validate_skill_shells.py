@@ -12,8 +12,9 @@ shell lingers and miscounts skill-count and portability scans.
 
 What counts as a shell (the failure condition):
   A directory directly under a skills root that has at least one GIT-TRACKED
-  file outside ``__pycache__`` but has NO ``SKILL.md`` (neither tracked nor on
-  disk).
+  file outside ``__pycache__`` but has no git-tracked ``SKILL.md``. An
+  untracked manifest on disk does not count because CI and clean clones cannot
+  see it.
 
 Why "git-tracked, non-__pycache__":
   The three dirs named in issue #2677 (session-migration, session-qa-eligibility,
@@ -30,7 +31,7 @@ Skills roots scanned (when present):
   * ``src/copilot-cli/skills/``
 
 Exit codes (ADR-035):
-  0 - no shells found (or no skills root present)
+  0 - skills root found and no shells found
   1 - one or more skill shells found
   2 - configuration error (repo root not found / git unavailable)
 """

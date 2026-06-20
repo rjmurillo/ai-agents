@@ -964,6 +964,7 @@ class TestSingleWordSkillRefs:
         write(target, "Run the `review` skill before shipping.\n")
         result = scan([target], repo)
         assert [f for f in result.findings if f.kind == "skill_name"] == []
+        assert result.refs_checked == 1
         assert result.verdict == "PASS"
 
     def test_hyphenated_behavior_unchanged(self, fake_repo):

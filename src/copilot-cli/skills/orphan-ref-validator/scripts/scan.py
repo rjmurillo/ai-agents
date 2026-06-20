@@ -209,7 +209,10 @@ def _check_skill_refs(
             _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
         )
     for lineno, ref in extract_single_word_skill_refs(text):
-        if ref in known_skills or not _is_known_single_word_skill(ref):
+        if ref in known_skills:
+            refs_checked += 1
+            continue
+        if not _is_known_single_word_skill(ref):
             continue
         refs_checked += 1
         findings.append(

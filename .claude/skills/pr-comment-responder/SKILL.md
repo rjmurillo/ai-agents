@@ -224,7 +224,8 @@ it and how to act on the report.
 Invoke:
 
 ```bash
-SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/pr-comment-responder/scripts"
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-${GITHUB_WORKSPACE:-.}/.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/pr-comment-responder/scripts"
 
 # --owner and --repo are optional; inferred from git when omitted.
 uv run python "$SCRIPTS_DIR/cluster_threads.py" --pull-request "$PR_NUMBER"
