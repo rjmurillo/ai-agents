@@ -4,7 +4,7 @@
     "number": 2595,
     "date": "2026-06-20",
     "branch": "feat/adr-approvals-2583-2615",
-    "startingCommit": "0a56b9ee74",
+    "startingCommit": "042a217de",
     "objective": "Open-issue triage sweep: accept ADR-073 and ADR-076 (owner-authorized), ship #2583 frontmatter tooling and #2615 pr-autofix lease"
   },
   "protocolCompliance": {
@@ -67,7 +67,7 @@
       "startingCommitNoted": {
         "level": "SHOULD",
         "Complete": true,
-        "Evidence": "0a56b9ee74"
+        "Evidence": "042a217de"
       }
     },
     "sessionEnd": {
@@ -94,7 +94,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits f93d96d64f and 0a56b9ee74 landed; ADR commits follow in this batch."
+        "Evidence": "Commits 914440a98 and 042a217de landed; ADR acceptance and implementation commits are present on this branch."
       },
       "validationPassed": {
         "level": "MUST",
