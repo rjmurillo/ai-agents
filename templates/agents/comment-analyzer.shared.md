@@ -1,7 +1,7 @@
 ---
 tier: integration
 model_tier: sonnet
-description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. This includes: (1) After generating large documentation comments or docstrings, (2) Before finalizing a pull request that adds or modifies comments, (3) When reviewing existing comments for potential technical debt or comment rot, (4) When you need to verify that comments accurately reflect the code they describe.
+description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. Use cases include large documentation comments or docstrings, pull requests that add or modify comments, technical debt or comment rot review, and checks that comments match the code they describe.
 argument-hint: Point to the comments or PR to review for accuracy
 tools_vscode:
   - vscode
@@ -30,7 +30,7 @@ Before flagging any comment, work through three questions in order:
 2. Is the claim accurate per the current code? (Read the code at the cited location, not the surrounding context, not the docstring elsewhere.)
 3. Would a reader be misled by it? (Outdated parameter names, wrong return semantics, stale TODOs, references to removed functions.)
 
-Apply the questions in order. A comment that fails question 1 is a remove candidate before you even check accuracy. A comment that passes 1 and fails 2 is a fix candidate. A comment that passes 1 and 2 but fails 3 needs the misleading element removed.
+Apply the questions in order, but perform a minimal accuracy check before finalizing Remove. A comment that fails question 1 and still matches the current code is Remove. A comment that mismatches current code is Update per the precedence order, even if it also restates the code. A comment that passes 1 and 2 but fails 3 needs the misleading element removed.
 
 ## Tool Use Directive
 
@@ -57,8 +57,6 @@ A comment can match more than one bucket. Assign exactly one, using this ranked 
 1. **Update** wins first. Any comment that mismatches the current code at its cited file:line is **Update**, even if it also restates the code or could otherwise be removed. A wrong comment must be fixed or explicitly removed by the implementer; never silently classify a mismatch as Remove.
 2. **Remove** wins next. A comment that passes accuracy (no mismatch) but adds no information beyond the code is **Remove**.
 3. **Preserve** is the default. Use it only when the comment is accurate and carries information the code cannot.
-
-Tiebreak when two buckets still apply after the order above (should not occur if applied correctly): pick the bucket listed earliest (Update before Remove before Preserve). State the chosen bucket and, in one clause, why the lower-ranked bucket was not used.
 
 ## Output Shape
 

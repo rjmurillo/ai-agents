@@ -1,6 +1,6 @@
 ---
 name: type-design-analyzer
-description: Use this agent when you need expert analysis of type design in your codebase. Specifically use it: (1) when introducing a new type to ensure it follows best practices for encapsulation and invariant expression, (2) during pull request creation to review all types being added, (3) when refactoring existing types to improve their design quality. The agent will provide both qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.
+description: Use this agent when you need expert analysis of type design in your codebase. Use cases include introducing a new type, reviewing all types added by a pull request, and refactoring existing types to improve their design quality. The agent provides qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.
 model: opus
 metadata:
   tier: builder
@@ -51,16 +51,17 @@ When analyzing a type, you will:
 
 **Scoring Anchors (apply to all four dimensions):**
 
-Each dimension above lists four sub-criteria. Count how many are satisfied for the type under review, then map the count to a score band. Use this rule for every dimension so the same type yields the same score:
+Each dimension above lists four sub-criteria. Count how many are satisfied for the type under review, then map the count to one exact score. Use this rule for every dimension so the same type yields the same score:
 
-| Sub-criteria satisfied | Score band | Meaning |
-|------------------------|-----------|---------|
-| All 4 | 9-10 | Every sub-criterion fully met |
-| 3 of 4 | 6-8 | Most met; one clear gap |
-| 1-2 of 4 | 3-5 | Some met; significant gaps |
-| 0 of 4 | 1-2 | None met |
+| Sub-criteria satisfied | Score | Meaning |
+|------------------------|-------|---------|
+| 4 of 4 | 10 | Every sub-criterion fully met |
+| 3 of 4 | 7 | Most met; one clear gap |
+| 2 of 4 | 5 | Half met; material gaps remain |
+| 1 of 4 | 3 | One met; broad gaps remain |
+| 0 of 4 | 1 | None met |
 
-Within a band, pick the lower number when the satisfied sub-criteria are weak or partial, the higher number when they are strong and unambiguous. A sub-criterion counts as satisfied only when it is fully true, not partially; a partial satisfaction does not raise the count. State the count (e.g. "3/4") in each justification so the score is auditable.
+A sub-criterion counts as satisfied only when it is fully true, not partially; a partial satisfaction does not raise the count. State the count (e.g. "3/4") in each justification so the score is auditable.
 
 **Output Format:**
 
@@ -75,13 +76,13 @@ Provide your analysis in this structure:
 ### Ratings
 - **Encapsulation**: X/10  (sub-criteria met: N/4)
   [Brief justification]
-  
+
 - **Invariant Expression**: X/10  (sub-criteria met: N/4)
   [Brief justification]
-  
+
 - **Invariant Usefulness**: X/10  (sub-criteria met: N/4)
   [Brief justification]
-  
+
 - **Invariant Enforcement**: X/10  (sub-criteria met: N/4)
   [Brief justification]
 
