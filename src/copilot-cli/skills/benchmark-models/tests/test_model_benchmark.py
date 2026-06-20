@@ -134,11 +134,11 @@ class TestResolvePrompt:
         assert mb.resolve_prompt(str(f), None) == "from file"
 
     def test_installed_skill_file_is_allowed(self, tmp_path, monkeypatch):
-        skills = tmp_path / ".claude" / "skills" / "demo"
+        skills = tmp_path / "installed-skills" / "demo"
         skills.mkdir(parents=True)
         skill = skills / "SKILL.md"
         skill.write_text("skill prompt", encoding="utf-8")
-        monkeypatch.setattr(mb.Path, "home", staticmethod(lambda: tmp_path))
+        monkeypatch.setenv(mb.DEFAULT_SKILL_ROOT_ENV, str(tmp_path / "installed-skills"))
         monkeypatch.setattr(mb, "_repo_root", lambda: None)
         assert mb.resolve_prompt(str(skill), None) == "skill prompt"
 

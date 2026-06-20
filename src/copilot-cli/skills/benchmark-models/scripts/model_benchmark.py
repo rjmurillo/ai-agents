@@ -55,6 +55,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 VALID_PROVIDERS = ("claude", "gpt", "gemini")
+DEFAULT_SKILL_ROOT_ENV = "MODEL_BENCHMARK_SKILL_ROOTS"
 
 # --------------------------------------------------------------------------- #
 # Pricing (USD per million tokens). Update from provider pricing pages:
@@ -588,8 +589,7 @@ def _allowed_prompt_roots() -> list[Path]:
     if repo_root:
         roots.append(repo_root)
     roots.append(Path.cwd().resolve())
-    home = Path.home()
-    roots.extend([home / ".claude" / "skills", home / ".copilot" / "skills"])
+    roots.extend(_configured_skill_roots())
     existing: list[Path] = []
     for root in roots:
         try:
@@ -599,6 +599,11 @@ def _allowed_prompt_roots() -> list[Path]:
         if resolved not in existing:
             existing.append(resolved)
     return existing
+
+
+def _configured_skill_roots() -> list[Path]:
+    raw = os.environ.get(DEFAULT_SKILL_ROOT_ENV, "")
+    return [Path(item) for item in raw.split(os.pathsep) if item]
 
 
 def _is_allowed_prompt_file(path: Path) -> bool:
