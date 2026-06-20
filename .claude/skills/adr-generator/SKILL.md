@@ -138,6 +138,7 @@ Populate the detected template with gathered content:
 
 **Lifecycle frontmatter (ADR-073, Phase 1)**: when the destination uses this
 repo's canonical template (`.agents/architecture/ADR-TEMPLATE.md`), emit the
+<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .agents/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Issue #2050. -->
 machine-readable YAML frontmatter block above the `# ADR-NNN:` heading with
 these safe defaults:
 
