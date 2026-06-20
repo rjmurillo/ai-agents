@@ -135,7 +135,7 @@
       "outcome": "Lease comment parsing handles gh paginate concatenated arrays, null payloads, and malformed non-list JSON; debate log literal newline escapes replaced with real paragraph breaks."
     }
   ],
-  "endingCommit": "PENDING",
+  "endingCommit": "545069640",
   "nextSteps": [
     "Run /review and merge PRs #2683, #2685, and this ADR-approvals PR.",
     "Close #2686 (ADR-074 collision resolved).",
