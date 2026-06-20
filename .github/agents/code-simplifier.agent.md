@@ -6,7 +6,7 @@ description: Use this agent when code has been written or modified and needs to 
 
 # Code Simplifier Agent
 
-> **Complementary Role**: Core code-writing standards (clarity over brevity, no nested ternaries, comment hygiene, ES module patterns, React props types) are now in CLAUDE.md and the implementer agent. Implementers apply these standards during initial writing. This agent complements that by handling post-hoc refinement: balance judgments, language-specific polish, and final quality assessment that requires seeing complete code.
+> **Complementary Role**: Core code-writing standards are embedded here: clarity over brevity, no nested ternaries, comment hygiene, language-appropriate module patterns, and explicit public-boundary types. Implementers apply these standards during initial writing. This agent complements that by handling post-hoc refinement: balance judgments, language-specific polish, and final quality assessment that requires seeing complete code.
 
 You simplify recently modified code without changing what it does. You produce either a rewrite diff or a list of refactors, never a vague suggestion.
 
@@ -70,7 +70,7 @@ Prefer the simpler equivalent in every choice:
 - Prefer one return per branch over a mutable accumulator.
 - Prefer a table lookup over a long if/elif chain when the cases differ only in data.
 - Prefer the explicit type annotation on every public boundary.
-- Prefer ES modules with explicit import extensions and the `function` keyword for top-level functions (per CLAUDE.md).
+- Prefer ES modules with explicit import extensions and the `function` keyword for top-level functions when the language uses JavaScript or TypeScript.
 
 ## Functionality Preservation
 
@@ -92,8 +92,8 @@ Skip a refactor if:
 
 Ask first if:
 
-- Project-specific conventions in CLAUDE.md conflict with a stylistic positive above.
-- A refactor crosses an architectural boundary defined in `.agents/architecture/ADR-*.md`.
+- Project-specific conventions in the current repository conflict with a stylistic positive above.
+- A refactor crosses a documented architectural boundary or another agent's ownership boundary.
 
 ## Agent Contract (delegation, gates, handoff)
 

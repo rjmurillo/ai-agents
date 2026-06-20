@@ -3,12 +3,15 @@ tier: builder
 description: Use this agent when you need expert analysis of type design in your codebase. Specifically use it: (1) when introducing a new type to ensure it follows best practices for encapsulation and invariant expression, (2) during pull request creation to review all types being added, (3) when refactoring existing types to improve their design quality. The agent will provide both qualitative feedback and quantitative ratings on encapsulation, invariant expression, usefulness, and enforcement.
 argument-hint: Point to the type(s) or PR to review for design quality
 tools_vscode:
-  - $toolset:editor
+  - vscode
+  - read
+  - search
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge
 tools_copilot:
-  - $toolset:editor
+  - read
+  - search
   - $toolset:github-research
   - $toolset:research
   - $toolset:knowledge
@@ -119,4 +122,4 @@ Always consider:
 - Performance implications of additional validation
 - The balance between safety and usability
 
-Think deeply about each type's role in the larger system. Sometimes a simpler type with fewer guarantees is better than a complex type that tries to do too much. Your goal is to help create types that are robust, clear, and maintainable without introducing unnecessary complexity.
+Think deeply about each type's role in the larger system. Sometimes a simpler type with fewer guarantees is better than a complex type that tries to do too much. Your goal is to help create types that are safe, clear, and maintainable without introducing unnecessary complexity.

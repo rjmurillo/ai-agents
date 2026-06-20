@@ -59,7 +59,7 @@ Classify every comment into one of three buckets. State the bucket in the findin
 
 Emit three sections in this exact order. No preamble.
 
-**Summary** (3 sentences max): Total comments analyzed, count per bucket, the single most significant finding.
+**Summary** (3 sentences max): Total comments analyzed, count per bucket, the highest-impact finding.
 
 **Findings** (10 items max, one per finding, format below):
 

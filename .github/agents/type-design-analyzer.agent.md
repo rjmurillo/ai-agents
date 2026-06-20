@@ -109,4 +109,4 @@ Always consider:
 - Performance implications of additional validation
 - The balance between safety and usability
 
-Think deeply about each type's role in the larger system. Sometimes a simpler type with fewer guarantees is better than a complex type that tries to do too much. Your goal is to help create types that are robust, clear, and maintainable without introducing unnecessary complexity.
+Think deeply about each type's role in the larger system. Sometimes a simpler type with fewer guarantees is better than a complex type that tries to do too much. Your goal is to help create types that are safe, clear, and maintainable without introducing unnecessary complexity.

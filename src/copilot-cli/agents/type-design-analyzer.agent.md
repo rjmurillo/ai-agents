@@ -4,7 +4,6 @@ description: 'Use this agent when you need expert analysis of type design in you
 argument-hint: Point to the type(s) or PR to review for design quality
 tools:
   - read
-  - edit
   - search
   - github/search_code
   - github/search_issues
@@ -128,4 +127,4 @@ Always consider:
 - Performance implications of additional validation
 - The balance between safety and usability
 
-Think deeply about each type's role in the larger system. Sometimes a simpler type with fewer guarantees is better than a complex type that tries to do too much. Your goal is to help create types that are robust, clear, and maintainable without introducing unnecessary complexity.
+Think deeply about each type's role in the larger system. Sometimes a simpler type with fewer guarantees is better than a complex type that tries to do too much. Your goal is to help create types that are safe, clear, and maintainable without introducing unnecessary complexity.

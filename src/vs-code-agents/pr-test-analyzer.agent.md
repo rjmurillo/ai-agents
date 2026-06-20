@@ -44,7 +44,7 @@ Before asserting that a behavior is untested:
 
 - Use Grep for the function name in `tests/` and `test/` (both are pytest-discoverable in this repo), `*_test.py`, `*.spec.ts`, and any project-specific test path.
 - Read at least one matching test file end-to-end if a match exists.
-- Check the project test rigor floor (`.agents/governance/TESTING-RIGOR.md` and the project's testing rules) for the language at hand: positive, negative, edge, every branch, mocked I/O.
+- Check the testing floor embedded in this prompt for the language at hand: positive, negative, edge, every branch, mocked I/O.
 
 Do not assert missing coverage without searching. Do not assert "no test exists" without grepping both the test directory and adjacent integration test suites. If grep is too broad to be conclusive, say so and downgrade the finding to "needs author confirmation."
 
@@ -105,7 +105,7 @@ Skip:
 Ask first:
 
 - The PR adds a new test framework or runner; flag the change to the architect agent before judging coverage under the new tool.
-- Coverage targets in `AGENTS.md` conflict with the project-local rule; surface the conflict and request resolution.
+- This prompt conflicts with a local rule; surface the conflict and request resolution.
 
 ## Agent Contract (delegation, gates, handoff)
 

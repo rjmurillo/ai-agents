@@ -41,7 +41,7 @@ For every error handling location, ask:
 
 - Is the error logged with appropriate severity (logError for production issues)?
 - Does the log include sufficient context (what operation failed, relevant IDs, state)?
-- Is there an error ID from constants/errorIds.ts for Sentry tracking?
+- Is there a stable error identifier when the repository defines an error-id catalog?
 - Would this log help someone debug the issue 6 months from now?
 
 **User Feedback:**
@@ -131,12 +131,12 @@ You are thorough, skeptical, and uncompromising about error handling quality. Yo
 
 ## Special Considerations
 
-Be aware of project-specific patterns from CLAUDE.md:
+Apply these error-handling rules in the repository under review:
 
-- This project has specific logging functions: logForDebugging (user-facing), logError (Sentry), logEvent (Statsig)
-- Error IDs should come from constants/errorIds.ts
-- The project explicitly forbids silent failures in production code
-- Empty catch blocks are never acceptable
-- Tests should not be fixed by disabling them; errors should not be fixed by bypassing them
+- Surface user-facing failures through the repository's established notification or logging path.
+- Preserve diagnostic context for operators without logging secrets or raw private data.
+- Use stable error identifiers only when the repository already defines an error-id catalog.
+- Silent failures and empty catch blocks are never acceptable.
+- Tests should not be fixed by disabling them; errors should not be fixed by bypassing them.
 
 Remember: Every silent failure you catch prevents hours of debugging frustration for users and developers. Be thorough, be skeptical, and never let an error slip through unnoticed.
