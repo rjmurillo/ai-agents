@@ -600,9 +600,9 @@ def _exit_code_for_report(report: dict) -> int:
     ]
     if not codes:
         return 0
-    if any(code in {"auth", "rate_limit"} for code in codes):
+    if any(code in {"auth"} for code in codes):
         return 4
-    if any(code == "timeout" for code in codes):
+    if any(code in {"timeout", "rate_limit"} for code in codes):
         return 3
     return 1
 

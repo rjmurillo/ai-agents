@@ -446,6 +446,15 @@ class TestDryRunAndMain:
                             lambda *a, **k: _report([mb.Entry("claude", "claude", result=mb.RunResult(error={"code": "auth", "reason": "login"}))]))
         assert mb.main(["--prompt", "hi"]) == 4
 
+    def test_main_returns_external_for_rate_limit(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            mb, "run_benchmark",
+            lambda *a, **k: _report([
+                mb.Entry("claude", "claude", result=mb.RunResult(error={"code": "rate_limit", "reason": "429"}))
+            ]),
+        )
+        assert mb.main(["--prompt", "hi"]) == 3
+
     def test_main_returns_runtime_for_unknown_error(self, monkeypatch, capsys):
         monkeypatch.setattr(mb, "run_benchmark",
                             lambda *a, **k: _report([mb.Entry("claude", "claude", result=mb.RunResult(error={"code": "unknown", "reason": "boom"}))]))
