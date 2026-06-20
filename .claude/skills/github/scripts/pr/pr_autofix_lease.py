@@ -124,7 +124,8 @@ _workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root:
     _lib_dir = os.path.join(_plugin_root, "lib")
 elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+    _claude_dir = os.path.join(_workspace, ".claude")
+    _lib_dir = os.path.join(_claude_dir, "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
