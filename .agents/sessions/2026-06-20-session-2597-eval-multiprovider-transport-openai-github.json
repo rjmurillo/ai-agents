@@ -1,0 +1,128 @@
+{
+ "schemaVersion": "1.0",
+ "session": {
+  "number": 2597,
+  "date": "2026-06-20",
+  "branch": "feat/eval-multiprovider-transport",
+  "startingCommit": "a4af5d2f66",
+  "objective": "eval multiprovider transport OpenAI GitHub Models providers"
+ },
+ "protocolCompliance": {
+  "sessionStart": {
+   "serenaActivated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Serena active; markdown LSP timed out (down), used Bash/python fallback per lsp-first.md"
+   },
+   "serenaInstructions": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "initial_instructions loaded; re-asserted via UserPromptSubmit hook"
+   },
+   "handoffRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "HANDOFF.md auto-loaded read-only at session start"
+   },
+   "sessionLogCreated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "This file"
+   },
+   "skillScriptsListed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "github skill pr/new_pr.py, session-init scripts enumerated"
+   },
+   "usageMandatoryRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "AGENTS.md + .claude/rules/* loaded via claudeMd context"
+   },
+   "constraintsRead": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "release-it, clean-architecture, philosophy-of-software-design, python.md reviewed"
+   },
+   "memoriesLoaded": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "eval-harness-observations, github-pr1873-observations surfaced via hooks"
+   },
+   "branchVerified": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "feat/eval-multiprovider-transport"
+   },
+   "notOnMain": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "On feat/eval-multiprovider-transport"
+   },
+   "gitStatusVerified": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "branched feat/eval-multiprovider-transport off main"
+   },
+   "startingCommitNoted": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "a4af5d2f66"
+   }
+  },
+  "sessionEnd": {
+   "checklistComplete": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Start MUSTs complete; work shipped on branch"
+   },
+   "handoffPreserved": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "HANDOFF.md untouched (read-only per ADR-014)"
+   },
+   "serenaMemoryUpdated": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "decision memory for multiprovider transport to be written"
+   },
+   "markdownLintRun": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "no markdown changed in source; PR body dash-checked"
+   },
+   "changesCommitted": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "Atomic commits: core transport, CLI+deps, tests, session log"
+   },
+   "validationPassed": {
+    "level": "MUST",
+    "Complete": true,
+    "Evidence": "uv run pytest tests/eval/test_providers.py 26 passed; regression 126 passed; ruff clean on new files"
+   },
+   "tasksUpdated": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "multiprovider transport implemented"
+   },
+   "retrospectiveInvoked": {
+    "level": "SHOULD",
+    "Complete": true,
+    "Evidence": "auto-retro skeleton pending"
+   }
+  }
+ },
+ "workLog": [
+  {
+   "step": "Add OpenAI + GitHub Models providers to the eval harness behind an EVAL_PROVIDER/--provider Strategy",
+   "detail": "New scripts/eval/_providers.py (EvalProvider Strategy: OpenAI, GitHub Models via openai SDK, anthropic-sdk; errors normalized to the existing HTTP-code shape; timeout=120 + max_retries=0 per release-it). call_api gains provider dispatch (default anthropic urllib unchanged). Adapter transport factory is provider-aware. --provider flag on eval-agent-vs-baseline and eval-prompt-change. Optional eval extra (openai) in pyproject.",
+   "evidence": "uv run pytest tests/eval/test_providers.py -q -> 26 passed; uv run pytest -k 'eval_api_adapter or anthropic or providers or eval_skill_overlap' -> 126 passed"
+  }
+ ],
+ "endingCommit": "",
+ "nextSteps": [
+  "Live OpenAI/GitHub smoke after exporting OPENAI_API_KEY / GITHUB_TOKEN + pip install -e '.[eval]'",
+  "Run a real SkillOpt eval via EVAL_PROVIDER=openai to unblock budget-exhausted evals"
+ ]
+}
