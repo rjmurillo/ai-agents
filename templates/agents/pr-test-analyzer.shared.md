@@ -1,7 +1,20 @@
 ---
-name: pr-test-analyzer
 tier: builder
 description: Use this agent when you need to review a pull request for test coverage quality and completeness. This agent should be invoked after a PR is created or updated to ensure tests adequately cover new functionality and edge cases.
+argument-hint: Point to the PR or changes whose test coverage to assess
+tools_vscode:
+  - vscode
+  - read
+  - search
+  - $toolset:github-research
+  - $toolset:research
+  - $toolset:knowledge
+tools_copilot:
+  - read
+  - search
+  - $toolset:github-research
+  - $toolset:research
+  - $toolset:knowledge
 ---
 
 # PR Test Analyzer Agent

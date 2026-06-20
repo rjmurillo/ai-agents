@@ -1,7 +1,25 @@
 ---
 name: silent-failure-hunter
-tier: builder
 description: Use this agent when reviewing code changes in a pull request to identify silent failures, inadequate error handling, and inappropriate fallback behavior. This agent should be invoked proactively after completing a logical chunk of work that involves error handling, catch blocks, fallback logic, or any code that could potentially suppress errors.
+argument-hint: Point to the PR, diff, or files whose error handling to audit
+tools:
+  - read
+  - search
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - web
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
+model: claude-opus-4.6
+tier: builder
 ---
 
 # Silent Failure Hunter Agent
