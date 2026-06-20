@@ -133,7 +133,7 @@ VERDICT: [PASS|WARN|CRITICAL_FAIL|UNKNOWN]
 MESSAGE: [Brief explanation. For INCONCLUSIVE, say UNKNOWN and name what was missing.]
 ```
 
-Note on INCONCLUSIVE: emit the parseable token `UNKNOWN` on the `VERDICT:` line, and write "INCONCLUSIVE" in the human-readable message. `/review` parses `UNKNOWN` via `extract_verdict` in `.claude/lib/ai_review_common/verdict.py`; Stage 2 still runs, and the merge rules preserve UNKNOWN only when no WARN or failure verdict exists. The shared verdict vocabulary has no separate `INCONCLUSIVE` token; reusing `UNKNOWN` keeps this axis from forking the merge module.
+Note on INCONCLUSIVE: emit the parseable token `UNKNOWN` on the `VERDICT:` line, and write "INCONCLUSIVE" in the human-readable message. The review orchestrator parses `UNKNOWN` via `extract_verdict` from the canonical verdict implementation at `scripts/ai_review_common/verdict.py` (vendored into plugin libraries); Stage 2 still runs, and the merge rules preserve UNKNOWN only when no WARN or failure verdict exists. The shared verdict vocabulary has no separate `INCONCLUSIVE` token; reusing `UNKNOWN` keeps this axis from forking the merge module.
 
 ## Critical Failure Triggers
 
