@@ -89,11 +89,13 @@ Classify each side's changes to determine resolution priority.
 
 | Type | Indicators | Priority |
 |------|------------|----------|
-| Security | "security", "vuln", "CVE" in message | Highest |
-| Bugfix | "fix", "bug", "patch", "hotfix" in message | Highest |
-| Feature | "feat", "add", "implement"; new functionality | Medium |
-| Refactor | "refactor", "cleanup", "rename"; no behavior change | Medium |
-| Style | "style", "format", "lint"; whitespace only | Lowest |
+| Security | "security", "vuln", "CVE" in message | Highest (1) |
+| Bugfix | "fix", "bug", "patch", "hotfix" in message | High (2) |
+| Feature | "feat", "add", "implement"; new functionality | Medium (3) |
+| Refactor | "refactor", "cleanup", "rename"; no behavior change | Medium (3) |
+| Style | "style", "format", "lint"; whitespace only | Lowest (4) |
+
+Priority is a strict total order: Security (1) > Bugfix (2) > Feature/Refactor (3) > Style (4). Intent priority is the PRIMARY sort key when two sides conflict. A Security change is NEVER dropped: if it cannot be cleanly combined with the other side, Security wins and the lower-priority change is reapplied around it. Recency and test coverage are tiebreakers ONLY between two changes in the same priority tier; they never let a lower-tier change beat a higher-tier one.
 
 ## Decision Framework
 
@@ -101,7 +103,9 @@ Classify each side's changes to determine resolution priority.
 |----------|------------|
 | Same intent, compatible changes | Merge both |
 | Bugfix vs feature | Bugfix wins; integrate feature around it |
-| Conflicting logic | Prefer more recent or better-tested change |
+| Security vs anything else | Security wins and is preserved; reapply the other change around the security fix (never drop the security change) |
+| Same-tier conflict (e.g. Security vs Security, Bugfix vs Bugfix) | Combine if possible; else break the tie by better-tested, then more recent |
+| Conflicting logic, same tier | Tiebreak by better-tested, then more recent (recency only when both sides are the same priority tier) |
 | Style conflicts | Accept either; prefer consistency with surrounding code |
 | Deletions vs modifications | Investigate why; deletion usually intentional |
 
