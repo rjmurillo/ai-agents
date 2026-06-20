@@ -200,7 +200,7 @@ echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 After skill invocation:
 
 - [ ] Debate log exists at `.agents/critique/ADR-NNN-debate-log.md`
-- [ ] ADR status updated (proposed/accepted/needs-revision)
+- [ ] ADR status updated using the frontmatter enum below; use prose for review nuance
 - [ ] Frontmatter `status` field present and a valid enum value: one of
       `proposed | accepted | rejected | deprecated | superseded` (ADR-073).
       A missing or out-of-enum `status` is a P1 blocker; the frontmatter enum is

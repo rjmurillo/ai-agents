@@ -7565,6 +7565,96 @@
         "episode-2026-06-18-session-2594-work-2662-retire-incoherence-skill"
       ],
       "created": "2026-06-19T16:41:19.506638+00:00"
+    },
+    {
+      "id": "c317b66ab061",
+      "type": "milestone",
+      "label": "milestone: Triage 24+ open issues; fix 11 across PRs #2683/#2685; close 11 with justification; file 4 new issues.",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934540+00:00"
+    },
+    {
+      "id": "b115bb6f3a6f",
+      "type": "milestone",
+      "label": "milestone: Accept ADR-073 (owner-authorized) and ship #2583 lifecycle-frontmatter tooling.",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934575+00:00"
+    },
+    {
+      "id": "bfa8a7acb75a",
+      "type": "milestone",
+      "label": "milestone: Resolve ADR-074 collision (#2686): renumber lease draft to ADR-076; run 6-agent debate (6 APPROVE-WITH-CHANGES, 0 BLOCK); apply must_fix; accept ADR-076; implement #2615 lease Phase-1 (80 tests, 97% cov).",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934603+00:00"
+    },
+    {
+      "id": "4cf2d8176fb1",
+      "type": "commit",
+      "label": "commit: Commit: 0a56b9ee74",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934630+00:00"
+    },
+    {
+      "id": "ee431f39d837",
+      "type": "milestone",
+      "label": "milestone: uv run pytest on portability/lease/catalog suites",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934665+00:00"
+    },
+    {
+      "id": "0565d79dabd0",
+      "type": "test",
+      "label": "test: 165 passed",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934692+00:00"
+    },
+    {
+      "id": "b98b45ebbcd2",
+      "type": "milestone",
+      "label": "milestone: Autofix PR #2692 review feedback on pr_autofix_lease pagination handling and ADR-076 debate log rendering.",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934719+00:00"
+    },
+    {
+      "id": "092db2c6552f",
+      "type": "commit",
+      "label": "commit: Commit: 545069640",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934746+00:00"
+    },
+    {
+      "id": "b19579f05209",
+      "type": "outcome",
+      "label": "Outcome: success - Open-issue triage sweep: accept ADR-073 and ADR-076 (owner-authorized), ship #2583 frontmatter tooling and #2615 pr-autofix lease",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:03:54.934773+00:00"
+    },
+    {
+      "id": "b2128bdd48b1",
+      "type": "milestone",
+      "label": "milestone: Autofix PR #2692 post-merge review feedback.",
+      "episodes": [
+        "episode-2026-06-20-session-2595-open-issue-triage-sweep-accept-adr-073"
+      ],
+      "created": "2026-06-20T20:04:38.729963+00:00"
     }
   ],
   "patterns": [
@@ -7614,7 +7704,7 @@
       "trigger": "Testing second",
       "action": "Second",
       "success_rate": 1.0,
-      "occurrences": 29,
+      "occurrences": 31,
       "created": "2026-06-02T04:20:23.788442+00:00"
     },
     {
@@ -7623,7 +7713,7 @@
       "trigger": "Designing first",
       "action": "First",
       "success_rate": 1.0,
-      "occurrences": 58,
+      "occurrences": 62,
       "created": "2026-06-02T04:20:23.788446+00:00"
     },
     {
@@ -7632,7 +7722,7 @@
       "trigger": "When unknown decision needed",
       "action": "AVOID: Adopted a Draft PR policy for in-progress changes to maintain CI visibility without blocking merges.",
       "success_rate": 0.0,
-      "occurrences": 116,
+      "occurrences": 124,
       "created": "2026-06-02T04:20:23.789116+00:00"
     },
     {
@@ -7641,7 +7731,7 @@
       "trigger": "When implementation decision needed",
       "action": "Fail-closed (Option 2)",
       "success_rate": 1.0,
-      "occurrences": 174,
+      "occurrences": 186,
       "created": "2026-06-02T04:20:23.790649+00:00"
     }
   ],
@@ -7651,7 +7741,7 @@
       "target": "e48b42cae949",
       "type": "causes",
       "weight": 0.8,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.788737+00:00"
     },
     {
@@ -7659,7 +7749,7 @@
       "target": "bb2f794f5458",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.789096+00:00"
     },
     {
@@ -7667,7 +7757,7 @@
       "target": "6d984ffaf0ee",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.789110+00:00"
     },
     {
@@ -7675,7 +7765,7 @@
       "target": "b66bebe4f3cf",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790269+00:00"
     },
     {
@@ -7683,7 +7773,7 @@
       "target": "5a282fa7b7b7",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790282+00:00"
     },
     {
@@ -7691,7 +7781,7 @@
       "target": "1936e5d3b5e9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790294+00:00"
     },
     {
@@ -7699,7 +7789,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790306+00:00"
     },
     {
@@ -7707,7 +7797,7 @@
       "target": "62d968c016dc",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790318+00:00"
     },
     {
@@ -7715,7 +7805,7 @@
       "target": "c8e97015e15b",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790338+00:00"
     },
     {
@@ -7723,7 +7813,7 @@
       "target": "7085549bb5c8",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790349+00:00"
     },
     {
@@ -7731,7 +7821,7 @@
       "target": "a3772a33bb03",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790361+00:00"
     },
     {
@@ -7739,7 +7829,7 @@
       "target": "bbc919c9bfc3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790373+00:00"
     },
     {
@@ -7747,7 +7837,7 @@
       "target": "1f3126121fa6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790386+00:00"
     },
     {
@@ -7755,7 +7845,7 @@
       "target": "fdae8ee91ca3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790403+00:00"
     },
     {
@@ -7763,7 +7853,7 @@
       "target": "d2f77552356c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790426+00:00"
     },
     {
@@ -7771,7 +7861,7 @@
       "target": "b9bad794636c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790439+00:00"
     },
     {
@@ -7779,7 +7869,7 @@
       "target": "b6c846324241",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790452+00:00"
     },
     {
@@ -7787,7 +7877,7 @@
       "target": "9ddffc4e2ea1",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790465+00:00"
     },
     {
@@ -7795,7 +7885,7 @@
       "target": "92d7f3738a9c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790478+00:00"
     },
     {
@@ -7803,7 +7893,7 @@
       "target": "f6bbf604116c",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790491+00:00"
     },
     {
@@ -7811,7 +7901,7 @@
       "target": "b78663b0692a",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790504+00:00"
     },
     {
@@ -7819,7 +7909,7 @@
       "target": "cac4c97f7f07",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790517+00:00"
     },
     {
@@ -7827,7 +7917,7 @@
       "target": "0aebe2e20ff6",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790530+00:00"
     },
     {
@@ -7835,7 +7925,7 @@
       "target": "c3972fe69c57",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790544+00:00"
     },
     {
@@ -7843,7 +7933,7 @@
       "target": "e7a73b5ce937",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790560+00:00"
     },
     {
@@ -7851,7 +7941,7 @@
       "target": "68146e743ee2",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790573+00:00"
     },
     {
@@ -7859,7 +7949,7 @@
       "target": "37d27c11246f",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790586+00:00"
     },
     {
@@ -7867,7 +7957,7 @@
       "target": "35616517f846",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790602+00:00"
     },
     {
@@ -7875,7 +7965,7 @@
       "target": "7d5c82a09967",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790616+00:00"
     },
     {
@@ -7883,7 +7973,7 @@
       "target": "a161caf62b41",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790629+00:00"
     },
     {
@@ -7891,7 +7981,7 @@
       "target": "23e284592db9",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.790644+00:00"
     },
     {
@@ -7899,7 +7989,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792469+00:00"
     },
     {
@@ -7907,7 +7997,7 @@
       "target": "06a9fb26b021",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792491+00:00"
     },
     {
@@ -7915,7 +8005,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792513+00:00"
     },
     {
@@ -7923,7 +8013,7 @@
       "target": "e4ea7a7ef7fe",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792533+00:00"
     },
     {
@@ -7931,7 +8021,7 @@
       "target": "5d3bf45f7c53",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792552+00:00"
     },
     {
@@ -7939,7 +8029,7 @@
       "target": "1d01daa399d3",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.792577+00:00"
     },
     {
@@ -7947,7 +8037,7 @@
       "target": "b3c23d1a4efb",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.796850+00:00"
     },
     {
@@ -7955,7 +8045,7 @@
       "target": "1dbff77adf4d",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.796885+00:00"
     },
     {
@@ -7963,7 +8053,7 @@
       "target": "ce38b87c4381",
       "type": "causes",
       "weight": 0.6,
-      "evidence_count": 29,
+      "evidence_count": 31,
       "created": "2026-06-02T04:20:23.796919+00:00"
     }
   ]

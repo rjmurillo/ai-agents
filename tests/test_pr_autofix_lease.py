@@ -353,7 +353,11 @@ class TestSelect:
         # scanned, that old marker is NOT seen, so the lock reads as free.
         old_live = _comment(_body(session="ancient"), "2026-06-19T00:00:00Z")
         filler = [
-            _comment("noise comment", f"2026-06-19T10:{i:02d}:00Z") for i in range(MAX_SCAN)
+            _comment(
+                "noise comment",
+                _rfc(datetime(2026, 6, 19, 10, tzinfo=UTC) + timedelta(minutes=i)),
+            )
+            for i in range(MAX_SCAN)
         ]
         chosen = select_authoritative_lease([old_live, *filler])
         assert chosen is None
@@ -361,7 +365,10 @@ class TestSelect:
     def test_recent_marker_within_window_is_found(self):
         # A marker within the latest MAX_SCAN comments IS found.
         filler = [
-            _comment("noise comment", f"2026-06-19T09:{i:02d}:00Z")
+            _comment(
+                "noise comment",
+                _rfc(datetime(2026, 6, 19, 9, tzinfo=UTC) + timedelta(minutes=i)),
+            )
             for i in range(MAX_SCAN - 1)
         ]
         recent = _comment(_body(session="recent"), "2026-06-19T11:59:00Z")
