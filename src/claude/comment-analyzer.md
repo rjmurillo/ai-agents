@@ -1,7 +1,10 @@
 ---
 name: comment-analyzer
-tier: integration
-description: 'Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. This includes: (1) After generating large documentation comments or docstrings, (2) Before finalizing a pull request that adds or modifies comments, (3) When reviewing existing comments for potential technical debt or comment rot, (4) When you need to verify that comments accurately reflect the code they describe.'
+description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. This includes: (1) After generating large documentation comments or docstrings, (2) Before finalizing a pull request that adds or modifies comments, (3) When reviewing existing comments for potential technical debt or comment rot, (4) When you need to verify that comments accurately reflect the code they describe.
+model: sonnet
+metadata:
+  tier: integration
+argument-hint: Point to the comments or PR to review for accuracy
 ---
 
 # Comment Analyzer Agent
