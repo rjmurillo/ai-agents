@@ -315,10 +315,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "--merge-method",
+        "--merge-method", "--strategy", dest="merge_method",
+        type=str.upper,
         choices=["MERGE", "SQUASH", "REBASE"],
         default="SQUASH",
-        help="Merge method (default: SQUASH)",
+        help="Merge method (default SQUASH). --strategy alias; case-insensitive (#2684).",
     )
     parser.add_argument(
         "--commit-headline", default="",
