@@ -50,7 +50,7 @@ Do NOT invoke for web page performance (that is a different concern).
 
 ## Process
 
-Resolve the driver first: `BENCH="$(git rev-parse --show-toplevel)/.claude/skills/benchmark-models/scripts/model_benchmark.py"` (or the installed path under `~/.claude` / `~/.copilot`).
+Resolve the driver first. In a repository checkout, use `BENCH="$(git rev-parse --show-toplevel)/.claude/skills/benchmark-models/scripts/model_benchmark.py"`. From an installed skill copy, use the local skill path: `BENCH="$PWD/scripts/model_benchmark.py"` when your shell is in the `benchmark-models` skill directory.
 
 ### Step 1: Pick a prompt and preview auth (dry-run)
 
@@ -129,6 +129,9 @@ Notes:
 - Safety asymmetry: the `gpt`/codex adapter runs `-s read-only`; the `gemini`
   adapter passes `--yolo` (auto-approve), which is NOT sandboxed. Benchmark in a
   disposable `--workdir` if the prompt could trigger file writes.
+- The driver only runs providers concurrently when every selected provider is
+  read-only GPT/Codex. Claude and Gemini run sequentially because they can mutate
+  the workdir.
 - Pricing lives in the `PRICING` table at the top of the script. An unpriced
   model costs `0.0` with a stderr warning; add a row rather than guess.
 
