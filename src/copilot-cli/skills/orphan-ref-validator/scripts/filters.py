@@ -67,6 +67,40 @@ KEBAB_DENYLIST: frozenset[str] = frozenset({
 })
 
 
+# Single-word (no-hyphen) skill names the validator treats as skill-reference
+# candidates. SKILL_REF_RE requires a hyphen, so single-word skills are
+# invisible to it; a backticked single word is otherwise indistinguishable from
+# ordinary prose (`memory`, `review`, `session` are all common English words).
+# The scanner resolves a single-word backticked token as a skill reference only
+# when it is either present in the live `.claude/skills/` catalog OR named here.
+# This second arm is what catches a deleted single-word skill: once the
+# directory is gone the token is no longer in the catalog, but a stale prose
+# reference must still be flagged (issue #2679; observed retiring `incoherence`,
+# #2662). Add a name here when a single-word skill is retired or renamed so
+# lingering references surface as orphan findings instead of going silent.
+#
+# Membership in this set is NOT sufficient to flag: a name listed here that
+# still resolves to a live catalog directory is a valid reference and produces
+# no finding (same resolution path as a hyphenated skill name). The set only
+# widens *detection*; the catalog still decides *validity*.
+KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset({
+    # Retired / renamed single-word skills. Keep entries until every scanned
+    # surface (specs, evals, plugin manifests) has dropped the backticked ref.
+    "incoherence",  # DEPRECATED 2026-05-29, absorbed by doc-accuracy; retired #2662
+})
+
+
+def is_known_single_word_skill(token: str) -> bool:
+    """Return True if a single-word token is a curated known skill name.
+
+    Used by the scanner to decide whether a backticked single word that is
+    absent from the live catalog should be flagged as an orphan skill
+    reference. Tokens not in this set and not in the live catalog are treated
+    as ordinary prose and ignored, keeping false positives at zero.
+    """
+    return token in KNOWN_SINGLE_WORD_SKILLS
+
+
 def is_known_kebab_word(token: str) -> bool:
     """Return True if a kebab-case token is a known non-skill reference.
 
