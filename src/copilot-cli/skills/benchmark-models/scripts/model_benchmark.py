@@ -18,6 +18,8 @@ Providers wrap existing CLIs (no SDKs):
 Safety note: the gpt adapter runs codex with `-s read-only`. The gemini adapter
 passes `--yolo` (auto-approve) to match upstream behavior; it is NOT sandboxed
 read-only. Benchmark in a disposable workdir if the prompt could trigger writes.
+Do not include secrets in prompts: gpt and gemini receive prompts through argv,
+which process listings, crash reports, or telemetry may expose.
 
 Usage:
   model_benchmark.py <prompt-file> [options]
@@ -34,7 +36,8 @@ Options:
                                (requires ANTHROPIC_API_KEY; adds ~$0.05/run)
   --dry-run                    Validate flags + auth, do not invoke providers
 
-Exit codes (ADR-035): 0 ok, 1 runtime error, 2 usage error.
+Exit codes (ADR-035): 0 ok, 1 logic/runtime error, 2 config/usage error,
+3 external dependency failure, 4 authentication or authorization failure.
 """
 
 from __future__ import annotations
@@ -46,8 +49,7 @@ import shutil
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
+import http.client
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -134,17 +136,26 @@ def _classify_error(stderr: str, timed_out: bool, timeout_ms: int) -> dict:
     return {"code": "unknown", "reason": (stderr or "unknown")[:400]}
 
 
+def _process_text(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
+
+
 def _run_cli(cmd: list[str], *, prompt_stdin: str | None, workdir: str, timeout_ms: int,
              env: dict | None = None) -> tuple[str, str, bool]:
     """Run a CLI, return (stdout, stderr, timed_out). Non-throwing."""
     try:
         proc = subprocess.run(
-            cmd, input=prompt_stdin, cwd=workdir, capture_output=True, text=True,
+            cmd, input=prompt_stdin, cwd=workdir, capture_output=True,
+            encoding="utf-8", errors="replace",
             timeout=timeout_ms / 1000.0, env=env,
         )
         return proc.stdout, proc.stderr, False
     except subprocess.TimeoutExpired as exc:
-        return (exc.stdout or "") if isinstance(exc.stdout, str) else "", "", True
+        return _process_text(exc.stdout), _process_text(exc.stderr), True
+    except OSError as exc:
+        return "", str(exc), False
 
 
 # --------------------------------------------------------------------------- #
@@ -351,8 +362,10 @@ def run_benchmark(prompt: str, providers: list[str], workdir: str, timeout_ms: i
 
 
 # --------------------------------------------------------------------------- #
-# Judge (Anthropic API via stdlib urllib; no SDK dependency)
+# Judge (Anthropic API via stdlib http.client; no SDK dependency)
 # --------------------------------------------------------------------------- #
+ANTHROPIC_HOST = "api.anthropic.com"
+ANTHROPIC_PATH = "/v1/messages"
 JUDGE_MODEL = "claude-sonnet-4-6"
 
 
@@ -406,21 +419,28 @@ def parse_scores(raw: str, expected: int) -> list[dict]:
 
 def _anthropic_judge_call(judge_prompt: str) -> str:
     """POST the judge prompt to the Anthropic Messages API, return the text block."""
-    body = json.dumps({
+    payload = json.dumps({
         "model": JUDGE_MODEL, "max_tokens": 2048,
         "messages": [{"role": "user", "content": judge_prompt}],
     }).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages", data=body, method="POST",
-        headers={
-            "content-type": "application/json",
-            "x-api-key": os.environ["ANTHROPIC_API_KEY"],
-            "anthropic-version": "2023-06-01",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
-    for block in payload.get("content", []):
+    conn = http.client.HTTPSConnection(ANTHROPIC_HOST, timeout=120)
+    try:
+        conn.request(
+            "POST", ANTHROPIC_PATH, body=payload,
+            headers={
+                "content-type": "application/json",
+                "x-api-key": os.environ["ANTHROPIC_API_KEY"],
+                "anthropic-version": "2023-06-01",
+            },
+        )
+        resp = conn.getresponse()
+        raw = resp.read().decode("utf-8", errors="replace")
+    finally:
+        conn.close()
+    if resp.status >= 400:
+        raise RuntimeError(f"Anthropic judge HTTP {resp.status}: {raw[:400]}")
+    body = json.loads(raw)
+    for block in body.get("content", []):
         if block.get("type") == "text":
             return block.get("text", "")
     return ""
@@ -436,7 +456,7 @@ def judge_entries(report: dict) -> None:
         return
     try:
         text = _anthropic_judge_call(build_judge_prompt(report["prompt"], scored))
-    except (urllib.error.URLError, OSError, KeyError) as exc:
+    except (OSError, KeyError, RuntimeError, json.JSONDecodeError) as exc:
         sys.stderr.write(f"WARN: judge unavailable: {exc}\n")
         return
     parsed = parse_scores(text, len(scored))
@@ -538,10 +558,41 @@ def resolve_prompt(positional: str | None, inline: str | None) -> str:
     if not positional:
         sys.stderr.write('ERROR: specify a prompt via positional path or --prompt "<text>"\n')
         raise SystemExit(2)
-    p = Path(positional)
+    p = Path(positional).expanduser()
     if p.is_file():
-        return p.read_text(encoding="utf-8")
+        resolved = p.resolve()
+        root = _repo_root()
+        if root is None or not resolved.is_relative_to(root):
+            sys.stderr.write(f"ERROR: prompt file must be under repository root: {resolved}\n")
+            raise SystemExit(2)
+        return resolved.read_text(encoding="utf-8")
     return positional
+
+
+def _repo_root() -> Path | None:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / ".git").exists():
+            return parent
+    cwd = Path.cwd().resolve()
+    for parent in (cwd, *cwd.parents):
+        if (parent / ".git").exists():
+            return parent
+    return None
+
+
+def _exit_code_for_report(report: dict) -> int:
+    codes = [
+        e.result.error.get("code", "unknown")
+        for e in report["entries"]
+        if e.result is not None and e.result.error
+    ]
+    if not codes:
+        return 0
+    if any(code in {"auth", "rate_limit"} for code in codes):
+        return 4
+    if any(code == "timeout" for code in codes):
+        return 3
+    return 1
 
 
 def dry_run_report(prompt: str, providers: list[str], workdir: str, timeout_ms: int,
@@ -603,7 +654,7 @@ def main(argv: list[str] | None = None) -> int:
         print(format_markdown(report))
     else:
         print(format_table(report))
-    return 0
+    return _exit_code_for_report(report)
 
 
 if __name__ == "__main__":  # pragma: no cover

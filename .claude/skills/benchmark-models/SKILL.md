@@ -113,15 +113,19 @@ python3 scripts/model_benchmark.py <prompt-file | --prompt "text"> \
   [--output table|json|markdown] [--workdir PATH] [--timeout-ms N] [--skip-unavailable]
 ```
 
-Exit codes (ADR-035): `0` success, `1` runtime error, `2` usage error (no prompt
-given, or an invalid flag).
+Exit codes (ADR-035): `0` success, `1` logic/runtime error, `2` config or usage
+error, `3` external dependency failure, `4` authentication or authorization
+failure.
 
 Notes:
 
 - `--dry-run` resolves auth and prints availability without sending any prompt.
-- The judge posts to the Anthropic Messages API via stdlib `urllib` (no SDK) and
-  fails soft: a judge error warns and leaves quality blank, it never aborts the
-  run.
+- The judge posts to the Anthropic Messages API via stdlib `http.client` (no SDK)
+  and fails soft: a judge error warns and leaves quality blank, it never aborts
+  the run.
+- Do not place secrets in prompts. The `gpt` and `gemini` CLIs receive the prompt
+  through command arguments, which some systems expose through process listings
+  or crash reports.
 - Safety asymmetry: the `gpt`/codex adapter runs `-s read-only`; the `gemini`
   adapter passes `--yolo` (auto-approve), which is NOT sandboxed. Benchmark in a
   disposable `--workdir` if the prompt could trigger file writes.

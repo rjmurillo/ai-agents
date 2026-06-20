@@ -123,10 +123,21 @@ class TestResolvePrompt:
     def test_inline_wins(self):
         assert mb.resolve_prompt("ignored", "inline text") == "inline text"
 
-    def test_file_read(self, tmp_path):
+    def test_file_read(self, tmp_path, monkeypatch):
         f = tmp_path / "p.txt"
         f.write_text("from file", encoding="utf-8")
+        monkeypatch.setattr(mb, "_repo_root", lambda: tmp_path)
         assert mb.resolve_prompt(str(f), None) == "from file"
+
+    def test_file_outside_repo_is_rejected(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        outside = tmp_path / "outside.txt"
+        outside.write_text("secret", encoding="utf-8")
+        monkeypatch.setattr(mb, "_repo_root", lambda: repo)
+        with pytest.raises(SystemExit) as exc:
+            mb.resolve_prompt(str(outside), None)
+        assert exc.value.code == 2
 
     def test_positional_nonfile_is_text(self):
         assert mb.resolve_prompt("just a prompt", None) == "just a prompt"
@@ -399,6 +410,21 @@ class TestDryRunAndMain:
         assert mb.main(["--prompt", "hi", "--output", "markdown"]) == 0
         assert "| Model |" in capsys.readouterr().out
 
+    def test_main_returns_external_for_timeout(self, monkeypatch, capsys):
+        monkeypatch.setattr(mb, "run_benchmark",
+                            lambda *a, **k: _report([mb.Entry("claude", "claude", result=mb.RunResult(error={"code": "timeout", "reason": "slow"}))]))
+        assert mb.main(["--prompt", "hi"]) == 3
+
+    def test_main_returns_auth_for_auth_failure(self, monkeypatch, capsys):
+        monkeypatch.setattr(mb, "run_benchmark",
+                            lambda *a, **k: _report([mb.Entry("claude", "claude", result=mb.RunResult(error={"code": "auth", "reason": "login"}))]))
+        assert mb.main(["--prompt", "hi"]) == 4
+
+    def test_main_returns_runtime_for_unknown_error(self, monkeypatch, capsys):
+        monkeypatch.setattr(mb, "run_benchmark",
+                            lambda *a, **k: _report([mb.Entry("claude", "claude", result=mb.RunResult(error={"code": "unknown", "reason": "boom"}))]))
+        assert mb.main(["--prompt", "hi"]) == 1
+
     def test_main_missing_subcommand_errors(self):
         with pytest.raises(SystemExit):
             mb.build_parser().parse_args(["--models"])  # missing value
@@ -412,6 +438,15 @@ class TestRunCli:
         out, err, timed = mb._run_cli([sys.executable, "-c", "print('hi')"],
                                       prompt_stdin=None, workdir=".", timeout_ms=10000)
         assert out.strip() == "hi" and timed is False
+
+    def test_run_cli_uses_utf8_decoding(self, monkeypatch):
+        seen = {}
+        def fake_run(*args, **kwargs):
+            seen.update(kwargs)
+            return type("Proc", (), {"stdout": "ok", "stderr": ""})()
+        monkeypatch.setattr(mb.subprocess, "run", fake_run)
+        assert mb._run_cli(["cmd"], prompt_stdin=None, workdir=".", timeout_ms=1000) == ("ok", "", False)
+        assert seen["encoding"] == "utf-8" and seen["errors"] == "replace"
 
     def test_stdin_passed(self):
         out, _, _ = mb._run_cli([sys.executable, "-c", "import sys;sys.stdout.write(sys.stdin.read())"],
@@ -449,33 +484,73 @@ class TestJudgeHttpCall:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
 
         class FakeResp:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
+            status = 200
 
             def read(self):
                 return json.dumps({"content": [{"type": "text", "text": "scored!"}]}).encode("utf-8")
 
-        monkeypatch.setattr(mb.urllib.request, "urlopen", lambda req, timeout=0: FakeResp())
+        class FakeConn:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+            def request(self, *args, **kwargs):
+                self.request_args = args
+                self.request_kwargs = kwargs
+
+            def getresponse(self):
+                return FakeResp()
+
+            def close(self):
+                self.closed = True
+
+        monkeypatch.setattr(mb.http.client, "HTTPSConnection", FakeConn)
         assert mb._anthropic_judge_call("jp") == "scored!"
 
     def test_anthropic_call_no_text_block(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
 
         class FakeResp:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
+            status = 200
 
             def read(self):
                 return json.dumps({"content": [{"type": "tool_use"}]}).encode("utf-8")
 
-        monkeypatch.setattr(mb.urllib.request, "urlopen", lambda req, timeout=0: FakeResp())
+        class FakeConn:
+            def request(self, *args, **kwargs):
+                pass
+
+            def getresponse(self):
+                return FakeResp()
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(mb.http.client, "HTTPSConnection", lambda *a, **k: FakeConn())
         assert mb._anthropic_judge_call("jp") == ""
+
+    def test_anthropic_call_http_error(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+
+        class FakeResp:
+            status = 500
+
+            def read(self):
+                return b"server down"
+
+        class FakeConn:
+            def request(self, *args, **kwargs):
+                pass
+
+            def getresponse(self):
+                return FakeResp()
+
+            def close(self):
+                pass
+
+        monkeypatch.setattr(mb.http.client, "HTTPSConnection", lambda *a, **k: FakeConn())
+        with pytest.raises(RuntimeError):
+            mb._anthropic_judge_call("jp")
 
 
 class TestEdgeParses:
