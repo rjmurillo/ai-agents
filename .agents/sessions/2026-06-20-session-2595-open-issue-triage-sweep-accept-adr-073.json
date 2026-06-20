@@ -139,7 +139,7 @@
       "outcome": "Lease timestamp fixtures now use valid RFC3339 datetime arithmetic; adr-review checklist no longer suggests invalid needs-revision frontmatter; episode commit metric matches two commit events."
     }
   ],
-  "endingCommit": "PENDING",
+  "endingCommit": "680cd81d4",
   "nextSteps": [
     "Run /review and merge PRs #2683, #2685, and this ADR-approvals PR.",
     "Close #2686 (ADR-074 collision resolved).",
