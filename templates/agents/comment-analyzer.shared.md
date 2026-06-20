@@ -50,6 +50,16 @@ Classify every comment into one of three buckets. State the bucket in the findin
 - **Update**: the comment mismatches the current code at the cited file:line. State the mismatch verbatim. Propose the minimum edit.
 - **Remove**: the comment restates the code without adding information, references a state that no longer exists, or repeats a name that the function already carries.
 
+### Precedence (total order)
+
+A comment can match more than one bucket. Assign exactly one, using this ranked precedence:
+
+1. **Update** wins first. Any comment that mismatches the current code at its cited file:line is **Update**, even if it also restates the code or could otherwise be removed. A wrong comment must be fixed or explicitly removed by the implementer; never silently classify a mismatch as Remove.
+2. **Remove** wins next. A comment that passes accuracy (no mismatch) but adds no information beyond the code is **Remove**.
+3. **Preserve** is the default. Use it only when the comment is accurate and carries information the code cannot.
+
+Tiebreak when two buckets still apply after the order above (should not occur if applied correctly): pick the bucket listed earliest (Update before Remove before Preserve). State the chosen bucket and, in one clause, why the lower-ranked bucket was not used.
+
 ## Output Shape
 
 Emit three sections in this exact order. No preamble.
@@ -109,6 +119,6 @@ Failure modes and handoff:
 
 - **[COMPLETE]**: findings produced; hand off to pr-comment-responder agent (if PR review thread) or implementer (if direct comment edits) to apply the proposed changes.
 - **[BLOCKED]**: intent cannot be determined without the original author. Flag and route to author; do not guess at intent. Do not silently mark the comment as Preserve.
-- **[NEEDS_DECOMPOSITION]**: more than 10 findings apply. Return the top 10 by impact (Critical Issues first, then Update, then Remove) and propose splitting the rest into a follow-up session.
+- **[NEEDS_DECOMPOSITION]**: more than 10 findings apply. Return the top 10 by impact, ranked by the Precedence order (Update first, then Remove, then Preserve), and propose splitting the rest into a follow-up session.
 
 Recommended next step at the end of every [COMPLETE] response: "Recommended next: pr-review agent to confirm the final diff after edits are applied."
