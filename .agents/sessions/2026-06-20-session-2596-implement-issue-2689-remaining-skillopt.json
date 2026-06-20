@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Serena memory was not written during the original session; follow-up PR review corrected this evidence instead of claiming a pending write was complete."
+        "Evidence": "Serena memory entry `decision-two-pipeline-agent-mirror-recipe` recorded the two-pipeline agent mirror recipe."
       },
       "markdownLintRun": {
         "level": "MUST",
