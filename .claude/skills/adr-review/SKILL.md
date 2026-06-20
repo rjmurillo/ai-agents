@@ -1,6 +1,6 @@
 ---
 name: adr-review
-version: 1.0.0
+version: 1.1.0
 model: claude-opus-4-6
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", or on ADR create/edit. Do NOT use to author a new ADR (use adr-generator).
 license: MIT
@@ -201,6 +201,14 @@ After skill invocation:
 
 - [ ] Debate log exists at `.agents/critique/ADR-NNN-debate-log.md`
 - [ ] ADR status updated (proposed/accepted/needs-revision)
+- [ ] Frontmatter `status` field present and a valid enum value: one of
+      `proposed | accepted | rejected | deprecated | superseded` (ADR-073).
+      A missing or out-of-enum `status` is a P1 blocker; the frontmatter enum is
+      authoritative for tooling, the prose `## Status` carries the human nuance.
+- [ ] If this review transitions `status` to `accepted`: the same change carries
+      adr-review debate-log evidence at `.agents/critique/ADR-NNN-debate-log.md`
+      (ADR-073 Phase-3 acceptance gate). A hand-edit to `accepted` with no
+      debate-log artifact is a forgeable approval signal and MUST be rejected.
 - [ ] All P0 issues addressed or documented
 - [ ] Dissent captured for Disagree-and-Commit positions
 - [ ] Recommendations provided to orchestrator
