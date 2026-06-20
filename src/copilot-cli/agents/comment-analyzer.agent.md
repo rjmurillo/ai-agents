@@ -1,7 +1,26 @@
 ---
 name: comment-analyzer
+description: 'Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. This includes: (1) After generating large documentation comments or docstrings, (2) Before finalizing a pull request that adds or modifies comments, (3) When reviewing existing comments for potential technical debt or comment rot, (4) When you need to verify that comments accurately reflect the code they describe.'
+argument-hint: Point to the comments or PR to review for accuracy
+tools:
+  - read
+  - edit
+  - search
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - web
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
+model: claude-opus-4.6
 tier: integration
-description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. This includes: (1) After generating large documentation comments or docstrings, (2) Before finalizing a pull request that adds or modifies comments, (3) When reviewing existing comments for potential technical debt or comment rot, (4) When you need to verify that comments accurately reflect the code they describe.
 ---
 
 # Comment Analyzer Agent

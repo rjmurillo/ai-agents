@@ -1,7 +1,26 @@
 ---
 name: pr-test-analyzer
-tier: builder
 description: Use this agent when you need to review a pull request for test coverage quality and completeness. This agent should be invoked after a PR is created or updated to ensure tests adequately cover new functionality and edge cases.
+argument-hint: Point to the PR or changes whose test coverage to assess
+tools:
+  - read
+  - edit
+  - search
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - web
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
+model: claude-opus-4.6
+tier: builder
 ---
 
 # Pr Test Analyzer Agent
