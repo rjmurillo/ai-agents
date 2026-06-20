@@ -18,6 +18,7 @@ Logging:
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 import sys
@@ -143,6 +144,26 @@ Transport = Callable[[str, str, str], str]
 def _default_transport_factory() -> Transport:
     """Build the production transport. Reads the API key once, here, and
     closes over it so callers never see the secret."""
+    # Provider selection (EVAL_PROVIDER). A non-default provider self-loads
+    # its own credential, so do not require ANTHROPIC_API_KEY via
+    # load_api_key(). Baseline and variant run on the SAME provider per call
+    # (ADR-058 symmetry); temperature=0 is pinned for reproducibility.
+    provider = os.environ.get("EVAL_PROVIDER")
+    from _providers import is_default_anthropic
+
+    if provider and not is_default_anthropic(provider):
+        def _call_provider(prompt: str, model_id: str, system: str) -> str:
+            return call_api(
+                api_key="",
+                messages=[{"role": "user", "content": prompt}],
+                system=system,
+                model=model_id,
+                temperature=0.0,
+                provider=provider,
+            )
+
+        return _call_provider
+
     api_key = load_api_key()
 
     def _call(prompt: str, model_id: str, system: str) -> str:

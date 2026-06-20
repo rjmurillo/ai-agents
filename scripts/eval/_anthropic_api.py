@@ -79,6 +79,7 @@ def call_api(
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 1024,
     temperature: float = 0.0,
+    provider: str | None = None,
 ) -> str:
     """Call the Anthropic Messages API.
 
@@ -96,7 +97,25 @@ def call_api(
         RuntimeError: If the API returns an HTTP error, network failure,
             timeout, or invalid JSON response. Original exception is chained
             via __cause__.
+
+        provider: Optional transport selector. None falls back to the
+            EVAL_PROVIDER env var. The default (None / "anthropic") uses this
+            urllib path unchanged; any other value routes through
+            `_providers.resolve_provider` (openai, github, anthropic-sdk).
+            `api_key` is ignored for non-Anthropic providers.
     """
+    selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
+    if selected is not None:
+        from _providers import is_default_anthropic, resolve_provider
+
+        if not is_default_anthropic(selected):
+            return resolve_provider(selected).complete(
+                messages=messages,
+                system=system,
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
     body: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
