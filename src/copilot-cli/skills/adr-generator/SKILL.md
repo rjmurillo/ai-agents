@@ -1,6 +1,6 @@
 ---
 name: adr-generator
-version: 1.0.0
+version: 1.1.0
 model: claude-opus-4-6
 description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions or creating new ADR files. Use when you say "write an ADR", "document this decision". Do NOT use to debate or review an existing ADR (use adr-review).
 license: MIT
@@ -136,6 +136,36 @@ Populate the detected template with gathered content:
 - Structure for both machine parsing and human reference
 - Match the style and conventions of existing ADRs at the destination
 
+**Lifecycle frontmatter (ADR-073, Phase 1)**: when the destination uses this
+repo's canonical template (`.agents/architecture/ADR-TEMPLATE.md`), emit the
+machine-readable YAML frontmatter block above the `# ADR-NNN:` heading with
+these safe defaults:
+
+```yaml
+---
+id: ADR-NNN              # match the number chosen in Step 4
+status: proposed         # always proposed on a new ADR (never accepted)
+date: YYYY-MM-DD         # today, last-updated
+decision-makers: []
+supersedes: []           # ADR ids this record supersedes, if any
+superseded-by: null
+explainer: null          # display-only link; NEVER auto-fetch (CWE-918 SSRF)
+implemented: false       # flips true at the first merged change
+---
+```
+
+Rules the generator MUST honor:
+
+- `status` is always `proposed` on a new ADR. Only `adr-review` consensus
+  changes it (see Phase G5 and the Anti-Patterns table).
+- `implemented` is always `false` on a new ADR; it flips at first merged change.
+- `superseded-by` defaults to `null`; `supersedes` defaults to `[]`.
+- `explainer` defaults to `null`. If the author supplies one, record the literal
+  string only. MUST NOT fetch, resolve, or follow the URL (it is a poisoning and
+  SSRF surface, CWE-918). It is display-only metadata for human click-through.
+- The frontmatter `status` enum is authoritative for tooling; the prose
+  `## Status` section carries the human-readable nuance.
+
 ### Phase G4: Validate
 
 Self-check against the [quality checklist](references/quality-checklist.md) before saving. All structural and content checks must pass.
@@ -150,6 +180,7 @@ Write the file to the destination directory determined in Phase G2:
 | Zero-pad number to match existing pattern | `ADR-001`, `0001`, etc. |
 | Lowercase kebab-case slug (3-5 words) | `database-selection`, `event-sourcing-pattern` |
 | Status always set to `Proposed` | Changed only after `adr-review` debate |
+| Frontmatter `status: proposed`, `implemented: false`, `explainer: null` | Phase 1 defaults (ADR-073); `explainer` never auto-fetched (CWE-918) |
 
 After saving, recommend the user invoke the `adr-review` skill for multi-agent validation.
 
