@@ -133,6 +133,15 @@ class TestResolvePrompt:
         monkeypatch.setattr(mb, "_repo_root", lambda: tmp_path)
         assert mb.resolve_prompt(str(f), None) == "from file"
 
+    def test_installed_skill_file_is_allowed(self, tmp_path, monkeypatch):
+        skills = tmp_path / ".claude" / "skills" / "demo"
+        skills.mkdir(parents=True)
+        skill = skills / "SKILL.md"
+        skill.write_text("skill prompt", encoding="utf-8")
+        monkeypatch.setattr(mb.Path, "home", staticmethod(lambda: tmp_path))
+        monkeypatch.setattr(mb, "_repo_root", lambda: None)
+        assert mb.resolve_prompt(str(skill), None) == "skill prompt"
+
     def test_file_outside_repo_is_rejected(self, tmp_path, monkeypatch):
         repo = tmp_path / "repo"
         repo.mkdir()
@@ -341,8 +350,7 @@ class TestRunBenchmark:
     def test_skip_unavailable(self, monkeypatch):
         monkeypatch.setattr(mb.ClaudeAdapter, "available", lambda self: (False, "no auth"))
         report = mb.run_benchmark("p", ["claude"], ".", 1000, True)
-        e = report["entries"][0]
-        assert e.available is False and e.result is None and e.unavailable_reason == "no auth"
+        assert report["entries"] == []
 
     def test_unavailable_does_not_run_adapter(self, monkeypatch):
         monkeypatch.setattr(mb.ClaudeAdapter, "available", lambda self: (False, "no auth"))
@@ -459,6 +467,13 @@ class TestDryRunAndMain:
         monkeypatch.setattr(mb, "run_benchmark",
                             lambda *a, **k: _report([mb.Entry("claude", "claude", result=mb.RunResult(error={"code": "unknown", "reason": "boom"}))]))
         assert mb.main(["--prompt", "hi"]) == 1
+
+    def test_main_returns_config_when_no_provider_runs(self, monkeypatch, capsys):
+        monkeypatch.setattr(
+            mb, "run_benchmark",
+            lambda *a, **k: _report([mb.Entry("claude", "claude", available=False, unavailable_reason="no auth")]),
+        )
+        assert mb.main(["--prompt", "hi"]) == 2
 
     def test_main_missing_subcommand_errors(self):
         with pytest.raises(SystemExit):

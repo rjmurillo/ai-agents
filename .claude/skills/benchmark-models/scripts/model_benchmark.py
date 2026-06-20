@@ -335,14 +335,14 @@ def run_benchmark(prompt: str, providers: list[str], workdir: str, timeout_ms: i
     started = time.time()
     entries: list[Entry] = []
 
-    def work(name: str) -> Entry:
+    def work(name: str) -> Entry | None:
         adapter = ADAPTERS[name]()
         e = Entry(provider=adapter.name, family=adapter.family)
         ok, reason = adapter.available()
         e.available = ok
         if not ok:
             e.unavailable_reason = reason
-            return e
+            return None if skip_unavailable else e
         res = adapter.run(prompt, workdir, timeout_ms, None)
         e.result = res
         e.cost_usd = adapter.estimate_cost(res.tokens, res.model_used)
@@ -353,6 +353,7 @@ def run_benchmark(prompt: str, providers: list[str], workdir: str, timeout_ms: i
             entries = list(pool.map(work, providers))
     else:
         entries = [work(name) for name in providers]
+    entries = [entry for entry in entries if entry is not None]
 
     return {
         "prompt": prompt,
@@ -573,12 +574,35 @@ def resolve_prompt(positional: str | None, inline: str | None) -> str:
     p = Path(positional).expanduser()
     if p.is_file():
         resolved = p.resolve()
-        root = _repo_root()
-        if root is None or not resolved.is_relative_to(root):
-            sys.stderr.write(f"ERROR: prompt file must be under repository root: {resolved}\n")
+        if not _is_allowed_prompt_file(resolved):
+            roots = ", ".join(str(root) for root in _allowed_prompt_roots())
+            sys.stderr.write(f"ERROR: prompt file must be under an allowed root ({roots}): {resolved}\n")
             raise SystemExit(2)
         return resolved.read_text(encoding="utf-8")
     return positional
+
+
+def _allowed_prompt_roots() -> list[Path]:
+    roots: list[Path] = []
+    repo_root = _repo_root()
+    if repo_root:
+        roots.append(repo_root)
+    roots.append(Path.cwd().resolve())
+    home = Path.home()
+    roots.extend([home / ".claude" / "skills", home / ".copilot" / "skills"])
+    existing: list[Path] = []
+    for root in roots:
+        try:
+            resolved = root.expanduser().resolve()
+        except OSError:
+            continue
+        if resolved not in existing:
+            existing.append(resolved)
+    return existing
+
+
+def _is_allowed_prompt_file(path: Path) -> bool:
+    return any(path == root or path.is_relative_to(root) for root in _allowed_prompt_roots())
 
 
 def _repo_root() -> Path | None:
@@ -593,9 +617,12 @@ def _repo_root() -> Path | None:
 
 
 def _exit_code_for_report(report: dict) -> int:
+    entries = report["entries"]
+    if not entries or not any(e.result is not None for e in entries):
+        return 2
     codes = [
         e.result.error.get("code", "unknown")
-        for e in report["entries"]
+        for e in entries
         if e.result is not None and e.result.error
     ]
     if not codes:
