@@ -85,6 +85,14 @@
       "content": "Commit: 680cd81d4",
       "caused_by": [],
       "leads_to": []
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-06-20T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Correct PR #2692 episode commit metric after session-evidence extraction added the third commit event.",
+      "caused_by": [],
+      "leads_to": []
     }
   ],
   "metrics": {
@@ -92,7 +100,7 @@
     "tool_calls": 0,
     "errors": 0,
     "recoveries": 0,
-    "commits": 2,
+    "commits": 3,
     "files_changed": 6
   },
   "lessons": []

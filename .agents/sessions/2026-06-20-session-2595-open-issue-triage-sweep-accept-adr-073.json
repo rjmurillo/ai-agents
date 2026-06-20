@@ -136,7 +136,11 @@
     },
     {
       "task": "Autofix PR #2692 post-merge review feedback.",
-      "outcome": "Lease timestamp fixtures now use valid RFC3339 datetime arithmetic; adr-review checklist no longer suggests invalid needs-revision frontmatter; episode commit metric matches two commit events."
+      "outcome": "Lease timestamp fixtures now use valid RFC3339 datetime arithmetic; adr-review checklist no longer suggests invalid needs-revision frontmatter."
+    },
+    {
+      "task": "Correct PR #2692 episode commit metric after session-evidence extraction added the third commit event.",
+      "outcome": "Episode metrics.commits now matches the three commit events in the extracted episode."
     }
   ],
   "endingCommit": "680cd81d4",
