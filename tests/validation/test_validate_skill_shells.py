@@ -31,7 +31,14 @@ import validate_skill_shells as vss  # noqa: E402
 
 def _git(repo: Path, *args: str) -> None:
     """Run a git command in ``repo``, failing the test loudly on error."""
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
 
 
 @pytest.fixture
@@ -109,13 +116,20 @@ class TestFindSkillShells:
 
         assert vss.find_skill_shells(repo) == [".claude/skills/mixed"]
 
-    def test_untracked_skill_md_saves_a_tracked_shell(self, repo: Path) -> None:
-        # SKILL.md staged in the working tree but not yet committed should not
-        # read as a shell: the manifest exists on disk.
+    def test_untracked_skill_md_does_not_save_a_tracked_shell(self, repo: Path) -> None:
+        # An untracked manifest does not exist in CI or a clean clone.
         base = repo / ".claude" / "skills" / "staging"
         _write(base / "scripts" / "run.py")
         _commit(repo)
         _write(base / "SKILL.md", "---\nname: staging\n---\n")
+
+        assert vss.find_skill_shells(repo) == [".claude/skills/staging"]
+
+    def test_tracked_skill_md_saves_a_tracked_shell(self, repo: Path) -> None:
+        base = repo / ".claude" / "skills" / "staging"
+        _write(base / "scripts" / "run.py")
+        _write(base / "SKILL.md", "---\nname: staging\n---\n")
+        _commit(repo)
 
         assert vss.find_skill_shells(repo) == []
 

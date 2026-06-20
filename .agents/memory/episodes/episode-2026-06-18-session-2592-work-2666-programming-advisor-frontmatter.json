@@ -1,0 +1,91 @@
+{
+  "id": "episode-2026-06-18-session-2592-work-2666-programming-advisor-frontmatter",
+  "session": "2026-06-18-session-2592-work-2666-programming-advisor-frontmatter",
+  "timestamp": "2026-06-18T00:00:00+00:00",
+  "outcome": "success",
+  "task": "Fix #2666: add missing top-level version field to programming-advisor SKILL.md frontmatter",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Read issue #2666 via get_issue_context.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Branched fix/2666-programming-advisor-frontmatter-version off origin/main eff30e3ab4",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Added top-level version: 1.0.0 to .claude/skills/programming-advisor/SKILL.md (matching the existing nested metadata.version)",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran skill_frontmatter.py --changed-files on canonical",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Regenerated mirrors via build/scripts/build_all.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran pre_pr.py",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "test",
+      "content": "Ran pre_pr.py   All validations passed (25 passed, 0 failed, 4 skipped).",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 435ab3bb",
+      "caused_by": [],
+      "leads_to": []
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-06-18T00:00:00+00:00",
+      "type": "commit",
+      "content": "Commit: 7c1090a48",
+      "caused_by": [],
+      "leads_to": []
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 0,
+    "tool_calls": 0,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 4
+  },
+  "lessons": []
+}

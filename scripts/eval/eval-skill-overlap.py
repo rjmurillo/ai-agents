@@ -293,7 +293,10 @@ def _coerce_report_payload(report: ReportRef) -> dict[str, Any]:
     if isinstance(report, dict):
         return report
     if isinstance(report, (str, Path)):
-        path = Path(report)
+        path = Path(report).expanduser().resolve()
+        repo_root = REPO_ROOT.resolve()
+        if not path.is_relative_to(repo_root):
+            raise ReportVerdictError(f"Cited report path is outside repo root: {path}")
         if path.is_dir():
             path = path / "matrix.json"
         try:
@@ -332,7 +335,12 @@ def load_report_verdicts(report: ReportRef) -> dict[frozenset[str], str]:
     """
     payload = _coerce_report_payload(report)
     verdicts: dict[frozenset[str], str] = {}
-    for pair in payload.get("pairs", []):
+    pairs = payload.get("pairs")
+    if pairs is None:
+        pairs = []
+    if not isinstance(pairs, list):
+        raise ReportVerdictError("Cited report field 'pairs' is not a list.")
+    for pair in pairs:
         try:
             key = frozenset({pair["skill_a"], pair["skill_b"]})
             verdicts[key] = pair["verdict"]
@@ -371,7 +379,10 @@ def validate_retirement_claim(
     """
     if not is_retirement_verdict(claimed_verdict):
         return False
-    report_verdict = report_verdict_for_pair(report, skill_a, skill_b)
+    try:
+        report_verdict = report_verdict_for_pair(report, skill_a, skill_b)
+    except ReportVerdictError:
+        return False
     return report_verdict == claimed_verdict
 
 

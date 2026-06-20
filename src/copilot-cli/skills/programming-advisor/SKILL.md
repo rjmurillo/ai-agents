@@ -1,5 +1,6 @@
 ---
 name: programming-advisor
+version: 1.0.0
 description: Evaluate existing solutions (libraries, SaaS, open source) AND internal prior-art before custom development to avoid reinventing the wheel. Use when considering building new features, asking "should I build or use existing", "do we already have this", "is there existing code for X in this repo", "is there a library for this", or need build vs buy cost analysis with token estimates. Checks internal reuse (leverage/extend) before external. Do NOT use for strategic multi-option TCO (use buy-vs-build-framework).
 license: MIT
 metadata:

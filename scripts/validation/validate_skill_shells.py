@@ -77,7 +77,8 @@ def _tracked_files(repo_root: Path, rel_dir: str) -> list[str]:
         ["git", "ls-files", "-z", "--", rel_dir],
         cwd=repo_root,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     # -z gives a NUL-separated, quote-free list (handles paths with spaces).
@@ -89,17 +90,15 @@ def _is_pycache(rel_path: str) -> bool:
     return PYCACHE_SEGMENT in rel_path.split("/")
 
 
-def _has_skill_manifest(repo_root: Path, skill_dir_rel: str, tracked: list[str]) -> bool:
-    """True when ``SKILL.md`` exists for the skill, tracked or on disk.
+def _has_skill_manifest(skill_dir_rel: str, tracked: list[str]) -> bool:
+    """True when ``SKILL.md`` is tracked for the skill.
 
-    A shell is defined by the manifest being gone. Check both the tracked set
-    (a clone's view) and the working tree (a manifest staged but not yet
-    committed should not read as a shell).
+    The validator keys on git-tracked content, so the manifest must also be
+    tracked. An untracked working-tree ``SKILL.md`` cannot protect CI or clean
+    clones from a committed shell.
     """
     manifest_rel = f"{skill_dir_rel}/{SKILL_MANIFEST}"
-    if manifest_rel in tracked:
-        return True
-    return (repo_root / manifest_rel).is_file()
+    return manifest_rel in tracked
 
 
 def _iter_skill_dirs(repo_root: Path, root_rel: str) -> list[str]:
@@ -144,7 +143,7 @@ def find_skill_shells(repo_root: Path) -> list[str]:
             content = [p for p in tracked if not _is_pycache(p)]
             if not content:
                 continue
-            if _has_skill_manifest(repo_root, skill_dir_rel, tracked):
+            if _has_skill_manifest(skill_dir_rel, tracked):
                 continue
             shells.append(skill_dir_rel)
     return sorted(shells)

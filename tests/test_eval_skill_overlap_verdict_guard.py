@@ -140,6 +140,28 @@ def test_validate_returns_false_for_distinct_pair():
     assert backed is False
 
 
+def test_validate_returns_false_when_report_is_missing(tmp_path):
+    backed = eso.validate_retirement_claim(
+        "curating-memories",
+        "memory-enhancement",
+        "SUBSUMED",
+        tmp_path / "missing-report",
+    )
+
+    assert backed is False
+
+
+def test_validate_returns_false_when_pair_is_absent():
+    backed = eso.validate_retirement_claim(
+        "curating-memories",
+        "memory-enhancement",
+        "SUBSUMED",
+        {"pairs": []},
+    )
+
+    assert backed is False
+
+
 # ===========================================================================
 # Negative control: a genuine SUBSUMED pair still emits the retirement claim
 # ===========================================================================
@@ -245,6 +267,15 @@ def test_load_report_verdicts_maps_each_pair():
     assert verdicts[frozenset({"exploring-knowledge-graph", "memory"})] == "SUBSUMED"
 
 
+def test_load_report_verdicts_treats_explicit_null_pairs_as_empty():
+    assert eso.load_report_verdicts({"pairs": None}) == {}
+
+
+def test_load_report_verdicts_raises_when_pairs_is_not_a_list():
+    with pytest.raises(eso.ReportVerdictError):
+        eso.load_report_verdicts({"pairs": {}})
+
+
 def test_load_report_verdicts_raises_on_malformed_pair():
     # Negative: a pair entry missing the verdict field is malformed input.
     bad = {"pairs": [{"skill_a": "a", "skill_b": "b"}]}
@@ -257,21 +288,43 @@ def test_load_report_verdicts_raises_on_malformed_pair():
 # ===========================================================================
 
 
-def test_coerce_reads_matrix_json_from_directory(tmp_path):
+def test_coerce_reads_matrix_json_from_directory(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(eso, "REPO_ROOT", tmp_path)
     report_dir = _write_report_dir(tmp_path, _M4_REPORT)
     payload = eso._coerce_report_payload(report_dir)
     assert payload["run_id"] == "m4-overlap-1949-2026-06-17"
 
 
-def test_coerce_reads_matrix_json_from_file_path(tmp_path):
+def test_coerce_reads_matrix_json_from_file_path(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(eso, "REPO_ROOT", tmp_path)
     report_dir = _write_report_dir(tmp_path, _M4_REPORT)
     payload = eso._coerce_report_payload(report_dir / "matrix.json")
     assert payload["pairs"][0]["verdict"] == "DISTINCT"
 
 
-def test_coerce_raises_when_report_file_missing(tmp_path):
+def test_coerce_raises_when_report_file_missing(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(eso, "REPO_ROOT", tmp_path)
     with pytest.raises(eso.ReportVerdictError):
         eso._coerce_report_payload(tmp_path / "overlap-missing")
+
+
+def test_coerce_raises_when_report_path_escapes_repo(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    monkeypatch.setattr(eso, "REPO_ROOT", repo_root)
+    report = tmp_path / "matrix.json"
+    report.write_text(json.dumps(_M4_REPORT), encoding="utf-8")
+
+    with pytest.raises(eso.ReportVerdictError):
+        eso._coerce_report_payload(report)
 
 
 def test_coerce_raises_on_non_json_report(tmp_path):
