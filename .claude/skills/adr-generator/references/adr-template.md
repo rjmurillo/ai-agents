@@ -7,6 +7,17 @@ During Phase G2 (Research), the skill detects which template is in use at the de
 ---
 
 ```markdown
+---
+id: ADR-NNN
+status: proposed
+date: YYYY-MM-DD
+decision-makers: []
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+---
+
 # ADR-NNN: [Title]
 
 ## Status
