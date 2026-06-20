@@ -23,6 +23,11 @@ dev = [
     "ruff>=0.15.16",
     "mypy>=2.1.0",
 ]
+eval = [
+    # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
+    # anthropic is already a core dependency; the default eval needs no extra.
+    "openai>=1.40",
+]
 
 [build-system]
 requires = ["setuptools>=82.0.1"]

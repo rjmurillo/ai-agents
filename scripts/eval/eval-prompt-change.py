@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -549,6 +550,17 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs, no API calls")
     parser.add_argument("--output", type=str, help="Write results to file")
+    parser.add_argument(
+        "--provider",
+        type=str,
+        default=None,
+        help=(
+            "Transport provider: anthropic (default), openai, codex, "
+            "github, github-models, anthropic-sdk. Baseline and variant "
+            "run on the SAME provider; cross-provider scores are not "
+            "comparable (ADR-058)."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -668,6 +680,8 @@ def _print_gate_summary(gate: dict[str, Any]) -> None:
 
 def main() -> None:
     args = _parse_args()
+    if getattr(args, "provider", None):
+        os.environ["EVAL_PROVIDER"] = args.provider
 
     try:
         scenarios = load_scenarios(args.scenarios)
