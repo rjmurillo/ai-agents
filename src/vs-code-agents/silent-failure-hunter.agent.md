@@ -4,7 +4,6 @@ argument-hint: Point to the PR, diff, or files whose error handling to audit
 tools:
   - vscode
   - read
-  - edit
   - search
   - github/search_code
   - github/search_issues

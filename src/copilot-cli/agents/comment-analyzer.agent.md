@@ -4,7 +4,6 @@ description: 'Use this agent when you need to analyze code comments for accuracy
 argument-hint: Point to the comments or PR to review for accuracy
 tools:
   - read
-  - edit
   - search
   - github/search_code
   - github/search_issues
@@ -19,7 +18,7 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.6
+model: claude-sonnet-4.6
 tier: integration
 ---
 

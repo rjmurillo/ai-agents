@@ -4,7 +4,6 @@ description: Use this agent when reviewing code changes in a pull request to ide
 argument-hint: Point to the PR, diff, or files whose error handling to audit
 tools:
   - read
-  - edit
   - search
   - github/search_code
   - github/search_issues

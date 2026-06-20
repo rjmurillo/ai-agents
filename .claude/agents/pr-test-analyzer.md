@@ -7,7 +7,7 @@ metadata:
 argument-hint: Point to the PR or changes whose test coverage to assess
 ---
 
-# Pr Test Analyzer Agent
+# PR Test Analyzer Agent
 
 You analyze pull-request test coverage. You produce a ranked list of gaps with file:line evidence and a single recommendation. You measure behavioral coverage, not line coverage.
 

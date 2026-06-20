@@ -4,7 +4,6 @@ argument-hint: Point to the comments or PR to review for accuracy
 tools:
   - vscode
   - read
-  - edit
   - search
   - github/search_code
   - github/search_issues
@@ -20,7 +19,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Opus 4.6 (copilot)
+model: Claude Sonnet 4.6 (copilot)
 tier: integration
 ---
 
