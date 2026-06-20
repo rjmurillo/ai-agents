@@ -20,7 +20,8 @@ plus the three debate-log security must_fix items:
 plus the TESTING-RIGOR matrix (positive, negative, edge, every branch, CLI
 exit codes) with all I/O mocked.
 
-Exit codes follow ADR-035:
+Exit codes follow the sibling check_pr_live_state.py ACT/SKIP convention,
+within the ADR-035 numeric range:
     0 - ACT (proceed)
     1 - SKIP (another live lease holds the branch)
     2 - PR not found / usage error
@@ -680,6 +681,21 @@ class TestIOAdapter:
         with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=payload)):
             comments = _mod.list_lease_comments("o", "r", 1)
         assert comments[0]["body"] == "hi"
+
+    def test_list_returns_parsed_concatenated_arrays(self):
+        payload = '[{"body": "hi"}][{"body": "there"}]'
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout=payload)):
+            comments = _mod.list_lease_comments("o", "r", 1)
+        assert [comment["body"] for comment in comments] == ["hi", "there"]
+
+    def test_list_handles_null_payload(self):
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout="null")):
+            assert _mod.list_lease_comments("o", "r", 1) == []
+
+    def test_list_raises_store_error_on_non_list_payload(self):
+        with patch.object(_mod.subprocess, "run", return_value=_completed(stdout='{"bad": true}')):
+            with pytest.raises(LeaseStoreError):
+                _mod.list_lease_comments("o", "r", 1)
 
     def test_post_raises_store_error_on_nonzero_exit(self):
         with patch.object(_mod.subprocess, "run", return_value=_completed(rc=1, stderr="x")):

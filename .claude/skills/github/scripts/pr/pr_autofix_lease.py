@@ -103,6 +103,7 @@ The lease is never an authorization; only the SHA gate gates a push.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -549,14 +550,34 @@ def _gh_comment_endpoint(owner: str, repo: str, pr: int) -> str:
     return f"repos/{owner}/{repo}/issues/{pr}/comments"
 
 
+def _parse_paginated_json_arrays(raw_stdout: str) -> list[dict]:
+    """Parse one or more JSON array documents emitted by ``gh api --paginate``."""
+    raw = raw_stdout.strip()
+    if not raw:
+        return []
+    decoder = json.JSONDecoder()
+    comments: list[dict] = []
+    pos = 0
+    while pos < len(raw):
+        while pos < len(raw) and raw[pos].isspace():
+            pos += 1
+        if pos >= len(raw):
+            break
+        payload, pos = decoder.raw_decode(raw, pos)
+        if payload is None:
+            continue
+        if not isinstance(payload, list):
+            raise LeaseStoreError("comment list returned non-list JSON payload")
+        comments.extend(item for item in payload if isinstance(item, dict))
+    return comments
+
+
 def list_lease_comments(owner: str, repo: str, pr: int) -> list[dict]:
     """Return PR issue comments (oldest first). Raises LeaseStoreError.
 
     Wraps ``gh api`` paginated read. A non-zero exit or malformed JSON is a
     store failure, surfaced as ``LeaseStoreError`` so the caller fails open.
     """
-    import json
-
     endpoint = _gh_comment_endpoint(owner, repo, pr) + "?per_page=100"
     try:
         result = subprocess.run(
@@ -574,12 +595,10 @@ def list_lease_comments(owner: str, repo: str, pr: int) -> list[dict]:
             f"comment list exited {result.returncode}: {safe_log_str((result.stderr or '')[:200])}"
         )
     try:
-        # gh --paginate concatenates JSON arrays as separate documents only
-        # when not combined; with REST issue comments it returns one array.
-        parsed = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError as exc:
+        parsed = _parse_paginated_json_arrays(result.stdout or "")
+    except (json.JSONDecodeError, ValueError, LeaseStoreError) as exc:
         raise LeaseStoreError(f"comment list returned non-JSON: {exc}") from exc
-    return parsed if isinstance(parsed, list) else []
+    return parsed
 
 
 def post_lease_comment(owner: str, repo: str, pr: int, body: str) -> None:
