@@ -32,7 +32,7 @@ VERIFICATION (3-4)     Generate verification questions
 CHALLENGE (5-6)        Contrarian perspective + alternative framing
         |
         v
-SYNTHESIS (7)          Verdict: STAND (clean | flagged) | REVISE | ESCALATE
+SYNTHESIS (7)          Verdict: STAND (clean or flagged) | REVISE | ESCALATE
 ```
 
 ## Scripts
