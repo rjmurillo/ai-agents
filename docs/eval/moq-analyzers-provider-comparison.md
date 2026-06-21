@@ -192,6 +192,59 @@ Reproduce (strong models): Opus via `claude -p --output-format json
 with the `.cs` file piped on stdin. Both bypass the API budget through CLI
 subscription auth.
 
+## Within-family version sweep: does the point release move the grade?
+
+Ran the older point releases of each family on the same three files: Claude
+`opus-4-7` and `opus-4-6` (via `claude -p`), and codex `gpt-5.4` (via `codex
+exec`). `gpt-5.3` is unavailable: codex returns HTTP 400, "The 'gpt-5.3' model is
+not supported when using Codex with a ChatGPT account."
+
+Overall score per file (1-10):
+
+| model | MockDetectionHelpers | MockBehaviorBase | CallbackFixer |
+| :--- | :-- | :-- | :-- |
+| opus-4-8 | 6 | 6 | 7 |
+| opus-4-7 | 7 | 6 | 7 |
+| opus-4-6 | 7 | 6 | 7 |
+| gpt-5.5 | 8 | 7 | 8 |
+| gpt-5.4 | 8 | 7 | 8 |
+
+**Headline: within-family drift is tiny; the cross-family gap is the whole story.**
+The Claude family clusters at 6-7 overall; the OpenAI family clusters at 7-8. The
+model FAMILY sets the grading posture (Claude strict, OpenAI lenient). The point
+release inside a family barely moves the number.
+
+Claude family (4.8 vs 4.7 vs 4.6):
+
+- Overall verdict is stable across all three versions: same number on
+  MockBehaviorBase (6) and CallbackFixer (7); a 1-point wobble on
+  MockDetectionHelpers where 4.8 is the strictest (6 vs 7), driven by lower
+  encapsulation (6 vs 7-8) and non-redundancy (5 vs 7). So the newest Opus grades
+  marginally harder, not softer.
+- All three independently catch the same design debt: the `IsValid*`
+  single-type-arg duplication, the two overload pairs differing only by
+  `mockedTypeName`, the `MoqKnownSymbols` coupling, the Roslyn testability
+  ceiling, and the asymmetric delegate-constructor guard in the fixer. The Opus
+  design-debt lens is consistent version to version, not a 4.8-only trait.
+
+codex family (gpt-5.5 vs gpt-5.4):
+
+- Identical overall on all three files (8 / 7 / 8). Per-quality wobble is minor
+  (gpt-5.4 rates encapsulation a touch higher, cohesion a touch lower; same mean).
+- Two real differences, neither in the score:
+  - Latency: gpt-5.4 at `xhigh` took ~107-125s per file, roughly 4x gpt-5.5's
+    ~28-35s. The newer release is much faster for the same grade.
+  - Findings: gpt-5.4 was MORE bug-grounded than gpt-5.5. It flagged the
+    imprecise `GetDiagnosticLocation` (first `GenericNameSyntax` descendant) and
+    the `Constructor != null` over-constraint, two of the correctness issues
+    gpt-5.5 missed and GPT-5 caught. It also cites line ranges. So the terse,
+    bug-light register of gpt-5.5 is a 5.5 trait, not an OpenAI-family trait.
+
+Reliability note: `claude -p` has no output-schema flag, so its JSON is
+best-effort; `opus-4-6` returned one fenced, truncated object (MockBehaviorBase)
+that needed a re-run. codex `--output-schema` never broke across all runs. If you
+drive Claude as an eval grader, validate and retry the JSON.
+
 ## Takeaway
 
 - Stronger models do not just move the number; they change the finding type.
@@ -205,6 +258,12 @@ subscription auth.
   want a number you trust without manual recalibration. The mid-tier agreement in
   the first comparison was a false comfort: it agreed because it missed the hard
   parts.
+- The grade is set by model FAMILY, not point release. Across 4.8/4.7/4.6 and
+  5.5/5.4 the overall scores barely move within a family (<=1 point), while the
+  Claude-vs-OpenAI gap is a steady 1-2 points. Pin the family for a comparable
+  baseline; a point upgrade does not silently re-baseline your scores. Latency and
+  finding quality DO shift with the release (gpt-5.5 is ~4x faster than gpt-5.4 but
+  terser and less bug-aware), so re-check those, not the number, on upgrade.
 
 ## #2710 limitation found (now fixed)
 
