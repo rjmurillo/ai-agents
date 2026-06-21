@@ -245,6 +245,39 @@ best-effort; `opus-4-6` returned one fenced, truncated object (MockBehaviorBase)
 that needed a re-run. codex `--output-schema` never broke across all runs. If you
 drive Claude as an eval grader, validate and retry the JSON.
 
+## Effort dimension: gpt-5.5 at medium / high / xhigh
+
+Swept reasoning effort on a fixed model (gpt-5.5), same files and rubric. `max` is
+unavailable: codex reports "Invalid value: 'max'. Supported values are: 'none',
+'minimal', 'low', 'medium', 'high', and 'xhigh'." So xhigh is the ceiling.
+
+Overall score and per-run latency:
+
+| effort | MockDetectionHelpers | MockBehaviorBase | CallbackFixer | avg latency |
+| :--- | :-- | :-- | :-- | :-- |
+| medium | 8 | 7 | 7 | ~19s |
+| high | 8 | 7 | 7 | ~21s |
+| xhigh | 8 | 7 | 8 | ~31s |
+
+**Effort barely moves the grade.** medium and high produce identical overall
+scores on all three files. xhigh adds exactly one point, on CallbackFixer (8 vs
+7), and the only systematic per-quality shift is cohesion: xhigh rates it 9 on all
+three files where medium and high rate it 8. That single +1 is what tips
+CallbackFixer's rounded mean to 8. Every other quality stays within 1 point across
+the three efforts.
+
+Latency rises with effort (medium ~19s, xhigh ~31s, roughly 1.6x), but with one
+sample per cell it is noisy: `high` on MockBehaviorBase came back faster than
+`medium`. Treat the latency direction as real and the exact numbers as
+approximate.
+
+For this maintainability rubric, medium effort is the cost-effective setting: it
+matches high exactly and trails xhigh by at most one point on one file, at roughly
+two-thirds the latency. Spend xhigh only when you also want the richer,
+bug-grounded findings the higher tiers tend to produce, not for the score. Note
+this dimension is codex/OpenAI-specific; `claude -p` exposes no equivalent
+named-effort flag, so the Claude family was not swept on effort.
+
 ## Takeaway
 
 - Stronger models do not just move the number; they change the finding type.
@@ -264,6 +297,12 @@ drive Claude as an eval grader, validate and retry the JSON.
   baseline; a point upgrade does not silently re-baseline your scores. Latency and
   finding quality DO shift with the release (gpt-5.5 is ~4x faster than gpt-5.4 but
   terser and less bug-aware), so re-check those, not the number, on upgrade.
+- Reasoning effort moves the grade even less than the point release. medium = high
+  on every file; xhigh adds at most 1 point (one file). For this rubric, run
+  medium and save ~1/3 the latency; reserve xhigh for richer findings, not a
+  different score. The two knobs that actually change the verdict are model FAMILY
+  (posture) and prompt RIGOR (bug-hunt vs rubric-only), not the version or effort
+  dial.
 
 ## #2710 limitation found (now fixed)
 
