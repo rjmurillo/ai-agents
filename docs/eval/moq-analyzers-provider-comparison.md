@@ -102,23 +102,27 @@ Caveat: the openai package is required for the openai/github transports
 
 ---
 
-## Addendum: strong models (Opus, GPT-5) - do they find something else?
+## Addendum: strong models (Opus, GPT-5, gpt-5.5) - do they find something else?
 
 Yes, and they find different KINDS of things. Anthropic API budget is exhausted,
-so Opus ran via the `claude -p` CLI (subscription); GPT-5 ran on github-models
-but only after dropping `max_tokens`/`temperature` for `max_completion_tokens`
-(see the #2710 limitation below).
+so Opus ran via the `claude -p` CLI (subscription, model `claude-opus-4-8`);
+GPT-5 ran on github-models but only after dropping `max_tokens`/`temperature`
+for `max_completion_tokens` (see the #2710 limitation below); gpt-5.5 ran via the
+`codex exec` CLI (ChatGPT subscription, `model = gpt-5.5`, reasoning effort
+`xhigh`, `--output-schema` forcing the JSON shape). The two CLI transports both
+bypass the exhausted API budget, the same reason `claude -p` carried Opus.
 
 ## Overall scores, all tiers
 
-| file | mid-tier (gpt-4o/mistral/deepseek) | Opus | GPT-5 |
-| :--- | :-- | :-- | :-- |
-| MockDetectionHelpers | 8 | **6** | 9 |
-| MockBehaviorDiagnosticAnalyzerBase | 7-8 | **6** | 8 |
-| CallbackSignatureShouldMatchMockedMethodFixer | 7-8 | 7 | 8 |
+| file | mid-tier (gpt-4o/mistral/deepseek) | Opus | GPT-5 | gpt-5.5 |
+| :--- | :-- | :-- | :-- | :-- |
+| MockDetectionHelpers | 8 | **6** | 9 | 8 |
+| MockBehaviorDiagnosticAnalyzerBase | 7-8 | **6** | 8 | 7 |
+| CallbackSignatureShouldMatchMockedMethodFixer | 7-8 | 7 | 8 | 8 |
 
 The mid-tier "everyone agrees within 1 point" was agreement on the EASY signal.
-The strong models break that consensus in opposite directions.
+The strong models break that consensus in opposite directions: Opus grades down,
+GPT-5 grades up, and gpt-5.5 lands between them.
 
 ## Opus = strictest grader + design-debt lens
 
@@ -153,15 +157,54 @@ mentioned:
 - API design: `GetMockedTypeName` internal virtual should be protected; stateless
   helpers could be static; the `"T"` magic-string fallback.
 
+## gpt-5.5 (codex) = the calibrated middle, design lens, no bug-hunt
+
+gpt-5.5 at `xhigh` scores between Opus and GPT-5: overall **8 / 7 / 8** across the
+three files. On overall and on the two most divisive axes (testability,
+non-redundancy) it lands strictly between Opus and GPT-5 on all three files;
+milder than Opus, stricter than GPT-5. (One outlier: it rated
+`MockBehaviorDiagnosticAnalyzerBase` encapsulation 8, above both Opus and GPT-5 at
+7.)
+
+- Same design debt Opus caught, scored milder: the `TypeArguments.Length == 1`
+  single-type-arg extraction duplicated across
+  `IsValidMockOfInvocation`/`IsValidMockInvocation`; the two
+  `TryReportMockBehaviorDiagnostic` and two `TryHandleMissingMockBehaviorParameter`
+  overloads differing only by `mockedTypeName`; `MoqKnownSymbols` constructed
+  directly rather than injected (coupling + use-mixed-with-creation); the Roslyn
+  `OperationAnalysisContext`/`CompilationStartAnalysisContext` testability ceiling.
+- Did NOT surface the correctness or performance bugs GPT-5 uniquely found. No
+  mention of imprecise `GetDiagnosticLocation` as a bug, the `Constructor != null`
+  over-constraint, the fragile `FindToken(...).Parent`, the unguarded duplicate
+  parameter names, or the `ImmutableDictionary` hot-path allocation. It named
+  `GetDiagnosticLocation` only as needing Roslyn fixtures to test, not as a risk.
+- Register differs: gpt-5.5 writes a balanced reviewer's note (leads with the
+  cohesion/encapsulation strengths, then states the issue) where GPT-5 emits a
+  terse issue list. gpt-5.5 stayed faithful to the maintainability rubric; GPT-5
+  exceeded it by hunting bugs.
+- Reliability: 3/3 clean JSON via codex `--output-schema`, ~28-35s per file at
+  `xhigh`. No parse failures (contrast llama-3.3's JSON breakage on the github
+  transport).
+
+Reproduce (strong models): Opus via `claude -p --output-format json
+--append-system-prompt <rubric> --model claude-opus-4-8`; gpt-5.5 via `codex exec
+-m gpt-5.5 -s read-only --ephemeral --output-schema <schema.json> -o <out> "<rubric>"`
+with the `.cs` file piped on stdin. Both bypass the API budget through CLI
+subscription auth.
+
 ## Takeaway
 
 - Stronger models do not just move the number; they change the finding type.
-  GPT-5 = best bug/perf finder (most actionable). Opus = strictest grader +
-  design-discipline. Mid-tier = fast consensus on the obvious, blind to the
-  subtle (over-generous on non-redundancy/testability).
+  GPT-5 = best bug/perf finder (most actionable, exceeds the rubric). Opus =
+  strictest grader + design-discipline. gpt-5.5 = the calibrated middle: agrees
+  with Opus's design-debt signal at milder scores, rubric-faithful, but does not
+  bug-hunt. Mid-tier = fast consensus on the obvious, blind to the subtle
+  (over-generous on non-redundancy/testability).
 - For an eval provider you want rigor from: GPT-5 (richest, catches latent bugs)
-  or Opus (harshest, catches design debt). The mid-tier agreement in the first
-  comparison was a false comfort: it agreed because it missed the hard parts.
+  or Opus (harshest, catches design debt). gpt-5.5 is the steadiest grader if you
+  want a number you trust without manual recalibration. The mid-tier agreement in
+  the first comparison was a false comfort: it agreed because it missed the hard
+  parts.
 
 ## #2710 limitation found (now fixed)
 
