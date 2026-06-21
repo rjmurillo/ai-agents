@@ -245,13 +245,23 @@ best-effort; `opus-4-6` returned one fenced, truncated object (MockBehaviorBase)
 that needed a re-run. codex `--output-schema` never broke across all runs. If you
 drive Claude as an eval grader, validate and retry the JSON.
 
-## Effort dimension: gpt-5.5 at medium / high / xhigh
+## Effort dimension: codex and Claude
 
-Swept reasoning effort on a fixed model (gpt-5.5), same files and rubric. `max` is
-unavailable: codex reports "Invalid value: 'max'. Supported values are: 'none',
-'minimal', 'low', 'medium', 'high', and 'xhigh'." So xhigh is the ceiling.
+Both CLIs expose a reasoning-effort knob, with different ceilings:
 
-Overall score and per-run latency:
+- codex: `-c model_reasoning_effort=<level>`, levels `none, minimal, low, medium,
+  high, xhigh`. `max` is rejected: "Invalid value: 'max'. Supported values are:
+  'none', 'minimal', 'low', 'medium', 'high', and 'xhigh'." xhigh is the ceiling.
+- Claude: `claude --effort <level>`, levels `low, medium, high, xhigh, max`.
+  Claude DOES support `max`; codex does not.
+
+Caveat on earlier Opus runs: this host had `CLAUDE_EFFORT=xhigh` set in the
+session environment, which `claude -p` inherits. So the strong-model and
+version-sweep Opus numbers above were all produced at xhigh. The explicit xhigh
+run below reproduces opus-4-8 at 6/6/7 exactly, confirming both the inheritance
+and the run-to-run stability.
+
+### gpt-5.5 (codex), overall + latency
 
 | effort | MockDetectionHelpers | MockBehaviorBase | CallbackFixer | avg latency |
 | :--- | :-- | :-- | :-- | :-- |
@@ -259,24 +269,36 @@ Overall score and per-run latency:
 | high | 8 | 7 | 7 | ~21s |
 | xhigh | 8 | 7 | 8 | ~31s |
 
-**Effort barely moves the grade.** medium and high produce identical overall
-scores on all three files. xhigh adds exactly one point, on CallbackFixer (8 vs
-7), and the only systematic per-quality shift is cohesion: xhigh rates it 9 on all
-three files where medium and high rate it 8. That single +1 is what tips
-CallbackFixer's rounded mean to 8. Every other quality stays within 1 point across
-the three efforts.
+Effort barely moves the codex grade. medium and high are identical on all three
+files; xhigh adds one point (CallbackFixer), via a systematic +1 cohesion. Latency
+rises ~1.6x medium to xhigh.
 
-Latency rises with effort (medium ~19s, xhigh ~31s, roughly 1.6x), but with one
-sample per cell it is noisy: `high` on MockBehaviorBase came back faster than
-`medium`. Treat the latency direction as real and the exact numbers as
-approximate.
+### opus-4-8 (Claude, --effort forced), overall + latency
 
-For this maintainability rubric, medium effort is the cost-effective setting: it
-matches high exactly and trails xhigh by at most one point on one file, at roughly
-two-thirds the latency. Spend xhigh only when you also want the richer,
-bug-grounded findings the higher tiers tend to produce, not for the score. Note
-this dimension is codex/OpenAI-specific; `claude -p` exposes no equivalent
-named-effort flag, so the Claude family was not swept on effort.
+| effort | MockDetectionHelpers | MockBehaviorBase | CallbackFixer | avg latency |
+| :--- | :-- | :-- | :-- | :-- |
+| medium | 7 | 5 | 7 | ~24s |
+| high | 7 | 6 | 7 | ~22s |
+| xhigh | 6 | 6 | 7 | ~31s |
+| max | 6 | 5 | 7 | ~56s |
+
+The Claude grade also stays in a 1-point band, but it wobbles
+**non-monotonically**: more effort is not more strict. MockDetectionHelpers drifts
+down (7,7,6,6), MockBehaviorBase goes up then down (5,6,6,5), CallbackFixer is flat
+(7,7,7,7). No clean "higher effort = different verdict" signal. Latency, by
+contrast, scales hard and monotonically: max (~56s) is ~2.4x medium (~24s), one
+file hitting 68s.
+
+### What effort buys
+
+Effort is the weakest of the four dimensions for the score, on both families:
+within a 1-point band, no reliable direction. It mostly buys latency (1.6x on
+codex, 2.4x on Claude). For this maintainability rubric, run medium: it matches or
+ties high everywhere and trails the top tier by at most one point on one file, at a
+fraction of the wall-clock. Spend xhigh/max only for the richer, more bug-grounded
+findings the top tiers tend to produce, not for a different number. Caveat: one
+sample per cell, so treat single-point score wobbles as noise and the latency
+direction as real.
 
 ## Takeaway
 
@@ -297,12 +319,14 @@ named-effort flag, so the Claude family was not swept on effort.
   baseline; a point upgrade does not silently re-baseline your scores. Latency and
   finding quality DO shift with the release (gpt-5.5 is ~4x faster than gpt-5.4 but
   terser and less bug-aware), so re-check those, not the number, on upgrade.
-- Reasoning effort moves the grade even less than the point release. medium = high
-  on every file; xhigh adds at most 1 point (one file). For this rubric, run
-  medium and save ~1/3 the latency; reserve xhigh for richer findings, not a
-  different score. The two knobs that actually change the verdict are model FAMILY
-  (posture) and prompt RIGOR (bug-hunt vs rubric-only), not the version or effort
-  dial.
+- Reasoning effort moves the grade even less than the point release, on BOTH
+  families. codex: medium = high on every file, xhigh adds at most 1 point. Claude
+  (`--effort low/medium/high/xhigh/max`, max is Claude-only): grade wobbles
+  non-monotonically inside a 1-point band, no direction. Effort mostly buys latency
+  (1.6x codex, 2.4x Claude). Run medium for this rubric; reserve the top tiers for
+  richer findings, not a different score. The two knobs that actually change the
+  verdict are model FAMILY (posture) and prompt RIGOR (bug-hunt vs rubric-only),
+  not the version or effort dial.
 
 ## #2710 limitation found (now fixed)
 
